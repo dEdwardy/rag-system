@@ -86,6 +86,11 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.ok(askResult.citations.length >= 1);
     assert.ok(Array.isArray(askResult.retrievedChunks));
     assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(marker)));
+    assert.equal(
+      askResult.answerStatus === "grounded" || askResult.answerStatus === "insufficient_context",
+      true
+    );
+    assert.ok(Array.isArray(askResult.missingInformation));
 
     const conversationMessagesResponse = await fetch(
       `http://localhost:${port}/conversations/${askResult.conversationId}/messages`
@@ -160,6 +165,11 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.match(askAfterReindex.answer, /storage\/vectors/i);
     assert.ok(Array.isArray(askAfterReindex.retrievedChunks));
     assert.ok(askAfterReindex.retrievedChunks.some(chunk => chunk.content.includes(marker)));
+    assert.equal(
+      askAfterReindex.answerStatus === "grounded" || askAfterReindex.answerStatus === "insufficient_context",
+      true
+    );
+    assert.ok(Array.isArray(askAfterReindex.missingInformation));
   } finally {
     server.kill("SIGTERM");
     rmSync(storageRoot, { recursive: true, force: true });

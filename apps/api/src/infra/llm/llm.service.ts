@@ -99,9 +99,8 @@ export class LlmService {
     }
 
     return {
-      answer,
       modelName: `ollama:${model}`,
-      citedChunkNumbers: this.extractCitedChunkNumbers(answer)
+      ...this.parseAnswerOutput(answer)
     };
   }
 
@@ -148,9 +147,8 @@ export class LlmService {
     }
 
     return {
-      answer,
       modelName: model,
-      citedChunkNumbers: this.extractCitedChunkNumbers(answer)
+      ...this.parseAnswerOutput(answer)
     };
   }
 
@@ -243,7 +241,9 @@ export class LlmService {
     if (input.chunks.length === 0) {
       return {
         answer: "I couldn't find relevant information in the knowledge base.",
-        modelName: "fallback-local"
+        modelName: "fallback-local",
+        answerStatus: "insufficient_context",
+        missingInformation: ["No relevant supporting sources were retrieved."]
       };
     }
 
@@ -253,6 +253,8 @@ export class LlmService {
     return {
       answer,
       modelName: "fallback-local",
+      answerStatus: "grounded",
+      missingInformation: [],
       citedChunkNumbers: [1]
     };
   }
@@ -300,7 +302,22 @@ ${input.question}
 Retrieved sources:
 ${context}
 
-Write the answer in plain text with inline source markers such as [1].`;
+Answer policy:
+- responseStyle=${input.answerPolicy.responseStyle}
+- citationMode=${input.answerPolicy.citationMode}
+- maxCitations=${input.answerPolicy.maxCitations}
+- noAnswerBehavior=${input.answerPolicy.noAnswerBehavior}
+
+Return JSON only with this shape:
+{"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
+
+Rules:
+- "citations" must contain only 1-based source indexes from the retrieved sources.
+- Use an empty array when there are no supported citations.
+- Use "grounded" only when the answer is supported by the provided sources.
+- Use "insufficient_context" when the sources do not support a reliable answer.
+- "missingInformation" should be an array and may be empty.
+- Do not wrap the JSON in markdown fences.`;
   }
 
   private extractCitedChunkNumbers(answer: string) {
@@ -375,5 +392,71 @@ Write the answer in plain text with inline source markers such as [1].`;
 
   private normalizeRewriteOutput(value: string | null | undefined) {
     return value?.replace(/^["'`\s]+|["'`\s]+$/g, "").replace(/\s+/g, " ").trim() ?? "";
+  }
+
+  private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName"> {
+    const parsed = this.tryParseStructuredAnswer(rawAnswer);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      answer: rawAnswer,
+      answerStatus: undefined,
+      missingInformation: [],
+      citedChunkNumbers: this.extractCitedChunkNumbers(rawAnswer)
+    };
+  }
+
+  private tryParseStructuredAnswer(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName"> | null {
+    const normalized = rawAnswer.trim();
+    const candidates = [normalized];
+    const fencedMatch = normalized.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fencedMatch?.[1]) {
+      candidates.push(fencedMatch[1].trim());
+    }
+
+    const firstBrace = normalized.indexOf("{");
+    const lastBrace = normalized.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      candidates.push(normalized.slice(firstBrace, lastBrace + 1));
+    }
+
+    for (const candidate of candidates) {
+      try {
+        const payload = JSON.parse(candidate) as {
+          answer?: unknown;
+          status?: unknown;
+          citations?: unknown;
+          missingInformation?: unknown;
+        };
+
+        if (typeof payload.answer !== "string") {
+          continue;
+        }
+
+        const answerStatus =
+          payload.status === "grounded" || payload.status === "insufficient_context"
+            ? payload.status
+            : undefined;
+        const citedChunkNumbers = Array.isArray(payload.citations)
+          ? payload.citations
+              .map(value => (typeof value === "number" ? value : Number.parseInt(String(value), 10)))
+              .filter(value => Number.isInteger(value) && value > 0)
+          : [];
+        const missingInformation = Array.isArray(payload.missingInformation)
+          ? payload.missingInformation.filter((value): value is string => typeof value === "string")
+          : [];
+
+        return {
+          answer: payload.answer.trim(),
+          answerStatus,
+          missingInformation,
+          citedChunkNumbers
+        };
+      } catch {}
+    }
+
+    return null;
   }
 }

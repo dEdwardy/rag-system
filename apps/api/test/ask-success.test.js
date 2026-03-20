@@ -41,6 +41,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         tenantId: "tenant-1",
         kbId: "kb-1",
         systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "detailed",
+          citationMode: "required",
+          maxCitations: 2,
+          noAnswerBehavior: "say_insufficient_context"
+        },
         retrievalProfile: {
           topK: 4,
           scoreThreshold: 0.2,
@@ -88,12 +94,20 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       generateAnswer: async input => {
         assert.equal(input.question, "where is the marker?");
         assert.equal(input.systemPrompt, "system prompt");
+        assert.deepEqual(input.answerPolicy, {
+          responseStyle: "detailed",
+          citationMode: "required",
+          maxCitations: 2,
+          noAnswerBehavior: "say_insufficient_context"
+        });
         assert.deepEqual(input.chunks, retrievedChunks);
         return {
           answer: "The marker is in Document 1.",
           citations,
           retrievedChunks,
-          modelName: "fallback-local"
+          modelName: "fallback-local",
+          answerStatus: "grounded",
+          missingInformation: []
         };
       }
     },
@@ -184,4 +198,6 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.deepEqual(result.citations, citations);
   assert.deepEqual(result.retrievedChunks, retrievedChunks);
   assert.equal(result.modelName, "fallback-local");
+  assert.equal(result.answerStatus, "grounded");
+  assert.deepEqual(result.missingInformation, []);
 });

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { RetrievalProfilesService } from "../retrieval-profiles/retrieval-profiles.service";
 import { UpdateAssistantInput } from "./assistant.schemas";
@@ -40,9 +41,23 @@ export class AssistantsService {
       await this.retrievalProfilesService.getRetrievalProfile(input.retrievalProfileId);
     }
 
+    const data: Prisma.AssistantUncheckedUpdateInput = {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
+      ...(input.retrievalProfileId !== undefined ? { retrievalProfileId: input.retrievalProfileId } : {}),
+      ...(input.answerPolicyJson !== undefined
+        ? {
+            answerPolicyJson:
+              input.answerPolicyJson === null ? Prisma.JsonNull : (input.answerPolicyJson as Prisma.InputJsonValue)
+          }
+        : {}),
+      ...(input.status !== undefined ? { status: input.status } : {})
+    };
+
     return this.prisma.assistant.update({
       where: { id },
-      data: input,
+      data,
       include: {
         retrievalProfile: true
       }

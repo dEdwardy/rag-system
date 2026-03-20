@@ -85,6 +85,11 @@ Notes:
 - The current API startup path now loads `.env` from the repo root and `apps/api/.env`.
 - In the current local environment, `qwen2.5:7b` has been verified to respond to both `/api/generate` and `/api/embed`.
 - If you later switch to a dedicated embedding model, only `OLLAMA_EMBEDDING_MODEL` needs to change.
+- `PATCH /assistants/:id` now accepts `answerPolicyJson` with:
+  - `responseStyle`: `concise` or `detailed`
+  - `citationMode`: `required` or `optional`
+  - `maxCitations`: `1..8`
+  - `noAnswerBehavior`: `say_insufficient_context` or `best_effort`
 - Local CORS is enabled by default for:
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`
@@ -161,6 +166,8 @@ The following path has been validated locally on `2026-03-21`:
 5. Confirm vectors are written to `storage/vectors/default-kb.json`.
 6. Ask `default-assistant` a question and confirm:
    - answer is returned
+   - `answerStatus` is `grounded` or `insufficient_context`
+   - `missingInformation` is returned as an array
    - citations are returned
    - answer may include inline source markers like `[1]`
    - `retrievedChunks` include vector similarity scores
@@ -182,6 +189,8 @@ The following path has been validated locally on `2026-03-21`:
 - Query rewrite before retrieval, with LLM-first and local fallback behavior
 - Minimal ask flow with conversation/message/trace persistence
 - Citation-aware answer prompting with inline source markers
+- Structured answer metadata with `answerStatus` / `missingInformation`
+- Assistant-level `answerPolicyJson` validation and ask-time policy application
 - Ollama-backed local generation when `OLLAMA_BASE_URL` and `OLLAMA_MODEL` are configured
 - OpenAI-backed generation when `OPENAI_API_KEY` is configured
 - Local fallback answering when no model provider is configured

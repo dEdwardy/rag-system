@@ -1,3 +1,10 @@
+export type AnswerPolicy = {
+  responseStyle: "concise" | "detailed";
+  citationMode: "required" | "optional";
+  maxCitations: number;
+  noAnswerBehavior: "say_insufficient_context" | "best_effort";
+};
+
 export type RetrievedChunkInput = {
   chunkId: string;
   documentId: string;
@@ -11,12 +18,15 @@ export type RetrievedChunkInput = {
 export type GenerateAnswerInput = {
   question: string;
   systemPrompt: string;
+  answerPolicy: AnswerPolicy;
   chunks: RetrievedChunkInput[];
 };
 
 export type GenerateAnswerOutput = {
   answer: string;
   modelName: string;
+  answerStatus?: "grounded" | "insufficient_context";
+  missingInformation?: string[];
   citedChunkNumbers?: number[];
 };
 

@@ -7,6 +7,7 @@ import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
 import { retrievalProfileFiltersSchema } from "../retrieval-profiles/retrieval-profile.schemas";
 import { TracesService } from "../traces/traces.service";
+import { answerPolicySchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantError } from "./ask-assistant.error";
 
@@ -65,6 +66,7 @@ export class AskAssistantService {
     const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
       assistant.retrievalProfile.filtersJson ?? undefined
     );
+    const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const retrievedChunks = await this.retrievalService.retrieve({
       kbId: assistant.kbId,
       query: retrievalQuery,
@@ -92,6 +94,7 @@ export class AskAssistantService {
       const resolvedAnswerResult = await this.answeringService.generateAnswer({
         question: input.question,
         systemPrompt: assistant.systemPrompt,
+        answerPolicy,
         chunks: retrievedChunks
       });
 
@@ -123,7 +126,9 @@ export class AskAssistantService {
         answer: resolvedAnswerResult.answer,
         citations: resolvedAnswerResult.citations,
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
-        modelName: resolvedAnswerResult.modelName
+        modelName: resolvedAnswerResult.modelName,
+        answerStatus: resolvedAnswerResult.answerStatus,
+        missingInformation: resolvedAnswerResult.missingInformation
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown ask pipeline error.";

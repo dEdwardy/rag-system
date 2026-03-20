@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { LlmService } from "../../infra/llm/llm.service";
+import { AnswerPolicy } from "../../infra/llm/llm.types";
 
 type RetrievedChunk = {
   chunkId: string;
@@ -11,27 +12,48 @@ type RetrievedChunk = {
   sectionTitle: string | null;
 };
 
+const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
+  responseStyle: "concise",
+  citationMode: "required",
+  maxCitations: 3,
+  noAnswerBehavior: "say_insufficient_context"
+};
+
 @Injectable()
 export class AnsweringService {
   constructor(private readonly llmService: LlmService) {}
 
-  async generateAnswer(input: { question: string; systemPrompt: string; chunks: RetrievedChunk[] }) {
+  async generateAnswer(input: {
+    question: string;
+    systemPrompt: string;
+    answerPolicy?: Partial<AnswerPolicy> | null;
+    chunks: RetrievedChunk[];
+  }) {
+    const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
     const result = await this.llmService.generateAnswer({
       question: input.question,
       systemPrompt: input.systemPrompt,
+      answerPolicy,
       chunks: input.chunks
     });
+
+    const answerStatus = result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
+    const missingInformation = result.missingInformation ?? [];
 
     if (input.chunks.length === 0) {
       return {
         answer: result.answer,
         modelName: result.modelName,
+        answerStatus,
+        missingInformation,
         citations: [],
         retrievedChunks: []
       };
     }
 
-    const citedChunks = this.selectCitedChunks(input.chunks, result.citedChunkNumbers ?? [], result.answer);
+    const citedChunks = this
+      .selectCitedChunks(input.chunks, result.citedChunkNumbers ?? [], result.answer)
+      .slice(0, answerPolicy.maxCitations);
     const citations = citedChunks.map(chunk => ({
       chunkId: chunk.chunkId,
       documentId: chunk.documentId,
@@ -44,8 +66,19 @@ export class AnsweringService {
     return {
       answer: result.answer,
       modelName: result.modelName,
+      answerStatus,
+      missingInformation,
       citations,
       retrievedChunks: input.chunks
+    };
+  }
+
+  private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null): AnswerPolicy {
+    return {
+      responseStyle: input?.responseStyle ?? DEFAULT_ANSWER_POLICY.responseStyle,
+      citationMode: input?.citationMode ?? DEFAULT_ANSWER_POLICY.citationMode,
+      maxCitations: input?.maxCitations ?? DEFAULT_ANSWER_POLICY.maxCitations,
+      noAnswerBehavior: input?.noAnswerBehavior ?? DEFAULT_ANSWER_POLICY.noAnswerBehavior
     };
   }
 
