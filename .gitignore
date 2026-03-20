@@ -1,0 +1,17 @@
+node_modules
+.pnpm-store
+dist
+build
+.turbo
+.env
+.env.local
+coverage
+.DS_Store
+apps/api/dist
+apps/web/dist
+apps/web/node_modules
+apps/api/node_modules
+packages/shared/node_modules
+storage
+api-server.log
+api-server.err.log

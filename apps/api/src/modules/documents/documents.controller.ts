@@ -1,0 +1,67 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UploadedFile,
+  UseInterceptors
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { createDocumentSchema } from "./document.schemas";
+import { DocumentsService } from "./documents.service";
+
+@Controller()
+export class DocumentsController {
+  constructor(private readonly documentsService: DocumentsService) {}
+
+  @Get("knowledge-bases/:id/documents")
+  listKnowledgeBaseDocuments(@Param("id") knowledgeBaseId: string) {
+    return this.documentsService.listKnowledgeBaseDocuments(knowledgeBaseId);
+  }
+
+  @Post("knowledge-bases/:id/documents")
+  createDocument(@Param("id") knowledgeBaseId: string, @Body() body: unknown) {
+    const input = createDocumentSchema.parse(body);
+    return this.documentsService.createDocument(knowledgeBaseId, input);
+  }
+
+  @Post("knowledge-bases/:id/documents/upload")
+  @UseInterceptors(FileInterceptor("file"))
+  uploadDocument(
+    @Param("id") knowledgeBaseId: string,
+    @UploadedFile() file?: {
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+    }
+  ) {
+    if (!file) {
+      throw new BadRequestException("File is required.");
+    }
+
+    return this.documentsService.uploadDocument(knowledgeBaseId, file);
+  }
+
+  @Get("documents/:id")
+  getDocument(@Param("id") id: string) {
+    return this.documentsService.getDocument(id);
+  }
+
+  @Get("documents/:id/chunks")
+  listDocumentChunks(@Param("id") id: string) {
+    return this.documentsService.listDocumentChunks(id);
+  }
+
+  @Delete("documents/:id")
+  deleteDocument(@Param("id") id: string) {
+    return this.documentsService.deleteDocument(id);
+  }
+
+  @Post("documents/:id/reindex")
+  reindexDocument(@Param("id") id: string) {
+    return this.documentsService.reindexDocument(id);
+  }
+}

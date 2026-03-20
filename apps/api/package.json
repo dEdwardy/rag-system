@@ -1,0 +1,42 @@
+{
+  "name": "@rag-system/api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "build": "nest build",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "node --test test/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "pnpm exec prisma generate",
+    "prisma:migrate": "pnpm exec prisma migrate dev",
+    "prisma:seed": "node prisma/seed.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@prisma/client": "^6.5.0",
+    "bullmq": "^5.58.0",
+    "ioredis": "^5.8.1",
+    "multer": "^2.0.2",
+    "pdf-parse": "^2.4.5",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.13.10",
+    "eslint": "^9.22.0",
+    "prisma": "^6.5.0",
+    "typescript": "^5.8.2"
+  }
+}

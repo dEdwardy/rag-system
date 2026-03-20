@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  active
+  inactive
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum KnowledgeBaseStatus {
+  active
+  inactive
+}
+
+enum AssistantStatus {
+  active
+  inactive
+}
+
+enum ConversationStatus {
+  active
+  archived
+}
+
+enum MessageRole {
+  user
+  assistant
+}
+
+enum TraceStatus {
+  success
+  failed
+}
+
+enum DocumentStatus {
+  pending
+  processing
+  ready
+  failed
+}
+
+enum DocumentProcessingStage {
+  uploaded
+  parsing
+  chunking
+  indexing
+  completed
+  failed
+}
+
+model Tenant {
+  id        String         @id @default(cuid())
+  name      String
+  status    TenantStatus   @default(active)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  users     User[]
+  knowledgeBases KnowledgeBase[]
+  assistants Assistant[]
+  conversations Conversation[]
+}
+
+model User {
+  id             String          @id @default(cuid())
+  tenantId       String
+  name           String
+  email          String?         @unique
+  status         UserStatus      @default(active)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  knowledgeBases KnowledgeBase[]
+  conversations  Conversation[]
+}
+
+model KnowledgeBase {
+  id          String               @id @default(cuid())
+  tenantId    String
+  ownerId     String
+  name        String
+  description String?
+  status      KnowledgeBaseStatus  @default(active)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner       User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  documents   Document[]
+  assistants  Assistant[]
+}
+
+model Document {
+  id              String                  @id @default(cuid())
+  kbId            String
+  sourceType      String
+  sourceName      String
+  title           String
+  mimeType        String
+  storageKey      String
+  status          DocumentStatus          @default(pending)
+  processingStage DocumentProcessingStage @default(uploaded)
+  version         Int                     @default(1)
+  chunkCount      Int                     @default(0)
+  errorMessage    String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  knowledgeBase   KnowledgeBase           @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  chunks          DocumentChunk[]
+
+  @@index([kbId])
+  @@index([status])
+}
+
+model DocumentChunk {
+  id           String   @id @default(cuid())
+  documentId   String
+  kbId         String
+  chunkIndex   Int
+  content      String
+  tokenCount   Int      @default(0)
+  sectionTitle String?
+  pageNo       Int?
+  metadataJson Json?
+  embeddingRef String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([kbId])
+}
+
+model RetrievalProfile {
+  id             String      @id @default(cuid())
+  name           String
+  topK           Int         @default(3)
+  chunkWindow    Int         @default(0)
+  enableHybrid   Boolean     @default(false)
+  enableRerank   Boolean     @default(false)
+  scoreThreshold Float       @default(0)
+  filtersJson    Json?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  assistants     Assistant[]
+}
+
+model Assistant {
+  id                 String            @id @default(cuid())
+  tenantId           String
+  kbId               String
+  name               String
+  description        String?
+  systemPrompt       String
+  retrievalProfileId String
+  answerPolicyJson   Json?
+  status             AssistantStatus   @default(active)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  knowledgeBase      KnowledgeBase     @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  retrievalProfile   RetrievalProfile  @relation(fields: [retrievalProfileId], references: [id], onDelete: Restrict)
+  conversations      Conversation[]
+  traces             AnswerTrace[]
+
+  @@index([kbId])
+  @@index([tenantId])
+}
+
+model Conversation {
+  id          String             @id @default(cuid())
+  tenantId    String
+  userId      String
+  assistantId String
+  title       String
+  status      ConversationStatus @default(active)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assistant   Assistant          @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+  messages    Message[]
+  traces      AnswerTrace[]
+
+  @@index([assistantId])
+  @@index([userId])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  traceId        String?
+  createdAt      DateTime    @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model AnswerTrace {
+  id                 String      @id @default(cuid())
+  conversationId     String
+  assistantId        String
+  userMessageId      String?
+  assistantMessageId String?
+  userQuery          String
+  rewrittenQuery     String?
+  retrievedChunkIdsJson Json?
+  retrievalScoresJson   Json?
+  citationsJson         Json?
+  modelName             String?
+  latencyMs             Int?
+  status                TraceStatus @default(success)
+  errorMessage          String?
+  createdAt             DateTime    @default(now())
+  conversation          Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  assistant             Assistant    @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([assistantId])
+}
