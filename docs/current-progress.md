@@ -208,6 +208,7 @@
 - [x] 最小 API 测试底座已建立
 - [x] 当前已覆盖：
   - PDF parsing
+  - DOCX parsing
   - chunking
   - retrieval chunk window
   - hybrid retrieval
@@ -264,7 +265,7 @@
 
 本节表示“当前仓库还没有真正支持”。
 
-- [ ] DOCX 支持
+- [x] DOCX 支持
 - [ ] 网页内容抓取 / 网页知识源接入
 - [ ] 外部知识源接入
 
@@ -321,7 +322,7 @@
 ### 8.2 当前推荐下一步
 
 - [x] 主链路测试补强
-- [ ] DOCX 支持
+- [x] DOCX 支持
 - [ ] Answering 结构化与 assistant 配置增强
 
 ### 8.3 后续再往后
@@ -340,6 +341,7 @@
 ### 2026-03-21
 
 - [x] 主链路测试补强
+- [x] DOCX 支持
 - [x] trace/detail/document 跳转与诊断增强
 - [x] web i18n（`zh` / `en`）
 - [x] Knowledge Base 页面运营概览增强
@@ -363,6 +365,8 @@
 - [apps/api/test/retrieval-profile-filters.test.js](/D:/FeProjects/rag-system/apps/api/test/retrieval-profile-filters.test.js)
 - [docs/superpowers/plans/2026-03-21-ask-failure-diagnostics-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-ask-failure-diagnostics-plan.md)
 - [docs/superpowers/plans/2026-03-21-main-chain-test-hardening-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-main-chain-test-hardening-plan.md)
+- [docs/superpowers/specs/2026-03-21-docx-support-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-docx-support-design.md)
+- [docs/superpowers/plans/2026-03-21-docx-support-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-docx-support-plan.md)
 - [docs/superpowers/specs/2026-03-21-retrieval-profile-metadata-filter-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-profile-metadata-filter-design.md)
 - [docs/superpowers/plans/2026-03-21-retrieval-profile-metadata-filter-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-profile-metadata-filter-plan.md)
 

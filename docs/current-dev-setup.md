@@ -131,6 +131,7 @@ pnpm --filter @rag-system/api test
 Current API test coverage:
 
 - PDF parsing
+- DOCX parsing
 - chunking
 - retrieval chunk window
 - hybrid retrieval merge
@@ -141,7 +142,7 @@ Current API test coverage:
 ## Current working flow
 
 1. Open the web app.
-2. Upload a `.md`, `.txt`, or text-based `.pdf` document in `Documents`.
+2. Upload a `.md`, `.txt`, `.docx`, or text-based `.pdf` document in `Documents`.
 3. Wait until the document becomes `ready`.
 4. Open document details to inspect status, metadata, and generated chunks.
 5. Ask questions in `Chat`.
@@ -155,7 +156,7 @@ The following path has been validated locally on `2026-03-21`:
 
 1. Start PostgreSQL and Redis with Docker.
 2. Start API with `node apps/api/dist/main.js`.
-3. Upload a markdown or PDF document to `default-kb`.
+3. Upload a markdown, DOCX, or PDF document to `default-kb`.
 4. Wait for the document to reach `ready`.
 5. Confirm vectors are written to `storage/vectors/default-kb.json`.
 6. Ask `default-assistant` a question and confirm:
@@ -171,7 +172,7 @@ The following path has been validated locally on `2026-03-21`:
 
 - Local file storage
 - Redis-backed document ingestion queue
-- Basic parsing for `.md` / `.txt` / text-based `.pdf`
+- Basic parsing for `.md` / `.txt` / `.docx` / text-based `.pdf`
 - Multi-chunk splitting with heading-aware grouping and oversized-paragraph splitting
 - Ollama/OpenAI embedding generation with local fallback
 - File-backed vector store under `storage/vectors`
