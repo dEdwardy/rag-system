@@ -1,7 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { EmbeddingService } from "../../infra/embedding/embedding.service";
 import { VectorStoreService } from "../../infra/vector-store/vector-store.service";
+import { RetrievalProfileFilters } from "../retrieval-profiles/retrieval-profile.schemas";
 
 type RetrievedChunk = {
   chunkId: string;
@@ -40,12 +42,14 @@ export class RetrievalService {
     chunkWindow?: number;
     enableHybrid?: boolean;
     enableRerank?: boolean;
+    filters?: RetrievalProfileFilters;
   }) {
     const candidateLimit = Math.max(input.topK * 3, input.topK);
     const lexicalCandidates = await this.getLexicalCandidates({
       kbId: input.kbId,
       query: input.query,
-      limit: candidateLimit
+      limit: candidateLimit,
+      filters: input.filters
     });
 
     try {
@@ -54,7 +58,8 @@ export class RetrievalService {
         kbId: input.kbId,
         queryVector: queryEmbedding.vector,
         topK: candidateLimit,
-        scoreThreshold: input.scoreThreshold
+        scoreThreshold: input.scoreThreshold,
+        filters: input.filters
       });
 
       if (vectorMatches.length > 0 || input.enableHybrid) {
@@ -70,7 +75,12 @@ export class RetrievalService {
         });
 
         if (rankedCandidates.length > 0) {
-          return this.expandChunkWindow(input.kbId, rankedCandidates, input.chunkWindow ?? 0);
+          return this.expandChunkWindow(
+            input.kbId,
+            rankedCandidates,
+            input.chunkWindow ?? 0,
+            input.filters
+          );
         }
       }
     } catch (error) {
@@ -91,13 +101,15 @@ export class RetrievalService {
     scoreThreshold: number;
     chunkWindow?: number;
     lexicalCandidates?: RetrievalCandidate[];
+    filters?: RetrievalProfileFilters;
   }) {
     const lexicalCandidates =
       input.lexicalCandidates ??
       (await this.getLexicalCandidates({
         kbId: input.kbId,
         query: input.query,
-        limit: Math.max(input.topK * 3, input.topK)
+        limit: Math.max(input.topK * 3, input.topK),
+        filters: input.filters
       }));
     const ranked = this.rankCandidates(lexicalCandidates, {
       enableRerank: false,
@@ -107,13 +119,11 @@ export class RetrievalService {
     });
 
     if (ranked.length > 0) {
-      return this.expandChunkWindow(input.kbId, ranked, input.chunkWindow ?? 0);
+      return this.expandChunkWindow(input.kbId, ranked, input.chunkWindow ?? 0, input.filters);
     }
 
     const chunks = await this.prisma.documentChunk.findMany({
-      where: {
-        kbId: input.kbId
-      },
+      where: this.buildChunkWhere(input.kbId, input.filters),
       include: {
         document: true
       },
@@ -132,14 +142,17 @@ export class RetrievalService {
       sectionTitle: chunk.sectionTitle
     }));
 
-    return this.expandChunkWindow(input.kbId, fallbackChunks, input.chunkWindow ?? 0);
+    return this.expandChunkWindow(input.kbId, fallbackChunks, input.chunkWindow ?? 0, input.filters);
   }
 
-  private async getLexicalCandidates(input: { kbId: string; query: string; limit: number }) {
+  private async getLexicalCandidates(input: {
+    kbId: string;
+    query: string;
+    limit: number;
+    filters?: RetrievalProfileFilters;
+  }) {
     const chunks = await this.prisma.documentChunk.findMany({
-      where: {
-        kbId: input.kbId
-      },
+      where: this.buildChunkWhere(input.kbId, input.filters),
       include: {
         document: true
       }
@@ -335,7 +348,12 @@ export class RetrievalService {
     return candidate.score + lexicalBoost * 0.15 + exactPhraseBoost + titleBoost;
   }
 
-  private async expandChunkWindow(kbId: string, chunks: RetrievedChunk[], chunkWindow: number) {
+  private async expandChunkWindow(
+    kbId: string,
+    chunks: RetrievedChunk[],
+    chunkWindow: number,
+    filters?: RetrievalProfileFilters
+  ) {
     if (chunkWindow <= 0 || chunks.length === 0) {
       return chunks;
     }
@@ -369,7 +387,7 @@ export class RetrievalService {
 
     const expandedChunks = await this.prisma.documentChunk.findMany({
       where: {
-        kbId,
+        ...this.buildChunkWhere(kbId, filters),
         OR: documentChunkEntries
       },
       include: {
@@ -397,5 +415,35 @@ export class RetrievalService {
         sectionTitle: chunk.sectionTitle
       };
     });
+  }
+
+  private buildChunkWhere(kbId: string, filters?: RetrievalProfileFilters): Prisma.DocumentChunkWhereInput {
+    const where: Prisma.DocumentChunkWhereInput = {
+      kbId
+    };
+
+    if (!filters) {
+      return where;
+    }
+
+    if (filters.documentIds) {
+      where.documentId = {
+        in: filters.documentIds
+      };
+    }
+
+    if (filters.sectionTitles) {
+      where.sectionTitle = {
+        in: filters.sectionTitles
+      };
+    }
+
+    if (filters.pageNumbers) {
+      where.pageNo = {
+        in: filters.pageNumbers
+      };
+    }
+
+    return where;
   }
 }

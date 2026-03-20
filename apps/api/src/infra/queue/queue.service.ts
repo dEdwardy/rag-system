@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
-import { DOCUMENT_INGESTION_QUEUE } from "./queue.constants";
+import { getDocumentIngestionQueueName } from "./queue.constants";
 
 const { Queue } = require("bullmq");
 const IORedis = require("ioredis");
@@ -10,7 +10,7 @@ export class QueueService implements OnModuleDestroy {
     maxRetriesPerRequest: null
   });
 
-  private readonly documentIngestionQueue = new Queue(DOCUMENT_INGESTION_QUEUE, {
+  private readonly documentIngestionQueue = new Queue(getDocumentIngestionQueueName(), {
     connection: this.connection,
     defaultJobOptions: {
       attempts: 3,

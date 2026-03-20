@@ -5,8 +5,10 @@ import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
+import { retrievalProfileFiltersSchema } from "../retrieval-profiles/retrieval-profile.schemas";
 import { TracesService } from "../traces/traces.service";
 import { AssistantsService } from "./assistants.service";
+import { AskAssistantError } from "./ask-assistant.error";
 
 type AskResultChunk = {
   chunkId: string;
@@ -60,6 +62,9 @@ export class AskAssistantService {
       question: input.question
     });
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
+    const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
+      assistant.retrievalProfile.filtersJson ?? undefined
+    );
     const retrievedChunks = await this.retrievalService.retrieve({
       kbId: assistant.kbId,
       query: retrievalQuery,
@@ -67,7 +72,8 @@ export class AskAssistantService {
       scoreThreshold: assistant.retrievalProfile.scoreThreshold,
       chunkWindow: assistant.retrievalProfile.chunkWindow,
       enableHybrid: assistant.retrievalProfile.enableHybrid,
-      enableRerank: assistant.retrievalProfile.enableRerank
+      enableRerank: assistant.retrievalProfile.enableRerank,
+      filters: retrievalFilters
     });
     const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
 
@@ -130,7 +136,13 @@ export class AskAssistantService {
         status: TraceStatus.failed,
         errorMessage: message
       });
-      throw error;
+      throw new AskAssistantError({
+        traceId: trace.id,
+        details: {
+          stage: "answering",
+          cause: message
+        }
+      });
     }
   }
 

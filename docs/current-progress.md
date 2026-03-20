@@ -499,6 +499,50 @@ Validation completed for this update:
 - `pnpm --filter @rag-system/web typecheck`
 - `pnpm --filter @rag-system/web build`
 
+Additional backend retrieval profile metadata filter updates completed after that round:
+
+- Retrieval profiles now support persisted metadata filters through `filtersJson`.
+- First supported filter keys are:
+  - `documentIds`
+  - `sectionTitles`
+  - `pageNumbers`
+- Ask pipeline retrieval now applies the active retrieval profile filters to:
+  - lexical retrieval candidate selection
+  - vector-store candidate selection
+  - filtered fallback retrieval
+  - chunk-window expansion scope
+- New API coverage verifies:
+  - retrieval unit behavior under metadata filtering
+  - HTTP ask flow constrained by `RetrievalProfile.filtersJson`
+
+Additional backend test isolation updates completed after that round:
+
+- API integration tests now support queue isolation through `QUEUE_PREFIX`.
+- Integration test processes use distinct ingestion queue names to avoid Redis worker cross-talk when the full API suite runs.
+
+Validation completed for this update:
+
+- `pnpm --filter @rag-system/api build`
+- `node --test apps/api/test/retrieval.test.js apps/api/test/retrieval-profile-filters.test.js`
+- `pnpm test:api`
+
+Additional ask failure diagnostics updates completed after that round:
+
+- Ask pipeline failures now return a structured API error payload instead of leaking the raw provider/runtime exception message as the top-level response.
+- Structured ask failure responses now include:
+  - stable error code: `ASK_PIPELINE_FAILED`
+  - related `traceId` when trace persistence succeeded
+  - compact diagnostic `details`
+- The global HTTP exception filter now preserves structured `HttpException` payload fields such as:
+  - `code`
+  - `traceId`
+  - `details`
+
+Validation completed for this update:
+
+- `pnpm --filter @rag-system/api build`
+- `node --test apps/api/test/ask-failures.test.js apps/api/test/http-exception-filter.test.js`
+
 Additional trace/document navigation updates completed after that round:
 
 - Trace-to-document chunk links now preserve trace context in URL params:
@@ -515,3 +559,23 @@ Validation completed for this update:
 - `pnpm --filter @rag-system/web typecheck`
 - `pnpm --filter @rag-system/web build`
 - `pnpm test:api`
+
+Additional web MVP polish completed after that round:
+
+- Knowledge Base page now acts as an operational overview instead of a minimal placeholder.
+- The page now shows:
+  - knowledge base status and updated time
+  - total documents and chunks
+  - ready / processing / failed document counts
+  - assistant count bound to the current knowledge base
+  - direct navigation actions to Documents and Assistant
+- Knowledge Base page state handling now follows the same `StatePanel` pattern used elsewhere for:
+  - loading
+  - query errors
+  - missing knowledge base
+  - empty document state
+
+Validation completed for this update:
+
+- `pnpm --filter @rag-system/web typecheck`
+- `pnpm --filter @rag-system/web build`

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { RetrievalProfileFilters } from "../../modules/retrieval-profiles/retrieval-profile.schemas";
 
 type VectorStoreRecord = {
   id: string;
@@ -59,6 +60,7 @@ export class VectorStoreService {
     topK: number;
     scoreThreshold: number;
     documentIds?: string[];
+    filters?: RetrievalProfileFilters;
   }) {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
     const normalizedQueryVector = this.normalizeVector(input.queryVector);
@@ -67,10 +69,10 @@ export class VectorStoreService {
     return records
       .filter(record => {
         if (documentIds.size === 0) {
-          return true;
+          return this.matchesFilters(record, input.filters);
         }
 
-        return documentIds.has(record.documentId);
+        return documentIds.has(record.documentId) && this.matchesFilters(record, input.filters);
       })
       .map(record => ({
         chunkId: record.chunkId,
@@ -81,6 +83,30 @@ export class VectorStoreService {
       .filter(record => record.score >= input.scoreThreshold)
       .sort((left, right) => right.score - left.score)
       .slice(0, input.topK);
+  }
+
+  private matchesFilters(record: VectorStoreRecord, filters?: RetrievalProfileFilters) {
+    if (!filters) {
+      return true;
+    }
+
+    if (filters.documentIds && !filters.documentIds.includes(record.documentId)) {
+      return false;
+    }
+
+    if (filters.sectionTitles) {
+      if (!record.sectionTitle || !filters.sectionTitles.includes(record.sectionTitle)) {
+        return false;
+      }
+    }
+
+    if (filters.pageNumbers) {
+      if (record.pageNo == null || !filters.pageNumbers.includes(record.pageNo)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private async readKnowledgeBaseVectors(kbId: string) {

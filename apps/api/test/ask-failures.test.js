@@ -87,7 +87,22 @@ test("AskAssistantService marks trace as failed when answer generation throws", 
       assistantId: "assistant-1",
       question: "why did this fail?"
     }),
-    /synthetic answer failure/
+    error => {
+      assert.equal(typeof error?.getStatus, "function");
+      assert.equal(error.getStatus(), 502);
+
+      const response = error.getResponse();
+      assert.equal(response.statusCode, 502);
+      assert.equal(response.error, "Bad Gateway");
+      assert.equal(response.message, "Ask pipeline failed.");
+      assert.equal(response.code, "ASK_PIPELINE_FAILED");
+      assert.equal(response.traceId, "trace-1");
+      assert.deepEqual(response.details, {
+        stage: "answering",
+        cause: "synthetic answer failure"
+      });
+      return true;
+    }
   );
 
   assert.equal(traceUpdates.length, 1);

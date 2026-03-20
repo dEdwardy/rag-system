@@ -19,6 +19,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
 
   const port = 3101;
   const storageRoot = resolve(repoRoot, "storage", `test-e2e-${randomUUID()}`);
+  const queuePrefix = `test-e2e-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
   const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
@@ -26,7 +27,8 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     env: {
       ...process.env,
       API_PORT: String(port),
-      STORAGE_ROOT: storageRoot
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
     },
     stdio: "ignore"
   });

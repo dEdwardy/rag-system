@@ -3,7 +3,7 @@ import { DocumentProcessingStage, DocumentStatus } from "@prisma/client";
 import { ChunkingService } from "../../infra/parsing/chunking.service";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { ParsingService } from "../../infra/parsing/parsing.service";
-import { DOCUMENT_INGESTION_QUEUE } from "../../infra/queue/queue.constants";
+import { getDocumentIngestionQueueName } from "../../infra/queue/queue.constants";
 import { QueueService } from "../../infra/queue/queue.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { IndexingService } from "../indexing/indexing.service";
@@ -38,7 +38,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     this.worker = new Worker(
-      DOCUMENT_INGESTION_QUEUE,
+      getDocumentIngestionQueueName(),
       async (job: { data: DocumentIngestionJobData; id?: string }) => this.processDocument(job),
       {
         connection: this.connection

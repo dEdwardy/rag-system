@@ -32,16 +32,19 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const statusCode = exception.getStatus();
       const payload = exception.getResponse();
+      const responseBody =
+        typeof payload === "string"
+          ? { message: payload }
+          : payload && typeof payload === "object"
+            ? payload
+            : { message: exception.message };
 
       response.status(statusCode).json({
         statusCode,
         error: HttpStatus[statusCode] ?? "Error",
-        message:
-          typeof payload === "string"
-            ? payload
-            : (payload as { message?: string }).message ?? exception.message,
         path: request.url,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        ...responseBody
       });
       return;
     }
@@ -58,4 +61,3 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
     });
   }
 }
-
