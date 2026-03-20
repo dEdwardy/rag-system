@@ -9,6 +9,12 @@ Current implementation files:
 - [apps/web/src/i18n/I18nProvider.tsx](/D:/FeProjects/rag-system/apps/web/src/i18n/I18nProvider.tsx)
 - [apps/web/src/i18n/messages.ts](/D:/FeProjects/rag-system/apps/web/src/i18n/messages.ts)
 
+Recent maintenance note:
+
+- The in-repo dictionary has been normalized back to readable UTF-8 content after a round of corrupted Chinese copy.
+- `messages.ts` remains the current source of truth for visible UI text.
+- A lightweight regression test now checks representative Chinese copy directly from the dictionary source file.
+
 Supported locales:
 
 - `zh`
@@ -82,3 +88,13 @@ Recent document-detail additions from trace deep links also follow the same dict
 - No ICU pluralization support
 - No per-route lazy loading of locale bundles
 - Some low-level API/server error messages still come from backend raw strings and are not normalized through frontend i18n
+
+## Validation
+
+Useful checks for dictionary changes:
+
+```bash
+node --test apps/web/test/*.test.js
+pnpm --filter @rag-system/web typecheck
+pnpm --filter @rag-system/web build
+```

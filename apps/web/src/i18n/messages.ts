@@ -152,7 +152,43 @@ export const messages = {
     },
     knowledgeBase: {
       title: "Knowledge Base",
-      subtitle: "Overview of the current default knowledge base."
+      subtitle: "Overview of the current default knowledge base.",
+      actions: {
+        openDocuments: "Open documents",
+        openAssistant: "Open assistant"
+      },
+      metrics: {
+        readyDocuments: "Ready documents",
+        processingDocuments: "Processing documents",
+        failedDocuments: "Failed documents",
+        boundAssistants: "Bound assistants"
+      },
+      summary: {
+        title: "Operational Summary",
+        caption: "{documents} documents, {chunks} chunks, {assistants} assistants currently linked.",
+        ready: "Healthy",
+        processing: "Processing",
+        failed: "Attention needed",
+        empty: "Empty",
+        readyDescription: "{count} documents are ready for retrieval and answering.",
+        processingDescription: "{count} documents are still being parsed or indexed.",
+        failedDescription: "{count} documents need attention before the knowledge base is fully reliable.",
+        emptyDescription: "Upload documents to turn this knowledge base into a usable retrieval source."
+      },
+      states: {
+        loadingTitle: "Loading knowledge base",
+        loadingDescription: "Fetching the current knowledge base overview and linked resources.",
+        loadErrorTitle: "Failed to load knowledge base.",
+        loadErrorDescription: "The current knowledge base overview could not be loaded.",
+        assistantsErrorTitle: "Failed to load assistants.",
+        assistantsErrorDescription: "Assistant data is unavailable for this overview.",
+        documentsErrorTitle: "Failed to load documents.",
+        documentsErrorDescription: "Document state could not be loaded for this knowledge base.",
+        emptyTitle: "No knowledge base found",
+        emptyDescription: "Seed data does not currently expose a default knowledge base.",
+        noDocumentsTitle: "No documents yet",
+        noDocumentsDescription: "Upload your first document to start parsing, indexing, and retrieval."
+      }
     },
     assistant: {
       title: "Assistant",
@@ -280,7 +316,7 @@ export const messages = {
       misc: {
         focused: "已定位",
         noSection: "无章节",
-        pageShort: "第 {pageNo} 页",
+        pageShort: "第{pageNo}页",
         pageLong: "第 {pageNo} 页",
         chunkLabel: "chunk：{chunkId}",
         tokenCount: "tokenCount"
@@ -292,8 +328,8 @@ export const messages = {
       conversations: "会话列表",
       latestCitations: "最新引用",
       askPlaceholder: "输入关于已上传知识库的问题",
-      askHintEnabled: "当前实现使用基于 chunk 的检索与引用返回。",
-      askHintDisabled: "助手数据暂不可用，已禁用新提问。",
+      askHintEnabled: "当前实现使用基于 chunk 的检索和引用返回。",
+      askHintDisabled: "助手数据暂不可用，已禁用新的提问。",
       states: {
         loadingConversationsTitle: "加载会话中",
         loadingConversationsDescription: "正在获取最近的对话会话。",
@@ -320,7 +356,7 @@ export const messages = {
     },
     documents: {
       title: "文档",
-      subtitle: "向默认知识库上传文件并跟踪处理状态。",
+      subtitle: "向默认知识库上传文档并跟踪处理状态。",
       uploadSuccess: "已上传 {fileName}",
       uploadError: "上传失败。",
       processingBanner: "部分文档仍在处理中，表格会自动刷新。",
@@ -356,7 +392,43 @@ export const messages = {
     },
     knowledgeBase: {
       title: "知识库",
-      subtitle: "查看当前默认知识库概览。"
+      subtitle: "查看当前默认知识库的概览。",
+      actions: {
+        openDocuments: "打开文档页",
+        openAssistant: "打开助手页"
+      },
+      metrics: {
+        readyDocuments: "就绪文档",
+        processingDocuments: "处理中",
+        failedDocuments: "失败文档",
+        boundAssistants: "绑定助手"
+      },
+      summary: {
+        title: "运行摘要",
+        caption: "当前已关联 {documents} 份文档、{chunks} 个 chunks、{assistants} 个助手。",
+        ready: "健康",
+        processing: "处理中",
+        failed: "需要处理",
+        empty: "空",
+        readyDescription: "有 {count} 份文档已经可以用于检索与问答。",
+        processingDescription: "有 {count} 份文档仍在解析或索引中。",
+        failedDescription: "有 {count} 份文档需要处理后，知识库才更可靠。",
+        emptyDescription: "上传文档后，这个知识库才会成为可用的检索来源。"
+      },
+      states: {
+        loadingTitle: "正在加载知识库",
+        loadingDescription: "正在获取知识库概览和关联资源。",
+        loadErrorTitle: "加载知识库失败。",
+        loadErrorDescription: "当前知识库概览暂时不可用。",
+        assistantsErrorTitle: "加载助手失败。",
+        assistantsErrorDescription: "当前无法获取该知识库关联的助手信息。",
+        documentsErrorTitle: "加载文档失败。",
+        documentsErrorDescription: "当前无法获取该知识库的文档状态。",
+        emptyTitle: "未找到知识库",
+        emptyDescription: "当前种子数据没有暴露默认知识库。",
+        noDocumentsTitle: "还没有文档",
+        noDocumentsDescription: "上传第一份文档后即可开始解析、索引和检索。"
+      }
     },
     assistant: {
       title: "助手",
