@@ -8,6 +8,6 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "test:api": "pnpm --filter @rag-system/api build && node --test apps/api/test/*.test.js"
+    "test:api": "pnpm --filter @rag-system/api build && node --test --test-concurrency=1 apps/api/test/*.test.js"
   }
 }

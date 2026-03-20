@@ -212,11 +212,15 @@
   - retrieval chunk window
   - hybrid retrieval
   - rerank
+  - ingestion orchestrator
+  - ask success orchestrator
   - citation-aware answering
   - ask failure diagnostics
   - retrieval profile filters
   - upload -> ready -> ask -> trace HTTP integration
+  - document chunks / conversation messages / conversation traces integration assertions
 - [x] API integration tests 已支持 `QUEUE_PREFIX` 隔离，避免 Redis worker 串扰
+- [x] API 测试命令已串行执行，避免共享数据库状态的 HTTP 集成测试并发互相干扰
 
 ---
 
@@ -249,7 +253,7 @@
 
 ### 3.4 测试增强版未完成
 
-- [ ] orchestrator / 模块集成测试
+- [x] orchestrator / 模块集成测试
 - [ ] 更完整的文档链路 E2E
 - [ ] 更完整的 ask 链路 E2E
 - [ ] 前后端联调级自动化验证
@@ -316,7 +320,7 @@
 
 ### 8.2 当前推荐下一步
 
-- [ ] 主链路测试补强
+- [x] 主链路测试补强
 - [ ] DOCX 支持
 - [ ] Answering 结构化与 assistant 配置增强
 
@@ -335,6 +339,7 @@
 
 ### 2026-03-21
 
+- [x] 主链路测试补强
 - [x] trace/detail/document 跳转与诊断增强
 - [x] web i18n（`zh` / `en`）
 - [x] Knowledge Base 页面运营概览增强
@@ -350,10 +355,14 @@
 - [apps/api/src/modules/retrieval/retrieval.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval/retrieval.service.ts)
 - [apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts)
 - [apps/api/src/infra/vector-store/vector-store.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/vector-store/vector-store.service.ts)
+- [apps/api/test/ingestion.orchestrator.test.js](/D:/FeProjects/rag-system/apps/api/test/ingestion.orchestrator.test.js)
+- [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
 - [apps/api/test/ask-failures.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-failures.test.js)
+- [apps/api/test/api-flow.test.js](/D:/FeProjects/rag-system/apps/api/test/api-flow.test.js)
 - [apps/api/test/http-exception-filter.test.js](/D:/FeProjects/rag-system/apps/api/test/http-exception-filter.test.js)
 - [apps/api/test/retrieval-profile-filters.test.js](/D:/FeProjects/rag-system/apps/api/test/retrieval-profile-filters.test.js)
 - [docs/superpowers/plans/2026-03-21-ask-failure-diagnostics-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-ask-failure-diagnostics-plan.md)
+- [docs/superpowers/plans/2026-03-21-main-chain-test-hardening-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-main-chain-test-hardening-plan.md)
 - [docs/superpowers/specs/2026-03-21-retrieval-profile-metadata-filter-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-profile-metadata-filter-design.md)
 - [docs/superpowers/plans/2026-03-21-retrieval-profile-metadata-filter-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-profile-metadata-filter-plan.md)
 
@@ -366,6 +375,7 @@
 ### API
 
 - `pnpm --filter @rag-system/api build`
+- `node --test --test-concurrency=1 apps/api/test/ingestion.orchestrator.test.js apps/api/test/ask-success.test.js apps/api/test/ask-failures.test.js apps/api/test/api-flow.test.js`
 - `node --test apps/api/test/ask-failures.test.js apps/api/test/http-exception-filter.test.js`
 - `node --test apps/api/test/retrieval.test.js apps/api/test/retrieval-profile-filters.test.js`
 - `pnpm test:api`

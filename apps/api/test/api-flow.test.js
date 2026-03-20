@@ -59,6 +59,14 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     const document = await waitForDocumentReady(port, uploadedDocument.id, 20000);
     assert.equal(document.status, "ready");
 
+    const documentChunksResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
+    assert.equal(documentChunksResponse.status, 200);
+
+    const documentChunks = await documentChunksResponse.json();
+    assert.ok(Array.isArray(documentChunks));
+    assert.ok(documentChunks.length >= 1);
+    assert.ok(documentChunks.some(chunk => chunk.content.includes(marker)));
+
     const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
       method: "POST",
       headers: {
@@ -78,6 +86,38 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.ok(askResult.citations.length >= 1);
     assert.ok(Array.isArray(askResult.retrievedChunks));
     assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(marker)));
+
+    const conversationMessagesResponse = await fetch(
+      `http://localhost:${port}/conversations/${askResult.conversationId}/messages`
+    );
+    assert.equal(conversationMessagesResponse.status, 200);
+
+    const conversationMessages = await conversationMessagesResponse.json();
+    assert.ok(Array.isArray(conversationMessages));
+    assert.equal(conversationMessages.length, 2);
+    assert.deepEqual(
+      conversationMessages.map(message => ({
+        role: message.role,
+        traceId: message.traceId
+      })),
+      [
+        {
+          role: "user",
+          traceId: askResult.traceId
+        },
+        {
+          role: "assistant",
+          traceId: askResult.traceId
+        }
+      ]
+    );
+
+    const conversationTracesResponse = await fetch(`http://localhost:${port}/conversations/${askResult.conversationId}/traces`);
+    assert.equal(conversationTracesResponse.status, 200);
+
+    const conversationTraces = await conversationTracesResponse.json();
+    assert.ok(Array.isArray(conversationTraces));
+    assert.ok(conversationTraces.some(trace => trace.id === askResult.traceId));
 
     const traceResponse = await fetch(`http://localhost:${port}/traces/${askResult.traceId}`);
     assert.equal(traceResponse.status, 200);
