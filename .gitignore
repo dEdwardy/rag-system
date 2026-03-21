@@ -16,3 +16,4 @@ storage
 api-server.log
 api-server.err.log
 .codex/
+.worktrees/
