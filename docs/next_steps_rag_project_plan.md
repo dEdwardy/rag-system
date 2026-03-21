@@ -16,7 +16,7 @@
 
 - 本地优先 RAG MVP 主链路
 - ask/stream 的第一轮渐进式聊天体验
-- `PC Web` 第一轮 chat experience polish
+- `PC Web` chat 的流处理与原生答案流式生成能力
 - external knowledge source 的第一轮最小增量：
   - web page
   - feed
@@ -29,21 +29,67 @@
 
 <span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前最合理的顺序是：
 
-1. 继续推进 `external knowledge source expansion`
-2. 保持 `backend / API first`
-3. 暂不扩移动端
-4. retrieval / answering 以收敛和系统化为主，不再作为当前第一优先级
-5. AI review 仅用于高风险改动
+1. 先完成当前这轮 `PC Web chat experience polish` 的剩余 UI / UX 收口
+2. 再继续推进 `external knowledge source expansion`
+3. 保持 `backend / API first`
+4. 暂不扩移动端
+5. retrieval / answering 以收敛和系统化为主，不再作为当前第一优先级
+6. AI review 仅用于高风险改动
 
-<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 原文件把“前端 UI polish”写成当前下一步，但这已经被最新进度文档覆盖：`PC Web chat experience polish` 已完成，当前首个未完成主线是 `external knowledge source expansion`。
+<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前应区分两件事：`chat` 流处理已经完成，但 `PC Web chat experience polish` 作为更大的体验收口任务还未完全结束，因此它仍可作为当前优先事项，随后再回到 `external knowledge source expansion`。
 
 ---
 
 ## 2. 接下来的主优先级
 
-### P0：external knowledge source expansion（当前下一步）
+### P0：PC Web chat experience polish（当前下一步）
 
-<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 这已经替代原文中的 “P0：前端 UI polish（当前下一步）”。
+<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前并不是“chat 流处理还没做”，而是“chat 流处理已完成，但完整的 `PC Web chat experience polish` 还没收口”。
+
+目标：
+
+在已完成 chat 流处理的基础上，把当前 `PC Web chat` 的 workspace UI / UX、状态承载、信息层级和最终收口做完。
+
+当前已完成：
+
+- NDJSON transport and progressive answer rendering
+- native answer-generation text streaming
+- chat stream state
+- streamed answer rendering 基础接线
+
+当前待完成：
+
+- chat workspace UI / UX polish 收口
+- streamed state 下的信息层级与状态表达收口
+- citations / trace / document 跳转入口的最终体验收口
+- 与当前聊天工作区直接相关的视觉统一与交互细节修正
+
+这一轮建议优先关注：
+
+- 不重做已完成的流处理链路
+- 围绕当前 chat workspace 做最小必要的 UI / UX 收口
+- 继续保持 `PC Web` 优先
+- 不把这轮 polish 扩展成移动端或整站重设计
+
+这一轮明确不做：
+
+- 移动端适配
+- 大规模组件库替换
+- 前端状态管理重构
+- 通用 connector / source 抽象重构
+- 调度系统、定时同步、鉴权、租户能力
+
+完成标准：
+
+- 不影响当前流式 ask 主链路
+- chat 页面状态承载、信息层级、视觉一致性达到“可收口”状态
+- 文档里清楚区分“流处理已完成”和“polish 整体已完成”
+
+---
+
+### P1：external knowledge source expansion
+
+<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> `external knowledge source expansion` 仍是当前阶段的下一整个大方向，但顺位放在当前 chat polish 收口之后。
 
 目标：
 
@@ -55,8 +101,6 @@
 - one direct RSS / Atom feed source
 - one direct sitemap `urlset` source
 - one root sitemap `sitemapindex` source that expands child direct sitemaps
-
-<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前阶段的重点，不再是“先补 source 最小能力”，而是基于这些已完成增量继续向前推进，但仍保持同一主线，不转去做移动端、鉴权或大重构。
 
 这一轮建议优先关注：
 
@@ -83,7 +127,7 @@
 
 ---
 
-### P1：retrieval / answering 收敛
+### P2：retrieval / answering 收敛
 
 <span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 优先级顺位后移。不是当前第一步，但仍然是后续重要方向。
 
@@ -105,13 +149,13 @@
 
 ---
 
-### P2：PC Web 后续体验收口
+### P3：PC Web 后续体验收口
 
-<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 这里不再把 UI polish 定义为“当前下一步”，而是改成“后续按需继续收口”。
+<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当当前这轮 `PC Web chat experience polish` 完成后，后续仍可能因为新能力接入继续产生局部体验收口需求。
 
 判断依据：
 
-- `PC Web chat experience polish` 第一轮已完成
+- 当前这轮 `PC Web chat experience polish` 收口完成后
 - 流式 ask/rendering 已经落地
 - 但后续仍可能因为新能力接入继续产生局部 UI/UX 收口需求
 
@@ -149,7 +193,7 @@
 所以文档里会出现这样一个自然顺序：
 
 1. 先把流处理与渐进展示做出来
-2. 再对 chat workspace 做一轮 UI / UX polish
+2. 再把当前这轮 `PC Web chat experience polish` 收口做完
 3. 然后把该轮 polish 标记为完成
 4. 再把项目主线切回 `external knowledge source expansion`
 
@@ -226,16 +270,16 @@ If no major issue, say "looks safe".
 
 ## 6. 建议的最近两轮安排
 
-### Round A：继续 external knowledge source expansion
+### Round A：完成当前这轮 PC Web chat experience polish
 
-<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 这替代了原文中的 “Round A：PC Web UI polish”。
+<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前 round A 不是重做流处理，而是完成这轮 chat polish 的剩余 UI / UX 收口。
 
 建议目标：
 
-- 继续沿 external source family 做下一步最小增量
-- 保持 backend-first
-- 保持与现有 document ingestion 主链路连续
-- 明确记录“这一轮完成了哪个 source increment，整体方向仍未结束”
+- 明确 `chat` 流处理已完成
+- 完成当前 chat workspace 的剩余 UI / UX polish
+- 不重开流式传输或模型流式实现
+- 收口后再切回下一整个大方向
 
 建议产出：
 
@@ -244,23 +288,23 @@ If no major issue, say "looks safe".
 - 一次最小必要验证
 - 对 `docs/current-progress.md` 的同步更新
 
-### Round B：external source stabilization / management enhancement
+### Round B：继续 external knowledge source expansion
 
-<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 这一轮保留“stabilization”方向，但顺位放到 external expansion 的后续轮次，而不是替代当前主线。
+<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前 chat polish 收口完成后，再继续回到 external source 主线。
 
 建议目标：
 
-- 把现有 source 的状态、错误、重试、身份识别、去重能力做得更完整
-- 为后续继续扩 source 类型打基础
+- 在现有 external source family 上继续推进下一步最小增量
+- 后续再进入 stabilization / management enhancement
 
 ---
 
 ## 7. 一句话结论
 
-<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前项目接下来最重要的，不是再把 UI polish 当成主线，而是：
+<span style="background:#fff3cd;color:#b00020;font-weight:700;padding:0 6px;">相对原文件已改</span> 当前项目接下来最重要的是：
 
-**在 `PC Web` 第一轮 chat polish 已完成的前提下，继续沿 `external knowledge source expansion` 这条主线做后端优先的小步增量。**
+**明确 `chat` 流处理已完成，但当前这轮 `PC Web chat experience polish` 仍待收尾；收尾完成后，再继续沿 `external knowledge source expansion` 这条主线做后端优先的小步增量。**
 
 如果需要继续改 UI，也应理解为：
 
-**围绕新增能力做局部收口，而不是替代当前主线。**
+**先完成当前这轮 chat polish，再把后续 UI 改动控制为围绕新增能力的局部收口。**
