@@ -31,7 +31,7 @@
 
 - 当前主线状态：`MVP 可运行 + 第一版可诊断 + 第一版可配置`
 - 当前最适合继续推进的方向：
-  - 先完成并提交当前这轮 `PC Web chat experience polish` 第一轮收尾
+  - `chat` 流处理能力已完成，但当前这轮 `PC Web chat experience polish` 整体仍待收尾
   - 下一整个大方向仍是 `external knowledge source expansion`
   - 继续保持 `PC Web` 优先、移动端后置
 - 当前本地执行约束：
@@ -323,10 +323,10 @@
 ### 3.5 Next Controlled Increment
 
 - ✅ retrieval / answering systematic evolution
-- ✅ `PC Web` chat experience polish
+- [ ] `PC Web` chat experience polish
   - NDJSON transport and progressive answer rendering: done
   - native answer-generation text streaming: done
-  - chat workspace UI / UX polish: done
+  - chat workspace UI / UX polish: pending
 - [ ] external knowledge source expansion
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
@@ -407,7 +407,9 @@
 
 ### 8.2 当前推荐下一步
 
-- ✅ `PC Web` chat experience polish
+- [ ] `PC Web` chat experience polish
+  - chat streaming transport and native answer-generation streaming: done
+  - workspace UI / UX polish and final收口: pending
 - [ ] external knowledge source expansion
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
@@ -449,6 +451,7 @@
 - ✅ PC Web Knowledge Base -> Assistant browser smoke automation
 - ✅ PC Web Chat progressive streamed experience polish
 - ✅ Ask stream native answer-generation upgrade
+- ✅ Chat conversation rail / citation context polish
 - ✅ Document chain API E2E
 - ✅ Ask chain API E2E
 - ✅ Ask stream API E2E
@@ -477,7 +480,10 @@
 - [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
 - [apps/api/test/answering.test.js](/D:/FeProjects/rag-system/apps/api/test/answering.test.js)
 - [apps/web/src/pages/assistant/AssistantPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/AssistantPage.tsx)
+- [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
+- [apps/web/src/pages/chat/chat-page-helpers.ts](/D:/FeProjects/rag-system/apps/web/src/pages/chat/chat-page-helpers.ts)
 - [apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx)
+- [apps/web/test/chat-page-helpers.test.js](/D:/FeProjects/rag-system/apps/web/test/chat-page-helpers.test.js)
 - [docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md)
 - [docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md)
@@ -519,6 +525,7 @@
 - `pnpm --filter @rag-system/web typecheck`
 - `pnpm --filter @rag-system/web build`
 - `node --experimental-strip-types --test apps/web/test/chat-stream-state.test.js`
+- `node --experimental-strip-types --test apps/web/test/chat-page-helpers.test.js`
 - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
 - `node --test apps/web/test/pc-web-smoke.test.js`
 

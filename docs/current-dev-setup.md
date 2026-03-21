@@ -225,6 +225,12 @@ Focused chat stream state validation:
 node --experimental-strip-types --test apps/web/test/chat-stream-state.test.js
 ```
 
+Focused chat UI polish validation:
+
+```bash
+node --experimental-strip-types --test apps/web/test/chat-page-helpers.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash

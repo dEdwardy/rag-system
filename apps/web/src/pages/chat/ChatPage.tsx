@@ -37,6 +37,7 @@ import {
   type ChatStreamEvent,
   type ChatStreamUserMessage
 } from "./chat-stream-state";
+import { buildCitationContext, formatConversationUpdatedAt } from "./chat-page-helpers";
 
 type ActiveStreamTurn = {
   conversationId: string | null;
@@ -119,6 +120,11 @@ export function ChatPage() {
       ? activeStreamTurn.assistantMessage.citations
       : latestTrace?.citationsJson ?? [];
   const activeTraceId = activeStreamTurn?.assistantMessage.traceId ?? latestTrace?.id ?? null;
+  const activeCitationCount = citationItems.length;
+  const getCitationContext = (citation: Citation) =>
+    buildCitationContext(citation, {
+      pageLabel: pageNo => t("common.misc.pageLong", { pageNo })
+    });
 
   return (
     <Stack gap="lg">
@@ -191,11 +197,22 @@ export function ChatPage() {
                 <Text fw={700} size="sm" tt="uppercase">
                   {t("chat.conversations")}
                 </Text>
-                {conversationsQuery.data?.length ? (
-                  <Badge radius="sm" variant="light">
-                    {conversationsQuery.data.length}
-                  </Badge>
-                ) : null}
+                <Group gap="xs">
+                  {conversationsQuery.data?.length ? (
+                    <Badge radius="sm" variant="light">
+                      {conversationsQuery.data.length}
+                    </Badge>
+                  ) : null}
+                  <Button
+                    disabled={askStreamMutation.isPending}
+                    onClick={() => setActiveConversationId(null)}
+                    radius="xl"
+                    size="xs"
+                    variant="light"
+                  >
+                    {locale === "zh" ? "新会话" : "New chat"}
+                  </Button>
+                </Group>
               </Group>
 
               {conversationsQuery.isLoading ? (
@@ -215,17 +232,25 @@ export function ChatPage() {
                   {conversationsQuery.data.map(conversation => (
                     <Button
                       key={conversation.id}
-                      justify="space-between"
+                      justify="flex-start"
                       onClick={() => setActiveConversationId(conversation.id)}
                       radius="lg"
                       style={{
-                        minHeight: 54
+                        minHeight: 64
                       }}
                       variant={activeConversationId === conversation.id ? "filled" : "subtle"}
                     >
-                      <Text lineClamp={2} size="sm">
-                        {conversation.title}
-                      </Text>
+                      <Stack align="flex-start" gap={2}>
+                        <Text lineClamp={2} size="sm">
+                          {conversation.title}
+                        </Text>
+                        <Text
+                          c={activeConversationId === conversation.id ? "rgba(255,255,255,0.78)" : "dimmed"}
+                          size="xs"
+                        >
+                          {formatConversationUpdatedAt(conversation.updatedAt, locale)}
+                        </Text>
+                      </Stack>
                     </Button>
                   ))}
                 </Stack>
@@ -559,6 +584,39 @@ export function ChatPage() {
                 </Text>
               </div>
 
+              {(activeConversationId != null || activeStreamTurn != null) && (
+                <Paper
+                  p="sm"
+                  radius="lg"
+                  style={{
+                    background: "rgba(255,255,255,0.74)",
+                    border: "1px solid rgba(23, 36, 30, 0.08)"
+                  }}
+                >
+                  <Group justify="space-between">
+                    <div>
+                      <Text c="dimmed" size="xs" tt="uppercase">
+                        {locale === "zh" ? "当前上下文" : "Current context"}
+                      </Text>
+                      <Text fw={600} size="sm">
+                        {activeCitationCount > 0
+                          ? locale === "zh"
+                            ? `已捕获 ${activeCitationCount} 条引用`
+                            : `${activeCitationCount} citations captured`
+                          : locale === "zh"
+                            ? "等待引用返回"
+                            : "Waiting for citations"}
+                      </Text>
+                    </div>
+                    {activeTraceId ? (
+                      <Badge color="teal" radius="sm" variant="light">
+                        Trace
+                      </Badge>
+                    ) : null}
+                  </Group>
+                </Paper>
+              )}
+
               {activeConversationId == null && activeStreamTurn == null ? (
                 <StatePanel
                   description={t("chat.states.noTraceDescription")}
@@ -578,29 +636,40 @@ export function ChatPage() {
                 />
               ) : citationItems.length ? (
                 <Stack gap="sm">
-                  {citationItems.map(citation => (
-                    <Paper
-                      key={citation.chunkId}
-                      p="sm"
-                      radius="lg"
-                      style={{
-                        background: "rgba(255,255,255,0.86)",
-                        border: "1px solid rgba(23, 36, 30, 0.08)"
-                      }}
-                    >
-                      <Stack gap={6}>
-                        <Anchor component={Link} fw={700} size="sm" to={`/documents/${citation.documentId}`}>
-                          {citation.documentTitle}
-                        </Anchor>
-                        <Text c="dimmed" size="xs">
-                          {t("common.misc.chunkLabel", { chunkId: citation.chunkId })}
-                        </Text>
-                        <Text size="sm" style={{ lineHeight: 1.6 }}>
-                          {citation.snippet}
-                        </Text>
-                      </Stack>
-                    </Paper>
-                  ))}
+                  {citationItems.map(citation => {
+                    const citationContext = getCitationContext(citation);
+
+                    return (
+                      <Paper
+                        key={citation.chunkId}
+                        p="sm"
+                        radius="lg"
+                        style={{
+                          background: "rgba(255,255,255,0.86)",
+                          border: "1px solid rgba(23, 36, 30, 0.08)"
+                        }}
+                      >
+                        <Stack gap={6}>
+                          <Anchor component={Link} fw={700} size="sm" to={`/documents/${citation.documentId}`}>
+                            {citation.documentTitle}
+                          </Anchor>
+                          <Group gap={6}>
+                            <Text c="dimmed" size="xs">
+                              {t("common.misc.chunkLabel", { chunkId: citation.chunkId })}
+                            </Text>
+                            {citationContext ? (
+                              <Badge color="gray" radius="sm" size="xs" variant="light">
+                                {citationContext}
+                              </Badge>
+                            ) : null}
+                          </Group>
+                          <Text size="sm" style={{ lineHeight: 1.6 }}>
+                            {citation.snippet}
+                          </Text>
+                        </Stack>
+                      </Paper>
+                    );
+                  })}
                   {activeTraceId ? (
                     <Button component={Link} radius="xl" size="sm" to={`/traces/${activeTraceId}`} variant="light">
                       {t("common.actions.viewTraceDetails")}
