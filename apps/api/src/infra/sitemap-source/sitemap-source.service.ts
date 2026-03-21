@@ -15,6 +15,9 @@ type FetchedSitemap = {
   content: string;
 };
 
+// Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
+const MAX_CHILD_SITEMAPS = 20;
+
 @Injectable()
 export class SitemapSourceService {
   constructor(private readonly webPageService: WebPageService) {}
@@ -43,7 +46,8 @@ export class SitemapSourceService {
       throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
     }
 
-    const pageUrls = this.extractPageUrls(await response.text(), options);
+    const xml = await response.text();
+    const pageUrls = await this.resolvePageUrls(xml, options);
     const content = await this.buildCombinedContent(options.url, pageUrls);
 
     return {
@@ -72,6 +76,69 @@ export class SitemapSourceService {
     }
 
     return uniqueUrls;
+  }
+
+  private async resolvePageUrls(xml: string, options: ExtractSitemapOptions) {
+    const normalizedXml = xml.trim();
+    if (!normalizedXml) {
+      throw new BadRequestException("Sitemap payload is empty.");
+    }
+
+    if (/<urlset\b/i.test(normalizedXml)) {
+      return this.extractPageUrls(normalizedXml, options);
+    }
+
+    if (!/<sitemapindex\b/i.test(normalizedXml)) {
+      throw new BadRequestException(
+        "Unsupported sitemap format. Only direct urlset and one-level sitemapindex payloads are supported."
+      );
+    }
+
+    const childSitemapUrls = this.extractChildSitemapUrls(normalizedXml);
+    if (!childSitemapUrls.length) {
+      throw new BadRequestException("Extracted sitemap child URLs are empty.");
+    }
+
+    const collectedPageUrls: string[] = [];
+    const seenPageUrls = new Set<string>();
+
+    for (const childSitemapUrl of childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS)) {
+      if (collectedPageUrls.length >= options.maxPages) {
+        break;
+      }
+
+      const childXml = await this.fetchSitemapXml(childSitemapUrl);
+      const normalizedChildXml = childXml.trim();
+
+      if (/<sitemapindex\b/i.test(normalizedChildXml)) {
+        throw new BadRequestException("Nested sitemap indexes are not supported.");
+      }
+
+      const childPageUrls = this.extractPageUrls(normalizedChildXml, {
+        ...options,
+        url: childSitemapUrl,
+        maxPages: options.maxPages
+      });
+
+      for (const pageUrl of childPageUrls) {
+        if (seenPageUrls.has(pageUrl)) {
+          continue;
+        }
+
+        seenPageUrls.add(pageUrl);
+        collectedPageUrls.push(pageUrl);
+
+        if (collectedPageUrls.length >= options.maxPages) {
+          break;
+        }
+      }
+    }
+
+    if (!collectedPageUrls.length) {
+      throw new BadRequestException("Extracted sitemap page URLs are empty.");
+    }
+
+    return collectedPageUrls;
   }
 
   private async buildCombinedContent(sourceUrl: string, pageUrls: string[]) {
@@ -113,6 +180,13 @@ export class SitemapSourceService {
     return contentType.startsWith("application/xml") || contentType.startsWith("text/xml");
   }
 
+  private extractChildSitemapUrls(xml: string) {
+    return [...xml.matchAll(/<sitemap\b[^>]*>[\s\S]*?<loc\b[^>]*>([\s\S]*?)<\/loc>[\s\S]*?<\/sitemap>/gi)]
+      .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
+      .filter(url => this.isHttpUrl(url))
+      .filter((url, index, urls) => urls.indexOf(url) === index);
+  }
+
   private isHttpUrl(value: string) {
     try {
       const parsed = new URL(value);
@@ -135,5 +209,32 @@ export class SitemapSourceService {
       .replace(/&gt;/gi, ">")
       .replace(/&quot;/gi, '"')
       .replace(/&apos;/gi, "'");
+  }
+
+  private async fetchSitemapXml(url: string) {
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: {
+          Accept: "application/xml,text/xml"
+        }
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown fetch error.";
+      throw new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+    }
+
+    if (!response.ok) {
+      throw new BadGatewayException(`Failed to fetch sitemap: upstream responded with ${response.status}.`);
+    }
+
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    if (!this.isSupportedSitemapContentType(contentType)) {
+      throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
+    }
+
+    return response.text();
   }
 }

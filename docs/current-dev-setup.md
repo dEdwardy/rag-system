@@ -221,7 +221,8 @@ Notes:
 - backend now also supports `POST /knowledge-bases/:id/documents/feed` for one direct RSS or Atom feed URL
 - the current feed version fetches XML server-side, extracts feed metadata plus bounded entry summaries into one generated local text artifact, and then reuses the existing ingestion/indexing path
 - backend now also supports `POST /knowledge-bases/:id/documents/sitemap` for one direct sitemap XML URL
-- the current sitemap version fetches one direct `urlset` sitemap server-side, expands a bounded set of page URLs, aggregates extracted page text into one generated local text artifact, and then reuses the existing ingestion/indexing path
+- the current sitemap version fetches one sitemap XML URL server-side, supports either one direct `urlset` or one root `sitemapindex`, expands a bounded set of page URLs, aggregates extracted page text into one generated local text artifact, and then reuses the existing ingestion/indexing path
+- for sitemap-index expansion, the current backend processes up to `20` child sitemap files and still caps the final fetched page set with request `maxPages`
 
 ## Current working flow
 

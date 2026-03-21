@@ -136,3 +136,111 @@ test("SitemapSourceService extracts ordered unique page URLs from sitemap XML", 
     "https://example.com/guide/advanced"
   ]);
 });
+
+test("SitemapSourceService expands one-level sitemap index into bounded unique page URLs", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/docs.xml</loc></sitemap>
+          <sitemap><loc>https://example.com/sitemaps/blog.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/docs.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/docs/start</loc></url>
+          <url><loc>https://example.com/docs/shared</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/blog.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/docs/shared</loc></url>
+          <url><loc>https://example.com/blog/post-a</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/docs/start") {
+      return new Response(
+        "<html><head><title>Docs Start</title></head><body><main><p>Marker alpha.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/docs/shared") {
+      return new Response(
+        "<html><head><title>Docs Shared</title></head><body><main><p>Marker beta.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/blog/post-a") {
+      return new Response(
+        "<html><head><title>Blog Post A</title></head><body><main><p>Marker gamma.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 2
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/docs\/start/);
+    assert.match(extracted.content, /https:\/\/example\.com\/docs\/shared/);
+    assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/blog\/post-a/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

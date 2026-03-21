@@ -311,7 +311,8 @@
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
   - sitemap source ingestion minimum increment: done
-  - the broader external knowledge source direction is not complete yet; continue backend-first expansion from the current three source types
+  - sitemap index source ingestion minimum increment: done
+  - the broader external knowledge source direction is not complete yet; continue backend-first expansion from the current completed source increments
 - keep backend / API first
 - keep `PC Web` as the current client priority
 - do not expand mobile work yet
@@ -331,6 +332,7 @@
   - one direct `http` / `https` web page source
   - one direct RSS / Atom feed source
   - one direct sitemap `urlset` source
+  - one root sitemap `sitemapindex` source that expands child direct sitemaps
 - 后续的 `external knowledge source expansion` 仍然是当前的下一个完整任务方向
 
 ---
@@ -430,6 +432,7 @@
 - ✅ Web page source ingestion API E2E
 - ✅ External feed source ingestion API E2E
 - ✅ Sitemap source ingestion API E2E
+- ✅ Sitemap index source ingestion API E2E
 - ✅ retrieval / answering execution metadata
 
 关键文件：
@@ -458,6 +461,8 @@
 - [docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md)
 - [docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md)
+- [docs/superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md)
+- [docs/superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md)
 - [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
 - [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
 
@@ -479,6 +484,7 @@
 - `node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+- `node --test apps/api/test/parsing.test.js`
 - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
 - `pnpm test:api`
 

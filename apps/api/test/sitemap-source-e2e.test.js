@@ -116,6 +116,82 @@ test("Sitemap source E2E: sitemap -> ready -> chunks -> ask -> reindex", async (
   }
 });
 
+test("Sitemap source E2E: sitemap index -> ready -> chunks -> ask", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3107;
+  const storageRoot = resolve(repoRoot, "storage", `test-sitemap-index-source-${randomUUID()}`);
+  const queuePrefix = `test-sitemap-index-source-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const sitemapMarker = `sitemap-index-marker-${randomUUID()}`;
+  const sitemapServer = await startSitemapIndexServer(sitemapMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/sitemap`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${sitemapServer.origin}/sitemap-index.xml`,
+        maxPages: 2
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    assert.equal(createdDocument.sourceType, "sitemap");
+    assert.equal(createdDocument.sourceName, `${sitemapServer.origin}/sitemap-index.xml`);
+
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.status, "ready");
+    assert.ok(readyDocument.chunkCount >= 1);
+
+    const chunksResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/chunks`);
+    assert.equal(chunksResponse.status, 200);
+
+    const chunks = await chunksResponse.json();
+    assert.ok(chunks.some(chunk => chunk.content.includes(sitemapMarker)));
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: `What unique marker appears in the sitemap index pages? Return ${sitemapMarker}`
+      })
+    });
+    assert.equal(askResponse.status, 201);
+
+    const askResult = await askResponse.json();
+    assert.ok(Array.isArray(askResult.retrievedChunks));
+    assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(sitemapMarker)));
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(sitemapServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -174,6 +250,118 @@ async function startSitemapServer(marker) {
             <main>
               <h1>Sitemap Beta</h1>
               <p>Background details for sitemap aggregation.</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  const address = server.address();
+  return {
+    server,
+    origin: `http://127.0.0.1:${address.port}`
+  };
+}
+
+async function startSitemapIndexServer(marker) {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/sitemap-index.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>http://127.0.0.1:${server.address().port}/sitemaps/docs.xml</loc></sitemap>
+          <sitemap><loc>http://127.0.0.1:${server.address().port}/sitemaps/blog.xml</loc></sitemap>
+        </sitemapindex>`);
+      return;
+    }
+
+    if (request.url === "/sitemaps/docs.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>http://127.0.0.1:${server.address().port}/docs/start</loc></url>
+          <url><loc>http://127.0.0.1:${server.address().port}/docs/shared</loc></url>
+        </urlset>`);
+      return;
+    }
+
+    if (request.url === "/sitemaps/blog.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>http://127.0.0.1:${server.address().port}/docs/shared</loc></url>
+          <url><loc>http://127.0.0.1:${server.address().port}/blog/post-a</loc></url>
+        </urlset>`);
+      return;
+    }
+
+    if (request.url === "/docs/start") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Docs Start</title>
+          </head>
+          <body>
+            <main>
+              <h1>Docs Start</h1>
+              <p>Unique marker: ${marker}</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    if (request.url === "/docs/shared") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Docs Shared</title>
+          </head>
+          <body>
+            <main>
+              <h1>Docs Shared</h1>
+              <p>Repeated page from sitemap index expansion.</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    if (request.url === "/blog/post-a") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Blog Post A</title>
+          </head>
+          <body>
+            <main>
+              <h1>Blog Post A</h1>
+              <p>This page should be excluded when maxPages is 2.</p>
             </main>
           </body>
         </html>`);
