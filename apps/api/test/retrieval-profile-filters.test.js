@@ -72,7 +72,9 @@ test("Retrieval profile filters constrain ask retrieved chunks", async () => {
 
     const updatedProfile = await patchResponse.json();
     assert.deepEqual(updatedProfile.filtersJson, {
-      documentIds: [allowedDocument.id]
+      documentIds: {
+        include: [allowedDocument.id]
+      }
     });
 
     const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
@@ -82,6 +84,112 @@ test("Retrieval profile filters constrain ask retrieved chunks", async () => {
       },
       body: JSON.stringify({
         question: `Compare the allowed marker ${allowedMarker} and blocked marker ${blockedMarker}`
+      })
+    });
+    assert.equal(askResponse.status, 201);
+
+    const askResult = await askResponse.json();
+    assert.ok(Array.isArray(askResult.retrievedChunks));
+    assert.ok(askResult.retrievedChunks.length >= 1);
+    assert.ok(askResult.retrievedChunks.every(chunk => chunk.documentId === allowedDocument.id));
+    assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(allowedMarker)));
+    assert.ok(askResult.retrievedChunks.every(chunk => !chunk.content.includes(blockedMarker)));
+  } finally {
+    server.kill("SIGTERM");
+    rmSync(storageRoot, { recursive: true, force: true });
+    await prisma.retrievalProfile.update({
+      where: {
+        id: "default-retrieval-profile"
+      },
+      data: {
+        filtersJson: null
+      }
+    }).catch(() => {});
+  }
+});
+
+test("Retrieval profile strategy filters accept richer operators and constrain ask retrieved chunks", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3104;
+  const storageRoot = resolve(repoRoot, "storage", `test-filter-strategy-${randomUUID()}`);
+  const queuePrefix = `test-filter-strategy-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const allowedMarker = `spec-allowed-${randomUUID()}`;
+    const blockedMarker = `spec-blocked-${randomUUID()}`;
+
+    const allowedDocument = await uploadMarkdownDocument(
+      port,
+      "allowed-specs.md",
+      `# Product\n\n## Technical Specs\n\nThis is the allowed spec section. ${allowedMarker}`
+    );
+    const blockedDocument = await uploadMarkdownDocument(
+      port,
+      "blocked-specs.md",
+      `# Product\n\n## Technical Specs\n\nThis is the blocked spec section. ${blockedMarker}`
+    );
+
+    await waitForDocumentReady(port, allowedDocument.id, 20000);
+    await waitForDocumentReady(port, blockedDocument.id, 20000);
+
+    const patchResponse = await fetch(
+      `http://localhost:${port}/retrieval-profiles/default-retrieval-profile`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          topK: 3,
+          filtersJson: {
+            documentIds: {
+              exclude: [blockedDocument.id]
+            },
+            sectionTitles: {
+              contains: ["spec"]
+            }
+          }
+        })
+      }
+    );
+    assert.equal(patchResponse.status, 200);
+
+    const updatedProfile = await patchResponse.json();
+    assert.deepEqual(updatedProfile.filtersJson, {
+      documentIds: {
+        exclude: [blockedDocument.id]
+      },
+      sectionTitles: {
+        contains: ["spec"]
+      }
+    });
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: `Summarize the allowed spec marker ${allowedMarker} and ignore the blocked marker ${blockedMarker}`
       })
     });
     assert.equal(askResponse.status, 201);

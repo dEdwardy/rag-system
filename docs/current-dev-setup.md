@@ -186,6 +186,10 @@ The following path has been validated locally on `2026-03-21`:
 - Vector retrieval with lexical fallback when vector search is unavailable
 - Hybrid retrieval candidate merge when `enableHybrid` is enabled
 - Additional retrieval rerank heuristic when `enableRerank` is enabled
+- Retrieval profile `filtersJson` strategy operators with backward-compatible normalization:
+  - `documentIds.include` / `documentIds.exclude`
+  - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
+  - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
 - Query rewrite before retrieval, with LLM-first and local fallback behavior
 - Minimal ask flow with conversation/message/trace persistence
 - Citation-aware answer prompting with inline source markers

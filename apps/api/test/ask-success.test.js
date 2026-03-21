@@ -54,7 +54,13 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           enableHybrid: true,
           enableRerank: true,
           filtersJson: {
-            documentIds: ["document-1"]
+            documentIds: {
+              include: ["document-1"],
+              exclude: ["document-2"]
+            },
+            sectionTitles: {
+              contains: ["fact"]
+            }
           }
         }
       })
@@ -173,7 +179,13 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       enableHybrid: true,
       enableRerank: true,
       filters: {
-        documentIds: ["document-1"]
+        documentIds: {
+          include: ["document-1"],
+          exclude: ["document-2"]
+        },
+        sectionTitles: {
+          contains: ["fact"]
+        }
       }
     }
   ]);

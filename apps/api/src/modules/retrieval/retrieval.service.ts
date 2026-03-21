@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { EmbeddingService } from "../../infra/embedding/embedding.service";
 import { VectorStoreService } from "../../infra/vector-store/vector-store.service";
-import { RetrievalProfileFilters } from "../retrieval-profiles/retrieval-profile.schemas";
+import {
+  RetrievalProfileFilters,
+  retrievalProfileFiltersSchema
+} from "../retrieval-profiles/retrieval-profile.schemas";
 
 type RetrievedChunk = {
   chunkId: string;
@@ -44,12 +47,13 @@ export class RetrievalService {
     enableRerank?: boolean;
     filters?: RetrievalProfileFilters;
   }) {
+    const normalizedFilters = retrievalProfileFiltersSchema.optional().parse(input.filters);
     const candidateLimit = Math.max(input.topK * 3, input.topK);
     const lexicalCandidates = await this.getLexicalCandidates({
       kbId: input.kbId,
       query: input.query,
       limit: candidateLimit,
-      filters: input.filters
+      filters: normalizedFilters
     });
 
     try {
@@ -59,7 +63,7 @@ export class RetrievalService {
         queryVector: queryEmbedding.vector,
         topK: candidateLimit,
         scoreThreshold: input.scoreThreshold,
-        filters: input.filters
+        filters: normalizedFilters
       });
 
       if (vectorMatches.length > 0 || input.enableHybrid) {
@@ -79,7 +83,7 @@ export class RetrievalService {
             input.kbId,
             rankedCandidates,
             input.chunkWindow ?? 0,
-            input.filters
+            normalizedFilters
           );
         }
       }
@@ -90,6 +94,7 @@ export class RetrievalService {
 
     return this.retrieveWithLexicalFallback({
       ...input,
+      filters: normalizedFilters,
       lexicalCandidates
     });
   }
@@ -418,32 +423,120 @@ export class RetrievalService {
   }
 
   private buildChunkWhere(kbId: string, filters?: RetrievalProfileFilters): Prisma.DocumentChunkWhereInput {
-    const where: Prisma.DocumentChunkWhereInput = {
+    if (!filters) {
+      return {
+        kbId
+      };
+    }
+
+    const directWhere: Prisma.DocumentChunkWhereInput = {
       kbId
     };
+    const extraPositiveClauses: Prisma.DocumentChunkWhereInput[] = [];
+    const negativeClauses: Prisma.DocumentChunkWhereInput[] = [];
 
-    if (!filters) {
-      return where;
-    }
-
-    if (filters.documentIds) {
-      where.documentId = {
-        in: filters.documentIds
+    if (filters.documentIds?.include) {
+      directWhere.documentId = {
+        in: filters.documentIds.include
       };
     }
 
-    if (filters.sectionTitles) {
-      where.sectionTitle = {
-        in: filters.sectionTitles
+    if (filters.documentIds?.exclude) {
+      negativeClauses.push({
+        documentId: {
+          in: filters.documentIds.exclude
+        }
+      });
+    }
+
+    const sectionTitleClauses: Prisma.DocumentChunkWhereInput[] = [];
+    if (filters.sectionTitles?.include) {
+      sectionTitleClauses.push({
+        sectionTitle: {
+          in: filters.sectionTitles.include
+        }
+      });
+    }
+
+    if (filters.sectionTitles?.contains) {
+      sectionTitleClauses.push(
+        ...filters.sectionTitles.contains.map(sectionTitle => ({
+          sectionTitle: {
+            contains: sectionTitle,
+            mode: Prisma.QueryMode.insensitive
+          }
+        }))
+      );
+    }
+
+    if (sectionTitleClauses.length === 1) {
+      Object.assign(directWhere, sectionTitleClauses[0]);
+    } else if (sectionTitleClauses.length > 1) {
+      extraPositiveClauses.push({
+        OR: sectionTitleClauses
+      });
+    }
+
+    if (filters.sectionTitles?.exclude) {
+      negativeClauses.push({
+        sectionTitle: {
+          in: filters.sectionTitles.exclude
+        }
+      });
+    }
+
+    const pageNumberClauses: Prisma.DocumentChunkWhereInput[] = [];
+    if (filters.pageNumbers?.include) {
+      pageNumberClauses.push({
+        pageNo: {
+          in: filters.pageNumbers.include
+        }
+      });
+    }
+
+    if (filters.pageNumbers?.min !== undefined || filters.pageNumbers?.max !== undefined) {
+      pageNumberClauses.push({
+        pageNo: {
+          ...(filters.pageNumbers.min !== undefined ? { gte: filters.pageNumbers.min } : {}),
+          ...(filters.pageNumbers.max !== undefined ? { lte: filters.pageNumbers.max } : {})
+        }
+      });
+    }
+
+    if (pageNumberClauses.length === 1) {
+      Object.assign(directWhere, pageNumberClauses[0]);
+    } else if (pageNumberClauses.length > 1) {
+      extraPositiveClauses.push({
+        OR: pageNumberClauses
+      });
+    }
+
+    if (filters.pageNumbers?.exclude) {
+      negativeClauses.push({
+        pageNo: {
+          in: filters.pageNumbers.exclude
+        }
+      });
+    }
+
+    if (negativeClauses.length > 0) {
+      directWhere.NOT = negativeClauses;
+    }
+
+    if (extraPositiveClauses.length === 0) {
+      return directWhere;
+    }
+
+    const directWhereKeys = Object.keys(directWhere).filter(key => key !== "kbId");
+    if (directWhereKeys.length === 0 && extraPositiveClauses.length === 1) {
+      return {
+        kbId,
+        ...extraPositiveClauses[0]
       };
     }
 
-    if (filters.pageNumbers) {
-      where.pageNo = {
-        in: filters.pageNumbers
-      };
-    }
-
-    return where;
+    return {
+      AND: [directWhere, ...extraPositiveClauses]
+    };
   }
 }

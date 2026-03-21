@@ -319,8 +319,12 @@ test("RetrievalService forwards page and section filters to vector search", asyn
   });
 
   assert.deepEqual(vectorSearchArgs.filters, {
-    sectionTitles: ["Specs"],
-    pageNumbers: [3]
+    sectionTitles: {
+      include: ["Specs"]
+    },
+    pageNumbers: {
+      include: [3]
+    }
   });
   assert.equal(chunks[0].chunkId, "chunk-2");
 });
@@ -372,6 +376,129 @@ test("RetrievalService fallback remains inside configured filter scope", async (
     scoreThreshold: 99,
     filters: {
       documentIds: ["doc-allowed"]
+    }
+  });
+
+  assert.equal(callCount >= 2, true);
+  assert.deepEqual(
+    chunks.map(chunk => chunk.documentId),
+    ["doc-allowed"]
+  );
+});
+
+test("RetrievalService compiles section-title contains filters for lexical retrieval", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        assert.deepEqual(args.where, {
+          kbId: "kb-1",
+          sectionTitle: {
+            contains: "spec",
+            mode: "insensitive"
+          }
+        });
+
+        return [
+          {
+            id: "chunk-specs",
+            documentId: "doc-1",
+            chunkIndex: 0,
+            content: "specification details",
+            pageNo: 3,
+            sectionTitle: "Technical Specs",
+            document: { title: "Doc 1" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => {
+      throw new Error("vector disabled");
+    }
+  };
+
+  const vectorStoreService = {
+    search: async () => []
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const chunks = await service.retrieve({
+    kbId: "kb-1",
+    query: "specification",
+    topK: 1,
+    scoreThreshold: 0,
+    filters: {
+      sectionTitles: {
+        contains: ["spec"]
+      }
+    }
+  });
+
+  assert.equal(chunks[0].chunkId, "chunk-specs");
+});
+
+test("RetrievalService compiles page-number ranges and document exclusions", async () => {
+  let callCount = 0;
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        callCount += 1;
+        assert.deepEqual(args.where, {
+          kbId: "kb-1",
+          pageNo: {
+            gte: 2,
+            lte: 4
+          },
+          NOT: [
+            {
+              documentId: {
+                in: ["doc-blocked"]
+              }
+            }
+          ]
+        });
+
+        return [
+          {
+            id: "chunk-allowed",
+            documentId: "doc-allowed",
+            chunkIndex: 0,
+            content: "page constrained chunk",
+            pageNo: 3,
+            sectionTitle: "Allowed",
+            document: { title: "Allowed Doc" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => {
+      throw new Error("vector disabled");
+    }
+  };
+
+  const vectorStoreService = {
+    search: async () => []
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const chunks = await service.retrieve({
+    kbId: "kb-1",
+    query: "page constrained",
+    topK: 1,
+    scoreThreshold: 99,
+    filters: {
+      documentIds: {
+        exclude: ["doc-blocked"]
+      },
+      pageNumbers: {
+        min: 2,
+        max: 4
+      }
     }
   });
 

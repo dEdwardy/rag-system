@@ -1,9 +1,23 @@
 import { z } from "zod";
 
+type IncludeExcludeFilter<T> = {
+  include?: T[];
+  exclude?: T[];
+};
+
+type StringStrategyFilter = IncludeExcludeFilter<string> & {
+  contains?: string[];
+};
+
+type NumberStrategyFilter = IncludeExcludeFilter<number> & {
+  min?: number;
+  max?: number;
+};
+
 export type RetrievalProfileFilters = {
-  documentIds?: string[];
-  sectionTitles?: string[];
-  pageNumbers?: number[];
+  documentIds?: IncludeExcludeFilter<string>;
+  sectionTitles?: StringStrategyFilter;
+  pageNumbers?: NumberStrategyFilter;
 };
 
 const optionalStringArraySchema = z
@@ -28,20 +42,87 @@ const optionalNumberArraySchema = z
     return Array.from(new Set(value));
   });
 
-export const retrievalProfileFiltersSchema: z.ZodType<RetrievalProfileFilters | undefined> = z
+const optionalNumberSchema = z.number().int().nonnegative().optional();
+
+const normalizeObject = <T extends Record<string, unknown>>(value: T) => {
+  const normalized = Object.fromEntries(
+    Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined)
+  );
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+};
+
+const documentIdStrategySchema = z
   .object({
-    documentIds: optionalStringArraySchema,
-    sectionTitles: optionalStringArraySchema,
-    pageNumbers: optionalNumberArraySchema
+    include: optionalStringArraySchema,
+    exclude: optionalStringArraySchema
   })
   .strict()
-  .transform(value => {
-    const normalized = Object.fromEntries(
-      Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined)
-    );
+  .transform(value => normalizeObject(value));
 
-    return Object.keys(normalized).length > 0 ? normalized : undefined;
+const sectionTitleStrategySchema = z
+  .object({
+    include: optionalStringArraySchema,
+    exclude: optionalStringArraySchema,
+    contains: optionalStringArraySchema
+  })
+  .strict()
+  .transform(value => normalizeObject(value));
+
+const pageNumberStrategySchema = z
+  .object({
+    include: optionalNumberArraySchema,
+    exclude: optionalNumberArraySchema,
+    min: optionalNumberSchema,
+    max: optionalNumberSchema
+  })
+  .strict()
+  .refine(value => value.min === undefined || value.max === undefined || value.min <= value.max, {
+    message: "pageNumbers.min must be less than or equal to pageNumbers.max"
+  })
+  .transform(value => normalizeObject(value));
+
+const documentIdsFilterSchema = z
+  .union([optionalStringArraySchema, documentIdStrategySchema])
+  .optional()
+  .transform(value => {
+    if (Array.isArray(value)) {
+      return value.length > 0 ? { include: value } : undefined;
+    }
+
+    return value;
   });
+
+const sectionTitlesFilterSchema = z
+  .union([optionalStringArraySchema, sectionTitleStrategySchema])
+  .optional()
+  .transform(value => {
+    if (Array.isArray(value)) {
+      return value.length > 0 ? { include: value } : undefined;
+    }
+
+    return value;
+  });
+
+const pageNumbersFilterSchema = z
+  .union([optionalNumberArraySchema, pageNumberStrategySchema])
+  .optional()
+  .transform(value => {
+    if (Array.isArray(value)) {
+      return value.length > 0 ? { include: value } : undefined;
+    }
+
+    return value;
+  });
+
+export const retrievalProfileFiltersSchema = z
+  .object({
+    documentIds: documentIdsFilterSchema,
+    sectionTitles: sectionTitlesFilterSchema,
+    pageNumbers: pageNumbersFilterSchema
+  })
+  .strict()
+  .transform(value => normalizeObject(value) as RetrievalProfileFilters | undefined);
 
 export const createRetrievalProfileSchema = z.object({
   name: z.string().min(1).max(120),

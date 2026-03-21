@@ -90,18 +90,51 @@ export class VectorStoreService {
       return true;
     }
 
-    if (filters.documentIds && !filters.documentIds.includes(record.documentId)) {
+    if (filters.documentIds?.include && !filters.documentIds.include.includes(record.documentId)) {
       return false;
     }
 
-    if (filters.sectionTitles) {
-      if (!record.sectionTitle || !filters.sectionTitles.includes(record.sectionTitle)) {
+    if (filters.documentIds?.exclude && filters.documentIds.exclude.includes(record.documentId)) {
+      return false;
+    }
+
+    const sectionTitle = record.sectionTitle ?? "";
+    const sectionTitleIncludes = filters.sectionTitles?.include;
+    const sectionTitleContains = filters.sectionTitles?.contains;
+    if (sectionTitleIncludes || sectionTitleContains) {
+      const matchesInclude = sectionTitleIncludes?.includes(sectionTitle) ?? false;
+      const normalizedSectionTitle = sectionTitle.toLowerCase();
+      const matchesContains =
+        sectionTitleContains?.some(value => normalizedSectionTitle.includes(value.toLowerCase())) ?? false;
+
+      if (!matchesInclude && !matchesContains) {
         return false;
       }
     }
 
-    if (filters.pageNumbers) {
-      if (record.pageNo == null || !filters.pageNumbers.includes(record.pageNo)) {
+    if (filters.sectionTitles?.exclude && filters.sectionTitles.exclude.includes(sectionTitle)) {
+      return false;
+    }
+
+    if (filters.pageNumbers?.exclude && record.pageNo != null && filters.pageNumbers.exclude.includes(record.pageNo)) {
+      return false;
+    }
+
+    if (
+      filters.pageNumbers?.include ||
+      filters.pageNumbers?.min !== undefined ||
+      filters.pageNumbers?.max !== undefined
+    ) {
+      if (record.pageNo == null) {
+        return false;
+      }
+
+      const matchesInclude = filters.pageNumbers.include?.includes(record.pageNo) ?? false;
+      const matchesRange =
+        (filters.pageNumbers.min === undefined || record.pageNo >= filters.pageNumbers.min) &&
+        (filters.pageNumbers.max === undefined || record.pageNo <= filters.pageNumbers.max);
+
+      if (!matchesInclude && !matchesRange) {
         return false;
       }
     }
