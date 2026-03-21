@@ -1,0 +1,201 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { spawn, execFileSync } = require("node:child_process");
+const { randomUUID } = require("node:crypto");
+const { mkdirSync, rmSync } = require("node:fs");
+const { resolve } = require("node:path");
+const { PrismaClient } = require("@prisma/client");
+
+const repoRoot = resolve(__dirname, "../../..");
+const apiRoot = resolve(repoRoot, "apps/api");
+const prisma = new PrismaClient();
+
+test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex -> delete", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3102;
+  const storageRoot = resolve(repoRoot, "storage", `test-document-chain-${randomUUID()}`);
+  const queuePrefix = `test-document-chain-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const knowledgeBaseResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb`);
+    assert.equal(knowledgeBaseResponse.status, 200);
+
+    const knowledgeBase = await knowledgeBaseResponse.json();
+    assert.equal(knowledgeBase.id, "default-kb");
+
+    const listBeforeUploadResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/documents`
+    );
+    assert.equal(listBeforeUploadResponse.status, 200);
+
+    const listBeforeUpload = await listBeforeUploadResponse.json();
+    assert.deepEqual(listBeforeUpload, []);
+
+    const marker = `document-chain-marker-${randomUUID()}`;
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new Blob(
+        [
+          `# Document Chain Test\n\n## Facts\n\nDocument ingestion should reach ready status through the background queue. Reindex should preserve chunk retrieval. ${marker}`
+        ],
+        { type: "text/markdown" }
+      ),
+      "document-chain-test.md"
+    );
+
+    const uploadResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/upload`, {
+      method: "POST",
+      body: formData
+    });
+    assert.equal(uploadResponse.status, 201);
+
+    const uploadedDocument = await uploadResponse.json();
+    assert.equal(uploadedDocument.kbId, "default-kb");
+    assert.equal(uploadedDocument.sourceName, "document-chain-test.md");
+
+    const readyDocument = await waitForDocumentReady(port, uploadedDocument.id, 20000);
+    assert.equal(readyDocument.status, "ready");
+    assert.equal(readyDocument.processingStage, "completed");
+    assert.equal(readyDocument.errorMessage, null);
+    assert.equal(typeof readyDocument.chunkCount, "number");
+    assert.ok(readyDocument.chunkCount >= 1);
+
+    const listAfterUploadResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/documents`
+    );
+    assert.equal(listAfterUploadResponse.status, 200);
+
+    const listAfterUpload = await listAfterUploadResponse.json();
+    assert.equal(listAfterUpload.length, 1);
+    assert.equal(listAfterUpload[0].id, uploadedDocument.id);
+    assert.equal(listAfterUpload[0].status, "ready");
+
+    const chunksResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
+    assert.equal(chunksResponse.status, 200);
+
+    const chunks = await chunksResponse.json();
+    assert.ok(Array.isArray(chunks));
+    assert.ok(chunks.length >= 1);
+    assert.ok(chunks.some(chunk => chunk.content.includes(marker)));
+
+    const reindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/reindex`, {
+      method: "POST"
+    });
+    assert.equal(reindexResponse.status, 201);
+
+    const reindexResult = await reindexResponse.json();
+    assert.equal(reindexResult.id, uploadedDocument.id);
+    assert.equal(reindexResult.status, "pending");
+    assert.equal(reindexResult.processingStage, "uploaded");
+
+    const readyAfterReindex = await waitForDocumentReady(port, uploadedDocument.id, 20000);
+    assert.equal(readyAfterReindex.status, "ready");
+    assert.equal(readyAfterReindex.processingStage, "completed");
+    assert.ok(readyAfterReindex.chunkCount >= 1);
+
+    const chunksAfterReindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
+    assert.equal(chunksAfterReindexResponse.status, 200);
+
+    const chunksAfterReindex = await chunksAfterReindexResponse.json();
+    assert.ok(Array.isArray(chunksAfterReindex));
+    assert.ok(chunksAfterReindex.some(chunk => chunk.content.includes(marker)));
+
+    const deleteResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}`, {
+      method: "DELETE"
+    });
+    assert.equal(deleteResponse.status, 200);
+    assert.deepEqual(await deleteResponse.json(), { success: true });
+
+    const listAfterDeleteResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/documents`
+    );
+    assert.equal(listAfterDeleteResponse.status, 200);
+    assert.deepEqual(await listAfterDeleteResponse.json(), []);
+
+    const deletedDocumentResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}`);
+    assert.equal(deletedDocumentResponse.status, 404);
+
+    const deletedChunksResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
+    assert.equal(deletedChunksResponse.status, 404);
+  } finally {
+    server.kill("SIGTERM");
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
+test.after(async () => {
+  await prisma.$disconnect();
+});
+
+async function resetTestState() {
+  await prisma.answerTrace.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.documentChunk.deleteMany();
+  await prisma.document.deleteMany();
+}
+
+async function waitForHealth(port, timeoutMs) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await fetch(`http://localhost:${port}/health`);
+      if (response.ok) {
+        return;
+      }
+    } catch {}
+
+    await sleep(500);
+  }
+
+  throw new Error(`Timed out waiting for API health on port ${port}.`);
+}
+
+async function waitForDocumentReady(port, documentId, timeoutMs) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const response = await fetch(`http://localhost:${port}/documents/${documentId}`);
+    if (response.ok) {
+      const document = await response.json();
+      if (document.status === "ready") {
+        return document;
+      }
+
+      if (document.status === "failed") {
+        throw new Error(`Document processing failed: ${document.errorMessage ?? "unknown error"}`);
+      }
+    }
+
+    await sleep(500);
+  }
+
+  throw new Error(`Timed out waiting for document ${documentId} to become ready.`);
+}
+
+function sleep(ms) {
+  return new Promise(resolvePromise => {
+    setTimeout(resolvePromise, ms);
+  });
+}

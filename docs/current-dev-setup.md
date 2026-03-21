@@ -168,6 +168,13 @@ Current API test coverage:
 - citation-aware answering
 - upload -> ready -> ask -> trace HTTP integration
 
+Focused document-chain E2E validation:
+
+```bash
+pnpm --filter @rag-system/api build
+node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash
