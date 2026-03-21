@@ -236,7 +236,14 @@
     - `documentIds.include` / `documentIds.exclude`
     - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
     - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
-- [ ] chunk window 扩展后的更强拼接 / 组织策略
+- [x] chunk window 扩展后的更强拼接 / 组织策略
+  - `ask` 响应现已新增 `contextGroups`
+  - 连续且同文档的 window chunks 会按 `chunkIndex` 组织为 context group
+  - group 当前返回：
+    - `startChunkIndex` / `endChunkIndex`
+    - `chunkIds` / `primaryChunkIds`
+    - `mergedContent`
+    - `pageNumbers` / `sectionTitles`
 - [ ] 更系统的 retrieval 策略配置与演进能力
 
 ### 3.2 Answering 增强版未完成
@@ -347,6 +354,7 @@
 - [x] DOCX 支持
 - [x] Answering 结构化与 assistant 配置增强
 - [x] metadata filter 更完整的策略化能力
+- [x] chunk window 扩展后的更强拼接 / 组织策略
 - [x] trace/detail/document 跳转与诊断增强
 - [x] web i18n（`zh` / `en`）
 - [x] Knowledge Base 页面运营概览增强
@@ -387,6 +395,8 @@
 ### API
 
 - `pnpm --filter @rag-system/api build`
+- `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/answering.test.js`
+- `node --test --test-concurrency=1 apps/api/test/api-flow.test.js`
 - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/assistants-api.test.js`
 - `node --test --test-concurrency=1 apps/api/test/retrieval-profile-filters.test.js`
 - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/assistants-api.test.js`

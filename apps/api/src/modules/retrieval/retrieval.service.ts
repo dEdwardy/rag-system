@@ -27,6 +27,23 @@ type RetrievalCandidate = RetrievedChunk & {
   rerankScore: number;
 };
 
+export type RetrievalContextGroup = {
+  documentId: string;
+  documentTitle: string;
+  startChunkIndex: number;
+  endChunkIndex: number;
+  chunkIds: string[];
+  primaryChunkIds: string[];
+  mergedContent: string;
+  pageNumbers: number[];
+  sectionTitles: string[];
+};
+
+export type RetrievalResult = {
+  retrievedChunks: RetrievedChunk[];
+  contextGroups: RetrievalContextGroup[];
+};
+
 @Injectable()
 export class RetrievalService {
   private readonly logger = new Logger(RetrievalService.name);
@@ -79,12 +96,13 @@ export class RetrievalService {
         });
 
         if (rankedCandidates.length > 0) {
-          return this.expandChunkWindow(
+          const retrievedChunks = await this.expandChunkWindow(
             input.kbId,
             rankedCandidates,
             input.chunkWindow ?? 0,
             normalizedFilters
           );
+          return this.buildRetrievalResult(retrievedChunks);
         }
       }
     } catch (error) {
@@ -124,7 +142,13 @@ export class RetrievalService {
     });
 
     if (ranked.length > 0) {
-      return this.expandChunkWindow(input.kbId, ranked, input.chunkWindow ?? 0, input.filters);
+      const retrievedChunks = await this.expandChunkWindow(
+        input.kbId,
+        ranked,
+        input.chunkWindow ?? 0,
+        input.filters
+      );
+      return this.buildRetrievalResult(retrievedChunks);
     }
 
     const chunks = await this.prisma.documentChunk.findMany({
@@ -147,7 +171,13 @@ export class RetrievalService {
       sectionTitle: chunk.sectionTitle
     }));
 
-    return this.expandChunkWindow(input.kbId, fallbackChunks, input.chunkWindow ?? 0, input.filters);
+    const retrievedChunks = await this.expandChunkWindow(
+      input.kbId,
+      fallbackChunks,
+      input.chunkWindow ?? 0,
+      input.filters
+    );
+    return this.buildRetrievalResult(retrievedChunks);
   }
 
   private async getLexicalCandidates(input: {
@@ -420,6 +450,81 @@ export class RetrievalService {
         sectionTitle: chunk.sectionTitle
       };
     });
+  }
+
+  private buildRetrievalResult(retrievedChunks: RetrievedChunk[]): RetrievalResult {
+    return {
+      retrievedChunks,
+      contextGroups: this.buildContextGroups(retrievedChunks)
+    };
+  }
+
+  private buildContextGroups(chunks: RetrievedChunk[]): RetrievalContextGroup[] {
+    if (chunks.length === 0) {
+      return [];
+    }
+
+    const sortedChunks = [...chunks].sort((left, right) => {
+      if (left.documentId !== right.documentId) {
+        return left.documentId.localeCompare(right.documentId);
+      }
+
+      return left.chunkIndex - right.chunkIndex;
+    });
+    const groups: RetrievalContextGroup[] = [];
+    let currentGroupChunks: RetrievedChunk[] = [];
+
+    for (const chunk of sortedChunks) {
+      const previousChunk = currentGroupChunks[currentGroupChunks.length - 1];
+      const isContiguous =
+        previousChunk &&
+        previousChunk.documentId === chunk.documentId &&
+        previousChunk.chunkIndex + 1 === chunk.chunkIndex;
+
+      if (!isContiguous && currentGroupChunks.length > 0) {
+        groups.push(this.createContextGroup(currentGroupChunks));
+        currentGroupChunks = [];
+      }
+
+      currentGroupChunks.push(chunk);
+    }
+
+    if (currentGroupChunks.length > 0) {
+      groups.push(this.createContextGroup(currentGroupChunks));
+    }
+
+    return groups;
+  }
+
+  private createContextGroup(chunks: RetrievedChunk[]): RetrievalContextGroup {
+    const firstChunk = chunks[0];
+    const lastChunk = chunks[chunks.length - 1];
+
+    return {
+      documentId: firstChunk.documentId,
+      documentTitle: firstChunk.documentTitle,
+      startChunkIndex: firstChunk.chunkIndex,
+      endChunkIndex: lastChunk.chunkIndex,
+      chunkIds: chunks.map(chunk => chunk.chunkId),
+      primaryChunkIds: chunks.filter(chunk => chunk.isPrimary).map(chunk => chunk.chunkId),
+      mergedContent: chunks.map(chunk => chunk.content).join("\n\n"),
+      pageNumbers: this.collectUniqueValues(chunks.map(chunk => chunk.pageNo)),
+      sectionTitles: this.collectUniqueValues(chunks.map(chunk => chunk.sectionTitle))
+    };
+  }
+
+  private collectUniqueValues<T>(values: Array<T | null | undefined>) {
+    const uniqueValues: T[] = [];
+
+    for (const value of values) {
+      if (value == null || uniqueValues.includes(value)) {
+        continue;
+      }
+
+      uniqueValues.push(value);
+    }
+
+    return uniqueValues;
   }
 
   private buildChunkWhere(kbId: string, filters?: RetrievalProfileFilters): Prisma.DocumentChunkWhereInput {

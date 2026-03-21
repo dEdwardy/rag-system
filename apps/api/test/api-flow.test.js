@@ -86,6 +86,9 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.ok(askResult.citations.length >= 1);
     assert.ok(Array.isArray(askResult.retrievedChunks));
     assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(marker)));
+    assert.ok(Array.isArray(askResult.contextGroups));
+    assert.ok(askResult.contextGroups.length >= 1);
+    assert.ok(askResult.contextGroups.some(group => group.mergedContent.includes(marker)));
     assert.equal(
       askResult.answerStatus === "grounded" || askResult.answerStatus === "insufficient_context",
       true
@@ -165,6 +168,8 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.match(askAfterReindex.answer, /storage\/vectors/i);
     assert.ok(Array.isArray(askAfterReindex.retrievedChunks));
     assert.ok(askAfterReindex.retrievedChunks.some(chunk => chunk.content.includes(marker)));
+    assert.ok(Array.isArray(askAfterReindex.contextGroups));
+    assert.ok(askAfterReindex.contextGroups.some(group => group.mergedContent.includes(marker)));
     assert.equal(
       askAfterReindex.answerStatus === "grounded" || askAfterReindex.answerStatus === "insufficient_context",
       true

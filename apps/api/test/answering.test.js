@@ -133,3 +133,74 @@ test("AnsweringService falls back to default structured metadata when the model 
   assert.equal(result.citations.length, 1);
   assert.equal(result.citations[0].chunkId, "chunk-1");
 });
+
+test("AnsweringService prefers merged contextGroups content when calling the model", async () => {
+  const llmCalls = [];
+  const llmService = {
+    generateAnswer: async input => {
+      llmCalls.push(input);
+      return {
+        answer: "Grouped answer [1]",
+        modelName: "test-model",
+        citedChunkNumbers: [1]
+      };
+    }
+  };
+
+  const service = new AnsweringService(llmService);
+  const chunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "doc-1",
+      documentTitle: "Doc 1",
+      chunkIndex: 0,
+      content: "first chunk",
+      score: 0.9,
+      pageNo: null,
+      sectionTitle: "A"
+    },
+    {
+      chunkId: "chunk-2",
+      documentId: "doc-1",
+      documentTitle: "Doc 1",
+      chunkIndex: 1,
+      content: "second chunk",
+      score: 0.8,
+      pageNo: null,
+      sectionTitle: "B"
+    }
+  ];
+  const contextGroups = [
+    {
+      documentId: "doc-1",
+      documentTitle: "Doc 1",
+      startChunkIndex: 0,
+      endChunkIndex: 1,
+      chunkIds: ["chunk-1", "chunk-2"],
+      primaryChunkIds: ["chunk-1"],
+      mergedContent: "first chunk\n\nsecond chunk",
+      pageNumbers: [],
+      sectionTitles: ["A", "B"]
+    }
+  ];
+
+  await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    chunks,
+    contextGroups
+  });
+
+  assert.equal(llmCalls.length, 1);
+  assert.deepEqual(llmCalls[0].chunks, [
+    {
+      chunkId: "chunk-1",
+      documentId: "doc-1",
+      documentTitle: "Doc 1",
+      content: "first chunk\n\nsecond chunk",
+      score: 0.9,
+      pageNo: null,
+      sectionTitle: "A / B"
+    }
+  ]);
+});

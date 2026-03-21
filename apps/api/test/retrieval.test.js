@@ -62,13 +62,14 @@ test("RetrievalService expands neighbor chunks when chunkWindow is enabled", asy
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "test",
     topK: 1,
     scoreThreshold: 0,
     chunkWindow: 1
   });
+  const chunks = result.retrievedChunks;
 
   assert.deepEqual(
     chunks.map(chunk => chunk.chunkId),
@@ -128,13 +129,14 @@ test("RetrievalService merges lexical matches when hybrid retrieval is enabled",
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "alpha exact",
     topK: 2,
     scoreThreshold: 0,
     enableHybrid: true
   });
+  const chunks = result.retrievedChunks;
 
   assert.deepEqual(
     chunks.map(chunk => chunk.chunkId),
@@ -205,7 +207,7 @@ test("RetrievalService reranks hybrid candidates using lexical relevance", async
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "alpha phrase exact",
     topK: 2,
@@ -213,6 +215,7 @@ test("RetrievalService reranks hybrid candidates using lexical relevance", async
     enableHybrid: true,
     enableRerank: true
   });
+  const chunks = result.retrievedChunks;
 
   assert.equal(chunks[0].chunkId, "chunk-lexical");
   assert.ok(chunks[0].score > chunks[1].score);
@@ -255,7 +258,7 @@ test("RetrievalService limits lexical candidates to configured documentIds", asy
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "alpha exact",
     topK: 2,
@@ -264,6 +267,7 @@ test("RetrievalService limits lexical candidates to configured documentIds", asy
       documentIds: ["doc-allowed"]
     }
   });
+  const chunks = result.retrievedChunks;
 
   assert.deepEqual(
     chunks.map(chunk => chunk.documentId),
@@ -307,7 +311,7 @@ test("RetrievalService forwards page and section filters to vector search", asyn
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "specs",
     topK: 1,
@@ -317,6 +321,7 @@ test("RetrievalService forwards page and section filters to vector search", asyn
       pageNumbers: [3]
     }
   });
+  const chunks = result.retrievedChunks;
 
   assert.deepEqual(vectorSearchArgs.filters, {
     sectionTitles: {
@@ -369,7 +374,7 @@ test("RetrievalService fallback remains inside configured filter scope", async (
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "term not present anywhere",
     topK: 1,
@@ -378,6 +383,7 @@ test("RetrievalService fallback remains inside configured filter scope", async (
       documentIds: ["doc-allowed"]
     }
   });
+  const chunks = result.retrievedChunks;
 
   assert.equal(callCount >= 2, true);
   assert.deepEqual(
@@ -424,7 +430,7 @@ test("RetrievalService compiles section-title contains filters for lexical retri
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "specification",
     topK: 1,
@@ -435,6 +441,7 @@ test("RetrievalService compiles section-title contains filters for lexical retri
       }
     }
   });
+  const chunks = result.retrievedChunks;
 
   assert.equal(chunks[0].chunkId, "chunk-specs");
 });
@@ -486,7 +493,7 @@ test("RetrievalService compiles page-number ranges and document exclusions", asy
   };
 
   const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
-  const chunks = await service.retrieve({
+  const result = await service.retrieve({
     kbId: "kb-1",
     query: "page constrained",
     topK: 1,
@@ -501,10 +508,205 @@ test("RetrievalService compiles page-number ranges and document exclusions", asy
       }
     }
   });
+  const chunks = result.retrievedChunks;
 
   assert.equal(callCount >= 2, true);
   assert.deepEqual(
     chunks.map(chunk => chunk.documentId),
     ["doc-allowed"]
+  );
+});
+
+test("RetrievalService groups contiguous expanded chunks into one context group", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-2",
+              documentId: "doc-1",
+              chunkIndex: 2,
+              content: "main chunk",
+              pageNo: 2,
+              sectionTitle: "Overview",
+              document: { title: "Doc 1" }
+            }
+          ];
+        }
+
+        return [
+          {
+            id: "chunk-1",
+            documentId: "doc-1",
+            chunkIndex: 1,
+            content: "prev chunk",
+            pageNo: 1,
+            sectionTitle: "Overview",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-2",
+            documentId: "doc-1",
+            chunkIndex: 2,
+            content: "main chunk",
+            pageNo: 2,
+            sectionTitle: "Overview",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-3",
+            documentId: "doc-1",
+            chunkIndex: 3,
+            content: "next chunk",
+            pageNo: 2,
+            sectionTitle: "Details",
+            document: { title: "Doc 1" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [{ chunkId: "chunk-2", documentId: "doc-1", score: 0.9, modelName: "test" }]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "test",
+    topK: 1,
+    scoreThreshold: 0,
+    chunkWindow: 1
+  });
+
+  assert.equal(Array.isArray(result.contextGroups), true);
+  assert.equal(result.contextGroups.length, 1);
+  assert.deepEqual(result.contextGroups[0], {
+    documentId: "doc-1",
+    documentTitle: "Doc 1",
+    startChunkIndex: 1,
+    endChunkIndex: 3,
+    chunkIds: ["chunk-1", "chunk-2", "chunk-3"],
+    primaryChunkIds: ["chunk-2"],
+    mergedContent: "prev chunk\n\nmain chunk\n\nnext chunk",
+    pageNumbers: [1, 2],
+    sectionTitles: ["Overview", "Details"]
+  });
+});
+
+test("RetrievalService keeps non-contiguous expanded chunks in separate context groups", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-2",
+              documentId: "doc-1",
+              chunkIndex: 2,
+              content: "primary one",
+              pageNo: 1,
+              sectionTitle: "Overview",
+              document: { title: "Doc 1" }
+            },
+            {
+              id: "chunk-5",
+              documentId: "doc-1",
+              chunkIndex: 5,
+              content: "primary two",
+              pageNo: 2,
+              sectionTitle: "Details",
+              document: { title: "Doc 1" }
+            }
+          ];
+        }
+
+        return [
+          {
+            id: "chunk-1",
+            documentId: "doc-1",
+            chunkIndex: 1,
+            content: "neighbor one",
+            pageNo: 1,
+            sectionTitle: "Overview",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-2",
+            documentId: "doc-1",
+            chunkIndex: 2,
+            content: "primary one",
+            pageNo: 1,
+            sectionTitle: "Overview",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-5",
+            documentId: "doc-1",
+            chunkIndex: 5,
+            content: "primary two",
+            pageNo: 2,
+            sectionTitle: "Details",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-6",
+            documentId: "doc-1",
+            chunkIndex: 6,
+            content: "neighbor two",
+            pageNo: 2,
+            sectionTitle: "Details",
+            document: { title: "Doc 1" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [
+      { chunkId: "chunk-2", documentId: "doc-1", score: 0.95, modelName: "test" },
+      { chunkId: "chunk-5", documentId: "doc-1", score: 0.85, modelName: "test" }
+    ]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "test",
+    topK: 2,
+    scoreThreshold: 0,
+    chunkWindow: 1
+  });
+
+  assert.equal(result.contextGroups.length, 2);
+  assert.deepEqual(
+    result.contextGroups.map(group => ({
+      startChunkIndex: group.startChunkIndex,
+      endChunkIndex: group.endChunkIndex,
+      primaryChunkIds: group.primaryChunkIds
+    })),
+    [
+      {
+        startChunkIndex: 1,
+        endChunkIndex: 2,
+        primaryChunkIds: ["chunk-2"]
+      },
+      {
+        startChunkIndex: 5,
+        endChunkIndex: 6,
+        primaryChunkIds: ["chunk-5"]
+      }
+    ]
   );
 });

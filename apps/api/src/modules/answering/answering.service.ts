@@ -12,6 +12,18 @@ type RetrievedChunk = {
   sectionTitle: string | null;
 };
 
+type RetrievedContextGroup = {
+  documentId: string;
+  documentTitle: string;
+  startChunkIndex: number;
+  endChunkIndex: number;
+  chunkIds: string[];
+  primaryChunkIds: string[];
+  mergedContent: string;
+  pageNumbers: number[];
+  sectionTitles: string[];
+};
+
 const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
   responseStyle: "concise",
   citationMode: "required",
@@ -28,13 +40,15 @@ export class AnsweringService {
     systemPrompt: string;
     answerPolicy?: Partial<AnswerPolicy> | null;
     chunks: RetrievedChunk[];
+    contextGroups?: RetrievedContextGroup[];
   }) {
     const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
+    const llmChunks = this.buildAnswerContextChunks(input.chunks, input.contextGroups);
     const result = await this.llmService.generateAnswer({
       question: input.question,
       systemPrompt: input.systemPrompt,
       answerPolicy,
-      chunks: input.chunks
+      chunks: llmChunks
     });
 
     const answerStatus = result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
@@ -47,7 +61,8 @@ export class AnsweringService {
         answerStatus,
         missingInformation,
         citations: [],
-        retrievedChunks: []
+        retrievedChunks: [],
+        contextGroups: []
       };
     }
 
@@ -69,8 +84,28 @@ export class AnsweringService {
       answerStatus,
       missingInformation,
       citations,
-      retrievedChunks: input.chunks
+      retrievedChunks: input.chunks,
+      contextGroups: input.contextGroups ?? []
     };
+  }
+
+  private buildAnswerContextChunks(chunks: RetrievedChunk[], contextGroups?: RetrievedContextGroup[]) {
+    if (!contextGroups || contextGroups.length === 0) {
+      return chunks;
+    }
+
+    return contextGroups.map(group => {
+      const primaryChunk = chunks.find(chunk => group.primaryChunkIds.includes(chunk.chunkId)) ?? chunks[0];
+      return {
+        chunkId: group.primaryChunkIds[0] ?? group.chunkIds[0] ?? primaryChunk.chunkId,
+        documentId: group.documentId,
+        documentTitle: group.documentTitle,
+        content: group.mergedContent,
+        score: primaryChunk?.score ?? 0,
+        pageNo: group.pageNumbers[0] ?? null,
+        sectionTitle: group.sectionTitles.length > 0 ? group.sectionTitles.join(" / ") : null
+      };
+    });
   }
 
   private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null): AnswerPolicy {

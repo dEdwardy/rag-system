@@ -169,6 +169,8 @@ The following path has been validated locally on `2026-03-21`:
    - `answerStatus` is `grounded` or `insufficient_context`
    - `missingInformation` is returned as an array
    - citations are returned
+   - `contextGroups` is returned as an array
+   - contiguous same-document chunks may be merged into one `contextGroup.mergedContent`
    - answer may include inline source markers like `[1]`
    - `retrievedChunks` include vector similarity scores
    - trace may contain `rewrittenQuery`
@@ -190,6 +192,9 @@ The following path has been validated locally on `2026-03-21`:
   - `documentIds.include` / `documentIds.exclude`
   - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
   - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
+- Chunk-window context grouping for ask responses:
+  - `retrievedChunks` remains unchanged for compatibility
+  - `contextGroups` adds contiguous same-document merged context segments
 - Query rewrite before retrieval, with LLM-first and local fallback behavior
 - Minimal ask flow with conversation/message/trace persistence
 - Citation-aware answer prompting with inline source markers

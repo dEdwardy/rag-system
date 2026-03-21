@@ -67,7 +67,7 @@ export class AskAssistantService {
       assistant.retrievalProfile.filtersJson ?? undefined
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
-    const retrievedChunks = await this.retrievalService.retrieve({
+    const retrievalResult = await this.retrievalService.retrieve({
       kbId: assistant.kbId,
       query: retrievalQuery,
       topK: assistant.retrievalProfile.topK,
@@ -77,6 +77,8 @@ export class AskAssistantService {
       enableRerank: assistant.retrievalProfile.enableRerank,
       filters: retrievalFilters
     });
+    const retrievedChunks = retrievalResult.retrievedChunks;
+    const contextGroups = retrievalResult.contextGroups;
     const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
 
     const trace = await this.tracesService.createTrace({
@@ -95,7 +97,8 @@ export class AskAssistantService {
         question: input.question,
         systemPrompt: assistant.systemPrompt,
         answerPolicy,
-        chunks: retrievedChunks
+        chunks: retrievedChunks,
+        contextGroups
       });
 
       const assistantMessage = await this.messagesService.createMessage({
@@ -126,6 +129,7 @@ export class AskAssistantService {
         answer: resolvedAnswerResult.answer,
         citations: resolvedAnswerResult.citations,
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
+        contextGroups: resolvedAnswerResult.contextGroups,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
         missingInformation: resolvedAnswerResult.missingInformation

@@ -25,6 +25,19 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       sectionTitle: "Facts"
     }
   ];
+  const contextGroups = [
+    {
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      startChunkIndex: 0,
+      endChunkIndex: 0,
+      chunkIds: ["chunk-1"],
+      primaryChunkIds: ["chunk-1"],
+      mergedContent: "retrieved content marker",
+      pageNumbers: [1],
+      sectionTitles: ["Facts"]
+    }
+  ];
   const citations = [
     {
       chunkId: "chunk-1",
@@ -93,7 +106,10 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     {
       retrieve: async input => {
         retrievalCalls.push(input);
-        return retrievedChunks;
+        return {
+          retrievedChunks,
+          contextGroups
+        };
       }
     },
     {
@@ -107,10 +123,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           noAnswerBehavior: "say_insufficient_context"
         });
         assert.deepEqual(input.chunks, retrievedChunks);
+        assert.deepEqual(input.contextGroups, contextGroups);
         return {
           answer: "The marker is in Document 1.",
           citations,
           retrievedChunks,
+          contextGroups,
           modelName: "fallback-local",
           answerStatus: "grounded",
           missingInformation: []
@@ -209,6 +227,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(result.answer, "The marker is in Document 1.");
   assert.deepEqual(result.citations, citations);
   assert.deepEqual(result.retrievedChunks, retrievedChunks);
+  assert.deepEqual(result.contextGroups, contextGroups);
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answerStatus, "grounded");
   assert.deepEqual(result.missingInformation, []);
