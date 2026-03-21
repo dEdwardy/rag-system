@@ -58,7 +58,7 @@ export function AssistantPage() {
   ]);
 
   return (
-    <Stack gap="lg">
+    <Stack data-testid="assistant-page" gap="lg">
       <div>
         <Title order={2}>{t("assistant.title")}</Title>
         <Text c="dimmed">
@@ -123,7 +123,7 @@ export function AssistantPage() {
               <Badge color={assistant.status === "active" ? "teal" : "gray"} variant="light" w="fit-content">
                 {t(`common.status.${assistant.status}`)}
               </Badge>
-              <Text c="dimmed" size="sm">
+              <Text c="dimmed" data-testid="assistant-retrieval-profile-name" size="sm">
                 {t("common.fields.retrievalProfile")}: {retrievalProfile.name}
               </Text>
             </Group>
@@ -132,6 +132,7 @@ export function AssistantPage() {
               <Grid.Col span={{ base: 12, md: 8 }}>
                 <TextInput
                   label={t("assistant.assistantName")}
+                  data-testid="assistant-name-value"
                   {...form.getInputProps("name")}
                 />
               </Grid.Col>
@@ -387,7 +388,10 @@ export function AssistantPage() {
             </Grid>
 
             <Text c="dimmed" size="sm">
-              {t("common.fields.assistantId")}: {assistant.id}
+              {t("common.fields.assistantId")}: <span data-testid="assistant-id">{assistant.id}</span>
+            </Text>
+            <Text c="dimmed" data-testid="assistant-name-text" size="sm">
+              {assistant.name}
             </Text>
             <Text c="dimmed" size="sm">
               {t("common.fields.profileId")}: {retrievalProfile.id}

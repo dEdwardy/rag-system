@@ -40,7 +40,7 @@ export function KnowledgeBasePage() {
           : "knowledgeBase.summary.empty";
 
   return (
-    <Stack gap="lg">
+    <Stack data-testid="knowledge-base-page" gap="lg">
       <div>
         <Title order={2}>{t("knowledgeBase.title")}</Title>
         <Text c="dimmed">{t("knowledgeBase.subtitle")}</Text>
@@ -108,6 +108,9 @@ export function KnowledgeBasePage() {
                       {t("common.fields.name")}
                     </Text>
                     <Title order={3}>{knowledgeBase.name}</Title>
+                    <Text c="dimmed" data-testid="knowledge-base-id" size="sm">
+                      {knowledgeBase.id}
+                    </Text>
                   </div>
                   <Badge color={toneColor} variant="light">
                     {t(toneLabelKey)}
@@ -150,7 +153,7 @@ export function KnowledgeBasePage() {
                   <Button component={Link} to="/documents" variant="light">
                     {t("knowledgeBase.actions.openDocuments")}
                   </Button>
-                  <Button component={Link} to="/assistant" variant="light">
+                  <Button component={Link} data-testid="knowledge-base-open-assistant" to="/assistant" variant="light">
                     {t("knowledgeBase.actions.openAssistant")}
                   </Button>
                 </Group>
@@ -165,7 +168,7 @@ export function KnowledgeBasePage() {
                   <Text c="dimmed" size="sm">
                     {t("common.fields.documents")}
                   </Text>
-                  <Title order={3}>{documents.length}</Title>
+                  <Title data-testid="knowledge-base-document-count" order={3}>{documents.length}</Title>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
@@ -173,7 +176,7 @@ export function KnowledgeBasePage() {
                   <Text c="dimmed" size="sm">
                     {t("common.fields.chunks")}
                   </Text>
-                  <Title order={3}>{chunkCount}</Title>
+                  <Title data-testid="knowledge-base-chunk-count" order={3}>{chunkCount}</Title>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
@@ -181,7 +184,7 @@ export function KnowledgeBasePage() {
                   <Text c="dimmed" size="sm">
                     {t("knowledgeBase.metrics.readyDocuments")}
                   </Text>
-                  <Title order={3}>{readyCount}</Title>
+                  <Title data-testid="knowledge-base-ready-count" order={3}>{readyCount}</Title>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
@@ -189,7 +192,7 @@ export function KnowledgeBasePage() {
                   <Text c="dimmed" size="sm">
                     {t("knowledgeBase.metrics.processingDocuments")}
                   </Text>
-                  <Title order={3}>{processingCount}</Title>
+                  <Title data-testid="knowledge-base-processing-count" order={3}>{processingCount}</Title>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
@@ -197,7 +200,7 @@ export function KnowledgeBasePage() {
                   <Text c="dimmed" size="sm">
                     {t("knowledgeBase.metrics.failedDocuments")}
                   </Text>
-                  <Title order={3}>{failedCount}</Title>
+                  <Title data-testid="knowledge-base-failed-count" order={3}>{failedCount}</Title>
                 </Card>
               </Grid.Col>
               <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
@@ -205,7 +208,7 @@ export function KnowledgeBasePage() {
                   <Text c="dimmed" size="sm">
                     {t("knowledgeBase.metrics.boundAssistants")}
                   </Text>
-                  <Title order={3}>{assistantCount}</Title>
+                  <Title data-testid="knowledge-base-assistant-count" order={3}>{assistantCount}</Title>
                 </Card>
               </Grid.Col>
             </Grid>

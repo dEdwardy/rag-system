@@ -284,7 +284,7 @@
 - [x] 鏇村畬鏁寸殑 assistant / config 绠＄悊
   - RetrievalProfile `filtersJson` 鍓嶇缂栬緫鑳藉姏
   - 鏇村畬鏁寸殑 answering / assistant policy 閰嶇疆
-- [ ] 鏇村鑱旇皟绾ц嚜鍔ㄥ寲楠岃瘉
+- [x] 鏇村鑱旇皟绾ц嚜鍔ㄥ寲楠岃瘉
 - 褰撳墠瀹㈡埛绔寖鍥达細`PC Web` 浼樺厛锛岀Щ鍔ㄧ閫傞厤鍚庣疆鍒板姛鑳藉拰楠岃瘉瑕嗙洊鏇寸ǔ瀹氫箣鍚庡啀鎺ㄨ繘
 
 ### 3.4 娴嬭瘯澧炲己鐗堟湭瀹屾垚
@@ -292,7 +292,7 @@
 - [x] orchestrator / 妯″潡闆嗘垚娴嬭瘯
 - [ ] 鏇村畬鏁寸殑鏂囨。閾捐矾 E2E
 - [ ] 鏇村畬鏁寸殑 ask 閾捐矾 E2E
-- [ ] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
+- [x] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
 
 ---
 
@@ -395,6 +395,7 @@
 - [x] 鏇村畬鏁寸殑 assistant / answer policy 閰嶇疆鑳藉姏
 - [x] 鏇村畬鏁寸殑 assistant / config 绠＄悊
 - [x] API integration test queue isolation
+- [x] PC Web Knowledge Base -> Assistant browser smoke automation
 
 鍏抽敭鏂囦欢锛?
 
@@ -409,11 +410,15 @@
 - [apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts)
 - [apps/api/src/infra/vector-store/vector-store.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/vector-store/vector-store.service.ts)
 - [apps/web/src/pages/assistant/AssistantPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/AssistantPage.tsx)
+- [apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx)
 - [apps/web/src/pages/assistant/assistant-config-form.ts](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/assistant-config-form.ts)
 - [apps/web/src/features/api/hooks.ts](/D:/FeProjects/rag-system/apps/web/src/features/api/hooks.ts)
 - [apps/web/src/types/api.ts](/D:/FeProjects/rag-system/apps/web/src/types/api.ts)
 - [apps/web/src/i18n/messages.ts](/D:/FeProjects/rag-system/apps/web/src/i18n/messages.ts)
 - [apps/web/test/assistant-config.test.js](/D:/FeProjects/rag-system/apps/web/test/assistant-config.test.js)
+- [apps/web/test/pc-web-smoke.test.js](/D:/FeProjects/rag-system/apps/web/test/pc-web-smoke.test.js)
+- [docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md)
+- [docs/superpowers/plans/2026-03-21-pc-web-integration-smoke-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-pc-web-integration-smoke-plan.md)
 - [apps/api/test/ingestion.orchestrator.test.js](/D:/FeProjects/rag-system/apps/api/test/ingestion.orchestrator.test.js)
 - [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
 - [apps/api/test/assistants-api.test.js](/D:/FeProjects/rag-system/apps/api/test/assistants-api.test.js)
@@ -475,6 +480,7 @@
 - `pnpm --filter @rag-system/web build`
 - `node --test apps/web/test/*.test.js`
 - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
+- `node --test apps/web/test/pc-web-smoke.test.js`
 
 璇存槑锛?
 

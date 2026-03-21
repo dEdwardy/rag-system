@@ -168,6 +168,20 @@ Current API test coverage:
 - citation-aware answering
 - upload -> ready -> ask -> trace HTTP integration
 
+Focused PC Web smoke validation:
+
+```bash
+pnpm --filter @rag-system/api build
+pnpm --filter @rag-system/web build
+node --test apps/web/test/pc-web-smoke.test.js
+```
+
+Notes:
+
+- this smoke test is currently scoped to `PC Web`
+- it validates `Knowledge Base -> Assistant` browser rendering against the real local API
+- it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks
+
 ## Current working flow
 
 1. Open the web app.
