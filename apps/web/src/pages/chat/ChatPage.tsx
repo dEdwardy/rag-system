@@ -159,18 +159,18 @@ export function ChatPage() {
           wrap="nowrap"
         >
           <Avatar
-            color={isAssistant ? "gray" : "teal"}
+            color={isAssistant ? "gray" : "indigo"}
             radius="xl"
             size={36}
             styles={{
               root: isAssistant
                 ? {
-                    background: "rgba(230, 233, 230, 1)",
-                    color: "rgba(20, 24, 22, 0.88)"
+                    background: "rgba(255,255,255,0.06)",
+                    color: "var(--app-text)"
                   }
                 : {
                     background:
-                      "linear-gradient(135deg, rgba(22, 78, 99, 0.96) 0%, rgba(33, 110, 92, 0.94) 100%)",
+                      "linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-strong) 100%)",
                     color: "white"
                   }
             }}
@@ -184,14 +184,14 @@ export function ChatPage() {
             style={{
               minWidth: 0,
               background: isAssistant
-                ? "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248, 246, 242, 0.98) 100%)"
-                : "linear-gradient(135deg, rgba(22, 78, 99, 0.96) 0%, rgba(33, 110, 92, 0.94) 100%)",
+                ? "linear-gradient(180deg, rgba(37, 40, 57, 0.98) 0%, rgba(30, 32, 46, 0.98) 100%)"
+                : "linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-strong) 100%)",
               border: isAssistant
-                ? "1px solid rgba(23, 36, 30, 0.07)"
+                ? "1px solid var(--app-border)"
                 : "1px solid rgba(255,255,255,0.08)",
               boxShadow: isAssistant
-                ? "0 12px 28px rgba(16, 24, 20, 0.05)"
-                : "0 14px 32px rgba(17, 24, 39, 0.18)"
+                ? "var(--app-shadow-soft)"
+                : "0 18px 38px var(--app-accent-glow)"
             }}
           >
             <Stack gap="xs">
@@ -223,7 +223,7 @@ export function ChatPage() {
                 ) : null}
               </Group>
 
-              <Text c={isAssistant ? undefined : "white"} style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
+              <Text c={isAssistant ? "var(--app-text)" : "white"} style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
                 {message.content || (isStreamingAssistant ? (locale === "zh" ? "正在生成回答..." : "Drafting answer...") : "")}
               </Text>
 
@@ -245,7 +245,7 @@ export function ChatPage() {
               ) : null}
 
               <Group justify="space-between">
-                <Text c={isAssistant ? "dimmed" : "rgba(255,255,255,0.78)"} size="xs">
+                <Text c={isAssistant ? "var(--app-text-muted)" : "rgba(255,255,255,0.78)"} size="xs">
                   {messageTime ?? (isStreamingAssistant ? streamStatusLabel : "")}
                 </Text>
               </Group>
@@ -263,27 +263,27 @@ export function ChatPage() {
   };
 
   return (
-    <Stack gap="lg">
+    <Stack gap="md">
       <Paper
-        p="lg"
+        p="md"
         radius="xl"
         style={{
-          background:
-            "linear-gradient(135deg, rgba(247, 244, 238, 0.98) 0%, rgba(239, 245, 241, 0.96) 100%)",
-          border: "1px solid rgba(23, 36, 30, 0.08)",
-          boxShadow: "0 10px 30px rgba(16, 24, 20, 0.04)"
+          background: "rgba(20, 22, 34, 0.82)",
+          border: "1px solid var(--app-border)",
+          boxShadow: "var(--app-shadow-soft)",
+          backdropFilter: "blur(18px)"
         }}
       >
         <Group align="center" justify="space-between">
           <Group align="center" gap="md">
             <Avatar
-              color="teal"
+              color="indigo"
               radius="xl"
-              size={52}
+              size={48}
               styles={{
                 root: {
-                  background: "linear-gradient(135deg, rgba(24, 94, 78, 0.95) 0%, rgba(39, 110, 92, 0.92) 100%)",
-                  boxShadow: "0 10px 24px rgba(21, 64, 56, 0.18)"
+                  background: "linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-strong) 100%)",
+                  boxShadow: "0 12px 30px var(--app-accent-glow)"
                 }
               }}
             >
@@ -291,24 +291,28 @@ export function ChatPage() {
             </Avatar>
             <Stack gap={6}>
               <Group gap="xs">
-                <Title order={3} style={{ letterSpacing: "-0.03em" }}>
+                <Title
+                  order={4}
+                  c="var(--app-text)"
+                  style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+                >
                   {t("chat.title")}
                 </Title>
                 {activeAssistant ? (
-                  <Badge color="teal" radius="sm" size="lg" variant="filled">
+                  <Badge color="indigo" radius="sm" size="lg" variant="filled">
                     {activeAssistant.name}
                   </Badge>
                 ) : null}
               </Group>
-              <Text c="dimmed" maw={620} size="sm">
+              <Text c="var(--app-text-muted)" maw={560} size="sm">
                 {t("chat.subtitle")}
               </Text>
               <Group gap="xs" mt={2}>
-                <Badge color="teal" radius="sm" size="md" variant="light">
+                <Badge color="indigo" radius="sm" size="md" variant="light">
                   {locale === "zh" ? "在线" : "Online"}
                 </Badge>
                 {latestModelName ? (
-                  <Badge color="dark" radius="sm" size="md" variant="light">
+                  <Badge color="gray" radius="sm" size="md" variant="light">
                     {latestModelName}
                   </Badge>
                 ) : null}
@@ -327,14 +331,14 @@ export function ChatPage() {
               maxWidth: 280,
               padding: "12px 14px",
               borderRadius: 18,
-              background: "rgba(255,255,255,0.68)",
-              border: "1px solid rgba(23, 36, 30, 0.07)"
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid var(--app-border)"
             }}
           >
-            <Text c="dimmed" size="xs" tt="uppercase">
+            <Text c="var(--app-text-muted)" size="xs" tt="uppercase">
               {locale === "zh" ? "体验目标" : "Experience goal"}
             </Text>
-            <Text fw={600} mt={6} size="sm">
+            <Text c="var(--app-text)" fw={600} mt={6} size="sm">
               {locale === "zh"
                 ? "让身份、状态、时间和输入区更贴近高频对话工作台。"
                 : "Bring identity, status, timing, and the composer closer to a real chat workspace"}
@@ -349,23 +353,24 @@ export function ChatPage() {
             p="md"
             radius="xl"
             style={{
-              background: "linear-gradient(180deg, rgba(249, 247, 243, 0.96) 0%, rgba(244, 248, 245, 0.92) 100%)",
-              border: "1px solid rgba(23, 36, 30, 0.08)",
-              boxShadow: "0 12px 26px rgba(16, 24, 20, 0.04)"
+              background: "linear-gradient(180deg, rgba(24, 26, 38, 0.96) 0%, rgba(21, 23, 34, 0.94) 100%)",
+              border: "1px solid var(--app-border)",
+              boxShadow: "var(--app-shadow-soft)"
             }}
           >
             <Stack gap="md">
               <Group justify="space-between">
-                <Text fw={700} size="sm" tt="uppercase">
+                <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
                   {t("chat.conversations")}
                 </Text>
                 <Group gap="xs">
                   {conversationsQuery.data?.length ? (
-                    <Badge radius="sm" variant="light">
+                    <Badge color="indigo" radius="sm" variant="light">
                       {conversationsQuery.data.length}
                     </Badge>
                   ) : null}
                   <Button
+                    color="indigo"
                     disabled={askStreamMutation.isPending}
                     onClick={() => setActiveConversationId(null)}
                     radius="xl"
@@ -406,28 +411,28 @@ export function ChatPage() {
                           borderRadius: 18,
                           textAlign: "left",
                           background: isActive
-                            ? "linear-gradient(135deg, rgba(16, 116, 102, 0.14) 0%, rgba(16, 116, 102, 0.08) 100%)"
-                            : "rgba(255,255,255,0.58)",
+                            ? "linear-gradient(135deg, rgba(109, 114, 255, 0.2) 0%, rgba(109, 114, 255, 0.08) 100%)"
+                            : "rgba(255,255,255,0.03)",
                           border: isActive
-                            ? "1px solid rgba(16, 116, 102, 0.22)"
-                            : "1px solid rgba(23, 36, 30, 0.06)",
+                            ? "1px solid rgba(109, 114, 255, 0.36)"
+                            : "1px solid var(--app-border)",
                           boxShadow: isActive
-                            ? "0 10px 24px rgba(16, 116, 102, 0.08)"
-                            : "0 4px 12px rgba(16, 24, 20, 0.03)"
+                            ? "0 16px 34px rgba(109, 114, 255, 0.14)"
+                            : "none"
                         }}
                       >
                         <Stack gap={8}>
                           <Group justify="space-between" wrap="nowrap">
-                            <Text fw={600} lineClamp={2} size="sm">
+                            <Text c="var(--app-text)" fw={600} lineClamp={2} size="sm">
                               {conversation.title}
                             </Text>
                             {isActive ? (
-                              <Badge color="teal" radius="sm" size="xs" variant="light">
+                              <Badge color="indigo" radius="sm" size="xs" variant="light">
                                 {locale === "zh" ? "当前" : "Active"}
                               </Badge>
                             ) : null}
                           </Group>
-                          <Text c="dimmed" size="xs">
+                          <Text c="var(--app-text-muted)" size="xs">
                             {formatConversationUpdatedAt(conversation.updatedAt, locale)}
                           </Text>
                         </Stack>
@@ -452,9 +457,9 @@ export function ChatPage() {
               radius="xl"
               style={{
                 background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(247, 244, 239, 0.98) 56%, rgba(244, 247, 244, 0.98) 100%)",
-                border: "1px solid rgba(23, 36, 30, 0.08)",
-                boxShadow: "0 16px 38px rgba(16, 24, 20, 0.05)"
+                  "linear-gradient(180deg, rgba(24, 26, 38, 0.98) 0%, rgba(19, 21, 32, 0.98) 100%)",
+                border: "1px solid var(--app-border)",
+                boxShadow: "var(--app-shadow-strong)"
               }}
             >
               <Stack gap="md">
@@ -466,17 +471,18 @@ export function ChatPage() {
                       size={42}
                       styles={{
                         root: {
-                          background: "rgba(231, 235, 232, 1)"
+                          background: "rgba(255,255,255,0.06)",
+                          color: "var(--app-text)"
                         }
                       }}
                     >
                       AI
                     </Avatar>
                     <div>
-                      <Text fw={700} size="sm" tt="uppercase">
+                      <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
                         {locale === "zh" ? "对话工作区" : "Conversation workspace"}
                       </Text>
-                      <Text c="dimmed" size="sm">
+                      <Text c="var(--app-text-muted)" size="sm">
                         {activeConversationId
                           ? locale === "zh"
                             ? "历史消息、流式回答与最新引用会在这里汇合。"
@@ -487,17 +493,17 @@ export function ChatPage() {
                       </Text>
                     </div>
                   </Group>
-                  {askStreamMutation.isPending ? <Loader color="teal" size="sm" /> : null}
+                  {askStreamMutation.isPending ? <Loader color="indigo" size="sm" /> : null}
                 </Group>
 
-                <Divider color="rgba(23, 36, 30, 0.08)" />
+                <Divider color="var(--app-border)" />
 
                 <Box
                   style={{
                     borderRadius: 22,
                     background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.56) 0%, rgba(252, 250, 247, 0.76) 100%)",
-                    border: "1px solid rgba(23, 36, 30, 0.05)",
+                      "linear-gradient(180deg, rgba(14, 16, 25, 0.92) 0%, rgba(18, 20, 30, 0.86) 100%)",
+                    border: "1px solid var(--app-border)",
                     padding: 14
                   }}
                 >
@@ -621,18 +627,18 @@ export function ChatPage() {
               p="md"
               radius="xl"
               style={{
-                background: "rgba(250, 248, 244, 0.9)",
-                border: "1px solid rgba(23, 36, 30, 0.06)",
-                boxShadow: "0 10px 28px rgba(16, 24, 20, 0.04)"
+                background: "rgba(20, 22, 34, 0.92)",
+                border: "1px solid var(--app-border)",
+                boxShadow: "var(--app-shadow-soft)"
               }}
             >
               <Stack gap="sm">
                 <Group justify="space-between">
                   <div>
-                    <Text fw={700} size="sm" tt="uppercase">
+                    <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
                       {locale === "zh" ? "提问输入区" : "Question composer"}
                     </Text>
-                    <Text c="dimmed" size="sm">
+                    <Text c="var(--app-text-muted)" size="sm">
                       {activeStreamTurn && activeStreamTurn.assistantMessage.status === "streaming"
                         ? streamStatusLabel
                         : canAsk
@@ -643,7 +649,7 @@ export function ChatPage() {
                     </Text>
                   </div>
                   {activeAssistant ? (
-                    <Badge color="teal" radius="sm" variant="filled">
+                    <Badge color="indigo" radius="sm" variant="filled">
                       {activeAssistant.name}
                     </Badge>
                   ) : null}
@@ -661,12 +667,13 @@ export function ChatPage() {
                         flex: 1
                       },
                       input: {
-                        background: "rgba(255,255,255,0.96)",
-                        border: "1px solid rgba(23, 36, 30, 0.08)",
+                        background: "rgba(255,255,255,0.04)",
+                        color: "var(--app-text)",
+                        border: "1px solid var(--app-border)",
                         fontSize: 15,
                         lineHeight: 1.7,
                         padding: "16px 18px",
-                        boxShadow: "0 8px 22px rgba(16, 24, 20, 0.04)"
+                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.01)"
                       }
                     }}
                     {...form.getInputProps("question")}
@@ -674,7 +681,7 @@ export function ChatPage() {
 
                   <ActionIcon
                     aria-label={t("common.actions.ask")}
-                    color="teal"
+                    color="indigo"
                     disabled={!canAsk}
                     loading={askStreamMutation.isPending}
                     radius="xl"
@@ -718,17 +725,17 @@ export function ChatPage() {
             p="md"
             radius="xl"
             style={{
-              background: "linear-gradient(180deg, rgba(244, 248, 245, 0.96) 0%, rgba(241, 245, 243, 0.94) 100%)",
-              border: "1px solid rgba(23, 36, 30, 0.08)",
-              boxShadow: "0 12px 26px rgba(16, 24, 20, 0.04)"
+              background: "linear-gradient(180deg, rgba(24, 26, 38, 0.96) 0%, rgba(21, 23, 34, 0.94) 100%)",
+              border: "1px solid var(--app-border)",
+              boxShadow: "var(--app-shadow-soft)"
             }}
           >
             <Stack gap="md">
               <div>
-                <Text fw={700} size="sm" tt="uppercase">
+                <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
                   {t("chat.latestCitations")}
                 </Text>
-                <Text c="dimmed" size="sm">
+                <Text c="var(--app-text-muted)" size="sm">
                   {locale === "zh"
                     ? "优先展示当前流式回答的引用，其次展示最新 trace。"
                     : "Current streamed answer citations take priority, then the latest trace."}
@@ -740,16 +747,16 @@ export function ChatPage() {
                   p="sm"
                   radius="lg"
                   style={{
-                    background: "rgba(255,255,255,0.74)",
-                    border: "1px solid rgba(23, 36, 30, 0.08)"
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid var(--app-border)"
                   }}
                 >
                   <Group justify="space-between">
                     <div>
-                      <Text c="dimmed" size="xs" tt="uppercase">
+                      <Text c="var(--app-text-muted)" size="xs" tt="uppercase">
                         {locale === "zh" ? "当前上下文" : "Current context"}
                       </Text>
-                      <Text fw={600} size="sm">
+                      <Text c="var(--app-text)" fw={600} size="sm">
                         {activeCitationCount > 0
                           ? locale === "zh"
                             ? `已捕获 ${activeCitationCount} 条引用`
@@ -760,7 +767,7 @@ export function ChatPage() {
                       </Text>
                     </div>
                     {activeTraceId ? (
-                      <Badge color="teal" radius="sm" variant="light">
+                      <Badge color="indigo" radius="sm" variant="light">
                         Trace
                       </Badge>
                     ) : null}
@@ -796,26 +803,26 @@ export function ChatPage() {
                         p="sm"
                         radius="lg"
                         style={{
-                          background: "rgba(255,255,255,0.9)",
-                          border: "1px solid rgba(23, 36, 30, 0.08)",
-                          boxShadow: "0 8px 22px rgba(16, 24, 20, 0.04)"
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid var(--app-border)",
+                          boxShadow: "none"
                         }}
                       >
                         <Stack gap={8}>
-                          <Anchor component={Link} fw={700} size="sm" to={`/documents/${citation.documentId}`}>
+                          <Anchor c="var(--app-text)" component={Link} fw={700} size="sm" to={`/documents/${citation.documentId}`}>
                             {citation.documentTitle}
                           </Anchor>
                           <Group gap={6}>
-                            <Badge color="teal" radius="sm" size="xs" variant="light">
+                            <Badge color="indigo" radius="sm" size="xs" variant="light">
                               {t("common.misc.chunkLabel", { chunkId: citation.chunkId })}
                             </Badge>
                             {citationContext ? (
-                              <Text c="dimmed" size="xs">
+                              <Text c="var(--app-text-muted)" size="xs">
                                 {citationContext}
                               </Text>
                             ) : null}
                           </Group>
-                          <Text size="sm" style={{ lineHeight: 1.65 }}>
+                          <Text c="var(--app-text-secondary)" size="sm" style={{ lineHeight: 1.65 }}>
                             {citation.snippet}
                           </Text>
                         </Stack>
@@ -823,7 +830,7 @@ export function ChatPage() {
                     );
                   })}
                   {activeTraceId ? (
-                    <Button component={Link} radius="xl" size="sm" to={`/traces/${activeTraceId}`} variant="light">
+                    <Button color="indigo" component={Link} radius="xl" size="sm" to={`/traces/${activeTraceId}`} variant="light">
                       {t("common.actions.viewTraceDetails")}
                     </Button>
                   ) : null}

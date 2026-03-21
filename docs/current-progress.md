@@ -430,6 +430,28 @@
 
 ### 2026-03-22
 
+- ✅ B 主题 Chat + AppShell 第一阶段落地
+  - `AppShell` 已切到 B 风格工作台壳层
+  - `Chat` 已切到 B 风格深色工作区主方向
+  - 已新增本地可切换主题基础：
+    - `themeColor`: `creative-dark` / `constrained-light`
+    - `themeLayout`: `workspace-app` / `default-app`
+  - 当前默认主题：
+    - `creative-dark + workspace-app`
+  - 当前只改：
+    - `AppShell`
+    - `Chat`
+    - 主题令牌与切换基础
+  - 当前未改：
+    - `Documents`
+    - `Knowledge Base`
+    - `Assistant`
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/theme-preferences.test.js`
+    - `node --experimental-strip-types --test apps/web/test/chat-stream-state.test.js`
+    - `node --experimental-strip-types --test apps/web/test/chat-page-helpers.test.js`
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ Chat page visual refinement follow-up
   - keep the light teal constrained direction as the primary visual language
   - absorb only local chat-workspace strengths from the more creative concept

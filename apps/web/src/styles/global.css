@@ -1,7 +1,91 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+:root {
+  --app-font-body: "Noto Sans SC", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --app-font-display: "Space Grotesk", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  --app-radius-sm: 10px;
+  --app-radius-md: 14px;
+  --app-radius-lg: 20px;
+  --app-shell-navbar-width: 284px;
+  --app-shell-header-height: 68px;
+  --app-shell-side-panel-width: 340px;
+}
+
+html[data-theme-color="constrained-light"] {
+  --app-bg: #f3f7f6;
+  --app-bg-elevated: #f7faf8;
+  --app-surface: #ffffff;
+  --app-surface-muted: #eef4f1;
+  --app-border: rgba(19, 32, 29, 0.1);
+  --app-border-strong: rgba(19, 32, 29, 0.18);
+  --app-text: #13201d;
+  --app-text-secondary: rgba(19, 32, 29, 0.72);
+  --app-text-muted: rgba(19, 32, 29, 0.52);
+  --app-accent: #0d9488;
+  --app-accent-strong: #0f766e;
+  --app-accent-soft: rgba(13, 148, 136, 0.12);
+  --app-accent-glow: rgba(13, 148, 136, 0.16);
+  --app-shadow-soft: 0 12px 28px rgba(16, 24, 20, 0.06);
+  --app-shadow-strong: 0 18px 42px rgba(16, 24, 20, 0.08);
+}
+
+html[data-theme-color="creative-dark"] {
+  --app-bg: #0f1017;
+  --app-bg-elevated: #161823;
+  --app-surface: #1b1d2a;
+  --app-surface-muted: #232637;
+  --app-border: rgba(255, 255, 255, 0.08);
+  --app-border-strong: rgba(255, 255, 255, 0.16);
+  --app-text: #f5f7fb;
+  --app-text-secondary: rgba(245, 247, 251, 0.78);
+  --app-text-muted: rgba(245, 247, 251, 0.5);
+  --app-accent: #6d72ff;
+  --app-accent-strong: #5860ff;
+  --app-accent-soft: rgba(109, 114, 255, 0.18);
+  --app-accent-glow: rgba(109, 114, 255, 0.28);
+  --app-shadow-soft: 0 18px 42px rgba(0, 0, 0, 0.28);
+  --app-shadow-strong: 0 26px 60px rgba(0, 0, 0, 0.36);
+}
+
+html[data-theme-layout="default-app"] {
+  --app-shell-navbar-width: 260px;
+  --app-shell-header-height: 72px;
+}
+
+html[data-theme-layout="workspace-app"] {
+  --app-shell-navbar-width: 284px;
+  --app-shell-header-height: 68px;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  background: #f3f7f6;
-  color: #13201d;
+  background:
+    radial-gradient(circle at top left, var(--app-accent-glow) 0%, transparent 32%),
+    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.08) 0%, transparent 26%),
+    var(--app-bg);
+  color: var(--app-text);
+  font-family: var(--app-font-body);
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 56px 56px;
+  pointer-events: none;
+  opacity: 0.45;
 }
 
 a {
@@ -9,3 +93,9 @@ a {
   text-decoration: none;
 }
 
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
