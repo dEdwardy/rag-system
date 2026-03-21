@@ -24,6 +24,11 @@ type RetrievedContextGroup = {
   sectionTitles: string[];
 };
 
+type CitationEvidence = {
+  source: number;
+  quote: string;
+};
+
 const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
   responseStyle: "concise",
   citationMode: "required",
@@ -75,7 +80,12 @@ export class AnsweringService {
       documentTitle: chunk.documentTitle,
       pageNo: chunk.pageNo,
       sectionTitle: chunk.sectionTitle,
-      snippet: this.buildSnippet(chunk.content, input.question)
+      snippet: this.resolveCitationSnippet(
+        chunk,
+        result.citationEvidence ?? [],
+        input.chunks,
+        input.question
+      )
     }));
 
     return {
@@ -158,5 +168,37 @@ export class AnsweringService {
     }
 
     return normalizedContent.slice(0, 300);
+  }
+
+  private resolveCitationSnippet(
+    chunk: RetrievedChunk,
+    citationEvidence: CitationEvidence[],
+    allChunks: RetrievedChunk[],
+    question: string
+  ) {
+    const chunkIndex = allChunks.findIndex(candidate => candidate.chunkId === chunk.chunkId);
+    const evidence = citationEvidence.find(candidate => candidate.source === chunkIndex + 1);
+    const validatedQuote = evidence ? this.validateCitationQuote(chunk.content, evidence.quote) : null;
+
+    if (validatedQuote) {
+      return validatedQuote;
+    }
+
+    return this.buildSnippet(chunk.content, question);
+  }
+
+  private validateCitationQuote(content: string, quote: string) {
+    const normalizedContent = this.normalizeWhitespace(content);
+    const normalizedQuote = this.normalizeWhitespace(quote);
+
+    if (!normalizedQuote) {
+      return null;
+    }
+
+    return normalizedContent.includes(normalizedQuote) ? normalizedQuote : null;
+  }
+
+  private normalizeWhitespace(value: string) {
+    return value.replace(/\s+/g, " ").trim();
   }
 }

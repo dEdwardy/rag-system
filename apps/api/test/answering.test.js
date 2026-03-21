@@ -204,3 +204,92 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     }
   ]);
 });
+
+test("AnsweringService uses validated citationEvidence quotes as returned snippets", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Answer text [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1],
+      citationEvidence: [
+        {
+          source: 1,
+          quote: "marker evidence line"
+        }
+      ]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where is the marker?",
+    systemPrompt: "answer",
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "prefix marker evidence line suffix",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "Facts"
+      }
+    ]
+  });
+
+  assert.equal(result.citations.length, 1);
+  assert.equal(result.citations[0].snippet, "marker evidence line");
+});
+
+test("AnsweringService rejects citationEvidence quotes that do not belong to the cited source", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Answer text [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1],
+      citationEvidence: [
+        {
+          source: 1,
+          quote: "quote from another chunk"
+        }
+      ]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where is the marker?",
+    systemPrompt: "answer",
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with marker evidence line and local support",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "Facts"
+      },
+      {
+        chunkId: "chunk-2",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 1,
+        content: "quote from another chunk",
+        score: 0.8,
+        pageNo: null,
+        sectionTitle: "Other"
+      }
+    ]
+  });
+
+  assert.equal(result.citations.length, 1);
+  assert.notEqual(result.citations[0].snippet, "quote from another chunk");
+  assert.match(result.citations[0].snippet, /marker evidence line|first chunk/i);
+});

@@ -164,6 +164,65 @@ test("LlmService normalizes structured answer JSON with schema constraints", asy
   }
 });
 
+test("LlmService parses structured citation evidence objects", async () => {
+  const originalFetch = global.fetch;
+  const originalBaseUrl = process.env.OLLAMA_BASE_URL;
+  const originalModel = process.env.OLLAMA_MODEL;
+
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      response:
+        '{"answer":"Structured answer","status":"grounded","citations":[1],"citationEvidence":[{"source":1,"quote":"retrieved content marker"}],"missingInformation":[]}'
+    })
+  });
+
+  process.env.OLLAMA_BASE_URL = "http://localhost:11434";
+  process.env.OLLAMA_MODEL = "test-model";
+
+  const service = new LlmService({
+    buildAnswerPrompt: () => ({
+      promptId: "answer.v1",
+      systemPrompt: "managed system prompt",
+      userPrompt: "managed user prompt",
+      fullPrompt: "managed full prompt"
+    }),
+    buildRewritePrompt: () => ({
+      promptId: "rewrite-query.v1",
+      systemPrompt: "managed rewrite system",
+      userPrompt: "managed rewrite user",
+      fullPrompt: "managed rewrite full prompt"
+    })
+  });
+
+  try {
+    const result = await service.generateAnswer({
+      question: "Where is the marker?",
+      systemPrompt: "ignored direct system prompt",
+      answerPolicy: {
+        responseStyle: "concise",
+        citationMode: "required",
+        maxCitations: 2,
+        noAnswerBehavior: "say_insufficient_context"
+      },
+      chunks: []
+    });
+
+    assert.equal(result.answer, "Structured answer");
+    assert.deepEqual(result.citedChunkNumbers, [1]);
+    assert.deepEqual(result.citationEvidence, [
+      {
+        source: 1,
+        quote: "retrieved content marker"
+      }
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+    process.env.OLLAMA_BASE_URL = originalBaseUrl;
+    process.env.OLLAMA_MODEL = originalModel;
+  }
+});
+
 test("LlmService falls back when structured answer payload fails schema validation", async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;

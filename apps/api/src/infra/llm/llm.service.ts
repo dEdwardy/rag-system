@@ -350,7 +350,8 @@ export class LlmService {
       answer: rawAnswer,
       answerStatus: undefined,
       missingInformation: [],
-      citedChunkNumbers: this.extractCitedChunkNumbers(rawAnswer)
+      citedChunkNumbers: this.extractCitedChunkNumbers(rawAnswer),
+      citationEvidence: []
     };
   }
 
@@ -376,7 +377,8 @@ export class LlmService {
           answer: payload.answer,
           answerStatus: payload.status,
           missingInformation: payload.missingInformation,
-          citedChunkNumbers: payload.citations
+          citedChunkNumbers: payload.citations,
+          citationEvidence: payload.citationEvidence
         };
       } catch {}
     }

@@ -40,13 +40,16 @@ Answer policy:
 - noAnswerBehavior=${input.answerPolicy.noAnswerBehavior}
 
 Return JSON only with this shape:
-{"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
+{"answer":"string","status":"grounded|insufficient_context","citations":[1],"citationEvidence":[{"source":1,"quote":"exact text"}],"missingInformation":["string"]}
 
 Rules:
 - "citations" must contain only 1-based source indexes from the retrieved sources.
+- "citationEvidence" must be an array of objects with "source" and "quote".
+- Each "quote" must be copied verbatim from the cited retrieved source.
 - Use an empty array when there are no supported citations.
 - Use "grounded" only when the answer is supported by the provided sources.
 - Use "insufficient_context" when the sources do not support a reliable answer.
+- Use an empty "citationEvidence" array when no direct quote can be provided.
 - "missingInformation" should be an array and may be empty.
 - Do not wrap the JSON in markdown fences.`;
 

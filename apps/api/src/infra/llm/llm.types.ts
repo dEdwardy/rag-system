@@ -28,6 +28,10 @@ export type GenerateAnswerOutput = {
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];
   citedChunkNumbers?: number[];
+  citationEvidence?: Array<{
+    source: number;
+    quote: string;
+  }>;
 };
 
 export type RewriteQueryInput = {

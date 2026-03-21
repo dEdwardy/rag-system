@@ -28,6 +28,30 @@ Use additional docs in `docs/` only as needed for the task at hand.
 - Treat this repository as an in-progress product, not a greenfield scaffold.
 - When requirements are unclear, clarify the next increment instead of expanding scope.
 
+## Default Execution Mode
+
+- Unless the user explicitly asks to pause or review before the next step, continue automatically through:
+  - task identification
+  - required spec/plan steps
+  - implementation
+  - validation
+  - documentation updates
+  - commit
+  - push
+
+  中文说明：默认连续执行，不需要在上述常规步骤之间逐一停下来征求确认。
+
+- Do not stop for confirmation between normal development steps unless:
+  - the requirement is materially ambiguous
+  - there is a direct conflict with existing uncommitted work
+  - the next action is destructive or unusually high-risk
+
+  中文说明：只有在需求存在实质歧义、与现有未提交改动冲突，或下一步属于破坏性/高风险操作时，才中断并询问。
+
+- Treat autonomous end-to-end execution as the repository default working mode.
+
+  中文说明：本仓库默认工作模式是端到端自动推进，而不是每一步等待人工确认。
+
 ## Validation
 
 Run the smallest relevant validation for the change you make. Common commands:

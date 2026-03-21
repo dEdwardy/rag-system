@@ -169,6 +169,7 @@ The following path has been validated locally on `2026-03-21`:
    - `answerStatus` is `grounded` or `insufficient_context`
    - `missingInformation` is returned as an array
    - citations are returned
+   - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
    - `contextGroups` is returned as an array
    - contiguous same-document chunks may be merged into one `contextGroup.mergedContent`
    - answer may include inline source markers like `[1]`
@@ -210,6 +211,7 @@ The following path has been validated locally on `2026-03-21`:
 - Structured answer metadata with `answerStatus` / `missingInformation`
 - Structured answer JSON is now schema-validated and normalized before backend consumption
   - constrained fields: `answer`, `status`, `citations`, `missingInformation`
+- Citation snippets now prefer structured `citationEvidence` quotes after backend source-local validation, with deterministic fallback snippets when validation fails
 - Assistant-level `answerPolicyJson` validation and ask-time policy application
 - Ollama-backed local generation when `OLLAMA_BASE_URL` and `OLLAMA_MODEL` are configured
 - OpenAI-backed generation when `OPENAI_API_KEY` is configured

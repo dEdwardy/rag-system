@@ -7,6 +7,16 @@ const positiveCitationSchema = z
     message: "citation indexes must be positive integers"
   });
 
+const citationEvidenceItemSchema = z.object({
+  source: positiveCitationSchema,
+  quote: z
+    .string()
+    .transform(value => value.trim())
+    .refine(value => value.length > 0, {
+      message: "citation quote must not be empty"
+    })
+});
+
 export const structuredAnswerSchema = z.object({
   answer: z
     .string()
@@ -29,6 +39,23 @@ export const structuredAnswerSchema = z.object({
           uniqueValues.push(value);
         }
       }
+      return uniqueValues;
+    }),
+  citationEvidence: z
+    .array(citationEvidenceItemSchema)
+    .optional()
+    .transform(values => {
+      if (!values) {
+        return [];
+      }
+
+      const uniqueValues: Array<{ source: number; quote: string }> = [];
+      for (const value of values) {
+        if (!uniqueValues.some(item => item.source === value.source && item.quote === value.quote)) {
+          uniqueValues.push(value);
+        }
+      }
+
       return uniqueValues;
     }),
   missingInformation: z
