@@ -4,6 +4,7 @@ export type ChatStreamAssistantMessage = {
   id: string;
   role: "assistant";
   content: string;
+  createdAt: string;
   status: "streaming" | "done" | "error";
   traceId: string | null;
   citations: Citation[];
@@ -15,6 +16,7 @@ export type ChatStreamUserMessage = {
   id: string;
   role: "user";
   content: string;
+  createdAt: string;
 };
 
 export type ChatStreamEvent =
@@ -43,17 +45,20 @@ export type ChatStreamEvent =
 
 export function createPendingChatTurn(input: { question: string }) {
   const timestamp = Date.now().toString();
+  const createdAt = new Date().toISOString();
 
   return {
     userMessage: {
       id: `local-user-${timestamp}`,
       role: "user" as const,
-      content: input.question
+      content: input.question,
+      createdAt
     },
     assistantMessage: {
       id: `local-assistant-${timestamp}`,
       role: "assistant" as const,
       content: "",
+      createdAt,
       status: "streaming" as const,
       traceId: null,
       citations: []

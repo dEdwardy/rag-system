@@ -20,6 +20,14 @@ test("chat page helpers format conversation updated time for english locale", as
   assert.match(result, /21/);
 });
 
+test("chat page helpers format message time for english locale", async () => {
+  const { formatMessageTime } = await loadChatPageHelpers();
+
+  const result = formatMessageTime("2026-03-21T09:30:00.000Z", "en");
+
+  assert.match(result, /:30/);
+});
+
 test("chat page helpers build citation context with page and section", async () => {
   const { buildCitationContext } = await loadChatPageHelpers();
 

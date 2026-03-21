@@ -1,6 +1,8 @@
 import {
+  ActionIcon,
   Alert,
   Anchor,
+  Avatar,
   Badge,
   Box,
   Button,
@@ -17,9 +19,9 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
+import { useQueryClient } from "@tanstack/react-query";
 import { startTransition, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAskAssistantStream,
@@ -30,14 +32,13 @@ import {
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { AskStreamEvent, AskStreamFinalData, Citation, Message } from "../../types/api";
+import { buildCitationContext, formatConversationUpdatedAt, formatMessageTime } from "./chat-page-helpers";
 import {
   applyChatStreamEvent,
   createPendingChatTurn,
   type ChatStreamAssistantMessage,
-  type ChatStreamEvent,
   type ChatStreamUserMessage
 } from "./chat-stream-state";
-import { buildCitationContext, formatConversationUpdatedAt } from "./chat-page-helpers";
 
 type ActiveStreamTurn = {
   conversationId: string | null;
@@ -47,16 +48,24 @@ type ActiveStreamTurn = {
   latestResult: AskStreamFinalData | null;
 };
 
+type DisplayedMessage =
+  | Message
+  | ChatStreamUserMessage
+  | ChatStreamAssistantMessage;
+
 export function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
+
   const assistantsQuery = useAssistants();
   const conversationsQuery = useConversations();
   const activeAssistant = assistantsQuery.data?.[0] ?? null;
   const messagesQuery = useConversationMessages(activeConversationId);
   const tracesQuery = useConversationTraces(activeConversationId);
   const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "default-assistant");
+
   const queryClient = useQueryClient();
+  const { locale, t } = useI18n();
   const form = useForm({
     initialValues: {
       question: ""
@@ -66,7 +75,6 @@ export function ChatPage() {
   const latestTrace = tracesQuery.data?.[0] ?? null;
   const latestModelName = activeStreamTurn?.latestResult?.modelName ?? latestTrace?.modelName ?? null;
   const canAsk = activeAssistant != null && !askStreamMutation.isPending;
-  const { locale, t } = useI18n();
   const streamConversationId = activeStreamTurn?.latestResult?.conversationId ?? activeStreamTurn?.conversationId ?? null;
   const shouldRenderStreamTurn =
     activeStreamTurn != null &&
@@ -101,15 +109,11 @@ export function ChatPage() {
             ? locale === "zh"
               ? "正在检索上下文"
               : "Retrieving context"
-          : locale === "zh"
-            ? "正在生成回答"
-            : "Generating answer";
+            : locale === "zh"
+              ? "正在生成回答"
+              : "Generating answer";
 
-  const displayedMessages: Array<
-    | Message
-    | (ChatStreamUserMessage & { createdAt?: string })
-    | (ChatStreamAssistantMessage & { createdAt?: string })
-  > = [...(messagesQuery.data ?? [])];
+  const displayedMessages: DisplayedMessage[] = [...(messagesQuery.data ?? [])];
 
   if (shouldRenderStreamTurn && activeStreamTurn) {
     displayedMessages.push(activeStreamTurn.userMessage, activeStreamTurn.assistantMessage);
@@ -121,10 +125,141 @@ export function ChatPage() {
       : latestTrace?.citationsJson ?? [];
   const activeTraceId = activeStreamTurn?.assistantMessage.traceId ?? latestTrace?.id ?? null;
   const activeCitationCount = citationItems.length;
+
   const getCitationContext = (citation: Citation) =>
     buildCitationContext(citation, {
       pageLabel: pageNo => t("common.misc.pageLong", { pageNo })
     });
+
+  const renderMessage = (message: DisplayedMessage) => {
+    const isAssistant = message.role === "assistant";
+    const isStreamingAssistant =
+      "status" in message && message.role === "assistant" && message.status === "streaming";
+    const isErroredAssistant =
+      "status" in message && message.role === "assistant" && message.status === "error";
+    const traceId = "traceId" in message ? message.traceId : null;
+    const messageTime = "createdAt" in message ? formatMessageTime(message.createdAt, locale) : null;
+
+    return (
+      <Box
+        key={message.id}
+        style={{
+          display: "flex",
+          justifyContent: isAssistant ? "flex-start" : "flex-end"
+        }}
+      >
+        <Group
+          align="flex-end"
+          gap="sm"
+          style={{
+            flexDirection: isAssistant ? "row" : "row-reverse",
+            maxWidth: "92%"
+          }}
+          wrap="nowrap"
+        >
+          <Avatar
+            color={isAssistant ? "gray" : "teal"}
+            radius="xl"
+            size={36}
+            styles={{
+              root: isAssistant
+                ? {
+                    background: "rgba(230, 233, 230, 1)",
+                    color: "rgba(20, 24, 22, 0.88)"
+                  }
+                : {
+                    background:
+                      "linear-gradient(135deg, rgba(22, 78, 99, 0.96) 0%, rgba(33, 110, 92, 0.94) 100%)",
+                    color: "white"
+                  }
+            }}
+          >
+            {isAssistant ? "AI" : "U"}
+          </Avatar>
+
+          <Paper
+            p="md"
+            radius="xl"
+            style={{
+              minWidth: 0,
+              background: isAssistant
+                ? "rgba(255,255,255,0.9)"
+                : "linear-gradient(135deg, rgba(22, 78, 99, 0.96) 0%, rgba(33, 110, 92, 0.94) 100%)",
+              border: isAssistant
+                ? "1px solid rgba(23, 36, 30, 0.08)"
+                : "1px solid rgba(255,255,255,0.08)",
+              boxShadow: isAssistant
+                ? "0 10px 24px rgba(16, 24, 20, 0.06)"
+                : "0 14px 32px rgba(17, 24, 39, 0.18)"
+            }}
+          >
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Group gap="xs">
+                  <Badge radius="sm" variant={isAssistant ? "light" : "filled"}>
+                    {t(`common.status.${message.role}`)}
+                  </Badge>
+                  {isStreamingAssistant ? (
+                    <Badge color="orange" radius="sm" variant="light">
+                      {locale === "zh" ? "生成中" : "Streaming"}
+                    </Badge>
+                  ) : null}
+                  {isErroredAssistant ? (
+                    <Badge color="red" radius="sm" variant="light">
+                      {locale === "zh" ? "失败" : "Failed"}
+                    </Badge>
+                  ) : null}
+                </Group>
+                {traceId ? (
+                  <Anchor
+                    c={isAssistant ? undefined : "rgba(255,255,255,0.84)"}
+                    component={Link}
+                    size="xs"
+                    to={`/traces/${traceId}`}
+                  >
+                    {traceId}
+                  </Anchor>
+                ) : null}
+              </Group>
+
+              <Text c={isAssistant ? undefined : "white"} style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
+                {message.content || (isStreamingAssistant ? (locale === "zh" ? "正在生成回答..." : "Drafting answer...") : "")}
+              </Text>
+
+              {isStreamingAssistant ? (
+                <Group gap={6}>
+                  {[0.95, 0.72, 0.5].map(opacity => (
+                    <Box
+                      key={opacity}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        background: "#d97706",
+                        opacity
+                      }}
+                    />
+                  ))}
+                </Group>
+              ) : null}
+
+              <Group justify="space-between">
+                <Text c={isAssistant ? "dimmed" : "rgba(255,255,255,0.78)"} size="xs">
+                  {messageTime ?? (isStreamingAssistant ? streamStatusLabel : "")}
+                </Text>
+              </Group>
+
+              {isErroredAssistant && "errorMessage" in message ? (
+                <Alert color="red" radius="lg" variant="light">
+                  {message.errorMessage}
+                </Alert>
+              ) : null}
+            </Stack>
+          </Paper>
+        </Group>
+      </Box>
+    );
+  };
 
   return (
     <Stack gap="lg">
@@ -137,32 +272,53 @@ export function ChatPage() {
           border: "1px solid rgba(23, 36, 30, 0.10)"
         }}
       >
-        <Group align="flex-start" justify="space-between">
-          <Stack gap={8}>
-            <Title order={2} style={{ letterSpacing: "-0.03em" }}>
-              {t("chat.title")}
-            </Title>
-            <Text c="dimmed" maw={720} size="sm">
-              {t("chat.subtitle")}
-            </Text>
-            <Group gap="xs" mt="xs">
-              {activeAssistant ? (
-                <Badge color="teal" radius="sm" size="lg" variant="filled">
-                  {activeAssistant.name}
+        <Group align="center" justify="space-between">
+          <Group align="center" gap="md">
+            <Avatar
+              color="teal"
+              radius="xl"
+              size={52}
+              styles={{
+                root: {
+                  background: "linear-gradient(135deg, rgba(24, 94, 78, 0.95) 0%, rgba(39, 110, 92, 0.92) 100%)",
+                  boxShadow: "0 10px 24px rgba(21, 64, 56, 0.18)"
+                }
+              }}
+            >
+              AI
+            </Avatar>
+            <Stack gap={6}>
+              <Group gap="xs">
+                <Title order={2} style={{ letterSpacing: "-0.03em" }}>
+                  {t("chat.title")}
+                </Title>
+                {activeAssistant ? (
+                  <Badge color="teal" radius="sm" size="lg" variant="filled">
+                    {activeAssistant.name}
+                  </Badge>
+                ) : null}
+              </Group>
+              <Text c="dimmed" maw={720} size="sm">
+                {t("chat.subtitle")}
+              </Text>
+              <Group gap="xs" mt={2}>
+                <Badge color="teal" radius="sm" size="md" variant="light">
+                  {locale === "zh" ? "在线" : "Online"}
                 </Badge>
-              ) : null}
-              {latestModelName ? (
-                <Badge color="dark" radius="sm" size="lg" variant="light">
-                  {latestModelName}
-                </Badge>
-              ) : null}
-              {streamStatusLabel ? (
-                <Badge color="orange" radius="sm" size="lg" variant="light">
-                  {streamStatusLabel}
-                </Badge>
-              ) : null}
-            </Group>
-          </Stack>
+                {latestModelName ? (
+                  <Badge color="dark" radius="sm" size="md" variant="light">
+                    {latestModelName}
+                  </Badge>
+                ) : null}
+                {streamStatusLabel ? (
+                  <Badge color="orange" radius="sm" size="md" variant="light">
+                    {streamStatusLabel}
+                  </Badge>
+                ) : null}
+              </Group>
+            </Stack>
+          </Group>
+
           <Box
             style={{
               minWidth: 220,
@@ -176,7 +332,9 @@ export function ChatPage() {
               {locale === "zh" ? "体验目标" : "Experience goal"}
             </Text>
             <Text fw={600} mt={6} size="sm">
-              {locale === "zh" ? "更快反馈、更强层级、更清晰引用" : "Faster feedback, stronger hierarchy, clearer citations"}
+              {locale === "zh"
+                ? "头像、状态、时间和输入区都更贴近即时对话体验"
+                : "Bring identity, status, timing, and the composer closer to a real chat workspace"}
             </Text>
           </Box>
         </Group>
@@ -235,9 +393,7 @@ export function ChatPage() {
                       justify="flex-start"
                       onClick={() => setActiveConversationId(conversation.id)}
                       radius="lg"
-                      style={{
-                        minHeight: 64
-                      }}
+                      style={{ minHeight: 68 }}
                       variant={activeConversationId === conversation.id ? "filled" : "subtle"}
                     >
                       <Stack align="flex-start" gap={2}>
@@ -276,27 +432,41 @@ export function ChatPage() {
             >
               <Stack gap="sm">
                 <Group justify="space-between">
-                  <div>
-                    <Text fw={700} size="sm" tt="uppercase">
-                      {locale === "zh" ? "对话工作区" : "Conversation workspace"}
-                    </Text>
-                    <Text c="dimmed" size="sm">
-                      {activeConversationId
-                        ? locale === "zh"
-                          ? "已连接历史消息与最新引用。"
-                          : "History and latest citations are connected."
-                        : locale === "zh"
-                          ? "发送第一个问题即可开始新的会话。"
-                          : "Send the first question to start a new session."}
-                    </Text>
-                  </div>
+                  <Group align="center" gap="sm">
+                    <Avatar
+                      color="gray"
+                      radius="xl"
+                      size={42}
+                      styles={{
+                        root: {
+                          background: "rgba(231, 235, 232, 1)"
+                        }
+                      }}
+                    >
+                      AI
+                    </Avatar>
+                    <div>
+                      <Text fw={700} size="sm" tt="uppercase">
+                        {locale === "zh" ? "对话工作区" : "Conversation workspace"}
+                      </Text>
+                      <Text c="dimmed" size="sm">
+                        {activeConversationId
+                          ? locale === "zh"
+                            ? "历史消息、流式回答与最新引用会在这里汇合。"
+                            : "History, streamed answers, and the latest citations meet here."
+                          : locale === "zh"
+                            ? "发送第一个问题即可开始新会话。"
+                            : "Send the first question to start a new session."}
+                      </Text>
+                    </div>
+                  </Group>
                   {askStreamMutation.isPending ? <Loader color="teal" size="sm" /> : null}
                 </Group>
 
                 <Divider color="rgba(23, 36, 30, 0.08)" />
 
-                <ScrollArea.Autosize mah={460} offsetScrollbars>
-                  <Stack gap="sm">
+                <ScrollArea.Autosize mah={500} offsetScrollbars>
+                  <Stack gap="md">
                     {activeConversationId == null && activeStreamTurn == null ? (
                       <StatePanel
                         description={t("chat.states.noActiveConversationDescription")}
@@ -315,84 +485,7 @@ export function ChatPage() {
                         tone="error"
                       />
                     ) : displayedMessages.length ? (
-                      displayedMessages.map(message => {
-                        const isAssistant = message.role === "assistant";
-                        const isStreamingAssistant =
-                          "status" in message && message.role === "assistant" && message.status === "streaming";
-                        const isErroredAssistant =
-                          "status" in message && message.role === "assistant" && message.status === "error";
-                        const traceId = "traceId" in message ? message.traceId : null;
-
-                        return (
-                          <Paper
-                            key={message.id}
-                            p="md"
-                            radius="xl"
-                            style={{
-                              alignSelf: isAssistant ? "stretch" : "flex-end",
-                              background: isAssistant
-                                ? "rgba(255,255,255,0.84)"
-                                : "linear-gradient(135deg, rgba(22, 78, 99, 0.96) 0%, rgba(33, 110, 92, 0.94) 100%)",
-                              border: isAssistant
-                                ? "1px solid rgba(23, 36, 30, 0.08)"
-                                : "1px solid rgba(255,255,255,0.08)",
-                              boxShadow: isAssistant
-                                ? "none"
-                                : "0 14px 32px rgba(17, 24, 39, 0.18)"
-                            }}
-                          >
-                            <Stack gap="xs">
-                              <Group justify="space-between">
-                                <Group gap="xs">
-                                  <Badge radius="sm" variant={isAssistant ? "light" : "filled"}>
-                                    {t(`common.status.${message.role}`)}
-                                  </Badge>
-                                  {isStreamingAssistant ? (
-                                    <Badge color="orange" radius="sm" variant="light">
-                                      {locale === "zh" ? "流式中" : "Streaming"}
-                                    </Badge>
-                                  ) : null}
-                                  {isErroredAssistant ? (
-                                    <Badge color="red" radius="sm" variant="light">
-                                      {locale === "zh" ? "失败" : "Failed"}
-                                    </Badge>
-                                  ) : null}
-                                </Group>
-                                {traceId ? (
-                                  <Anchor component={Link} size="xs" to={`/traces/${traceId}`}>
-                                    {traceId}
-                                  </Anchor>
-                                ) : null}
-                              </Group>
-
-                              <Text
-                                c={isAssistant ? undefined : "white"}
-                                style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}
-                              >
-                                {message.content || (isStreamingAssistant ? (locale === "zh" ? "正在生成回答…" : "Drafting answer...") : "")}
-                              </Text>
-
-                              {isStreamingAssistant ? (
-                                <Box
-                                  style={{
-                                    width: 10,
-                                    height: 10,
-                                    borderRadius: 999,
-                                    background: "#d97706",
-                                    opacity: 0.85
-                                  }}
-                                />
-                              ) : null}
-
-                              {isErroredAssistant && "errorMessage" in message ? (
-                                <Alert color="red" radius="lg" variant="light">
-                                  {message.errorMessage}
-                                </Alert>
-                              ) : null}
-                            </Stack>
-                          </Paper>
-                        );
-                      })
+                      displayedMessages.map(renderMessage)
                     ) : (
                       <StatePanel
                         description={t("chat.states.noMessagesDescription")}
@@ -468,13 +561,11 @@ export function ChatPage() {
                           assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent)
                         };
                       });
-
                     }
                   });
                 } catch (error) {
                   setActiveStreamTurn(current =>
-                    current
-                      && current.assistantMessage.status !== "error"
+                    current && current.assistantMessage.status !== "error"
                       ? {
                           ...current,
                           assistantMessage: applyChatStreamEvent(current.assistantMessage, {
@@ -490,11 +581,11 @@ export function ChatPage() {
                   });
                 }
               })}
-              p="lg"
+              p="md"
               radius="xl"
               style={{
-                background: "linear-gradient(180deg, rgba(25, 30, 28, 0.96) 0%, rgba(39, 48, 44, 0.96) 100%)",
-                color: "white"
+                background: "rgba(250, 248, 244, 0.98)",
+                border: "1px solid rgba(23, 36, 30, 0.08)"
               }}
             >
               <Stack gap="sm">
@@ -503,8 +594,14 @@ export function ChatPage() {
                     <Text fw={700} size="sm" tt="uppercase">
                       {locale === "zh" ? "提问输入区" : "Question composer"}
                     </Text>
-                    <Text c="rgba(255,255,255,0.72)" size="sm">
-                      {canAsk ? t("chat.askHintEnabled") : t("chat.askHintDisabled")}
+                    <Text c="dimmed" size="sm">
+                      {activeStreamTurn && activeStreamTurn.assistantMessage.status === "streaming"
+                        ? streamStatusLabel
+                        : canAsk
+                          ? locale === "zh"
+                            ? "消息会立即出现，回答会随着流式返回逐步展开。"
+                            : "Your message appears immediately and the answer reveals progressively."
+                          : t("chat.askHintDisabled")}
                     </Text>
                   </div>
                   {activeAssistant ? (
@@ -514,43 +611,56 @@ export function ChatPage() {
                   ) : null}
                 </Group>
 
-                <Textarea
-                  autosize
-                  disabled={!canAsk}
-                  minRows={4}
-                  placeholder={t("chat.askPlaceholder")}
-                  radius="lg"
-                  styles={{
-                    input: {
-                      background: "rgba(255,255,255,0.92)",
-                      border: "none",
-                      fontSize: 16,
-                      lineHeight: 1.7
-                    }
-                  }}
-                  {...form.getInputProps("question")}
-                />
+                <Group align="flex-end" gap="sm" wrap="nowrap">
+                  <Textarea
+                    autosize
+                    disabled={!canAsk}
+                    minRows={3}
+                    placeholder={t("chat.askPlaceholder")}
+                    radius="xl"
+                    styles={{
+                      root: {
+                        flex: 1
+                      },
+                      input: {
+                        background: "rgba(255,255,255,0.96)",
+                        border: "1px solid rgba(23, 36, 30, 0.10)",
+                        fontSize: 15,
+                        lineHeight: 1.7,
+                        padding: "16px 18px",
+                        boxShadow: "0 6px 18px rgba(16, 24, 20, 0.04)"
+                      }
+                    }}
+                    {...form.getInputProps("question")}
+                  />
 
-                <Group justify="space-between">
-                  <Text c="rgba(255,255,255,0.72)" size="sm">
-                    {activeStreamTurn && activeStreamTurn.assistantMessage.status === "streaming"
-                      ? streamStatusLabel
-                      : canAsk
-                        ? locale === "zh"
-                          ? "发送后会立即显示用户消息，并渐进展示回答。"
-                          : "Your message appears immediately and the answer reveals progressively."
-                        : t("chat.askHintDisabled")}
-                  </Text>
-                  <Button
+                  <ActionIcon
+                    aria-label={t("common.actions.ask")}
                     color="teal"
                     disabled={!canAsk}
                     loading={askStreamMutation.isPending}
                     radius="xl"
-                    size="md"
+                    size={52}
                     type="submit"
+                    variant="filled"
                   >
-                    {t("common.actions.ask")}
-                  </Button>
+                    <svg
+                      aria-hidden="true"
+                      fill="none"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      width="18"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M5 12H19M19 12L13 6M19 12L13 18"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                  </ActionIcon>
                 </Group>
               </Stack>
             </Paper>
@@ -580,7 +690,9 @@ export function ChatPage() {
                   {t("chat.latestCitations")}
                 </Text>
                 <Text c="dimmed" size="sm">
-                  {locale === "zh" ? "优先展示当前流式回答的引用，其次显示最新 trace。" : "Current streamed answer citations take priority, then the latest trace."}
+                  {locale === "zh"
+                    ? "优先展示当前流式回答的引用，其次展示最新 trace。"
+                    : "Current streamed answer citations take priority, then the latest trace."}
                 </Text>
               </div>
 

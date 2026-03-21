@@ -452,6 +452,7 @@
 - ✅ PC Web Chat progressive streamed experience polish
 - ✅ Ask stream native answer-generation upgrade
 - ✅ Chat conversation rail / citation context polish
+- ✅ Chat high-fidelity visual refinement
 - ✅ Document chain API E2E
 - ✅ Ask chain API E2E
 - ✅ Ask stream API E2E

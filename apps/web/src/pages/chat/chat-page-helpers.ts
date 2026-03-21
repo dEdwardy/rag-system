@@ -9,6 +9,13 @@ export function formatConversationUpdatedAt(value: string, locale: string) {
   }).format(new Date(value));
 }
 
+export function formatMessageTime(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 export function buildCitationContext(
   citation: Pick<Citation, "pageNo" | "sectionTitle">,
   labels: {
