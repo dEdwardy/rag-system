@@ -37,6 +37,7 @@ export class TracesService {
     retrievedChunkIdsJson?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
     retrievalScoresJson?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
     citationsJson?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+    qualityEvaluationJson?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
     modelName?: string;
     latencyMs?: number;
     status: TraceStatus;
@@ -51,6 +52,7 @@ export class TracesService {
     assistantMessageId?: string;
     rewrittenQuery?: string | null;
     citationsJson?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+    qualityEvaluationJson?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
     latencyMs?: number;
     modelName?: string;
     status?: TraceStatus;

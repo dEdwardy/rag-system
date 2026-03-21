@@ -276,7 +276,7 @@
   - `citations` 已支持 numeric string -> integer 归一化与去重
   - 非法 structured payload 仍会安全回退到 plain-text 解析路径
 - [x] 引用片段与答案的严格结构化对齐
-- [ ] 回答质量评估
+- [x] 回答质量评估
 - [ ] 更完整的 assistant / answer policy 配置能力
 
 ### 3.3 Web 增强版未完成
@@ -389,6 +389,7 @@
 - [x] ask 失败诊断增强
 - [x] RetrievalProfile metadata filter
 - [x] 引用片段与答案的严格结构化对齐
+- [x] 回答质量评估
 - [x] API integration test queue isolation
 
 关键文件：
@@ -422,6 +423,8 @@
 - [docs/superpowers/plans/2026-03-21-answering-structured-assistant-config-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answering-structured-assistant-config-plan.md)
 - [docs/superpowers/specs/2026-03-21-answer-citation-alignment-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-answer-citation-alignment-design.md)
 - [docs/superpowers/plans/2026-03-21-answer-citation-alignment-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answer-citation-alignment-plan.md)
+- [docs/superpowers/specs/2026-03-21-answer-quality-evaluation-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-answer-quality-evaluation-design.md)
+- [docs/superpowers/plans/2026-03-21-answer-quality-evaluation-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answer-quality-evaluation-plan.md)
 
 ---
 

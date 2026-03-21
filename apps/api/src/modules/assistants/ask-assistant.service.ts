@@ -132,6 +132,7 @@ export class AskAssistantService {
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
+        qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - startedAt,
         modelName: resolvedAnswerResult.modelName,
         rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
@@ -151,7 +152,8 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
-        missingInformation: resolvedAnswerResult.missingInformation
+        missingInformation: resolvedAnswerResult.missingInformation,
+        qualityEvaluation: resolvedAnswerResult.qualityEvaluation
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown ask pipeline error.";

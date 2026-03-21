@@ -293,3 +293,102 @@ test("AnsweringService rejects citationEvidence quotes that do not belong to the
   assert.notEqual(result.citations[0].snippet, "quote from another chunk");
   assert.match(result.citations[0].snippet, /marker evidence line|first chunk/i);
 });
+
+test("AnsweringService returns strong quality evaluation for grounded answers with citations and no gaps", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Answer text [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where is the marker?",
+    systemPrompt: "answer",
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "marker evidence line",
+        score: 0.92,
+        pageNo: null,
+        sectionTitle: "Facts"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    flags: [],
+    summary: "Answer is grounded in cited sources with no reported gaps."
+  });
+});
+
+test("AnsweringService returns partial quality evaluation when information is missing", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Partial answer [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: ["Need pricing details"],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where is the marker?",
+    systemPrompt: "answer",
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "marker evidence line",
+        score: 0.88,
+        pageNo: null,
+        sectionTitle: "Facts"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.overall, "partial");
+  assert.equal(result.qualityEvaluation.grounding, "grounded");
+  assert.equal(result.qualityEvaluation.completeness, "partial");
+  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information"]);
+});
+
+test("AnsweringService returns weak quality evaluation for insufficient-context answers", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "I don't know.",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["No relevant supporting sources were retrieved."]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where is the marker?",
+    systemPrompt: "answer",
+    chunks: []
+  });
+
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because supporting context was insufficient."
+  });
+});

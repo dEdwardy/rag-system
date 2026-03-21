@@ -29,6 +29,14 @@ type CitationEvidence = {
   quote: string;
 };
 
+type QualityEvaluation = {
+  overall: "strong" | "partial" | "weak";
+  grounding: "grounded" | "partially_grounded" | "ungrounded";
+  completeness: "complete" | "partial" | "insufficient";
+  flags: string[];
+  summary: string;
+};
+
 const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
   responseStyle: "concise",
   citationMode: "required",
@@ -60,11 +68,20 @@ export class AnsweringService {
     const missingInformation = result.missingInformation ?? [];
 
     if (input.chunks.length === 0) {
+      const qualityEvaluation = this.buildQualityEvaluation({
+        answerStatus,
+        missingInformation,
+        citationCount: 0,
+        chunkCount: 0,
+        topScore: null
+      });
+
       return {
         answer: result.answer,
         modelName: result.modelName,
         answerStatus,
         missingInformation,
+        qualityEvaluation,
         citations: [],
         retrievedChunks: [],
         contextGroups: []
@@ -87,12 +104,20 @@ export class AnsweringService {
         input.question
       )
     }));
+    const qualityEvaluation = this.buildQualityEvaluation({
+      answerStatus,
+      missingInformation,
+      citationCount: citations.length,
+      chunkCount: input.chunks.length,
+      topScore: input.chunks[0]?.score ?? null
+    });
 
     return {
       answer: result.answer,
       modelName: result.modelName,
       answerStatus,
       missingInformation,
+      qualityEvaluation,
       citations,
       retrievedChunks: input.chunks,
       contextGroups: input.contextGroups ?? []
@@ -200,5 +225,76 @@ export class AnsweringService {
 
   private normalizeWhitespace(value: string) {
     return value.replace(/\s+/g, " ").trim();
+  }
+
+  private buildQualityEvaluation(input: {
+    answerStatus: "grounded" | "insufficient_context";
+    missingInformation: string[];
+    citationCount: number;
+    chunkCount: number;
+    topScore: number | null;
+  }): QualityEvaluation {
+    const flags: string[] = [];
+
+    if (input.chunkCount === 0) {
+      flags.push("no_retrieval_hits");
+    }
+
+    if (input.answerStatus === "insufficient_context") {
+      flags.push("insufficient_context");
+    }
+
+    if (input.missingInformation.length > 0) {
+      flags.push("missing_information");
+    }
+
+    if (input.topScore !== null && input.topScore < 0.5) {
+      flags.push("low_retrieval_score");
+    }
+
+    if (input.chunkCount > 0 && input.citationCount === 0) {
+      flags.push("no_citations");
+    }
+
+    const grounding =
+      input.answerStatus === "insufficient_context"
+        ? "ungrounded"
+        : input.citationCount > 0
+          ? "grounded"
+          : "partially_grounded";
+
+    const completeness =
+      input.answerStatus === "insufficient_context"
+        ? "insufficient"
+        : input.missingInformation.length > 0
+          ? "partial"
+          : "complete";
+
+    const overall =
+      grounding === "ungrounded"
+        ? "weak"
+        : completeness === "complete" && !flags.some(flag => ["missing_information", "no_citations", "insufficient_context", "no_retrieval_hits"].includes(flag))
+          ? "strong"
+          : "partial";
+
+    const summary =
+      overall === "strong"
+        ? "Answer is grounded in cited sources with no reported gaps."
+        : overall === "partial"
+          ? "Answer is grounded but incomplete because some information is missing."
+          : "Answer quality is weak because supporting context was insufficient.";
+
+    const normalizedFlags =
+      overall === "strong"
+        ? flags.filter(flag => !["no_citations", "missing_information", "insufficient_context", "no_retrieval_hits"].includes(flag))
+        : flags;
+
+    return {
+      overall,
+      grounding,
+      completeness,
+      flags: normalizedFlags,
+      summary
+    };
   }
 }

@@ -131,7 +131,14 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           contextGroups,
           modelName: "fallback-local",
           answerStatus: "grounded",
-          missingInformation: []
+          missingInformation: [],
+          qualityEvaluation: {
+            overall: "strong",
+            grounding: "grounded",
+            completeness: "complete",
+            flags: [],
+            summary: "Answer is grounded in cited sources with no reported gaps."
+          }
         };
       }
     },
@@ -239,6 +246,13 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(updateTraceCalls[0].input.status, "success");
   assert.equal(updateTraceCalls[0].input.assistantMessageId, "assistant-message-1");
   assert.deepEqual(updateTraceCalls[0].input.citationsJson, citations);
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    flags: [],
+    summary: "Answer is grounded in cited sources with no reported gaps."
+  });
   assert.equal(result.conversationId, "conversation-1");
   assert.equal(result.traceId, "trace-1");
   assert.equal(result.answer, "The marker is in Document 1.");
@@ -248,6 +262,13 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answerStatus, "grounded");
   assert.deepEqual(result.missingInformation, []);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    flags: [],
+    summary: "Answer is grounded in cited sources with no reported gaps."
+  });
 });
 
 test("AskAssistantService can disable query rewrite and forwards resolved retrieval strategy", async () => {
@@ -320,7 +341,14 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         contextGroups: [],
         modelName: "fallback-local",
         answerStatus: "insufficient_context",
-        missingInformation: []
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+          summary: "Answer quality is weak because supporting context was insufficient."
+        }
       })
     },
     {
@@ -375,4 +403,11 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     }
   ]);
   assert.equal(result.traceId, "trace-1");
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because supporting context was insufficient."
+  });
 });

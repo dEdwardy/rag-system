@@ -94,6 +94,11 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       true
     );
     assert.ok(Array.isArray(askResult.missingInformation));
+    assert.equal(typeof askResult.qualityEvaluation?.overall, "string");
+    assert.equal(typeof askResult.qualityEvaluation?.grounding, "string");
+    assert.equal(typeof askResult.qualityEvaluation?.completeness, "string");
+    assert.ok(Array.isArray(askResult.qualityEvaluation?.flags));
+    assert.equal(typeof askResult.qualityEvaluation?.summary, "string");
 
     const conversationMessagesResponse = await fetch(
       `http://localhost:${port}/conversations/${askResult.conversationId}/messages`
@@ -134,6 +139,8 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(trace.status, "success");
     assert.ok(Array.isArray(trace.retrievedChunkIdsJson));
     assert.ok(Array.isArray(trace.citationsJson));
+    assert.equal(typeof trace.qualityEvaluationJson?.overall, "string");
+    assert.equal(typeof trace.qualityEvaluationJson?.summary, "string");
     assert.equal(typeof trace.rewrittenQuery === "string" || trace.rewrittenQuery === null, true);
     assert.ok(Array.isArray(trace.retrievalScoresJson));
     assert.ok(
@@ -175,6 +182,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       true
     );
     assert.ok(Array.isArray(askAfterReindex.missingInformation));
+    assert.equal(typeof askAfterReindex.qualityEvaluation?.overall, "string");
   } finally {
     server.kill("SIGTERM");
     rmSync(storageRoot, { recursive: true, force: true });

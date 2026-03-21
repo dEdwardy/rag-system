@@ -218,6 +218,7 @@ model AnswerTrace {
   retrievedChunkIdsJson Json?
   retrievalScoresJson   Json?
   citationsJson         Json?
+  qualityEvaluationJson Json?
   modelName             String?
   latencyMs             Int?
   status                TraceStatus @default(success)

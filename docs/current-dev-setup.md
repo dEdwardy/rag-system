@@ -168,6 +168,7 @@ The following path has been validated locally on `2026-03-21`:
    - answer is returned
    - `answerStatus` is `grounded` or `insufficient_context`
    - `missingInformation` is returned as an array
+   - `qualityEvaluation` is returned with `overall`, `grounding`, `completeness`, `flags`, and `summary`
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
    - `contextGroups` is returned as an array
@@ -209,9 +210,16 @@ The following path has been validated locally on `2026-03-21`:
 - Minimal ask flow with conversation/message/trace persistence
 - Citation-aware answer prompting with inline source markers
 - Structured answer metadata with `answerStatus` / `missingInformation`
+- Structured answer quality evaluation with:
+  - `overall`: `strong` / `partial` / `weak`
+  - `grounding`: `grounded` / `partially_grounded` / `ungrounded`
+  - `completeness`: `complete` / `partial` / `insufficient`
+  - `flags`: backend-generated warning tags
+  - `summary`: deterministic backend explanation
 - Structured answer JSON is now schema-validated and normalized before backend consumption
   - constrained fields: `answer`, `status`, `citations`, `missingInformation`
 - Citation snippets now prefer structured `citationEvidence` quotes after backend source-local validation, with deterministic fallback snippets when validation fails
+- Trace persistence now includes `qualityEvaluationJson`
 - Assistant-level `answerPolicyJson` validation and ask-time policy application
 - Ollama-backed local generation when `OLLAMA_BASE_URL` and `OLLAMA_MODEL` are configured
 - OpenAI-backed generation when `OPENAI_API_KEY` is configured
