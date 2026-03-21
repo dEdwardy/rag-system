@@ -300,6 +300,9 @@
 
 - [x] retrieval / answering systematic evolution
 - [ ] external knowledge source expansion
+  - web page source ingestion minimum increment: done
+  - feed source ingestion minimum increment: done
+  - the broader external knowledge source direction is not complete yet; continue backend-first expansion from the current two source types
 - keep backend / API first
 - keep `PC Web` as the current client priority
 - do not expand mobile work yet
@@ -313,6 +316,14 @@
 - [x] DOCX 鏀寔
 - [x] 缃戦〉鍐呭鎶撳彇 / 缃戦〉鐭ヨ瘑婧愭帴鍏?
 - [x] 澶栭儴鐭ヨ瘑婧愭帴鍏?
+
+璇存槑锛?
+
+- 杩欓噷鐨?`[x]` 琛ㄧず鈥滃閮ㄧ煡璇嗘簮鎺ュ叆鐨勭涓€杞渶灏忓彲鐢ㄨ兘鍔涘凡缁忚惤鍦扳€濓紝涓嶄唬琛ㄨ鏂瑰悜宸茬粡鏁翠綋瀹屾垚
+- 褰撳墠宸插畬鎴愮殑鏈€灏忓閲忎富瑕佹槸锛?
+  - one direct `http` / `https` web page source
+  - one direct RSS / Atom feed source
+- 鍚庣画鐨?`external knowledge source expansion` 浠嶇劧鏄綋鍓嶇殑涓嬩竴涓畬鏁翠换鍔℃柟鍚?
 
 ---
 
