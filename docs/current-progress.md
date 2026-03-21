@@ -291,7 +291,7 @@
 
 - [x] orchestrator / 妯″潡闆嗘垚娴嬭瘯
 - [x] 鏇村畬鏁寸殑鏂囨。閾捐矫 E2E
-- [ ] 鏇村畬鏁寸殑 ask 閾捐矾 E2E
+- [x] 鏇村畬鏁寸殑 ask 閾捐矏 E2E
 - [x] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
 
 ---
@@ -364,7 +364,7 @@
 
 - [x] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
 - [x] 鏇村畬鏁寸殑鏂囨。閾捐矫 E2E
-- [ ] 鏇村畬鏁寸殑 ask 閾捐矾 E2E
+- [x] 鏇村畬鏁寸殑 ask 閾捐矏 E2E
 - [ ] retrieval / answering 鏇寸郴缁熷寲婕旇繘
 - [ ] 澶栭儴鐭ヨ瘑婧?
 - [ ] 鏇寸粏鐨勭Щ鍔ㄧ閫傞厤
@@ -397,6 +397,7 @@
 - [x] API integration test queue isolation
 - [x] PC Web Knowledge Base -> Assistant browser smoke automation
 - [x] Document chain API E2E
+- [x] Ask chain API E2E
 
 鍏抽敭鏂囦欢锛?
 
@@ -419,9 +420,12 @@
 - [apps/web/test/assistant-config.test.js](/D:/FeProjects/rag-system/apps/web/test/assistant-config.test.js)
 - [apps/web/test/pc-web-smoke.test.js](/D:/FeProjects/rag-system/apps/web/test/pc-web-smoke.test.js)
 - [apps/api/test/document-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/document-chain-e2e.test.js)
+- [apps/api/test/ask-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-chain-e2e.test.js)
 - [docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md)
 - [docs/superpowers/specs/2026-03-21-document-chain-e2e-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-document-chain-e2e-design.md)
+- [docs/superpowers/specs/2026-03-21-ask-chain-e2e-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-ask-chain-e2e-design.md)
 - [docs/superpowers/plans/2026-03-21-document-chain-e2e-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-document-chain-e2e-plan.md)
+- [docs/superpowers/plans/2026-03-21-ask-chain-e2e-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-ask-chain-e2e-plan.md)
 - [docs/superpowers/plans/2026-03-21-pc-web-integration-smoke-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-pc-web-integration-smoke-plan.md)
 - [apps/api/test/ingestion.orchestrator.test.js](/D:/FeProjects/rag-system/apps/api/test/ingestion.orchestrator.test.js)
 - [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
@@ -477,6 +481,7 @@
 - `node --test apps/api/test/retrieval.test.js apps/api/test/retrieval-profile-filters.test.js`
 - `pnpm test:api`
 - `node --test --test-concurrency=1 apps/api/test/retrieval-profile-filters.test.js`
+- `node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js`
 
 ### Web
 
