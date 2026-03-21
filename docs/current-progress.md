@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-21
+更新时间：2026-03-22
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -427,6 +427,21 @@
 ---
 
 ## 9. 最近完成的关键增量
+
+### 2026-03-22
+
+- ✅ Chat page visual refinement follow-up
+  - keep the light teal constrained direction as the primary visual language
+  - absorb only local chat-workspace strengths from the more creative concept
+  - reduce the top chat hero weight
+  - strengthen the conversation rail active state and scan efficiency
+  - make the transcript workspace more dominant
+  - tighten citation inspector information density
+  - keep streaming behavior and API contract unchanged
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/chat-stream-state.test.js`
+    - `node --experimental-strip-types --test apps/web/test/chat-page-helpers.test.js`
+    - `pnpm --filter @rag-system/web build`
 
 ### 2026-03-21
 

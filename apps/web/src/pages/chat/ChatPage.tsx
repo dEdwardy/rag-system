@@ -15,7 +15,8 @@ import {
   Stack,
   Text,
   Textarea,
-  Title
+  Title,
+  UnstyledButton
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -183,13 +184,13 @@ export function ChatPage() {
             style={{
               minWidth: 0,
               background: isAssistant
-                ? "rgba(255,255,255,0.9)"
+                ? "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248, 246, 242, 0.98) 100%)"
                 : "linear-gradient(135deg, rgba(22, 78, 99, 0.96) 0%, rgba(33, 110, 92, 0.94) 100%)",
               border: isAssistant
-                ? "1px solid rgba(23, 36, 30, 0.08)"
+                ? "1px solid rgba(23, 36, 30, 0.07)"
                 : "1px solid rgba(255,255,255,0.08)",
               boxShadow: isAssistant
-                ? "0 10px 24px rgba(16, 24, 20, 0.06)"
+                ? "0 12px 28px rgba(16, 24, 20, 0.05)"
                 : "0 14px 32px rgba(17, 24, 39, 0.18)"
             }}
           >
@@ -264,12 +265,13 @@ export function ChatPage() {
   return (
     <Stack gap="lg">
       <Paper
-        p="xl"
+        p="lg"
         radius="xl"
         style={{
           background:
-            "linear-gradient(135deg, rgba(246, 242, 235, 0.98) 0%, rgba(234, 240, 236, 0.96) 100%)",
-          border: "1px solid rgba(23, 36, 30, 0.10)"
+            "linear-gradient(135deg, rgba(247, 244, 238, 0.98) 0%, rgba(239, 245, 241, 0.96) 100%)",
+          border: "1px solid rgba(23, 36, 30, 0.08)",
+          boxShadow: "0 10px 30px rgba(16, 24, 20, 0.04)"
         }}
       >
         <Group align="center" justify="space-between">
@@ -289,7 +291,7 @@ export function ChatPage() {
             </Avatar>
             <Stack gap={6}>
               <Group gap="xs">
-                <Title order={2} style={{ letterSpacing: "-0.03em" }}>
+                <Title order={3} style={{ letterSpacing: "-0.03em" }}>
                   {t("chat.title")}
                 </Title>
                 {activeAssistant ? (
@@ -298,7 +300,7 @@ export function ChatPage() {
                   </Badge>
                 ) : null}
               </Group>
-              <Text c="dimmed" maw={720} size="sm">
+              <Text c="dimmed" maw={620} size="sm">
                 {t("chat.subtitle")}
               </Text>
               <Group gap="xs" mt={2}>
@@ -322,10 +324,11 @@ export function ChatPage() {
           <Box
             style={{
               minWidth: 220,
-              padding: "14px 16px",
+              maxWidth: 280,
+              padding: "12px 14px",
               borderRadius: 18,
-              background: "rgba(255,255,255,0.72)",
-              border: "1px solid rgba(23, 36, 30, 0.08)"
+              background: "rgba(255,255,255,0.68)",
+              border: "1px solid rgba(23, 36, 30, 0.07)"
             }}
           >
             <Text c="dimmed" size="xs" tt="uppercase">
@@ -333,7 +336,7 @@ export function ChatPage() {
             </Text>
             <Text fw={600} mt={6} size="sm">
               {locale === "zh"
-                ? "头像、状态、时间和输入区都更贴近即时对话体验"
+                ? "让身份、状态、时间和输入区更贴近高频对话工作台。"
                 : "Bring identity, status, timing, and the composer closer to a real chat workspace"}
             </Text>
           </Box>
@@ -346,8 +349,9 @@ export function ChatPage() {
             p="md"
             radius="xl"
             style={{
-              background: "rgba(248, 245, 240, 0.82)",
-              border: "1px solid rgba(23, 36, 30, 0.08)"
+              background: "linear-gradient(180deg, rgba(249, 247, 243, 0.96) 0%, rgba(244, 248, 245, 0.92) 100%)",
+              border: "1px solid rgba(23, 36, 30, 0.08)",
+              boxShadow: "0 12px 26px rgba(16, 24, 20, 0.04)"
             }}
           >
             <Stack gap="md">
@@ -387,28 +391,49 @@ export function ChatPage() {
                 />
               ) : conversationsQuery.data?.length ? (
                 <Stack gap="xs">
-                  {conversationsQuery.data.map(conversation => (
-                    <Button
-                      key={conversation.id}
-                      justify="flex-start"
-                      onClick={() => setActiveConversationId(conversation.id)}
-                      radius="lg"
-                      style={{ minHeight: 68 }}
-                      variant={activeConversationId === conversation.id ? "filled" : "subtle"}
-                    >
-                      <Stack align="flex-start" gap={2}>
-                        <Text lineClamp={2} size="sm">
-                          {conversation.title}
-                        </Text>
-                        <Text
-                          c={activeConversationId === conversation.id ? "rgba(255,255,255,0.78)" : "dimmed"}
-                          size="xs"
-                        >
-                          {formatConversationUpdatedAt(conversation.updatedAt, locale)}
-                        </Text>
-                      </Stack>
-                    </Button>
-                  ))}
+                  {conversationsQuery.data.map(conversation => {
+                    const isActive = activeConversationId === conversation.id;
+
+                    return (
+                      <UnstyledButton
+                        key={conversation.id}
+                        onClick={() => setActiveConversationId(conversation.id)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          padding: "12px 14px",
+                          minHeight: 72,
+                          borderRadius: 18,
+                          textAlign: "left",
+                          background: isActive
+                            ? "linear-gradient(135deg, rgba(16, 116, 102, 0.14) 0%, rgba(16, 116, 102, 0.08) 100%)"
+                            : "rgba(255,255,255,0.58)",
+                          border: isActive
+                            ? "1px solid rgba(16, 116, 102, 0.22)"
+                            : "1px solid rgba(23, 36, 30, 0.06)",
+                          boxShadow: isActive
+                            ? "0 10px 24px rgba(16, 116, 102, 0.08)"
+                            : "0 4px 12px rgba(16, 24, 20, 0.03)"
+                        }}
+                      >
+                        <Stack gap={8}>
+                          <Group justify="space-between" wrap="nowrap">
+                            <Text fw={600} lineClamp={2} size="sm">
+                              {conversation.title}
+                            </Text>
+                            {isActive ? (
+                              <Badge color="teal" radius="sm" size="xs" variant="light">
+                                {locale === "zh" ? "当前" : "Active"}
+                              </Badge>
+                            ) : null}
+                          </Group>
+                          <Text c="dimmed" size="xs">
+                            {formatConversationUpdatedAt(conversation.updatedAt, locale)}
+                          </Text>
+                        </Stack>
+                      </UnstyledButton>
+                    );
+                  })}
                 </Stack>
               ) : (
                 <StatePanel
@@ -426,11 +451,13 @@ export function ChatPage() {
               p="lg"
               radius="xl"
               style={{
-                background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246, 243, 238, 0.98) 100%)",
-                border: "1px solid rgba(23, 36, 30, 0.08)"
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(247, 244, 239, 0.98) 56%, rgba(244, 247, 244, 0.98) 100%)",
+                border: "1px solid rgba(23, 36, 30, 0.08)",
+                boxShadow: "0 16px 38px rgba(16, 24, 20, 0.05)"
               }}
             >
-              <Stack gap="sm">
+              <Stack gap="md">
                 <Group justify="space-between">
                   <Group align="center" gap="sm">
                     <Avatar
@@ -465,35 +492,45 @@ export function ChatPage() {
 
                 <Divider color="rgba(23, 36, 30, 0.08)" />
 
-                <ScrollArea.Autosize mah={500} offsetScrollbars>
-                  <Stack gap="md">
-                    {activeConversationId == null && activeStreamTurn == null ? (
-                      <StatePanel
-                        description={t("chat.states.noActiveConversationDescription")}
-                        title={t("chat.states.noActiveConversationTitle")}
-                      />
-                    ) : messagesQuery.isLoading && !shouldRenderStreamTurn ? (
-                      <StatePanel
-                        description={t("chat.states.loadingMessagesDescription")}
-                        title={t("chat.states.loadingMessagesTitle")}
-                        tone="loading"
-                      />
-                    ) : messagesQuery.isError && !shouldRenderStreamTurn ? (
-                      <StatePanel
-                        description={messagesQuery.error instanceof Error ? messagesQuery.error.message : undefined}
-                        title={t("chat.states.messagesErrorTitle")}
-                        tone="error"
-                      />
-                    ) : displayedMessages.length ? (
-                      displayedMessages.map(renderMessage)
-                    ) : (
-                      <StatePanel
-                        description={t("chat.states.noMessagesDescription")}
-                        title={t("chat.states.noMessagesTitle")}
-                      />
-                    )}
-                  </Stack>
-                </ScrollArea.Autosize>
+                <Box
+                  style={{
+                    borderRadius: 22,
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.56) 0%, rgba(252, 250, 247, 0.76) 100%)",
+                    border: "1px solid rgba(23, 36, 30, 0.05)",
+                    padding: 14
+                  }}
+                >
+                  <ScrollArea.Autosize mah={500} offsetScrollbars>
+                    <Stack gap="md">
+                      {activeConversationId == null && activeStreamTurn == null ? (
+                        <StatePanel
+                          description={t("chat.states.noActiveConversationDescription")}
+                          title={t("chat.states.noActiveConversationTitle")}
+                        />
+                      ) : messagesQuery.isLoading && !shouldRenderStreamTurn ? (
+                        <StatePanel
+                          description={t("chat.states.loadingMessagesDescription")}
+                          title={t("chat.states.loadingMessagesTitle")}
+                          tone="loading"
+                        />
+                      ) : messagesQuery.isError && !shouldRenderStreamTurn ? (
+                        <StatePanel
+                          description={messagesQuery.error instanceof Error ? messagesQuery.error.message : undefined}
+                          title={t("chat.states.messagesErrorTitle")}
+                          tone="error"
+                        />
+                      ) : displayedMessages.length ? (
+                        displayedMessages.map(renderMessage)
+                      ) : (
+                        <StatePanel
+                          description={t("chat.states.noMessagesDescription")}
+                          title={t("chat.states.noMessagesTitle")}
+                        />
+                      )}
+                    </Stack>
+                  </ScrollArea.Autosize>
+                </Box>
               </Stack>
             </Paper>
 
@@ -584,8 +621,9 @@ export function ChatPage() {
               p="md"
               radius="xl"
               style={{
-                background: "rgba(250, 248, 244, 0.98)",
-                border: "1px solid rgba(23, 36, 30, 0.08)"
+                background: "rgba(250, 248, 244, 0.9)",
+                border: "1px solid rgba(23, 36, 30, 0.06)",
+                boxShadow: "0 10px 28px rgba(16, 24, 20, 0.04)"
               }}
             >
               <Stack gap="sm">
@@ -624,11 +662,11 @@ export function ChatPage() {
                       },
                       input: {
                         background: "rgba(255,255,255,0.96)",
-                        border: "1px solid rgba(23, 36, 30, 0.10)",
+                        border: "1px solid rgba(23, 36, 30, 0.08)",
                         fontSize: 15,
                         lineHeight: 1.7,
                         padding: "16px 18px",
-                        boxShadow: "0 6px 18px rgba(16, 24, 20, 0.04)"
+                        boxShadow: "0 8px 22px rgba(16, 24, 20, 0.04)"
                       }
                     }}
                     {...form.getInputProps("question")}
@@ -680,8 +718,9 @@ export function ChatPage() {
             p="md"
             radius="xl"
             style={{
-              background: "rgba(243, 247, 244, 0.92)",
-              border: "1px solid rgba(23, 36, 30, 0.08)"
+              background: "linear-gradient(180deg, rgba(244, 248, 245, 0.96) 0%, rgba(241, 245, 243, 0.94) 100%)",
+              border: "1px solid rgba(23, 36, 30, 0.08)",
+              boxShadow: "0 12px 26px rgba(16, 24, 20, 0.04)"
             }}
           >
             <Stack gap="md">
@@ -757,25 +796,26 @@ export function ChatPage() {
                         p="sm"
                         radius="lg"
                         style={{
-                          background: "rgba(255,255,255,0.86)",
-                          border: "1px solid rgba(23, 36, 30, 0.08)"
+                          background: "rgba(255,255,255,0.9)",
+                          border: "1px solid rgba(23, 36, 30, 0.08)",
+                          boxShadow: "0 8px 22px rgba(16, 24, 20, 0.04)"
                         }}
                       >
-                        <Stack gap={6}>
+                        <Stack gap={8}>
                           <Anchor component={Link} fw={700} size="sm" to={`/documents/${citation.documentId}`}>
                             {citation.documentTitle}
                           </Anchor>
                           <Group gap={6}>
-                            <Text c="dimmed" size="xs">
+                            <Badge color="teal" radius="sm" size="xs" variant="light">
                               {t("common.misc.chunkLabel", { chunkId: citation.chunkId })}
-                            </Text>
+                            </Badge>
                             {citationContext ? (
-                              <Badge color="gray" radius="sm" size="xs" variant="light">
+                              <Text c="dimmed" size="xs">
                                 {citationContext}
-                              </Badge>
+                              </Text>
                             ) : null}
                           </Group>
-                          <Text size="sm" style={{ lineHeight: 1.6 }}>
+                          <Text size="sm" style={{ lineHeight: 1.65 }}>
                             {citation.snippet}
                           </Text>
                         </Stack>
