@@ -36,26 +36,26 @@
 
 ### 2.1 工程与基础设施
 
-- [x] `pnpm` monorepo 已落地
-- [x] 仓库结构已拆分为：
+- ✅ `pnpm` monorepo 已落地
+- ✅ 仓库结构已拆分为：
   - `apps/api`
   - `apps/web`
   - `packages/shared`
   - `docs`
-- [x] PostgreSQL 已接入
-- [x] Redis 已接入
-- [x] Docker 本地开发基础设施已提供
-- [x] 本地开发文档已提供：
+- ✅ PostgreSQL 已接入
+- ✅ Redis 已接入
+- ✅ Docker 本地开发基础设施已提供
+- ✅ 本地开发文档已提供：
   - [README.md](/D:/FeProjects/rag-system/README.md)
   - [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
   - [docs/local-dev-infra.md](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
 
 ### 2.2 后端骨架
 
-- [x] NestJS API 已初始化
-- [x] 全局异常过滤已接入
-- [x] 健康检查接口可用：`GET /health`
-- [x] 核心模块边界已建立：
+- ✅ NestJS API 已初始化
+- ✅ 全局异常过滤已接入
+- ✅ 健康检查接口可用：`GET /health`
+- ✅ 核心模块边界已建立：
   - `knowledge-bases`
   - `documents`
   - `assistants`
@@ -75,10 +75,10 @@
 
 ### 2.3 数据库与默认数据
 
-- [x] Prisma schema 已建立
-- [x] migration 已建立
-- [x] seed 脚本已建立
-- [x] 默认数据已固定：
+- ✅ Prisma schema 已建立
+- ✅ migration 已建立
+- ✅ seed 脚本已建立
+- ✅ 默认数据已固定：
   - tenant: `default-tenant`
   - user: `default-user`
   - knowledge base: `default-kb`
@@ -87,51 +87,51 @@
 
 ### 2.4 文档链路第一版
 
-- [x] 文档上传
-- [x] 原始文件本地存储
-- [x] 文档元数据入库
-- [x] Redis 队列异步处理
-- [x] Markdown 解析
-- [x] TXT 解析
-- [x] text-based PDF 解析
-- [x] chunking 第一版
+- ✅ 文档上传
+- ✅ 原始文件本地存储
+- ✅ 文档元数据入库
+- ✅ Redis 队列异步处理
+- ✅ Markdown 解析
+- ✅ TXT 解析
+- ✅ text-based PDF 解析
+- ✅ chunking 第一版
   - 标题感知切分
   - 超长段落切分
   - 更稳定的 chunk 长度控制
-- [x] chunk 落库
-- [x] indexing 接入
-- [x] embedding 生成
-- [x] 本地 file-backed vector store 写入
-- [x] 文档状态流转：
+- ✅ chunk 落库
+- ✅ indexing 接入
+- ✅ embedding 生成
+- ✅ 本地 file-backed vector store 写入
+- ✅ 文档状态流转：
   - `pending`
   - `processing`
   - `ready`
   - `failed`
-- [x] `reindex`
+- ✅ `reindex`
 
 当前相关 API：
 
-- [x] `GET /knowledge-bases/:id/documents`
-- [x] `POST /knowledge-bases/:id/documents`
-- [x] `POST /knowledge-bases/:id/documents/upload`
-- [x] `GET /documents/:id`
-- [x] `GET /documents/:id/chunks`
-- [x] `DELETE /documents/:id`
-- [x] `POST /documents/:id/reindex`
+- ✅ `GET /knowledge-bases/:id/documents`
+- ✅ `POST /knowledge-bases/:id/documents`
+- ✅ `POST /knowledge-bases/:id/documents/upload`
+- ✅ `GET /documents/:id`
+- ✅ `GET /documents/:id/chunks`
+- ✅ `DELETE /documents/:id`
+- ✅ `POST /documents/:id/reindex`
 
 ### 2.5 Retrieval 第一版
 
-- [x] 默认优先向量召回
-- [x] lexical fallback
-- [x] chunk window 扩展第一版
-- [x] hybrid retrieval 第一版
-- [x] rerank 第一版
-- [x] query rewrite 第一版
-- [x] RetrievalProfile metadata filter 第一版
+- ✅ 默认优先向量召回
+- ✅ lexical fallback
+- ✅ chunk window 扩展第一版
+- ✅ hybrid retrieval 第一版
+- ✅ rerank 第一版
+- ✅ query rewrite 第一版
+- ✅ RetrievalProfile metadata filter 第一版
   - `documentIds`
   - `sectionTitles`
   - `pageNumbers`
-- [x] retrieval score breakdown 持久化第一版
+- ✅ retrieval score breakdown 持久化第一版
   - `score`
   - `vectorScore`
   - `lexicalScore`
@@ -140,60 +140,60 @@
 
 ### 2.6 Ask / Answering / Trace 第一版
 
-- [x] `assistant -> retrieval profile -> retrieval -> answering` 主链路打通
-- [x] conversation 持久化
-- [x] message 持久化
-- [x] trace 持久化
-- [x] citation-aware prompt 第一版
-- [x] citations 返回
-- [x] retrievedChunks 返回
-- [x] `AnswerTrace.rewrittenQuery` 持久化
-- [x] ask 失败诊断增强第一版
+- ✅ `assistant -> retrieval profile -> retrieval -> answering` 主链路打通
+- ✅ conversation 持久化
+- ✅ message 持久化
+- ✅ trace 持久化
+- ✅ citation-aware prompt 第一版
+- ✅ citations 返回
+- ✅ retrievedChunks 返回
+- ✅ `AnswerTrace.rewrittenQuery` 持久化
+- ✅ ask 失败诊断增强第一版
   - `ASK_PIPELINE_FAILED`
   - `traceId`
   - `details`
-- [x] 全局 HTTP exception filter 保留结构化错误字段
+- ✅ 全局 HTTP exception filter 保留结构化错误字段
 
 当前相关 API：
 
-- [x] `GET /assistants`
-- [x] `GET /assistants/:id`
-- [x] `PATCH /assistants/:id`
-- [x] `POST /assistants/:id/ask`
-- [x] `GET /retrieval-profiles`
-- [x] `GET /retrieval-profiles/:id`
-- [x] `POST /retrieval-profiles`
-- [x] `PATCH /retrieval-profiles/:id`
-- [x] `GET /conversations`
-- [x] `GET /conversations/:id`
-- [x] `GET /conversations/:id/messages`
-- [x] `GET /conversations/:id/traces`
-- [x] `GET /traces/:id`
+- ✅ `GET /assistants`
+- ✅ `GET /assistants/:id`
+- ✅ `PATCH /assistants/:id`
+- ✅ `POST /assistants/:id/ask`
+- ✅ `GET /retrieval-profiles`
+- ✅ `GET /retrieval-profiles/:id`
+- ✅ `POST /retrieval-profiles`
+- ✅ `PATCH /retrieval-profiles/:id`
+- ✅ `GET /conversations`
+- ✅ `GET /conversations/:id`
+- ✅ `GET /conversations/:id/messages`
+- ✅ `GET /conversations/:id/traces`
+- ✅ `GET /traces/:id`
 
 ### 2.7 LLM / Embedding 第一版
 
-- [x] Ollama 生成接入
-- [x] OpenAI 生成接入
-- [x] 本地 fallback answer
-- [x] Ollama embedding 接入
-- [x] OpenAI embedding 接入
-- [x] deterministic fallback embedding
+- ✅ Ollama 生成接入
+- ✅ OpenAI 生成接入
+- ✅ 本地 fallback answer
+- ✅ Ollama embedding 接入
+- ✅ OpenAI embedding 接入
+- ✅ deterministic fallback embedding
 
 ### 2.8 Web MVP 第一版
 
-- [x] `Chat` 页面接真实 API
-- [x] `Documents` 页面接真实 API
-- [x] `Knowledge Base` 页面接真实 API
-- [x] `Assistant` 页面接真实 API
-- [x] Web i18n 第一版：`zh` / `en`
-- [x] App shell 语言切换器
-- [x] 文档详情页
-- [x] trace 详情页
-- [x] citation -> 文档 chunk 深链跳转
-- [x] 文档详情 trace 上下文高亮
-- [x] Documents / Chat 更清晰的 loading / empty / error 状态第一版
-- [x] Knowledge Base 页面运营概览增强第一版
-- [x] Assistant 页面已暴露 retrieval 基础配置字段：
+- ✅ `Chat` 页面接真实 API
+- ✅ `Documents` 页面接真实 API
+- ✅ `Knowledge Base` 页面接真实 API
+- ✅ `Assistant` 页面接真实 API
+- ✅ Web i18n 第一版：`zh` / `en`
+- ✅ App shell 语言切换器
+- ✅ 文档详情页
+- ✅ trace 详情页
+- ✅ citation -> 文档 chunk 深链跳转
+- ✅ 文档详情 trace 上下文高亮
+- ✅ Documents / Chat 更清晰的 loading / empty / error 状态第一版
+- ✅ Knowledge Base 页面运营概览增强第一版
+- ✅ Assistant 页面已暴露 retrieval 基础配置字段：
   - `topK`
   - `chunkWindow`
   - `enableHybrid`
@@ -202,11 +202,11 @@
 
 ### 2.9 测试与验证第一版
 
-- [x] `pnpm typecheck`
-- [x] `pnpm build`
-- [x] `pnpm test:api`
-- [x] 最小 API 测试底座已建立
-- [x] 当前已覆盖：
+- ✅ `pnpm typecheck`
+- ✅ `pnpm build`
+- ✅ `pnpm test:api`
+- ✅ 最小 API 测试底座已建立
+- ✅ 当前已覆盖：
   - PDF parsing
   - DOCX parsing
   - chunking
@@ -220,10 +220,10 @@
   - retrieval profile filters
   - upload -> ready -> ask -> trace HTTP integration
   - document chunks / conversation messages / conversation traces integration assertions
-- [x] API integration tests 已支持 `QUEUE_PREFIX` 隔离，避免 Redis worker 串扰
-- [x] API 测试命令已串行执行，避免共享数据库状态的 HTTP 集成测试并发互相干扰
-- [x] web page source ingestion E2E
-- [x] feed source ingestion E2E
+- ✅ API integration tests 已支持 `QUEUE_PREFIX` 隔离，避免 Redis worker 串扰
+- ✅ API 测试命令已串行执行，避免共享数据库状态的 HTTP 集成测试并发互相干扰
+- ✅ web page source ingestion E2E
+- ✅ feed source ingestion E2E
 
 ---
 
@@ -233,12 +233,12 @@
 
 ### 3.1 Retrieval 增强版未完成
 
-- [x] metadata filter 更完整的策略化能力
+- ✅ metadata filter 更完整的策略化能力
   - 已支持向后兼容的策略化过滤：
     - `documentIds.include` / `documentIds.exclude`
     - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
     - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
-- [x] chunk window 扩展后的更强拼接 / 组织策略
+- ✅ chunk window 扩展后的更强拼接 / 组织策略
   - `ask` 响应现已新增 `contextGroups`
   - 连续且同文档的 window chunks 会按 `chunkIndex` 组织为 context group
   - group 当前返回：
@@ -246,7 +246,7 @@
     - `chunkIds` / `primaryChunkIds`
     - `mergedContent`
     - `pageNumbers` / `sectionTitles`
-- [x] 更系统的 retrieval 策略配置与演进能力
+- ✅ 更系统的 retrieval 策略配置与演进能力
   - `RetrievalProfile.strategyJson` 已支持第一版系统化检索策略配置
   - 当前支持：
     - `queryRewrite.enabled`
@@ -261,14 +261,14 @@
 
 ### 3.2 Answering 增强版未完成
 
-- [x] 更系统的 prompt 管理
+- ✅ 更系统的 prompt 管理
   - 已新增 backend `PromptManagerService`
   - answer / rewrite prompt 已从 `LlmService` 内联字符串中抽离
   - 当前已支持版本化 prompt 标识：
     - `answer.v2`
     - `rewrite-query.v1`
   - Ollama / OpenAI 的 answer 与 rewrite 路径已统一经由 prompt manager 构造 prompt
-- [x] 输出结构约束
+- ✅ 输出结构约束
   - LLM structured answer JSON 已新增显式 schema 校验与标准化
   - 当前会约束并标准化：
     - `answer`
@@ -277,10 +277,10 @@
     - `missingInformation`
   - `citations` 已支持 numeric string -> integer 归一化与去重
   - 非法 structured payload 仍会安全回退到 plain-text 解析路径
-- [x] 引用片段与答案的严格结构化对齐
-- [x] 回答质量评估
-- [x] 更完整的 assistant / answer policy 配置能力
-- [x] retrieval / answering execution metadata
+- ✅ 引用片段与答案的严格结构化对齐
+- ✅ 回答质量评估
+- ✅ 更完整的 assistant / answer policy 配置能力
+- ✅ retrieval / answering execution metadata
   - ask 响应现已返回：
     - `retrievalMetadata`
     - `answeringMetadata`
@@ -290,22 +290,22 @@
 
 ### 3.3 Web 增强版未完成
 
-- [x] 更完整的 assistant / config 管理
+- ✅ 更完整的 assistant / config 管理
   - RetrievalProfile `filtersJson` 前端编辑能力
   - 更完整的 answering / assistant policy 配置
-- [x] 更多联调级自动化验证
+- ✅ 更多联调级自动化验证
 - 当前客户端范围：`PC Web` 优先，移动端适配后置到功能和验证覆盖更稳定之后再推进
 
 ### 3.4 测试增强版未完成
 
-- [x] orchestrator / 模块集成测试
-- [x] 更完整的文档链 E2E
-- [x] 更完整的 ask 链路 E2E
-- [x] 前后端联调级自动化验证
+- ✅ orchestrator / 模块集成测试
+- ✅ 更完整的文档链 E2E
+- ✅ 更完整的 ask 链路 E2E
+- ✅ 前后端联调级自动化验证
 
 ### 3.5 Next Controlled Increment
 
-- [x] retrieval / answering systematic evolution
+- ✅ retrieval / answering systematic evolution
 - [ ] external knowledge source expansion
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
@@ -318,9 +318,9 @@
 
 ## 4. 仍未完整支持
 
-- [x] DOCX 支持
-- [x] 网页内容抓取 / 网页知识源接入
-- [x] 外部知识源接入第一轮最小增量
+- ✅ DOCX 支持
+- ✅ 网页内容抓取 / 网页知识源接入
+- ✅ 外部知识源接入第一轮最小增量
 
 说明：
 
@@ -375,23 +375,23 @@
 
 ### 8.1 已完成优先级项
 
-- [x] 接入真实 embedding
-- [x] 落地第一版 vector store
-- [x] 打通 indexing -> retrieval 的真实向量链路
-- [x] RetrievalProfile metadata filter 第一版
+- ✅ 接入真实 embedding
+- ✅ 落地第一版 vector store
+- ✅ 打通 indexing -> retrieval 的真实向量链路
+- ✅ RetrievalProfile metadata filter 第一版
 
 ### 8.2 当前推荐下一步
 
-- [x] 主链路测试补强
-- [x] DOCX 支持
-- [x] Answering 结构化与 assistant 配置增强
+- ✅ 主链路测试补强
+- ✅ DOCX 支持
+- ✅ Answering 结构化与 assistant 配置增强
 
 ### 8.3 后续再往后
 
-- [x] 前后端联调级自动化验证
-- [x] 更完整的文档链 E2E
-- [x] 更完整的 ask 链路 E2E
-- [x] retrieval / answering 更系统化演进
+- ✅ 前后端联调级自动化验证
+- ✅ 更完整的文档链 E2E
+- ✅ 更完整的 ask 链路 E2E
+- ✅ retrieval / answering 更系统化演进
 - [ ] 外部知识源扩展
 - [ ] 更细的移动端适配
 - [ ] auth / 多租户 / ACL
@@ -403,30 +403,30 @@
 
 ### 2026-03-21
 
-- [x] 主链路测试补强
-- [x] DOCX 支持
-- [x] Answering 结构化与 assistant 配置增强
-- [x] metadata filter 更完整的策略化能力
-- [x] chunk window 扩展后的更强拼接 / 组织策略
-- [x] retrieval 策略配置与演进能力
-- [x] 更系统的 prompt 管理
-- [x] 输出结构约束
-- [x] trace / detail / document 跳转与诊断增强
-- [x] web i18n（`zh` / `en`）
-- [x] Knowledge Base 页面运营概览增强
-- [x] ask 失败诊断增强
-- [x] RetrievalProfile metadata filter
-- [x] 引用片段与答案的严格结构化对齐
-- [x] 回答质量评估
-- [x] 更完整的 assistant / answer policy 配置能力
-- [x] 更完整的 assistant / config 管理
-- [x] API integration test queue isolation
-- [x] PC Web Knowledge Base -> Assistant browser smoke automation
-- [x] Document chain API E2E
-- [x] Ask chain API E2E
-- [x] Web page source ingestion API E2E
-- [x] External feed source ingestion API E2E
-- [x] retrieval / answering execution metadata
+- ✅ 主链路测试补强
+- ✅ DOCX 支持
+- ✅ Answering 结构化与 assistant 配置增强
+- ✅ metadata filter 更完整的策略化能力
+- ✅ chunk window 扩展后的更强拼接 / 组织策略
+- ✅ retrieval 策略配置与演进能力
+- ✅ 更系统的 prompt 管理
+- ✅ 输出结构约束
+- ✅ trace / detail / document 跳转与诊断增强
+- ✅ web i18n（`zh` / `en`）
+- ✅ Knowledge Base 页面运营概览增强
+- ✅ ask 失败诊断增强
+- ✅ RetrievalProfile metadata filter
+- ✅ 引用片段与答案的严格结构化对齐
+- ✅ 回答质量评估
+- ✅ 更完整的 assistant / answer policy 配置能力
+- ✅ 更完整的 assistant / config 管理
+- ✅ API integration test queue isolation
+- ✅ PC Web Knowledge Base -> Assistant browser smoke automation
+- ✅ Document chain API E2E
+- ✅ Ask chain API E2E
+- ✅ Web page source ingestion API E2E
+- ✅ External feed source ingestion API E2E
+- ✅ retrieval / answering execution metadata
 
 关键文件：
 
