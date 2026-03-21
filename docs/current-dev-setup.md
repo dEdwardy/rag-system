@@ -130,6 +130,11 @@ Current web URL in local development:
 
 - `http://localhost:5173`
 
+Current client focus for this stage:
+
+- `PC Web` only
+- mobile adaptation is intentionally deferred until the core feature surface and validation coverage are more mature
+
 Language behavior in the current web app:
 
 - The web app now supports `zh` and `en`.
