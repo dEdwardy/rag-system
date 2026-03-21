@@ -1,5 +1,8 @@
 # Retrieval And Trace Notes
 
+> 文档角色：`background`
+> 当前使用方式：检索链路与 trace 结构参考；不作为当前阶段优先级主文档。
+
 ## Current retrieval pipeline
 
 The current ask pipeline runs retrieval in this order:

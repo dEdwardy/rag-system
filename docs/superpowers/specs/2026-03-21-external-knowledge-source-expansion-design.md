@@ -1,5 +1,8 @@
 # External Knowledge Source Expansion Design
 
+> 文档角色：`historical-task-spec`
+> 当前使用方式：这是 `external knowledge source expansion` 某一已完成子增量的设计记录；当前阶段方向可参考，但不要把本文档直接当成当前唯一设计依据。
+
 ## Task Identification
 
 This design covers the current first unchecked task in `docs/current-progress.md`: `external knowledge source expansion`.

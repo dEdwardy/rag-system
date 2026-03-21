@@ -1,5 +1,8 @@
 # PC Web Chat Experience Polish Implementation Plan
 
+> 文档角色：`historical-task-plan`
+> 当前使用方式：这是已完成的 `PC Web chat experience polish` 历史实现计划记录，主要用于回溯和参考，不再代表当前阶段主线任务。
+
 > **Execution constraint:** In the current workstation environment, implement and validate this plan in strict serial order. Do not run heavy commands, tests, or review steps in parallel.
 
 **Goal:** Make the `PC Web` chat experience feel materially better by adding streamed answers and redesigning the `Chat` page interaction and visual hierarchy.

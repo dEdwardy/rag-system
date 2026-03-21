@@ -1,5 +1,8 @@
 # External Knowledge Source Expansion Implementation Plan
 
+> 文档角色：`historical-task-plan`
+> 当前使用方式：这是 `external knowledge source expansion` 某一已完成子增量的历史实现计划记录；当前阶段方向仍可参考，但不要把本文档直接当成当前唯一执行计划。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extend the existing sitemap source ingestion path so it also supports one-level sitemap indexes while keeping the broader external-source task in progress.

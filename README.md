@@ -77,9 +77,11 @@ pnpm test:api
 
 ## Key Docs
 
+- [Docs guide](/D:/FeProjects/rag-system/docs/README.md)
+- [Next steps plan](/D:/FeProjects/rag-system/docs/next_steps_rag_project_plan.md)
 - [Current dev setup](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
-- [Local dev infra](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
 - [Current progress](/D:/FeProjects/rag-system/docs/current-progress.md)
+- [Local dev infra](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
 - [Phase 1 RAG blueprint](/D:/FeProjects/rag-system/docs/phase-1-rag-blueprint.md)
 - [Retrieval trace notes](/D:/FeProjects/rag-system/docs/retrieval-trace.md)
 - [Web i18n notes](/D:/FeProjects/rag-system/docs/web-i18n.md)
