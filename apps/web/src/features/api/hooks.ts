@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "../../lib/api";
+import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
   AskResponse,
+  AskStreamEvent,
   AnswerPolicy,
   Assistant,
   Conversation,
@@ -124,6 +125,38 @@ export function useAskAssistant(assistantId: string) {
       queryClient.invalidateQueries({
         queryKey: ["conversation-traces", result.conversationId]
       });
+    }
+  });
+}
+
+export function useAskAssistantStream(assistantId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      question: string;
+      conversationId?: string;
+      onEvent: (event: AskStreamEvent) => void;
+    }) => {
+      await apiStreamRequest<AskStreamEvent>(`/assistants/${assistantId}/ask/stream`, {
+        method: "POST",
+        body: {
+          question: payload.question,
+          conversationId: payload.conversationId
+        },
+        onEvent: payload.onEvent
+      });
+    },
+    onSuccess: (_, variables) => {
+      if (variables.conversationId) {
+        queryClient.invalidateQueries({
+          queryKey: ["conversation-messages", variables.conversationId]
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["conversation-traces", variables.conversationId]
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
     }
   });
 }

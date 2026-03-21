@@ -134,7 +134,43 @@ export type AskResponse = {
   answer: string;
   citations: Citation[];
   retrievedChunks: RetrievedChunk[];
+  contextGroups?: Array<{
+    primaryChunkIds: string[];
+    mergedContent: string;
+  }>;
+  retrievalMetadata?: JsonValue;
+  answeringMetadata?: JsonValue;
+  answerStatus?: "grounded" | "insufficient_context";
+  missingInformation?: string[];
+  qualityEvaluation?: JsonValue;
 };
+
+export type AskStreamFinalData = Pick<
+  AskResponse,
+  "conversationId" | "assistantMessageId" | "traceId" | "answer" | "citations" | "modelName"
+> &
+  Partial<AskResponse>;
+
+export type AskStreamEvent =
+  | {
+      type: "status";
+      phase: "started" | "generating";
+    }
+  | {
+      type: "answer_delta";
+      delta: string;
+    }
+  | {
+      type: "final";
+      data: AskStreamFinalData;
+    }
+  | {
+      type: "error";
+      message: string;
+      code?: string;
+      traceId?: string | null;
+      details?: JsonValue | null;
+    };
 
 export type Conversation = {
   id: string;

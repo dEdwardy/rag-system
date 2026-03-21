@@ -133,7 +133,9 @@ Current web URL in local development:
 Current client focus for this stage:
 
 - `PC Web` only
+- current first UX priority is the `Chat` page experience
 - mobile adaptation is intentionally deferred until the core feature surface and validation coverage are more mature
+- current local execution preference is strict serial execution to avoid workstation stalls during validation
 
 Language behavior in the current web app:
 
@@ -207,6 +209,19 @@ pnpm --filter @rag-system/api build
 node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js
 ```
 
+Focused ask stream E2E validation:
+
+```bash
+pnpm --filter @rag-system/api build
+node --test --test-concurrency=1 apps/api/test/ask-stream-e2e.test.js
+```
+
+Focused chat stream state validation:
+
+```bash
+node --experimental-strip-types --test apps/web/test/chat-stream-state.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash
@@ -217,6 +232,9 @@ node --test apps/web/test/pc-web-smoke.test.js
 
 Notes:
 
+- when running local validation in the current workstation environment, prefer strict serial execution
+- do not run multiple heavy builds or node test processes at the same time
+- do not overlap heavy validation with AI review
 - this smoke test is currently scoped to `PC Web`
 - it validates `Knowledge Base -> Assistant` browser rendering against the real local API
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks
@@ -227,6 +245,10 @@ Notes:
 - backend now also supports `POST /knowledge-bases/:id/documents/sitemap` for one direct sitemap XML URL
 - the current sitemap version fetches one sitemap XML URL server-side, supports either one direct `urlset` or one root `sitemapindex`, expands a bounded set of page URLs, aggregates extracted page text into one generated local text artifact, and then reuses the existing ingestion/indexing path
 - for sitemap-index expansion, the current backend processes up to `20` child sitemap files and still caps the final fetched page set with request `maxPages`
+- backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
+- the current stream path is a first-round progressive UX transport, not model token streaming
+- it emits status events first, then progressively reveals answer deltas from the completed ask result, and finally emits the completed ask payload with citations and trace ids
+- when the ask pipeline fails after the stream starts, the stream emits one structured `error` event that preserves the existing diagnostics shape (`message`, `code`, `traceId`, `details`)
 
 ## Current working flow
 

@@ -24,9 +24,13 @@
 
 - 当前主线状态：`MVP 可运行 + 第一版可诊断 + 第一版可配置`
 - 当前最适合继续推进的方向：
-  - 主链路测试补强
-  - DOCX 支持
-  - Answering 结构化与 assistant 配置增强
+  - 先完成并提交当前这轮 `PC Web chat experience polish` 第一轮收尾
+  - 下一整个大方向仍是 `external knowledge source expansion`
+  - 继续保持 `PC Web` 优先、移动端后置
+- 当前本地执行约束：
+  - 优先严格串行执行
+  - 不并行跑重型测试或 build
+  - 不把 AI review 和重型验证叠在一起
 
 ---
 
@@ -295,6 +299,9 @@
 - ✅ 更完整的 assistant / config 管理
   - RetrievalProfile `filtersJson` 前端编辑能力
   - 更完整的 answering / assistant policy 配置
+- ✅ `PC Web` Chat 体验增强第一轮
+  - NDJSON-based streamed ask rendering 第一轮
+  - chat workspace UI / UX polish 第一轮
 - ✅ 更多联调级自动化验证
 - 当前客户端范围：`PC Web` 优先，移动端适配后置到功能和验证覆盖更稳定之后再推进
 
@@ -308,6 +315,9 @@
 ### 3.5 Next Controlled Increment
 
 - ✅ retrieval / answering systematic evolution
+- ✅ `PC Web` chat experience polish
+  - NDJSON progressive answer rendering: done
+  - chat workspace UI / UX polish: done
 - [ ] external knowledge source expansion
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
@@ -388,9 +398,9 @@
 
 ### 8.2 当前推荐下一步
 
-- ✅ 主链路测试补强
-- ✅ DOCX 支持
-- ✅ Answering 结构化与 assistant 配置增强
+- ✅ `PC Web` chat experience polish
+- [ ] external knowledge source expansion
+- 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
 
@@ -428,8 +438,10 @@
 - ✅ 更完整的 assistant / config 管理
 - ✅ API integration test queue isolation
 - ✅ PC Web Knowledge Base -> Assistant browser smoke automation
+- ✅ PC Web Chat progressive streamed experience polish
 - ✅ Document chain API E2E
 - ✅ Ask chain API E2E
+- ✅ Ask stream API E2E
 - ✅ Web page source ingestion API E2E
 - ✅ External feed source ingestion API E2E
 - ✅ Sitemap source ingestion API E2E
@@ -464,6 +476,8 @@
 - [docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md)
 - [docs/superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md)
+- [docs/superpowers/specs/2026-03-21-pc-web-chat-experience-polish-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-pc-web-chat-experience-polish-design.md)
+- [docs/superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md)
 - [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
 - [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
 
@@ -483,6 +497,7 @@
 - `node --test apps/api/test/prompt-manager.test.js apps/api/test/llm.test.js`
 - `node --test apps/api/test/ask-failures.test.js apps/api/test/http-exception-filter.test.js`
 - `node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js`
+- `node --test --test-concurrency=1 apps/api/test/ask-stream-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
 - `node --test apps/api/test/parsing.test.js`
@@ -493,6 +508,7 @@
 
 - `pnpm --filter @rag-system/web typecheck`
 - `pnpm --filter @rag-system/web build`
+- `node --experimental-strip-types --test apps/web/test/chat-stream-state.test.js`
 - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
 - `node --test apps/web/test/pc-web-smoke.test.js`
 
@@ -500,6 +516,7 @@
 
 - 这里记录的是最近一次已落盘验证快照
 - 不代表每次编辑本文档时都重新执行了这些命令
+- 当前 ask stream 属于第一轮 NDJSON 渐进展示能力，不等同于模型 token 级原生流式生成
 
 ---
 
