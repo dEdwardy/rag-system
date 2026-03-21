@@ -1,5 +1,8 @@
 # Current Dev Setup
 
+> 文档角色：`current-setup`
+> 当前使用方式：当前本地运行、测试、验证命令和环境说明，以本文档为主。
+
 ## Local infra
 
 Start local services:

@@ -1,5 +1,8 @@
 # PC Web Chat Experience Polish Design
 
+> 文档角色：`historical-task-spec`
+> 当前使用方式：这是已完成的 `PC Web chat experience polish` 历史设计记录，主要用于回溯和参考，不再代表当前阶段主线任务。
+
 ## Task Identification
 
 This design updates the current repository priority so the next controlled increment becomes `PC Web chat experience polish`.

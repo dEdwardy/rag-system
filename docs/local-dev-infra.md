@@ -1,5 +1,8 @@
 # Local Dev Infra
 
+> 文档角色：`background`
+> 当前使用方式：用于查看本地基础设施背景说明；具体当前运行步骤优先看 `docs/current-dev-setup.md`。
+
 ## Services
 
 This project uses Docker Compose for local infrastructure:

@@ -1,6 +1,13 @@
 ﻿# Current Progress
 
+> 文档角色：`current-status`
+> 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
+
 更新时间：2026-03-21
+
+> 当前说明：
+> 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
+> 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
 
 ## 1. 状态总览
 

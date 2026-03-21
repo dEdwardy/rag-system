@@ -1,5 +1,8 @@
 # Web I18n
 
+> 文档角色：`background`
+> 当前使用方式：前端 i18n 设计与实现参考；不作为当前阶段优先级主文档。
+
 ## Current approach
 
 The current web app uses a lightweight in-repo i18n layer instead of an external library.
