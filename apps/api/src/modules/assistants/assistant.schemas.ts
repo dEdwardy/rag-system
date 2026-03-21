@@ -6,10 +6,14 @@ export const askAssistantSchema = z.object({
 });
 
 export const answerPolicySchema = z.object({
-  responseStyle: z.enum(["concise", "detailed"]),
+  responseStyle: z.enum(["concise", "balanced", "detailed"]),
+  tone: z.enum(["neutral", "friendly", "direct"]).optional(),
+  outputFormat: z.enum(["paragraph", "bullets", "markdown"]).optional(),
+  language: z.enum(["auto", "same_as_question", "zh", "en"]).optional(),
   citationMode: z.enum(["required", "optional"]),
   maxCitations: z.number().int().min(1).max(8),
-  noAnswerBehavior: z.enum(["say_insufficient_context", "best_effort"])
+  noAnswerBehavior: z.enum(["say_insufficient_context", "best_effort"]),
+  includeMissingInformation: z.boolean().optional()
 });
 
 export const updateAssistantSchema = z.object({

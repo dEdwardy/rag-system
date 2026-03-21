@@ -39,9 +39,13 @@ type QualityEvaluation = {
 
 const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
   responseStyle: "concise",
+  tone: "neutral",
+  outputFormat: "paragraph",
+  language: "auto",
   citationMode: "required",
   maxCitations: 3,
-  noAnswerBehavior: "say_insufficient_context"
+  noAnswerBehavior: "say_insufficient_context",
+  includeMissingInformation: true
 };
 
 @Injectable()
@@ -65,7 +69,7 @@ export class AnsweringService {
     });
 
     const answerStatus = result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
-    const missingInformation = result.missingInformation ?? [];
+    const missingInformation = answerPolicy.includeMissingInformation ? (result.missingInformation ?? []) : [];
 
     if (input.chunks.length === 0) {
       const qualityEvaluation = this.buildQualityEvaluation({
@@ -89,7 +93,12 @@ export class AnsweringService {
     }
 
     const citedChunks = this
-      .selectCitedChunks(input.chunks, result.citedChunkNumbers ?? [], result.answer)
+      .selectCitedChunks({
+        chunks: input.chunks,
+        citedChunkNumbers: result.citedChunkNumbers ?? [],
+        answer: result.answer,
+        citationMode: answerPolicy.citationMode
+      })
       .slice(0, answerPolicy.maxCitations);
     const citations = citedChunks.map(chunk => ({
       chunkId: chunk.chunkId,
@@ -146,32 +155,46 @@ export class AnsweringService {
   private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null): AnswerPolicy {
     return {
       responseStyle: input?.responseStyle ?? DEFAULT_ANSWER_POLICY.responseStyle,
+      tone: input?.tone ?? DEFAULT_ANSWER_POLICY.tone,
+      outputFormat: input?.outputFormat ?? DEFAULT_ANSWER_POLICY.outputFormat,
+      language: input?.language ?? DEFAULT_ANSWER_POLICY.language,
       citationMode: input?.citationMode ?? DEFAULT_ANSWER_POLICY.citationMode,
       maxCitations: input?.maxCitations ?? DEFAULT_ANSWER_POLICY.maxCitations,
-      noAnswerBehavior: input?.noAnswerBehavior ?? DEFAULT_ANSWER_POLICY.noAnswerBehavior
+      noAnswerBehavior: input?.noAnswerBehavior ?? DEFAULT_ANSWER_POLICY.noAnswerBehavior,
+      includeMissingInformation:
+        input?.includeMissingInformation ?? DEFAULT_ANSWER_POLICY.includeMissingInformation
     };
   }
 
-  private selectCitedChunks(chunks: RetrievedChunk[], citedChunkNumbers: number[], answer: string) {
-    const validChunks = citedChunkNumbers
-      .map(chunkNumber => chunks[chunkNumber - 1] ?? null)
+  private selectCitedChunks(input: {
+    chunks: RetrievedChunk[];
+    citedChunkNumbers: number[];
+    answer: string;
+    citationMode: AnswerPolicy["citationMode"];
+  }) {
+    const validChunks = input.citedChunkNumbers
+      .map(chunkNumber => input.chunks[chunkNumber - 1] ?? null)
       .filter((chunk): chunk is RetrievedChunk => chunk !== null);
 
     if (validChunks.length > 0) {
       return validChunks;
     }
 
-    const extractedFromAnswer = [...answer.matchAll(/\[(\d+)\]/g)]
+    const extractedFromAnswer = [...input.answer.matchAll(/\[(\d+)\]/g)]
       .map(match => Number.parseInt(match[1] ?? "", 10))
       .filter(chunkNumber => !Number.isNaN(chunkNumber))
-      .map(chunkNumber => chunks[chunkNumber - 1] ?? null)
+      .map(chunkNumber => input.chunks[chunkNumber - 1] ?? null)
       .filter((chunk): chunk is RetrievedChunk => chunk !== null);
 
     if (extractedFromAnswer.length > 0) {
       return extractedFromAnswer;
     }
 
-    return chunks.slice(0, Math.min(3, chunks.length));
+    if (input.citationMode === "optional") {
+      return [];
+    }
+
+    return input.chunks.slice(0, Math.min(3, input.chunks.length));
   }
 
   private buildSnippet(content: string, question: string) {

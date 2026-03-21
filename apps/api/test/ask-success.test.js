@@ -55,10 +55,14 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         kbId: "kb-1",
         systemPrompt: "system prompt",
         answerPolicyJson: {
-          responseStyle: "detailed",
+          responseStyle: "balanced",
+          tone: "friendly",
+          outputFormat: "bullets",
+          language: "same_as_question",
           citationMode: "required",
           maxCitations: 2,
-          noAnswerBehavior: "say_insufficient_context"
+          noAnswerBehavior: "say_insufficient_context",
+          includeMissingInformation: false
         },
         retrievalProfile: {
           topK: 4,
@@ -117,10 +121,14 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         assert.equal(input.question, "where is the marker?");
         assert.equal(input.systemPrompt, "system prompt");
         assert.deepEqual(input.answerPolicy, {
-          responseStyle: "detailed",
+          responseStyle: "balanced",
+          tone: "friendly",
+          outputFormat: "bullets",
+          language: "same_as_question",
           citationMode: "required",
           maxCitations: 2,
-          noAnswerBehavior: "say_insufficient_context"
+          noAnswerBehavior: "say_insufficient_context",
+          includeMissingInformation: false
         });
         assert.deepEqual(input.chunks, retrievedChunks);
         assert.deepEqual(input.contextGroups, contextGroups);

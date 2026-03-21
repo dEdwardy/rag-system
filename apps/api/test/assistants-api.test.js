@@ -33,10 +33,14 @@ test("Assistant API accepts valid answerPolicyJson and rejects invalid policy va
     await waitForHealth(port, 20000);
 
     const validPolicy = {
-      responseStyle: "detailed",
+      responseStyle: "balanced",
+      tone: "friendly",
+      outputFormat: "bullets",
+      language: "same_as_question",
       citationMode: "required",
       maxCitations: 2,
-      noAnswerBehavior: "say_insufficient_context"
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: false
     };
 
     const patchResponse = await fetch(`http://localhost:${port}/assistants/default-assistant`, {
@@ -61,7 +65,7 @@ test("Assistant API accepts valid answerPolicyJson and rejects invalid policy va
       body: JSON.stringify({
         answerPolicyJson: {
           ...validPolicy,
-          maxCitations: 0
+          outputFormat: "table"
         }
       })
     });

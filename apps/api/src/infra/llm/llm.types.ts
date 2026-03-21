@@ -1,8 +1,12 @@
 export type AnswerPolicy = {
-  responseStyle: "concise" | "detailed";
+  responseStyle: "concise" | "balanced" | "detailed";
+  tone: "neutral" | "friendly" | "direct";
+  outputFormat: "paragraph" | "bullets" | "markdown";
+  language: "auto" | "same_as_question" | "zh" | "en";
   citationMode: "required" | "optional";
   maxCitations: number;
   noAnswerBehavior: "say_insufficient_context" | "best_effort";
+  includeMissingInformation: boolean;
 };
 
 export type RetrievedChunkInput = {

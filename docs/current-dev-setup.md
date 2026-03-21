@@ -86,10 +86,23 @@ Notes:
 - In the current local environment, `qwen2.5:7b` has been verified to respond to both `/api/generate` and `/api/embed`.
 - If you later switch to a dedicated embedding model, only `OLLAMA_EMBEDDING_MODEL` needs to change.
 - `PATCH /assistants/:id` now accepts `answerPolicyJson` with:
-  - `responseStyle`: `concise` or `detailed`
+  - `responseStyle`: `concise`, `balanced`, or `detailed`
+  - `tone`: `neutral`, `friendly`, or `direct`
+  - `outputFormat`: `paragraph`, `bullets`, or `markdown`
+  - `language`: `auto`, `same_as_question`, `zh`, or `en`
   - `citationMode`: `required` or `optional`
   - `maxCitations`: `1..8`
   - `noAnswerBehavior`: `say_insufficient_context` or `best_effort`
+  - `includeMissingInformation`: `true` or `false`
+  - current backend defaults:
+    - `responseStyle`: `concise`
+    - `tone`: `neutral`
+    - `outputFormat`: `paragraph`
+    - `language`: `auto`
+    - `citationMode`: `required`
+    - `maxCitations`: `3`
+    - `noAnswerBehavior`: `say_insufficient_context`
+    - `includeMissingInformation`: `true`
 - Local CORS is enabled by default for:
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`
@@ -221,6 +234,10 @@ The following path has been validated locally on `2026-03-21`:
 - Citation snippets now prefer structured `citationEvidence` quotes after backend source-local validation, with deterministic fallback snippets when validation fails
 - Trace persistence now includes `qualityEvaluationJson`
 - Assistant-level `answerPolicyJson` validation and ask-time policy application
+  - richer answer-policy prompt controls for tone, output format, and answer language
+  - deterministic backend handling for:
+    - `citationMode=optional` -> do not fabricate fallback citations when the model provides none
+    - `includeMissingInformation=false` -> clear advisory `missingInformation` in final output
 - Ollama-backed local generation when `OLLAMA_BASE_URL` and `OLLAMA_MODEL` are configured
 - OpenAI-backed generation when `OPENAI_API_KEY` is configured
 - Local fallback answering when no model provider is configured

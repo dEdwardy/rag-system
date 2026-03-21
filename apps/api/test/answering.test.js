@@ -134,6 +134,89 @@ test("AnsweringService falls back to default structured metadata when the model 
   assert.equal(result.citations[0].chunkId, "chunk-1");
 });
 
+test("AnsweringService does not fabricate heuristic citations when citationMode is optional", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Fallback answer without markers",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "auto",
+      citationMode: "optional",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.citations, []);
+});
+
+test("AnsweringService clears missingInformation when the policy disables it", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Partial answer [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: ["Need pricing details"],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "direct",
+      outputFormat: "markdown",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: false
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.missingInformation, []);
+});
+
 test("AnsweringService prefers merged contextGroups content when calling the model", async () => {
   const llmCalls = [];
   const llmService = {

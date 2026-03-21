@@ -277,7 +277,7 @@
   - 非法 structured payload 仍会安全回退到 plain-text 解析路径
 - [x] 引用片段与答案的严格结构化对齐
 - [x] 回答质量评估
-- [ ] 更完整的 assistant / answer policy 配置能力
+- [x] 更完整的 assistant / answer policy 配置能力
 
 ### 3.3 Web 增强版未完成
 
@@ -390,12 +390,16 @@
 - [x] RetrievalProfile metadata filter
 - [x] 引用片段与答案的严格结构化对齐
 - [x] 回答质量评估
+- [x] 更完整的 assistant / answer policy 配置能力
 - [x] API integration test queue isolation
 
 关键文件：
 
 - [apps/api/src/modules/assistants/ask-assistant.error.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/ask-assistant.error.ts)
 - [apps/api/src/modules/assistants/ask-assistant.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/ask-assistant.service.ts)
+- [apps/api/src/modules/assistants/assistant.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/assistant.schemas.ts)
+- [apps/api/src/modules/answering/answering.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/answering/answering.service.ts)
+- [apps/api/src/infra/llm/prompt-manager.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/prompt-manager.service.ts)
 - [apps/api/src/common/http-exception.filter.ts](/D:/FeProjects/rag-system/apps/api/src/common/http-exception.filter.ts)
 - [apps/api/src/modules/retrieval/retrieval.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval/retrieval.service.ts)
 - [apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts)
@@ -425,6 +429,8 @@
 - [docs/superpowers/plans/2026-03-21-answer-citation-alignment-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answer-citation-alignment-plan.md)
 - [docs/superpowers/specs/2026-03-21-answer-quality-evaluation-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-answer-quality-evaluation-design.md)
 - [docs/superpowers/plans/2026-03-21-answer-quality-evaluation-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answer-quality-evaluation-plan.md)
+- [docs/superpowers/specs/2026-03-21-assistant-answer-policy-expansion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-assistant-answer-policy-expansion-design.md)
+- [docs/superpowers/plans/2026-03-21-assistant-answer-policy-expansion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-assistant-answer-policy-expansion-plan.md)
 
 ---
 
@@ -443,6 +449,7 @@
 - `node --test apps/api/test/prompt-manager.test.js apps/api/test/llm.test.js`
 - `node --test apps/api/test/llm.test.js`
 - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/assistants-api.test.js`
+- `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/assistants-api.test.js apps/api/test/prompt-manager.test.js`
 - `node --test --test-concurrency=1 apps/api/test/api-flow.test.js`
 - `node --test --test-concurrency=1 apps/api/test/ingestion.orchestrator.test.js apps/api/test/ask-success.test.js apps/api/test/ask-failures.test.js apps/api/test/api-flow.test.js`
 - `node --test apps/api/test/ask-failures.test.js apps/api/test/http-exception-filter.test.js`

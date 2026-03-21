@@ -8,10 +8,14 @@ test("PromptManagerService builds versioned answer prompts", () => {
     systemPrompt: "assistant system prompt",
     question: "Where is the answer?",
     answerPolicy: {
-      responseStyle: "concise",
+      responseStyle: "balanced",
+      tone: "friendly",
+      outputFormat: "bullets",
+      language: "same_as_question",
       citationMode: "required",
       maxCitations: 2,
-      noAnswerBehavior: "say_insufficient_context"
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: false
     },
     chunks: [
       {
@@ -26,9 +30,13 @@ test("PromptManagerService builds versioned answer prompts", () => {
     ]
   });
 
-  assert.equal(prompt.promptId, "answer.v1");
+  assert.equal(prompt.promptId, "answer.v2");
   assert.match(prompt.systemPrompt, /assistant system prompt/);
-  assert.match(prompt.userPrompt, /responseStyle=concise/);
+  assert.match(prompt.userPrompt, /responseStyle=balanced/);
+  assert.match(prompt.userPrompt, /tone=friendly/);
+  assert.match(prompt.userPrompt, /outputFormat=bullets/);
+  assert.match(prompt.userPrompt, /language=same_as_question/);
+  assert.match(prompt.userPrompt, /includeMissingInformation=false/);
   assert.match(prompt.userPrompt, /Retrieved sources:/);
   assert.match(prompt.fullPrompt, /Return JSON only/);
 });
