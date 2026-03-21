@@ -41,7 +41,8 @@ export class RetrievalProfilesService {
         scoreThreshold: input.scoreThreshold,
         ...(input.filtersJson !== undefined
           ? {
-              filtersJson: input.filtersJson as Prisma.InputJsonValue
+              filtersJson:
+                input.filtersJson === null ? Prisma.JsonNull : (input.filtersJson as Prisma.InputJsonValue)
             }
           : {}),
         ...(input.strategyJson !== undefined

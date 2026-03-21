@@ -103,6 +103,12 @@ Notes:
     - `maxCitations`: `3`
     - `noAnswerBehavior`: `say_insufficient_context`
     - `includeMissingInformation`: `true`
+- `PATCH /retrieval-profiles/:id` now accepts:
+  - richer `filtersJson` operators:
+    - `documentIds.include` / `documentIds.exclude`
+    - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
+    - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
+  - `filtersJson: null` to clear saved retrieval metadata filters
 - Local CORS is enabled by default for:
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`
@@ -167,6 +173,10 @@ Current API test coverage:
 6. Inspect citations and open trace details.
 7. Jump from citations to linked document chunks.
 8. Edit assistant and retrieval configuration in `Assistant`.
+9. In `Assistant`, you can now manage:
+   - assistant answer policy controls
+   - retrieval tuning controls
+   - retrieval metadata filters
 
 ## Validated local run
 
@@ -219,7 +229,7 @@ The following path has been validated locally on `2026-03-21`:
   - `contextGroups` adds contiguous same-document merged context segments
 - Query rewrite before retrieval, with LLM-first and local fallback behavior
 - Answer and rewrite prompt construction is now managed by backend `PromptManagerService`
-  - current prompt ids: `answer.v1`, `rewrite-query.v1`
+  - current prompt ids: `answer.v2`, `rewrite-query.v1`
 - Minimal ask flow with conversation/message/trace persistence
 - Citation-aware answer prompting with inline source markers
 - Structured answer metadata with `answerStatus` / `missingInformation`
@@ -238,6 +248,10 @@ The following path has been validated locally on `2026-03-21`:
   - deterministic backend handling for:
     - `citationMode=optional` -> do not fabricate fallback citations when the model provides none
     - `includeMissingInformation=false` -> clear advisory `missingInformation` in final output
+- Assistant page config management now includes:
+  - full assistant answer-policy editing
+  - retrieval profile metadata filter editing
+  - clearing persisted retrieval filters through the same page
 - Ollama-backed local generation when `OLLAMA_BASE_URL` and `OLLAMA_MODEL` are configured
 - OpenAI-backed generation when `OPENAI_API_KEY` is configured
 - Local fallback answering when no model provider is configured
@@ -251,6 +265,6 @@ The following path has been validated locally on `2026-03-21`:
 - Startup currently uses a lightweight local env loader instead of Nest `ConfigModule`
 - Current PDF support is limited to text-based PDFs
 - Current automated coverage includes one real HTTP integration flow, but still not full E2E
-- Assistant/config editing is available, but still basic
+- Assistant/config editing is now richer, but still limited to the current single Assistant page and does not yet expose `strategyJson`
 - Web i18n currently uses a local in-repo dictionary and does not yet include ICU-style pluralization
 - Trace score breakdown is persisted, but the current trace UI still mainly exposes raw payload plus final score

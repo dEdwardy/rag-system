@@ -6,12 +6,13 @@ import {
   Divider,
   Grid,
   Group,
+  NativeSelect,
   NumberInput,
   Stack,
+  Textarea,
   Switch,
   Text,
   TextInput,
-  Textarea,
   Title
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
@@ -25,6 +26,12 @@ import {
   useUpdateRetrievalProfile
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import {
+  AssistantConfigFormValues,
+  buildAssistantUpdatePayload,
+  buildRetrievalProfileUpdatePayload,
+  createAssistantConfigFormValues
+} from "./assistant-config-form";
 
 export function AssistantPage() {
   const assistantsQuery = useAssistants();
@@ -38,43 +45,16 @@ export function AssistantPage() {
   );
   const { t } = useI18n();
 
-  const form = useForm({
-    initialValues: {
-      name: assistant?.name ?? "",
-      description: assistant?.description ?? "",
-      systemPrompt: assistant?.systemPrompt ?? "",
-      status: assistant?.status ?? "active",
-      topK: retrievalProfile?.topK ?? 3,
-      chunkWindow: retrievalProfile?.chunkWindow ?? 0,
-      enableHybrid: retrievalProfile?.enableHybrid ?? false,
-      enableRerank: retrievalProfile?.enableRerank ?? false,
-      scoreThreshold: retrievalProfile?.scoreThreshold ?? 0
-    },
+  const form = useForm<AssistantConfigFormValues>({
+    initialValues: createAssistantConfigFormValues(assistant, retrievalProfile),
     mode: "controlled"
   });
 
   useEffect(() => {
-    form.setValues({
-      name: assistant?.name ?? "",
-      description: assistant?.description ?? "",
-      systemPrompt: assistant?.systemPrompt ?? "",
-      status: assistant?.status ?? "active",
-      topK: retrievalProfile?.topK ?? 3,
-      chunkWindow: retrievalProfile?.chunkWindow ?? 0,
-      enableHybrid: retrievalProfile?.enableHybrid ?? false,
-      enableRerank: retrievalProfile?.enableRerank ?? false,
-      scoreThreshold: retrievalProfile?.scoreThreshold ?? 0
-    });
+    form.setValues(createAssistantConfigFormValues(assistant, retrievalProfile));
   }, [
-    assistant?.description,
-    assistant?.name,
-    assistant?.status,
-    assistant?.systemPrompt,
-    retrievalProfile?.chunkWindow,
-    retrievalProfile?.enableHybrid,
-    retrievalProfile?.enableRerank,
-    retrievalProfile?.scoreThreshold,
-    retrievalProfile?.topK
+    assistant,
+    retrievalProfile
   ]);
 
   return (
@@ -117,20 +97,11 @@ export function AssistantPage() {
           component="form"
           onSubmit={form.onSubmit(async values => {
             try {
-              await updateAssistantMutation.mutateAsync({
-                name: values.name,
-                description: values.description.trim() ? values.description : null,
-                status: values.status,
-                systemPrompt: values.systemPrompt
-              });
+              await updateAssistantMutation.mutateAsync(buildAssistantUpdatePayload(values));
 
-              await updateRetrievalProfileMutation.mutateAsync({
-                chunkWindow: values.chunkWindow,
-                enableHybrid: values.enableHybrid,
-                enableRerank: values.enableRerank,
-                topK: values.topK,
-                scoreThreshold: values.scoreThreshold
-              });
+              await updateRetrievalProfileMutation.mutateAsync(
+                buildRetrievalProfileUpdatePayload(values)
+              );
 
               notifications.show({
                 color: "teal",
@@ -191,6 +162,98 @@ export function AssistantPage() {
               {...form.getInputProps("systemPrompt")}
             />
 
+            <Divider label={t("assistant.answerPolicySection")} labelPosition="center" />
+
+            <Grid gutter="md">
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <NativeSelect
+                  label={t("assistant.responseStyle")}
+                  data={[
+                    { value: "concise", label: t("assistant.responseStyleConcise") },
+                    { value: "balanced", label: t("assistant.responseStyleBalanced") },
+                    { value: "detailed", label: t("assistant.responseStyleDetailed") }
+                  ]}
+                  {...form.getInputProps("responseStyle")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <NativeSelect
+                  label={t("assistant.tone")}
+                  data={[
+                    { value: "neutral", label: t("assistant.toneNeutral") },
+                    { value: "friendly", label: t("assistant.toneFriendly") },
+                    { value: "direct", label: t("assistant.toneDirect") }
+                  ]}
+                  {...form.getInputProps("tone")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <NativeSelect
+                  label={t("assistant.outputFormat")}
+                  data={[
+                    { value: "paragraph", label: t("assistant.outputFormatParagraph") },
+                    { value: "bullets", label: t("assistant.outputFormatBullets") },
+                    { value: "markdown", label: t("assistant.outputFormatMarkdown") }
+                  ]}
+                  {...form.getInputProps("outputFormat")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <NativeSelect
+                  label={t("assistant.language")}
+                  data={[
+                    { value: "auto", label: t("assistant.languageAuto") },
+                    { value: "same_as_question", label: t("assistant.languageSameAsQuestion") },
+                    { value: "zh", label: t("assistant.languageZh") },
+                    { value: "en", label: t("assistant.languageEn") }
+                  ]}
+                  {...form.getInputProps("language")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <NativeSelect
+                  label={t("assistant.citationMode")}
+                  data={[
+                    { value: "required", label: t("assistant.citationModeRequired") },
+                    { value: "optional", label: t("assistant.citationModeOptional") }
+                  ]}
+                  {...form.getInputProps("citationMode")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <NativeSelect
+                  label={t("assistant.noAnswerBehavior")}
+                  data={[
+                    {
+                      value: "say_insufficient_context",
+                      label: t("assistant.noAnswerBehaviorInsufficientContext")
+                    },
+                    {
+                      value: "best_effort",
+                      label: t("assistant.noAnswerBehaviorBestEffort")
+                    }
+                  ]}
+                  {...form.getInputProps("noAnswerBehavior")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <NumberInput
+                  label={t("assistant.maxCitations")}
+                  max={8}
+                  min={1}
+                  {...form.getInputProps("maxCitations")}
+                />
+              </Grid.Col>
+            </Grid>
+
+            <Switch
+              checked={form.values.includeMissingInformation}
+              label={t("assistant.includeMissingInformation")}
+              onChange={event =>
+                form.setFieldValue("includeMissingInformation", event.currentTarget.checked)
+              }
+            />
+
             <Divider label={t("assistant.retrievalSection")} labelPosition="center" />
 
             <Grid gutter="md">
@@ -236,6 +299,92 @@ export function AssistantPage() {
             <Alert color="blue" variant="light">
               {t("assistant.note")}
             </Alert>
+
+            <Divider label={t("assistant.retrievalFiltersSection")} labelPosition="center" />
+
+            <Text c="dimmed" size="sm">
+              {t("assistant.filterHelp")}
+            </Text>
+
+            <Grid gutter="md">
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Textarea
+                  autosize
+                  description={t("assistant.listFieldHint")}
+                  label={t("assistant.documentIdsInclude")}
+                  minRows={2}
+                  {...form.getInputProps("documentIdsInclude")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Textarea
+                  autosize
+                  description={t("assistant.listFieldHint")}
+                  label={t("assistant.documentIdsExclude")}
+                  minRows={2}
+                  {...form.getInputProps("documentIdsExclude")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Textarea
+                  autosize
+                  description={t("assistant.listFieldHint")}
+                  label={t("assistant.sectionTitlesInclude")}
+                  minRows={2}
+                  {...form.getInputProps("sectionTitlesInclude")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Textarea
+                  autosize
+                  description={t("assistant.listFieldHint")}
+                  label={t("assistant.sectionTitlesExclude")}
+                  minRows={2}
+                  {...form.getInputProps("sectionTitlesExclude")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Textarea
+                  autosize
+                  description={t("assistant.listFieldHint")}
+                  label={t("assistant.sectionTitlesContains")}
+                  minRows={2}
+                  {...form.getInputProps("sectionTitlesContains")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Textarea
+                  autosize
+                  description={t("assistant.listFieldHint")}
+                  label={t("assistant.pageNumbersInclude")}
+                  minRows={2}
+                  {...form.getInputProps("pageNumbersInclude")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Textarea
+                  autosize
+                  description={t("assistant.listFieldHint")}
+                  label={t("assistant.pageNumbersExclude")}
+                  minRows={2}
+                  {...form.getInputProps("pageNumbersExclude")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 2 }}>
+                <NumberInput
+                  label={t("assistant.pageNumbersMin")}
+                  min={0}
+                  {...form.getInputProps("pageNumbersMin")}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 2 }}>
+                <NumberInput
+                  label={t("assistant.pageNumbersMax")}
+                  min={0}
+                  {...form.getInputProps("pageNumbersMax")}
+                />
+              </Grid.Col>
+            </Grid>
 
             <Text c="dimmed" size="sm">
               {t("common.fields.assistantId")}: {assistant.id}

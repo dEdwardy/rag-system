@@ -2,12 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/api";
 import {
   AskResponse,
+  AnswerPolicy,
   Assistant,
   Conversation,
   DocumentChunk,
   DocumentRecord,
   KnowledgeBase,
   Message,
+  RetrievalProfileFilters,
   RetrievalProfile,
   TraceRecord
 } from "../../types/api";
@@ -135,6 +137,7 @@ export function useUpdateAssistant(assistantId: string) {
       description?: string | null;
       systemPrompt?: string;
       retrievalProfileId?: string;
+      answerPolicyJson?: AnswerPolicy | null;
       status?: "active" | "inactive";
     }) =>
       apiRequest<Assistant>(`/assistants/${assistantId}`, {
@@ -158,6 +161,7 @@ export function useUpdateRetrievalProfile(retrievalProfileId: string) {
       enableHybrid?: boolean;
       enableRerank?: boolean;
       scoreThreshold?: number;
+      filtersJson?: RetrievalProfileFilters | null;
     }) =>
       apiRequest<RetrievalProfile>(`/retrieval-profiles/${retrievalProfileId}`, {
         method: "PATCH",

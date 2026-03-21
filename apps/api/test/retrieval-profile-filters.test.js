@@ -10,6 +10,79 @@ const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test("Retrieval profile filters can be cleared through PATCH", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3106;
+  const storageRoot = resolve(repoRoot, "storage", `test-clear-filters-${randomUUID()}`);
+  const queuePrefix = `test-clear-filters-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const setFiltersResponse = await fetch(
+      `http://localhost:${port}/retrieval-profiles/default-retrieval-profile`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          filtersJson: {
+            documentIds: ["doc-1"]
+          }
+        })
+      }
+    );
+    assert.equal(setFiltersResponse.status, 200);
+
+    const clearFiltersResponse = await fetch(
+      `http://localhost:${port}/retrieval-profiles/default-retrieval-profile`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          filtersJson: null
+        })
+      }
+    );
+
+    assert.equal(clearFiltersResponse.status, 200);
+
+    const clearedProfile = await clearFiltersResponse.json();
+    assert.equal(clearedProfile.filtersJson, null);
+  } finally {
+    server.kill("SIGTERM");
+    rmSync(storageRoot, { recursive: true, force: true });
+    await prisma.retrievalProfile.update({
+      where: {
+        id: "default-retrieval-profile"
+      },
+      data: {
+        filtersJson: null
+      }
+    }).catch(() => {});
+  }
+});
+
 test("Retrieval profile filters constrain ask retrieved chunks", async () => {
   await resetTestState();
   execFileSync(process.execPath, ["prisma/seed.js"], {

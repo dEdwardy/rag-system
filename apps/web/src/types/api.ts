@@ -1,3 +1,39 @@
+export type StringIncludeExcludeFilter = {
+  include?: string[];
+  exclude?: string[];
+};
+
+export type StringStrategyFilter = StringIncludeExcludeFilter & {
+  contains?: string[];
+};
+
+export type NumberIncludeExcludeFilter = {
+  include?: number[];
+  exclude?: number[];
+};
+
+export type NumberStrategyFilter = NumberIncludeExcludeFilter & {
+  min?: number;
+  max?: number;
+};
+
+export type RetrievalProfileFilters = {
+  documentIds?: StringIncludeExcludeFilter;
+  sectionTitles?: StringStrategyFilter;
+  pageNumbers?: NumberStrategyFilter;
+};
+
+export type AnswerPolicy = {
+  responseStyle: "concise" | "balanced" | "detailed";
+  tone?: "neutral" | "friendly" | "direct";
+  outputFormat?: "paragraph" | "bullets" | "markdown";
+  language?: "auto" | "same_as_question" | "zh" | "en";
+  citationMode: "required" | "optional";
+  maxCitations: number;
+  noAnswerBehavior: "say_insufficient_context" | "best_effort";
+  includeMissingInformation?: boolean;
+};
+
 export type RetrievalProfile = {
   id: string;
   name: string;
@@ -6,6 +42,8 @@ export type RetrievalProfile = {
   enableHybrid: boolean;
   enableRerank: boolean;
   scoreThreshold: number;
+  filtersJson: RetrievalProfileFilters | null;
+  strategyJson: JsonValue | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -18,6 +56,7 @@ export type Assistant = {
   description: string | null;
   systemPrompt: string;
   retrievalProfileId: string;
+  answerPolicyJson: AnswerPolicy | null;
   status: "active" | "inactive";
   retrievalProfile?: RetrievalProfile;
 };
