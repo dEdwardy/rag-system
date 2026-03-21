@@ -5,10 +5,13 @@ import {
   RewriteQueryInput,
   RewriteQueryOutput
 } from "./llm.types";
+import { PromptManagerService } from "./prompt-manager.service";
 
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
+
+  constructor(private readonly promptManager: PromptManagerService) {}
 
   async generateAnswer(input: GenerateAnswerInput): Promise<GenerateAnswerOutput> {
     const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
@@ -69,7 +72,7 @@ export class LlmService {
     model: string,
     input: GenerateAnswerInput
   ): Promise<GenerateAnswerOutput> {
-    const prompt = this.buildAnswerPrompt(input);
+    const prompt = this.promptManager.buildAnswerPrompt(input);
 
     const response = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
@@ -78,7 +81,7 @@ export class LlmService {
       },
       body: JSON.stringify({
         model,
-        prompt,
+        prompt: prompt.fullPrompt,
         stream: false,
         options: {
           temperature: 0.2
@@ -109,6 +112,7 @@ export class LlmService {
     input: GenerateAnswerInput
   ): Promise<GenerateAnswerOutput> {
     const model = process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini";
+    const prompt = this.promptManager.buildAnswerPrompt(input);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -122,11 +126,11 @@ export class LlmService {
         messages: [
           {
             role: "system",
-            content: this.buildSystemPrompt(input.systemPrompt)
+            content: prompt.systemPrompt
           },
           {
             role: "user",
-            content: this.buildUserPrompt(input)
+            content: prompt.userPrompt
           }
         ]
       })
@@ -157,6 +161,7 @@ export class LlmService {
     model: string,
     input: RewriteQueryInput
   ): Promise<RewriteQueryOutput> {
+    const prompt = this.promptManager.buildRewritePrompt(input);
     const response = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
       headers: {
@@ -164,7 +169,7 @@ export class LlmService {
       },
       body: JSON.stringify({
         model,
-        prompt: this.buildRewritePrompt(input.question),
+        prompt: prompt.fullPrompt,
         stream: false,
         options: {
           temperature: 0
@@ -193,6 +198,7 @@ export class LlmService {
 
   private async rewriteQueryWithOpenAI(apiKey: string, input: RewriteQueryInput): Promise<RewriteQueryOutput> {
     const model = process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini";
+    const prompt = this.promptManager.buildRewritePrompt(input);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -206,11 +212,11 @@ export class LlmService {
         messages: [
           {
             role: "system",
-            content: "Rewrite the user question into a concise search query. Return only the rewritten query."
+            content: prompt.systemPrompt
           },
           {
             role: "user",
-            content: input.question
+            content: prompt.userPrompt
           }
         ]
       })
@@ -257,67 +263,6 @@ export class LlmService {
       missingInformation: [],
       citedChunkNumbers: [1]
     };
-  }
-
-  private buildAnswerPrompt(input: GenerateAnswerInput) {
-    return `${this.buildSystemPrompt(input.systemPrompt)}
-
-${this.buildUserPrompt(input)}`;
-  }
-
-  private buildRewritePrompt(question: string) {
-    return `Rewrite the following user question into a concise retrieval query.
-
-Rules:
-- Preserve important entities, product names, filenames, and identifiers.
-- Remove filler words and conversational phrasing.
-- Return only the rewritten query with no explanation.
-
-Question:
-${question}`;
-  }
-
-  private buildSystemPrompt(systemPrompt: string) {
-    return `${systemPrompt}
-
-Answering rules:
-- Use only the provided retrieved sources.
-- When a statement is supported by a source, append source markers like [1] or [1][2].
-- Do not cite sources that were not provided.
-- If the retrieved sources are insufficient, say so clearly.
-- Keep the answer concise and factual.`;
-  }
-
-  private buildUserPrompt(input: GenerateAnswerInput) {
-    const context = input.chunks
-      .map(
-        (chunk, index) =>
-          `[${index + 1}] document="${chunk.documentTitle}"${chunk.sectionTitle ? ` section="${chunk.sectionTitle}"` : ""} score=${chunk.score.toFixed(3)}\n${chunk.content}`
-      )
-      .join("\n\n");
-
-    return `Question:
-${input.question}
-
-Retrieved sources:
-${context}
-
-Answer policy:
-- responseStyle=${input.answerPolicy.responseStyle}
-- citationMode=${input.answerPolicy.citationMode}
-- maxCitations=${input.answerPolicy.maxCitations}
-- noAnswerBehavior=${input.answerPolicy.noAnswerBehavior}
-
-Return JSON only with this shape:
-{"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
-
-Rules:
-- "citations" must contain only 1-based source indexes from the retrieved sources.
-- Use an empty array when there are no supported citations.
-- Use "grounded" only when the answer is supported by the provided sources.
-- Use "insufficient_context" when the sources do not support a reliable answer.
-- "missingInformation" should be an array and may be empty.
-- Do not wrap the JSON in markdown fences.`;
   }
 
   private extractCitedChunkNumbers(answer: string) {

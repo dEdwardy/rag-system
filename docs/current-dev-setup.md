@@ -203,6 +203,8 @@ The following path has been validated locally on `2026-03-21`:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments
 - Query rewrite before retrieval, with LLM-first and local fallback behavior
+- Answer and rewrite prompt construction is now managed by backend `PromptManagerService`
+  - current prompt ids: `answer.v1`, `rewrite-query.v1`
 - Minimal ask flow with conversation/message/trace persistence
 - Citation-aware answer prompting with inline source markers
 - Structured answer metadata with `answerStatus` / `missingInformation`
