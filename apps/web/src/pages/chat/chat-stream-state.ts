@@ -20,7 +20,7 @@ export type ChatStreamUserMessage = {
 export type ChatStreamEvent =
   | {
       type: "status";
-      phase: "started" | "generating";
+      phase: "started" | "retrieving" | "generating";
     }
   | {
       type: "answer_delta";

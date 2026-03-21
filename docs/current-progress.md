@@ -308,6 +308,7 @@
   - 更完整的 answering / assistant policy 配置
 - ✅ `PC Web` Chat 体验增强第一轮
   - NDJSON-based streamed ask rendering 第一轮
+  - answer generation native text streaming 已升级完成
   - chat workspace UI / UX polish 第一轮
 - ✅ 更多联调级自动化验证
 - 当前客户端范围：`PC Web` 优先，移动端适配后置到功能和验证覆盖更稳定之后再推进
@@ -323,7 +324,8 @@
 
 - ✅ retrieval / answering systematic evolution
 - ✅ `PC Web` chat experience polish
-  - NDJSON progressive answer rendering: done
+  - NDJSON transport and progressive answer rendering: done
+  - native answer-generation text streaming: done
   - chat workspace UI / UX polish: done
 - [ ] external knowledge source expansion
   - web page source ingestion minimum increment: done
@@ -446,6 +448,7 @@
 - ✅ API integration test queue isolation
 - ✅ PC Web Knowledge Base -> Assistant browser smoke automation
 - ✅ PC Web Chat progressive streamed experience polish
+- ✅ Ask stream native answer-generation upgrade
 - ✅ Document chain API E2E
 - ✅ Ask chain API E2E
 - ✅ Ask stream API E2E
@@ -523,7 +526,8 @@
 
 - 这里记录的是最近一次已落盘验证快照
 - 不代表每次编辑本文档时都重新执行了这些命令
-- 当前 ask stream 属于第一轮 NDJSON 渐进展示能力，不等同于模型 token 级原生流式生成
+- 当前 ask stream 保留 `NDJSON` 传输，但 answer generation 阶段已经升级为 provider-native text streaming
+- citations、trace ids、answering / retrieval metadata 仍然在最终 `final` 事件补齐，因此它仍不等同于“全结构化全链路原生实时流式”
 
 ---
 

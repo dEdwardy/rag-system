@@ -249,8 +249,8 @@ Notes:
 - the current sitemap version fetches one sitemap XML URL server-side, supports either one direct `urlset` or one root `sitemapindex`, expands a bounded set of page URLs, aggregates extracted page text into one generated local text artifact, and then reuses the existing ingestion/indexing path
 - for sitemap-index expansion, the current backend processes up to `20` child sitemap files and still caps the final fetched page set with request `maxPages`
 - backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
-- the current stream path is a first-round progressive UX transport, not model token streaming
-- it emits status events first, then progressively reveals answer deltas from the completed ask result, and finally emits the completed ask payload with citations and trace ids
+- the current stream path now forwards native answer-generation text deltas from the configured provider during the generation phase
+- it still keeps citations, trace ids, and the completed ask payload in the final completion event instead of attempting full structured real-time metadata streaming
 - when the ask pipeline fails after the stream starts, the stream emits one structured `error` event that preserves the existing diagnostics shape (`message`, `code`, `traceId`, `details`)
 
 ## Current working flow

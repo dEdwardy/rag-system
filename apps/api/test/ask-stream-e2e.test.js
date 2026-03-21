@@ -81,7 +81,7 @@ test("Ask stream E2E: upload -> stream ask -> final payload", async () => {
 
     assert.deepEqual(
       events.filter(event => event.type === "status").map(event => event.phase),
-      ["started", "generating"]
+      ["started", "retrieving", "generating"]
     );
 
     const answerDeltas = events.filter(event => event.type === "answer_delta");

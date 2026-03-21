@@ -26,6 +26,10 @@ export type GenerateAnswerInput = {
   chunks: RetrievedChunkInput[];
 };
 
+export type GenerateAnswerStreamInput = GenerateAnswerInput & {
+  onDelta: (delta: string) => void | Promise<void>;
+};
+
 export type GenerateAnswerOutput = {
   answer: string;
   modelName: string;
@@ -37,6 +41,12 @@ export type GenerateAnswerOutput = {
     source: number;
     quote: string;
   }>;
+};
+
+export type GenerateAnswerStreamOutput = {
+  rawAnswer: string;
+  modelName: string;
+  promptId: string;
 };
 
 export type RewriteQueryInput = {
