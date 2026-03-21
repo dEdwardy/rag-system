@@ -4,6 +4,7 @@ const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { Document, Packer, Paragraph, TextRun } = require("docx");
 const { ParsingService } = require("../dist/infra/parsing/parsing.service.js");
+const { FeedSourceService } = require("../dist/infra/feed-source/feed-source.service.js");
 const { WebPageService } = require("../dist/infra/web-page/web-page.service.js");
 
 test("ParsingService parses text-based PDFs", async () => {
@@ -76,4 +77,39 @@ test("WebPageService extracts normalized title and text from HTML", async () => 
   assert.match(extracted.content, /First paragraph with marker\./);
   assert.match(extracted.content, /Second & final paragraph\./);
   assert.doesNotMatch(extracted.content, /console\.log/);
+});
+
+test("FeedSourceService extracts normalized title and entry text from RSS", async () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <description>Recent delivery notes.</description>
+        <item>
+          <title>Release A</title>
+          <link>https://example.com/releases/a</link>
+          <description><![CDATA[<p>Marker alpha summary.</p>]]></description>
+          <pubDate>Sun, 21 Mar 2026 10:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Release B</title>
+          <description>Marker beta summary.</description>
+        </item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 1
+    }
+  );
+
+  assert.equal(extracted.title, "Engineering Updates");
+  assert.match(extracted.content, /Feed: Engineering Updates/);
+  assert.match(extracted.content, /Recent delivery notes\./);
+  assert.match(extracted.content, /Release A/);
+  assert.match(extracted.content, /Marker alpha summary\./);
+  assert.match(extracted.content, /https:\/\/example\.com\/releases\/a/);
+  assert.doesNotMatch(extracted.content, /Release B/);
 });

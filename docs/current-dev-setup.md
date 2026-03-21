@@ -189,6 +189,13 @@ pnpm --filter @rag-system/api build
 node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js
 ```
 
+Focused feed source E2E validation:
+
+```bash
+pnpm --filter @rag-system/api build
+node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash
@@ -204,6 +211,8 @@ Notes:
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks
 - backend now also supports `POST /knowledge-bases/:id/documents/web-page` for one direct `http` / `https` page URL
 - the current first version fetches static HTML server-side, extracts normalized text, stores it as a generated local text artifact, and then reuses the existing ingestion/indexing path
+- backend now also supports `POST /knowledge-bases/:id/documents/feed` for one direct RSS or Atom feed URL
+- the current feed version fetches XML server-side, extracts feed metadata plus bounded entry summaries into one generated local text artifact, and then reuses the existing ingestion/indexing path
 
 ## Current working flow
 

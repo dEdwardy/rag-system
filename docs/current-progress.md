@@ -223,6 +223,7 @@
 - [x] API integration tests 宸叉敮鎸?`QUEUE_PREFIX` 闅旂锛岄伩鍏?Redis worker 涓叉壈
 - [x] API 娴嬭瘯鍛戒护宸蹭覆琛屾墽琛岋紝閬垮厤鍏变韩鏁版嵁搴撶姸鎬佺殑 HTTP 闆嗘垚娴嬭瘯骞跺彂浜掔浉骞叉壈
 - [x] web page source ingestion E2E
+- [x] feed source ingestion E2E
 
 ---
 
@@ -295,6 +296,13 @@
 - [x] 鏇村畬鏁寸殑 ask 閾捐矏 E2E
 - [x] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
 
+### 3.5 Next Controlled Increment
+
+- [ ] retrieval / answering systematic evolution
+- keep backend / API first
+- keep `PC Web` as the current client priority
+- do not expand mobile work yet
+
 ---
 
 ## 4. 浠嶆湭鏀寔
@@ -303,7 +311,7 @@
 
 - [x] DOCX 鏀寔
 - [x] 缃戦〉鍐呭鎶撳彇 / 缃戦〉鐭ヨ瘑婧愭帴鍏?
-- [ ] 澶栭儴鐭ヨ瘑婧愭帴鍏?
+- [x] 澶栭儴鐭ヨ瘑婧愭帴鍏?
 
 ---
 
@@ -400,6 +408,7 @@
 - [x] Document chain API E2E
 - [x] Ask chain API E2E
 - [x] Web page source ingestion API E2E
+- [x] External feed source ingestion API E2E
 
 鍏抽敭鏂囦欢锛?
 
@@ -424,9 +433,13 @@
 - [apps/api/test/document-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/document-chain-e2e.test.js)
 - [apps/api/test/ask-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-chain-e2e.test.js)
 - [apps/api/test/web-page-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/web-page-source-e2e.test.js)
+- [apps/api/test/feed-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/feed-source-e2e.test.js)
+- [apps/api/src/infra/feed-source/feed-source.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/feed-source/feed-source.service.ts)
 - [apps/api/src/infra/web-page/web-page.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/web-page/web-page.service.ts)
 - [apps/api/src/modules/documents/documents.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/documents/documents.service.ts)
 - [apps/api/src/modules/documents/documents.controller.ts](/D:/FeProjects/rag-system/apps/api/src/modules/documents/documents.controller.ts)
+- [docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md)
+- [docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md)
 - [docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md)
@@ -491,6 +504,7 @@
 - `node --test --test-concurrency=1 apps/api/test/retrieval-profile-filters.test.js`
 - `node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+- `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
 
 ### Web
 
