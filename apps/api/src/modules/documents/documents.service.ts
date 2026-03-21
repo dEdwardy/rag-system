@@ -2,10 +2,11 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DocumentProcessingStage, DocumentStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { StorageService } from "../../infra/storage/storage.service";
+import { WebPageService } from "../../infra/web-page/web-page.service";
 import { IngestionService } from "../ingestion/ingestion.service";
 import { IndexingService } from "../indexing/indexing.service";
 import { KnowledgeBasesService } from "../knowledge-bases/knowledge-bases.service";
-import { CreateDocumentInput } from "./document.schemas";
+import { CreateDocumentInput, CreateWebPageDocumentInput } from "./document.schemas";
 
 @Injectable()
 export class DocumentsService {
@@ -13,6 +14,7 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly knowledgeBasesService: KnowledgeBasesService,
     private readonly storageService: StorageService,
+    private readonly webPageService: WebPageService,
     private readonly ingestionService: IngestionService,
     private readonly indexingService: IndexingService
   ) {}
@@ -98,6 +100,25 @@ export class DocumentsService {
     return document;
   }
 
+  async createWebPageDocument(knowledgeBaseId: string, input: CreateWebPageDocumentInput) {
+    const fetchedPage = await this.webPageService.fetchWebPage(input.url);
+    const storedFile = await this.storageService.saveGeneratedTextFile({
+      content: fetchedPage.content
+    });
+
+    const document = await this.createDocument(knowledgeBaseId, {
+      sourceType: "web_page",
+      sourceName: input.url,
+      title: input.title ?? fetchedPage.title ?? this.buildWebPageFallbackTitle(input.url),
+      mimeType: "text/plain",
+      storageKey: storedFile.storageKey
+    });
+
+    await this.ingestionService.enqueueDocument(document.id);
+
+    return document;
+  }
+
   async reindexDocument(id: string) {
     const document = await this.getDocument(id);
 
@@ -126,5 +147,11 @@ export class DocumentsService {
     return {
       success: true
     };
+  }
+
+  private buildWebPageFallbackTitle(url: string) {
+    const parsed = new URL(url);
+    const path = `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+    return path.slice(0, 255);
   }
 }

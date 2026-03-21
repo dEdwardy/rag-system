@@ -182,6 +182,13 @@ pnpm --filter @rag-system/api build
 node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js
 ```
 
+Focused web-page source E2E validation:
+
+```bash
+pnpm --filter @rag-system/api build
+node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash
@@ -195,6 +202,8 @@ Notes:
 - this smoke test is currently scoped to `PC Web`
 - it validates `Knowledge Base -> Assistant` browser rendering against the real local API
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks
+- backend now also supports `POST /knowledge-bases/:id/documents/web-page` for one direct `http` / `https` page URL
+- the current first version fetches static HTML server-side, extracts normalized text, stores it as a generated local text artifact, and then reuses the existing ingestion/indexing path
 
 ## Current working flow
 

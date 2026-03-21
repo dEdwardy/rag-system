@@ -222,6 +222,7 @@
   - document chunks / conversation messages / conversation traces integration assertions
 - [x] API integration tests 宸叉敮鎸?`QUEUE_PREFIX` 闅旂锛岄伩鍏?Redis worker 涓叉壈
 - [x] API 娴嬭瘯鍛戒护宸蹭覆琛屾墽琛岋紝閬垮厤鍏变韩鏁版嵁搴撶姸鎬佺殑 HTTP 闆嗘垚娴嬭瘯骞跺彂浜掔浉骞叉壈
+- [x] web page source ingestion E2E
 
 ---
 
@@ -301,7 +302,7 @@
 鏈妭琛ㄧず鈥滃綋鍓嶄粨搴撹繕娌℃湁鐪熸鏀寔鈥濄€?
 
 - [x] DOCX 鏀寔
-- [ ] 缃戦〉鍐呭鎶撳彇 / 缃戦〉鐭ヨ瘑婧愭帴鍏?
+- [x] 缃戦〉鍐呭鎶撳彇 / 缃戦〉鐭ヨ瘑婧愭帴鍏?
 - [ ] 澶栭儴鐭ヨ瘑婧愭帴鍏?
 
 ---
@@ -398,6 +399,7 @@
 - [x] PC Web Knowledge Base -> Assistant browser smoke automation
 - [x] Document chain API E2E
 - [x] Ask chain API E2E
+- [x] Web page source ingestion API E2E
 
 鍏抽敭鏂囦欢锛?
 
@@ -421,6 +423,12 @@
 - [apps/web/test/pc-web-smoke.test.js](/D:/FeProjects/rag-system/apps/web/test/pc-web-smoke.test.js)
 - [apps/api/test/document-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/document-chain-e2e.test.js)
 - [apps/api/test/ask-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-chain-e2e.test.js)
+- [apps/api/test/web-page-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/web-page-source-e2e.test.js)
+- [apps/api/src/infra/web-page/web-page.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/web-page/web-page.service.ts)
+- [apps/api/src/modules/documents/documents.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/documents/documents.service.ts)
+- [apps/api/src/modules/documents/documents.controller.ts](/D:/FeProjects/rag-system/apps/api/src/modules/documents/documents.controller.ts)
+- [docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md)
+- [docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md)
 - [docs/superpowers/specs/2026-03-21-document-chain-e2e-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-document-chain-e2e-design.md)
 - [docs/superpowers/specs/2026-03-21-ask-chain-e2e-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-ask-chain-e2e-design.md)
@@ -482,6 +490,7 @@
 - `pnpm test:api`
 - `node --test --test-concurrency=1 apps/api/test/retrieval-profile-filters.test.js`
 - `node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js`
+- `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 
 ### Web
 

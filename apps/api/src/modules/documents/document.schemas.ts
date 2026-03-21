@@ -10,3 +10,15 @@ export const createDocumentSchema = z.object({
 
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 
+export const createWebPageDocumentSchema = z.object({
+  url: z
+    .string()
+    .url()
+    .refine(value => {
+      const parsed = new URL(value);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    }, "URL must use http or https."),
+  title: z.string().min(1).max(255).optional()
+});
+
+export type CreateWebPageDocumentInput = z.infer<typeof createWebPageDocumentSchema>;

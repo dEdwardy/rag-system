@@ -10,7 +10,7 @@ import {
   UseInterceptors
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { createDocumentSchema } from "./document.schemas";
+import { createDocumentSchema, createWebPageDocumentSchema } from "./document.schemas";
 import { DocumentsService } from "./documents.service";
 
 @Controller()
@@ -26,6 +26,12 @@ export class DocumentsController {
   createDocument(@Param("id") knowledgeBaseId: string, @Body() body: unknown) {
     const input = createDocumentSchema.parse(body);
     return this.documentsService.createDocument(knowledgeBaseId, input);
+  }
+
+  @Post("knowledge-bases/:id/documents/web-page")
+  createWebPageDocument(@Param("id") knowledgeBaseId: string, @Body() body: unknown) {
+    const input = createWebPageDocumentSchema.parse(body);
+    return this.documentsService.createWebPageDocument(knowledgeBaseId, input);
   }
 
   @Post("knowledge-bases/:id/documents/upload")
