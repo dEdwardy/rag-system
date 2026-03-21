@@ -167,6 +167,10 @@ Current API test coverage:
 - rerank behavior
 - citation-aware answering
 - upload -> ready -> ask -> trace HTTP integration
+- web page source ingestion
+- feed source ingestion
+- sitemap source ingestion
+- sitemap index source ingestion
 
 Focused document-chain E2E validation:
 

@@ -225,6 +225,7 @@
 - ✅ web page source ingestion E2E
 - ✅ feed source ingestion E2E
 - ✅ sitemap source ingestion E2E
+- ✅ sitemap index source ingestion E2E
 
 ---
 
