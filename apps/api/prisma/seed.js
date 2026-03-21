@@ -68,7 +68,8 @@ async function main() {
       chunkWindow: 0,
       enableHybrid: false,
       enableRerank: false,
-      scoreThreshold: 0
+      scoreThreshold: 0,
+      strategyJson: null
     },
     create: {
       id: "default-retrieval-profile",
@@ -77,7 +78,8 @@ async function main() {
       chunkWindow: 0,
       enableHybrid: false,
       enableRerank: false,
-      scoreThreshold: 0
+      scoreThreshold: 0,
+      strategyJson: null
     }
   });
 

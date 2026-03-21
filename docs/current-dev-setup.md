@@ -192,6 +192,13 @@ The following path has been validated locally on `2026-03-21`:
   - `documentIds.include` / `documentIds.exclude`
   - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
   - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
+- Retrieval profile `strategyJson` with backward-compatible resolution from legacy flat fields:
+  - `queryRewrite.enabled`
+  - `candidateSelection.mode`: `vector` / `hybrid` / `lexical`
+  - `candidateSelection.candidateMultiplier`
+  - `candidateSelection.minCandidates`
+  - `hybrid.vectorWeight` / `hybrid.lexicalWeight`
+  - `rerank.enabled`
 - Chunk-window context grouping for ask responses:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments

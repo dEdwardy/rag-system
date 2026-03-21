@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import {
   CreateRetrievalProfileInput,
@@ -31,7 +32,24 @@ export class RetrievalProfilesService {
 
   createRetrievalProfile(input: CreateRetrievalProfileInput) {
     return this.prisma.retrievalProfile.create({
-      data: input
+      data: {
+        name: input.name,
+        topK: input.topK,
+        chunkWindow: input.chunkWindow,
+        enableHybrid: input.enableHybrid,
+        enableRerank: input.enableRerank,
+        scoreThreshold: input.scoreThreshold,
+        ...(input.filtersJson !== undefined
+          ? {
+              filtersJson: input.filtersJson as Prisma.InputJsonValue
+            }
+          : {}),
+        ...(input.strategyJson !== undefined
+          ? {
+              strategyJson: input.strategyJson as Prisma.InputJsonValue
+            }
+          : {})
+      }
     });
   }
 
@@ -40,7 +58,24 @@ export class RetrievalProfilesService {
 
     return this.prisma.retrievalProfile.update({
       where: { id },
-      data: input
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.topK !== undefined ? { topK: input.topK } : {}),
+        ...(input.chunkWindow !== undefined ? { chunkWindow: input.chunkWindow } : {}),
+        ...(input.enableHybrid !== undefined ? { enableHybrid: input.enableHybrid } : {}),
+        ...(input.enableRerank !== undefined ? { enableRerank: input.enableRerank } : {}),
+        ...(input.scoreThreshold !== undefined ? { scoreThreshold: input.scoreThreshold } : {}),
+        ...(input.filtersJson !== undefined
+          ? {
+              filtersJson: input.filtersJson as Prisma.InputJsonValue
+            }
+          : {}),
+        ...(input.strategyJson !== undefined
+          ? {
+              strategyJson: input.strategyJson as Prisma.InputJsonValue
+            }
+          : {})
+      }
     });
   }
 }

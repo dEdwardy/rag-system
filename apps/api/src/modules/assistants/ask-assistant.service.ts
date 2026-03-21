@@ -5,7 +5,11 @@ import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
-import { retrievalProfileFiltersSchema } from "../retrieval-profiles/retrieval-profile.schemas";
+import {
+  RetrievalStrategy,
+  resolveRetrievalStrategy,
+  retrievalProfileFiltersSchema
+} from "../retrieval-profiles/retrieval-profile.schemas";
 import { TracesService } from "../traces/traces.service";
 import { answerPolicySchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
@@ -41,6 +45,9 @@ export class AskAssistantService {
 
   async askAssistant(input: { assistantId: string; question: string; conversationId?: string }) {
     const assistant = await this.assistantsService.getAssistant(input.assistantId);
+    const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
+      strategyJson?: unknown;
+    };
 
     const conversation =
       input.conversationId != null
@@ -59,9 +66,20 @@ export class AskAssistantService {
     });
 
     const startedAt = Date.now();
-    const rewritten = await this.llmService.rewriteQuery({
-      question: input.question
+    const retrievalStrategy = resolveRetrievalStrategy({
+      topK: retrievalProfile.topK,
+      enableHybrid: retrievalProfile.enableHybrid,
+      enableRerank: retrievalProfile.enableRerank,
+      strategyJson: retrievalProfile.strategyJson as RetrievalStrategy | undefined
     });
+    const rewritten = retrievalStrategy.queryRewrite.enabled
+      ? await this.llmService.rewriteQuery({
+          question: input.question
+        })
+      : {
+          rewrittenQuery: null,
+          modelName: null
+        };
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
     const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
       assistant.retrievalProfile.filtersJson ?? undefined
@@ -70,12 +88,13 @@ export class AskAssistantService {
     const retrievalResult = await this.retrievalService.retrieve({
       kbId: assistant.kbId,
       query: retrievalQuery,
-      topK: assistant.retrievalProfile.topK,
-      scoreThreshold: assistant.retrievalProfile.scoreThreshold,
-      chunkWindow: assistant.retrievalProfile.chunkWindow,
-      enableHybrid: assistant.retrievalProfile.enableHybrid,
-      enableRerank: assistant.retrievalProfile.enableRerank,
-      filters: retrievalFilters
+      topK: retrievalProfile.topK,
+      scoreThreshold: retrievalProfile.scoreThreshold,
+      chunkWindow: retrievalProfile.chunkWindow,
+      enableHybrid: retrievalProfile.enableHybrid,
+      enableRerank: retrievalProfile.enableRerank,
+      filters: retrievalFilters,
+      strategy: retrievalStrategy
     });
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
@@ -89,7 +108,7 @@ export class AskAssistantService {
       rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
       retrievedChunkIdsJson: retrievedChunks.map(chunk => chunk.chunkId),
       retrievalScoresJson,
-      modelName: rewritten.modelName,
+      modelName: rewritten.modelName ?? undefined,
       status: TraceStatus.success
     });
     try {
@@ -138,7 +157,7 @@ export class AskAssistantService {
       const message = error instanceof Error ? error.message : "Unknown ask pipeline error.";
       await this.tracesService.updateTrace(trace.id, {
         latencyMs: Date.now() - startedAt,
-        modelName: rewritten.modelName,
+        modelName: rewritten.modelName ?? undefined,
         rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
         retrievedChunkIdsJson: retrievedChunks.map(chunk => chunk.chunkId),
         retrievalScoresJson,

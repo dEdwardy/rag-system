@@ -148,6 +148,7 @@ model RetrievalProfile {
   enableRerank   Boolean     @default(false)
   scoreThreshold Float       @default(0)
   filtersJson    Json?
+  strategyJson   Json?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   assistants     Assistant[]

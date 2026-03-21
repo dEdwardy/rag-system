@@ -4,6 +4,7 @@ import { PrismaService } from "../../infra/database/prisma.service";
 import { EmbeddingService } from "../../infra/embedding/embedding.service";
 import { VectorStoreService } from "../../infra/vector-store/vector-store.service";
 import {
+  ResolvedRetrievalStrategy,
   RetrievalProfileFilters,
   retrievalProfileFiltersSchema
 } from "../retrieval-profiles/retrieval-profile.schemas";
@@ -63,15 +64,43 @@ export class RetrievalService {
     enableHybrid?: boolean;
     enableRerank?: boolean;
     filters?: RetrievalProfileFilters;
+    strategy?: ResolvedRetrievalStrategy;
   }) {
     const normalizedFilters = retrievalProfileFiltersSchema.optional().parse(input.filters);
-    const candidateLimit = Math.max(input.topK * 3, input.topK);
-    const lexicalCandidates = await this.getLexicalCandidates({
-      kbId: input.kbId,
-      query: input.query,
-      limit: candidateLimit,
-      filters: normalizedFilters
-    });
+    const strategy = input.strategy;
+    const candidateSelectionMode = strategy?.candidateSelection.mode ?? (input.enableHybrid ? "hybrid" : "vector");
+    const resolvedEnableRerank = strategy?.rerank.enabled ?? input.enableRerank ?? false;
+    const candidateLimit = Math.max(
+      input.topK * (strategy?.candidateSelection.candidateMultiplier ?? 3),
+      strategy?.candidateSelection.minCandidates ?? input.topK,
+      input.topK
+    );
+
+    if (candidateSelectionMode === "lexical") {
+      const lexicalCandidates = await this.getLexicalCandidates({
+        kbId: input.kbId,
+        query: input.query,
+        limit: candidateLimit,
+        filters: normalizedFilters
+      });
+
+      return this.retrieveWithLexicalFallback({
+        ...input,
+        enableRerank: resolvedEnableRerank,
+        filters: normalizedFilters,
+        lexicalCandidates
+      });
+    }
+
+    const lexicalCandidates =
+      candidateSelectionMode === "hybrid"
+        ? await this.getLexicalCandidates({
+            kbId: input.kbId,
+            query: input.query,
+            limit: candidateLimit,
+            filters: normalizedFilters
+          })
+        : undefined;
 
     try {
       const queryEmbedding = await this.embeddingService.embedQuery(input.query);
@@ -83,13 +112,13 @@ export class RetrievalService {
         filters: normalizedFilters
       });
 
-      if (vectorMatches.length > 0 || input.enableHybrid) {
+      if (vectorMatches.length > 0 || candidateSelectionMode === "hybrid") {
         const vectorCandidates = await this.getVectorCandidates(vectorMatches);
-        const mergedCandidates = input.enableHybrid
-          ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates)
+        const mergedCandidates = candidateSelectionMode === "hybrid"
+          ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates ?? [], strategy)
           : vectorCandidates;
         const rankedCandidates = this.rankCandidates(mergedCandidates, {
-          enableRerank: input.enableRerank ?? false,
+          enableRerank: resolvedEnableRerank,
           query: input.query,
           scoreThreshold: input.scoreThreshold,
           topK: input.topK
@@ -112,6 +141,7 @@ export class RetrievalService {
 
     return this.retrieveWithLexicalFallback({
       ...input,
+      enableRerank: resolvedEnableRerank,
       filters: normalizedFilters,
       lexicalCandidates
     });
@@ -123,6 +153,7 @@ export class RetrievalService {
     topK: number;
     scoreThreshold: number;
     chunkWindow?: number;
+    enableRerank?: boolean;
     lexicalCandidates?: RetrievalCandidate[];
     filters?: RetrievalProfileFilters;
   }) {
@@ -135,7 +166,7 @@ export class RetrievalService {
         filters: input.filters
       }));
     const ranked = this.rankCandidates(lexicalCandidates, {
-      enableRerank: false,
+      enableRerank: input.enableRerank ?? false,
       query: input.query,
       scoreThreshold: input.scoreThreshold,
       topK: input.topK
@@ -261,13 +292,25 @@ export class RetrievalService {
 
   private mergeHybridCandidates(
     vectorCandidates: RetrievalCandidate[],
-    lexicalCandidates: RetrievalCandidate[]
+    lexicalCandidates: RetrievalCandidate[],
+    strategy?: ResolvedRetrievalStrategy
   ) {
     const merged = new Map<string, RetrievalCandidate>();
     const lexicalMaxScore = Math.max(...lexicalCandidates.map(candidate => candidate.lexicalScore), 0);
+    const vectorWeight = strategy?.hybrid.vectorWeight ?? 0.7;
+    const lexicalWeight = strategy?.hybrid.lexicalWeight ?? 0.3;
+    const totalWeight = vectorWeight + lexicalWeight;
+    const normalizedVectorWeight = totalWeight > 0 ? vectorWeight / totalWeight : 0.7;
+    const normalizedLexicalWeight = totalWeight > 0 ? lexicalWeight / totalWeight : 0.3;
 
     for (const candidate of vectorCandidates) {
-      merged.set(candidate.chunkId, candidate);
+      const score = candidate.vectorScore * normalizedVectorWeight;
+      merged.set(candidate.chunkId, {
+        ...candidate,
+        score,
+        hybridScore: score,
+        rerankScore: score
+      });
     }
 
     for (const lexicalCandidate of lexicalCandidates) {
@@ -275,7 +318,8 @@ export class RetrievalService {
       const lexicalWeight = lexicalMaxScore > 0 ? lexicalCandidate.lexicalScore / lexicalMaxScore : 0;
 
       if (existing) {
-        const score = existing.vectorScore * 0.7 + lexicalWeight * 0.3;
+        const score =
+          existing.vectorScore * normalizedVectorWeight + lexicalWeight * normalizedLexicalWeight;
         merged.set(lexicalCandidate.chunkId, {
           ...existing,
           lexicalScore: lexicalCandidate.lexicalScore,
@@ -286,7 +330,7 @@ export class RetrievalService {
         continue;
       }
 
-      const score = lexicalWeight * 0.3;
+      const score = lexicalWeight * normalizedLexicalWeight;
       merged.set(lexicalCandidate.chunkId, {
         ...lexicalCandidate,
         score,

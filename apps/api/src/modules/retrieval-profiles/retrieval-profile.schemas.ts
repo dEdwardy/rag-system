@@ -20,6 +20,44 @@ export type RetrievalProfileFilters = {
   pageNumbers?: NumberStrategyFilter;
 };
 
+type RetrievalMode = "vector" | "hybrid" | "lexical";
+
+export type RetrievalStrategy = {
+  queryRewrite?: {
+    enabled?: boolean;
+  };
+  candidateSelection?: {
+    mode?: RetrievalMode;
+    candidateMultiplier?: number;
+    minCandidates?: number;
+  };
+  hybrid?: {
+    vectorWeight?: number;
+    lexicalWeight?: number;
+  };
+  rerank?: {
+    enabled?: boolean;
+  };
+};
+
+export type ResolvedRetrievalStrategy = {
+  queryRewrite: {
+    enabled: boolean;
+  };
+  candidateSelection: {
+    mode: RetrievalMode;
+    candidateMultiplier: number;
+    minCandidates: number;
+  };
+  hybrid: {
+    vectorWeight: number;
+    lexicalWeight: number;
+  };
+  rerank: {
+    enabled: boolean;
+  };
+};
+
 const optionalStringArraySchema = z
   .array(z.string().min(1))
   .optional()
@@ -124,6 +162,53 @@ export const retrievalProfileFiltersSchema = z
   .strict()
   .transform(value => normalizeObject(value) as RetrievalProfileFilters | undefined);
 
+const queryRewriteStrategySchema = z
+  .object({
+    enabled: z.boolean().optional()
+  })
+  .strict()
+  .transform(value => normalizeObject(value));
+
+const candidateSelectionStrategySchema = z
+  .object({
+    mode: z.enum(["vector", "hybrid", "lexical"]).optional(),
+    candidateMultiplier: z.number().int().min(1).max(10).optional(),
+    minCandidates: z.number().int().min(1).max(100).optional()
+  })
+  .strict()
+  .transform(value => normalizeObject(value));
+
+const hybridStrategySchema = z
+  .object({
+    vectorWeight: z.number().min(0).max(1).optional(),
+    lexicalWeight: z.number().min(0).max(1).optional()
+  })
+  .strict()
+  .refine(
+    value => (value.vectorWeight ?? 0) + (value.lexicalWeight ?? 0) > 0 || Object.keys(value).length === 0,
+    {
+      message: "hybrid.vectorWeight and hybrid.lexicalWeight cannot both be zero"
+    }
+  )
+  .transform(value => normalizeObject(value));
+
+const rerankStrategySchema = z
+  .object({
+    enabled: z.boolean().optional()
+  })
+  .strict()
+  .transform(value => normalizeObject(value));
+
+export const retrievalStrategySchema = z
+  .object({
+    queryRewrite: queryRewriteStrategySchema.optional(),
+    candidateSelection: candidateSelectionStrategySchema.optional(),
+    hybrid: hybridStrategySchema.optional(),
+    rerank: rerankStrategySchema.optional()
+  })
+  .strict()
+  .transform(value => normalizeObject(value) as RetrievalStrategy | undefined);
+
 export const createRetrievalProfileSchema = z.object({
   name: z.string().min(1).max(120),
   topK: z.number().int().min(1).max(20).default(3),
@@ -131,7 +216,8 @@ export const createRetrievalProfileSchema = z.object({
   enableHybrid: z.boolean().default(false),
   enableRerank: z.boolean().default(false),
   scoreThreshold: z.number().min(0).max(100).default(0),
-  filtersJson: retrievalProfileFiltersSchema.optional()
+  filtersJson: retrievalProfileFiltersSchema.optional(),
+  strategyJson: retrievalStrategySchema.optional()
 });
 
 export const updateRetrievalProfileSchema = z.object({
@@ -141,8 +227,38 @@ export const updateRetrievalProfileSchema = z.object({
   enableHybrid: z.boolean().optional(),
   enableRerank: z.boolean().optional(),
   scoreThreshold: z.number().min(0).max(100).optional(),
-  filtersJson: retrievalProfileFiltersSchema.optional()
+  filtersJson: retrievalProfileFiltersSchema.optional(),
+  strategyJson: retrievalStrategySchema.optional()
 });
+
+export function resolveRetrievalStrategy(input: {
+  topK: number;
+  enableHybrid?: boolean | null;
+  enableRerank?: boolean | null;
+  strategyJson?: RetrievalStrategy | null;
+}): ResolvedRetrievalStrategy {
+  const normalizedStrategy = retrievalStrategySchema.optional().parse(input.strategyJson ?? undefined);
+
+  return {
+    queryRewrite: {
+      enabled: normalizedStrategy?.queryRewrite?.enabled ?? true
+    },
+    candidateSelection: {
+      mode:
+        normalizedStrategy?.candidateSelection?.mode ??
+        (input.enableHybrid ? "hybrid" : "vector"),
+      candidateMultiplier: normalizedStrategy?.candidateSelection?.candidateMultiplier ?? 3,
+      minCandidates: normalizedStrategy?.candidateSelection?.minCandidates ?? input.topK
+    },
+    hybrid: {
+      vectorWeight: normalizedStrategy?.hybrid?.vectorWeight ?? 0.7,
+      lexicalWeight: normalizedStrategy?.hybrid?.lexicalWeight ?? 0.3
+    },
+    rerank: {
+      enabled: normalizedStrategy?.rerank?.enabled ?? Boolean(input.enableRerank)
+    }
+  };
+}
 
 export type CreateRetrievalProfileInput = z.infer<typeof createRetrievalProfileSchema>;
 export type UpdateRetrievalProfileInput = z.infer<typeof updateRetrievalProfileSchema>;

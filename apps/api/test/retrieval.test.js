@@ -710,3 +710,148 @@ test("RetrievalService keeps non-contiguous expanded chunks in separate context 
     ]
   );
 });
+
+test("RetrievalService skips vector retrieval when strategy mode is lexical", async () => {
+  let embedCalls = 0;
+  let vectorCalls = 0;
+
+  const prisma = {
+    documentChunk: {
+      findMany: async () => [
+        {
+          id: "chunk-lexical",
+          documentId: "doc-1",
+          chunkIndex: 0,
+          content: "lexical only marker",
+          pageNo: null,
+          sectionTitle: "Overview",
+          document: { title: "Doc 1" }
+        }
+      ]
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => {
+      embedCalls += 1;
+      return { vector: [1, 0] };
+    }
+  };
+
+  const vectorStoreService = {
+    search: async () => {
+      vectorCalls += 1;
+      return [];
+    }
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "lexical only marker",
+    topK: 1,
+    scoreThreshold: 0,
+    strategy: {
+      queryRewrite: {
+        enabled: true
+      },
+      candidateSelection: {
+        mode: "lexical",
+        candidateMultiplier: 3,
+        minCandidates: 1
+      },
+      hybrid: {
+        vectorWeight: 0.7,
+        lexicalWeight: 0.3
+      },
+      rerank: {
+        enabled: false
+      }
+    }
+  });
+
+  assert.equal(embedCalls, 0);
+  assert.equal(vectorCalls, 0);
+  assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
+});
+
+test("RetrievalService hybrid ranking honors configured strategy weights", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-vector",
+              documentId: "doc-1",
+              chunkIndex: 0,
+              content: "semantic match only",
+              pageNo: null,
+              sectionTitle: "Overview",
+              document: { title: "Doc 1" }
+            }
+          ];
+        }
+
+        return [
+          {
+            id: "chunk-vector",
+            documentId: "doc-1",
+            chunkIndex: 0,
+            content: "semantic match only",
+            pageNo: null,
+            sectionTitle: "Overview",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-lexical",
+            documentId: "doc-2",
+            chunkIndex: 0,
+            content: "alpha alpha alpha exact match",
+            pageNo: null,
+            sectionTitle: "alpha",
+            document: { title: "Doc 2" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [{ chunkId: "chunk-vector", documentId: "doc-1", score: 0.8, modelName: "test" }]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "alpha exact",
+    topK: 2,
+    scoreThreshold: 0,
+    strategy: {
+      queryRewrite: {
+        enabled: true
+      },
+      candidateSelection: {
+        mode: "hybrid",
+        candidateMultiplier: 3,
+        minCandidates: 2
+      },
+      hybrid: {
+        vectorWeight: 0.1,
+        lexicalWeight: 0.9
+      },
+      rerank: {
+        enabled: false
+      }
+    }
+  });
+
+  assert.deepEqual(
+    result.retrievedChunks.map(chunk => chunk.chunkId),
+    ["chunk-lexical", "chunk-vector"]
+  );
+});

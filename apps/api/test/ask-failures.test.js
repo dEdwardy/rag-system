@@ -36,19 +36,22 @@ test("AskAssistantService marks trace as failed when answer generation throws", 
     attachTrace: async () => ({})
   };
   const retrievalService = {
-    retrieve: async () => [
-      {
-        chunkId: "chunk-1",
-        documentId: "document-1",
-        documentTitle: "Document 1",
-        chunkIndex: 0,
-        content: "retrieved content",
-        score: 0.9,
-        isPrimary: true,
-        pageNo: null,
-        sectionTitle: null
-      }
-    ]
+    retrieve: async () => ({
+      retrievedChunks: [
+        {
+          chunkId: "chunk-1",
+          documentId: "document-1",
+          documentTitle: "Document 1",
+          chunkIndex: 0,
+          content: "retrieved content",
+          score: 0.9,
+          isPrimary: true,
+          pageNo: null,
+          sectionTitle: null
+        }
+      ],
+      contextGroups: []
+    })
   };
   const answeringService = {
     generateAnswer: async () => {

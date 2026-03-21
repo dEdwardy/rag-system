@@ -204,6 +204,23 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         sectionTitles: {
           contains: ["fact"]
         }
+      },
+      strategy: {
+        queryRewrite: {
+          enabled: true
+        },
+        candidateSelection: {
+          mode: "hybrid",
+          candidateMultiplier: 3,
+          minCandidates: 4
+        },
+        hybrid: {
+          vectorWeight: 0.7,
+          lexicalWeight: 0.3
+        },
+        rerank: {
+          enabled: true
+        }
       }
     }
   ]);
@@ -231,4 +248,131 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answerStatus, "grounded");
   assert.deepEqual(result.missingInformation, []);
+});
+
+test("AskAssistantService can disable query rewrite and forwards resolved retrieval strategy", async () => {
+  const retrievalCalls = [];
+  let rewriteCalls = 0;
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: null,
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: true,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: {
+            queryRewrite: {
+              enabled: false
+            },
+            candidateSelection: {
+              mode: "lexical",
+              candidateMultiplier: 5,
+              minCandidates: 9
+            },
+            hybrid: {
+              vectorWeight: 0.2,
+              lexicalWeight: 0.8
+            },
+            rerank: {
+              enabled: true
+            }
+          }
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => {
+        throw new Error("should not load an existing conversation in this test");
+      },
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async input => {
+        retrievalCalls.push(input);
+        return {
+          retrievedChunks: [],
+          contextGroups: []
+        };
+      }
+    },
+    {
+      generateAnswer: async () => ({
+        answer: "answer",
+        citations: [],
+        retrievedChunks: [],
+        contextGroups: [],
+        modelName: "fallback-local",
+        answerStatus: "insufficient_context",
+        missingInformation: []
+      })
+    },
+    {
+      createTrace: async input => ({ id: "trace-1", ...input }),
+      updateTrace: async (id, input) => ({ id, ...input })
+    },
+    {
+      rewriteQuery: async () => {
+        rewriteCalls += 1;
+        return {
+          rewrittenQuery: "rewritten question",
+          modelName: "rewrite-model",
+          usedFallback: false
+        };
+      }
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "original question"
+  });
+
+  assert.equal(rewriteCalls, 0);
+  assert.deepEqual(retrievalCalls, [
+    {
+      kbId: "kb-1",
+      query: "original question",
+      topK: 4,
+      scoreThreshold: 0,
+      chunkWindow: 0,
+      enableHybrid: true,
+      enableRerank: false,
+      filters: undefined,
+      strategy: {
+        queryRewrite: {
+          enabled: false
+        },
+        candidateSelection: {
+          mode: "lexical",
+          candidateMultiplier: 5,
+          minCandidates: 9
+        },
+        hybrid: {
+          vectorWeight: 0.2,
+          lexicalWeight: 0.8
+        },
+        rerank: {
+          enabled: true
+        }
+      }
+    }
+  ]);
+  assert.equal(result.traceId, "trace-1");
 });
