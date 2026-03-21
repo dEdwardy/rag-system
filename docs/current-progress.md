@@ -1,61 +1,61 @@
 ﻿# Current Progress
 
-鏇存柊鏃堕棿锛?026-03-21
+更新时间：2026-03-21
 
-## 1. 鐘舵€佹€昏
+## 1. 状态总览
 
-### 褰撳墠缁撹
+### 当前结论
 
-椤圭洰宸茬粡瀹屾垚鏈湴浼樺厛 RAG MVP 鐨勪富閾捐矾锛屽綋鍓嶅彲浠ョǔ瀹氳窇閫氾細
+项目已经完成本地优先 RAG MVP 的主链路，当前可以稳定跑通：
 
-- 鏂囨。涓婁紶
-- 寮傛 ingestion
+- 文档上传
+- 异步 ingestion
 - chunking
 - embedding
 - indexing
 - retrieval
 - ask
-- conversation / message / trace 鎸佷箙鍖?
-- Web 绔牳蹇冮〉闈㈣仈璋?
+- conversation / message / trace 持久化
+- Web 核心页面联调
 
-褰撳墠闃舵宸茬粡涓嶅啀鏄鏋舵垨绾璁＄锛岄€傚悎缁х画鎸夊皬姝ュ閲忔帹杩涖€?
+当前阶段已经不再是骨架或纯设计稿，适合继续按小步增量推进。
 
-### 褰撳墠闃舵鍒ゆ柇
+### 当前阶段判断
 
-- 褰撳墠涓荤嚎鐘舵€侊細`MVP 鍙繍琛?+ 绗竴鐗堝彲璇婃柇 + 绗竴鐗堝彲閰嶇疆`
-- 褰撳墠鏈€閫傚悎缁х画鎺ㄨ繘鐨勬柟鍚戯細
-  - 涓婚摼璺祴璇曡ˉ寮?
-  - DOCX 鏀寔
-  - Answering 缁撴瀯鍖栦笌 assistant 閰嶇疆澧炲己
+- 当前主线状态：`MVP 可运行 + 第一版可诊断 + 第一版可配置`
+- 当前最适合继续推进的方向：
+  - 主链路测试补强
+  - DOCX 支持
+  - Answering 结构化与 assistant 配置增强
 
 ---
 
-## 2. 绗竴鐗堝凡瀹屾垚
+## 2. 第一版已完成
 
-鏈妭琛ㄧず鈥滃凡缁忚惤鍦板苟鍙敤鈥濓紝浣嗕笉浠ｈ〃璇ユ柟鍚戝凡缁?fully done銆?
+本节表示“已经落地并可用”，但不代表该方向已经 fully done。
 
-### 2.1 宸ョ▼涓庡熀纭€璁炬柦
+### 2.1 工程与基础设施
 
-- [x] `pnpm` monorepo 宸茶惤鍦?
-- [x] 浠撳簱缁撴瀯宸叉媶鍒嗕负锛?
+- [x] `pnpm` monorepo 已落地
+- [x] 仓库结构已拆分为：
   - `apps/api`
   - `apps/web`
   - `packages/shared`
   - `docs`
-- [x] PostgreSQL 宸叉帴鍏?
-- [x] Redis 宸叉帴鍏?
-- [x] Docker 鏈湴寮€鍙戝熀纭€璁炬柦宸叉彁渚?
-- [x] 鏈湴寮€鍙戞枃妗ｅ凡鎻愪緵锛?
+- [x] PostgreSQL 已接入
+- [x] Redis 已接入
+- [x] Docker 本地开发基础设施已提供
+- [x] 本地开发文档已提供：
   - [README.md](/D:/FeProjects/rag-system/README.md)
   - [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
   - [docs/local-dev-infra.md](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
 
-### 2.2 鍚庣楠ㄦ灦
+### 2.2 后端骨架
 
-- [x] NestJS API 宸插垵濮嬪寲
-- [x] 鍏ㄥ眬寮傚父杩囨护宸叉帴鍏?
-- [x] 鍋ュ悍妫€鏌ユ帴鍙ｅ彲鐢細`GET /health`
-- [x] 鏍稿績妯″潡杈圭晫宸插缓绔嬶細
+- [x] NestJS API 已初始化
+- [x] 全局异常过滤已接入
+- [x] 健康检查接口可用：`GET /health`
+- [x] 核心模块边界已建立：
   - `knowledge-bases`
   - `documents`
   - `assistants`
@@ -73,43 +73,43 @@
   - `infra/llm`
   - `infra/vector-store`
 
-### 2.3 鏁版嵁搴撲笌榛樿鏁版嵁
+### 2.3 数据库与默认数据
 
-- [x] Prisma schema 宸插缓绔?
-- [x] migration 宸插缓绔?
-- [x] seed 鑴氭湰宸插缓绔?
-- [x] 榛樿鏁版嵁宸插浐瀹氾細
+- [x] Prisma schema 已建立
+- [x] migration 已建立
+- [x] seed 脚本已建立
+- [x] 默认数据已固定：
   - tenant: `default-tenant`
   - user: `default-user`
   - knowledge base: `default-kb`
   - retrieval profile: `default-retrieval-profile`
   - assistant: `default-assistant`
 
-### 2.4 鏂囨。閾捐矾绗竴鐗?
+### 2.4 文档链路第一版
 
-- [x] 鏂囨。涓婁紶
-- [x] 鍘熷鏂囦欢鏈湴瀛樺偍
-- [x] 鏂囨。鍏冩暟鎹叆搴?
-- [x] Redis 闃熷垪寮傛澶勭悊
-- [x] Markdown 瑙ｆ瀽
-- [x] TXT 瑙ｆ瀽
-- [x] text-based PDF 瑙ｆ瀽
-- [x] chunking 绗竴鐗?
-  - 鏍囬鎰熺煡鍒囧垎
-  - 瓒呴暱娈佃惤鍒囧垎
-  - 鏇寸ǔ瀹氱殑 chunk 闀垮害鎺у埗
-- [x] chunk 钀藉簱
-- [x] indexing 鎺ュ叆
-- [x] embedding 鐢熸垚
-- [x] 鏈湴 file-backed vector store 鍐欏叆
-- [x] 鏂囨。鐘舵€佹祦杞細
+- [x] 文档上传
+- [x] 原始文件本地存储
+- [x] 文档元数据入库
+- [x] Redis 队列异步处理
+- [x] Markdown 解析
+- [x] TXT 解析
+- [x] text-based PDF 解析
+- [x] chunking 第一版
+  - 标题感知切分
+  - 超长段落切分
+  - 更稳定的 chunk 长度控制
+- [x] chunk 落库
+- [x] indexing 接入
+- [x] embedding 生成
+- [x] 本地 file-backed vector store 写入
+- [x] 文档状态流转：
   - `pending`
   - `processing`
   - `ready`
   - `failed`
 - [x] `reindex`
 
-褰撳墠鐩稿叧 API锛?
+当前相关 API：
 
 - [x] `GET /knowledge-bases/:id/documents`
 - [x] `POST /knowledge-bases/:id/documents`
@@ -119,42 +119,42 @@
 - [x] `DELETE /documents/:id`
 - [x] `POST /documents/:id/reindex`
 
-### 2.5 Retrieval 绗竴鐗?
+### 2.5 Retrieval 第一版
 
-- [x] 榛樿浼樺厛鍚戦噺鍙洖
+- [x] 默认优先向量召回
 - [x] lexical fallback
-- [x] chunk window 鎵╁睍绗竴鐗?
-- [x] hybrid retrieval 绗竴鐗?
-- [x] rerank 绗竴鐗?
-- [x] query rewrite 绗竴鐗?
-- [x] RetrievalProfile metadata filter 绗竴鐗?
+- [x] chunk window 扩展第一版
+- [x] hybrid retrieval 第一版
+- [x] rerank 第一版
+- [x] query rewrite 第一版
+- [x] RetrievalProfile metadata filter 第一版
   - `documentIds`
   - `sectionTitles`
   - `pageNumbers`
-- [x] retrieval score breakdown 鎸佷箙鍖栫涓€鐗?
+- [x] retrieval score breakdown 持久化第一版
   - `score`
   - `vectorScore`
   - `lexicalScore`
   - `hybridScore`
   - `rerankScore`
 
-### 2.6 Ask / Answering / Trace 绗竴鐗?
+### 2.6 Ask / Answering / Trace 第一版
 
-- [x] `assistant -> retrieval profile -> retrieval -> answering` 涓婚摼璺墦閫?
-- [x] conversation 鎸佷箙鍖?
-- [x] message 鎸佷箙鍖?
-- [x] trace 鎸佷箙鍖?
-- [x] citation-aware prompt 绗竴鐗?
-- [x] citations 杩斿洖
-- [x] retrievedChunks 杩斿洖
-- [x] `AnswerTrace.rewrittenQuery` 鎸佷箙鍖?
-- [x] ask 澶辫触璇婃柇澧炲己绗竴鐗?
+- [x] `assistant -> retrieval profile -> retrieval -> answering` 主链路打通
+- [x] conversation 持久化
+- [x] message 持久化
+- [x] trace 持久化
+- [x] citation-aware prompt 第一版
+- [x] citations 返回
+- [x] retrievedChunks 返回
+- [x] `AnswerTrace.rewrittenQuery` 持久化
+- [x] ask 失败诊断增强第一版
   - `ASK_PIPELINE_FAILED`
   - `traceId`
   - `details`
-- [x] 鍏ㄥ眬 HTTP exception filter 淇濈暀缁撴瀯鍖栭敊璇瓧娈?
+- [x] 全局 HTTP exception filter 保留结构化错误字段
 
-褰撳墠鐩稿叧 API锛?
+当前相关 API：
 
 - [x] `GET /assistants`
 - [x] `GET /assistants/:id`
@@ -170,43 +170,43 @@
 - [x] `GET /conversations/:id/traces`
 - [x] `GET /traces/:id`
 
-### 2.7 LLM / Embedding 绗竴鐗?
+### 2.7 LLM / Embedding 第一版
 
-- [x] Ollama 鐢熸垚鎺ュ叆
-- [x] OpenAI 鐢熸垚鎺ュ叆
-- [x] 鏈湴 fallback answer
-- [x] Ollama embedding 鎺ュ叆
-- [x] OpenAI embedding 鎺ュ叆
+- [x] Ollama 生成接入
+- [x] OpenAI 生成接入
+- [x] 本地 fallback answer
+- [x] Ollama embedding 接入
+- [x] OpenAI embedding 接入
 - [x] deterministic fallback embedding
 
-### 2.8 Web MVP 绗竴鐗?
+### 2.8 Web MVP 第一版
 
-- [x] `Chat` 椤甸潰鎺ョ湡瀹?API
-- [x] `Documents` 椤甸潰鎺ョ湡瀹?API
-- [x] `Knowledge Base` 椤甸潰鎺ョ湡瀹?API
-- [x] `Assistant` 椤甸潰鎺ョ湡瀹?API
-- [x] Web i18n 绗竴鐗堬細`zh` / `en`
-- [x] App shell 璇█鍒囨崲鍣?
-- [x] 鏂囨。璇︽儏椤?
-- [x] trace 璇︽儏椤?
-- [x] citation -> 鏂囨。 chunk 娣遍摼璺宠浆
-- [x] 鏂囨。璇︽儏 trace 涓婁笅鏂囬珮浜?
-- [x] Documents / Chat 鏇存竻鏅扮殑 loading / empty / error 鐘舵€佺涓€鐗?
-- [x] Knowledge Base 椤甸潰杩愯惀姒傝澧炲己绗竴鐗?
-- [x] Assistant 椤甸潰宸叉毚闇?retrieval 鍩虹閰嶇疆瀛楁锛?
+- [x] `Chat` 页面接真实 API
+- [x] `Documents` 页面接真实 API
+- [x] `Knowledge Base` 页面接真实 API
+- [x] `Assistant` 页面接真实 API
+- [x] Web i18n 第一版：`zh` / `en`
+- [x] App shell 语言切换器
+- [x] 文档详情页
+- [x] trace 详情页
+- [x] citation -> 文档 chunk 深链跳转
+- [x] 文档详情 trace 上下文高亮
+- [x] Documents / Chat 更清晰的 loading / empty / error 状态第一版
+- [x] Knowledge Base 页面运营概览增强第一版
+- [x] Assistant 页面已暴露 retrieval 基础配置字段：
   - `topK`
   - `chunkWindow`
   - `enableHybrid`
   - `enableRerank`
   - `scoreThreshold`
 
-### 2.9 娴嬭瘯涓庨獙璇佺涓€鐗?
+### 2.9 测试与验证第一版
 
 - [x] `pnpm typecheck`
 - [x] `pnpm build`
 - [x] `pnpm test:api`
-- [x] 鏈€灏?API 娴嬭瘯搴曞骇宸插缓绔?
-- [x] 褰撳墠宸茶鐩栵細
+- [x] 最小 API 测试底座已建立
+- [x] 当前已覆盖：
   - PDF parsing
   - DOCX parsing
   - chunking
@@ -220,81 +220,88 @@
   - retrieval profile filters
   - upload -> ready -> ask -> trace HTTP integration
   - document chunks / conversation messages / conversation traces integration assertions
-- [x] API integration tests 宸叉敮鎸?`QUEUE_PREFIX` 闅旂锛岄伩鍏?Redis worker 涓叉壈
-- [x] API 娴嬭瘯鍛戒护宸蹭覆琛屾墽琛岋紝閬垮厤鍏变韩鏁版嵁搴撶姸鎬佺殑 HTTP 闆嗘垚娴嬭瘯骞跺彂浜掔浉骞叉壈
+- [x] API integration tests 已支持 `QUEUE_PREFIX` 隔离，避免 Redis worker 串扰
+- [x] API 测试命令已串行执行，避免共享数据库状态的 HTTP 集成测试并发互相干扰
 - [x] web page source ingestion E2E
 - [x] feed source ingestion E2E
 
 ---
 
-## 3. 澧炲己鐗堟湭瀹屾垚
+## 3. 增强版未完成
 
-鏈妭琛ㄧず鈥滅涓€鐗堝凡缁忔湁锛屼絾鍚庣画澧炲己鐗堣繕娌″仛瀹屸€濄€?
+本节表示“第一版已经有，但后续增强版还没做完”。
 
-### 3.1 Retrieval 澧炲己鐗堟湭瀹屾垚
+### 3.1 Retrieval 增强版未完成
 
-- [x] metadata filter 鏇村畬鏁寸殑绛栫暐鍖栬兘鍔?
-  - 宸叉敮鎸佸悜鍚庡吋瀹圭殑绛栫暐鍖栬繃婊わ細
+- [x] metadata filter 更完整的策略化能力
+  - 已支持向后兼容的策略化过滤：
     - `documentIds.include` / `documentIds.exclude`
     - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
     - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
-- [x] chunk window 鎵╁睍鍚庣殑鏇村己鎷兼帴 / 缁勭粐绛栫暐
-  - `ask` 鍝嶅簲鐜板凡鏂板 `contextGroups`
-  - 杩炵画涓斿悓鏂囨。鐨?window chunks 浼氭寜 `chunkIndex` 缁勭粐涓?context group
-  - group 褰撳墠杩斿洖锛?
+- [x] chunk window 扩展后的更强拼接 / 组织策略
+  - `ask` 响应现已新增 `contextGroups`
+  - 连续且同文档的 window chunks 会按 `chunkIndex` 组织为 context group
+  - group 当前返回：
     - `startChunkIndex` / `endChunkIndex`
     - `chunkIds` / `primaryChunkIds`
     - `mergedContent`
     - `pageNumbers` / `sectionTitles`
-- [x] 鏇寸郴缁熺殑 retrieval 绛栫暐閰嶇疆涓庢紨杩涜兘鍔?
-  - `RetrievalProfile.strategyJson` 宸叉敮鎸佺涓€鐗堢郴缁熷寲妫€绱㈢瓥鐣ラ厤缃?
-  - 褰撳墠鏀寔锛?
+- [x] 更系统的 retrieval 策略配置与演进能力
+  - `RetrievalProfile.strategyJson` 已支持第一版系统化检索策略配置
+  - 当前支持：
     - `queryRewrite.enabled`
     - `candidateSelection.mode`: `vector` / `hybrid` / `lexical`
     - `candidateSelection.candidateMultiplier`
     - `candidateSelection.minCandidates`
     - `hybrid.vectorWeight` / `hybrid.lexicalWeight`
     - `rerank.enabled`
-  - 淇濇寔鍏煎鏃㈡湁 `enableHybrid` / `enableRerank` 骞抽摵瀛楁
-  - `ask` 宸叉寜瑙ｆ瀽鍚庣殑 retrieval strategy 鍐冲畾鏄惁 query rewrite
-  - retrieval 宸叉寜绛栫暐鎺у埗鍊欓€夋睜瑙勬ā銆乴exical/vector/hybrid 妯″紡涓?hybrid merge 鏉冮噸
+  - 保持兼容既有 `enableHybrid` / `enableRerank` 平铺字段
+  - `ask` 已按解析后的 retrieval strategy 决定是否 query rewrite
+  - retrieval 已按策略控制候选池规模，以及 lexical / vector / hybrid 模式与 hybrid merge 权重
 
-### 3.2 Answering 澧炲己鐗堟湭瀹屾垚
+### 3.2 Answering 增强版未完成
 
-- [x] 鏇寸郴缁熺殑 prompt 绠＄悊
-  - 宸叉柊澧?backend `PromptManagerService`
-  - answer / rewrite prompt 宸蹭粠 `LlmService` 鍐呰仈瀛楃涓蹭腑鎶界
-  - 褰撳墠宸叉敮鎸佺増鏈寲 prompt 鏍囪瘑锛?
+- [x] 更系统的 prompt 管理
+  - 已新增 backend `PromptManagerService`
+  - answer / rewrite prompt 已从 `LlmService` 内联字符串中抽离
+  - 当前已支持版本化 prompt 标识：
     - `answer.v2`
     - `rewrite-query.v1`
-  - Ollama / OpenAI 鐨?answer 涓?rewrite 璺緞宸茬粺涓€缁忕敱 prompt manager 鏋勯€?prompt
-- [x] 杈撳嚭缁撴瀯绾︽潫
-  - LLM structured answer JSON 宸叉柊澧炴樉寮?schema 鏍￠獙涓庢爣鍑嗗寲
-  - 褰撳墠浼氱害鏉熷苟鏍囧噯鍖栵細
+  - Ollama / OpenAI 的 answer 与 rewrite 路径已统一经由 prompt manager 构造 prompt
+- [x] 输出结构约束
+  - LLM structured answer JSON 已新增显式 schema 校验与标准化
+  - 当前会约束并标准化：
     - `answer`
     - `status`
     - `citations`
     - `missingInformation`
-  - `citations` 宸叉敮鎸?numeric string -> integer 褰掍竴鍖栦笌鍘婚噸
-  - 闈炴硶 structured payload 浠嶄細瀹夊叏鍥為€€鍒?plain-text 瑙ｆ瀽璺緞
-- [x] 寮曠敤鐗囨涓庣瓟妗堢殑涓ユ牸缁撴瀯鍖栧榻?
-- [x] 鍥炵瓟璐ㄩ噺璇勪及
-- [x] 鏇村畬鏁寸殑 assistant / answer policy 閰嶇疆鑳藉姏
+  - `citations` 已支持 numeric string -> integer 归一化与去重
+  - 非法 structured payload 仍会安全回退到 plain-text 解析路径
+- [x] 引用片段与答案的严格结构化对齐
+- [x] 回答质量评估
+- [x] 更完整的 assistant / answer policy 配置能力
+- [x] retrieval / answering execution metadata
+  - ask 响应现已返回：
+    - `retrievalMetadata`
+    - `answeringMetadata`
+  - `AnswerTrace` 现已持久化：
+    - `retrievalMetadataJson`
+    - `answeringMetadataJson`
 
-### 3.3 Web 澧炲己鐗堟湭瀹屾垚
+### 3.3 Web 增强版未完成
 
-- [x] 鏇村畬鏁寸殑 assistant / config 绠＄悊
-  - RetrievalProfile `filtersJson` 鍓嶇缂栬緫鑳藉姏
-  - 鏇村畬鏁寸殑 answering / assistant policy 閰嶇疆
-- [x] 鏇村鑱旇皟绾ц嚜鍔ㄥ寲楠岃瘉
-- 褰撳墠瀹㈡埛绔寖鍥达細`PC Web` 浼樺厛锛岀Щ鍔ㄧ閫傞厤鍚庣疆鍒板姛鑳藉拰楠岃瘉瑕嗙洊鏇寸ǔ瀹氫箣鍚庡啀鎺ㄨ繘
+- [x] 更完整的 assistant / config 管理
+  - RetrievalProfile `filtersJson` 前端编辑能力
+  - 更完整的 answering / assistant policy 配置
+- [x] 更多联调级自动化验证
+- 当前客户端范围：`PC Web` 优先，移动端适配后置到功能和验证覆盖更稳定之后再推进
 
-### 3.4 娴嬭瘯澧炲己鐗堟湭瀹屾垚
+### 3.4 测试增强版未完成
 
-- [x] orchestrator / 妯″潡闆嗘垚娴嬭瘯
-- [x] 鏇村畬鏁寸殑鏂囨。閾捐矫 E2E
-- [x] 鏇村畬鏁寸殑 ask 閾捐矏 E2E
-- [x] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
+- [x] orchestrator / 模块集成测试
+- [x] 更完整的文档链 E2E
+- [x] 更完整的 ask 链路 E2E
+- [x] 前后端联调级自动化验证
 
 ### 3.5 Next Controlled Increment
 
@@ -309,112 +316,110 @@
 
 ---
 
-## 4. 浠嶆湭鏀寔
+## 4. 仍未完整支持
 
-鏈妭琛ㄧず鈥滃綋鍓嶄粨搴撹繕娌℃湁鐪熸鏀寔鈥濄€?
+- [x] DOCX 支持
+- [x] 网页内容抓取 / 网页知识源接入
+- [x] 外部知识源接入第一轮最小增量
 
-- [x] DOCX 鏀寔
-- [x] 缃戦〉鍐呭鎶撳彇 / 缃戦〉鐭ヨ瘑婧愭帴鍏?
-- [x] 澶栭儴鐭ヨ瘑婧愭帴鍏?
+说明：
 
-璇存槑锛?
-
-- 杩欓噷鐨?`[x]` 琛ㄧず鈥滃閮ㄧ煡璇嗘簮鎺ュ叆鐨勭涓€杞渶灏忓彲鐢ㄨ兘鍔涘凡缁忚惤鍦扳€濓紝涓嶄唬琛ㄨ鏂瑰悜宸茬粡鏁翠綋瀹屾垚
-- 褰撳墠宸插畬鎴愮殑鏈€灏忓閲忎富瑕佹槸锛?
+- 这里的 `[x]` 表示“外部知识源接入的第一轮最小可用能力已经落地”，不代表该方向已经整体完成
+- 当前已完成的最小增量主要是：
   - one direct `http` / `https` web page source
   - one direct RSS / Atom feed source
-- 鍚庣画鐨?`external knowledge source expansion` 浠嶇劧鏄綋鍓嶇殑涓嬩竴涓畬鏁翠换鍔℃柟鍚?
+- 后续的 `external knowledge source expansion` 仍然是当前的下一个完整任务方向
 
 ---
 
-## 5. 鏆傛湭寮€濮嬩笖涓嶅睘浜庡綋鍓嶄富浼樺厛绾?
+## 5. 暂未开始且不属于当前主优先级
 
-- [ ] 閴存潈
-- [ ] 鐢ㄦ埛鐧诲綍
-- [ ] 澶氱鎴烽殧绂?
-- [ ] ACL / 鏂囨。鏉冮檺
-- [ ] 浼佷笟绾у璁′笌娌荤悊鑳藉姏
-
----
-
-## 6. 宸茶繃鏈熸棫鐘舵€?
-
-浠ヤ笅璇存硶宸茬粡琚悗缁疄鐜版帹缈伙紝浠呬繚鐣欎綔鍘嗗彶绾犳锛?
-
-- ~~hybrid retrieval 灏氭湭瀹炵幇~~
-- ~~rerank 灏氭湭瀹炵幇~~
-- ~~query rewrite 灏氭湭瀹炵幇~~
-- ~~RetrievalProfile metadata filter 灏氭湭瀹炵幇~~
-- ~~鏂囨。璇︽儏椤靛皻鏈畬鎴悀~
-- ~~trace 璇︽儏椤靛皻鏈畬鎴悀~
-- ~~Knowledge Base 椤甸潰鍙槸鏈€灏忓崰浣嶆憳瑕亊~
-- ~~ask 澶辫触鏃跺彧鏈夊師濮嬪紓甯镐俊鎭瘇~
-
-濡傛灉鏃ф枃妗ｄ腑浠嶅嚭鐜拌繖浜涜〃杩帮紝搴斾互鏈枃浠跺綋鍓嶅唴瀹逛负鍑嗐€?
+- [ ] 鉴权
+- [ ] 用户登录
+- [ ] 多租户隔离
+- [ ] ACL / 文档权限
+- [ ] 企业级审计与治理能力
 
 ---
 
-## 7. 褰撳墠宸茬煡闄愬埗
+## 6. 已过期旧状态
 
-- 褰撳墠鍚戦噺瀛樺偍浠嶆槸鏈湴杞婚噺 file-backed 瀹炵幇
-- ask 缁撴灉璐ㄩ噺浠嶈緝渚濊禆 chunk 鍒囧垎璐ㄩ噺
-- embedding 妯″瀷閫夋嫨鍜岀淮搴︾鐞嗕粛鏈畬鍏ㄩ厤缃寲
-- 鏈厤缃彲鐢?embedding 妯″瀷鏃朵細閫€鍥?fallback embedding锛岃涔夊彫鍥炰笂闄愭湁闄?
-- 褰撳墠鏇撮€傚悎鏈湴寮€鍙戝拰鍗曠敤鎴烽獙璇?
-- 褰撳墠 worker 涓?API 浠嶅湪鍚屼竴杩涚▼妯″瀷涓嬭繍琛岋紝鍚庣画鍙啀鎷嗗垎
-- Web 鏋勫缓鐩墠鏈?bundle size warning锛屼絾涓嶉樆濉炲紑鍙?
+以下说法已经被后续实现推翻，仅保留作历史纠正：
 
----
+- ~~hybrid retrieval 尚未实现~~
+- ~~rerank 尚未实现~~
+- ~~query rewrite 尚未实现~~
+- ~~RetrievalProfile metadata filter 尚未实现~~
+- ~~文档详情页尚未完成~~
+- ~~trace 详情页尚未完成~~
+- ~~Knowledge Base 页面只是最小占位摘要~~
+- ~~ask 失败时只有原始异常信息~~
 
-## 8. 褰撳墠浼樺厛绾?
-
-### 8.1 宸插畬鎴愪紭鍏堢骇椤?
-
-- [x] 鎺ュ叆鐪熷疄 embedding
-- [x] 钀藉湴绗竴鐗?vector store
-- [x] 鎵撻€?indexing -> retrieval 鐨勭湡瀹炲悜閲忛摼璺?
-- [x] RetrievalProfile metadata filter 绗竴鐗?
-
-### 8.2 褰撳墠鎺ㄨ崘涓嬩竴姝?
-
-- [x] 涓婚摼璺祴璇曡ˉ寮?
-- [x] DOCX 鏀寔
-- [x] Answering 缁撴瀯鍖栦笌 assistant 閰嶇疆澧炲己
-
-### 8.3 鍚庣画鍐嶅線鍚?
-
-- [x] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
-- [x] 鏇村畬鏁寸殑鏂囨。閾捐矫 E2E
-- [x] 鏇村畬鏁寸殑 ask 閾捐矏 E2E
-- [x] retrieval / answering 鏇寸郴缁熷寲婕旇繘
-- [ ] 澶栭儴鐭ヨ瘑婧愭墿灞?
-- [ ] 鏇寸粏鐨勭Щ鍔ㄧ閫傞厤
-- [ ] auth / 澶氱鎴?/ ACL
-- [ ] 浼佷笟鑳藉姏
+如果旧文档中仍出现这些表述，应以本文档当前内容为准。
 
 ---
 
-## 9. 鏈€杩戝畬鎴愮殑鍏抽敭澧為噺
+## 7. 当前已知限制
+
+- 当前向量存储仍是本地轻量 file-backed 实现
+- ask 结果质量仍较依赖 chunk 切分质量
+- embedding 模型选择和维度管理仍未完全配置化
+- 未配置可用 embedding 模型时会退回 fallback embedding，语义召回上限有限
+- 当前更适合本地开发和单用户验证
+- 当前 worker 与 API 仍在同一进程模型下运行，后续可再拆分
+- Web 构建目前有 bundle size warning，但不阻塞开发
+
+---
+
+## 8. 当前优先级
+
+### 8.1 已完成优先级项
+
+- [x] 接入真实 embedding
+- [x] 落地第一版 vector store
+- [x] 打通 indexing -> retrieval 的真实向量链路
+- [x] RetrievalProfile metadata filter 第一版
+
+### 8.2 当前推荐下一步
+
+- [x] 主链路测试补强
+- [x] DOCX 支持
+- [x] Answering 结构化与 assistant 配置增强
+
+### 8.3 后续再往后
+
+- [x] 前后端联调级自动化验证
+- [x] 更完整的文档链 E2E
+- [x] 更完整的 ask 链路 E2E
+- [x] retrieval / answering 更系统化演进
+- [ ] 外部知识源扩展
+- [ ] 更细的移动端适配
+- [ ] auth / 多租户 / ACL
+- [ ] 企业能力
+
+---
+
+## 9. 最近完成的关键增量
 
 ### 2026-03-21
 
-- [x] 涓婚摼璺祴璇曡ˉ寮?
-- [x] DOCX 鏀寔
-- [x] Answering 缁撴瀯鍖栦笌 assistant 閰嶇疆澧炲己
-- [x] metadata filter 鏇村畬鏁寸殑绛栫暐鍖栬兘鍔?
-- [x] chunk window 鎵╁睍鍚庣殑鏇村己鎷兼帴 / 缁勭粐绛栫暐
-- [x] retrieval 绛栫暐閰嶇疆涓庢紨杩涜兘鍔?
-- [x] 鏇寸郴缁熺殑 prompt 绠＄悊
-- [x] 杈撳嚭缁撴瀯绾︽潫
-- [x] trace/detail/document 璺宠浆涓庤瘖鏂寮?
-- [x] web i18n锛坄zh` / `en`锛?
-- [x] Knowledge Base 椤甸潰杩愯惀姒傝澧炲己
-- [x] ask 澶辫触璇婃柇澧炲己
+- [x] 主链路测试补强
+- [x] DOCX 支持
+- [x] Answering 结构化与 assistant 配置增强
+- [x] metadata filter 更完整的策略化能力
+- [x] chunk window 扩展后的更强拼接 / 组织策略
+- [x] retrieval 策略配置与演进能力
+- [x] 更系统的 prompt 管理
+- [x] 输出结构约束
+- [x] trace / detail / document 跳转与诊断增强
+- [x] web i18n（`zh` / `en`）
+- [x] Knowledge Base 页面运营概览增强
+- [x] ask 失败诊断增强
 - [x] RetrievalProfile metadata filter
-- [x] 寮曠敤鐗囨涓庣瓟妗堢殑涓ユ牸缁撴瀯鍖栧榻?
-- [x] 鍥炵瓟璐ㄩ噺璇勪及
-- [x] 鏇村畬鏁寸殑 assistant / answer policy 閰嶇疆鑳藉姏
-- [x] 鏇村畬鏁寸殑 assistant / config 绠＄悊
+- [x] 引用片段与答案的严格结构化对齐
+- [x] 回答质量评估
+- [x] 更完整的 assistant / answer policy 配置能力
+- [x] 更完整的 assistant / config 管理
 - [x] API integration test queue isolation
 - [x] PC Web Knowledge Base -> Assistant browser smoke automation
 - [x] Document chain API E2E
@@ -423,124 +428,67 @@
 - [x] External feed source ingestion API E2E
 - [x] retrieval / answering execution metadata
 
-鍏抽敭鏂囦欢锛?
+关键文件：
 
-- [apps/api/src/modules/assistants/ask-assistant.error.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/ask-assistant.error.ts)
 - [apps/api/src/modules/assistants/ask-assistant.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/ask-assistant.service.ts)
-- [apps/api/src/modules/assistants/assistant.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/assistant.schemas.ts)
 - [apps/api/src/modules/answering/answering.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/answering/answering.service.ts)
-- [apps/api/src/infra/llm/llm.types.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/llm.types.ts)
-- [apps/api/src/infra/llm/prompt-manager.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/prompt-manager.service.ts)
-- [apps/api/src/common/http-exception.filter.ts](/D:/FeProjects/rag-system/apps/api/src/common/http-exception.filter.ts)
 - [apps/api/src/modules/retrieval/retrieval.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval/retrieval.service.ts)
+- [apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts)
 - [apps/api/src/modules/traces/traces.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/traces/traces.service.ts)
+- [apps/api/src/infra/llm/prompt-manager.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/prompt-manager.service.ts)
+- [apps/api/src/infra/llm/llm.types.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/llm.types.ts)
 - [apps/api/prisma/schema.prisma](/D:/FeProjects/rag-system/apps/api/prisma/schema.prisma)
 - [apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql](/D:/FeProjects/rag-system/apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql)
-- [apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts)
-- [apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts)
-- [apps/api/src/infra/vector-store/vector-store.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/vector-store/vector-store.service.ts)
-- [apps/web/src/pages/assistant/AssistantPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/AssistantPage.tsx)
-- [apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx)
-- [apps/web/src/pages/assistant/assistant-config-form.ts](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/assistant-config-form.ts)
-- [apps/web/src/features/api/hooks.ts](/D:/FeProjects/rag-system/apps/web/src/features/api/hooks.ts)
-- [apps/web/src/types/api.ts](/D:/FeProjects/rag-system/apps/web/src/types/api.ts)
-- [apps/web/src/i18n/messages.ts](/D:/FeProjects/rag-system/apps/web/src/i18n/messages.ts)
-- [apps/web/test/assistant-config.test.js](/D:/FeProjects/rag-system/apps/web/test/assistant-config.test.js)
-- [apps/web/test/pc-web-smoke.test.js](/D:/FeProjects/rag-system/apps/web/test/pc-web-smoke.test.js)
 - [apps/api/test/document-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/document-chain-e2e.test.js)
 - [apps/api/test/ask-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-chain-e2e.test.js)
 - [apps/api/test/web-page-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/web-page-source-e2e.test.js)
 - [apps/api/test/feed-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/feed-source-e2e.test.js)
-- [apps/api/src/infra/feed-source/feed-source.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/feed-source/feed-source.service.ts)
-- [apps/api/src/infra/web-page/web-page.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/web-page/web-page.service.ts)
-- [apps/api/src/modules/documents/documents.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/documents/documents.service.ts)
-- [apps/api/src/modules/documents/documents.controller.ts](/D:/FeProjects/rag-system/apps/api/src/modules/documents/documents.controller.ts)
-- [docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md)
-- [docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md)
+- [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
+- [apps/api/test/answering.test.js](/D:/FeProjects/rag-system/apps/api/test/answering.test.js)
+- [apps/web/src/pages/assistant/AssistantPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/AssistantPage.tsx)
+- [apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx)
 - [docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md)
 - [docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md)
-- [docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-pc-web-integration-smoke-design.md)
-- [docs/superpowers/specs/2026-03-21-document-chain-e2e-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-document-chain-e2e-design.md)
-- [docs/superpowers/specs/2026-03-21-ask-chain-e2e-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-ask-chain-e2e-design.md)
-- [docs/superpowers/plans/2026-03-21-document-chain-e2e-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-document-chain-e2e-plan.md)
-- [docs/superpowers/plans/2026-03-21-ask-chain-e2e-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-ask-chain-e2e-plan.md)
-- [docs/superpowers/plans/2026-03-21-pc-web-integration-smoke-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-pc-web-integration-smoke-plan.md)
-- [apps/api/test/ingestion.orchestrator.test.js](/D:/FeProjects/rag-system/apps/api/test/ingestion.orchestrator.test.js)
-- [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
-- [apps/api/test/assistants-api.test.js](/D:/FeProjects/rag-system/apps/api/test/assistants-api.test.js)
-- [apps/api/test/ask-failures.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-failures.test.js)
-- [apps/api/test/api-flow.test.js](/D:/FeProjects/rag-system/apps/api/test/api-flow.test.js)
-- [apps/api/test/http-exception-filter.test.js](/D:/FeProjects/rag-system/apps/api/test/http-exception-filter.test.js)
-- [apps/api/test/retrieval-profile-filters.test.js](/D:/FeProjects/rag-system/apps/api/test/retrieval-profile-filters.test.js)
-- [docs/superpowers/plans/2026-03-21-ask-failure-diagnostics-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-ask-failure-diagnostics-plan.md)
-- [docs/superpowers/plans/2026-03-21-main-chain-test-hardening-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-main-chain-test-hardening-plan.md)
-- [docs/superpowers/specs/2026-03-21-docx-support-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-docx-support-design.md)
-- [docs/superpowers/plans/2026-03-21-docx-support-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-docx-support-plan.md)
-- [docs/superpowers/specs/2026-03-21-retrieval-profile-metadata-filter-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-profile-metadata-filter-design.md)
-- [docs/superpowers/plans/2026-03-21-retrieval-profile-metadata-filter-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-profile-metadata-filter-plan.md)
-- [docs/superpowers/specs/2026-03-21-retrieval-strategy-configuration-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-strategy-configuration-design.md)
-- [docs/superpowers/plans/2026-03-21-retrieval-strategy-configuration-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-strategy-configuration-plan.md)
-- [docs/superpowers/specs/2026-03-21-prompt-management-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-prompt-management-design.md)
-- [docs/superpowers/plans/2026-03-21-prompt-management-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-prompt-management-plan.md)
-- [docs/superpowers/specs/2026-03-21-structured-output-constraints-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-structured-output-constraints-design.md)
-- [docs/superpowers/plans/2026-03-21-structured-output-constraints-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-structured-output-constraints-plan.md)
-- [docs/superpowers/specs/2026-03-21-answering-structured-assistant-config-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-answering-structured-assistant-config-design.md)
-- [docs/superpowers/plans/2026-03-21-answering-structured-assistant-config-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answering-structured-assistant-config-plan.md)
-- [docs/superpowers/specs/2026-03-21-answer-citation-alignment-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-answer-citation-alignment-design.md)
-- [docs/superpowers/plans/2026-03-21-answer-citation-alignment-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answer-citation-alignment-plan.md)
-- [docs/superpowers/specs/2026-03-21-answer-quality-evaluation-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-answer-quality-evaluation-design.md)
-- [docs/superpowers/plans/2026-03-21-answer-quality-evaluation-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-answer-quality-evaluation-plan.md)
-- [docs/superpowers/specs/2026-03-21-assistant-answer-policy-expansion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-assistant-answer-policy-expansion-design.md)
-- [docs/superpowers/plans/2026-03-21-assistant-answer-policy-expansion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-assistant-answer-policy-expansion-plan.md)
-- [docs/superpowers/specs/2026-03-21-assistant-config-management-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-assistant-config-management-design.md)
-- [docs/superpowers/plans/2026-03-21-assistant-config-management-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-assistant-config-management-plan.md)
+- [docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md)
+- [docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
 - [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
 
 ---
 
-## 10. 鏈€杩戜竴娆″凡璁板綍鐨勯獙璇佸揩鐓?
+## 10. 最近一次已记录的验证快照
 
-鏈€杩戜竴娆″凡璁板綍閫氳繃鐨勫懡浠わ細
+最近一次已记录通过的命令：
 
 ### API
 
 - `pnpm --filter @rag-system/api build`
 - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/answering.test.js`
 - `node --test --test-concurrency=1 apps/api/test/api-flow.test.js`
-- `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/assistants-api.test.js`
 - `node --test --test-concurrency=1 apps/api/test/retrieval-profile-filters.test.js`
 - `node --test --test-concurrency=1 apps/api/test/retrieval-profile-strategy.test.js`
 - `node --test apps/api/test/prompt-manager.test.js apps/api/test/llm.test.js`
-- `node --test apps/api/test/llm.test.js`
-- `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/assistants-api.test.js`
-- `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/assistants-api.test.js apps/api/test/prompt-manager.test.js`
-- `node --test --test-concurrency=1 apps/api/test/api-flow.test.js`
-- `node --test --test-concurrency=1 apps/api/test/ingestion.orchestrator.test.js apps/api/test/ask-success.test.js apps/api/test/ask-failures.test.js apps/api/test/api-flow.test.js`
 - `node --test apps/api/test/ask-failures.test.js apps/api/test/http-exception-filter.test.js`
-- `node --test apps/api/test/retrieval.test.js apps/api/test/retrieval-profile-filters.test.js`
-- `pnpm test:api`
-- `node --test --test-concurrency=1 apps/api/test/retrieval-profile-filters.test.js`
 - `node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+- `pnpm test:api`
 
 ### Web
 
 - `pnpm --filter @rag-system/web typecheck`
 - `pnpm --filter @rag-system/web build`
-- `node --test apps/web/test/*.test.js`
 - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
 - `node --test apps/web/test/pc-web-smoke.test.js`
 
-璇存槑锛?
+说明：
 
-- 杩欓噷璁板綍鐨勬槸鏈€杩戜竴娆″凡钀界洏楠岃瘉蹇収
-- 涓嶄唬琛ㄦ瘡娆＄紪杈戞湰鏂囦欢鏃堕兘閲嶆柊鎵ц浜嗚繖浜涘懡浠?
+- 这里记录的是最近一次已落盘验证快照
+- 不代表每次编辑本文档时都重新执行了这些命令
 
 ---
 
-## 11. 鍏抽敭鏂囨。鍏ュ彛
+## 11. 关键文档入口
 
 - [README.md](/D:/FeProjects/rag-system/README.md)
 - [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
@@ -548,4 +496,3 @@
 - [docs/phase-1-rag-blueprint.md](/D:/FeProjects/rag-system/docs/phase-1-rag-blueprint.md)
 - [docs/retrieval-trace.md](/D:/FeProjects/rag-system/docs/retrieval-trace.md)
 - [docs/web-i18n.md](/D:/FeProjects/rag-system/docs/web-i18n.md)
-
