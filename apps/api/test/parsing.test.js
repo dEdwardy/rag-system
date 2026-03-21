@@ -5,6 +5,7 @@ const { resolve } = require("node:path");
 const { Document, Packer, Paragraph, TextRun } = require("docx");
 const { ParsingService } = require("../dist/infra/parsing/parsing.service.js");
 const { FeedSourceService } = require("../dist/infra/feed-source/feed-source.service.js");
+const { SitemapSourceService } = require("../dist/infra/sitemap-source/sitemap-source.service.js");
 const { WebPageService } = require("../dist/infra/web-page/web-page.service.js");
 
 test("ParsingService parses text-based PDFs", async () => {
@@ -112,4 +113,26 @@ test("FeedSourceService extracts normalized title and entry text from RSS", asyn
   assert.match(extracted.content, /Marker alpha summary\./);
   assert.match(extracted.content, /https:\/\/example\.com\/releases\/a/);
   assert.doesNotMatch(extracted.content, /Release B/);
+});
+
+test("SitemapSourceService extracts ordered unique page URLs from sitemap XML", () => {
+  const service = new SitemapSourceService(new WebPageService());
+  const extracted = service.extractPageUrls(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url><loc>https://example.com/guide/start</loc></url>
+      <url><loc>https://example.com/guide/start</loc></url>
+      <url><loc>https://example.com/guide/advanced</loc></url>
+      <url><loc>mailto:test@example.com</loc></url>
+    </urlset>`,
+    {
+      url: "https://example.com/sitemap.xml",
+      maxPages: 2
+    }
+  );
+
+  assert.deepEqual(extracted, [
+    "https://example.com/guide/start",
+    "https://example.com/guide/advanced"
+  ]);
 });

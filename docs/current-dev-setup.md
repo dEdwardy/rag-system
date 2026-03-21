@@ -196,6 +196,13 @@ pnpm --filter @rag-system/api build
 node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js
 ```
 
+Focused sitemap source E2E validation:
+
+```bash
+pnpm --filter @rag-system/api build
+node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash
@@ -213,6 +220,8 @@ Notes:
 - the current first version fetches static HTML server-side, extracts normalized text, stores it as a generated local text artifact, and then reuses the existing ingestion/indexing path
 - backend now also supports `POST /knowledge-bases/:id/documents/feed` for one direct RSS or Atom feed URL
 - the current feed version fetches XML server-side, extracts feed metadata plus bounded entry summaries into one generated local text artifact, and then reuses the existing ingestion/indexing path
+- backend now also supports `POST /knowledge-bases/:id/documents/sitemap` for one direct sitemap XML URL
+- the current sitemap version fetches one direct `urlset` sitemap server-side, expands a bounded set of page URLs, aggregates extracted page text into one generated local text artifact, and then reuses the existing ingestion/indexing path
 
 ## Current working flow
 

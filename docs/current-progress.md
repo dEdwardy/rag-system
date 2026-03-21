@@ -224,6 +224,7 @@
 - ✅ API 测试命令已串行执行，避免共享数据库状态的 HTTP 集成测试并发互相干扰
 - ✅ web page source ingestion E2E
 - ✅ feed source ingestion E2E
+- ✅ sitemap source ingestion E2E
 
 ---
 
@@ -309,7 +310,8 @@
 - [ ] external knowledge source expansion
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
-  - the broader external knowledge source direction is not complete yet; continue backend-first expansion from the current two source types
+  - sitemap source ingestion minimum increment: done
+  - the broader external knowledge source direction is not complete yet; continue backend-first expansion from the current three source types
 - keep backend / API first
 - keep `PC Web` as the current client priority
 - do not expand mobile work yet
@@ -328,6 +330,7 @@
 - 当前已完成的最小增量主要是：
   - one direct `http` / `https` web page source
   - one direct RSS / Atom feed source
+  - one direct sitemap `urlset` source
 - 后续的 `external knowledge source expansion` 仍然是当前的下一个完整任务方向
 
 ---
@@ -426,6 +429,7 @@
 - ✅ Ask chain API E2E
 - ✅ Web page source ingestion API E2E
 - ✅ External feed source ingestion API E2E
+- ✅ Sitemap source ingestion API E2E
 - ✅ retrieval / answering execution metadata
 
 关键文件：
@@ -443,6 +447,7 @@
 - [apps/api/test/ask-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-chain-e2e.test.js)
 - [apps/api/test/web-page-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/web-page-source-e2e.test.js)
 - [apps/api/test/feed-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/feed-source-e2e.test.js)
+- [apps/api/test/sitemap-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/sitemap-source-e2e.test.js)
 - [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
 - [apps/api/test/answering.test.js](/D:/FeProjects/rag-system/apps/api/test/answering.test.js)
 - [apps/web/src/pages/assistant/AssistantPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/AssistantPage.tsx)
@@ -451,6 +456,8 @@
 - [docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md)
 - [docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md)
+- [docs/superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md)
+- [docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md)
 - [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
 - [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
 
@@ -472,6 +479,7 @@
 - `node --test --test-concurrency=1 apps/api/test/ask-chain-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+- `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
 - `pnpm test:api`
 
 ### Web

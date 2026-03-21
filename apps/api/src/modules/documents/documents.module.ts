@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "../../infra/database/database.module";
 import { FeedSourceModule } from "../../infra/feed-source/feed-source.module";
+import { SitemapSourceModule } from "../../infra/sitemap-source/sitemap-source.module";
 import { StorageModule } from "../../infra/storage/storage.module";
 import { WebPageModule } from "../../infra/web-page/web-page.module";
 import { IngestionModule } from "../ingestion/ingestion.module";
@@ -17,7 +18,8 @@ import { DocumentsService } from "./documents.service";
     IngestionModule,
     IndexingModule,
     WebPageModule,
-    FeedSourceModule
+    FeedSourceModule,
+    SitemapSourceModule
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService],

@@ -36,3 +36,17 @@ export const createFeedDocumentSchema = z.object({
 });
 
 export type CreateFeedDocumentInput = z.infer<typeof createFeedDocumentSchema>;
+
+export const createSitemapDocumentSchema = z.object({
+  url: z
+    .string()
+    .url()
+    .refine(value => {
+      const parsed = new URL(value);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    }, "URL must use http or https."),
+  title: z.string().min(1).max(255).optional(),
+  maxPages: z.number().int().min(1).max(50).optional().default(20)
+});
+
+export type CreateSitemapDocumentInput = z.infer<typeof createSitemapDocumentSchema>;

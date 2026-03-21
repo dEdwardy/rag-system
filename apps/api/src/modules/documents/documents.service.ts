@@ -2,12 +2,18 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DocumentProcessingStage, DocumentStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { FeedSourceService } from "../../infra/feed-source/feed-source.service";
+import { SitemapSourceService } from "../../infra/sitemap-source/sitemap-source.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { WebPageService } from "../../infra/web-page/web-page.service";
 import { IngestionService } from "../ingestion/ingestion.service";
 import { IndexingService } from "../indexing/indexing.service";
 import { KnowledgeBasesService } from "../knowledge-bases/knowledge-bases.service";
-import { CreateDocumentInput, CreateFeedDocumentInput, CreateWebPageDocumentInput } from "./document.schemas";
+import {
+  CreateDocumentInput,
+  CreateFeedDocumentInput,
+  CreateSitemapDocumentInput,
+  CreateWebPageDocumentInput
+} from "./document.schemas";
 
 @Injectable()
 export class DocumentsService {
@@ -16,6 +22,7 @@ export class DocumentsService {
     private readonly knowledgeBasesService: KnowledgeBasesService,
     private readonly storageService: StorageService,
     private readonly feedSourceService: FeedSourceService,
+    private readonly sitemapSourceService: SitemapSourceService,
     private readonly webPageService: WebPageService,
     private readonly ingestionService: IngestionService,
     private readonly indexingService: IndexingService
@@ -134,6 +141,28 @@ export class DocumentsService {
       sourceType: "feed",
       sourceName: input.url,
       title: input.title ?? fetchedFeed.title ?? this.buildRemoteSourceFallbackTitle(input.url),
+      mimeType: "text/plain",
+      storageKey: storedFile.storageKey
+    });
+
+    await this.ingestionService.enqueueDocument(document.id);
+
+    return document;
+  }
+
+  async createSitemapDocument(knowledgeBaseId: string, input: CreateSitemapDocumentInput) {
+    const fetchedSitemap = await this.sitemapSourceService.fetchSitemap({
+      url: input.url,
+      maxPages: input.maxPages
+    });
+    const storedFile = await this.storageService.saveGeneratedTextFile({
+      content: fetchedSitemap.content
+    });
+
+    const document = await this.createDocument(knowledgeBaseId, {
+      sourceType: "sitemap",
+      sourceName: input.url,
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(input.url),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
     });
