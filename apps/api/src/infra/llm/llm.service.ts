@@ -6,6 +6,7 @@ import {
   RewriteQueryOutput
 } from "./llm.types";
 import { PromptManagerService } from "./prompt-manager.service";
+import { structuredAnswerSchema } from "./structured-answer.schema";
 
 @Injectable()
 export class LlmService {
@@ -369,35 +370,13 @@ export class LlmService {
 
     for (const candidate of candidates) {
       try {
-        const payload = JSON.parse(candidate) as {
-          answer?: unknown;
-          status?: unknown;
-          citations?: unknown;
-          missingInformation?: unknown;
-        };
-
-        if (typeof payload.answer !== "string") {
-          continue;
-        }
-
-        const answerStatus =
-          payload.status === "grounded" || payload.status === "insufficient_context"
-            ? payload.status
-            : undefined;
-        const citedChunkNumbers = Array.isArray(payload.citations)
-          ? payload.citations
-              .map(value => (typeof value === "number" ? value : Number.parseInt(String(value), 10)))
-              .filter(value => Number.isInteger(value) && value > 0)
-          : [];
-        const missingInformation = Array.isArray(payload.missingInformation)
-          ? payload.missingInformation.filter((value): value is string => typeof value === "string")
-          : [];
+        const payload = structuredAnswerSchema.parse(JSON.parse(candidate));
 
         return {
-          answer: payload.answer.trim(),
-          answerStatus,
-          missingInformation,
-          citedChunkNumbers
+          answer: payload.answer,
+          answerStatus: payload.status,
+          missingInformation: payload.missingInformation,
+          citedChunkNumbers: payload.citations
         };
       } catch {}
     }

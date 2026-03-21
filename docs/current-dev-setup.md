@@ -208,6 +208,8 @@ The following path has been validated locally on `2026-03-21`:
 - Minimal ask flow with conversation/message/trace persistence
 - Citation-aware answer prompting with inline source markers
 - Structured answer metadata with `answerStatus` / `missingInformation`
+- Structured answer JSON is now schema-validated and normalized before backend consumption
+  - constrained fields: `answer`, `status`, `citations`, `missingInformation`
 - Assistant-level `answerPolicyJson` validation and ask-time policy application
 - Ollama-backed local generation when `OLLAMA_BASE_URL` and `OLLAMA_MODEL` are configured
 - OpenAI-backed generation when `OPENAI_API_KEY` is configured
