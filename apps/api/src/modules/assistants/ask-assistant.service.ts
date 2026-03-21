@@ -6,6 +6,7 @@ import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
 import {
+  RetrievalProfileFilters,
   RetrievalStrategy,
   resolveRetrievalStrategy,
   retrievalProfileFiltersSchema
@@ -78,7 +79,9 @@ export class AskAssistantService {
         })
       : {
           rewrittenQuery: null,
-          modelName: null
+          modelName: null,
+          usedFallback: null,
+          promptId: null
         };
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
     const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
@@ -99,6 +102,19 @@ export class AskAssistantService {
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
     const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
+    const retrievalMetadata = this.buildRetrievalMetadata({
+      strategy: retrievalStrategy,
+      filters: retrievalFilters,
+      rewrittenQuery: rewritten.rewrittenQuery,
+      rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
+      rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
+      originalQuestion: input.question,
+      topK: retrievalProfile.topK,
+      scoreThreshold: retrievalProfile.scoreThreshold,
+      chunkWindow: retrievalProfile.chunkWindow,
+      retrievedChunks,
+      contextGroups
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -108,6 +124,7 @@ export class AskAssistantService {
       rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
       retrievedChunkIdsJson: retrievedChunks.map(chunk => chunk.chunkId),
       retrievalScoresJson,
+      retrievalMetadataJson: retrievalMetadata,
       modelName: rewritten.modelName ?? undefined,
       status: TraceStatus.success
     });
@@ -132,6 +149,8 @@ export class AskAssistantService {
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
+        retrievalMetadataJson: retrievalMetadata,
+        answeringMetadataJson: resolvedAnswerResult.answeringMetadata,
         qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - startedAt,
         modelName: resolvedAnswerResult.modelName,
@@ -150,6 +169,8 @@ export class AskAssistantService {
         citations: resolvedAnswerResult.citations,
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
         contextGroups: resolvedAnswerResult.contextGroups,
+        retrievalMetadata,
+        answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
         missingInformation: resolvedAnswerResult.missingInformation,
@@ -163,6 +184,7 @@ export class AskAssistantService {
         rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
         retrievedChunkIdsJson: retrievedChunks.map(chunk => chunk.chunkId),
         retrievalScoresJson,
+        retrievalMetadataJson: retrievalMetadata,
         status: TraceStatus.failed,
         errorMessage: message
       });
@@ -201,5 +223,39 @@ export class AskAssistantService {
     }
 
     return `${normalized.slice(0, 217)}...`;
+  }
+
+  private buildRetrievalMetadata(input: {
+    strategy: ReturnType<typeof resolveRetrievalStrategy>;
+    filters?: RetrievalProfileFilters;
+    rewrittenQuery: string | null;
+    rewritePromptId: string | null;
+    rewriteUsedFallback: boolean | null;
+    originalQuestion: string;
+    topK: number;
+    scoreThreshold: number;
+    chunkWindow: number;
+    retrievedChunks: AskResultChunk[];
+    contextGroups: Array<{ primaryChunkIds: string[] }>;
+  }): Prisma.InputJsonValue {
+    return {
+      strategy: input.strategy,
+      filters: input.filters ?? null,
+      queryRewrite: {
+        enabled: input.strategy.queryRewrite.enabled,
+        applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
+        usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+      },
+      execution: {
+        retrievalQuery: input.rewrittenQuery || input.originalQuestion,
+        topK: input.topK,
+        scoreThreshold: input.scoreThreshold,
+        chunkWindow: input.chunkWindow,
+        retrievedChunkCount: input.retrievedChunks.length,
+        contextGroupCount: input.contextGroups.length,
+        primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length
+      }
+    } as Prisma.InputJsonValue;
   }
 }

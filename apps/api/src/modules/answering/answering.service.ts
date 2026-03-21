@@ -37,6 +37,16 @@ type QualityEvaluation = {
   summary: string;
 };
 
+export type AnsweringMetadata = {
+  promptId: string;
+  answerPolicy: AnswerPolicy;
+  contextMode: "chunks" | "context_groups";
+  inputChunkCount: number;
+  contextGroupCount: number;
+  citationCount: number;
+  answerStatus: "grounded" | "insufficient_context";
+};
+
 const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
   responseStyle: "concise",
   tone: "neutral",
@@ -83,6 +93,15 @@ export class AnsweringService {
       return {
         answer: result.answer,
         modelName: result.modelName,
+        answeringMetadata: {
+          promptId: result.promptId ?? "answer.v2",
+          answerPolicy,
+          contextMode: "chunks",
+          inputChunkCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus
+        },
         answerStatus,
         missingInformation,
         qualityEvaluation,
@@ -124,6 +143,15 @@ export class AnsweringService {
     return {
       answer: result.answer,
       modelName: result.modelName,
+      answeringMetadata: {
+        promptId: result.promptId ?? "answer.v2",
+        answerPolicy,
+        contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
+        inputChunkCount: input.chunks.length,
+        contextGroupCount: input.contextGroups?.length ?? 0,
+        citationCount: citations.length,
+        answerStatus
+      },
       answerStatus,
       missingInformation,
       qualityEvaluation,

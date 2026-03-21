@@ -54,6 +54,49 @@ Meaning:
 - `hybridScore`: merged score after hybrid candidate blending
 - `rerankScore`: score after rerank heuristic
 
+## Execution metadata payloads
+
+The ask pipeline now also persists two additive execution-metadata payloads on `AnswerTrace`:
+
+- `retrievalMetadataJson`
+- `answeringMetadataJson`
+
+### `retrievalMetadataJson`
+
+Current shape includes:
+
+- `strategy`
+- `filters`
+- `queryRewrite`
+  - `enabled`
+  - `applied`
+  - `usedFallback`
+  - `promptId`
+- `execution`
+  - `retrievalQuery`
+  - `topK`
+  - `scoreThreshold`
+  - `chunkWindow`
+  - `retrievedChunkCount`
+  - `contextGroupCount`
+  - `primaryChunkCount`
+
+This is the stable summary of how retrieval actually ran for the trace.
+
+### `answeringMetadataJson`
+
+Current shape includes:
+
+- `promptId`
+- normalized `answerPolicy`
+- `contextMode`
+- `inputChunkCount`
+- `contextGroupCount`
+- `citationCount`
+- `answerStatus`
+
+This is the stable summary of how answer generation actually ran for the trace.
+
 ## Current limitations
 
 - query rewrite is single-shot and does not yet use conversation history
@@ -76,6 +119,7 @@ The current trace detail page now exposes retrieval diagnostics more explicitly:
   - `rerankScore`
 - when a chunk is present in citations, the trace page links directly to the document chunk detail target
 - trace-to-document deep links now preserve basic trace context such as rank, citation flag, primary/neighbor status, and final score
+- trace now also retains stable retrieval/answering execution metadata so future pipeline evolution can be read from the persisted trace rather than reconstructed from mutable config state
 - raw payload is still retained as a secondary panel for debugging
 
 Fallback behavior:

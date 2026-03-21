@@ -298,7 +298,8 @@
 
 ### 3.5 Next Controlled Increment
 
-- [ ] retrieval / answering systematic evolution
+- [x] retrieval / answering systematic evolution
+- [ ] external knowledge source expansion
 - keep backend / API first
 - keep `PC Web` as the current client priority
 - do not expand mobile work yet
@@ -374,8 +375,8 @@
 - [x] 鍓嶅悗绔仈璋冪骇鑷姩鍖栭獙璇?
 - [x] 鏇村畬鏁寸殑鏂囨。閾捐矫 E2E
 - [x] 鏇村畬鏁寸殑 ask 閾捐矏 E2E
-- [ ] retrieval / answering 鏇寸郴缁熷寲婕旇繘
-- [ ] 澶栭儴鐭ヨ瘑婧?
+- [x] retrieval / answering 鏇寸郴缁熷寲婕旇繘
+- [ ] 澶栭儴鐭ヨ瘑婧愭墿灞?
 - [ ] 鏇寸粏鐨勭Щ鍔ㄧ閫傞厤
 - [ ] auth / 澶氱鎴?/ ACL
 - [ ] 浼佷笟鑳藉姏
@@ -409,6 +410,7 @@
 - [x] Ask chain API E2E
 - [x] Web page source ingestion API E2E
 - [x] External feed source ingestion API E2E
+- [x] retrieval / answering execution metadata
 
 鍏抽敭鏂囦欢锛?
 
@@ -416,9 +418,13 @@
 - [apps/api/src/modules/assistants/ask-assistant.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/ask-assistant.service.ts)
 - [apps/api/src/modules/assistants/assistant.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/assistant.schemas.ts)
 - [apps/api/src/modules/answering/answering.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/answering/answering.service.ts)
+- [apps/api/src/infra/llm/llm.types.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/llm.types.ts)
 - [apps/api/src/infra/llm/prompt-manager.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/prompt-manager.service.ts)
 - [apps/api/src/common/http-exception.filter.ts](/D:/FeProjects/rag-system/apps/api/src/common/http-exception.filter.ts)
 - [apps/api/src/modules/retrieval/retrieval.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval/retrieval.service.ts)
+- [apps/api/src/modules/traces/traces.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/traces/traces.service.ts)
+- [apps/api/prisma/schema.prisma](/D:/FeProjects/rag-system/apps/api/prisma/schema.prisma)
+- [apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql](/D:/FeProjects/rag-system/apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql)
 - [apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts)
 - [apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts)
 - [apps/api/src/infra/vector-store/vector-store.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/vector-store/vector-store.service.ts)
@@ -477,6 +483,8 @@
 - [docs/superpowers/plans/2026-03-21-assistant-answer-policy-expansion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-assistant-answer-policy-expansion-plan.md)
 - [docs/superpowers/specs/2026-03-21-assistant-config-management-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-assistant-config-management-design.md)
 - [docs/superpowers/plans/2026-03-21-assistant-config-management-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-assistant-config-management-plan.md)
+- [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
+- [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
 
 ---
 

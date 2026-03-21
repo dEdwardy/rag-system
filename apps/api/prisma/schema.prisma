@@ -217,7 +217,9 @@ model AnswerTrace {
   rewrittenQuery     String?
   retrievedChunkIdsJson Json?
   retrievalScoresJson   Json?
+  retrievalMetadataJson Json?
   citationsJson         Json?
+  answeringMetadataJson Json?
   qualityEvaluationJson Json?
   modelName             String?
   latencyMs             Int?

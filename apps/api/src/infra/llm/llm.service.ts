@@ -104,6 +104,7 @@ export class LlmService {
 
     return {
       modelName: `ollama:${model}`,
+      promptId: prompt.promptId,
       ...this.parseAnswerOutput(answer)
     };
   }
@@ -153,6 +154,7 @@ export class LlmService {
 
     return {
       modelName: model,
+      promptId: prompt.promptId,
       ...this.parseAnswerOutput(answer)
     };
   }
@@ -193,7 +195,8 @@ export class LlmService {
     return {
       rewrittenQuery,
       modelName: `ollama:${model}`,
-      usedFallback: false
+      usedFallback: false,
+      promptId: prompt.promptId
     };
   }
 
@@ -240,7 +243,8 @@ export class LlmService {
     return {
       rewrittenQuery,
       modelName: model,
-      usedFallback: false
+      usedFallback: false,
+      promptId: prompt.promptId
     };
   }
 
@@ -249,6 +253,7 @@ export class LlmService {
       return {
         answer: "I couldn't find relevant information in the knowledge base.",
         modelName: "fallback-local",
+        promptId: this.promptManager.getAnswerPromptId(),
         answerStatus: "insufficient_context",
         missingInformation: ["No relevant supporting sources were retrieved."]
       };
@@ -260,6 +265,7 @@ export class LlmService {
     return {
       answer,
       modelName: "fallback-local",
+      promptId: this.promptManager.getAnswerPromptId(),
       answerStatus: "grounded",
       missingInformation: [],
       citedChunkNumbers: [1]
@@ -332,7 +338,8 @@ export class LlmService {
     return {
       rewrittenQuery,
       modelName: "fallback-rewrite-local",
-      usedFallback: true
+      usedFallback: true,
+      promptId: this.promptManager.getRewritePromptId()
     };
   }
 
@@ -340,7 +347,7 @@ export class LlmService {
     return value?.replace(/^["'`\s]+|["'`\s]+$/g, "").replace(/\s+/g, " ").trim() ?? "";
   }
 
-  private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName"> {
+  private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId"> {
     const parsed = this.tryParseStructuredAnswer(rawAnswer);
     if (parsed) {
       return parsed;
@@ -355,7 +362,7 @@ export class LlmService {
     };
   }
 
-  private tryParseStructuredAnswer(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName"> | null {
+  private tryParseStructuredAnswer(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId"> | null {
     const normalized = rawAnswer.trim();
     const candidates = [normalized];
     const fencedMatch = normalized.match(/```(?:json)?\s*([\s\S]*?)```/i);

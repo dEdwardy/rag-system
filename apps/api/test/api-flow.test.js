@@ -99,6 +99,10 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof askResult.qualityEvaluation?.completeness, "string");
     assert.ok(Array.isArray(askResult.qualityEvaluation?.flags));
     assert.equal(typeof askResult.qualityEvaluation?.summary, "string");
+    assert.equal(typeof askResult.retrievalMetadata?.queryRewrite?.enabled, "boolean");
+    assert.equal(typeof askResult.retrievalMetadata?.execution?.retrievedChunkCount, "number");
+    assert.equal(typeof askResult.answeringMetadata?.promptId, "string");
+    assert.equal(typeof askResult.answeringMetadata?.contextMode, "string");
 
     const conversationMessagesResponse = await fetch(
       `http://localhost:${port}/conversations/${askResult.conversationId}/messages`
@@ -143,6 +147,10 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof trace.qualityEvaluationJson?.summary, "string");
     assert.equal(typeof trace.rewrittenQuery === "string" || trace.rewrittenQuery === null, true);
     assert.ok(Array.isArray(trace.retrievalScoresJson));
+    assert.equal(typeof trace.retrievalMetadataJson?.queryRewrite?.enabled, "boolean");
+    assert.equal(typeof trace.retrievalMetadataJson?.execution?.retrievedChunkCount, "number");
+    assert.equal(typeof trace.answeringMetadataJson?.promptId, "string");
+    assert.equal(typeof trace.answeringMetadataJson?.answerStatus, "string");
     assert.ok(
       trace.retrievalScoresJson.every(item =>
         typeof item.chunkId === "string" &&
@@ -183,6 +191,8 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     );
     assert.ok(Array.isArray(askAfterReindex.missingInformation));
     assert.equal(typeof askAfterReindex.qualityEvaluation?.overall, "string");
+    assert.equal(typeof askAfterReindex.retrievalMetadata?.execution?.retrievedChunkCount, "number");
+    assert.equal(typeof askAfterReindex.answeringMetadata?.promptId, "string");
   } finally {
     server.kill("SIGTERM");
     rmSync(storageRoot, { recursive: true, force: true });

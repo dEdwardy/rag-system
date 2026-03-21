@@ -98,6 +98,24 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
   assert.deepEqual(result.missingInformation, []);
   assert.equal(result.citations.length, 1);
   assert.equal(result.citations[0].chunkId, "chunk-2");
+  assert.deepEqual(result.answeringMetadata, {
+    promptId: "answer.v2",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "auto",
+      citationMode: "required",
+      maxCitations: 1,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    contextMode: "chunks",
+    inputChunkCount: 2,
+    contextGroupCount: 0,
+    citationCount: 1,
+    answerStatus: "grounded"
+  });
 });
 
 test("AnsweringService falls back to default structured metadata when the model only returns plain text", async () => {
@@ -267,7 +285,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     }
   ];
 
-  await service.generateAnswer({
+  const result = await service.generateAnswer({
     question: "where?",
     systemPrompt: "answer",
     chunks,
@@ -286,6 +304,24 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
       sectionTitle: "A / B"
     }
   ]);
+  assert.deepEqual(result.answeringMetadata, {
+    promptId: "answer.v2",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "auto",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    contextMode: "context_groups",
+    inputChunkCount: 2,
+    contextGroupCount: 1,
+    citationCount: 1,
+    answerStatus: "grounded"
+  });
 });
 
 test("AnsweringService uses validated citationEvidence quotes as returned snippets", async () => {

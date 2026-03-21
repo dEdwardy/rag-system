@@ -243,6 +243,8 @@ The following path has been validated locally on `2026-03-21`:
    - `answerStatus` is `grounded` or `insufficient_context`
    - `missingInformation` is returned as an array
    - `qualityEvaluation` is returned with `overall`, `grounding`, `completeness`, `flags`, and `summary`
+   - `retrievalMetadata` is returned with resolved strategy, rewrite execution, and retrieval execution summary
+   - `answeringMetadata` is returned with prompt id, normalized answer policy, context mode, and citation count
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
    - `contextGroups` is returned as an array
@@ -251,6 +253,8 @@ The following path has been validated locally on `2026-03-21`:
    - `retrievedChunks` include vector similarity scores
    - trace may contain `rewrittenQuery`
    - trace `retrievalScoresJson` may contain `vectorScore`, `lexicalScore`, `hybridScore`, and `rerankScore`
+   - trace `retrievalMetadataJson` records the effective retrieval strategy, filters, rewrite execution, and retrieval summary
+   - trace `answeringMetadataJson` records the effective answer prompt id and normalized answer-policy execution
    - trace persistence is successful
 
 ## Current implementation scope

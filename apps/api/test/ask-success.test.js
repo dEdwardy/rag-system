@@ -137,6 +137,24 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           citations,
           retrievedChunks,
           contextGroups,
+          answeringMetadata: {
+            promptId: "answer.v2",
+            answerPolicy: {
+              responseStyle: "balanced",
+              tone: "friendly",
+              outputFormat: "bullets",
+              language: "same_as_question",
+              citationMode: "required",
+              maxCitations: 2,
+              noAnswerBehavior: "say_insufficient_context",
+              includeMissingInformation: false
+            },
+            contextMode: "context_groups",
+            inputChunkCount: 1,
+            contextGroupCount: 1,
+            citationCount: 1,
+            answerStatus: "grounded"
+          },
           modelName: "fallback-local",
           answerStatus: "grounded",
           missingInformation: [],
@@ -164,7 +182,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       rewriteQuery: async ({ question }) => ({
         rewrittenQuery: `${question} rewritten`,
         modelName: "rewrite-model",
-        usedFallback: true
+        usedFallback: true,
+        promptId: "rewrite-query.v1"
       })
     }
   );
@@ -242,6 +261,49 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(createTraceCalls.length, 1);
   assert.equal(createTraceCalls[0].status, "success");
   assert.equal(createTraceCalls[0].rewrittenQuery, "where is the marker? rewritten");
+  assert.deepEqual(createTraceCalls[0].retrievalMetadataJson, {
+    strategy: {
+      queryRewrite: {
+        enabled: true
+      },
+      candidateSelection: {
+        mode: "hybrid",
+        candidateMultiplier: 3,
+        minCandidates: 4
+      },
+      hybrid: {
+        vectorWeight: 0.7,
+        lexicalWeight: 0.3
+      },
+      rerank: {
+        enabled: true
+      }
+    },
+    filters: {
+      documentIds: {
+        include: ["document-1"],
+        exclude: ["document-2"]
+      },
+      sectionTitles: {
+        contains: ["fact"]
+      }
+    },
+    queryRewrite: {
+      enabled: true,
+      applied: true,
+      usedFallback: true,
+      promptId: "rewrite-query.v1"
+    },
+    execution: {
+      retrievalQuery: "where is the marker? rewritten",
+      topK: 4,
+      scoreThreshold: 0.2,
+      chunkWindow: 1,
+      retrievedChunkCount: 1,
+      contextGroupCount: 1,
+      primaryChunkCount: 1
+    }
+  });
   assert.deepEqual(attachedTraces, [
     {
       messageId: "user-message-1",
@@ -261,12 +323,50 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     flags: [],
     summary: "Answer is grounded in cited sources with no reported gaps."
   });
+  assert.deepEqual(updateTraceCalls[0].input.retrievalMetadataJson, createTraceCalls[0].retrievalMetadataJson);
+  assert.deepEqual(updateTraceCalls[0].input.answeringMetadataJson, {
+    promptId: "answer.v2",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "friendly",
+      outputFormat: "bullets",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 2,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: false
+    },
+    contextMode: "context_groups",
+    inputChunkCount: 1,
+    contextGroupCount: 1,
+    citationCount: 1,
+    answerStatus: "grounded"
+  });
   assert.equal(result.conversationId, "conversation-1");
   assert.equal(result.traceId, "trace-1");
   assert.equal(result.answer, "The marker is in Document 1.");
   assert.deepEqual(result.citations, citations);
   assert.deepEqual(result.retrievedChunks, retrievedChunks);
   assert.deepEqual(result.contextGroups, contextGroups);
+  assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
+  assert.deepEqual(result.answeringMetadata, {
+    promptId: "answer.v2",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "friendly",
+      outputFormat: "bullets",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 2,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: false
+    },
+    contextMode: "context_groups",
+    inputChunkCount: 1,
+    contextGroupCount: 1,
+    citationCount: 1,
+    answerStatus: "grounded"
+  });
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answerStatus, "grounded");
   assert.deepEqual(result.missingInformation, []);
@@ -347,6 +447,24 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         citations: [],
         retrievedChunks: [],
         contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          answerPolicy: {
+            responseStyle: "concise",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "auto",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "say_insufficient_context",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
         modelName: "fallback-local",
         answerStatus: "insufficient_context",
         missingInformation: [],
@@ -369,7 +487,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         return {
           rewrittenQuery: "rewritten question",
           modelName: "rewrite-model",
-          usedFallback: false
+          usedFallback: false,
+          promptId: "rewrite-query.v1"
         };
       }
     }
@@ -410,6 +529,59 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       }
     }
   ]);
+  assert.deepEqual(result.retrievalMetadata, {
+    strategy: {
+      queryRewrite: {
+        enabled: false
+      },
+      candidateSelection: {
+        mode: "lexical",
+        candidateMultiplier: 5,
+        minCandidates: 9
+      },
+      hybrid: {
+        vectorWeight: 0.2,
+        lexicalWeight: 0.8
+      },
+      rerank: {
+        enabled: true
+      }
+    },
+    filters: null,
+    queryRewrite: {
+      enabled: false,
+      applied: false,
+      usedFallback: null,
+      promptId: null
+    },
+    execution: {
+      retrievalQuery: "original question",
+      topK: 4,
+      scoreThreshold: 0,
+      chunkWindow: 0,
+      retrievedChunkCount: 0,
+      contextGroupCount: 0,
+      primaryChunkCount: 0
+    }
+  });
+  assert.deepEqual(result.answeringMetadata, {
+    promptId: "answer.v2",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "auto",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    contextMode: "chunks",
+    inputChunkCount: 0,
+    contextGroupCount: 0,
+    citationCount: 0,
+    answerStatus: "insufficient_context"
+  });
   assert.equal(result.traceId, "trace-1");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",

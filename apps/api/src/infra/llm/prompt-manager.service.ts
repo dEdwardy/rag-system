@@ -10,6 +10,14 @@ type ManagedPrompt = {
 
 @Injectable()
 export class PromptManagerService {
+  getAnswerPromptId() {
+    return "answer.v2";
+  }
+
+  getRewritePromptId() {
+    return "rewrite-query.v1";
+  }
+
   buildAnswerPrompt(input: GenerateAnswerInput): ManagedPrompt {
     const systemPrompt = `${input.systemPrompt}
 
@@ -64,7 +72,7 @@ Rules:
 - Do not wrap the JSON in markdown fences.`;
 
     return {
-      promptId: "answer.v2",
+      promptId: this.getAnswerPromptId(),
       systemPrompt,
       userPrompt,
       fullPrompt: `${systemPrompt}\n\n${userPrompt}`
@@ -83,7 +91,7 @@ Rules:
 ${input.question}`;
 
     return {
-      promptId: "rewrite-query.v1",
+      promptId: this.getRewritePromptId(),
       systemPrompt,
       userPrompt,
       fullPrompt: `${systemPrompt}\n\n${userPrompt}`

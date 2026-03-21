@@ -88,6 +88,8 @@ test("Ask chain E2E: upload -> grounded ask -> conversation reuse -> trace growt
     assert.ok(Array.isArray(firstAsk.body.missingInformation));
     assert.equal(typeof firstAsk.body.qualityEvaluation?.overall, "string");
     assert.equal(typeof firstAsk.body.qualityEvaluation?.summary, "string");
+    assert.equal(typeof firstAsk.body.retrievalMetadata?.execution?.retrievedChunkCount, "number");
+    assert.equal(typeof firstAsk.body.answeringMetadata?.promptId, "string");
 
     await assertConversationState(port, firstAsk.body.conversationId, [
       firstAsk.body.traceId,
@@ -219,6 +221,10 @@ async function assertTraceState(port, traceId) {
   assert.ok(trace.retrievalScoresJson.every(item => typeof item.chunkId === "string"));
   assert.ok(trace.retrievalScoresJson.every(item => typeof item.documentTitle === "string"));
   assert.ok(trace.retrievalScoresJson.every(item => typeof item.contentPreview === "string"));
+  assert.equal(typeof trace.retrievalMetadataJson?.queryRewrite?.enabled, "boolean");
+  assert.equal(typeof trace.retrievalMetadataJson?.execution?.retrievedChunkCount, "number");
+  assert.equal(typeof trace.answeringMetadataJson?.promptId, "string");
+  assert.equal(typeof trace.answeringMetadataJson?.answerStatus, "string");
   assert.equal(typeof trace.qualityEvaluationJson?.overall, "string");
   assert.equal(typeof trace.qualityEvaluationJson?.summary, "string");
   assert.equal(typeof trace.rewrittenQuery === "string" || trace.rewrittenQuery === null, true);
