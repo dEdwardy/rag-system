@@ -49,33 +49,14 @@ export class AssistantsController {
       response.write(`${JSON.stringify(event)}\n`);
     };
 
-    writeEvent({
-      type: "status",
-      phase: "started"
-    });
-
     try {
-      const result = await this.askAssistantService.askAssistant({
+      await this.askAssistantService.askAssistantStream({
         assistantId: id,
         question: input.question,
-        conversationId: input.conversationId
-      });
-
-      writeEvent({
-        type: "status",
-        phase: "generating"
-      });
-
-      for (const delta of this.chunkAnswer(result.answer)) {
-        writeEvent({
-          type: "answer_delta",
-          delta
-        });
-      }
-
-      writeEvent({
-        type: "final",
-        data: result
+        conversationId: input.conversationId,
+        onEvent: event => {
+          writeEvent(event);
+        }
       });
     } catch (error) {
       const diagnostics = this.buildStreamErrorDiagnostics(error);
@@ -86,10 +67,6 @@ export class AssistantsController {
     } finally {
       response.end();
     }
-  }
-
-  private chunkAnswer(answer: string) {
-    return answer.match(/\S+\s*|\s+/g) ?? [answer];
   }
 
   private buildStreamErrorDiagnostics(error: unknown) {

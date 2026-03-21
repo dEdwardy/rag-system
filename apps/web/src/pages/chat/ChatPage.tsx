@@ -40,7 +40,7 @@ import {
 
 type ActiveStreamTurn = {
   conversationId: string | null;
-  phase: "started" | "generating";
+  phase: "started" | "retrieving" | "generating";
   userMessage: ChatStreamUserMessage;
   assistantMessage: ChatStreamAssistantMessage;
   latestResult: AskStreamFinalData | null;
@@ -96,6 +96,10 @@ export function ChatPage() {
           ? locale === "zh"
             ? "正在准备回答"
             : "Preparing answer"
+          : activeStreamTurn.phase === "retrieving"
+            ? locale === "zh"
+              ? "正在检索上下文"
+              : "Retrieving context"
           : locale === "zh"
             ? "正在生成回答"
             : "Generating answer";

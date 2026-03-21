@@ -154,7 +154,7 @@ export type AskStreamFinalData = Pick<
 export type AskStreamEvent =
   | {
       type: "status";
-      phase: "started" | "generating";
+      phase: "started" | "retrieving" | "generating";
     }
   | {
       type: "answer_delta";

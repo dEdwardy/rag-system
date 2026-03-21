@@ -78,8 +78,64 @@ export class AnsweringService {
       chunks: llmChunks
     });
 
-    const answerStatus = result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
-    const missingInformation = answerPolicy.includeMissingInformation ? (result.missingInformation ?? []) : [];
+    return this.finalizeResolvedAnswer({
+      question: input.question,
+      answerPolicy,
+      chunks: input.chunks,
+      contextGroups: input.contextGroups,
+      result
+    });
+  }
+
+  async finalizeStreamedAnswer(input: {
+    question: string;
+    answerPolicy?: Partial<AnswerPolicy> | null;
+    chunks: RetrievedChunk[];
+    contextGroups?: RetrievedContextGroup[];
+    rawAnswer: string;
+    modelName: string;
+    promptId: string;
+  }) {
+    const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
+    const llmResult = this.llmService.parseStructuredAnswer({
+      rawAnswer: input.rawAnswer,
+      modelName: input.modelName,
+      promptId: input.promptId
+    });
+
+    return this.finalizeResolvedAnswer({
+      question: input.question,
+      answerPolicy,
+      chunks: input.chunks,
+      contextGroups: input.contextGroups,
+      result: llmResult
+    });
+  }
+
+  buildStreamAnswerContext(input: {
+    chunks: RetrievedChunk[];
+    contextGroups?: RetrievedContextGroup[];
+  }) {
+    return this.buildAnswerContextChunks(input.chunks, input.contextGroups);
+  }
+
+  private finalizeResolvedAnswer(input: {
+    question: string;
+    answerPolicy: AnswerPolicy;
+    chunks: RetrievedChunk[];
+    contextGroups?: RetrievedContextGroup[];
+    result: {
+      answer: string;
+      modelName: string;
+      promptId: string;
+      answerStatus?: "grounded" | "insufficient_context";
+      missingInformation?: string[];
+      citedChunkNumbers?: number[];
+      citationEvidence?: CitationEvidence[];
+    };
+  }) {
+    const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
+    const missingInformation = input.answerPolicy.includeMissingInformation ? (input.result.missingInformation ?? []) : [];
 
     if (input.chunks.length === 0) {
       const qualityEvaluation = this.buildQualityEvaluation({
@@ -91,11 +147,11 @@ export class AnsweringService {
       });
 
       return {
-        answer: result.answer,
-        modelName: result.modelName,
+        answer: input.result.answer,
+        modelName: input.result.modelName,
         answeringMetadata: {
-          promptId: result.promptId ?? "answer.v2",
-          answerPolicy,
+          promptId: input.result.promptId ?? "answer.v2",
+          answerPolicy: input.answerPolicy,
           contextMode: "chunks",
           inputChunkCount: 0,
           contextGroupCount: 0,
@@ -114,11 +170,11 @@ export class AnsweringService {
     const citedChunks = this
       .selectCitedChunks({
         chunks: input.chunks,
-        citedChunkNumbers: result.citedChunkNumbers ?? [],
-        answer: result.answer,
-        citationMode: answerPolicy.citationMode
+        citedChunkNumbers: input.result.citedChunkNumbers ?? [],
+        answer: input.result.answer,
+        citationMode: input.answerPolicy.citationMode
       })
-      .slice(0, answerPolicy.maxCitations);
+      .slice(0, input.answerPolicy.maxCitations);
     const citations = citedChunks.map(chunk => ({
       chunkId: chunk.chunkId,
       documentId: chunk.documentId,
@@ -127,7 +183,7 @@ export class AnsweringService {
       sectionTitle: chunk.sectionTitle,
       snippet: this.resolveCitationSnippet(
         chunk,
-        result.citationEvidence ?? [],
+        input.result.citationEvidence ?? [],
         input.chunks,
         input.question
       )
@@ -141,11 +197,11 @@ export class AnsweringService {
     });
 
     return {
-      answer: result.answer,
-      modelName: result.modelName,
+      answer: input.result.answer,
+      modelName: input.result.modelName,
       answeringMetadata: {
-        promptId: result.promptId ?? "answer.v2",
-        answerPolicy,
+        promptId: input.result.promptId ?? "answer.v2",
+        answerPolicy: input.answerPolicy,
         contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
         inputChunkCount: input.chunks.length,
         contextGroupCount: input.contextGroups?.length ?? 0,

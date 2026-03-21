@@ -2,6 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import {
   GenerateAnswerInput,
   GenerateAnswerOutput,
+  GenerateAnswerStreamInput,
+  GenerateAnswerStreamOutput,
   RewriteQueryInput,
   RewriteQueryOutput
 } from "./llm.types";
@@ -40,6 +42,33 @@ export class LlmService {
       this.logger.warn(`Falling back to local answer generation: ${message}`);
       return this.generateFallbackAnswer(input);
     }
+  }
+
+  async generateAnswerStream(input: GenerateAnswerStreamInput): Promise<GenerateAnswerStreamOutput> {
+    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
+    const ollamaModel = process.env.OLLAMA_MODEL;
+
+    if (ollamaBaseUrl && ollamaModel) {
+      try {
+        return await this.generateOllamaAnswerStream(ollamaBaseUrl, ollamaModel, input);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown Ollama error.";
+        this.logger.warn(`Falling back after Ollama stream error: ${message}`);
+      }
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (apiKey) {
+      try {
+        return await this.generateOpenAIAnswerStream(apiKey, input);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown LLM error.";
+        this.logger.warn(`Falling back after OpenAI stream error: ${message}`);
+      }
+    }
+
+    return this.generateFallbackAnswerStream(input);
   }
 
   async rewriteQuery(input: RewriteQueryInput): Promise<RewriteQueryOutput> {
@@ -159,6 +188,170 @@ export class LlmService {
     };
   }
 
+  parseStructuredAnswer(input: {
+    rawAnswer: string;
+    modelName: string;
+    promptId: string;
+  }): GenerateAnswerOutput {
+    return {
+      modelName: input.modelName,
+      promptId: input.promptId,
+      ...this.parseAnswerOutput(input.rawAnswer)
+    };
+  }
+
+  private async generateOllamaAnswerStream(
+    baseUrl: string,
+    model: string,
+    input: GenerateAnswerStreamInput
+  ): Promise<GenerateAnswerStreamOutput> {
+    const prompt = this.promptManager.buildAnswerPrompt(input);
+
+    const response = await fetch(`${baseUrl}/api/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        prompt: prompt.fullPrompt,
+        stream: true,
+        options: {
+          temperature: 0.2
+        }
+      })
+    });
+
+    if (!response.ok || !response.body) {
+      const errorText = await response.text();
+      throw new Error(`Ollama stream request failed: ${response.status} ${errorText}`);
+    }
+
+    let rawAnswer = "";
+    let emittedAnswer = "";
+    await this.readNdjsonStream(response, async payload => {
+      const chunk = typeof payload.response === "string" ? payload.response : "";
+      if (!chunk) {
+        return;
+      }
+
+      rawAnswer += chunk;
+      emittedAnswer = await this.emitVisibleAnswerDelta({
+        rawAnswer,
+        emittedAnswer,
+        onDelta: input.onDelta
+      });
+    });
+
+    if (!rawAnswer.trim()) {
+      throw new Error("Ollama stream response did not include generated text.");
+    }
+
+    return {
+      rawAnswer: rawAnswer.trim(),
+      modelName: `ollama:${model}`,
+      promptId: prompt.promptId
+    };
+  }
+
+  private async generateOpenAIAnswerStream(
+    apiKey: string,
+    input: GenerateAnswerStreamInput
+  ): Promise<GenerateAnswerStreamOutput> {
+    const model = process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini";
+    const prompt = this.promptManager.buildAnswerPrompt(input);
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        stream: true,
+        messages: [
+          {
+            role: "system",
+            content: prompt.systemPrompt
+          },
+          {
+            role: "user",
+            content: prompt.userPrompt
+          }
+        ]
+      })
+    });
+
+    if (!response.ok || !response.body) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI stream request failed: ${response.status} ${errorText}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let rawAnswer = "";
+    let emittedAnswer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+
+      while (true) {
+        const delimiterIndex = buffer.indexOf("\n\n");
+        if (delimiterIndex < 0) {
+          break;
+        }
+
+        const eventBlock = buffer.slice(0, delimiterIndex);
+        buffer = buffer.slice(delimiterIndex + 2);
+
+        for (const line of eventBlock.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) {
+            continue;
+          }
+
+          const data = trimmed.slice(5).trim();
+          if (data === "[DONE]") {
+            continue;
+          }
+
+          const payload = JSON.parse(data) as {
+            choices?: Array<{ delta?: { content?: string } }>;
+          };
+          const chunk = payload.choices?.[0]?.delta?.content ?? "";
+          if (!chunk) {
+            continue;
+          }
+
+          rawAnswer += chunk;
+          emittedAnswer = await this.emitVisibleAnswerDelta({
+            rawAnswer,
+            emittedAnswer,
+            onDelta: input.onDelta
+          });
+        }
+      }
+    }
+
+    if (!rawAnswer.trim()) {
+      throw new Error("OpenAI stream response did not include generated text.");
+    }
+
+    return {
+      rawAnswer: rawAnswer.trim(),
+      modelName: model,
+      promptId: prompt.promptId
+    };
+  }
+
   private async rewriteQueryWithOllama(
     baseUrl: string,
     model: string,
@@ -270,6 +463,37 @@ export class LlmService {
       missingInformation: [],
       citedChunkNumbers: [1]
     };
+  }
+
+  private async generateFallbackAnswerStream(
+    input: GenerateAnswerStreamInput
+  ): Promise<GenerateAnswerStreamOutput> {
+    const result = this.generateFallbackAnswer(input);
+    await input.onDelta(result.answer);
+
+    return {
+      rawAnswer: result.answer,
+      modelName: result.modelName,
+      promptId: result.promptId
+    };
+  }
+
+  private async emitVisibleAnswerDelta(input: {
+    rawAnswer: string;
+    emittedAnswer: string;
+    onDelta: (delta: string) => void | Promise<void>;
+  }) {
+    const structuredAnswerPreview = this.extractStructuredAnswerPreview(input.rawAnswer);
+    const visibleAnswer =
+      structuredAnswerPreview ??
+      (this.looksLikeStructuredPayload(input.rawAnswer) ? input.emittedAnswer : input.rawAnswer);
+    const nextDelta = visibleAnswer.slice(input.emittedAnswer.length);
+    if (nextDelta) {
+      await input.onDelta(nextDelta);
+      return visibleAnswer;
+    }
+
+    return input.emittedAnswer;
   }
 
   private extractCitedChunkNumbers(answer: string) {
@@ -391,5 +615,126 @@ export class LlmService {
     }
 
     return null;
+  }
+
+  private extractStructuredAnswerPreview(rawAnswer: string) {
+    const answerKeyMatch = /"answer"\s*:\s*"/.exec(rawAnswer);
+    if (!answerKeyMatch) {
+      return null;
+    }
+
+    let index = answerKeyMatch.index + answerKeyMatch[0].length;
+    let result = "";
+
+    while (index < rawAnswer.length) {
+      const character = rawAnswer[index];
+
+      if (character === "\\") {
+        const escapedCharacter = rawAnswer[index + 1];
+        if (!escapedCharacter) {
+          break;
+        }
+
+        if (escapedCharacter === "u") {
+          const unicodeValue = rawAnswer.slice(index + 2, index + 6);
+          if (unicodeValue.length < 4 || !/^[0-9a-fA-F]{4}$/.test(unicodeValue)) {
+            break;
+          }
+
+          result += String.fromCharCode(Number.parseInt(unicodeValue, 16));
+          index += 6;
+          continue;
+        }
+
+        result += this.decodeEscapedCharacter(escapedCharacter);
+        index += 2;
+        continue;
+      }
+
+      if (character === "\"") {
+        return result;
+      }
+
+      result += character;
+      index += 1;
+    }
+
+    return result;
+  }
+
+  private decodeEscapedCharacter(value: string) {
+    switch (value) {
+      case "n":
+        return "\n";
+      case "r":
+        return "\r";
+      case "t":
+        return "\t";
+      case "\"":
+        return "\"";
+      case "\\":
+        return "\\";
+      case "/":
+        return "/";
+      case "b":
+        return "\b";
+      case "f":
+        return "\f";
+      default:
+        return value;
+    }
+  }
+
+  private looksLikeStructuredPayload(rawAnswer: string) {
+    const trimmedStart = rawAnswer.trimStart();
+    return (
+      trimmedStart.startsWith("{") ||
+      trimmedStart.startsWith("```json") ||
+      trimmedStart.startsWith('{"') ||
+      /"answer"\s*:/.test(rawAnswer)
+    );
+  }
+
+  private async readNdjsonStream(
+    response: Response,
+    onEvent: (payload: Record<string, unknown>) => void | Promise<void>
+  ) {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Expected a readable stream body.");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+
+      while (true) {
+        const newlineIndex = buffer.indexOf("\n");
+        if (newlineIndex < 0) {
+          break;
+        }
+
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+
+        if (!line) {
+          continue;
+        }
+
+        await onEvent(JSON.parse(line));
+      }
+    }
+
+    const trailing = buffer.trim();
+    if (trailing) {
+      await onEvent(JSON.parse(trailing));
+    }
   }
 }
