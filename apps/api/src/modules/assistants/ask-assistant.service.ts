@@ -132,46 +132,10 @@ export class AskAssistantService {
     try {
       const resolvedAnswerResult =
         retrievedChunks.length === 0 && answerPolicy?.noAnswerBehavior === "say_insufficient_context"
-          ? {
-              answer: this.answeringService.getDeterministicInsufficientContextAnswer({
-                question: input.question,
-                answerPolicy
-              }),
-              citations: [],
-              retrievedChunks: [],
-              contextGroups: [],
-              answeringMetadata: {
-                promptId: "answer.v2",
-                usedFallback: true,
-                answerPolicy: {
-                  responseStyle: answerPolicy?.responseStyle ?? "concise",
-                  tone: answerPolicy?.tone ?? "neutral",
-                  outputFormat: answerPolicy?.outputFormat ?? "paragraph",
-                  language: answerPolicy?.language ?? "auto",
-                  citationMode: answerPolicy?.citationMode ?? "required",
-                  maxCitations: answerPolicy?.maxCitations ?? 3,
-                  noAnswerBehavior: answerPolicy?.noAnswerBehavior ?? "say_insufficient_context",
-                  includeMissingInformation: answerPolicy?.includeMissingInformation ?? true
-                },
-                contextMode: "chunks" as const,
-                inputChunkCount: 0,
-                contextGroupCount: 0,
-                citationCount: 0,
-                answerStatus: "insufficient_context" as const
-              },
-              modelName: "fallback-local",
-              answerStatus: "insufficient_context" as const,
-              missingInformation: ["No relevant supporting sources were retrieved."],
-              qualityEvaluation: {
-                overall: "weak" as const,
-                grounding: "ungrounded" as const,
-                completeness: "insufficient" as const,
-                primaryIssue: "no_retrieval_hits" as const,
-                flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
-                summary:
-                  "Answer quality is weak because supporting context was insufficient."
-              }
-            }
+          ? this.answeringService.buildDeterministicInsufficientContextResult({
+              question: input.question,
+              answerPolicy
+            })
           : await this.answeringService.generateAnswer({
               question: input.question,
               systemPrompt: assistant.systemPrompt,

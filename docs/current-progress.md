@@ -9,6 +9,12 @@
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
 > 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
 
+补充进展（2026-03-23）：
+
+- answering / retrieval backend 收口继续推进中
+- `POST /assistants/:id/ask` 的 deterministic no-hit `say_insufficient_context` 旁路结果现在已复用 answering 层统一结果构造，不再在 ask service 内手写英文 `missingInformation` / `qualityEvaluation.summary`
+- 这使 one-shot no-hit deterministic answer 的 answer 文本、`missingInformation`、弱质量总结在 `en` / `zh` 下保持一致本地化语义
+
 ## 1. 状态总览
 
 ### 当前结论

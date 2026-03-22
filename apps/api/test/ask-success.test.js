@@ -670,6 +670,42 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
     {
       getDeterministicInsufficientContextAnswer: ({ question }) =>
         `deterministic fallback for: ${question}`,
+      buildDeterministicInsufficientContextResult: ({ question }) => ({
+        answer: `deterministic fallback for: ${question}`,
+        citations: [],
+        retrievedChunks: [],
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy: {
+            responseStyle: "concise",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "auto",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "say_insufficient_context",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
+        modelName: "fallback-local",
+        answerStatus: "insufficient_context",
+        missingInformation: ["No relevant supporting sources were retrieved."],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          primaryIssue: "no_retrieval_hits",
+          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+          summary: "Answer quality is weak because supporting context was insufficient."
+        }
+      }),
       generateAnswer: async () => {
         generateAnswerCalls += 1;
         throw new Error("generateAnswer should be bypassed");
@@ -714,4 +750,131 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
     flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
     summary: "Answer quality is weak because supporting context was insufficient."
   });
+});
+
+test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "concise",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "same_as_question",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "say_insufficient_context",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks: [],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      getDeterministicInsufficientContextAnswer: () =>
+        "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002",
+      buildDeterministicInsufficientContextResult: () => ({
+        answer:
+          "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002",
+        citations: [],
+        retrievedChunks: [],
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy: {
+            responseStyle: "concise",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "same_as_question",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "say_insufficient_context",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
+        modelName: "fallback-local",
+        answerStatus: "insufficient_context",
+        missingInformation: [
+          "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
+        ],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          primaryIssue: "no_retrieval_hits",
+          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+          summary:
+            "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002"
+        }
+      }),
+      generateAnswer: async () => {
+        throw new Error("generateAnswer should be bypassed");
+      }
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      })
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "\u8fd9\u4e2a\u95ee\u9898\u7f3a\u5c11\u4ec0\u4e48\u4fe1\u606f\uff1f"
+  });
+
+  assert.equal(
+    result.answer,
+    "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002"
+  );
+  assert.deepEqual(result.missingInformation, [
+    "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
+  ]);
+  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002");
 });

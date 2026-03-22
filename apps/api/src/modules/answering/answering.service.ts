@@ -143,6 +143,48 @@ export class AnsweringService {
     return this.buildInsufficientContextAnswer(input.question, answerPolicy.language);
   }
 
+  buildDeterministicInsufficientContextResult(input: {
+    question: string;
+    answerPolicy?: Partial<AnswerPolicy> | null;
+  }) {
+    const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
+    const missingInformation = [
+      this.buildInsufficientContextMissingInformation(input.question, answerPolicy.language)
+    ];
+    const qualityEvaluation = this.buildQualityEvaluation({
+      question: input.question,
+      language: answerPolicy.language,
+      answerStatus: "insufficient_context",
+      missingInformation,
+      usedFallback: true,
+      citationMode: answerPolicy.citationMode,
+      citationCount: 0,
+      chunkCount: 0,
+      topScore: null
+    });
+
+    return {
+      answer: this.buildInsufficientContextAnswer(input.question, answerPolicy.language),
+      citations: [],
+      retrievedChunks: [],
+      contextGroups: [],
+      answeringMetadata: {
+        promptId: "answer.v2",
+        usedFallback: true,
+        answerPolicy,
+        contextMode: "chunks" as const,
+        inputChunkCount: 0,
+        contextGroupCount: 0,
+        citationCount: 0,
+        answerStatus: "insufficient_context" as const
+      },
+      modelName: "fallback-local",
+      answerStatus: "insufficient_context" as const,
+      missingInformation,
+      qualityEvaluation
+    };
+  }
+
   private finalizeResolvedAnswer(input: {
     question: string;
     answerPolicy: AnswerPolicy;
