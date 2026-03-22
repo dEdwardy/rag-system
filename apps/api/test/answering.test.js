@@ -613,6 +613,55 @@ test("AnsweringService returns partial quality evaluation when information is mi
   assert.deepEqual(result.qualityEvaluation.flags, ["missing_information"]);
 });
 
+test("AnsweringService reports a retrieval-score-specific partial quality summary when top retrieval confidence is low", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Answer text [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.4,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.overall, "partial");
+  assert.equal(result.qualityEvaluation.grounding, "grounded");
+  assert.equal(result.qualityEvaluation.completeness, "complete");
+  assert.deepEqual(result.qualityEvaluation.flags, ["low_retrieval_score"]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "Answer is grounded, but retrieval confidence was low for the supporting context."
+  );
+});
+
 test("AnsweringService returns weak quality evaluation for insufficient-context answers", async () => {
   const llmService = {
     generateAnswer: async () => ({

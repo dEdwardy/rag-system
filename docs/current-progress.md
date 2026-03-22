@@ -462,6 +462,13 @@
 
 ### 2026-03-23
 
+- ✅ low-retrieval-score quality downgrade alignment
+  - grounded answers 在 supporting context 的 top retrieval score 偏低时，`qualityEvaluation.overall` 现在会从 `strong` 降为 `partial`
+  - 同时 summary 会明确指出是 retrieval confidence 偏低，而不是沿用泛化的缺失信息文案
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
 - ✅ optional-citation strong-summary wording alignment
   - optional-citation 下的 `strong` quality summary 现在不会再错误声称回答“grounded in cited sources”
   - 当回答没有 citation 但仍然 grounded / strong 时，summary 现会改为基于 retrieved sources 的表述

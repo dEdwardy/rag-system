@@ -461,7 +461,10 @@ export class AnsweringService {
     const overall =
       grounding === "ungrounded"
         ? "weak"
-        : completeness === "complete" && !flags.some(flag => ["missing_information", "no_citations", "insufficient_context", "no_retrieval_hits"].includes(flag))
+        : completeness === "complete" &&
+            !flags.some(flag =>
+              ["missing_information", "no_citations", "insufficient_context", "no_retrieval_hits", "low_retrieval_score"].includes(flag)
+            )
           ? "strong"
           : "partial";
 
@@ -471,7 +474,13 @@ export class AnsweringService {
           ? "Answer is grounded in cited sources with no reported gaps."
           : "Answer is grounded in retrieved sources with no reported gaps."
         : overall === "partial"
-          ? "Answer is grounded but incomplete because some information is missing."
+          ? flags.includes("missing_information")
+            ? "Answer is grounded but incomplete because some information is missing."
+            : flags.includes("no_citations")
+              ? "Answer is only partially grounded because it does not include supporting citations."
+              : flags.includes("low_retrieval_score")
+                ? "Answer is grounded, but retrieval confidence was low for the supporting context."
+                : "Answer is grounded but still has unresolved quality limitations."
           : "Answer quality is weak because supporting context was insufficient.";
 
     const normalizedFlags =
