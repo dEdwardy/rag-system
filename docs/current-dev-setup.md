@@ -120,7 +120,7 @@ Notes:
   - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path
   - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
 - current quality-evaluation semantics:
-  - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `no_citations`, `other`) alongside the existing flags array
+  - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `other`) alongside the existing flags array
   - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty
   - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
   - the strong-summary wording now distinguishes between answers grounded in cited sources and answers grounded in retrieved sources without citations

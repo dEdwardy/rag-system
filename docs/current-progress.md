@@ -471,7 +471,7 @@
 
 - ✅ quality-evaluation primary-issue exposure
   - `qualityEvaluation` 现已新增 `primaryIssue`，用于给上层稳定表达当前质量评估的主因，而不必自行解释 `flags` 优先级
-  - 当前已覆盖的主因包括：`none`、`no_retrieval_hits`、`insufficient_context`、`missing_information`、`low_retrieval_score`、`no_citations`、`other`
+  - 当前已覆盖的主因包括：`none`、`no_retrieval_hits`、`insufficient_context`、`missing_information`、`low_retrieval_score`、`other`
   - one-shot answering、ask orchestration、stream final payload / trace 相关断言现已对齐
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`

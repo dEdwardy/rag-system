@@ -39,7 +39,6 @@ type QualityEvaluation = {
     | "insufficient_context"
     | "missing_information"
     | "low_retrieval_score"
-    | "no_citations"
     | "other";
   flags: string[];
   summary: string;
@@ -448,10 +447,6 @@ export class AnsweringService {
       flags.push("low_retrieval_score");
     }
 
-    if (input.citationMode === "required" && input.chunkCount > 0 && input.citationCount === 0) {
-      flags.push("no_citations");
-    }
-
     const grounding =
       input.answerStatus === "insufficient_context"
         ? "ungrounded"
@@ -471,7 +466,7 @@ export class AnsweringService {
         ? "weak"
         : completeness === "complete" &&
             !flags.some(flag =>
-              ["missing_information", "no_citations", "insufficient_context", "no_retrieval_hits", "low_retrieval_score"].includes(flag)
+              ["missing_information", "insufficient_context", "no_retrieval_hits", "low_retrieval_score"].includes(flag)
             )
           ? "strong"
           : "partial";
@@ -486,11 +481,9 @@ export class AnsweringService {
             ? "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low."
             : flags.includes("missing_information")
               ? "Answer is grounded but incomplete because some information is missing."
-              : flags.includes("no_citations")
-                ? "Answer is only partially grounded because it does not include supporting citations."
-                : flags.includes("low_retrieval_score")
-                  ? "Answer is grounded, but retrieval confidence was low for the supporting context."
-                  : "Answer is grounded but still has unresolved quality limitations."
+              : flags.includes("low_retrieval_score")
+                ? "Answer is grounded, but retrieval confidence was low for the supporting context."
+                : "Answer is grounded but still has unresolved quality limitations."
           : flags.includes("no_retrieval_hits")
             ? "Answer quality is weak because supporting context was insufficient."
             : "Answer quality is weak because retrieved context was still insufficient.";
@@ -506,13 +499,11 @@ export class AnsweringService {
               ? "missing_information"
               : flags.includes("low_retrieval_score")
                 ? "low_retrieval_score"
-                : flags.includes("no_citations")
-                  ? "no_citations"
-                  : "other";
+                : "other";
 
     const normalizedFlags =
       overall === "strong"
-        ? flags.filter(flag => !["no_citations", "missing_information", "insufficient_context", "no_retrieval_hits"].includes(flag))
+        ? flags.filter(flag => !["missing_information", "insufficient_context", "no_retrieval_hits"].includes(flag))
         : flags;
 
     return {
