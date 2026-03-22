@@ -187,6 +187,47 @@ test("AnsweringService exposes usedFallback in answering metadata for local fall
   assert.equal(result.answeringMetadata.usedFallback, true);
 });
 
+test("AnsweringService downgrades grounded local fallback answers in quality evaluation", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Fallback answer [1]",
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["fallback_generation"],
+    summary: "Answer is grounded, but it was produced through local fallback behavior."
+  });
+});
+
 test("AnsweringService de-duplicates repeated inline citation markers from plain-text answers", async () => {
   const llmService = {
     generateAnswer: async () => ({

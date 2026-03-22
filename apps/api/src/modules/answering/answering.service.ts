@@ -39,6 +39,7 @@ type QualityEvaluation = {
     | "insufficient_context"
     | "missing_information"
     | "low_retrieval_score"
+    | "fallback_generation"
     | "other";
   flags: string[];
   summary: string;
@@ -163,6 +164,7 @@ export class AnsweringService {
       const qualityEvaluation = this.buildQualityEvaluation({
         answerStatus,
         missingInformation,
+        usedFallback,
         citationMode: input.answerPolicy.citationMode,
         citationCount: 0,
         chunkCount: 0,
@@ -215,6 +217,7 @@ export class AnsweringService {
     const qualityEvaluation = this.buildQualityEvaluation({
       answerStatus,
       missingInformation,
+      usedFallback,
       citationMode: input.answerPolicy.citationMode,
       citationCount: citations.length,
       chunkCount: input.chunks.length,
@@ -424,6 +427,7 @@ export class AnsweringService {
   private buildQualityEvaluation(input: {
     answerStatus: "grounded" | "insufficient_context";
     missingInformation: string[];
+    usedFallback: boolean;
     citationMode: "required" | "optional";
     citationCount: number;
     chunkCount: number;
@@ -447,6 +451,10 @@ export class AnsweringService {
       flags.push("low_retrieval_score");
     }
 
+    if (input.usedFallback && input.answerStatus === "grounded") {
+      flags.push("fallback_generation");
+    }
+
     const grounding =
       input.answerStatus === "insufficient_context"
         ? "ungrounded"
@@ -466,7 +474,13 @@ export class AnsweringService {
         ? "weak"
         : completeness === "complete" &&
             !flags.some(flag =>
-              ["missing_information", "insufficient_context", "no_retrieval_hits", "low_retrieval_score"].includes(flag)
+              [
+                "missing_information",
+                "insufficient_context",
+                "no_retrieval_hits",
+                "low_retrieval_score",
+                "fallback_generation"
+              ].includes(flag)
             )
           ? "strong"
           : "partial";
@@ -477,12 +491,22 @@ export class AnsweringService {
           ? "Answer is grounded in cited sources with no reported gaps."
           : "Answer is grounded in retrieved sources with no reported gaps."
         : overall === "partial"
-          ? flags.includes("missing_information") && flags.includes("low_retrieval_score")
+          ? flags.includes("missing_information") &&
+            flags.includes("low_retrieval_score") &&
+            flags.includes("fallback_generation")
+            ? "Answer is grounded but incomplete because some information is missing, retrieval confidence was low, and it was produced through local fallback behavior."
+            : flags.includes("missing_information") && flags.includes("low_retrieval_score")
             ? "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low."
+            : flags.includes("missing_information") && flags.includes("fallback_generation")
+              ? "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+              : flags.includes("low_retrieval_score") && flags.includes("fallback_generation")
+                ? "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
             : flags.includes("missing_information")
               ? "Answer is grounded but incomplete because some information is missing."
               : flags.includes("low_retrieval_score")
                 ? "Answer is grounded, but retrieval confidence was low for the supporting context."
+                : flags.includes("fallback_generation")
+                  ? "Answer is grounded, but it was produced through local fallback behavior."
                 : "Answer is grounded but still has unresolved quality limitations."
           : flags.includes("no_retrieval_hits")
             ? "Answer quality is weak because supporting context was insufficient."
@@ -499,6 +523,8 @@ export class AnsweringService {
               ? "missing_information"
               : flags.includes("low_retrieval_score")
                 ? "low_retrieval_score"
+                : flags.includes("fallback_generation")
+                  ? "fallback_generation"
                 : "other";
 
     const normalizedFlags =

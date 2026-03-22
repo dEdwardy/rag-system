@@ -462,6 +462,18 @@
 
 ### 2026-03-23
 
+- ✅ grounded fallback quality-evaluation alignment
+  - 当回答仍然是 `grounded`，但 answer generation 实际走了本地 fallback 路径时，`qualityEvaluation` 不再继续给出 `strong`
+  - 当前会降级为 `partial`，并暴露：
+    - `primaryIssue: fallback_generation`
+    - `flags: ["fallback_generation"]`
+    - fallback-specific summary
+  - 这样 `qualityEvaluation` 与既有的 `answeringMetadata.usedFallback` 语义保持一致，上层不必自行把执行路径再解释一遍
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ partial dual-cause quality summary alignment
   - 当 `missing_information` 和 `low_retrieval_score` 同时出现时，`qualityEvaluation.summary` 现在会合并表达两个风险点
   - 这样 partial 场景不再只暴露“信息缺失”而丢掉 retrieval confidence 偏低这一层信号

@@ -120,13 +120,14 @@ Notes:
   - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path
   - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
 - current quality-evaluation semantics:
-  - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `other`) alongside the existing flags array
+  - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `fallback_generation`, `other`) alongside the existing flags array
   - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty
   - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
   - the strong-summary wording now distinguishes between answers grounded in cited sources and answers grounded in retrieved sources without citations
   - partial summaries now also combine `missing_information` + `low_retrieval_score` into a dual-cause explanation instead of dropping the retrieval-confidence warning
   - low retrieval confidence (`low_retrieval_score`) now degrades `qualityEvaluation.overall` to `partial` and yields a retrieval-confidence-specific summary instead of remaining `strong`
   - weak insufficient-context summaries now distinguish between `no_retrieval_hits` and cases where retrieval produced context but the retrieved evidence was still insufficient
+  - grounded answers produced through local fallback generation now also degrade `qualityEvaluation.overall` to `partial`, expose `primaryIssue: fallback_generation`, and carry a fallback-specific summary instead of remaining `strong`
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`
