@@ -73,9 +73,10 @@ function NavIcon({ type }: NavIconProps) {
   );
 }
 
-function ActionButton({ children }: { children: React.ReactNode }) {
+function ActionButton({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <button
+      aria-label={label}
       className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text-secondary)] transition duration-300 ease-out hover:-translate-y-0.5 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
       type="button"
     >
@@ -158,7 +159,7 @@ export function AppShell() {
       />
 
       <div className="relative z-10 flex h-full">
-        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
+        <aside aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
           <div className="border-b border-[var(--app-border)] px-6 py-6">
             <div className="flex items-center gap-3.5">
               <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] font-['Space_Grotesk'] text-lg font-bold text-white shadow-[0_4px_20px_var(--app-accent-glow)]">
@@ -175,7 +176,7 @@ export function AppShell() {
             </div>
           </div>
 
-          <nav className="flex-1 px-4 py-5">
+          <nav aria-label={locale === "zh" ? "工作区菜单" : "Workspace menu"} className="flex-1 px-4 py-5">
             {links.map(group => (
               <div className="mb-6" key={group.heading}>
                 <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
@@ -238,7 +239,7 @@ export function AppShell() {
           </div>
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden" id="workspace-main">
           <header className="sticky top-0 z-50 flex h-[70px] items-center justify-between border-b border-[var(--app-border)] bg-[rgba(22,22,29,0.8)] px-4 backdrop-blur-xl md:px-8">
             <div className="flex min-w-0 items-center gap-4">
               <div className="flex items-center gap-2 text-[13px]">
@@ -247,6 +248,7 @@ export function AppShell() {
                 <span className="truncate font-medium text-[var(--app-text)]">{activeLabel}</span>
               </div>
               <button
+                aria-label={locale === "zh" ? "当前知识库" : "Current knowledge base"}
                 className="hidden items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition duration-300 ease-out hover:border-[var(--app-accent)] hover:text-[var(--app-text)] md:flex"
                 type="button"
               >
@@ -259,13 +261,13 @@ export function AppShell() {
             </div>
 
             <div className="flex items-center gap-3">
-              <ActionButton>
+              <ActionButton label={locale === "zh" ? "搜索" : "Search"}>
                 <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
                   <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
                   <line stroke="currentColor" strokeWidth="2" x1="21" x2="16.65" y1="21" y2="16.65" />
                 </svg>
               </ActionButton>
-              <ActionButton>
+              <ActionButton label={locale === "zh" ? "通知" : "Notifications"}>
                 <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" />
                   <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" />
@@ -273,6 +275,8 @@ export function AppShell() {
               </ActionButton>
               <div className="flex rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-[3px]">
                 <button
+                  aria-label={locale === "zh" ? "切换中文" : "Switch to Chinese"}
+                  aria-pressed={locale === "zh"}
                   className={[
                     "rounded-md px-3 py-1.5 text-xs font-medium transition duration-300",
                     locale === "zh" ? "bg-[var(--app-accent)] text-white" : "text-[var(--app-text-muted)]"
@@ -283,6 +287,8 @@ export function AppShell() {
                   中
                 </button>
                 <button
+                  aria-label={locale === "en" ? "Switch to English" : "切换到英文"}
+                  aria-pressed={locale === "en"}
                   className={[
                     "rounded-md px-3 py-1.5 text-xs font-medium transition duration-300",
                     locale === "en" ? "bg-[var(--app-accent)] text-white" : "text-[var(--app-text-muted)]"

@@ -77,6 +77,23 @@ Changes:
   - two-pane chat layout
   - dark state-panel surface styling
 
+### 5. Review-driven priority fixes from `ui/suggestion.md`
+
+Changes:
+
+- Implemented a shared desktop workspace component layer for non-chat pages so hero blocks, panels, tables, metadata lists, and form controls now render with the same dark surface language.
+- Increased dark-theme contrast for secondary text, muted copy, and border separation to resolve the most visible readability issues called out in the review report.
+- Forced Mantine controls into the same dark color scheme as the workspace shell so `Paper`, `Alert`, `Input`, `Badge`, and related controls no longer drift toward a lighter default surface.
+- Added visible keyboard focus treatment and baseline accessibility semantics:
+  - `aria-label` on header action buttons and navigation landmarks
+  - `aria-pressed` on the locale switch
+  - `role="status"` / `aria-live` on loading and empty state surfaces
+  - `role="alert"` on error surfaces
+- Replaced selected non-chat loading states with clearer desktop skeleton surfaces on:
+  - documents
+  - trace list
+  - usage
+
 ## Verification
 
 ### Commands run
@@ -112,6 +129,10 @@ Artifacts:
 - `output/playwright/ui-refactor-audit-final/app-knowledge-base-desktop.png`
 - `output/playwright/ui-refactor-audit-final/app-usage-desktop.png`
 - `output/playwright/ui-refactor-audit-final/app-assistant-desktop.png`
+- `output/playwright/ui-refactor-audit-final/documents-priority-pass.png`
+- `output/playwright/ui-refactor-audit-final/traces-priority-pass.png`
+- `output/playwright/ui-refactor-audit-final/usage-priority-pass.png`
+- `output/playwright/ui-refactor-audit-final/assistant-priority-pass.png`
 
 Validation method:
 
@@ -137,6 +158,7 @@ Important environment note:
 - `apps/web/package.json`
 - `apps/web/vite.config.ts`
 - `apps/web/src/styles/global.css`
+- `apps/web/src/app/App.tsx`
 - `apps/web/src/app/AppShell.tsx`
 - `apps/web/src/components/StatePanel.tsx`
 - `apps/web/src/pages/chat/ChatPage.tsx`

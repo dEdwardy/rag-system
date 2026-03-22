@@ -69,6 +69,17 @@ html[data-theme-layout="workspace-app"] {
     text-decoration: none;
   }
 
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid rgba(129, 140, 248, 0.92);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.16);
+  }
+
   button,
   input,
   textarea,
@@ -320,6 +331,12 @@ html[data-theme-layout="workspace-app"] {
     font-weight: 600;
   }
 
+  .workspace-button:focus-visible,
+  .workspace-link:focus-visible,
+  .workspace-inline-chip:focus-visible {
+    border-radius: 999px;
+  }
+
   .workspace-input {
     background: rgba(11, 13, 18, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -343,6 +360,53 @@ html[data-theme-layout="workspace-app"] {
 
   .workspace-list-shell-compact {
     max-width: 42rem;
+  }
+
+  .workspace-loading-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .workspace-loading-grid.metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workspace-skeleton-panel {
+    overflow: hidden;
+    position: relative;
+    min-height: 10rem;
+  }
+
+  .workspace-skeleton-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+    transform: translateX(-100%);
+    animation: workspace-skeleton-shimmer 1.8s ease-in-out infinite;
+  }
+
+  .workspace-skeleton-line {
+    height: 0.78rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .workspace-skeleton-line.short {
+    width: 28%;
+  }
+
+  .workspace-skeleton-line.medium {
+    width: 56%;
+  }
+
+  .workspace-skeleton-line.long {
+    width: 82%;
+  }
+
+  .workspace-skeleton-line.metric {
+    height: 2rem;
+    width: 26%;
   }
 
   @media (max-width: 80rem) {
@@ -389,5 +453,11 @@ html[data-theme-layout="workspace-app"] {
 
   30% {
     transform: translateY(-6px);
+  }
+}
+
+@keyframes workspace-skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }

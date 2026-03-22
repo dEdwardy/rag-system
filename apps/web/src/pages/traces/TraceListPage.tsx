@@ -19,7 +19,7 @@ import { useI18n } from "../../i18n/I18nProvider";
 
 function GroupLoader() {
   return (
-    <Stack gap={6}>
+    <Stack aria-live="polite" gap={6} role="status">
       <Loader color="indigo" size="sm" />
       <Text c="var(--app-text-muted)" size="xs">
         Loading latest trace...
@@ -172,11 +172,19 @@ export function TraceListPage() {
       </Paper>
 
       {conversationsQuery.isLoading ? (
-        <StatePanel
-          description={locale === "zh" ? "正在拉取会话列表与最新 trace。" : "Loading conversations and latest traces."}
-          title={locale === "zh" ? "加载会话中" : "Loading conversations"}
-          tone="loading"
-        />
+        <div aria-live="polite" className="workspace-loading-grid" role="status">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Paper className="workspace-panel-hover workspace-skeleton-panel" key={index} p="lg" radius="xl">
+              <Stack gap="md">
+                <div className="workspace-skeleton-line medium" />
+                <div className="workspace-skeleton-line short" />
+                <div className="workspace-skeleton-line long" />
+                <div className="workspace-skeleton-line medium" />
+              </Stack>
+            </Paper>
+          ))}
+          <span className="sr-only">{locale === "zh" ? "加载会话中" : "Loading conversations"}</span>
+        </div>
       ) : conversationsQuery.isError ? (
         <StatePanel
           description={conversationsQuery.error instanceof Error ? conversationsQuery.error.message : undefined}

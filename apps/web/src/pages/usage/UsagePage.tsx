@@ -36,6 +36,12 @@ export function UsagePage() {
     assistantsQuery.isError ||
     conversationsQuery.isError ||
     documentsQuery.isError;
+  const isUsageLoading =
+    !hasError &&
+    (knowledgeBasesQuery.isLoading ||
+      assistantsQuery.isLoading ||
+      conversationsQuery.isLoading ||
+      documentsQuery.isLoading);
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,15 +92,19 @@ export function UsagePage() {
         />
       ) : null}
 
-      {!hasError && (knowledgeBasesQuery.isLoading || assistantsQuery.isLoading || conversationsQuery.isLoading || documentsQuery.isLoading) ? (
-        <StatePanel
-          description={locale === "zh" ? "正在聚合当前桌面端可见的数据。" : "Aggregating current desktop-visible data."}
-          title={locale === "zh" ? "加载统计中" : "Loading usage"}
-          tone="loading"
-        />
+      {isUsageLoading ? (
+        <div aria-live="polite" className="workspace-loading-grid metrics" role="status">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Paper className="workspace-metric-card workspace-skeleton-panel" key={index} p="lg" radius="xl">
+              <div className="workspace-skeleton-line short" />
+              <div className="mt-6 workspace-skeleton-line metric" />
+            </Paper>
+          ))}
+          <span className="sr-only">{locale === "zh" ? "加载统计中" : "Loading usage"}</span>
+        </div>
       ) : null}
 
-      {!hasError && !knowledgeBasesQuery.isLoading && !assistantsQuery.isLoading && !conversationsQuery.isLoading && !documentsQuery.isLoading ? (
+      {!hasError && !isUsageLoading ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {metrics.map(metric => (
