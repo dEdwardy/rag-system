@@ -111,10 +111,12 @@ Notes:
   - the fallback reply is localized for `en` / `zh`, and `auto` / `same_as_question` currently resolve by simple question-language detection
   - `best_effort`: the backend preserves the model's returned answer text even when the final answer status is `insufficient_context`
   - the local `LlmService` no-model fallback for zero-hit answers now follows the same minimal `en` / `zh` language resolution instead of always returning English
+  - that same zero-hit local fallback path now also localizes its deterministic `missingInformation` reason for `en` / `zh`
   - the local `LlmService` grounded fallback for hitful answers now also follows that same minimal `en` / `zh` language resolution instead of using an English-only prefix
 - current backend enforcement for `includeMissingInformation`:
   - for grounded answers, `includeMissingInformation=false` still clears advisory gap items from the final response
   - for `insufficient_context` answers, the backend now always preserves `missingInformation`, and fills a deterministic default reason when the model omits one
+  - that deterministic default `missingInformation` reason now also follows the same minimal `en` / `zh` language resolution used by the backend fallback answer text
   - structured-answer normalization now also trims and de-duplicates `missingInformation` entries while preserving first-seen order
 - current answering metadata semantics:
   - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path

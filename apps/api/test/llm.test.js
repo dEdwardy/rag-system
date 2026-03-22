@@ -437,6 +437,61 @@ test("LlmService local fallback no-hit answer follows same_as_question language 
   }
 });
 
+test("LlmService local fallback no-hit missingInformation follows same_as_question language detection", async () => {
+  const originalFetch = global.fetch;
+  const originalBaseUrl = process.env.OLLAMA_BASE_URL;
+  const originalModel = process.env.OLLAMA_MODEL;
+  const originalApiKey = process.env.OPENAI_API_KEY;
+
+  delete process.env.OLLAMA_BASE_URL;
+  delete process.env.OLLAMA_MODEL;
+  delete process.env.OPENAI_API_KEY;
+
+  const service = new LlmService({
+    buildAnswerPrompt: () => ({
+      promptId: "answer.v1",
+      systemPrompt: "managed system prompt",
+      userPrompt: "managed user prompt",
+      fullPrompt: "managed full prompt"
+    }),
+    buildRewritePrompt: () => ({
+      promptId: "rewrite-query.v1",
+      systemPrompt: "managed rewrite system",
+      userPrompt: "managed rewrite user",
+      fullPrompt: "managed rewrite full prompt"
+    }),
+    getAnswerPromptId: () => "answer.v1",
+    getRewritePromptId: () => "rewrite-query.v1"
+  });
+
+  try {
+    const result = await service.generateAnswer({
+      question: "\u8fd9\u4e2a\u6587\u6863\u91cc\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
+      systemPrompt: "ignored direct system prompt",
+      answerPolicy: {
+        responseStyle: "concise",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "same_as_question",
+        citationMode: "required",
+        maxCitations: 2,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: true
+      },
+      chunks: []
+    });
+
+    assert.deepEqual(result.missingInformation, [
+      "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+    process.env.OLLAMA_BASE_URL = originalBaseUrl;
+    process.env.OLLAMA_MODEL = originalModel;
+    process.env.OPENAI_API_KEY = originalApiKey;
+  }
+});
+
 test("LlmService local fallback grounded answer respects explicit zh language policy", async () => {
   const originalFetch = global.fetch;
   const originalBaseUrl = process.env.OLLAMA_BASE_URL;

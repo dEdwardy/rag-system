@@ -997,3 +997,35 @@ test("AnsweringService fills a deterministic missingInformation reason for insuf
     "missing_information"
   ]);
 });
+
+test("AnsweringService localizes the deterministic missingInformation reason for Chinese insufficient-context answers", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "\u4e0d\u77e5\u9053\u3002",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "\u8fd9\u4e2a\u95ee\u9898\u7f3a\u5c11\u4ec0\u4e48\u4fe1\u606f\uff1f",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    chunks: []
+  });
+
+  assert.deepEqual(result.missingInformation, [
+    "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
+  ]);
+});

@@ -149,6 +149,7 @@ export class AnsweringService {
     const usedFallback = input.result.usedFallback ?? input.result.modelName === "fallback-local";
     const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
     const missingInformation = this.resolveMissingInformation({
+      question: input.question,
       answerStatus,
       answerPolicy: input.answerPolicy,
       missingInformation: input.result.missingInformation ?? []
@@ -263,6 +264,7 @@ export class AnsweringService {
   }
 
   private resolveMissingInformation(input: {
+    question: string;
     answerStatus: "grounded" | "insufficient_context";
     answerPolicy: AnswerPolicy;
     missingInformation: string[];
@@ -270,7 +272,7 @@ export class AnsweringService {
     if (input.answerStatus === "insufficient_context") {
       return input.missingInformation.length > 0
         ? input.missingInformation
-        : ["No relevant supporting sources were retrieved."];
+        : [this.buildInsufficientContextMissingInformation(input.question, input.answerPolicy.language)];
     }
 
     return input.answerPolicy.includeMissingInformation ? input.missingInformation : [];
@@ -287,6 +289,19 @@ export class AnsweringService {
     }
 
     return "I don't have enough information in the retrieved sources to answer that reliably.";
+  }
+
+  private buildInsufficientContextMissingInformation(
+    question: string,
+    language: AnswerPolicy["language"]
+  ) {
+    const resolvedLanguage = this.resolvePolicyLanguage(question, language);
+
+    if (resolvedLanguage === "zh") {
+      return "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002";
+    }
+
+    return "No relevant supporting sources were retrieved.";
   }
 
   private resolvePolicyLanguage(question: string, language: AnswerPolicy["language"]) {

@@ -462,6 +462,18 @@
 
 ### 2026-03-23
 
+- ✅ insufficient-context missing-information localization alignment
+  - `insufficient_context` 场景下，backend 补的 deterministic `missingInformation` reason 不再固定为英文
+  - 当前无论是：
+    - `AnsweringService` 在模型省略 `missingInformation` 时补值
+    - `LlmService` zero-hit local fallback 直接产出的 `missingInformation`
+  - 都会按问题语言和 policy 走同一套最小 `en` / `zh` 分流
+  - 这样 answer 文本与结构化 `missingInformation` 字段在中文场景下不再语言错位
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/llm.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ grounded fallback quality-evaluation alignment
   - 当回答仍然是 `grounded`，但 answer generation 实际走了本地 fallback 路径时，`qualityEvaluation` 不再继续给出 `strong`
   - 当前会降级为 `partial`，并暴露：

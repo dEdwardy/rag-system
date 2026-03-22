@@ -455,7 +455,7 @@ export class LlmService {
         promptId: this.promptManager.getAnswerPromptId(),
         usedFallback: true,
         answerStatus: "insufficient_context",
-        missingInformation: ["No relevant supporting sources were retrieved."]
+        missingInformation: [this.buildFallbackNoHitMissingInformation(input.question, input.answerPolicy.language)]
       };
     }
 
@@ -484,6 +484,18 @@ export class LlmService {
     }
 
     return "I couldn't find relevant information in the knowledge base.";
+  }
+
+  private buildFallbackNoHitMissingInformation(
+    question: string,
+    language: GenerateAnswerInput["answerPolicy"]["language"]
+  ) {
+    const resolvedLanguage = this.resolveAnswerLanguage(question, language);
+    if (resolvedLanguage === "zh") {
+      return "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002";
+    }
+
+    return "No relevant supporting sources were retrieved.";
   }
 
   private buildFallbackGroundedAnswer(input: {
