@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useConversations, useDocuments, useKnowledgeBases } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
 import { useThemePreferences } from "./theme-preferences";
 
@@ -11,7 +12,7 @@ type NavItem = {
   to: string;
   label: string;
   icon: NavIconProps["type"];
-  badge?: string;
+  badge?: string | null;
   end?: boolean;
 };
 
@@ -87,9 +88,11 @@ export function AppShell() {
   const location = useLocation();
   const { locale, setLocale } = useI18n();
   const { themeColor, themeLayout, setThemeColor, setThemeLayout } = useThemePreferences();
-  const [modelIndex, setModelIndex] = useState(0);
+  const knowledgeBasesQuery = useKnowledgeBases();
+  const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
+  const conversationsQuery = useConversations();
   const isChatRoute = location.pathname === "/";
-  const models = ["GPT-4o", "Claude 3 Opus", "Gemini Pro", "Llama 3 70B"];
 
   useEffect(() => {
     if (themeColor !== "creative-dark") {
@@ -101,12 +104,15 @@ export function AppShell() {
     }
   }, [setThemeColor, setThemeLayout, themeColor, themeLayout]);
 
+  const documentBadge = documentsQuery.isSuccess ? String(documentsQuery.data.length) : null;
+  const conversationBadge = conversationsQuery.isSuccess ? String(conversationsQuery.data.length) : null;
+
   const links = useMemo<NavGroup[]>(() => [
     {
       heading: locale === "zh" ? "主要功能" : "Main",
       items: [
-        { to: "/", label: locale === "zh" ? "对话" : "Chat", badge: "3", end: true, icon: "chat" },
-        { to: "/documents", label: locale === "zh" ? "文档" : "Documents", badge: "12", icon: "documents" },
+        { to: "/", label: locale === "zh" ? "对话" : "Chat", badge: conversationBadge, end: true, icon: "chat" },
+        { to: "/documents", label: locale === "zh" ? "文档" : "Documents", badge: documentBadge, icon: "documents" },
         { to: "/knowledge-base", label: locale === "zh" ? "知识库" : "Knowledge Base", icon: "knowledge" },
         { to: "/assistant", label: locale === "zh" ? "助手配置" : "Assistant", icon: "assistant" }
       ]
@@ -115,17 +121,33 @@ export function AppShell() {
       heading: locale === "zh" ? "追踪与分析" : "Tracing",
       items: [
         { to: "/traces", label: locale === "zh" ? "Trace 日志" : "Trace log", icon: "trace" },
-        { to: "/knowledge-base", label: locale === "zh" ? "使用统计" : "Usage", icon: "usage" }
+        { to: "/usage", label: locale === "zh" ? "使用统计" : "Usage", icon: "usage" }
       ]
     }
-  ], [locale]);
+  ], [conversationBadge, documentBadge, locale]);
+
+  const isLinkActive = (link: NavItem) => {
+    if (link.end) {
+      return location.pathname === link.to;
+    }
+
+    if (link.to === "/documents") {
+      return location.pathname === "/documents" || location.pathname.startsWith("/documents/");
+    }
+
+    if (link.to === "/traces") {
+      return location.pathname === "/traces" || location.pathname.startsWith("/traces/");
+    }
+
+    return location.pathname === link.to;
+  };
 
   const activeLabel =
-    links.flatMap(group => group.items).find(link => (link.end ? location.pathname === link.to : location.pathname.startsWith(link.to)))?.label ??
+    links.flatMap(group => group.items).find(link => isLinkActive(link))?.label ??
     (locale === "zh" ? "对话" : "Chat");
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[var(--app-bg)] font-sans text-[var(--app-text)]">
+    <div className="relative h-screen overflow-hidden bg-[var(--app-bg)] font-sans text-[var(--app-text)]">
       <div
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_80%_50%_at_20%_-10%,rgba(99,102,241,0.15)_0%,transparent_50%),radial-gradient(ellipse_60%_40%_at_80%_100%,rgba(16,185,129,0.10)_0%,transparent_50%)]"
@@ -135,7 +157,7 @@ export function AppShell() {
         className="pointer-events-none fixed inset-0 z-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[length:60px_60px]"
       />
 
-      <div className="relative z-10 flex min-h-screen">
+      <div className="relative z-10 flex h-full">
         <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
           <div className="border-b border-[var(--app-border)] px-6 py-6">
             <div className="flex items-center gap-3.5">
@@ -160,7 +182,7 @@ export function AppShell() {
                   {group.heading}
                 </div>
                 {group.items.map(item => {
-                  const isActive = item.end ? location.pathname === item.to : location.pathname.startsWith(item.to);
+                  const isActive = isLinkActive(item);
 
                   return (
                     <NavLink
@@ -195,22 +217,28 @@ export function AppShell() {
           <div className="border-t border-[var(--app-border)] p-5">
             <div className="flex items-center gap-3 rounded-[14px] bg-[var(--app-surface)] p-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-sm font-semibold text-white">
-                U
+                {activeKnowledgeBase?.name?.slice(0, 1).toUpperCase() ?? "K"}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
-                  {locale === "zh" ? "开发者" : "Developer"}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "未选择知识库" : "No knowledge base")}
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
-                  {locale === "zh" ? "在线" : "Online"}
+                  {documentsQuery.isSuccess
+                    ? locale === "zh"
+                      ? `${documentsQuery.data.length} 个文档`
+                      : `${documentsQuery.data.length} documents`
+                    : locale === "zh"
+                      ? "加载中"
+                      : "Loading"}
                 </div>
               </div>
             </div>
           </div>
         </aside>
 
-        <main className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-50 flex h-[70px] items-center justify-between border-b border-[var(--app-border)] bg-[rgba(22,22,29,0.8)] px-4 backdrop-blur-xl md:px-8">
             <div className="flex min-w-0 items-center gap-4">
               <div className="flex items-center gap-2 text-[13px]">
@@ -220,11 +248,10 @@ export function AppShell() {
               </div>
               <button
                 className="hidden items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition duration-300 ease-out hover:border-[var(--app-accent)] hover:text-[var(--app-text)] md:flex"
-                onClick={() => setModelIndex(current => (current + 1) % models.length)}
                 type="button"
               >
                 <span className="h-2 w-2 rounded-full bg-[#10b981]" />
-                {models[modelIndex]}
+                {activeKnowledgeBase?.name ?? (locale === "zh" ? "知识库加载中" : "Loading knowledge base")}
                 <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
                   <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
                 </svg>

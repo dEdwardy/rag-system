@@ -5,6 +5,8 @@ import { DocumentDetailPage } from "../pages/documents/DocumentDetailPage";
 import { KnowledgeBasePage } from "../pages/knowledge-base/KnowledgeBasePage";
 import { AssistantPage } from "../pages/assistant/AssistantPage";
 import { TraceDetailPage } from "../pages/traces/TraceDetailPage";
+import { TraceListPage } from "../pages/traces/TraceListPage";
+import { UsagePage } from "../pages/usage/UsagePage";
 import { AppShell } from "./AppShell";
 
 export const router = createBrowserRouter([
@@ -29,8 +31,16 @@ export const router = createBrowserRouter([
         element: <KnowledgeBasePage />
       },
       {
+        path: "usage",
+        element: <UsagePage />
+      },
+      {
         path: "assistant",
         element: <AssistantPage />
+      },
+      {
+        path: "traces",
+        element: <TraceListPage />
       },
       {
         path: "traces/:traceId",

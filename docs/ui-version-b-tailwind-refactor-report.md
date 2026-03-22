@@ -31,10 +31,13 @@ Changes:
 - Matched the target page structure:
   - fixed left sidebar
   - sticky top bar
+  - viewport-locked desktop shell with inner scrolling regions
   - dark gradient/grid background
   - brand block, nav groups, badges, user profile block
   - top actions and language switch
 - Forced the shell into the `creative-dark + workspace-app` desktop direction required by Version B.
+- Replaced hardcoded sidebar badge/model/profile display values with real frontend query data from knowledge bases, documents, and conversations.
+- Split `Usage` onto its own `/usage` route and updated active-state matching so only the exact menu item highlights.
 
 ### 3. Chat workspace rebuild
 
@@ -48,6 +51,7 @@ Changes:
 - Rebuilt the chat page into the same two-pane structure as `ui/version-b-creative.html`:
   - left: assistant header, transcript area, composer
   - right: single panel containing conversation list and citation cards
+- Locked the chat workspace inside the desktop shell so the page itself does not scroll; the transcript pane and the right-side panel each scroll within their own columns when content grows.
 - Preserved existing logic:
   - assistants query
   - conversations/messages/traces queries
@@ -78,14 +82,16 @@ Changes:
 ### Commands run
 
 ```bash
-node --test apps/web/test/ui-tailwind-migration.test.js apps/web/test/chat-layout-source.test.js apps/web/test/state-panel-theme.test.js
+node --test apps/web/test/trace-router.test.js apps/web/test/desktop-shell-consistency.test.js
+pnpm --filter @rag-system/web test:smoke
 pnpm --filter @rag-system/web typecheck
 pnpm --filter @rag-system/web build
 ```
 
 Result:
 
-- All listed source tests passed.
+- Route/highlight consistency checks passed.
+- Desktop smoke flow passed.
 - `typecheck` passed.
 - `build` passed.
 
@@ -101,11 +107,17 @@ Artifacts:
 - `output/playwright/ui-refactor-audit/target-desktop-edge.png`
 - `output/playwright/ui-refactor-audit/target-desktop-chrome.png`
 - `output/playwright/ui-refactor-audit/dev3001-desktop-edge.png`
+- `output/playwright/ui-refactor-audit-final/target-reference-desktop.png`
+- `output/playwright/ui-refactor-audit-final/app-chat-desktop.png`
+- `output/playwright/ui-refactor-audit-final/app-knowledge-base-desktop.png`
+- `output/playwright/ui-refactor-audit-final/app-usage-desktop.png`
+- `output/playwright/ui-refactor-audit-final/app-assistant-desktop.png`
 
 Validation method:
 
 - Used Playwright with local Edge/Chrome channels to confirm the target HTML renders as expected on desktop.
-- Used a temporary dev server on `http://127.0.0.1:3001` to validate the refactored app against the real local API.
+- Used a temporary preview target on `http://127.0.0.1:3001` to validate the refactored app against the real local API.
+- Used local Edge for the final desktop screenshot pass against a single temporary static port.
 - Desktop-only visual checks are authoritative.
 
 Important environment note:
@@ -128,9 +140,13 @@ Important environment note:
 - `apps/web/src/app/AppShell.tsx`
 - `apps/web/src/components/StatePanel.tsx`
 - `apps/web/src/pages/chat/ChatPage.tsx`
+- `apps/web/src/pages/usage/UsagePage.tsx`
+- `apps/web/src/app/router.tsx`
 - `apps/web/test/ui-tailwind-migration.test.js`
 - `apps/web/test/chat-layout-source.test.js`
 - `apps/web/test/state-panel-theme.test.js`
+- `apps/web/test/trace-router.test.js`
+- `apps/web/test/desktop-shell-consistency.test.js`
 
 ## Residual notes
 

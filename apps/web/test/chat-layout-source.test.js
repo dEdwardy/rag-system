@@ -12,6 +12,9 @@ test("chat page keeps the reference three-column workspace proportions", async (
   assert.match(source, /xl:grid-cols-\[minmax\(0,1fr\)_340px\]/);
   assert.match(source, /"当前引用" : "Current citations"/);
   assert.match(source, /"新会话" : "New chat"/);
+  assert.match(source, /ref=\{transcriptRef\}/);
+  assert.match(source, /min-h-0 flex-1 overflow-y-auto/);
+  assert.match(source, /border-t border-\[var\(--app-border\)\]/);
 });
 
 test("app shell keeps the reference navbar and header dimensions", async () => {
