@@ -228,6 +228,50 @@ test("AnsweringService downgrades grounded local fallback answers in quality eva
   });
 });
 
+test("AnsweringService localizes fallback-generation quality summaries for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "\u56de\u7b54 [1]",
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "\u8fd9\u4e2a\u6587\u6863\u91cc\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "\u4e2d\u6587\u5185\u5bb9",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002");
+});
+
 test("AnsweringService de-duplicates repeated inline citation markers from plain-text answers", async () => {
   const llmService = {
     generateAnswer: async () => ({
@@ -831,6 +875,36 @@ test("AnsweringService returns weak quality evaluation for insufficient-context 
     flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
     summary: "Answer quality is weak because supporting context was insufficient."
   });
+});
+
+test("AnsweringService localizes weak insufficient-context quality summaries for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "\u4e0d\u77e5\u9053\u3002",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "\u8fd9\u4e2a\u95ee\u9898\u7f3a\u5c11\u4ec0\u4e48\u4fe1\u606f\uff1f",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    chunks: []
+  });
+
+  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002");
 });
 
 test("AnsweringService distinguishes weak insufficient-context summaries when retrieval produced context", async () => {

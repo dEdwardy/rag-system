@@ -126,6 +126,7 @@ Notes:
   - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `fallback_generation`, `other`) alongside the existing flags array
   - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty
   - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
+  - deterministic `qualityEvaluation.summary` now also follows the same minimal `en` / `zh` language resolution used by the backend fallback answer text
   - the strong-summary wording now distinguishes among:
     - answers grounded in explicit cited sources
     - answers grounded in retrieved sources without citations

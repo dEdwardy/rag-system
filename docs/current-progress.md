@@ -462,6 +462,18 @@
 
 ### 2026-03-23
 
+- ✅ quality-summary localization alignment
+  - backend 生成的 deterministic `qualityEvaluation.summary` 现在也会按问题语言和 policy 做最小 `en` / `zh` 分流
+  - 当前至少已对齐：
+    - strong cited / retrieved summary
+    - partial missing-information / low-retrieval-score / fallback-generation summary
+    - weak no-hit / hit-but-insufficient summary
+  - 这样中文场景下，`answer`、`missingInformation`、`qualityEvaluation.summary` 不再出现中英混杂
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ no-hit stream fallback answer alignment
   - native stream path 在 `no hits + say_insufficient_context` 时，fallback delta 文本现在和最终 `final.answer` 使用同一 deterministic insufficient-context reply
   - 这样流式渲染不再先显示一版 “couldn't find relevant information” 再在最终 payload 里切成另一版 backend fallback answer

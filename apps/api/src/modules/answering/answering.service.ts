@@ -168,6 +168,8 @@ export class AnsweringService {
 
     if (input.chunks.length === 0) {
       const qualityEvaluation = this.buildQualityEvaluation({
+        question: input.question,
+        language: input.answerPolicy.language,
         answerStatus,
         missingInformation,
         usedFallback,
@@ -220,6 +222,8 @@ export class AnsweringService {
       )
     }));
     const qualityEvaluation = this.buildQualityEvaluation({
+      question: input.question,
+      language: input.answerPolicy.language,
       answerStatus,
       missingInformation,
       usedFallback,
@@ -457,6 +461,8 @@ export class AnsweringService {
   }
 
   private buildQualityEvaluation(input: {
+    question: string;
+    language: AnswerPolicy["language"];
     answerStatus: "grounded" | "insufficient_context";
     missingInformation: string[];
     usedFallback: boolean;
@@ -518,32 +524,14 @@ export class AnsweringService {
           ? "strong"
           : "partial";
 
-    const summary =
-      overall === "strong"
-        ? input.citationCount > 0 && input.hasExplicitCitations
-          ? "Answer is grounded in cited sources with no reported gaps."
-          : "Answer is grounded in retrieved sources with no reported gaps."
-        : overall === "partial"
-          ? flags.includes("missing_information") &&
-            flags.includes("low_retrieval_score") &&
-            flags.includes("fallback_generation")
-            ? "Answer is grounded but incomplete because some information is missing, retrieval confidence was low, and it was produced through local fallback behavior."
-            : flags.includes("missing_information") && flags.includes("low_retrieval_score")
-            ? "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low."
-            : flags.includes("missing_information") && flags.includes("fallback_generation")
-              ? "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
-              : flags.includes("low_retrieval_score") && flags.includes("fallback_generation")
-                ? "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
-            : flags.includes("missing_information")
-              ? "Answer is grounded but incomplete because some information is missing."
-              : flags.includes("low_retrieval_score")
-                ? "Answer is grounded, but retrieval confidence was low for the supporting context."
-                : flags.includes("fallback_generation")
-                  ? "Answer is grounded, but it was produced through local fallback behavior."
-                : "Answer is grounded but still has unresolved quality limitations."
-          : flags.includes("no_retrieval_hits")
-            ? "Answer quality is weak because supporting context was insufficient."
-            : "Answer quality is weak because retrieved context was still insufficient.";
+    const summary = this.buildQualitySummary({
+      question: input.question,
+      language: input.language,
+      overall,
+      flags,
+      citationCount: input.citationCount,
+      hasExplicitCitations: input.hasExplicitCitations ?? false
+    });
 
     const primaryIssue =
       overall === "strong"
@@ -573,5 +561,110 @@ export class AnsweringService {
       flags: normalizedFlags,
       summary
     };
+  }
+
+  private buildQualitySummary(input: {
+    question: string;
+    language: AnswerPolicy["language"];
+    overall: QualityEvaluation["overall"];
+    flags: string[];
+    citationCount: number;
+    hasExplicitCitations: boolean;
+  }) {
+    const resolvedLanguage = this.resolvePolicyLanguage(input.question, input.language);
+
+    if (input.overall === "strong") {
+      if (resolvedLanguage === "zh") {
+        return input.citationCount > 0 && input.hasExplicitCitations
+          ? "\u56de\u7b54\u5df2\u57fa\u4e8e\u5f15\u7528\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002"
+          : "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
+      }
+
+      return input.citationCount > 0 && input.hasExplicitCitations
+        ? "Answer is grounded in cited sources with no reported gaps."
+        : "Answer is grounded in retrieved sources with no reported gaps.";
+    }
+
+    if (input.overall === "partial") {
+      if (resolvedLanguage === "zh") {
+        if (
+          input.flags.includes("missing_information") &&
+          input.flags.includes("low_retrieval_score") &&
+          input.flags.includes("fallback_generation")
+        ) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\uff0c\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\uff0c\u4e14\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        if (input.flags.includes("missing_information") && input.flags.includes("low_retrieval_score")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002";
+        }
+
+        if (input.flags.includes("missing_information") && input.flags.includes("fallback_generation")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\uff0c\u4e14\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        if (input.flags.includes("low_retrieval_score") && input.flags.includes("fallback_generation")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u652f\u6301\u4e0a\u4e0b\u6587\u7684\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\uff0c\u4e14\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        if (input.flags.includes("missing_information")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\u3002";
+        }
+
+        if (input.flags.includes("low_retrieval_score")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u652f\u6301\u4e0a\u4e0b\u6587\u7684\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002";
+        }
+
+        if (input.flags.includes("fallback_generation")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u5b58\u5728\u672a\u89e3\u51b3\u7684\u8d28\u91cf\u9650\u5236\u3002";
+      }
+
+      if (
+        input.flags.includes("missing_information") &&
+        input.flags.includes("low_retrieval_score") &&
+        input.flags.includes("fallback_generation")
+      ) {
+        return "Answer is grounded but incomplete because some information is missing, retrieval confidence was low, and it was produced through local fallback behavior.";
+      }
+
+      if (input.flags.includes("missing_information") && input.flags.includes("low_retrieval_score")) {
+        return "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low.";
+      }
+
+      if (input.flags.includes("missing_information") && input.flags.includes("fallback_generation")) {
+        return "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior.";
+      }
+
+      if (input.flags.includes("low_retrieval_score") && input.flags.includes("fallback_generation")) {
+        return "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior.";
+      }
+
+      if (input.flags.includes("missing_information")) {
+        return "Answer is grounded but incomplete because some information is missing.";
+      }
+
+      if (input.flags.includes("low_retrieval_score")) {
+        return "Answer is grounded, but retrieval confidence was low for the supporting context.";
+      }
+
+      if (input.flags.includes("fallback_generation")) {
+        return "Answer is grounded, but it was produced through local fallback behavior.";
+      }
+
+      return "Answer is grounded but still has unresolved quality limitations.";
+    }
+
+    if (resolvedLanguage === "zh") {
+      return input.flags.includes("no_retrieval_hits")
+        ? "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002"
+        : "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\u3002";
+    }
+
+    return input.flags.includes("no_retrieval_hits")
+      ? "Answer quality is weak because supporting context was insufficient."
+      : "Answer quality is weak because retrieved context was still insufficient.";
   }
 }
