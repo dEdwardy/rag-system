@@ -302,6 +302,14 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
       }
     );
 
+    const recentFilteredRunsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?status=failed&sinceHours=1`
+    );
+    assert.equal(recentFilteredRunsResponse.status, 200);
+
+    const recentFilteredRuns = await recentFilteredRunsResponse.json();
+    assert.equal(recentFilteredRuns.length, 1);
+
     const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
     assert.equal(summaryResponse.status, 200);
 
@@ -340,6 +348,15 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
       finishedAt: summary.latestFailure.finishedAt
     });
     assert.ok(summary.latestFailure.finishedAt);
+
+    const recentSummaryResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary?sinceHours=1`
+    );
+    assert.equal(recentSummaryResponse.status, 200);
+
+    const recentSummary = await recentSummaryResponse.json();
+    assert.equal(recentSummary.totalRuns, 1);
+    assert.equal(recentSummary.retryableFailures, 1);
   } finally {
     server.kill("SIGTERM");
     await stopServer(pageServer.server);

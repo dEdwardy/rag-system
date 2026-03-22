@@ -12,9 +12,11 @@ import { ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schema
 export class DocumentRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getKnowledgeBaseRunSummary(knowledgeBaseId: string) {
+  async getKnowledgeBaseRunSummary(knowledgeBaseId: string, input?: Pick<ListKnowledgeBaseDocumentRunsInput, "sinceHours">) {
+    const startedAt = this.resolveStartedAtFilter(input?.sinceHours);
     const runs = await this.prisma.documentRun.findMany({
       where: {
+        startedAt,
         document: {
           kbId: knowledgeBaseId
         }
@@ -113,9 +115,12 @@ export class DocumentRunsService {
   }
 
   listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
+    const startedAt = this.resolveStartedAtFilter(input.sinceHours);
+
     return this.prisma.documentRun.findMany({
       where: {
         documentId: input.documentId,
+        startedAt,
         status: input.status,
         trigger: input.trigger,
         document: {
@@ -262,5 +267,16 @@ export class DocumentRunsService {
     }
 
     return value.retryable === true;
+  }
+
+  private resolveStartedAtFilter(sinceHours?: number) {
+    if (sinceHours === undefined) {
+      return undefined;
+    }
+
+    const cutoff = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
+    return {
+      gte: cutoff
+    } satisfies Prisma.DateTimeFilter;
   }
 }

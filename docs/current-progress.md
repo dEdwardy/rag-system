@@ -487,6 +487,7 @@
     - `sourceType`
     - `status`
     - `trigger`
+    - `sinceHours`
     - `limit`
   - 这个接口当前优先服务 backend/API 级诊断与后续 UI 承载，但本轮没有继续开启新的 UI 重构
   - focused validation rerun:
@@ -506,6 +507,7 @@
     - `nonRetryableFailures`
     - `failureByStage`
     - `latestFailure`
+  - `document-runs` list 和 `document-runs/summary` 现在都支持 `sinceHours`，便于聚焦最近一段时间的运行情况
   - 目标是先为后续 diagnostics 承载和潜在 UI 概览提供轻量后端聚合面，而不是继续扩 source platform 抽象
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`
