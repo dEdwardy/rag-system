@@ -28,7 +28,7 @@ export function DocumentsPage() {
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
   const reindexMutation = useReindexDocument();
-  const { t, locale } = useI18n();
+  const { t, locale, formatDateTime } = useI18n();
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
   const documentCount = documentsQuery.data?.length ?? 0;
   const readyCount = documentsQuery.data?.filter(document => document.status === "ready").length ?? 0;
@@ -283,7 +283,7 @@ export function DocumentsPage() {
                       <Table.Th>{t("common.fields.status")}</Table.Th>
                       <Table.Th>{t("common.fields.stage")}</Table.Th>
                       <Table.Th>{t("common.fields.chunks")}</Table.Th>
-                      <Table.Th>{t("common.fields.storage")}</Table.Th>
+                      <Table.Th>{t("common.fields.updated")}</Table.Th>
                       <Table.Th>{t("common.fields.details")}</Table.Th>
                       <Table.Th />
                     </Table.Tr>
@@ -326,9 +326,14 @@ export function DocumentsPage() {
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Text c="var(--app-text-muted)" lineClamp={1} size="sm">
-                            {document.storageKey}
-                          </Text>
+                          <Stack gap={2}>
+                            <Text c="var(--app-text-secondary)" size="sm">
+                              {formatDateTime(document.updatedAt)}
+                            </Text>
+                            <Text c="var(--app-text-muted)" lineClamp={1} size="xs">
+                              {locale === "zh" ? "来源" : "Source"}: {document.sourceName}
+                            </Text>
+                          </Stack>
                         </Table.Td>
                         <Table.Td>
                           <Button

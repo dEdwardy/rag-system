@@ -76,6 +76,26 @@ function TypingIndicator() {
   );
 }
 
+function SummaryCard({
+  label,
+  value,
+  hint
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-4 py-4 shadow-[0_10px_28px_rgba(0,0,0,0.18)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold text-[var(--app-text)]">{value}</div>
+      <div className="mt-1 text-[12px] leading-5 text-[var(--app-text-secondary)]">{hint}</div>
+    </div>
+  );
+}
+
 export function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
@@ -164,6 +184,19 @@ export function ChatPage() {
       ? activeStreamTurn.assistantMessage.citations
       : latestTrace?.citationsJson ?? [];
   const activeTraceId = activeStreamTurn?.assistantMessage.traceId ?? latestTrace?.id ?? null;
+  const activeConversation =
+    conversationsQuery.data?.find(conversation => conversation.id === activeConversationId) ?? null;
+  const conversationCount = conversationsQuery.data?.length ?? 0;
+  const workspaceStatus =
+    !activeAssistant
+      ? locale === "zh"
+        ? "助手不可用"
+        : "Assistant unavailable"
+      : activeStreamTurn
+        ? streamStatusLabel ?? (locale === "zh" ? "处理中" : "In progress")
+        : locale === "zh"
+          ? "准备提问"
+          : "Ready to ask";
 
   const submitQuestion = async () => {
     const question = composerValue.trim();
@@ -293,6 +326,50 @@ export function ChatPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8" ref={transcriptRef}>
           <div className="flex flex-col gap-6">
+            <div className="workspace-chat-summary grid gap-3 md:grid-cols-3">
+              <SummaryCard
+                hint={
+                  activeConversation
+                    ? locale === "zh"
+                      ? "当前会话会继承最新引用和 Trace 视图。"
+                      : "The active conversation drives the latest citations and trace view."
+                    : locale === "zh"
+                      ? "新问题会自动创建新的会话记录。"
+                      : "A new question will start a fresh conversation."
+                }
+                label={locale === "zh" ? "当前工作区" : "Current workspace"}
+                value={
+                  activeConversation?.title ??
+                  (locale === "zh" ? "新会话草稿" : "New conversation draft")
+                }
+              />
+              <SummaryCard
+                hint={
+                  activeAssistant
+                    ? locale === "zh"
+                      ? "默认助手已绑定，可以直接发起提问。"
+                      : "The default assistant is bound and ready for questions."
+                    : locale === "zh"
+                      ? "需要先恢复助手配置。"
+                      : "Restore assistant configuration before sending questions."
+                }
+                label={locale === "zh" ? "提问状态" : "Ask status"}
+                value={workspaceStatus}
+              />
+              <SummaryCard
+                hint={
+                  locale === "zh"
+                    ? `${conversationCount} 个会话，${citationItems.length} 条当前引用。`
+                    : `${conversationCount} conversations, ${citationItems.length} current citations.`
+                }
+                label={locale === "zh" ? "引用与溯源" : "Citations and trace"}
+                value={
+                  activeTraceId ??
+                  (locale === "zh" ? "等待本轮 Trace" : "Waiting for next trace")
+                }
+              />
+            </div>
+
             {activeConversationId == null && activeStreamTurn == null ? (
               <StatePanel
                 description={t("chat.states.noActiveConversationDescription")}
@@ -390,6 +467,26 @@ export function ChatPage() {
               void submitQuestion();
             }}
           >
+            <div className="mb-3 flex items-center justify-between px-1">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-muted)]">
+                  {locale === "zh" ? "提问输入区" : "Ask composer"}
+                </div>
+                <div className="mt-1 text-xs text-[var(--app-text-secondary)]">
+                  {canAsk
+                    ? locale === "zh"
+                      ? "按 Enter 直接发送，引用和 Trace 结果会保留在右侧。"
+                      : "Press Enter to send. Citations and trace results stay visible on the right."
+                    : locale === "zh"
+                      ? "当前助手不可用，输入区已暂时禁用。"
+                      : "The assistant is unavailable, so the composer is temporarily disabled."}
+                </div>
+              </div>
+              <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1 text-[11px] text-[var(--app-text-secondary)]">
+                {workspaceStatus}
+              </span>
+            </div>
+
             <div className="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-2 transition duration-300 focus-within:border-[var(--app-accent)] focus-within:shadow-[0_0_0_3px_var(--app-accent-glow)]">
               <div className="flex items-end gap-3">
                 <textarea

@@ -53,6 +53,18 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.doesNotMatch(traceListSource, /Conversation ID[^]*Latest trace[^]*Created/);
 });
 
+test("chat and trace detail surface higher-level workspace summaries before diagnostics", () => {
+  const chatSource = readFileSync(chatPagePath, "utf8");
+  const traceSource = readFileSync(traceDetailPath, "utf8");
+  const statePanelSource = readFileSync(resolve(__dirname, "../src/components/StatePanel.tsx"), "utf8");
+
+  assert.match(chatSource, /workspace-chat-summary/);
+  assert.match(chatSource, /Ready to ask|准备提问/);
+  assert.match(traceSource, /Execution summary|执行摘要/);
+  assert.match(traceSource, /workspace-metric-grid/);
+  assert.match(statePanelSource, /data-tone=/);
+});
+
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {
   const cssSource = readFileSync(globalCssPath, "utf8");
 

@@ -399,6 +399,11 @@ html[data-theme-layout="workspace-app"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .workspace-chat-summary {
+    display: grid;
+    gap: 0.75rem;
+  }
+
   .workspace-trace-list {
     display: grid;
     gap: 1rem;

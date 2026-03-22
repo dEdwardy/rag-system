@@ -208,7 +208,85 @@ export function TraceDetailPage() {
       ) : null}
 
       {trace ? (
-        <div className="workspace-page-grid">
+        <>
+          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+            <Stack gap="md">
+              <Group justify="space-between" wrap="nowrap">
+                <div>
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "执行摘要" : "Execution summary"}
+                  </Text>
+                  <Text className="workspace-section-copy">
+                    {locale === "zh"
+                      ? "先看结果、检索规模、引用数量和耗时，再决定是否继续看评分与原始载荷。"
+                      : "Scan outcome, retrieval volume, citation count, and latency first, then drill into scores or raw payload only when needed."}
+                  </Text>
+                </div>
+                <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
+                  {t(`common.status.${trace.status}`)}
+                </Badge>
+              </Group>
+
+              <div className="workspace-metric-grid">
+                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "本轮结果" : "Outcome"}</Text>
+                  <Text className="workspace-metric-value">
+                    {trace.status === "success"
+                      ? locale === "zh"
+                        ? "已完成"
+                        : "Completed"
+                      : locale === "zh"
+                        ? "需排查"
+                        : "Needs review"}
+                  </Text>
+                  <Text className="workspace-metric-subtle">
+                    {trace.errorMessage
+                      ? trace.errorMessage
+                      : locale === "zh"
+                        ? "回答链路已结束，可继续检查引用与评分。"
+                        : "The answer pipeline finished. Continue with citations and score details if needed."}
+                  </Text>
+                </Paper>
+                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "命中 Chunk" : "Retrieved chunks"}</Text>
+                  <Text className="workspace-metric-value">{retrievedChunkIds.length}</Text>
+                  <Text className="workspace-metric-subtle">
+                    {scores.length > 0
+                      ? locale === "zh"
+                        ? "已保存分数明细，可继续查看排序。"
+                        : "Score breakdown is available for ranked inspection."
+                      : locale === "zh"
+                        ? "仅保留了 Trace 顺序，没有完整分数明细。"
+                        : "Only trace order was persisted, without full score detail."}
+                  </Text>
+                </Paper>
+                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "引用数量" : "Citations"}</Text>
+                  <Text className="workspace-metric-value">{citations.length}</Text>
+                  <Text className="workspace-metric-subtle">
+                    {locale === "zh"
+                      ? "右下区域保留可跳转文档的引用卡片。"
+                      : "Citations remain directly linked to their source documents."}
+                  </Text>
+                </Paper>
+                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "总耗时" : "Latency"}</Text>
+                  <Text className="workspace-metric-value">{trace.latencyMs ?? "-"}</Text>
+                  <Text className="workspace-metric-subtle">
+                    {locale === "zh"
+                      ? hasRewrite
+                        ? "本轮已启用问题改写。"
+                        : "本轮未触发问题改写。"
+                      : hasRewrite
+                        ? "Query rewrite was applied for this run."
+                        : "No query rewrite was applied for this run."}
+                  </Text>
+                </Paper>
+              </div>
+            </Stack>
+          </Paper>
+
+          <div className="workspace-page-grid">
           <div className="workspace-page-side-stack">
             <div className="workspace-sticky-panel">
               <Stack gap="md">
@@ -487,7 +565,8 @@ export function TraceDetailPage() {
               </div>
             </Stack>
           </div>
-        </div>
+          </div>
+        </>
       ) : null}
     </Stack>
   );
