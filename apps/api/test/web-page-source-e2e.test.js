@@ -277,6 +277,30 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
         sourceName: `${pageServer.origin}/knowledge/down`
       }
     );
+
+    const filteredRunsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?status=failed&trigger=external_resync&sourceType=web_page&limit=1`
+    );
+    assert.equal(filteredRunsResponse.status, 200);
+
+    const filteredRuns = await filteredRunsResponse.json();
+    assert.equal(filteredRuns.length, 1);
+    assert.deepEqual(
+      {
+        documentId: filteredRuns[0].documentId,
+        version: filteredRuns[0].version,
+        status: filteredRuns[0].status,
+        trigger: filteredRuns[0].trigger,
+        failedStage: filteredRuns[0].failedStage
+      },
+      {
+        documentId: documents[0].id,
+        version: 1,
+        status: "failed",
+        trigger: "external_resync",
+        failedStage: "source_fetch"
+      }
+    );
   } finally {
     server.kill("SIGTERM");
     await stopServer(pageServer.server);

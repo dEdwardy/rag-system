@@ -196,6 +196,30 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
       ]
     );
 
+    const limitedRunsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?limit=1&trigger=reindex&status=ready&sourceType=upload`
+    );
+    assert.equal(limitedRunsResponse.status, 200);
+
+    const limitedRuns = await limitedRunsResponse.json();
+    assert.equal(limitedRuns.length, 1);
+    assert.deepEqual(
+      {
+        documentId: limitedRuns[0].documentId,
+        version: limitedRuns[0].version,
+        trigger: limitedRuns[0].trigger,
+        status: limitedRuns[0].status,
+        sourceType: limitedRuns[0].document.sourceType
+      },
+      {
+        documentId: uploadedDocument.id,
+        version: 2,
+        trigger: "reindex",
+        status: "ready",
+        sourceType: "upload"
+      }
+    );
+
     const chunksAfterReindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
     assert.equal(chunksAfterReindexResponse.status, 200);
 

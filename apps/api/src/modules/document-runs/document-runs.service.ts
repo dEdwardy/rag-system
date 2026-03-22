@@ -6,16 +6,21 @@ import {
 } from "@prisma/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
+import { ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schemas";
 
 @Injectable()
 export class DocumentRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listKnowledgeBaseRuns(knowledgeBaseId: string) {
+  listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
     return this.prisma.documentRun.findMany({
       where: {
+        documentId: input.documentId,
+        status: input.status,
+        trigger: input.trigger,
         document: {
-          kbId: knowledgeBaseId
+          kbId: knowledgeBaseId,
+          sourceType: input.sourceType
         }
       },
       include: {
@@ -32,6 +37,7 @@ export class DocumentRunsService {
           }
         }
       },
+      take: input.limit,
       orderBy: [{ startedAt: "desc" }, { version: "desc" }]
     });
   }

@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors
 } from "@nestjs/common";
@@ -13,6 +14,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import {
   createDocumentSchema,
   createFeedDocumentSchema,
+  listKnowledgeBaseDocumentRunsSchema,
   createSitemapDocumentSchema,
   createWebPageDocumentSchema
 } from "./document.schemas";
@@ -28,8 +30,9 @@ export class DocumentsController {
   }
 
   @Get("knowledge-bases/:id/document-runs")
-  listKnowledgeBaseDocumentRuns(@Param("id") knowledgeBaseId: string) {
-    return this.documentsService.listKnowledgeBaseDocumentRuns(knowledgeBaseId);
+  listKnowledgeBaseDocumentRuns(@Param("id") knowledgeBaseId: string, @Query() query: unknown) {
+    const input = listKnowledgeBaseDocumentRunsSchema.parse(query);
+    return this.documentsService.listKnowledgeBaseDocumentRuns(knowledgeBaseId, input);
   }
 
   @Post("knowledge-bases/:id/documents")

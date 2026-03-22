@@ -482,6 +482,12 @@
 - ✅ knowledge-base scoped document run observability 第一轮
   - 新增 `GET /knowledge-bases/:id/document-runs`，用于直接查看某个 knowledge base 最近的 document / source 执行历史
   - 当前返回 run 基本字段外，还会附带一个最小 `document` 摘要，便于在不额外查 document 列表的情况下定位来源和当前状态
+  - 当前已支持最小查询过滤：
+    - `documentId`
+    - `sourceType`
+    - `status`
+    - `trigger`
+    - `limit`
   - 这个接口当前优先服务 backend/API 级诊断与后续 UI 承载，但本轮没有继续开启新的 UI 重构
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`

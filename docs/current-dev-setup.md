@@ -263,6 +263,12 @@ Notes:
 - external source documents now persist `sourceConfigJson`, and `POST /documents/:id/reindex` for `web_page` / `feed` / `sitemap` performs a true remote re-sync using the stored source config instead of only re-parsing the previous generated text artifact
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
+- the knowledge-base scoped run list currently supports minimal query filters:
+  - `documentId`
+  - `sourceType`
+  - `status`
+  - `trigger`
+  - `limit` (default `20`, max `100`)
 - each document run currently records:
   - `documentId`
   - `version`

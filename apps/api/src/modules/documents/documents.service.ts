@@ -13,7 +13,8 @@ import {
   CreateDocumentInput,
   CreateFeedDocumentInput,
   CreateSitemapDocumentInput,
-  CreateWebPageDocumentInput
+  CreateWebPageDocumentInput,
+  ListKnowledgeBaseDocumentRunsInput
 } from "./document.schemas";
 
 type ExternalSourceConfig =
@@ -53,9 +54,12 @@ export class DocumentsService {
     });
   }
 
-  async listKnowledgeBaseDocumentRuns(knowledgeBaseId: string) {
+  async listKnowledgeBaseDocumentRuns(
+    knowledgeBaseId: string,
+    input: ListKnowledgeBaseDocumentRunsInput
+  ) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
-    return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId);
+    return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId, input);
   }
 
   async getDocument(id: string) {
