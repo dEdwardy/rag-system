@@ -312,6 +312,8 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
           retryable: false
         }
       ],
+      failedPagesTruncated: false,
+      failedPagesOmittedCount: 0,
       partial: true
     });
   } finally {
@@ -445,6 +447,8 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
       failedPageCount: 0,
       failedPageUrls: [],
       failedPages: [],
+      failedPagesTruncated: false,
+      failedPagesOmittedCount: 0,
       partial: true,
       attemptedChildSitemapCount: 2,
       succeededChildSitemapCount: 1,
@@ -456,8 +460,73 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
           message: "Failed to fetch sitemap: upstream responded with 502.",
           retryable: true
         }
-      ]
+      ],
+      failedChildSitemapsTruncated: false,
+      failedChildSitemapsOmittedCount: 0
     });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService caps partial failure summaries and reports omitted counts", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap.xml") {
+      const entries = Array.from({ length: 12 }, (_, index) => {
+        return `<url><loc>https://example.com/pages/fail-${index + 1}</loc></url>`;
+      }).join("");
+
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}<url><loc>https://example.com/pages/good</loc></url></urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/good") {
+      return new Response(
+        "<html><head><title>Good Page</title></head><body><main><p>Reachable marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (/https:\/\/example\.com\/pages\/fail-\d+/.test(normalizedUrl)) {
+      return new Response("upstream exploded", {
+        status: 502,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap.xml",
+      maxPages: 20
+    });
+
+    assert.equal(extracted.diagnostics.failedPageCount, 12);
+    assert.equal(extracted.diagnostics.failedPages.length, 10);
+    assert.equal(extracted.diagnostics.failedPagesTruncated, true);
+    assert.equal(extracted.diagnostics.failedPagesOmittedCount, 2);
   } finally {
     global.fetch = originalFetch;
   }

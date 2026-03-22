@@ -255,6 +255,8 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
           retryable: false
         }
       ],
+      failedPagesTruncated: false,
+      failedPagesOmittedCount: 0,
       partial: true
     });
 
@@ -347,6 +349,8 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
       failedPageCount: 0,
       failedPageUrls: [],
       failedPages: [],
+      failedPagesTruncated: false,
+      failedPagesOmittedCount: 0,
       partial: true,
       attemptedChildSitemapCount: 2,
       succeededChildSitemapCount: 1,
@@ -358,7 +362,9 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
           message: "Failed to fetch sitemap: upstream responded with 502.",
           retryable: true
         }
-      ]
+      ],
+      failedChildSitemapsTruncated: false,
+      failedChildSitemapsOmittedCount: 0
     });
 
     const runsResponse = await fetch(

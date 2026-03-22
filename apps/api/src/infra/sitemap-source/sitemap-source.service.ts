@@ -27,6 +27,8 @@ type SitemapFetchDiagnostics = {
     message: string;
     retryable: boolean;
   }>;
+  failedPagesTruncated?: boolean;
+  failedPagesOmittedCount?: number;
   partial: boolean;
   attemptedChildSitemapCount?: number;
   succeededChildSitemapCount?: number;
@@ -37,6 +39,8 @@ type SitemapFetchDiagnostics = {
     message: string;
     retryable: boolean;
   }>;
+  failedChildSitemapsTruncated?: boolean;
+  failedChildSitemapsOmittedCount?: number;
 };
 
 type PageFetchFailure = {
@@ -64,6 +68,7 @@ type ResolvedSitemapPages = {
 
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
 const MAX_CHILD_SITEMAPS = 20;
+const MAX_FAILURE_SUMMARY_ITEMS = 10;
 
 @Injectable()
 export class SitemapSourceService {
@@ -220,15 +225,21 @@ export class SitemapSourceService {
       diagnostics:
         failedChildSitemapUrls.length > 0
           ? {
+              ...this.buildFailureSummary(
+                childSitemapFailures,
+                "failedChildSitemaps",
+                "failedChildSitemapsTruncated",
+                "failedChildSitemapsOmittedCount",
+                failure => ({
+                  url: failure.url,
+                  message: this.getErrorMessage(failure.error),
+                  retryable: this.isRetryableFetchError(failure.error)
+                })
+              ),
               attemptedChildSitemapCount: childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS).length,
               succeededChildSitemapCount,
               failedChildSitemapCount: failedChildSitemapUrls.length,
-              failedChildSitemapUrls: failedChildSitemapUrls.slice(0, 10),
-              failedChildSitemaps: childSitemapFailures.slice(0, 10).map(failure => ({
-                url: failure.url,
-                message: this.getErrorMessage(failure.error),
-                retryable: this.isRetryableFetchError(failure.error)
-              })),
+              failedChildSitemapUrls: failedChildSitemapUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
               partial: true
             }
           : null
@@ -282,15 +293,21 @@ export class SitemapSourceService {
     const diagnostics =
       failedPageUrls.length > 0 || existingDiagnostics?.partial
         ? {
+            ...this.buildFailureSummary(
+              pageFailures,
+              "failedPages",
+              "failedPagesTruncated",
+              "failedPagesOmittedCount",
+              failure => ({
+                url: failure.url,
+                message: this.getErrorMessage(failure.error),
+                retryable: this.isRetryableFetchError(failure.error)
+              })
+            ),
             attemptedPageCount: pageUrls.length,
             succeededPageCount,
             failedPageCount: failedPageUrls.length,
-            failedPageUrls: failedPageUrls.slice(0, 10),
-            failedPages: pageFailures.slice(0, 10).map(failure => ({
-              url: failure.url,
-              message: this.getErrorMessage(failure.error),
-              retryable: this.isRetryableFetchError(failure.error)
-            })),
+            failedPageUrls: failedPageUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
             partial: true,
             ...(existingDiagnostics ?? {})
           }
@@ -423,5 +440,22 @@ export class SitemapSourceService {
 
   private isRetryableFetchError(error: unknown) {
     return !(error instanceof BadRequestException);
+  }
+
+  private buildFailureSummary<T, TResult>(
+    failures: T[],
+    itemsKey: string,
+    truncatedKey: string,
+    omittedCountKey: string,
+    mapItem: (failure: T) => TResult
+  ) {
+    const items = failures.slice(0, MAX_FAILURE_SUMMARY_ITEMS).map(mapItem);
+    const omittedCount = Math.max(0, failures.length - items.length);
+
+    return {
+      [itemsKey]: items,
+      [truncatedKey]: omittedCount > 0,
+      [omittedCountKey]: omittedCount
+    };
   }
 }

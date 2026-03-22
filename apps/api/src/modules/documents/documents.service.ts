@@ -38,6 +38,8 @@ type SitemapPartialDiagnostics = {
     message: string;
     retryable: boolean;
   }>;
+  failedPagesTruncated?: boolean;
+  failedPagesOmittedCount?: number;
   partial: boolean;
   attemptedChildSitemapCount?: number;
   succeededChildSitemapCount?: number;
@@ -48,6 +50,8 @@ type SitemapPartialDiagnostics = {
     message: string;
     retryable: boolean;
   }>;
+  failedChildSitemapsTruncated?: boolean;
+  failedChildSitemapsOmittedCount?: number;
 };
 
 @Injectable()
@@ -587,6 +591,8 @@ export class DocumentsService {
       failedPageCount: diagnostics.failedPageCount,
       failedPageUrls: diagnostics.failedPageUrls,
       failedPages: diagnostics.failedPages ?? [],
+      failedPagesTruncated: diagnostics.failedPagesTruncated ?? false,
+      failedPagesOmittedCount: diagnostics.failedPagesOmittedCount ?? 0,
       partial: true,
       ...(typeof diagnostics.attemptedChildSitemapCount === "number"
         ? {
@@ -594,7 +600,9 @@ export class DocumentsService {
             succeededChildSitemapCount: diagnostics.succeededChildSitemapCount ?? 0,
             failedChildSitemapCount: diagnostics.failedChildSitemapCount ?? 0,
             failedChildSitemapUrls: diagnostics.failedChildSitemapUrls ?? [],
-            failedChildSitemaps: diagnostics.failedChildSitemaps ?? []
+            failedChildSitemaps: diagnostics.failedChildSitemaps ?? [],
+            failedChildSitemapsTruncated: diagnostics.failedChildSitemapsTruncated ?? false,
+            failedChildSitemapsOmittedCount: diagnostics.failedChildSitemapsOmittedCount ?? 0
           }
         : {})
     } satisfies Prisma.InputJsonValue;
