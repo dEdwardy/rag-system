@@ -312,6 +312,7 @@ Notes:
         - `failedChildSitemapsTruncated`
         - `failedChildSitemapsOmittedCount`
 - posting the same external source URL again now reuses the existing document record for that `kbId + sourceType + normalized URL`, increments `version`, replaces the generated source artifact, and re-runs ingestion instead of creating duplicate documents
+- when an external source document is queued into a new `external_resync` version, its document-level `chunkCount` is now reset to `0` immediately, matching the existing upload-document `reindex` behavior while the new version is still pending
 - ingestion queue jobs now carry the expected document `version`; stale jobs are skipped before parsing/chunk deletion/index writes so an older reindex or resync run cannot overwrite a newer one
 - document failure states now also persist `diagnosticsJson` with a stable `code`, `failedStage`, `retryable`, `documentVersion`, and `message`, so `GET /documents/:id` exposes structured ingestion diagnostics instead of only a flat `errorMessage`
 - the ingestion worker now records `chunking` as a real intermediate processing stage between `parsing` and `indexing`

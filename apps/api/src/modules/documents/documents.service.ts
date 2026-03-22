@@ -376,6 +376,7 @@ export class DocumentsService {
         sourceConfigJson: input.sourceConfig,
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
+        chunkCount: 0,
         errorMessage: null,
         diagnosticsJson: Prisma.JsonNull,
         version: {
@@ -456,6 +457,7 @@ export class DocumentsService {
       data: {
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
+        chunkCount: 0,
         errorMessage: null,
         diagnosticsJson: Prisma.JsonNull,
         version: {

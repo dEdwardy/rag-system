@@ -359,6 +359,7 @@ async function expectExternalSourceResync({ sourceType, methodName, input, expec
               },
       status: "pending",
       processingStage: "uploaded",
+      chunkCount: 0,
       errorMessage: null,
       diagnosticsJson: Prisma.JsonNull,
       version: {

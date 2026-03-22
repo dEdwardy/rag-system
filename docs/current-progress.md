@@ -433,6 +433,8 @@
     - keep `backend / API first`
     - continue improving external source execution boundaries and diagnostics on top of the new run history
     - still avoid opening a new UI refactor or a generic connector/source platform rewrite
+  - latest backend consistency follow-up:
+    - external source `external_resync` now resets document-level `chunkCount` to `0` as soon as a new pending version is queued, aligning repeated source syncs with the existing upload-document `reindex` semantics
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -451,6 +453,14 @@
 ## 9. 最近完成的关键增量
 
 ### 2026-03-22
+
+- ✅ external source reindex / resync chunk-count consistency follow-up
+  - when an existing `web page` / `feed` / `sitemap` document is reused for a new `external_resync` version, the document now clears `chunkCount` immediately on the pending transition instead of temporarily exposing the previous ready-version count
+  - this keeps document-level reindex state consistent with the existing upload-document `reindex` path without adding new API fields or opening a new source-management surface
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 
 - ✅ PC Web source run observability consumption minimum increment
   - current implementation stays inside the existing `Knowledge Base` and `Document Detail` pages instead of opening a new source center or a broader UI refactor
