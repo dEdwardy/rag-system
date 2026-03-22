@@ -282,6 +282,8 @@ Notes:
   - `retryableFailures`
   - `nonRetryableFailures`
   - `failureByStage`
+  - `latestRetryableFailure`
+  - `latestSkipped`
   - `latestFailure`
 - each document run currently records:
   - `documentId`

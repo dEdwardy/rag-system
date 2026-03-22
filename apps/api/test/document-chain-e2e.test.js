@@ -279,6 +279,8 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
       retryableFailures: 0,
       nonRetryableFailures: 0,
       failureByStage: {},
+      latestRetryableFailure: null,
+      latestSkipped: null,
       latestFailure: null
     });
 

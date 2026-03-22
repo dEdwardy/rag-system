@@ -71,6 +71,7 @@
   - 当前也可通过 `GET /knowledge-bases/:id/document-runs/summary` 读取轻量聚合概览
   - summary 已能直接区分 retryable / non-retryable failures，并按 failed stage 聚合
   - list / summary 当前都支持 `sinceHours` 时间窗过滤，更适合最近运行排查
+  - summary 当前也能直接给出 `latestRetryableFailure` 和 `latestSkipped` 作为诊断锚点
   - stale ingestion job 也会在 run history 中显式标记为 `skipped`
 
 ### P1：retrieval / answering 收敛

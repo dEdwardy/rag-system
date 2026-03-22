@@ -76,6 +76,10 @@ export class DocumentRunsService {
     }
 
     const latestFailure = runs.find(run => run.status === DocumentRunStatus.failed);
+    const latestRetryableFailure = runs.find(
+      run => run.status === DocumentRunStatus.failed && this.isRetryableDiagnostics(run.diagnosticsJson)
+    );
+    const latestSkipped = runs.find(run => run.status === DocumentRunStatus.skipped);
     const latestFailureMessage = this.getDiagnosticsMessage(latestFailure?.diagnosticsJson ?? null);
 
     return {
@@ -99,6 +103,30 @@ export class DocumentRunsService {
       retryableFailures,
       nonRetryableFailures,
       failureByStage,
+      latestRetryableFailure: latestRetryableFailure
+        ? {
+            documentId: latestRetryableFailure.documentId,
+            version: latestRetryableFailure.version,
+            trigger: latestRetryableFailure.trigger,
+            failedStage: latestRetryableFailure.failedStage,
+            sourceType: latestRetryableFailure.document.sourceType,
+            sourceName: latestRetryableFailure.document.sourceName,
+            message: this.getDiagnosticsMessage(latestRetryableFailure.diagnosticsJson),
+            finishedAt: latestRetryableFailure.finishedAt
+          }
+        : null,
+      latestSkipped: latestSkipped
+        ? {
+            documentId: latestSkipped.documentId,
+            version: latestSkipped.version,
+            trigger: latestSkipped.trigger,
+            failedStage: latestSkipped.failedStage,
+            sourceType: latestSkipped.document.sourceType,
+            sourceName: latestSkipped.document.sourceName,
+            message: this.getDiagnosticsMessage(latestSkipped.diagnosticsJson),
+            finishedAt: latestSkipped.finishedAt
+          }
+        : null,
       latestFailure: latestFailure
         ? {
             documentId: latestFailure.documentId,

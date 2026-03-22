@@ -337,6 +337,18 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
     assert.deepEqual(summary.failureByStage, {
       source_fetch: 1
     });
+    assert.deepEqual(summary.latestRetryableFailure, {
+      documentId: documents[0].id,
+      version: 1,
+      trigger: "external_resync",
+      failedStage: "source_fetch",
+      sourceType: "web_page",
+      sourceName: `${pageServer.origin}/knowledge/down`,
+      message: "Failed to fetch web page: upstream responded with 502.",
+      finishedAt: summary.latestRetryableFailure.finishedAt
+    });
+    assert.ok(summary.latestRetryableFailure.finishedAt);
+    assert.deepEqual(summary.latestSkipped, null);
     assert.deepEqual(summary.latestFailure, {
       documentId: documents[0].id,
       version: 1,

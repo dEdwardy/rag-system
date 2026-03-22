@@ -506,6 +506,8 @@
     - `retryableFailures`
     - `nonRetryableFailures`
     - `failureByStage`
+    - `latestRetryableFailure`
+    - `latestSkipped`
     - `latestFailure`
   - `document-runs` list 和 `document-runs/summary` 现在都支持 `sinceHours`，便于聚焦最近一段时间的运行情况
   - 目标是先为后续 diagnostics 承载和潜在 UI 概览提供轻量后端聚合面，而不是继续扩 source platform 抽象
