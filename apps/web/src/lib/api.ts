@@ -1,4 +1,7 @@
-const API_BASE_URL = "http://localhost:3000";
+const apiHostname =
+  window.location.hostname === "127.0.0.1" ? "localhost" : window.location.hostname;
+
+const API_BASE_URL = `${window.location.protocol}//${apiHostname}:3000`;
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
