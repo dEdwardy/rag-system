@@ -427,6 +427,7 @@
 - [ ] external knowledge source expansion
   - source stabilization phase 1: done
   - source run history / execution observability minimum increment: done
+  - sitemap / sitemap-index partial-failure tolerance + structured partial diagnostics: done
   - current recommended next increment:
     - keep `backend / API first`
     - continue improving external source execution boundaries and diagnostics on top of the new run history
@@ -449,6 +450,27 @@
 ## 9. 最近完成的关键增量
 
 ### 2026-03-22
+
+- ✅ sitemap / sitemap-index source stabilization phase 2 minimum increment
+  - sitemap page aggregation no longer fails the whole source on the first single page fetch error
+  - current behavior now tolerates bounded partial page failures for both direct sitemap `urlset` and one-level `sitemapindex`
+  - success rule for this round:
+    - at least one page fetch succeeds -> generated text artifact is still produced and ingestion continues
+    - all page fetches fail -> source remains failed at `source_fetch`
+  - partial success now persists structured diagnostics in the existing shared paths instead of opening a new source platform abstraction
+  - current partial diagnostics payload includes:
+    - `attemptedPageCount`
+    - `succeededPageCount`
+    - `failedPageCount`
+    - capped `failedPageUrls`
+    - `partial: true`
+  - document `diagnosticsJson` now preserves this partial source-fetch context through ingestion completion, so `GET /documents/:id` can still expose it after the document reaches `ready`
+  - document run history now also preserves the same partial diagnostics on the final `ready` run, so `GET /documents/:id/runs` and `GET /knowledge-bases/:id/document-runs?includeDiagnostics=true` can surface it without adding new list/summary fields
+  - this increment stayed inside the existing shared `SitemapSourceService` + `DocumentsService` + `IngestionService` path and did not expand into connector/source platformization
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/parsing.test.js apps/api/test/sitemap-source-e2e.test.js`
+    - `node --test apps/api/test/external-source-sync.test.js apps/api/test/ingestion.orchestrator.test.js`
 
 - ✅ document ingestion / external source run-level persistence 第一轮
   - 新增 `DocumentRun` 持久化模型，用于记录每次 `upload` / `reindex` / `external_resync`

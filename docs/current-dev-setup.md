@@ -254,6 +254,15 @@ Notes:
 - backend now also supports `POST /knowledge-bases/:id/documents/sitemap` for one direct sitemap XML URL
 - the current sitemap version fetches one sitemap XML URL server-side, supports either one direct `urlset` or one root `sitemapindex`, expands a bounded set of page URLs, aggregates extracted page text into one generated local text artifact, and then reuses the existing ingestion/indexing path
 - for sitemap-index expansion, the current backend processes up to `20` child sitemap files and still caps the final fetched page set with request `maxPages`
+- sitemap and sitemap-index source fetch now tolerate bounded partial page failures:
+  - when at least one fetched page succeeds, the source still generates a document and enters ingestion
+  - when all fetched pages fail, the source still fails at `source_fetch`
+  - partial success currently persists structured diagnostics on both the document and its run, including:
+    - `attemptedPageCount`
+    - `succeededPageCount`
+    - `failedPageCount`
+    - capped `failedPageUrls`
+    - `partial: true`
 - posting the same external source URL again now reuses the existing document record for that `kbId + sourceType + normalized URL`, increments `version`, replaces the generated source artifact, and re-runs ingestion instead of creating duplicate documents
 - ingestion queue jobs now carry the expected document `version`; stale jobs are skipped before parsing/chunk deletion/index writes so an older reindex or resync run cannot overwrite a newer one
 - document failure states now also persist `diagnosticsJson` with a stable `code`, `failedStage`, `retryable`, `documentVersion`, and `message`, so `GET /documents/:id` exposes structured ingestion diagnostics instead of only a flat `errorMessage`

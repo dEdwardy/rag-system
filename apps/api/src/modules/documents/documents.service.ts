@@ -25,6 +25,15 @@ type ExternalSourceConfig =
 type FetchedExternalSource = {
   title: string | null;
   content: string;
+  diagnostics?: SitemapPartialDiagnostics | null;
+};
+
+type SitemapPartialDiagnostics = {
+  attemptedPageCount: number;
+  succeededPageCount: number;
+  failedPageCount: number;
+  failedPageUrls: string[];
+  partial: boolean;
 };
 
 @Injectable()
@@ -256,7 +265,8 @@ export class DocumentsService {
     const document = await this.finalizeExternalDocument(reservedDocument.id, {
       title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
-      storageKey: storedFile.storageKey
+      storageKey: storedFile.storageKey,
+      diagnosticsJson: this.buildSitemapPartialDiagnostics(reservedDocument.version, fetchedSitemap.diagnostics)
     });
 
     await this.ingestionService.enqueueDocument(document.id, document.version);
@@ -370,7 +380,9 @@ export class DocumentsService {
 
   private finalizeExternalDocument(
     id: string,
-    input: Pick<CreateDocumentInput, "title" | "mimeType" | "storageKey">
+    input: Pick<CreateDocumentInput, "title" | "mimeType" | "storageKey"> & {
+      diagnosticsJson?: Prisma.InputJsonValue | null;
+    }
   ) {
     return this.prisma.document.update({
       where: { id },
@@ -381,7 +393,7 @@ export class DocumentsService {
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
         errorMessage: null,
-        diagnosticsJson: Prisma.JsonNull
+        diagnosticsJson: input.diagnosticsJson ?? Prisma.JsonNull
       }
     });
   }
@@ -466,7 +478,11 @@ export class DocumentsService {
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
         errorMessage: null,
-        diagnosticsJson: Prisma.JsonNull
+        diagnosticsJson:
+          sourceConfig.kind === "sitemap"
+            ? (this.buildSitemapPartialDiagnostics(queuedDocument.version, fetchedSource.diagnostics ?? null) ??
+              Prisma.JsonNull)
+            : Prisma.JsonNull
       }
     });
 
@@ -525,7 +541,8 @@ export class DocumentsService {
 
     return {
       title: null,
-      content: fetchedSitemap.content
+      content: fetchedSitemap.content,
+      diagnostics: fetchedSitemap.diagnostics
     };
   }
 
@@ -535,5 +552,27 @@ export class DocumentsService {
 
   private isRetryableExternalSourceError(error: unknown) {
     return !(error instanceof BadRequestException);
+  }
+
+  private buildSitemapPartialDiagnostics(
+    documentVersion: number,
+    diagnostics?: SitemapPartialDiagnostics | null
+  ) {
+    if (!diagnostics?.partial) {
+      return null;
+    }
+
+    return {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: true,
+      documentVersion,
+      message: "Sitemap source completed with partial page fetch failures.",
+      attemptedPageCount: diagnostics.attemptedPageCount,
+      succeededPageCount: diagnostics.succeededPageCount,
+      failedPageCount: diagnostics.failedPageCount,
+      failedPageUrls: diagnostics.failedPageUrls,
+      partial: true
+    } satisfies Prisma.InputJsonValue;
   }
 }

@@ -104,16 +104,18 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const preservedDiagnostics = this.getPreservedReadyDiagnostics(document.diagnosticsJson);
+
     await this.prisma.document.update({
       where: { id: document.id },
       data: {
         status: DocumentStatus.processing,
         processingStage: DocumentProcessingStage.parsing,
         errorMessage: null,
-        diagnosticsJson: Prisma.JsonNull
+        diagnosticsJson: preservedDiagnostics ?? Prisma.JsonNull
       }
     });
-    await this.documentRunsService.markRunProcessing(document.id, document.version);
+    await this.documentRunsService.markRunProcessing(document.id, document.version, preservedDiagnostics);
 
     try {
       const fileBuffer = await this.readDocumentFile(document);
@@ -155,10 +157,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           processingStage: DocumentProcessingStage.completed,
           chunkCount: chunks.length,
           errorMessage: null,
-          diagnosticsJson: Prisma.JsonNull
+          diagnosticsJson: preservedDiagnostics ?? Prisma.JsonNull
         }
       });
-      await this.documentRunsService.markRunCompleted(document.id, document.version);
+      await this.documentRunsService.markRunCompleted(document.id, document.version, preservedDiagnostics);
     } catch (error) {
       const diagnostics = this.buildIngestionDiagnostics(document.version, error);
 
@@ -321,5 +323,13 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
 
     return DocumentRunFailedStage.parsing;
+  }
+
+  private getPreservedReadyDiagnostics(diagnosticsJson: Prisma.JsonValue | null) {
+    if (!diagnosticsJson || typeof diagnosticsJson !== "object" || Array.isArray(diagnosticsJson)) {
+      return null;
+    }
+
+    return diagnosticsJson.partial === true ? diagnosticsJson : null;
   }
 }

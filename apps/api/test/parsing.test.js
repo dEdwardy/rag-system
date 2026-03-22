@@ -244,3 +244,121 @@ test("SitemapSourceService expands one-level sitemap index into bounded unique p
     global.fetch = originalFetch;
   }
 });
+
+test("SitemapSourceService tolerates partial sitemap page failures and returns structured diagnostics", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/good</loc></url>
+          <url><loc>https://example.com/pages/bad</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/good") {
+      return new Response(
+        "<html><head><title>Good Page</title></head><body><main><p>Reachable marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/bad") {
+      return new Response("upstream exploded", {
+        status: 502,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap.xml",
+      maxPages: 5
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
+    assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/pages\/bad/);
+    assert.deepEqual(extracted.diagnostics, {
+      attemptedPageCount: 2,
+      succeededPageCount: 1,
+      failedPageCount: 1,
+      failedPageUrls: ["https://example.com/pages/bad"],
+      partial: true
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService still fails when all sitemap pages fail", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/bad-a</loc></url>
+          <url><loc>https://example.com/pages/bad-b</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (
+      normalizedUrl === "https://example.com/pages/bad-a" ||
+      normalizedUrl === "https://example.com/pages/bad-b"
+    ) {
+      return new Response("upstream exploded", {
+        status: 502,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    await assert.rejects(
+      service.fetchSitemap({
+        url: "https://example.com/sitemap.xml",
+        maxPages: 5
+      }),
+      /all sitemap pages failed/i
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

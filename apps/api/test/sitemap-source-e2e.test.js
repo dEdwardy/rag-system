@@ -194,6 +194,97 @@ test("Sitemap source E2E: sitemap index -> ready -> chunks -> ask", async () => 
   }
 });
 
+test("Sitemap source E2E: partial page failure still reaches ready and persists partial diagnostics", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3108;
+  const storageRoot = resolve(repoRoot, "storage", `test-sitemap-partial-source-${randomUUID()}`);
+  const queuePrefix = `test-sitemap-partial-source-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const sitemapMarker = `sitemap-partial-marker-${randomUUID()}`;
+  const sitemapServer = await startPartialFailureSitemapServer(sitemapMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/sitemap`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${sitemapServer.origin}/sitemap.xml`,
+        maxPages: 3
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.status, "ready");
+    assert.deepEqual(readyDocument.diagnosticsJson, {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: true,
+      documentVersion: readyDocument.version,
+      message: "Sitemap source completed with partial page fetch failures.",
+      attemptedPageCount: 3,
+      succeededPageCount: 2,
+      failedPageCount: 1,
+      failedPageUrls: [`${sitemapServer.origin}/pages/failing`],
+      partial: true
+    });
+
+    const chunksResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/chunks`);
+    assert.equal(chunksResponse.status, 200);
+    const chunks = await chunksResponse.json();
+    assert.ok(chunks.some(chunk => chunk.content.includes(sitemapMarker)));
+
+    const runsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?includeDiagnostics=true`
+    );
+    assert.equal(runsResponse.status, 200);
+
+    const runs = await runsResponse.json();
+    assert.equal(runs[0].status, "ready");
+    assert.deepEqual(runs[0].diagnosticsJson, readyDocument.diagnosticsJson);
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: `What unique marker appears in the reachable sitemap pages? Return ${sitemapMarker}`
+      })
+    });
+    assert.equal(askResponse.status, 201);
+
+    const askResult = await askResponse.json();
+    assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(sitemapMarker)));
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(sitemapServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -368,6 +459,84 @@ async function startSitemapIndexServer(marker) {
             </main>
           </body>
         </html>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  const address = server.address();
+  return {
+    server,
+    origin: `http://127.0.0.1:${address.port}`
+  };
+}
+
+async function startPartialFailureSitemapServer(marker) {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/sitemap.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/alpha</loc></url>
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/failing</loc></url>
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/beta</loc></url>
+        </urlset>`);
+      return;
+    }
+
+    if (request.url === "/pages/alpha") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Partial Alpha</title>
+          </head>
+          <body>
+            <main>
+              <h1>Partial Alpha</h1>
+              <p>Unique marker: ${marker}</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    if (request.url === "/pages/beta") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Partial Beta</title>
+          </head>
+          <body>
+            <main>
+              <h1>Partial Beta</h1>
+              <p>Additional reachable page.</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    if (request.url === "/pages/failing") {
+      response.writeHead(502, {
+        "Content-Type": "text/plain; charset=utf-8"
+      });
+      response.end("upstream failed");
       return;
     }
 

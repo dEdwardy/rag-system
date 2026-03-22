@@ -14,6 +14,20 @@ type ExtractSitemapOptions = {
 
 type FetchedSitemap = {
   content: string;
+  diagnostics: SitemapFetchDiagnostics | null;
+};
+
+type SitemapFetchDiagnostics = {
+  attemptedPageCount: number;
+  succeededPageCount: number;
+  failedPageCount: number;
+  failedPageUrls: string[];
+  partial: boolean;
+};
+
+type PageFetchFailure = {
+  url: string;
+  error: unknown;
 };
 
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
@@ -50,10 +64,11 @@ export class SitemapSourceService {
 
     const xml = await response.text();
     const pageUrls = await this.resolvePageUrls(xml, options);
-    const content = await this.buildCombinedContent(options.url, pageUrls);
+    const builtSitemap = await this.buildCombinedContent(options.url, pageUrls);
 
     return {
-      content
+      content: builtSitemap.content,
+      diagnostics: builtSitemap.diagnostics
     };
   }
 
@@ -145,6 +160,9 @@ export class SitemapSourceService {
 
   private async buildCombinedContent(sourceUrl: string, pageUrls: string[]) {
     const lines = [`Sitemap Source URL: ${sourceUrl}`];
+    const failedPageUrls: string[] = [];
+    const pageFailures: PageFetchFailure[] = [];
+    let succeededPageCount = 0;
 
     for (const [index, pageUrl] of pageUrls.entries()) {
       let fetchedPage;
@@ -152,12 +170,12 @@ export class SitemapSourceService {
       try {
         fetchedPage = await this.webPageService.fetchWebPage(pageUrl);
       } catch (error) {
-        if (error instanceof BadRequestException || error instanceof BadGatewayException) {
-          throw error;
-        }
-
-        const message = error instanceof Error ? error.message : "Unknown fetch error.";
-        throw new BadGatewayException(`Failed to fetch sitemap page: ${message}`);
+        failedPageUrls.push(pageUrl);
+        pageFailures.push({
+          url: pageUrl,
+          error: this.normalizePageFetchError(error)
+        });
+        continue;
       }
 
       const entryLines = [`Page ${index + 1}: ${pageUrl}`];
@@ -168,14 +186,33 @@ export class SitemapSourceService {
 
       entryLines.push(`Content:\n${fetchedPage.content}`);
       lines.push(entryLines.join("\n"));
+      succeededPageCount += 1;
     }
 
     const content = lines.join("\n\n").trim();
+    if (succeededPageCount === 0) {
+      throw this.buildAllPagesFailedError(pageFailures);
+    }
+
     if (!content) {
       throw new BadRequestException("Extracted sitemap content is empty.");
     }
 
-    return content;
+    const diagnostics =
+      failedPageUrls.length > 0
+        ? {
+            attemptedPageCount: pageUrls.length,
+            succeededPageCount,
+            failedPageCount: failedPageUrls.length,
+            failedPageUrls: failedPageUrls.slice(0, 10),
+            partial: true
+          }
+        : null;
+
+    return {
+      content,
+      diagnostics
+    };
   }
 
   private isSupportedSitemapContentType(contentType: string) {
@@ -239,5 +276,29 @@ export class SitemapSourceService {
     }
 
     return response.text();
+  }
+
+  private normalizePageFetchError(error: unknown) {
+    if (error instanceof BadRequestException || error instanceof BadGatewayException) {
+      return error;
+    }
+
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    return new BadGatewayException(`Failed to fetch sitemap page: ${message}`);
+  }
+
+  private buildAllPagesFailedError(pageFailures: PageFetchFailure[]) {
+    const firstFailure = pageFailures[0]?.error;
+    const message = "Failed to fetch sitemap pages: all sitemap pages failed.";
+
+    if (firstFailure instanceof BadRequestException) {
+      return new BadRequestException(message);
+    }
+
+    if (firstFailure instanceof BadGatewayException) {
+      return new BadGatewayException(message);
+    }
+
+    return new BadGatewayException(message);
   }
 }

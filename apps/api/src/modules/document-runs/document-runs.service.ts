@@ -232,20 +232,20 @@ export class DocumentRunsService {
     });
   }
 
-  markRunProcessing(documentId: string, version: number) {
+  markRunProcessing(documentId: string, version: number, diagnosticsJson: Prisma.InputJsonValue | null = null) {
     return this.updateRun(documentId, version, {
       status: DocumentRunStatus.processing,
       failedStage: null,
-      diagnosticsJson: Prisma.JsonNull,
+      diagnosticsJson: diagnosticsJson ?? Prisma.JsonNull,
       finishedAt: null
     });
   }
 
-  markRunCompleted(documentId: string, version: number) {
+  markRunCompleted(documentId: string, version: number, diagnosticsJson: Prisma.InputJsonValue | null = null) {
     return this.updateRun(documentId, version, {
       status: DocumentRunStatus.ready,
       failedStage: null,
-      diagnosticsJson: Prisma.JsonNull,
+      diagnosticsJson: diagnosticsJson ?? Prisma.JsonNull,
       finishedAt: new Date()
     });
   }
