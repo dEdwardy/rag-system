@@ -90,7 +90,7 @@ export class DocumentRunsService {
       const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
       return this.shouldCountFailureSummary(run.status, failureSummary) && failureSummary?.retryable === true;
     });
-    const latestSkipped = this.findLatestRunAnchor(latestCompletedRuns, run => run.status === DocumentRunStatus.skipped);
+    const latestSkipped = this.findLatestRunAnchor(runs, run => run.status === DocumentRunStatus.skipped);
     return {
       totalRuns: runs.length,
       latestRunAt: runs[0]?.startedAt ?? null,

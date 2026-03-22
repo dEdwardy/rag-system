@@ -702,6 +702,71 @@ test("DocumentRunsService summary ignores an older failure once the same documen
   assert.equal(summary.latestFailure, null);
 });
 
+test("DocumentRunsService summary keeps the latest skipped run even if the same document later succeeds", async () => {
+  const runs = [
+    {
+      documentId: "doc-recovered",
+      version: 2,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: null,
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/recoverable"
+      }
+    },
+    {
+      documentId: "doc-recovered",
+      version: 1,
+      trigger: "reindex",
+      status: "skipped",
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        message: "superseded by a newer run"
+      },
+      startedAt: new Date("2026-03-22T10:03:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/recoverable"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.deepEqual(summary.latestSkipped, {
+    documentId: "doc-recovered",
+    version: 1,
+    trigger: "reindex",
+    failedStage: "stale_guard",
+    sourceType: "web_page",
+    sourceName: "https://example.com/recoverable",
+    message: "superseded by a newer run",
+    finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+    failureSummary: {
+      code: "INGESTION_RUN_SUPERSEDED",
+      failedStage: "stale_guard",
+      retryable: false,
+      message: "superseded by a newer run"
+    }
+  });
+});
+
 test("DocumentRunsService listDocumentRuns orders a document run history by startedAt before version", async () => {
   const queryArgs = [];
   const fakeRuns = [

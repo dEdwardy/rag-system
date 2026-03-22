@@ -441,6 +441,7 @@
     - external source re-sync now preserves the current document title whenever the refreshed source payload does not provide a new source-level title
     - repeated posting of the same external source URL now preserves the existing document title too when the refreshed source payload still does not provide a new title
     - knowledge-base run summary failure counters and latest failure anchors now collapse to each document's latest completed run, so a later successful resync clears that document's stale failure signal from summary without changing run history endpoints
+    - `latestSkipped` keeps its run-history semantics and still points at the most recent skipped run event even when that document later completes successfully
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -511,6 +512,12 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/document-runs-summary.test.js`
     - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ latest-skipped summary anchor preservation
+  - summary recovery cleanup now applies only to failure-style anchors and counters; `latestSkipped` still reports the most recent skipped run event from matching history even if the same document later completes successfully
+  - this keeps skipped-run observability aligned with run-history semantics while preserving the new recovered-failure cleanup behavior
+  - focused validation rerun:
+    - `node --test apps/api/test/document-runs-summary.test.js`
 
 - ✅ external source title preservation on repeated same-URL reuse
   - when posting the same `web page` / `feed` / `sitemap` URL again and the backend reuses the existing document record, the existing document `title` is now preserved whenever the refreshed source still does not provide a new source-level title

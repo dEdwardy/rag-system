@@ -368,6 +368,7 @@ Notes:
   - `message`
 - these summary anchors now resolve by the latest matching completed run timestamp (`finishedAt`, with `startedAt` fallback only when needed), so overlapping runs do not let a later-started but earlier-finished run override the more recent completed anchor
 - summary failure counters and `latestFailure` / `latestRetryableFailure` now collapse to each document's latest completed run, so an older external-source failure or partial result no longer remains in summary once a later resync for that same document completes cleanly
+- `latestSkipped` still remains a history-style latest skipped-run anchor across matching runs; a later successful run for the same document does not erase the most recent skipped event from summary
 - summary failure stats now count both:
   - terminal `failed` runs
   - `ready` runs that still carry a partial `failureSummary`
