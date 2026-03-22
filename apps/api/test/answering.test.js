@@ -1005,6 +1005,56 @@ test("AnsweringService mentions low retrieval confidence in weak insufficient-co
   );
 });
 
+test("AnsweringService localizes low-confidence weak insufficient-context summaries for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "\u4e0d\u77e5\u9053\u3002",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["\u7f3a\u5c11\u4ef7\u683c\u4fe1\u606f\u3002"]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "\u5728\u54ea\u91cc\uff1f",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "\u90e8\u5206\u4e0a\u4e0b\u6587",
+        score: 0.4,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "insufficient_context");
+  assert.deepEqual(result.qualityEvaluation.flags, [
+    "insufficient_context",
+    "missing_information",
+    "low_retrieval_score"
+  ]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002"
+  );
+});
+
 test("AnsweringService enforces say_insufficient_context with a deterministic fallback answer", async () => {
   const llmService = {
     generateAnswer: async () => ({

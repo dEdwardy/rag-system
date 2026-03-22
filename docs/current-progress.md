@@ -20,6 +20,7 @@
 - `insufficient_context` 且模型漏掉 `missingInformation` 时，backend 现在也会按 retrieval 实际命中情况区分默认理由：`no hits` 与 `hit but still insufficient` 不再共用同一条“没检索到来源”的默认文案
 - 上述 hit-aware 默认 `missingInformation` 理由现已补齐中文回归覆盖，和已有的 `no-hit` 中英文分支一起构成最小 `en` / `zh` 闭环
 - weak `insufficient_context` summary 现在也会在已有 `low_retrieval_score` flag 时显式带出“检索置信度偏低”，不再只停留在“上下文仍不足”的单因文案
+- 上述 weak low-confidence insufficient-context summary 现已补齐中文回归覆盖，和英文分支保持一致
 
 ## 1. 状态总览
 
