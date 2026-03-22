@@ -338,6 +338,11 @@ Notes:
   - `limit` (default `20`, max `100`)
 - the run summary endpoint also supports `sinceHours` so recent-run diagnostics can be scoped to a smaller time window
 - `document-runs` list now defaults to a lighter payload and only includes `diagnosticsJson` when `includeDiagnostics=true`
+- `document-runs` list now also includes a lightweight `failureSummary` so recent-run consumers can show minimal failure context without requesting full diagnostics:
+  - `code`
+  - `failedStage`
+  - `retryable`
+  - `message`
 - the summary payload currently includes:
   - `totalRuns`
   - `latestRunAt`
@@ -351,6 +356,11 @@ Notes:
   - `latestRetryableFailure`
   - `latestSkipped`
   - `latestFailure`
+- `latestRetryableFailure` / `latestSkipped` / `latestFailure` now also expose the same lightweight `failureSummary` shape used by the run list:
+  - `code`
+  - `failedStage`
+  - `retryable`
+  - `message`
 - each document run currently records:
   - `documentId`
   - `version`

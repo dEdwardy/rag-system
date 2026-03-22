@@ -80,8 +80,6 @@ export class DocumentRunsService {
       run => run.status === DocumentRunStatus.failed && this.isRetryableDiagnostics(run.diagnosticsJson)
     );
     const latestSkipped = runs.find(run => run.status === DocumentRunStatus.skipped);
-    const latestFailureMessage = this.getDiagnosticsMessage(latestFailure?.diagnosticsJson ?? null);
-
     return {
       totalRuns: runs.length,
       latestRunAt: runs[0]?.startedAt ?? null,
@@ -103,49 +101,15 @@ export class DocumentRunsService {
       retryableFailures,
       nonRetryableFailures,
       failureByStage,
-      latestRetryableFailure: latestRetryableFailure
-        ? {
-            documentId: latestRetryableFailure.documentId,
-            version: latestRetryableFailure.version,
-            trigger: latestRetryableFailure.trigger,
-            failedStage: latestRetryableFailure.failedStage,
-            sourceType: latestRetryableFailure.document.sourceType,
-            sourceName: latestRetryableFailure.document.sourceName,
-            message: this.getDiagnosticsMessage(latestRetryableFailure.diagnosticsJson),
-            finishedAt: latestRetryableFailure.finishedAt
-          }
-        : null,
-      latestSkipped: latestSkipped
-        ? {
-            documentId: latestSkipped.documentId,
-            version: latestSkipped.version,
-            trigger: latestSkipped.trigger,
-            failedStage: latestSkipped.failedStage,
-            sourceType: latestSkipped.document.sourceType,
-            sourceName: latestSkipped.document.sourceName,
-            message: this.getDiagnosticsMessage(latestSkipped.diagnosticsJson),
-            finishedAt: latestSkipped.finishedAt
-          }
-        : null,
-      latestFailure: latestFailure
-        ? {
-            documentId: latestFailure.documentId,
-            version: latestFailure.version,
-            trigger: latestFailure.trigger,
-            failedStage: latestFailure.failedStage,
-            sourceType: latestFailure.document.sourceType,
-            sourceName: latestFailure.document.sourceName,
-            message: latestFailureMessage,
-            finishedAt: latestFailure.finishedAt
-          }
-        : null
+      latestRetryableFailure: latestRetryableFailure ? this.buildRunSummaryAnchor(latestRetryableFailure) : null,
+      latestSkipped: latestSkipped ? this.buildRunSummaryAnchor(latestSkipped) : null,
+      latestFailure: latestFailure ? this.buildRunSummaryAnchor(latestFailure) : null
     };
   }
 
-  listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
+  async listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
     const startedAt = this.resolveStartedAtFilter(input.sinceHours);
-
-    return this.prisma.documentRun.findMany({
+    const runs = await this.prisma.documentRun.findMany({
       where: {
         documentId: input.documentId,
         startedAt,
@@ -163,15 +127,11 @@ export class DocumentRunsService {
         trigger: true,
         status: true,
         failedStage: true,
+        diagnosticsJson: true,
         startedAt: true,
         finishedAt: true,
         createdAt: true,
         updatedAt: true,
-        ...(input.includeDiagnostics
-          ? {
-              diagnosticsJson: true
-            }
-          : {}),
         document: {
           select: {
             id: true,
@@ -188,15 +148,47 @@ export class DocumentRunsService {
       take: input.limit,
       orderBy: [{ startedAt: "desc" }, { version: "desc" }]
     });
+
+    return runs.map(run => {
+      const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+      const result = {
+        id: run.id,
+        documentId: run.documentId,
+        version: run.version,
+        trigger: run.trigger,
+        status: run.status,
+        failedStage: run.failedStage,
+        failureSummary,
+        startedAt: run.startedAt,
+        finishedAt: run.finishedAt,
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
+        document: run.document
+      };
+
+      if (input.includeDiagnostics) {
+        return {
+          ...result,
+          diagnosticsJson: run.diagnosticsJson
+        };
+      }
+
+      return result;
+    });
   }
 
-  listDocumentRuns(documentId: string) {
-    return this.prisma.documentRun.findMany({
+  async listDocumentRuns(documentId: string) {
+    const runs = await this.prisma.documentRun.findMany({
       where: {
         documentId
       },
       orderBy: [{ version: "desc" }, { startedAt: "desc" }]
     });
+
+    return runs.map(run => ({
+      ...run,
+      failureSummary: this.buildFailureSummary(run.diagnosticsJson, run.failedStage)
+    }));
   }
 
   createRun(input: {
@@ -310,6 +302,63 @@ export class DocumentRunsService {
     }
 
     return value.retryable === true;
+  }
+
+  private getDiagnosticsCode(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+
+    return typeof value.code === "string" ? value.code : null;
+  }
+
+  private buildFailureSummary(value: Prisma.JsonValue | null, failedStage: DocumentRunFailedStage | null) {
+    const code = this.getDiagnosticsCode(value);
+    const message = this.getDiagnosticsMessage(value);
+    const diagnosticsFailedStage =
+      value && typeof value === "object" && !Array.isArray(value) && typeof value.failedStage === "string"
+        ? value.failedStage
+        : null;
+    const normalizedFailedStage = failedStage ?? diagnosticsFailedStage;
+    const retryable = this.isRetryableDiagnostics(value);
+
+    if (!code && !message && !normalizedFailedStage && !retryable) {
+      return null;
+    }
+
+    return {
+      code,
+      failedStage: normalizedFailedStage,
+      retryable,
+      message
+    };
+  }
+
+  private buildRunSummaryAnchor(run: {
+    documentId: string;
+    version: number;
+    trigger: DocumentRunTrigger;
+    failedStage: DocumentRunFailedStage | null;
+    diagnosticsJson: Prisma.JsonValue | null;
+    finishedAt: Date | null;
+    document: {
+      sourceType: string;
+      sourceName: string;
+    };
+  }) {
+    const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+
+    return {
+      documentId: run.documentId,
+      version: run.version,
+      trigger: run.trigger,
+      failedStage: run.failedStage,
+      sourceType: run.document.sourceType,
+      sourceName: run.document.sourceName,
+      message: failureSummary?.message ?? null,
+      finishedAt: run.finishedAt,
+      failureSummary
+    };
   }
 
   private resolveStartedAtFilter(sinceHours?: number) {

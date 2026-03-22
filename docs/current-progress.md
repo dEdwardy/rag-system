@@ -617,11 +617,34 @@
     - `latestRetryableFailure`
     - `latestSkipped`
     - `latestFailure`
+  - `document-runs` list 现在默认也会给出轻量 `failureSummary`，不必强制打开 `includeDiagnostics=true` 才能消费最小失败上下文
+  - `latestRetryableFailure` / `latestSkipped` / `latestFailure` 现在复用同一套 `failureSummary` 归一形状：
+    - `code`
+    - `failedStage`
+    - `retryable`
+    - `message`
   - `document-runs` list 和 `document-runs/summary` 现在都支持 `sinceHours`，便于聚焦最近一段时间的运行情况
   - 目标是先为后续 diagnostics 承载和潜在 UI 概览提供轻量后端聚合面，而不是继续扩 source platform 抽象
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`
     - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js apps/api/test/web-page-source-e2e.test.js`
+
+### 2026-03-22
+
+- ✅ document run failure summary consistency minimum increment
+  - 当前收口范围保持在 backend / API first，没有开启新一轮 UI 扩展，也没有引入新的 source platform 抽象
+  - `GET /knowledge-bases/:id/document-runs` 现在默认返回轻量 `failureSummary`，用于 failed / skipped / partial-ready run 的最小失败上下文消费
+  - `GET /documents/:id/runs` 也同步暴露同一 `failureSummary` 归一结果，避免 document-detail 与 knowledge-base recent-runs 走两套提取规则
+  - `GET /knowledge-bases/:id/document-runs/summary` 的 `latestFailure` / `latestRetryableFailure` / `latestSkipped` 现在复用同一 failure summary builder，而不是各自单独抽 message
+  - 这一轮保持最小字段增量：
+    - 不改既有路由
+    - 不改既有过滤参数
+    - 不把完整 `diagnosticsJson` 改成默认大 payload
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 
 - ✅ external source repeat-run dedup / re-sync 第一轮
   - `web page` / `feed` / `sitemap` 入口现在会先对 remote URL 做归一化（去掉 hash，并使用标准化 URL 字符串）

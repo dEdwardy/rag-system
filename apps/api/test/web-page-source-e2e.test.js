@@ -263,6 +263,7 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
         trigger: runs[0].trigger,
         status: runs[0].status,
         failedStage: runs[0].failedStage,
+        failureSummary: runs[0].failureSummary,
         sourceType: runs[0].document.sourceType,
         sourceName: runs[0].document.sourceName
       },
@@ -272,6 +273,12 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
         trigger: "external_resync",
         status: "failed",
         failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: true,
+          message: "Failed to fetch web page: upstream responded with 502."
+        },
         sourceType: "web_page",
         sourceName: `${pageServer.origin}/knowledge/down`
       }
@@ -353,7 +360,13 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
       sourceType: "web_page",
       sourceName: `${pageServer.origin}/knowledge/down`,
       message: "Failed to fetch web page: upstream responded with 502.",
-      finishedAt: summary.latestRetryableFailure.finishedAt
+      finishedAt: summary.latestRetryableFailure.finishedAt,
+      failureSummary: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "Failed to fetch web page: upstream responded with 502."
+      }
     });
     assert.ok(summary.latestRetryableFailure.finishedAt);
     assert.deepEqual(summary.latestSkipped, null);
@@ -365,7 +378,13 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
       sourceType: "web_page",
       sourceName: `${pageServer.origin}/knowledge/down`,
       message: "Failed to fetch web page: upstream responded with 502.",
-      finishedAt: summary.latestFailure.finishedAt
+      finishedAt: summary.latestFailure.finishedAt,
+      failureSummary: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "Failed to fetch web page: upstream responded with 502."
+      }
     });
     assert.ok(summary.latestFailure.finishedAt);
 

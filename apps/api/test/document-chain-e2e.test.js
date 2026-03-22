@@ -379,6 +379,7 @@ test("Document chain E2E: unsupported upload records structured ingestion diagno
         trigger: failedRuns[0].trigger,
         status: failedRuns[0].status,
         failedStage: failedRuns[0].failedStage,
+        failureSummary: failedRuns[0].failureSummary,
         diagnosticsJson: failedRuns[0].diagnosticsJson
       },
       {
@@ -387,6 +388,12 @@ test("Document chain E2E: unsupported upload records structured ingestion diagno
         trigger: "upload",
         status: "failed",
         failedStage: "parsing",
+        failureSummary: {
+          code: "INGESTION_UNSUPPORTED_FILE_TYPE",
+          failedStage: "parsing",
+          retryable: false,
+          message: failedDocument.errorMessage
+        },
         diagnosticsJson: failedDocument.diagnosticsJson
       }
     );
