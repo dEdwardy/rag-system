@@ -621,6 +621,55 @@ test("AnsweringService returns strong quality evaluation for grounded answers wi
   });
 });
 
+test("AnsweringService does not claim cited-source grounding when citations were heuristically backfilled", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Answer text without explicit source markers.",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where is the marker?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "marker evidence line",
+        score: 0.92,
+        pageNo: null,
+        sectionTitle: "Facts"
+      }
+    ]
+  });
+
+  assert.equal(result.citations.length, 1);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "none",
+    flags: [],
+    summary: "Answer is grounded in retrieved sources with no reported gaps."
+  });
+});
+
 test("AnsweringService returns partial quality evaluation when information is missing", async () => {
   const llmService = {
     generateAnswer: async () => ({

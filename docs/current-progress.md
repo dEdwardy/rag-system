@@ -462,6 +462,15 @@
 
 ### 2026-03-23
 
+- ✅ heuristic-citation strong-summary alignment
+  - 当 `citationMode=required` 且 backend 因模型未显式给 citation 而回填 heuristic citations 时，`qualityEvaluation.summary` 不再误称答案“grounded in cited sources”
+  - 当前只有模型显式提供的 structured citations 或 inline markers 才会触发 cited-sources 强文案
+  - 如果 citation 只是 backend 为兼容 required-citation 路径补出来的，strong summary 会回到 grounded in retrieved sources 的表述
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ insufficient-context missing-information localization alignment
   - `insufficient_context` 场景下，backend 补的 deterministic `missingInformation` reason 不再固定为英文
   - 当前无论是：

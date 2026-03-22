@@ -125,7 +125,10 @@ Notes:
   - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `fallback_generation`, `other`) alongside the existing flags array
   - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty
   - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
-  - the strong-summary wording now distinguishes between answers grounded in cited sources and answers grounded in retrieved sources without citations
+  - the strong-summary wording now distinguishes among:
+    - answers grounded in explicit cited sources
+    - answers grounded in retrieved sources without citations
+    - answers where required citations were only heuristically backfilled by the backend rather than explicitly supplied by the model
   - partial summaries now also combine `missing_information` + `low_retrieval_score` into a dual-cause explanation instead of dropping the retrieval-confidence warning
   - low retrieval confidence (`low_retrieval_score`) now degrades `qualityEvaluation.overall` to `partial` and yields a retrieval-confidence-specific summary instead of remaining `strong`
   - weak insufficient-context summaries now distinguish between `no_retrieval_hits` and cases where retrieval produced context but the retrieved evidence was still insufficient

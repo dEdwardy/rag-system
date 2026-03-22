@@ -29,6 +29,11 @@ type CitationEvidence = {
   quote: string;
 };
 
+type CitationSelection = {
+  chunks: RetrievedChunk[];
+  attribution: "explicit" | "heuristic" | "none";
+};
+
 type QualityEvaluation = {
   overall: "strong" | "partial" | "weak";
   grounding: "grounded" | "partially_grounded" | "ungrounded";
@@ -194,14 +199,13 @@ export class AnsweringService {
       };
     }
 
-    const citedChunks = this
-      .selectCitedChunks({
-        chunks: input.chunks,
-        citedChunkNumbers: input.result.citedChunkNumbers ?? [],
-        answer: input.result.answer,
-        citationMode: input.answerPolicy.citationMode
-      })
-      .slice(0, input.answerPolicy.maxCitations);
+    const citationSelection = this.selectCitedChunks({
+      chunks: input.chunks,
+      citedChunkNumbers: input.result.citedChunkNumbers ?? [],
+      answer: input.result.answer,
+      citationMode: input.answerPolicy.citationMode
+    });
+    const citedChunks = citationSelection.chunks.slice(0, input.answerPolicy.maxCitations);
     const citations = citedChunks.map(chunk => ({
       chunkId: chunk.chunkId,
       documentId: chunk.documentId,
@@ -221,6 +225,7 @@ export class AnsweringService {
       usedFallback,
       citationMode: input.answerPolicy.citationMode,
       citationCount: citations.length,
+      hasExplicitCitations: citationSelection.attribution === "explicit",
       chunkCount: input.chunks.length,
       topScore: input.chunks[0]?.score ?? null
     });
@@ -351,13 +356,16 @@ export class AnsweringService {
     citedChunkNumbers: number[];
     answer: string;
     citationMode: AnswerPolicy["citationMode"];
-  }) {
+  }): CitationSelection {
     const validChunks = input.citedChunkNumbers
       .map(chunkNumber => input.chunks[chunkNumber - 1] ?? null)
       .filter((chunk): chunk is RetrievedChunk => chunk !== null);
 
     if (validChunks.length > 0) {
-      return validChunks;
+      return {
+        chunks: validChunks,
+        attribution: "explicit"
+      };
     }
 
     const extractedFromAnswer = [...input.answer.matchAll(/\[(\d+)\]/g)]
@@ -376,14 +384,23 @@ export class AnsweringService {
     }
 
     if (uniqueExtractedFromAnswer.length > 0) {
-      return uniqueExtractedFromAnswer;
+      return {
+        chunks: uniqueExtractedFromAnswer,
+        attribution: "explicit"
+      };
     }
 
     if (input.citationMode === "optional") {
-      return [];
+      return {
+        chunks: [],
+        attribution: "none"
+      };
     }
 
-    return input.chunks.slice(0, Math.min(3, input.chunks.length));
+    return {
+      chunks: input.chunks.slice(0, Math.min(3, input.chunks.length)),
+      attribution: input.chunks.length > 0 ? "heuristic" : "none"
+    };
   }
 
   private buildSnippet(content: string, question: string) {
@@ -445,6 +462,7 @@ export class AnsweringService {
     usedFallback: boolean;
     citationMode: "required" | "optional";
     citationCount: number;
+    hasExplicitCitations?: boolean;
     chunkCount: number;
     topScore: number | null;
   }): QualityEvaluation {
@@ -502,7 +520,7 @@ export class AnsweringService {
 
     const summary =
       overall === "strong"
-        ? input.citationCount > 0
+        ? input.citationCount > 0 && input.hasExplicitCitations
           ? "Answer is grounded in cited sources with no reported gaps."
           : "Answer is grounded in retrieved sources with no reported gaps."
         : overall === "partial"
