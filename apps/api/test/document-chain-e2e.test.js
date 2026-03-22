@@ -159,6 +159,43 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
     );
     assert.ok(runsAfterReindex.every(run => run.startedAt && run.finishedAt));
 
+    const knowledgeBaseRunsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs`);
+    assert.equal(knowledgeBaseRunsResponse.status, 200);
+
+    const knowledgeBaseRuns = await knowledgeBaseRunsResponse.json();
+    assert.equal(knowledgeBaseRuns.length, 2);
+    assert.deepEqual(
+      knowledgeBaseRuns.map(run => ({
+        documentId: run.documentId,
+        version: run.version,
+        trigger: run.trigger,
+        status: run.status,
+        sourceType: run.document.sourceType,
+        sourceName: run.document.sourceName,
+        title: run.document.title
+      })),
+      [
+        {
+          documentId: uploadedDocument.id,
+          version: 2,
+          trigger: "reindex",
+          status: "ready",
+          sourceType: "upload",
+          sourceName: "document-chain-test.md",
+          title: "document-chain-test.md"
+        },
+        {
+          documentId: uploadedDocument.id,
+          version: 1,
+          trigger: "upload",
+          status: "ready",
+          sourceType: "upload",
+          sourceName: "document-chain-test.md",
+          title: "document-chain-test.md"
+        }
+      ]
+    );
+
     const chunksAfterReindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
     assert.equal(chunksAfterReindexResponse.status, 200);
 

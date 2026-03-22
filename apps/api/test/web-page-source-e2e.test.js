@@ -249,6 +249,34 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
       documentVersion: 1,
       message: "Failed to fetch web page: upstream responded with 502."
     });
+
+    const runsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs`);
+    assert.equal(runsResponse.status, 200);
+
+    const runs = await runsResponse.json();
+    assert.equal(runs.length, 1);
+    assert.deepEqual(
+      {
+        documentId: runs[0].documentId,
+        version: runs[0].version,
+        trigger: runs[0].trigger,
+        status: runs[0].status,
+        failedStage: runs[0].failedStage,
+        diagnosticsJson: runs[0].diagnosticsJson,
+        sourceType: runs[0].document.sourceType,
+        sourceName: runs[0].document.sourceName
+      },
+      {
+        documentId: documents[0].id,
+        version: 1,
+        trigger: "external_resync",
+        status: "failed",
+        failedStage: "source_fetch",
+        diagnosticsJson: documents[0].diagnosticsJson,
+        sourceType: "web_page",
+        sourceName: `${pageServer.origin}/knowledge/down`
+      }
+    );
   } finally {
     server.kill("SIGTERM");
     await stopServer(pageServer.server);

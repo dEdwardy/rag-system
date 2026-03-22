@@ -53,6 +53,11 @@ export class DocumentsService {
     });
   }
 
+  async listKnowledgeBaseDocumentRuns(knowledgeBaseId: string) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId);
+  }
+
   async getDocument(id: string) {
     const document = await this.prisma.document.findUnique({
       where: { id }

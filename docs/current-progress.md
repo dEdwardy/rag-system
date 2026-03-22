@@ -135,6 +135,7 @@
 当前相关 API：
 
 - ✅ `GET /knowledge-bases/:id/documents`
+- ✅ `GET /knowledge-bases/:id/document-runs`
 - ✅ `POST /knowledge-bases/:id/documents`
 - ✅ `POST /knowledge-bases/:id/documents/upload`
 - ✅ `GET /documents/:id`
@@ -477,6 +478,14 @@
     - `pnpm --filter @rag-system/api exec prisma migrate deploy`
     - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
     - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ knowledge-base scoped document run observability 第一轮
+  - 新增 `GET /knowledge-bases/:id/document-runs`，用于直接查看某个 knowledge base 最近的 document / source 执行历史
+  - 当前返回 run 基本字段外，还会附带一个最小 `document` 摘要，便于在不额外查 document 列表的情况下定位来源和当前状态
+  - 这个接口当前优先服务 backend/API 级诊断与后续 UI 承载，但本轮没有继续开启新的 UI 重构
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js apps/api/test/web-page-source-e2e.test.js`
 
 - ✅ external source repeat-run dedup / re-sync 第一轮
   - `web page` / `feed` / `sitemap` 入口现在会先对 remote URL 做归一化（去掉 hash，并使用标准化 URL 字符串）

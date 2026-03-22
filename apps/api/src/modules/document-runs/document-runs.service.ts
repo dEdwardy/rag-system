@@ -11,6 +11,31 @@ import { PrismaService } from "../../infra/database/prisma.service";
 export class DocumentRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  listKnowledgeBaseRuns(knowledgeBaseId: string) {
+    return this.prisma.documentRun.findMany({
+      where: {
+        document: {
+          kbId: knowledgeBaseId
+        }
+      },
+      include: {
+        document: {
+          select: {
+            id: true,
+            kbId: true,
+            sourceType: true,
+            sourceName: true,
+            title: true,
+            status: true,
+            processingStage: true,
+            version: true
+          }
+        }
+      },
+      orderBy: [{ startedAt: "desc" }, { version: "desc" }]
+    });
+  }
+
   listDocumentRuns(documentId: string) {
     return this.prisma.documentRun.findMany({
       where: {

@@ -66,6 +66,7 @@
 - source run history / execution observability minimum increment: done
   - document ingestion / external source run 已具备 run-level persistence
   - 当前可通过 `GET /documents/:id/runs` 读取 `upload` / `reindex` / `external_resync` 的执行历史
+  - 当前也可通过 `GET /knowledge-bases/:id/document-runs` 在 knowledge-base 级别查看最近 run history
   - stale ingestion job 也会在 run history 中显式标记为 `skipped`
 
 ### P1：retrieval / answering 收敛

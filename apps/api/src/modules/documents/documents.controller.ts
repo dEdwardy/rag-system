@@ -27,6 +27,11 @@ export class DocumentsController {
     return this.documentsService.listKnowledgeBaseDocuments(knowledgeBaseId);
   }
 
+  @Get("knowledge-bases/:id/document-runs")
+  listKnowledgeBaseDocumentRuns(@Param("id") knowledgeBaseId: string) {
+    return this.documentsService.listKnowledgeBaseDocumentRuns(knowledgeBaseId);
+  }
+
   @Post("knowledge-bases/:id/documents")
   createDocument(@Param("id") knowledgeBaseId: string, @Body() body: unknown) {
     const input = createDocumentSchema.parse(body);

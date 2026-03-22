@@ -262,6 +262,7 @@ Notes:
 - external source creation now reserves a `Document` record before remote fetch, so when `web page` / `feed` / `sitemap` source fetch fails the failure is still visible later through `GET /knowledge-bases/:id/documents` and `GET /documents/:id`
 - external source documents now persist `sourceConfigJson`, and `POST /documents/:id/reindex` for `web_page` / `feed` / `sitemap` performs a true remote re-sync using the stored source config instead of only re-parsing the previous generated text artifact
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
+- backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - each document run currently records:
   - `documentId`
   - `version`
@@ -270,6 +271,15 @@ Notes:
   - `failedStage`
   - `diagnosticsJson`
   - `startedAt` / `finishedAt`
+- the knowledge-base scoped run list currently also includes a small `document` summary for each run:
+  - `id`
+  - `kbId`
+  - `sourceType`
+  - `sourceName`
+  - `title`
+  - `status`
+  - `processingStage`
+  - `version`
 - stale ingestion jobs now also mark their superseded run as `skipped` with structured diagnostics instead of leaving an older run stuck in a pending state
 - backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
 - the current stream path now forwards native answer-generation text deltas from the configured provider during the generation phase
