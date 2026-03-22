@@ -1,4 +1,3 @@
-import { Alert, Center, Loader, Paper, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 
 type StatePanelProps = {
@@ -11,47 +10,39 @@ type StatePanelProps = {
 export function StatePanel({ title, description, tone = "empty", action }: StatePanelProps) {
   if (tone === "loading") {
     return (
-      <Center mih={160}>
-        <Stack align="center" gap="xs">
-          <Loader size="sm" />
-          <Text c="dimmed" size="sm">
-            {title}
-          </Text>
+      <div className="flex min-h-[148px] items-center justify-center rounded-[28px] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(30,30,38,0.98)_0%,rgba(24,24,31,0.98)_100%)] px-6 py-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-[rgba(255,255,255,0.14)] border-t-[var(--app-accent)]" />
+          <p className="text-sm font-semibold text-[var(--app-text)]">{title}</p>
           {description ? (
-            <Text c="dimmed" size="sm">
-              {description}
-            </Text>
+            <p className="max-w-sm text-sm text-[var(--app-text-muted)]">{description}</p>
           ) : null}
-        </Stack>
-      </Center>
+        </div>
+      </div>
     );
   }
 
   if (tone === "error") {
     return (
-      <Alert color="red" variant="light">
-        <Text fw={600}>{title}</Text>
+      <div className="rounded-[24px] border border-[rgba(248,113,113,0.24)] bg-[rgba(127,29,29,0.14)] px-5 py-4 text-red-100 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+        <p className="text-sm font-semibold">{title}</p>
         {description ? (
-          <Text mt={4} size="sm">
-            {description}
-          </Text>
+          <p className="mt-1 text-sm text-red-100/80">{description}</p>
         ) : null}
-        {action}
-      </Alert>
+        {action ? <div className="mt-3">{action}</div> : null}
+      </div>
     );
   }
 
   return (
-    <Paper p="xl" radius="md" withBorder>
-      <Stack align="center" gap="xs">
-        <Text fw={600}>{title}</Text>
+    <div className="flex min-h-[190px] items-center justify-center rounded-[28px] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(30,30,38,0.98)_0%,rgba(24,24,31,0.98)_100%)] px-6 py-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-base font-semibold text-[var(--app-text)]">{title}</p>
         {description ? (
-          <Text c="dimmed" size="sm" ta="center">
-            {description}
-          </Text>
+          <p className="max-w-sm text-sm leading-6 text-[var(--app-text-muted)]">{description}</p>
         ) : null}
-        {action}
-      </Stack>
-    </Paper>
+        {action ? <div className="mt-2">{action}</div> : null}
+      </div>
+    </div>
   );
 }
