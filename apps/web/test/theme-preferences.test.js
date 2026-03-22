@@ -79,3 +79,27 @@ test("theme preferences persist current values", async () => {
   assert.equal(writes.get(THEME_COLOR_STORAGE_KEY), "constrained-light");
   assert.equal(writes.get(THEME_LAYOUT_STORAGE_KEY), "default-app");
 });
+
+test("theme preferences build document dataset from stored values", async () => {
+  const {
+    getDocumentThemeDataset,
+    THEME_COLOR_STORAGE_KEY,
+    THEME_LAYOUT_STORAGE_KEY
+  } = await loadThemePreferences();
+
+  const store = new Map([
+    [THEME_COLOR_STORAGE_KEY, "creative-dark"],
+    [THEME_LAYOUT_STORAGE_KEY, "workspace-app"]
+  ]);
+
+  const result = getDocumentThemeDataset({
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    }
+  });
+
+  assert.deepEqual(result, {
+    themeColor: "creative-dark",
+    themeLayout: "workspace-app"
+  });
+});
