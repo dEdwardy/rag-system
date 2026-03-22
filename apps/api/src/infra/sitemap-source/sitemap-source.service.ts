@@ -24,6 +24,7 @@ type SitemapFetchDiagnostics = {
   failedPageUrls: string[];
   failedPages?: Array<{
     url: string;
+    code: string;
     message: string;
     retryable: boolean;
   }>;
@@ -36,6 +37,7 @@ type SitemapFetchDiagnostics = {
   failedChildSitemapUrls?: string[];
   failedChildSitemaps?: Array<{
     url: string;
+    code: string;
     message: string;
     retryable: boolean;
   }>;
@@ -232,6 +234,7 @@ export class SitemapSourceService {
                 "failedChildSitemapsOmittedCount",
                 failure => ({
                   url: failure.url,
+                  code: this.getFailureCode(failure.error),
                   message: this.getErrorMessage(failure.error),
                   retryable: this.isRetryableFetchError(failure.error)
                 })
@@ -300,6 +303,7 @@ export class SitemapSourceService {
               "failedPagesOmittedCount",
               failure => ({
                 url: failure.url,
+                code: this.getFailureCode(failure.error),
                 message: this.getErrorMessage(failure.error),
                 retryable: this.isRetryableFetchError(failure.error)
               })
@@ -440,6 +444,28 @@ export class SitemapSourceService {
 
   private isRetryableFetchError(error: unknown) {
     return !(error instanceof BadRequestException);
+  }
+
+  private getFailureCode(error: unknown) {
+    const message = this.getErrorMessage(error);
+
+    if (message.startsWith("Unsupported web page content type:")) {
+      return "UNSUPPORTED_CONTENT_TYPE";
+    }
+
+    if (message.startsWith("Unsupported sitemap content type:") || message.includes("payload is empty")) {
+      return "INVALID_PAYLOAD";
+    }
+
+    if (message.startsWith("Failed to fetch sitemap: upstream responded with")) {
+      return "UPSTREAM_FETCH_FAILED";
+    }
+
+    if (message.startsWith("Failed to fetch web page: upstream responded with")) {
+      return "UPSTREAM_FETCH_FAILED";
+    }
+
+    return "UNKNOWN_FETCH_ERROR";
   }
 
   private buildFailureSummary<T, TResult>(

@@ -251,6 +251,7 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
       failedPages: [
         {
           url: `${sitemapServer.origin}/pages/failing`,
+          code: "UNSUPPORTED_CONTENT_TYPE",
           message: "Unsupported web page content type: application/pdf.",
           retryable: false
         }
@@ -359,6 +360,7 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
       failedChildSitemaps: [
         {
           url: `${sitemapServer.origin}/sitemaps/failing.xml`,
+          code: "UPSTREAM_FETCH_FAILED",
           message: "Failed to fetch sitemap: upstream responded with 502.",
           retryable: true
         }

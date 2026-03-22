@@ -267,6 +267,7 @@ Notes:
     - capped `failedPageUrls`
     - capped `failedPages` summary objects with:
       - `url`
+      - `code`
       - `message`
       - `retryable`
     - truncation metadata when capped:
@@ -280,6 +281,7 @@ Notes:
       - capped `failedChildSitemapUrls`
       - capped `failedChildSitemaps` summary objects with:
         - `url`
+        - `code`
         - `message`
         - `retryable`
       - truncation metadata when capped:

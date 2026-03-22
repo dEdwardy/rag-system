@@ -465,7 +465,7 @@
     - `succeededPageCount`
     - `failedPageCount`
     - capped `failedPageUrls`
-    - capped `failedPages` reason summaries (`url` + `message` + `retryable`)
+    - capped `failedPages` reason summaries (`url` + `code` + `message` + `retryable`)
     - truncation metadata for page summaries:
       - `failedPagesTruncated`
       - `failedPagesOmittedCount`
@@ -475,7 +475,7 @@
       - `succeededChildSitemapCount`
       - `failedChildSitemapCount`
       - capped `failedChildSitemapUrls`
-      - capped `failedChildSitemaps` reason summaries (`url` + `message` + `retryable`)
+      - capped `failedChildSitemaps` reason summaries (`url` + `code` + `message` + `retryable`)
       - truncation metadata for child sitemap summaries:
         - `failedChildSitemapsTruncated`
         - `failedChildSitemapsOmittedCount`

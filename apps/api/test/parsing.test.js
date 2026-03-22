@@ -308,6 +308,7 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
       failedPages: [
         {
           url: "https://example.com/pages/bad",
+          code: "UNSUPPORTED_CONTENT_TYPE",
           message: "Unsupported web page content type: application/pdf.",
           retryable: false
         }
@@ -457,6 +458,7 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
       failedChildSitemaps: [
         {
           url: "https://example.com/sitemaps/bad.xml",
+          code: "UPSTREAM_FETCH_FAILED",
           message: "Failed to fetch sitemap: upstream responded with 502.",
           retryable: true
         }

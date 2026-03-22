@@ -35,6 +35,7 @@ type SitemapPartialDiagnostics = {
   failedPageUrls: string[];
   failedPages?: Array<{
     url: string;
+    code: string;
     message: string;
     retryable: boolean;
   }>;
@@ -47,6 +48,7 @@ type SitemapPartialDiagnostics = {
   failedChildSitemapUrls?: string[];
   failedChildSitemaps?: Array<{
     url: string;
+    code: string;
     message: string;
     retryable: boolean;
   }>;
