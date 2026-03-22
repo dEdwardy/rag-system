@@ -465,17 +465,20 @@
     - `succeededPageCount`
     - `failedPageCount`
     - capped `failedPageUrls`
+    - capped `failedPages` reason summaries (`url` + `message`)
     - `partial: true`
     - and for partial child sitemap expansion:
       - `attemptedChildSitemapCount`
       - `succeededChildSitemapCount`
       - `failedChildSitemapCount`
       - capped `failedChildSitemapUrls`
+      - capped `failedChildSitemaps` reason summaries (`url` + `message`)
   - document `diagnosticsJson` now preserves this partial source-fetch context through ingestion completion, so `GET /documents/:id` can still expose it after the document reaches `ready`
   - document run history now also preserves the same partial diagnostics on the final `ready` run, so `GET /documents/:id/runs` and `GET /knowledge-bases/:id/document-runs?includeDiagnostics=true` can surface it without adding new list/summary fields
   - this increment stayed inside the existing shared `SitemapSourceService` + `DocumentsService` + `IngestionService` path and did not expand into connector/source platformization
   - focused validation rerun:
-    - `pnpm --filter @rag-system/api build`
+    - `apps/api/node_modules/.bin/tsc.CMD -p apps/api/tsconfig.json`
+    - `docker compose up -d`
     - `node --test apps/api/test/parsing.test.js apps/api/test/sitemap-source-e2e.test.js`
     - `node --test apps/api/test/external-source-sync.test.js apps/api/test/ingestion.orchestrator.test.js`
 

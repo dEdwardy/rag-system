@@ -248,6 +248,12 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
       succeededPageCount: 2,
       failedPageCount: 1,
       failedPageUrls: [`${sitemapServer.origin}/pages/failing`],
+      failedPages: [
+        {
+          url: `${sitemapServer.origin}/pages/failing`,
+          message: "Failed to fetch web page: upstream responded with 502."
+        }
+      ],
       partial: true
     });
 
@@ -339,11 +345,18 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
       succeededPageCount: 2,
       failedPageCount: 0,
       failedPageUrls: [],
+      failedPages: [],
       partial: true,
       attemptedChildSitemapCount: 2,
       succeededChildSitemapCount: 1,
       failedChildSitemapCount: 1,
-      failedChildSitemapUrls: [`${sitemapServer.origin}/sitemaps/failing.xml`]
+      failedChildSitemapUrls: [`${sitemapServer.origin}/sitemaps/failing.xml`],
+      failedChildSitemaps: [
+        {
+          url: `${sitemapServer.origin}/sitemaps/failing.xml`,
+          message: "Failed to fetch sitemap: upstream responded with 502."
+        }
+      ]
     });
 
     const runsResponse = await fetch(

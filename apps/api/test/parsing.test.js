@@ -305,6 +305,12 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
       succeededPageCount: 1,
       failedPageCount: 1,
       failedPageUrls: ["https://example.com/pages/bad"],
+      failedPages: [
+        {
+          url: "https://example.com/pages/bad",
+          message: "Failed to fetch web page: upstream responded with 502."
+        }
+      ],
       partial: true
     });
   } finally {
@@ -437,11 +443,18 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
       succeededPageCount: 1,
       failedPageCount: 0,
       failedPageUrls: [],
+      failedPages: [],
       partial: true,
       attemptedChildSitemapCount: 2,
       succeededChildSitemapCount: 1,
       failedChildSitemapCount: 1,
-      failedChildSitemapUrls: ["https://example.com/sitemaps/bad.xml"]
+      failedChildSitemapUrls: ["https://example.com/sitemaps/bad.xml"],
+      failedChildSitemaps: [
+        {
+          url: "https://example.com/sitemaps/bad.xml",
+          message: "Failed to fetch sitemap: upstream responded with 502."
+        }
+      ]
     });
   } finally {
     global.fetch = originalFetch;

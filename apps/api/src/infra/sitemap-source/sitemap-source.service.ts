@@ -22,11 +22,19 @@ type SitemapFetchDiagnostics = {
   succeededPageCount: number;
   failedPageCount: number;
   failedPageUrls: string[];
+  failedPages?: Array<{
+    url: string;
+    message: string;
+  }>;
   partial: boolean;
   attemptedChildSitemapCount?: number;
   succeededChildSitemapCount?: number;
   failedChildSitemapCount?: number;
   failedChildSitemapUrls?: string[];
+  failedChildSitemaps?: Array<{
+    url: string;
+    message: string;
+  }>;
 };
 
 type PageFetchFailure = {
@@ -47,6 +55,7 @@ type ResolvedSitemapPages = {
     | "succeededChildSitemapCount"
     | "failedChildSitemapCount"
     | "failedChildSitemapUrls"
+    | "failedChildSitemaps"
     | "partial"
   > | null;
 };
@@ -213,6 +222,10 @@ export class SitemapSourceService {
               succeededChildSitemapCount,
               failedChildSitemapCount: failedChildSitemapUrls.length,
               failedChildSitemapUrls: failedChildSitemapUrls.slice(0, 10),
+              failedChildSitemaps: childSitemapFailures.slice(0, 10).map(failure => ({
+                url: failure.url,
+                message: this.getErrorMessage(failure.error)
+              })),
               partial: true
             }
           : null
@@ -270,6 +283,10 @@ export class SitemapSourceService {
             succeededPageCount,
             failedPageCount: failedPageUrls.length,
             failedPageUrls: failedPageUrls.slice(0, 10),
+            failedPages: pageFailures.slice(0, 10).map(failure => ({
+              url: failure.url,
+              message: this.getErrorMessage(failure.error)
+            })),
             partial: true,
             ...(existingDiagnostics ?? {})
           }
@@ -390,5 +407,13 @@ export class SitemapSourceService {
     }
 
     return new BadGatewayException(message);
+  }
+
+  private getErrorMessage(error: unknown) {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return "Unknown fetch error.";
   }
 }

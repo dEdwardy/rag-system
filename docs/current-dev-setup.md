@@ -265,12 +265,18 @@ Notes:
     - `succeededPageCount`
     - `failedPageCount`
     - capped `failedPageUrls`
+    - capped `failedPages` summary objects with:
+      - `url`
+      - `message`
     - `partial: true`
     - and for partial `sitemapindex` child expansion:
       - `attemptedChildSitemapCount`
       - `succeededChildSitemapCount`
       - `failedChildSitemapCount`
       - capped `failedChildSitemapUrls`
+      - capped `failedChildSitemaps` summary objects with:
+        - `url`
+        - `message`
 - posting the same external source URL again now reuses the existing document record for that `kbId + sourceType + normalized URL`, increments `version`, replaces the generated source artifact, and re-runs ingestion instead of creating duplicate documents
 - ingestion queue jobs now carry the expected document `version`; stale jobs are skipped before parsing/chunk deletion/index writes so an older reindex or resync run cannot overwrite a newer one
 - document failure states now also persist `diagnosticsJson` with a stable `code`, `failedStage`, `retryable`, `documentVersion`, and `message`, so `GET /documents/:id` exposes structured ingestion diagnostics instead of only a flat `errorMessage`
