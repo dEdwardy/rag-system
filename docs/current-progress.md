@@ -462,6 +462,13 @@
 
 ### 2026-03-23
 
+- ✅ optional-citation quality evaluation alignment
+  - `citationMode=optional` 的 grounded answers 现在不会再因为缺少 citation 被自动打上 `no_citations`
+  - 当没有其他 gap 或 retrieval-risk 信号时，这类回答的 `qualityEvaluation` 现在可以保持 `strong`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
 - ✅ answering metadata fallback-path exposure
   - `answeringMetadata` 现已显式返回 `usedFallback`，用于区分 provider-backed answer generation 和本地 fallback 路径
   - one-shot ask、native stream final payload，以及持久化 trace 中的 `answeringMetadataJson` 语义现已对齐

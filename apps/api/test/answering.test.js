@@ -271,6 +271,54 @@ test("AnsweringService does not fabricate heuristic citations when citationMode 
   assert.deepEqual(result.citations, []);
 });
 
+test("AnsweringService keeps quality evaluation strong when citations are optional and no other gaps exist", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Fallback answer without markers",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "auto",
+      citationMode: "optional",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.citations, []);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    flags: [],
+    summary: "Answer is grounded in cited sources with no reported gaps."
+  });
+});
+
 test("AnsweringService clears missingInformation when the policy disables it", async () => {
   const llmService = {
     generateAnswer: async () => ({

@@ -119,6 +119,9 @@ Notes:
 - current answering metadata semantics:
   - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path
   - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
+- current quality-evaluation semantics:
+  - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty
+  - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`

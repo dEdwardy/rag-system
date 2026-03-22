@@ -156,6 +156,7 @@ export class AnsweringService {
       const qualityEvaluation = this.buildQualityEvaluation({
         answerStatus,
         missingInformation,
+        citationMode: input.answerPolicy.citationMode,
         citationCount: 0,
         chunkCount: 0,
         topScore: null
@@ -207,6 +208,7 @@ export class AnsweringService {
     const qualityEvaluation = this.buildQualityEvaluation({
       answerStatus,
       missingInformation,
+      citationMode: input.answerPolicy.citationMode,
       citationCount: citations.length,
       chunkCount: input.chunks.length,
       topScore: input.chunks[0]?.score ?? null
@@ -415,6 +417,7 @@ export class AnsweringService {
   private buildQualityEvaluation(input: {
     answerStatus: "grounded" | "insufficient_context";
     missingInformation: string[];
+    citationMode: "required" | "optional";
     citationCount: number;
     chunkCount: number;
     topScore: number | null;
@@ -437,14 +440,14 @@ export class AnsweringService {
       flags.push("low_retrieval_score");
     }
 
-    if (input.chunkCount > 0 && input.citationCount === 0) {
+    if (input.citationMode === "required" && input.chunkCount > 0 && input.citationCount === 0) {
       flags.push("no_citations");
     }
 
     const grounding =
       input.answerStatus === "insufficient_context"
         ? "ungrounded"
-        : input.citationCount > 0
+        : input.citationCount > 0 || input.citationMode === "optional"
           ? "grounded"
           : "partially_grounded";
 
