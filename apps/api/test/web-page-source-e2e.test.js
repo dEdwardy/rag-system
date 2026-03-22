@@ -192,6 +192,68 @@ test("Web page source E2E: ingesting the same URL again reuses the document and 
   }
 });
 
+test("Web page source E2E: failed fetch leaves a failed document with diagnostics", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3116;
+  const storageRoot = resolve(repoRoot, "storage", `test-web-page-failed-fetch-${randomUUID()}`);
+  const queuePrefix = `test-web-page-failed-fetch-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const pageServer = await startFailingWebPageServer();
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/web-page`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${pageServer.origin}/knowledge/down`
+      })
+    });
+    assert.equal(createResponse.status, 502);
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.equal(documents[0].sourceType, "web_page");
+    assert.equal(documents[0].sourceName, `${pageServer.origin}/knowledge/down`);
+    assert.equal(documents[0].status, "failed");
+    assert.equal(documents[0].processingStage, "failed");
+    assert.deepEqual(documents[0].diagnosticsJson, {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: true,
+      documentVersion: 1,
+      message: "Failed to fetch web page: upstream responded with 502."
+    });
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(pageServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -255,6 +317,33 @@ async function stopServer(server) {
       resolvePromise();
     });
   });
+}
+
+async function startFailingWebPageServer() {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/knowledge/down") {
+      response.writeHead(502, {
+        "Content-Type": "text/plain; charset=utf-8"
+      });
+      response.end("temporary upstream failure");
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  const address = server.address();
+  return {
+    server,
+    origin: `http://127.0.0.1:${address.port}`
+  };
 }
 
 async function waitForHealth(port, timeoutMs) {

@@ -259,6 +259,7 @@ Notes:
 - document failure states now also persist `diagnosticsJson` with a stable `code`, `failedStage`, `retryable`, `documentVersion`, and `message`, so `GET /documents/:id` exposes structured ingestion diagnostics instead of only a flat `errorMessage`
 - the ingestion worker now records `chunking` as a real intermediate processing stage between `parsing` and `indexing`
 - external source HTTP fetches now share a small retry guard: one automatic retry for transient `429` / `5xx` upstream responses before surfacing the failure
+- external source creation now reserves a `Document` record before remote fetch, so when `web page` / `feed` / `sitemap` source fetch fails the failure is still visible later through `GET /knowledge-bases/:id/documents` and `GET /documents/:id`
 - backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
 - the current stream path now forwards native answer-generation text deltas from the configured provider during the generation phase
 - it still keeps citations, trace ids, and the completed ask payload in the final completion event instead of attempting full structured real-time metadata streaming

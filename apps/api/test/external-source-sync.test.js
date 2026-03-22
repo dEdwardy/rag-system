@@ -50,6 +50,86 @@ test("DocumentsService reuses an existing sitemap document when the same URL is 
   });
 });
 
+test("DocumentsService records a failed web page sync when source fetch fails", async () => {
+  const enqueuedDocumentIds = [];
+  const documentUpdates = [];
+
+  const reservedDocument = {
+    id: "reserved-web-page-document",
+    kbId: "default-kb",
+    sourceType: "web_page",
+    sourceName: "https://example.com/down",
+    title: "example.com/down",
+    mimeType: "text/plain",
+    storageKey: "generated/pending.txt",
+    version: 2
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findFirst: async () => null,
+        create: async () => reservedDocument,
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...reservedDocument,
+            ...args.data
+          };
+        }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async () => ({ id: "default-kb" })
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("saveGeneratedTextFile should not be called on fetch failure");
+      }
+    },
+    webPageService: {
+      fetchWebPage: async () => {
+        throw new Error("Failed to fetch web page: upstream responded with 502.");
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {},
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.createWebPageDocument.call(fakeService, "default-kb", {
+      url: "https://example.com/down"
+    }),
+    /upstream responded with 502/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      where: {
+        id: reservedDocument.id
+      },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "Failed to fetch web page: upstream responded with 502.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: true,
+          documentVersion: reservedDocument.version,
+          message: "Failed to fetch web page: upstream responded with 502."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, []);
+});
+
 async function expectExternalSourceResync({ sourceType, methodName, input, expectedSourceName, fetchResult }) {
   const enqueuedDocumentIds = [];
   const documentCreates = [];
@@ -143,24 +223,35 @@ async function expectExternalSourceResync({ sourceType, methodName, input, expec
 
   assert.equal(result.id, existingDocument.id);
   assert.equal(documentCreates.length, 0);
-  assert.equal(documentUpdates.length, 1);
+  assert.equal(documentUpdates.length, 2);
   assert.deepEqual(documentUpdates[0], {
     where: {
       id: existingDocument.id
     },
     data: {
       sourceName: expectedSourceName,
-      title: input.title ?? fetchResult.title ?? buildRemoteSourceFallbackTitle(expectedSourceName),
-      mimeType: "text/plain",
-      storageKey: `generated/${sourceType}-refreshed.txt`,
+      title: input.title ?? buildRemoteSourceFallbackTitle(expectedSourceName),
       status: "pending",
       processingStage: "uploaded",
-      chunkCount: 0,
       errorMessage: null,
       diagnosticsJson: Prisma.JsonNull,
       version: {
         increment: 1
       }
+    }
+  });
+  assert.deepEqual(documentUpdates[1], {
+    where: {
+      id: existingDocument.id
+    },
+    data: {
+      title: input.title ?? fetchResult.title ?? buildRemoteSourceFallbackTitle(expectedSourceName),
+      mimeType: "text/plain",
+      storageKey: `generated/${sourceType}-refreshed.txt`,
+      status: "pending",
+      processingStage: "uploaded",
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull,
     }
   });
   assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);

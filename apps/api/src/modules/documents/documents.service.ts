@@ -112,14 +112,21 @@ export class DocumentsService {
 
   async createWebPageDocument(knowledgeBaseId: string, input: CreateWebPageDocumentInput) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const fetchedPage = await this.webPageService.fetchWebPage(normalizedUrl);
+    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+      sourceType: "web_page",
+      sourceName: normalizedUrl,
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl)
+    });
+
+    const fetchedPage = await this.fetchExternalSourceOrRecordFailure(
+      reservedDocument,
+      () => this.webPageService.fetchWebPage(normalizedUrl)
+    );
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedPage.content
     });
 
-    const document = await this.createOrSyncExternalDocument(knowledgeBaseId, {
-      sourceType: "web_page",
-      sourceName: normalizedUrl,
+    const document = await this.finalizeExternalDocument(reservedDocument.id, {
       title: input.title ?? fetchedPage.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
@@ -132,17 +139,23 @@ export class DocumentsService {
 
   async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const fetchedFeed = await this.feedSourceService.fetchFeed({
-      url: normalizedUrl,
-      maxItems: input.maxItems
+    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+      sourceType: "feed",
+      sourceName: normalizedUrl,
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl)
     });
+
+    const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
+      this.feedSourceService.fetchFeed({
+        url: normalizedUrl,
+        maxItems: input.maxItems
+      })
+    );
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedFeed.content
     });
 
-    const document = await this.createOrSyncExternalDocument(knowledgeBaseId, {
-      sourceType: "feed",
-      sourceName: normalizedUrl,
+    const document = await this.finalizeExternalDocument(reservedDocument.id, {
       title: input.title ?? fetchedFeed.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
@@ -155,17 +168,23 @@ export class DocumentsService {
 
   async createSitemapDocument(knowledgeBaseId: string, input: CreateSitemapDocumentInput) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const fetchedSitemap = await this.sitemapSourceService.fetchSitemap({
-      url: normalizedUrl,
-      maxPages: input.maxPages
+    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+      sourceType: "sitemap",
+      sourceName: normalizedUrl,
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl)
     });
+
+    const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
+      this.sitemapSourceService.fetchSitemap({
+        url: normalizedUrl,
+        maxPages: input.maxPages
+      })
+    );
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedSitemap.content
     });
 
-    const document = await this.createOrSyncExternalDocument(knowledgeBaseId, {
-      sourceType: "sitemap",
-      sourceName: normalizedUrl,
+    const document = await this.finalizeExternalDocument(reservedDocument.id, {
       title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
@@ -216,9 +235,13 @@ export class DocumentsService {
     return path.slice(0, 255);
   }
 
-  private async createOrSyncExternalDocument(
+  private async reserveExternalDocument(
     knowledgeBaseId: string,
-    input: CreateDocumentInput
+    input: {
+      sourceType: string;
+      sourceName: string;
+      title: string;
+    }
   ) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
 
@@ -231,7 +254,19 @@ export class DocumentsService {
     });
 
     if (!existingDocument) {
-      return this.createDocument(knowledgeBaseId, input);
+      return this.prisma.document.create({
+        data: {
+          kbId: knowledgeBaseId,
+          sourceType: input.sourceType,
+          sourceName: input.sourceName,
+          title: input.title,
+          mimeType: "text/plain",
+          storageKey: "external-source:pending",
+          status: DocumentStatus.pending,
+          processingStage: DocumentProcessingStage.uploaded,
+          diagnosticsJson: Prisma.JsonNull
+        }
+      });
     }
 
     return this.prisma.document.update({
@@ -241,11 +276,8 @@ export class DocumentsService {
       data: {
         sourceName: input.sourceName,
         title: input.title,
-        mimeType: input.mimeType,
-        storageKey: input.storageKey,
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
-        chunkCount: 0,
         errorMessage: null,
         diagnosticsJson: Prisma.JsonNull,
         version: {
@@ -253,6 +285,56 @@ export class DocumentsService {
         }
       }
     });
+  }
+
+  private finalizeExternalDocument(
+    id: string,
+    input: Pick<CreateDocumentInput, "title" | "mimeType" | "storageKey">
+  ) {
+    return this.prisma.document.update({
+      where: { id },
+      data: {
+        title: input.title,
+        mimeType: input.mimeType,
+        storageKey: input.storageKey,
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    });
+  }
+
+  private async fetchExternalSourceOrRecordFailure<T>(
+    document: {
+      id: string;
+      version: number;
+    },
+    operation: () => Promise<T>
+  ) {
+    try {
+      return await operation();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown external source fetch error.";
+
+      await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          status: DocumentStatus.failed,
+          processingStage: DocumentProcessingStage.failed,
+          errorMessage: message,
+          diagnosticsJson: {
+            code: "EXTERNAL_SOURCE_FETCH_FAILED",
+            failedStage: "source_fetch",
+            retryable: true,
+            documentVersion: document.version,
+            message
+          }
+        }
+      });
+
+      throw error;
+    }
   }
 
   private normalizeRemoteSourceUrl(url: string) {
