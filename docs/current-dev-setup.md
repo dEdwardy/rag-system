@@ -176,6 +176,8 @@ Current API test coverage:
 - feed source ingestion
 - sitemap source ingestion
 - sitemap index source ingestion
+- external source failed-document persistence and recovery cleanup
+- external source partial diagnostics normalization and summary consistency
 
 Focused document-chain E2E validation:
 
@@ -394,6 +396,14 @@ Notes:
   - `version`
 - `GET /documents/:id/runs` and `GET /knowledge-bases/:id/document-runs` now both order recent runs by `startedAt desc` first, with `version desc` only as a secondary tie-breaker
 - `GET /knowledge-bases/:id/documents` now orders documents by latest `updatedAt desc`, so a reindexed or recovered external source surfaces with the newest current activity instead of its original creation time
+- as of `2026-03-23`, the current external-source backend closeout has also been rerun through the full repository API suite with:
+
+```bash
+pnpm test:api
+```
+
+- latest recorded result for that full API suite:
+  - `116 / 116` passing
 - stale ingestion jobs now also mark their superseded run as `skipped` with structured diagnostics instead of leaving an older run stuck in a pending state
 - backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
 - the current stream path now forwards native answer-generation text deltas from the configured provider during the generation phase

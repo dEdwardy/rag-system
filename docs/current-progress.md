@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-22
+更新时间：2026-03-23
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -32,8 +32,8 @@
 - 当前主线状态：`MVP 可运行 + 第一版可诊断 + 第一版可配置`
 - 当前最适合继续推进的方向：
   - `PC Web chat experience polish` 这一轮收口已完成，可先视为 done
-  - 下一整个大方向已切回 `external knowledge source expansion`
-  - 建议继续保持 `backend / API first`，在现有 source family 上做小步稳定化增量
+  - `external knowledge source expansion` 在当前限定范围内已完成 backend / API 收口
+  - 下一步更适合切到新的 backend-first 增量，而不是继续在现有 source family 上重复补洞
   - 继续保持 `PC Web` 优先、移动端后置
 - 当前本地执行约束：
   - 优先严格串行执行
@@ -341,12 +341,12 @@
   - NDJSON transport and progressive answer rendering: done
   - native answer-generation text streaming: done
   - chat workspace UI / UX polish: done
-- [ ] external knowledge source expansion
+- [x] external knowledge source expansion
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
   - sitemap source ingestion minimum increment: done
   - sitemap index source ingestion minimum increment: done
-  - the broader external knowledge source direction is now the active next priority; continue backend-first expansion from the current completed source increments
+  - backend / API consistency, recovery semantics, partial diagnostics, and run-summary coverage for the current source family are now closed in the current scope
 - keep backend / API first
 - keep `PC Web` as the current client priority
 - do not expand mobile work yet
@@ -367,7 +367,7 @@
   - one direct RSS / Atom feed source
   - one direct sitemap `urlset` source
   - one root sitemap `sitemapindex` source that expands child direct sitemaps
-- 后续的 `external knowledge source expansion` 仍然是当前的下一个完整任务方向
+- 当前 source family 的 backend / API 收口已完成；后续如再继续外部知识源方向，应视为新的后续增量而不是当前这一轮未完成残项
 
 ---
 
@@ -424,25 +424,25 @@
 - [x] `PC Web` chat experience polish
   - chat streaming transport and native answer-generation streaming: done
   - workspace UI / UX polish and final收口: done
-- [ ] external knowledge source expansion
+- [x] external knowledge source expansion
   - source stabilization phase 1: done
   - source run history / execution observability minimum increment: done
   - sitemap / sitemap-index partial-failure tolerance + structured partial diagnostics: done
   - feed partial invalid-entry tolerance + structured partial diagnostics: done
-  - current recommended next increment:
-    - keep `backend / API first`
-    - continue improving external source execution boundaries and diagnostics on top of the new run history
-    - still avoid opening a new UI refactor or a generic connector/source platform rewrite
-  - latest backend consistency follow-up:
-    - external source `external_resync` now resets document-level `chunkCount` to `0` as soon as a new pending version is queued, aligning repeated source syncs with the existing upload-document `reindex` semantics
-    - `GET /knowledge-bases/:id/documents` now sorts by latest `updatedAt desc`, so a recovered or resynced external source appears with the newest current activity instead of staying pinned to its original creation time
-    - external source `reindex` with missing or invalid persisted `sourceConfigJson` now still lands a new `external_resync` run/version and records a structured non-retryable failure instead of escaping before run history is written
-    - document-run summary latest anchors now resolve by the latest matching completed run timestamp, so overlapping runs do not let a later-started but earlier-finished run override `latestFailure` / `latestRetryableFailure` / `latestSkipped`
-    - document-level run history now uses the same primary recent-run ordering as the knowledge-base scoped run list: `startedAt desc` first, then `version desc` for ties
-    - external source re-sync now preserves the current document title whenever the refreshed source payload does not provide a new source-level title
-    - repeated posting of the same external source URL now preserves the existing document title too when the refreshed source payload still does not provide a new title
-    - knowledge-base run summary failure counters and latest failure anchors now collapse to each document's latest completed run, so a later successful resync clears that document's stale failure signal from summary without changing run history endpoints
-    - `latestSkipped` keeps its run-history semantics and still points at the most recent skipped run event even when that document later completes successfully
+  - backend consistency / recovery / direct-failure coverage for the current source family: done
+  - current completed backend consistency scope includes:
+    - direct failed-document persistence for invalid `web page` / `feed` / `sitemap` inputs
+    - same-URL recovery cleanup for retryable and non-retryable external-source failures
+    - same-URL recovery cleanup for partial-ready diagnostics
+    - latest-activity document ordering
+    - run-history retention after recovery
+    - run-summary cleanup after recovery
+    - latest partial-failure summary selection for a document with older failed history
+    - source-level partial diagnostics normalization for repeated `feed` / `sitemap` syncs
+  - recommended next increment:
+    - choose a new backend-first direction
+    - do not reopen UI refactor
+    - do not expand into a generic connector / source-center platform rewrite
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -459,6 +459,36 @@
 ---
 
 ## 9. 最近完成的关键增量
+
+### 2026-03-23
+
+- ✅ external knowledge source expansion backend / API consistency closeout
+  - current scoped source family:
+    - `web page`
+    - `feed`
+    - `sitemap`
+    - `sitemap index`
+  - this closeout round stayed strictly inside backend / API validation and did not reopen:
+    - UI refactor
+    - mobile work
+    - source center / connector platformization
+  - newly locked focused gaps in this round:
+    - unsupported `web page` failure now has explicit same-URL recovery coverage
+    - all-invalid `feed` failure now has explicit same-URL recovery coverage
+    - all-unsupported `sitemap` failure now has both direct-failure and same-URL recovery coverage
+    - run-summary selection now explicitly prefers a newer partial-ready run over the same document's older terminal failure
+    - repeated `feed` / `sitemap` sync unit tests now explicitly assert normalized `EXTERNAL_SOURCE_PARTIAL_SUCCESS` diagnostics with the new reserved version
+  - focused validation rerun during this round:
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test apps/api/test/external-source-sync.test.js`
+  - full API regression rerun after closeout:
+    - `pnpm test:api`
+  - current result:
+    - `116 / 116` API tests passed
+    - the current external knowledge source expansion round can now be treated as backend / API complete within the present scope
 
 ### 2026-03-22
 
@@ -1025,6 +1055,7 @@
 
 ### API
 
+- `pnpm test:api`
 - `pnpm --filter @rag-system/api build`
 - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/answering.test.js`
 - `node --test --test-concurrency=1 apps/api/test/api-flow.test.js`
@@ -1055,6 +1086,7 @@
 - 不代表每次编辑本文档时都重新执行了这些命令
 - 当前 ask stream 保留 `NDJSON` 传输，但 answer generation 阶段已经升级为 provider-native text streaming
 - citations、trace ids、answering / retrieval metadata 仍然在最终 `final` 事件补齐，因此它仍不等同于“全结构化全链路原生实时流式”
+- 截至 `2026-03-23`，`pnpm test:api` 已 fresh rerun through `116 / 116` passing tests，当前 external-source backend closeout 已纳入这一整套 API 回归基线
 
 ---
 
