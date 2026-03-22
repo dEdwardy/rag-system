@@ -68,6 +68,15 @@ export const structuredAnswerSchema = z.object({
         return [];
       }
 
-      return values.filter(value => value.length > 0);
+      const uniqueValues: string[] = [];
+      for (const value of values) {
+        if (value.length === 0 || uniqueValues.includes(value)) {
+          continue;
+        }
+
+        uniqueValues.push(value);
+      }
+
+      return uniqueValues;
     })
 });

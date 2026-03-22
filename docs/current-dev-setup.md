@@ -113,6 +113,7 @@ Notes:
 - current backend enforcement for `includeMissingInformation`:
   - for grounded answers, `includeMissingInformation=false` still clears advisory gap items from the final response
   - for `insufficient_context` answers, the backend now always preserves `missingInformation`, and fills a deterministic default reason when the model omits one
+  - structured-answer normalization now also trims and de-duplicates `missingInformation` entries while preserving first-seen order
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`

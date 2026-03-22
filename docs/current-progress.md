@@ -462,6 +462,14 @@
 
 ### 2026-03-23
 
+- ✅ structured missing-information normalization dedup
+  - LLM structured-answer schema 现在会对 `missingInformation` 做和 `citations` / `citationEvidence` 一致的收口：trim、去空、按首次出现顺序去重
+  - 这避免模型输出重复 gap item 时把同一缺失原因在最终响应里重复展开
+  - 当前变更只在 backend structured-answer normalization 层收口，不改 API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm.test.js`
+
 - ✅ answering missing-information normalization for insufficient-context
   - `includeMissingInformation=false` 当前只对 grounded 回答继续生效，不再把 `insufficient_context` 场景的缺失原因一并清空
   - 当最终回答是 `insufficient_context` 时，backend 现在会优先保留模型返回的 `missingInformation`
