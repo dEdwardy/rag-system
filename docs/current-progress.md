@@ -640,6 +640,9 @@
   - summary failure stats 现在也会把 `ready + partial failureSummary` 的 run 纳入统计，而不是只看 terminal `failed`
   - `latestFailure` 现在语义上表示“最近一个 counted failure summary run”，因此可以正确指向更近的 partial-ready external source run
   - `latestSkipped` 仍保持独立语义，不混入 failure counters
+  - 后续又补了一个 processing-state 语义修正：
+    - `pending` / `processing` run 即使暂时携带 preserved partial diagnostics，也不会计入 summary failure counters
+    - 此类 in-flight run 的顶层 `failedStage` 继续保持 `null`
   - 这一轮保持最小字段增量：
     - 不改既有路由
     - 不改既有过滤参数

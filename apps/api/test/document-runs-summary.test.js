@@ -380,3 +380,130 @@ test("DocumentRunsService summary counts partial ready runs as failure summaries
     }
   });
 });
+
+test("DocumentRunsService ignores processing runs with preserved partial diagnostics in failure counters", async () => {
+  const runs = [
+    {
+      id: "run-processing-partial",
+      documentId: "doc-partial",
+      version: 6,
+      trigger: "external_resync",
+      status: "processing",
+      failedStage: null,
+      startedAt: new Date("2026-03-22T10:07:00.000Z"),
+      finishedAt: null,
+      createdAt: new Date("2026-03-22T10:07:00.000Z"),
+      updatedAt: new Date("2026-03-22T10:07:00.000Z"),
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Feed source completed with partial entry validation failures.",
+        partial: true
+      },
+      document: {
+        id: "doc-partial",
+        kbId: "default-kb",
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml",
+        title: "Example Feed",
+        status: "processing",
+        processingStage: "parsing",
+        version: 6
+      }
+    },
+    {
+      id: "run-ready-partial",
+      documentId: "doc-partial",
+      version: 5,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      createdAt: new Date("2026-03-22T10:05:00.000Z"),
+      updatedAt: new Date("2026-03-22T10:06:00.000Z"),
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Feed source completed with partial entry validation failures.",
+        partial: true
+      },
+      document: {
+        id: "doc-partial",
+        kbId: "default-kb",
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml",
+        title: "Example Feed",
+        status: "ready",
+        processingStage: "completed",
+        version: 5
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const list = await DocumentRunsService.prototype.listKnowledgeBaseRuns.call(fakeService, "default-kb", {
+    includeDiagnostics: false,
+    limit: 20
+  });
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.deepEqual(
+    list.map(run => ({
+      status: run.status,
+      failedStage: run.failedStage,
+      failureSummary: run.failureSummary
+    })),
+    [
+      {
+        status: "processing",
+        failedStage: null,
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+          failedStage: "source_fetch",
+          retryable: false,
+          message: "Feed source completed with partial entry validation failures."
+        }
+      },
+      {
+        status: "ready",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+          failedStage: "source_fetch",
+          retryable: false,
+          message: "Feed source completed with partial entry validation failures."
+        }
+      }
+    ]
+  );
+  assert.equal(summary.nonRetryableFailures, 1);
+  assert.deepEqual(summary.failureByStage, {
+    source_fetch: 1
+  });
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-partial",
+    version: 5,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    message: "Feed source completed with partial entry validation failures.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Feed source completed with partial entry validation failures."
+    }
+  });
+});

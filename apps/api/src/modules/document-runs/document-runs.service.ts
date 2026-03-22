@@ -166,7 +166,7 @@ export class DocumentRunsService {
         version: run.version,
         trigger: run.trigger,
         status: run.status,
-        failedStage: this.resolveOutputFailedStage(run.failedStage, failureSummary),
+        failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
         failureSummary,
         startedAt: run.startedAt,
         finishedAt: run.finishedAt,
@@ -197,6 +197,7 @@ export class DocumentRunsService {
     return runs.map(run => ({
       ...run,
       failedStage: this.resolveOutputFailedStage(
+        run.status,
         run.failedStage,
         this.buildFailureSummary(run.diagnosticsJson, run.failedStage)
       ),
@@ -351,6 +352,7 @@ export class DocumentRunsService {
     documentId: string;
     version: number;
     trigger: DocumentRunTrigger;
+    status: DocumentRunStatus;
     failedStage: DocumentRunFailedStage | null;
     diagnosticsJson: Prisma.JsonValue | null;
     finishedAt: Date | null;
@@ -365,7 +367,7 @@ export class DocumentRunsService {
       documentId: run.documentId,
       version: run.version,
       trigger: run.trigger,
-      failedStage: this.resolveOutputFailedStage(run.failedStage, failureSummary),
+      failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
       sourceType: run.document.sourceType,
       sourceName: run.document.sourceName,
       message: failureSummary?.message ?? null,
@@ -382,14 +384,23 @@ export class DocumentRunsService {
       return false;
     }
 
-    return status !== DocumentRunStatus.skipped;
+    return status === DocumentRunStatus.failed || status === DocumentRunStatus.ready;
   }
 
   private resolveOutputFailedStage(
+    status: DocumentRunStatus,
     failedStage: DocumentRunFailedStage | null,
     failureSummary: ReturnType<DocumentRunsService["buildFailureSummary"]>
   ) {
-    return failedStage ?? failureSummary?.failedStage ?? null;
+    if (failedStage) {
+      return failedStage;
+    }
+
+    if (status === DocumentRunStatus.ready) {
+      return failureSummary?.failedStage ?? null;
+    }
+
+    return null;
   }
 
   private resolveStartedAtFilter(sinceHours?: number) {
