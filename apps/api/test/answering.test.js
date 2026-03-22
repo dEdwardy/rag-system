@@ -800,6 +800,53 @@ test("AnsweringService mentions both missing information and low retrieval confi
   );
 });
 
+test("AnsweringService localizes partial summaries that combine missing information and low retrieval confidence", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "\u90e8\u5206\u56de\u7b54 [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: ["\u7f3a\u5c11\u4ef7\u683c\u4fe1\u606f"],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "\u5728\u54ea\u91cc\uff1f",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "\u7b2c\u4e00\u6bb5\u4e0a\u4e0b\u6587",
+        score: 0.4,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "missing_information");
+  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information", "low_retrieval_score"]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002"
+  );
+});
+
 test("AnsweringService reports a retrieval-score-specific partial quality summary when top retrieval confidence is low", async () => {
   const llmService = {
     generateAnswer: async () => ({

@@ -22,6 +22,7 @@
 - weak `insufficient_context` summary 现在也会在已有 `low_retrieval_score` flag 时显式带出“检索置信度偏低”，不再只停留在“上下文仍不足”的单因文案
 - 上述 weak low-confidence insufficient-context summary 现已补齐中文回归覆盖，和英文分支保持一致
 - 中文回归覆盖继续补齐到另一条弱 insufficient-context 组合路径：`hit but still insufficient` + `missing_information` + `low_retrieval_score`
+- partial summary 的另一条双因路径 `missing_information + low_retrieval_score` 现也已补齐中文回归覆盖
 
 ## 1. 状态总览
 

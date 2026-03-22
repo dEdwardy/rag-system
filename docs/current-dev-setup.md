@@ -140,6 +140,7 @@ Notes:
     - answers grounded in retrieved sources without citations
     - answers where required citations were only heuristically backfilled by the backend rather than explicitly supplied by the model
   - partial summaries now also combine `missing_information` + `low_retrieval_score` into a dual-cause explanation instead of dropping the retrieval-confidence warning
+  - that dual-cause partial summary is now also covered for the minimal `zh` branch
   - low retrieval confidence (`low_retrieval_score`) now degrades `qualityEvaluation.overall` to `partial` and yields a retrieval-confidence-specific summary instead of remaining `strong`
   - weak insufficient-context summaries now distinguish between `no_retrieval_hits` and cases where retrieval produced context but the retrieved evidence was still insufficient
   - when a weak insufficient-context answer also carries `low_retrieval_score`, the summary now explicitly mentions the low retrieval confidence instead of dropping that signal
