@@ -439,6 +439,7 @@
     - document-run summary latest anchors now resolve by the latest matching completed run timestamp, so overlapping runs do not let a later-started but earlier-finished run override `latestFailure` / `latestRetryableFailure` / `latestSkipped`
     - document-level run history now uses the same primary recent-run ordering as the knowledge-base scoped run list: `startedAt desc` first, then `version desc` for ties
     - external source re-sync now preserves the current document title whenever the refreshed source payload does not provide a new source-level title
+    - repeated posting of the same external source URL now preserves the existing document title too when the refreshed source payload still does not provide a new title
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -496,6 +497,15 @@
   - when a repeated external-source `reindex` does not return a new source-level title, the backend now keeps the current document `title` instead of replacing it with the normalized URL fallback
   - this is especially relevant for `sitemap` sources, whose re-sync path may not have a source title to refresh from
   - the change stays inside `DocumentsService` title fallback logic and does not add new fields or expand API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
+
+- ✅ external source title preservation on repeated same-URL reuse
+  - when posting the same `web page` / `feed` / `sitemap` URL again and the backend reuses the existing document record, the existing document `title` is now preserved whenever the refreshed source still does not provide a new source-level title
+  - this keeps same-URL create/reuse behavior aligned with the new title-less `reindex` / `external_resync` semantics and avoids replacing curated titles with normalized URL fallbacks during pending-state reuse
+  - the change stays inside `DocumentsService` reserve/finalize title fallback logic and does not add new fields or expand API shape
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/external-source-sync.test.js`

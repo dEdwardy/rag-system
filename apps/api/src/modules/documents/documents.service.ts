@@ -160,7 +160,7 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
       sourceType: "web_page",
       sourceName: normalizedUrl,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      title: input.title ?? null,
       sourceConfig: {
         kind: "web_page",
         url: normalizedUrl
@@ -181,7 +181,7 @@ export class DocumentsService {
     });
 
     const document = await this.finalizeExternalDocument(reservedDocument.id, {
-      title: input.title ?? fetchedPage.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      title: input.title ?? fetchedPage.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
     });
@@ -196,7 +196,7 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
       sourceType: "feed",
       sourceName: normalizedUrl,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      title: input.title ?? null,
       sourceConfig: {
         kind: "feed",
         url: normalizedUrl,
@@ -220,7 +220,7 @@ export class DocumentsService {
     });
 
     const document = await this.finalizeExternalDocument(reservedDocument.id, {
-      title: input.title ?? fetchedFeed.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      title: input.title ?? fetchedFeed.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey,
       diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
@@ -241,7 +241,7 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
       sourceType: "sitemap",
       sourceName: normalizedUrl,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      title: input.title ?? null,
       sourceConfig: {
         kind: "sitemap",
         url: normalizedUrl,
@@ -265,7 +265,7 @@ export class DocumentsService {
     });
 
     const document = await this.finalizeExternalDocument(reservedDocument.id, {
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      title: input.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey,
       diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
@@ -335,7 +335,7 @@ export class DocumentsService {
     input: {
       sourceType: string;
       sourceName: string;
-      title: string;
+      title: string | null;
       sourceConfig: ExternalSourceConfig;
     }
   ) {
@@ -355,7 +355,7 @@ export class DocumentsService {
           kbId: knowledgeBaseId,
           sourceType: input.sourceType,
           sourceName: input.sourceName,
-          title: input.title,
+          title: input.title ?? this.buildRemoteSourceFallbackTitle(input.sourceName),
           mimeType: "text/plain",
           storageKey: "external-source:pending",
           sourceConfigJson: input.sourceConfig,
@@ -372,7 +372,7 @@ export class DocumentsService {
       },
       data: {
         sourceName: input.sourceName,
-        title: input.title,
+        title: input.title ?? existingDocument.title ?? this.buildRemoteSourceFallbackTitle(input.sourceName),
         sourceConfigJson: input.sourceConfig,
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,

@@ -321,6 +321,7 @@ Notes:
 - external source documents now persist `sourceConfigJson`, and `POST /documents/:id/reindex` for `web_page` / `feed` / `sitemap` performs a true remote re-sync using the stored source config instead of only re-parsing the previous generated text artifact
 - if an external source document later loses a valid `sourceConfigJson`, `POST /documents/:id/reindex` now still creates a new `external_resync` run/version and then records a structured non-retryable failure instead of failing before run history is written
 - when an external source re-sync does not yield a new source-level title, the backend now preserves the document's current `title` instead of overwriting it with the normalized URL fallback
+- the same title-preservation rule now also applies when posting the same external source URL again and the backend reuses the existing document record for a fresh sync
 - external source fetch diagnostics now distinguish retryability at the source-fetch boundary:
   - upstream / transient fetch failures remain `retryable: true`
   - invalid payload / unsupported content type style failures now persist as `retryable: false`
