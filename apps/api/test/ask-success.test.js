@@ -1996,3 +1996,148 @@ test("AskAssistantService preserves localized triple-cause fallback summaries in
     "回答已基于检索到的内容，但仍不完整：部分信息缺失，检索置信度偏低，且它是通过本地 fallback 生成的。"
   );
 });
+
+test("AskAssistantService preserves localized low-confidence weak insufficient-context summaries in Chinese", async () => {
+  const updateTraceCalls = [];
+
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "中文内容",
+      score: 0.4,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "same_as_question",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      generateAnswer: async () => ({
+        answer: "不知道。",
+        citations: [],
+        retrievedChunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: false,
+          answerPolicy: {
+            responseStyle: "balanced",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "same_as_question",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "best_effort",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 1,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
+        modelName: "test-model",
+        answerStatus: "insufficient_context",
+        missingInformation: ["缺少价格信息。"],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          primaryIssue: "insufficient_context",
+          flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+          summary:
+            "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。"
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      })
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "标记在哪里？"
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "insufficient_context");
+  assert.deepEqual(result.qualityEvaluation.flags, [
+    "insufficient_context",
+    "missing_information",
+    "low_retrieval_score"
+  ]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。"
+  );
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.summary,
+    "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。"
+  );
+});
