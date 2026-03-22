@@ -23,8 +23,8 @@ test("Feed source E2E: url -> ready -> chunks -> ask -> reindex", async () => {
   const queuePrefix = `test-feed-source-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
-  const feedMarker = `feed-source-marker-${randomUUID()}`;
-  const feedServer = await startFeedServer(feedMarker);
+  let feedMarker = `feed-source-marker-${randomUUID()}`;
+  const feedServer = await startFeedServer(() => feedMarker);
 
   const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
     cwd: repoRoot,
@@ -84,6 +84,8 @@ test("Feed source E2E: url -> ready -> chunks -> ask -> reindex", async () => {
     assert.ok(Array.isArray(askResult.retrievedChunks));
     assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(feedMarker)));
 
+    feedMarker = `feed-source-marker-${randomUUID()}`;
+
     const reindexResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/reindex`, {
       method: "POST"
     });
@@ -128,9 +130,10 @@ async function resetTestState() {
   await prisma.document.deleteMany();
 }
 
-async function startFeedServer(marker) {
+async function startFeedServer(markerOrFactory) {
   const server = http.createServer((request, response) => {
     if (request.url === "/updates.xml") {
+      const marker = typeof markerOrFactory === "function" ? markerOrFactory() : markerOrFactory;
       response.writeHead(200, {
         "Content-Type": "application/rss+xml; charset=utf-8"
       });

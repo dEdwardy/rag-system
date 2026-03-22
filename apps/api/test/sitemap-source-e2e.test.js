@@ -23,8 +23,8 @@ test("Sitemap source E2E: sitemap -> ready -> chunks -> ask -> reindex", async (
   const queuePrefix = `test-sitemap-source-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
-  const sitemapMarker = `sitemap-source-marker-${randomUUID()}`;
-  const sitemapServer = await startSitemapServer(sitemapMarker);
+  let sitemapMarker = `sitemap-source-marker-${randomUUID()}`;
+  const sitemapServer = await startSitemapServer(() => sitemapMarker);
 
   const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
     cwd: repoRoot,
@@ -83,6 +83,8 @@ test("Sitemap source E2E: sitemap -> ready -> chunks -> ask -> reindex", async (
     const askResult = await askResponse.json();
     assert.ok(Array.isArray(askResult.retrievedChunks));
     assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(sitemapMarker)));
+
+    sitemapMarker = `sitemap-source-marker-${randomUUID()}`;
 
     const reindexResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/reindex`, {
       method: "POST"
@@ -204,7 +206,7 @@ async function resetTestState() {
   await prisma.document.deleteMany();
 }
 
-async function startSitemapServer(marker) {
+async function startSitemapServer(markerOrFactory) {
   const server = http.createServer((request, response) => {
     if (request.url === "/sitemap.xml") {
       response.writeHead(200, {
@@ -219,6 +221,7 @@ async function startSitemapServer(marker) {
     }
 
     if (request.url === "/pages/alpha") {
+      const marker = typeof markerOrFactory === "function" ? markerOrFactory() : markerOrFactory;
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8"
       });

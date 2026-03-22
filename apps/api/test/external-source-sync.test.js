@@ -231,6 +231,23 @@ async function expectExternalSourceResync({ sourceType, methodName, input, expec
     data: {
       sourceName: expectedSourceName,
       title: input.title ?? buildRemoteSourceFallbackTitle(expectedSourceName),
+      sourceConfigJson:
+        sourceType === "web_page"
+          ? {
+              kind: "web_page",
+              url: expectedSourceName
+            }
+          : sourceType === "feed"
+            ? {
+                kind: "feed",
+                url: expectedSourceName,
+                maxItems: input.maxItems
+              }
+            : {
+                kind: "sitemap",
+                url: expectedSourceName,
+                maxPages: input.maxPages
+              },
       status: "pending",
       processingStage: "uploaded",
       errorMessage: null,

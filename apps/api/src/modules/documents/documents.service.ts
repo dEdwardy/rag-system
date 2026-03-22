@@ -15,6 +15,16 @@ import {
   CreateWebPageDocumentInput
 } from "./document.schemas";
 
+type ExternalSourceConfig =
+  | { kind: "web_page"; url: string }
+  | { kind: "feed"; url: string; maxItems: number }
+  | { kind: "sitemap"; url: string; maxPages: number };
+
+type FetchedExternalSource = {
+  title: string | null;
+  content: string;
+};
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -77,6 +87,7 @@ export class DocumentsService {
         title: input.title,
         mimeType: input.mimeType,
         storageKey: input.storageKey,
+        sourceConfigJson: Prisma.JsonNull,
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
         diagnosticsJson: Prisma.JsonNull
@@ -115,7 +126,11 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
       sourceType: "web_page",
       sourceName: normalizedUrl,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl)
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      sourceConfig: {
+        kind: "web_page",
+        url: normalizedUrl
+      }
     });
 
     const fetchedPage = await this.fetchExternalSourceOrRecordFailure(
@@ -142,7 +157,12 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
       sourceType: "feed",
       sourceName: normalizedUrl,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl)
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      sourceConfig: {
+        kind: "feed",
+        url: normalizedUrl,
+        maxItems: input.maxItems
+      }
     });
 
     const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
@@ -171,7 +191,12 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
       sourceType: "sitemap",
       sourceName: normalizedUrl,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl)
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+      sourceConfig: {
+        kind: "sitemap",
+        url: normalizedUrl,
+        maxPages: input.maxPages
+      }
     });
 
     const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
@@ -197,6 +222,10 @@ export class DocumentsService {
 
   async reindexDocument(id: string) {
     const document = await this.getDocument(id);
+
+    if (this.isExternalSourceType(document.sourceType)) {
+      return this.resyncExternalDocument(document);
+    }
 
     const updatedDocument = await this.prisma.document.update({
       where: { id },
@@ -241,6 +270,7 @@ export class DocumentsService {
       sourceType: string;
       sourceName: string;
       title: string;
+      sourceConfig: ExternalSourceConfig;
     }
   ) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
@@ -262,6 +292,7 @@ export class DocumentsService {
           title: input.title,
           mimeType: "text/plain",
           storageKey: "external-source:pending",
+          sourceConfigJson: input.sourceConfig,
           status: DocumentStatus.pending,
           processingStage: DocumentProcessingStage.uploaded,
           diagnosticsJson: Prisma.JsonNull
@@ -276,6 +307,7 @@ export class DocumentsService {
       data: {
         sourceName: input.sourceName,
         title: input.title,
+        sourceConfigJson: input.sourceConfig,
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
         errorMessage: null,
@@ -341,5 +373,93 @@ export class DocumentsService {
     const parsed = new URL(url);
     parsed.hash = "";
     return parsed.toString();
+  }
+
+  private async resyncExternalDocument(document: Awaited<ReturnType<DocumentsService["getDocument"]>>) {
+    const sourceConfig = this.parseExternalSourceConfig(document.sourceConfigJson);
+    const fetchedSource = await this.fetchExternalSourceOrRecordFailure(document, () =>
+      this.fetchExternalSourceFromConfig(sourceConfig)
+    );
+    const storedFile = await this.storageService.saveGeneratedTextFile({
+      content: fetchedSource.content
+    });
+
+    const updatedDocument = await this.prisma.document.update({
+      where: { id: document.id },
+      data: {
+        title: fetchedSource.title ?? this.buildRemoteSourceFallbackTitle(document.sourceName),
+        mimeType: "text/plain",
+        storageKey: storedFile.storageKey,
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    });
+
+    await this.ingestionService.enqueueDocument(updatedDocument.id, updatedDocument.version);
+
+    return this.getDocument(document.id);
+  }
+
+  private parseExternalSourceConfig(value: Prisma.JsonValue | null): ExternalSourceConfig {
+    if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") {
+      throw new Error("External source config is missing.");
+    }
+
+    if (value.kind === "web_page" && typeof value.url === "string") {
+      return {
+        kind: "web_page",
+        url: value.url
+      };
+    }
+
+    if (value.kind === "feed" && typeof value.url === "string" && typeof value.maxItems === "number") {
+      return {
+        kind: "feed",
+        url: value.url,
+        maxItems: value.maxItems
+      };
+    }
+
+    if (value.kind === "sitemap" && typeof value.url === "string" && typeof value.maxPages === "number") {
+      return {
+        kind: "sitemap",
+        url: value.url,
+        maxPages: value.maxPages
+      };
+    }
+
+    throw new Error("External source config is invalid.");
+  }
+
+  private async fetchExternalSourceFromConfig(sourceConfig: ExternalSourceConfig): Promise<FetchedExternalSource> {
+    if (sourceConfig.kind === "web_page") {
+      return this.webPageService.fetchWebPage(sourceConfig.url);
+    }
+
+    if (sourceConfig.kind === "feed") {
+      return this.feedSourceService.fetchFeed({
+        url: sourceConfig.url,
+        maxItems: sourceConfig.maxItems
+      });
+    }
+
+    const fetchedSitemap = await this.sitemapSourceService.fetchSitemap({
+      url: sourceConfig.url,
+      maxPages: sourceConfig.maxPages
+    });
+
+    return {
+      title: null,
+      content: fetchedSitemap.content
+    };
+  }
+
+  private isExternalSourceType(sourceType: string) {
+    return sourceType === "web_page" || sourceType === "feed" || sourceType === "sitemap";
   }
 }

@@ -23,8 +23,8 @@ test("Web page source E2E: url -> ready -> chunks -> ask -> reindex", async () =
   const queuePrefix = `test-web-page-source-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
-  const pageMarker = `web-page-source-marker-${randomUUID()}`;
-  const pageServer = await startWebPageServer(pageMarker);
+  let pageMarker = `web-page-source-marker-${randomUUID()}`;
+  const pageServer = await startWebPageServer(() => pageMarker);
 
   const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
     cwd: repoRoot,
@@ -82,6 +82,8 @@ test("Web page source E2E: url -> ready -> chunks -> ask -> reindex", async () =
     const askResult = await askResponse.json();
     assert.ok(Array.isArray(askResult.retrievedChunks));
     assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(pageMarker)));
+
+    pageMarker = `web-page-source-marker-${randomUUID()}`;
 
     const reindexResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/reindex`, {
       method: "POST"

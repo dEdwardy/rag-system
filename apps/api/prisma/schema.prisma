@@ -106,6 +106,7 @@ model Document {
   title           String
   mimeType        String
   storageKey      String
+  sourceConfigJson Json?
   status          DocumentStatus          @default(pending)
   processingStage DocumentProcessingStage @default(uploaded)
   version         Int                     @default(1)
