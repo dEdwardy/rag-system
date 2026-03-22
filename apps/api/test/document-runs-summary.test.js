@@ -210,7 +210,7 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
     [
       {
         status: "ready",
-        failedStage: null,
+        failedStage: "source_fetch",
         failureSummary: {
           code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
           failedStage: "source_fetch",
@@ -276,7 +276,7 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
     documentId: "doc-partial",
     version: 3,
     trigger: "external_resync",
-    failedStage: null,
+    failedStage: "source_fetch",
     sourceType: "feed",
     sourceName: "https://example.com/feed.xml",
     message: "Feed source completed with partial entry validation failures.",
@@ -367,7 +367,7 @@ test("DocumentRunsService summary counts partial ready runs as failure summaries
     documentId: "doc-partial",
     version: 5,
     trigger: "external_resync",
-    failedStage: null,
+    failedStage: "source_fetch",
     sourceType: "feed",
     sourceName: "https://example.com/feed.xml",
     message: "Feed source completed with partial entry validation failures.",

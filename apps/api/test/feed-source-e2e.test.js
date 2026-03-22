@@ -191,6 +191,7 @@ test("Feed source E2E: partial invalid entries still reach ready and persist dia
     assert.equal(runsResponse.status, 200);
     const runs = await runsResponse.json();
     assert.equal(runs[0].status, "ready");
+    assert.equal(runs[0].failedStage, "source_fetch");
     assert.deepEqual(runs[0].diagnosticsJson, readyDocument.diagnosticsJson);
     assert.deepEqual(runs[0].failureSummary, {
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
@@ -214,7 +215,7 @@ test("Feed source E2E: partial invalid entries still reach ready and persist dia
       documentId: createdDocument.id,
       version: readyDocument.version,
       trigger: "external_resync",
-      failedStage: null,
+      failedStage: "source_fetch",
       sourceType: "feed",
       sourceName: `${feedServer.origin}/updates.xml`,
       message: "Feed source completed with partial entry validation failures.",

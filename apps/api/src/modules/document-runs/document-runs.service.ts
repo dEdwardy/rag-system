@@ -166,7 +166,7 @@ export class DocumentRunsService {
         version: run.version,
         trigger: run.trigger,
         status: run.status,
-        failedStage: run.failedStage,
+        failedStage: this.resolveOutputFailedStage(run.failedStage, failureSummary),
         failureSummary,
         startedAt: run.startedAt,
         finishedAt: run.finishedAt,
@@ -196,6 +196,10 @@ export class DocumentRunsService {
 
     return runs.map(run => ({
       ...run,
+      failedStage: this.resolveOutputFailedStage(
+        run.failedStage,
+        this.buildFailureSummary(run.diagnosticsJson, run.failedStage)
+      ),
       failureSummary: this.buildFailureSummary(run.diagnosticsJson, run.failedStage)
     }));
   }
@@ -361,7 +365,7 @@ export class DocumentRunsService {
       documentId: run.documentId,
       version: run.version,
       trigger: run.trigger,
-      failedStage: run.failedStage,
+      failedStage: this.resolveOutputFailedStage(run.failedStage, failureSummary),
       sourceType: run.document.sourceType,
       sourceName: run.document.sourceName,
       message: failureSummary?.message ?? null,
@@ -379,6 +383,13 @@ export class DocumentRunsService {
     }
 
     return status !== DocumentRunStatus.skipped;
+  }
+
+  private resolveOutputFailedStage(
+    failedStage: DocumentRunFailedStage | null,
+    failureSummary: ReturnType<DocumentRunsService["buildFailureSummary"]>
+  ) {
+    return failedStage ?? failureSummary?.failedStage ?? null;
   }
 
   private resolveStartedAtFilter(sinceHours?: number) {

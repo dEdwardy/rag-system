@@ -343,6 +343,7 @@ Notes:
   - `failedStage`
   - `retryable`
   - `message`
+- for partial-ready runs, top-level `failedStage` in list/detail/summary anchors now also falls back to `failureSummary.failedStage`, so consumers do not need to special-case `failedStage: null`
 - the summary payload currently includes:
   - `totalRuns`
   - `latestRunAt`
