@@ -72,6 +72,143 @@ test("DocumentsService reuses an existing feed document when the same URL is ing
   });
 });
 
+test("DocumentsService persists normalized partial diagnostics when a reused feed source returns partial results", async () => {
+  const enqueuedDocumentIds = [];
+  const documentUpdates = [];
+
+  const existingDocument = {
+    id: "existing-feed-partial-document",
+    kbId: "default-kb",
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    title: "Existing feed",
+    mimeType: "text/plain",
+    storageKey: "generated/feed.txt",
+    status: "ready",
+    processingStage: "completed",
+    version: 3,
+    chunkCount: 4,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findFirst: async () => existingDocument,
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async knowledgeBaseId => {
+        assert.equal(knowledgeBaseId, "default-kb");
+        return { id: knowledgeBaseId };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Feed partial content");
+        return {
+          storageKey: "generated/feed-partial.txt"
+        };
+      }
+    },
+    feedSourceService: {
+      fetchFeed: async options => {
+        assert.deepEqual(options, {
+          url: "https://example.com/feed.xml",
+          maxItems: 5
+        });
+        return {
+          title: "Fetched Feed",
+          content: "Feed partial content",
+          diagnostics: {
+            attemptedEntryCount: 3,
+            succeededEntryCount: 2,
+            failedEntryCount: 1,
+            failedEntryRefs: ["Broken Entry"],
+            failedEntries: [
+              {
+                ref: "Broken Entry",
+                code: "ENTRY_CONTENT_EMPTY",
+                message: "Feed entry is missing both summary and link.",
+                retryable: false
+              }
+            ],
+            failedEntriesTruncated: false,
+            failedEntriesOmittedCount: 0,
+            partial: true
+          }
+        };
+      }
+    },
+    documentRunsService: {
+      createRun: async () => {}
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    sitemapSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.createFeedDocument.call(fakeService, "default-kb", {
+    url: "https://Example.com/feed.xml#latest",
+    maxItems: 5
+  });
+
+  assert.equal(result.id, existingDocument.id);
+  assert.equal(documentUpdates.length, 2);
+  assert.deepEqual(documentUpdates[1], {
+    where: {
+      id: existingDocument.id
+    },
+    data: {
+      title: "Fetched Feed",
+      mimeType: "text/plain",
+      storageKey: "generated/feed-partial.txt",
+      status: "pending",
+      processingStage: "uploaded",
+      errorMessage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: existingDocument.version + 1,
+        message: "Feed source completed with partial entry validation failures.",
+        attemptedEntryCount: 3,
+        succeededEntryCount: 2,
+        failedEntryCount: 1,
+        failedEntryRefs: ["Broken Entry"],
+        failedEntries: [
+          {
+            ref: "Broken Entry",
+            code: "ENTRY_CONTENT_EMPTY",
+            message: "Feed entry is missing both summary and link.",
+            retryable: false
+          }
+        ],
+        failedEntriesTruncated: false,
+        failedEntriesOmittedCount: 0,
+        partial: true
+      }
+    }
+  });
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
 test("DocumentsService reuses an existing sitemap document when the same URL is ingested again", async () => {
   await expectExternalSourceResync({
     sourceType: "sitemap",
