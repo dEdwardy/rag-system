@@ -362,3 +362,139 @@ test("SitemapSourceService still fails when all sitemap pages fail", async () =>
     global.fetch = originalFetch;
   }
 });
+
+test("SitemapSourceService tolerates partial child sitemap failures for sitemap index", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/good.xml</loc></sitemap>
+          <sitemap><loc>https://example.com/sitemaps/bad.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/good.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/good</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/bad.xml") {
+      return new Response("upstream exploded", {
+        status: 502,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    if (normalizedUrl === "https://example.com/pages/good") {
+      return new Response(
+        "<html><head><title>Good Page</title></head><body><main><p>Child sitemap marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 5
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
+    assert.deepEqual(extracted.diagnostics, {
+      attemptedPageCount: 1,
+      succeededPageCount: 1,
+      failedPageCount: 0,
+      failedPageUrls: [],
+      partial: true,
+      attemptedChildSitemapCount: 2,
+      succeededChildSitemapCount: 1,
+      failedChildSitemapCount: 1,
+      failedChildSitemapUrls: ["https://example.com/sitemaps/bad.xml"]
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService still fails when all child sitemaps fail", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/bad-a.xml</loc></sitemap>
+          <sitemap><loc>https://example.com/sitemaps/bad-b.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (
+      normalizedUrl === "https://example.com/sitemaps/bad-a.xml" ||
+      normalizedUrl === "https://example.com/sitemaps/bad-b.xml"
+    ) {
+      return new Response("upstream exploded", {
+        status: 502,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    await assert.rejects(
+      service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 5
+      }),
+      /all child sitemap fetches failed/i
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

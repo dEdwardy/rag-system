@@ -285,6 +285,95 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
   }
 });
 
+test("Sitemap source E2E: partial child sitemap failure still reaches ready and persists child diagnostics", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3109;
+  const storageRoot = resolve(repoRoot, "storage", `test-sitemap-index-partial-source-${randomUUID()}`);
+  const queuePrefix = `test-sitemap-index-partial-source-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const sitemapMarker = `sitemap-index-partial-marker-${randomUUID()}`;
+  const sitemapServer = await startPartialChildFailureSitemapIndexServer(sitemapMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/sitemap`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${sitemapServer.origin}/sitemap-index.xml`,
+        maxPages: 3
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.status, "ready");
+    assert.deepEqual(readyDocument.diagnosticsJson, {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: true,
+      documentVersion: readyDocument.version,
+      message: "Sitemap source completed with partial page fetch failures.",
+      attemptedPageCount: 2,
+      succeededPageCount: 2,
+      failedPageCount: 0,
+      failedPageUrls: [],
+      partial: true,
+      attemptedChildSitemapCount: 2,
+      succeededChildSitemapCount: 1,
+      failedChildSitemapCount: 1,
+      failedChildSitemapUrls: [`${sitemapServer.origin}/sitemaps/failing.xml`]
+    });
+
+    const runsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?includeDiagnostics=true`
+    );
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs[0].status, "ready");
+    assert.deepEqual(runs[0].diagnosticsJson, readyDocument.diagnosticsJson);
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: `What unique marker appears in the reachable sitemap index pages? Return ${sitemapMarker}`
+      })
+    });
+    assert.equal(askResponse.status, 201);
+
+    const askResult = await askResponse.json();
+    assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(sitemapMarker)));
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(sitemapServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -537,6 +626,95 @@ async function startPartialFailureSitemapServer(marker) {
         "Content-Type": "text/plain; charset=utf-8"
       });
       response.end("upstream failed");
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  const address = server.address();
+  return {
+    server,
+    origin: `http://127.0.0.1:${address.port}`
+  };
+}
+
+async function startPartialChildFailureSitemapIndexServer(marker) {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/sitemap-index.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>http://127.0.0.1:${server.address().port}/sitemaps/good.xml</loc></sitemap>
+          <sitemap><loc>http://127.0.0.1:${server.address().port}/sitemaps/failing.xml</loc></sitemap>
+        </sitemapindex>`);
+      return;
+    }
+
+    if (request.url === "/sitemaps/good.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/alpha</loc></url>
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/beta</loc></url>
+        </urlset>`);
+      return;
+    }
+
+    if (request.url === "/sitemaps/failing.xml") {
+      response.writeHead(502, {
+        "Content-Type": "text/plain; charset=utf-8"
+      });
+      response.end("upstream failed");
+      return;
+    }
+
+    if (request.url === "/pages/alpha") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Index Partial Alpha</title>
+          </head>
+          <body>
+            <main>
+              <h1>Index Partial Alpha</h1>
+              <p>Unique marker: ${marker}</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    if (request.url === "/pages/beta") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Index Partial Beta</title>
+          </head>
+          <body>
+            <main>
+              <h1>Index Partial Beta</h1>
+              <p>Additional reachable child sitemap page.</p>
+            </main>
+          </body>
+        </html>`);
       return;
     }
 

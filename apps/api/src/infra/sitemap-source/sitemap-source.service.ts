@@ -23,11 +23,32 @@ type SitemapFetchDiagnostics = {
   failedPageCount: number;
   failedPageUrls: string[];
   partial: boolean;
+  attemptedChildSitemapCount?: number;
+  succeededChildSitemapCount?: number;
+  failedChildSitemapCount?: number;
+  failedChildSitemapUrls?: string[];
 };
 
 type PageFetchFailure = {
   url: string;
   error: unknown;
+};
+
+type ChildSitemapFailure = {
+  url: string;
+  error: unknown;
+};
+
+type ResolvedSitemapPages = {
+  pageUrls: string[];
+  diagnostics: Pick<
+    SitemapFetchDiagnostics,
+    | "attemptedChildSitemapCount"
+    | "succeededChildSitemapCount"
+    | "failedChildSitemapCount"
+    | "failedChildSitemapUrls"
+    | "partial"
+  > | null;
 };
 
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
@@ -63,8 +84,12 @@ export class SitemapSourceService {
     }
 
     const xml = await response.text();
-    const pageUrls = await this.resolvePageUrls(xml, options);
-    const builtSitemap = await this.buildCombinedContent(options.url, pageUrls);
+    const resolvedSitemap = await this.resolvePageUrls(xml, options);
+    const builtSitemap = await this.buildCombinedContent(
+      options.url,
+      resolvedSitemap.pageUrls,
+      resolvedSitemap.diagnostics
+    );
 
     return {
       content: builtSitemap.content,
@@ -95,14 +120,17 @@ export class SitemapSourceService {
     return uniqueUrls;
   }
 
-  private async resolvePageUrls(xml: string, options: ExtractSitemapOptions) {
+  private async resolvePageUrls(xml: string, options: ExtractSitemapOptions): Promise<ResolvedSitemapPages> {
     const normalizedXml = xml.trim();
     if (!normalizedXml) {
       throw new BadRequestException("Sitemap payload is empty.");
     }
 
     if (/<urlset\b/i.test(normalizedXml)) {
-      return this.extractPageUrls(normalizedXml, options);
+      return {
+        pageUrls: this.extractPageUrls(normalizedXml, options),
+        diagnostics: null
+      };
     }
 
     if (!/<sitemapindex\b/i.test(normalizedXml)) {
@@ -118,13 +146,28 @@ export class SitemapSourceService {
 
     const collectedPageUrls: string[] = [];
     const seenPageUrls = new Set<string>();
+    const failedChildSitemapUrls: string[] = [];
+    const childSitemapFailures: ChildSitemapFailure[] = [];
+    let succeededChildSitemapCount = 0;
 
     for (const childSitemapUrl of childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS)) {
       if (collectedPageUrls.length >= options.maxPages) {
         break;
       }
 
-      const childXml = await this.fetchSitemapXml(childSitemapUrl);
+      let childXml: string;
+
+      try {
+        childXml = await this.fetchSitemapXml(childSitemapUrl);
+      } catch (error) {
+        failedChildSitemapUrls.push(childSitemapUrl);
+        childSitemapFailures.push({
+          url: childSitemapUrl,
+          error: this.normalizeChildSitemapFetchError(error)
+        });
+        continue;
+      }
+
       const normalizedChildXml = childXml.trim();
 
       if (/<sitemapindex\b/i.test(normalizedChildXml)) {
@@ -149,16 +192,38 @@ export class SitemapSourceService {
           break;
         }
       }
+
+      succeededChildSitemapCount += 1;
     }
 
     if (!collectedPageUrls.length) {
+      if (failedChildSitemapUrls.length > 0) {
+        throw this.buildAllChildSitemapsFailedError(childSitemapFailures);
+      }
+
       throw new BadRequestException("Extracted sitemap page URLs are empty.");
     }
 
-    return collectedPageUrls;
+    return {
+      pageUrls: collectedPageUrls,
+      diagnostics:
+        failedChildSitemapUrls.length > 0
+          ? {
+              attemptedChildSitemapCount: childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS).length,
+              succeededChildSitemapCount,
+              failedChildSitemapCount: failedChildSitemapUrls.length,
+              failedChildSitemapUrls: failedChildSitemapUrls.slice(0, 10),
+              partial: true
+            }
+          : null
+    };
   }
 
-  private async buildCombinedContent(sourceUrl: string, pageUrls: string[]) {
+  private async buildCombinedContent(
+    sourceUrl: string,
+    pageUrls: string[],
+    existingDiagnostics: ResolvedSitemapPages["diagnostics"] = null
+  ) {
     const lines = [`Sitemap Source URL: ${sourceUrl}`];
     const failedPageUrls: string[] = [];
     const pageFailures: PageFetchFailure[] = [];
@@ -199,13 +264,14 @@ export class SitemapSourceService {
     }
 
     const diagnostics =
-      failedPageUrls.length > 0
+      failedPageUrls.length > 0 || existingDiagnostics?.partial
         ? {
             attemptedPageCount: pageUrls.length,
             succeededPageCount,
             failedPageCount: failedPageUrls.length,
             failedPageUrls: failedPageUrls.slice(0, 10),
-            partial: true
+            partial: true,
+            ...(existingDiagnostics ?? {})
           }
         : null;
 
@@ -287,9 +353,33 @@ export class SitemapSourceService {
     return new BadGatewayException(`Failed to fetch sitemap page: ${message}`);
   }
 
+  private normalizeChildSitemapFetchError(error: unknown) {
+    if (error instanceof BadRequestException || error instanceof BadGatewayException) {
+      return error;
+    }
+
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    return new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+  }
+
   private buildAllPagesFailedError(pageFailures: PageFetchFailure[]) {
     const firstFailure = pageFailures[0]?.error;
     const message = "Failed to fetch sitemap pages: all sitemap pages failed.";
+
+    if (firstFailure instanceof BadRequestException) {
+      return new BadRequestException(message);
+    }
+
+    if (firstFailure instanceof BadGatewayException) {
+      return new BadGatewayException(message);
+    }
+
+    return new BadGatewayException(message);
+  }
+
+  private buildAllChildSitemapsFailedError(childSitemapFailures: ChildSitemapFailure[]) {
+    const firstFailure = childSitemapFailures[0]?.error;
+    const message = "Failed to fetch sitemap index children: all child sitemap fetches failed.";
 
     if (firstFailure instanceof BadRequestException) {
       return new BadRequestException(message);

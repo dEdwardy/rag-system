@@ -457,6 +457,8 @@
   - success rule for this round:
     - at least one page fetch succeeds -> generated text artifact is still produced and ingestion continues
     - all page fetches fail -> source remains failed at `source_fetch`
+    - for `sitemapindex`, at least one child sitemap fetch succeeds -> expansion can still continue
+    - for `sitemapindex`, all child sitemap fetches fail -> source remains failed at `source_fetch`
   - partial success now persists structured diagnostics in the existing shared paths instead of opening a new source platform abstraction
   - current partial diagnostics payload includes:
     - `attemptedPageCount`
@@ -464,6 +466,11 @@
     - `failedPageCount`
     - capped `failedPageUrls`
     - `partial: true`
+    - and for partial child sitemap expansion:
+      - `attemptedChildSitemapCount`
+      - `succeededChildSitemapCount`
+      - `failedChildSitemapCount`
+      - capped `failedChildSitemapUrls`
   - document `diagnosticsJson` now preserves this partial source-fetch context through ingestion completion, so `GET /documents/:id` can still expose it after the document reaches `ready`
   - document run history now also preserves the same partial diagnostics on the final `ready` run, so `GET /documents/:id/runs` and `GET /knowledge-bases/:id/document-runs?includeDiagnostics=true` can surface it without adding new list/summary fields
   - this increment stayed inside the existing shared `SitemapSourceService` + `DocumentsService` + `IngestionService` path and did not expand into connector/source platformization
