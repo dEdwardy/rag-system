@@ -124,6 +124,7 @@ Notes:
   - for grounded answers, `includeMissingInformation=false` still clears advisory gap items from the final response
   - for `insufficient_context` answers, the backend now always preserves `missingInformation`, and fills a deterministic default reason when the model omits one
   - that deterministic default `missingInformation` reason now also follows the same minimal `en` / `zh` language resolution used by the backend fallback answer text
+  - the default reason now also distinguishes between `no_retrieval_hits` and `retrieved context was still insufficient`, instead of always implying that retrieval returned nothing
   - structured-answer normalization now also trims and de-duplicates `missingInformation` entries while preserving first-seen order
 - current answering metadata semantics:
   - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path

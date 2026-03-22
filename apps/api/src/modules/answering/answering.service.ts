@@ -199,6 +199,7 @@ export class AnsweringService {
       question: input.question,
       answerStatus,
       answerPolicy: input.answerPolicy,
+      hasRetrievedContext: input.chunks.length > 0,
       missingInformation: input.result.missingInformation ?? []
     });
     const answer = this.resolveAnswerText({
@@ -318,12 +319,19 @@ export class AnsweringService {
     question: string;
     answerStatus: "grounded" | "insufficient_context";
     answerPolicy: AnswerPolicy;
+    hasRetrievedContext: boolean;
     missingInformation: string[];
   }) {
     if (input.answerStatus === "insufficient_context") {
       return input.missingInformation.length > 0
         ? input.missingInformation
-        : [this.buildInsufficientContextMissingInformation(input.question, input.answerPolicy.language)];
+        : [
+            this.buildInsufficientContextMissingInformation(
+              input.question,
+              input.answerPolicy.language,
+              input.hasRetrievedContext
+            )
+          ];
     }
 
     return input.answerPolicy.includeMissingInformation ? input.missingInformation : [];
@@ -344,15 +352,20 @@ export class AnsweringService {
 
   private buildInsufficientContextMissingInformation(
     question: string,
-    language: AnswerPolicy["language"]
+    language: AnswerPolicy["language"],
+    hasRetrievedContext = false
   ) {
     const resolvedLanguage = this.resolvePolicyLanguage(question, language);
 
     if (resolvedLanguage === "zh") {
-      return "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002";
+      return hasRetrievedContext
+        ? "\u5df2\u68c0\u7d22\u5230\u76f8\u5173\u4e0a\u4e0b\u6587\uff0c\u4f46\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\u3002"
+        : "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002";
     }
 
-    return "No relevant supporting sources were retrieved.";
+    return hasRetrievedContext
+      ? "Retrieved context was still insufficient to support a reliable answer."
+      : "No relevant supporting sources were retrieved.";
   }
 
   private resolvePolicyLanguage(question: string, language: AnswerPolicy["language"]) {

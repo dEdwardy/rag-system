@@ -1121,6 +1121,49 @@ test("AnsweringService fills a deterministic missingInformation reason for insuf
   ]);
 });
 
+test("AnsweringService uses a hit-aware deterministic missingInformation reason when retrieved context is still insufficient", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "I don't know.",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "What is the price?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "document-1",
+        documentTitle: "Document 1",
+        content: "This section mentions the product but not its price.",
+        score: 0.82,
+        pageNo: null,
+        sectionTitle: "Overview"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.missingInformation, [
+    "Retrieved context was still insufficient to support a reliable answer."
+  ]);
+  assert.deepEqual(result.qualityEvaluation.flags, ["insufficient_context", "missing_information"]);
+});
+
 test("AnsweringService localizes the deterministic missingInformation reason for Chinese insufficient-context answers", async () => {
   const llmService = {
     generateAnswer: async () => ({
