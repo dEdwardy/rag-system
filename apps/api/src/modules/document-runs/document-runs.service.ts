@@ -79,16 +79,15 @@ export class DocumentRunsService {
       }
     }
 
-    const latestFailure = runs.find(run =>
-      this.shouldCountFailureSummary(run.status, this.buildFailureSummary(run.diagnosticsJson, run.failedStage))
+    const latestFailure = this.findLatestRunAnchor(
+      runs,
+      run => this.shouldCountFailureSummary(run.status, this.buildFailureSummary(run.diagnosticsJson, run.failedStage))
     );
-    const latestRetryableFailure = runs.find(
-      run => {
-        const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
-        return this.shouldCountFailureSummary(run.status, failureSummary) && failureSummary?.retryable === true;
-      }
-    );
-    const latestSkipped = runs.find(run => run.status === DocumentRunStatus.skipped);
+    const latestRetryableFailure = this.findLatestRunAnchor(runs, run => {
+      const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+      return this.shouldCountFailureSummary(run.status, failureSummary) && failureSummary?.retryable === true;
+    });
+    const latestSkipped = this.findLatestRunAnchor(runs, run => run.status === DocumentRunStatus.skipped);
     return {
       totalRuns: runs.length,
       latestRunAt: runs[0]?.startedAt ?? null,
@@ -401,6 +400,34 @@ export class DocumentRunsService {
     }
 
     return null;
+  }
+
+  private findLatestRunAnchor<T extends { finishedAt: Date | null; startedAt: Date; version: number }>(
+    runs: T[],
+    predicate: (run: T) => boolean
+  ) {
+    return runs.reduce<T | null>((latest, run) => {
+      if (!predicate(run)) {
+        return latest;
+      }
+
+      if (!latest) {
+        return run;
+      }
+
+      const runAnchorAt = run.finishedAt ?? run.startedAt;
+      const latestAnchorAt = latest.finishedAt ?? latest.startedAt;
+
+      if (runAnchorAt > latestAnchorAt) {
+        return run;
+      }
+
+      if (runAnchorAt.getTime() === latestAnchorAt.getTime() && run.version > latest.version) {
+        return run;
+      }
+
+      return latest;
+    }, null);
   }
 
   private resolveStartedAtFilter(sinceHours?: number) {

@@ -507,3 +507,143 @@ test("DocumentRunsService ignores processing runs with preserved partial diagnos
     }
   });
 });
+
+test("DocumentRunsService summary anchors prefer the latest finished matching run over the latest started run", async () => {
+  const runs = [
+    {
+      documentId: "doc-recent-started",
+      version: 7,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Newer started partial run."
+      },
+      startedAt: new Date("2026-03-22T10:10:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:11:00.000Z"),
+      document: {
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml"
+      }
+    },
+    {
+      documentId: "doc-latest-finished",
+      version: 6,
+      trigger: "external_resync",
+      status: "failed",
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "Older started run that finished last."
+      },
+      startedAt: new Date("2026-03-22T10:09:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:12:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/down"
+      }
+    },
+    {
+      documentId: "doc-skipped-recent-started",
+      version: 5,
+      trigger: "reindex",
+      status: "skipped",
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        message: "Newer started skipped run."
+      },
+      startedAt: new Date("2026-03-22T10:08:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:08:30.000Z"),
+      document: {
+        sourceType: "upload",
+        sourceName: "guide-a.md"
+      }
+    },
+    {
+      documentId: "doc-skipped-latest-finished",
+      version: 4,
+      trigger: "reindex",
+      status: "skipped",
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        message: "Older started skipped run that finished last."
+      },
+      startedAt: new Date("2026-03-22T10:07:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:09:30.000Z"),
+      document: {
+        sourceType: "upload",
+        sourceName: "guide-b.md"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-latest-finished",
+    version: 6,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/down",
+    message: "Older started run that finished last.",
+    finishedAt: new Date("2026-03-22T10:12:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: true,
+      message: "Older started run that finished last."
+    }
+  });
+  assert.deepEqual(summary.latestRetryableFailure, {
+    documentId: "doc-latest-finished",
+    version: 6,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/down",
+    message: "Older started run that finished last.",
+    finishedAt: new Date("2026-03-22T10:12:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: true,
+      message: "Older started run that finished last."
+    }
+  });
+  assert.deepEqual(summary.latestSkipped, {
+    documentId: "doc-skipped-latest-finished",
+    version: 4,
+    trigger: "reindex",
+    failedStage: "stale_guard",
+    sourceType: "upload",
+    sourceName: "guide-b.md",
+    message: "Older started skipped run that finished last.",
+    finishedAt: new Date("2026-03-22T10:09:30.000Z"),
+    failureSummary: {
+      code: "INGESTION_RUN_SUPERSEDED",
+      failedStage: "stale_guard",
+      retryable: false,
+      message: "Older started skipped run that finished last."
+    }
+  });
+});

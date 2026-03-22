@@ -436,6 +436,7 @@
   - latest backend consistency follow-up:
     - external source `external_resync` now resets document-level `chunkCount` to `0` as soon as a new pending version is queued, aligning repeated source syncs with the existing upload-document `reindex` semantics
     - external source `reindex` with missing or invalid persisted `sourceConfigJson` now still lands a new `external_resync` run/version and records a structured non-retryable failure instead of escaping before run history is written
+    - document-run summary latest anchors now resolve by the latest matching completed run timestamp, so overlapping runs do not let a later-started but earlier-finished run override `latestFailure` / `latestRetryableFailure` / `latestSkipped`
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -470,6 +471,15 @@
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/external-source-sync.test.js`
+
+- ✅ document-run summary latest-anchor ordering normalization
+  - `latestFailure`, `latestRetryableFailure`, and `latestSkipped` are now selected by the latest matching completed run timestamp instead of the latest started run order
+  - this closes an overlap edge case where a later-started but earlier-finished run could incorrectly replace the actual latest completed failure/skip anchor in summary
+  - the change stays inside `DocumentRunsService` summary selection logic and does not alter list ordering, counters, or API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
 
 - ✅ PC Web source run observability consumption minimum increment
   - current implementation stays inside the existing `Knowledge Base` and `Document Detail` pages instead of opening a new source center or a broader UI refactor
