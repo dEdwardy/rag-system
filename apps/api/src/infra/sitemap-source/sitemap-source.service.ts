@@ -1,4 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
+import { fetchWithRetry } from "../http/fetch-with-retry";
 import { WebPageService } from "../web-page/web-page.service";
 
 type FetchSitemapOptions = {
@@ -13,10 +14,63 @@ type ExtractSitemapOptions = {
 
 type FetchedSitemap = {
   content: string;
+  diagnostics: SitemapFetchDiagnostics | null;
+};
+
+type SitemapFetchDiagnostics = {
+  attemptedPageCount: number;
+  succeededPageCount: number;
+  failedPageCount: number;
+  failedPageUrls: string[];
+  failedPages?: Array<{
+    url: string;
+    code: string;
+    message: string;
+    retryable: boolean;
+  }>;
+  failedPagesTruncated?: boolean;
+  failedPagesOmittedCount?: number;
+  partial: boolean;
+  attemptedChildSitemapCount?: number;
+  succeededChildSitemapCount?: number;
+  failedChildSitemapCount?: number;
+  failedChildSitemapUrls?: string[];
+  failedChildSitemaps?: Array<{
+    url: string;
+    code: string;
+    message: string;
+    retryable: boolean;
+  }>;
+  failedChildSitemapsTruncated?: boolean;
+  failedChildSitemapsOmittedCount?: number;
+};
+
+type PageFetchFailure = {
+  url: string;
+  error: unknown;
+};
+
+type ChildSitemapFailure = {
+  url: string;
+  error: unknown;
+};
+
+type ResolvedSitemapPages = {
+  pageUrls: string[];
+  diagnostics: Pick<
+    SitemapFetchDiagnostics,
+    | "attemptedChildSitemapCount"
+    | "succeededChildSitemapCount"
+    | "failedChildSitemapCount"
+    | "failedChildSitemapUrls"
+    | "failedChildSitemaps"
+    | "partial"
+  > | null;
 };
 
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
 const MAX_CHILD_SITEMAPS = 20;
+const MAX_FAILURE_SUMMARY_ITEMS = 10;
 
 @Injectable()
 export class SitemapSourceService {
@@ -26,8 +80,9 @@ export class SitemapSourceService {
     let response: Response;
 
     try {
-      response = await fetch(options.url, {
-        signal: AbortSignal.timeout(10000),
+      response = await fetchWithRetry({
+        url: options.url,
+        timeoutMs: 10000,
         headers: {
           Accept: "application/xml,text/xml"
         }
@@ -47,11 +102,16 @@ export class SitemapSourceService {
     }
 
     const xml = await response.text();
-    const pageUrls = await this.resolvePageUrls(xml, options);
-    const content = await this.buildCombinedContent(options.url, pageUrls);
+    const resolvedSitemap = await this.resolvePageUrls(xml, options);
+    const builtSitemap = await this.buildCombinedContent(
+      options.url,
+      resolvedSitemap.pageUrls,
+      resolvedSitemap.diagnostics
+    );
 
     return {
-      content
+      content: builtSitemap.content,
+      diagnostics: builtSitemap.diagnostics
     };
   }
 
@@ -78,14 +138,17 @@ export class SitemapSourceService {
     return uniqueUrls;
   }
 
-  private async resolvePageUrls(xml: string, options: ExtractSitemapOptions) {
+  private async resolvePageUrls(xml: string, options: ExtractSitemapOptions): Promise<ResolvedSitemapPages> {
     const normalizedXml = xml.trim();
     if (!normalizedXml) {
       throw new BadRequestException("Sitemap payload is empty.");
     }
 
     if (/<urlset\b/i.test(normalizedXml)) {
-      return this.extractPageUrls(normalizedXml, options);
+      return {
+        pageUrls: this.extractPageUrls(normalizedXml, options),
+        diagnostics: null
+      };
     }
 
     if (!/<sitemapindex\b/i.test(normalizedXml)) {
@@ -101,13 +164,28 @@ export class SitemapSourceService {
 
     const collectedPageUrls: string[] = [];
     const seenPageUrls = new Set<string>();
+    const failedChildSitemapUrls: string[] = [];
+    const childSitemapFailures: ChildSitemapFailure[] = [];
+    let succeededChildSitemapCount = 0;
 
     for (const childSitemapUrl of childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS)) {
       if (collectedPageUrls.length >= options.maxPages) {
         break;
       }
 
-      const childXml = await this.fetchSitemapXml(childSitemapUrl);
+      let childXml: string;
+
+      try {
+        childXml = await this.fetchSitemapXml(childSitemapUrl);
+      } catch (error) {
+        failedChildSitemapUrls.push(childSitemapUrl);
+        childSitemapFailures.push({
+          url: childSitemapUrl,
+          error: this.normalizeChildSitemapFetchError(error)
+        });
+        continue;
+      }
+
       const normalizedChildXml = childXml.trim();
 
       if (/<sitemapindex\b/i.test(normalizedChildXml)) {
@@ -132,17 +210,54 @@ export class SitemapSourceService {
           break;
         }
       }
+
+      succeededChildSitemapCount += 1;
     }
 
     if (!collectedPageUrls.length) {
+      if (failedChildSitemapUrls.length > 0) {
+        throw this.buildAllChildSitemapsFailedError(childSitemapFailures);
+      }
+
       throw new BadRequestException("Extracted sitemap page URLs are empty.");
     }
 
-    return collectedPageUrls;
+    return {
+      pageUrls: collectedPageUrls,
+      diagnostics:
+        failedChildSitemapUrls.length > 0
+          ? {
+              ...this.buildFailureSummary(
+                childSitemapFailures,
+                "failedChildSitemaps",
+                "failedChildSitemapsTruncated",
+                "failedChildSitemapsOmittedCount",
+                failure => ({
+                  url: failure.url,
+                  code: this.getFailureCode(failure.error),
+                  message: this.getErrorMessage(failure.error),
+                  retryable: this.isRetryableFetchError(failure.error)
+                })
+              ),
+              attemptedChildSitemapCount: childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS).length,
+              succeededChildSitemapCount,
+              failedChildSitemapCount: failedChildSitemapUrls.length,
+              failedChildSitemapUrls: failedChildSitemapUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
+              partial: true
+            }
+          : null
+    };
   }
 
-  private async buildCombinedContent(sourceUrl: string, pageUrls: string[]) {
+  private async buildCombinedContent(
+    sourceUrl: string,
+    pageUrls: string[],
+    existingDiagnostics: ResolvedSitemapPages["diagnostics"] = null
+  ) {
     const lines = [`Sitemap Source URL: ${sourceUrl}`];
+    const failedPageUrls: string[] = [];
+    const pageFailures: PageFetchFailure[] = [];
+    let succeededPageCount = 0;
 
     for (const [index, pageUrl] of pageUrls.entries()) {
       let fetchedPage;
@@ -150,12 +265,12 @@ export class SitemapSourceService {
       try {
         fetchedPage = await this.webPageService.fetchWebPage(pageUrl);
       } catch (error) {
-        if (error instanceof BadRequestException || error instanceof BadGatewayException) {
-          throw error;
-        }
-
-        const message = error instanceof Error ? error.message : "Unknown fetch error.";
-        throw new BadGatewayException(`Failed to fetch sitemap page: ${message}`);
+        failedPageUrls.push(pageUrl);
+        pageFailures.push({
+          url: pageUrl,
+          error: this.normalizePageFetchError(error)
+        });
+        continue;
       }
 
       const entryLines = [`Page ${index + 1}: ${pageUrl}`];
@@ -166,14 +281,46 @@ export class SitemapSourceService {
 
       entryLines.push(`Content:\n${fetchedPage.content}`);
       lines.push(entryLines.join("\n"));
+      succeededPageCount += 1;
     }
 
     const content = lines.join("\n\n").trim();
+    if (succeededPageCount === 0) {
+      throw this.buildAllPagesFailedError(pageFailures);
+    }
+
     if (!content) {
       throw new BadRequestException("Extracted sitemap content is empty.");
     }
 
-    return content;
+    const diagnostics =
+      failedPageUrls.length > 0 || existingDiagnostics?.partial
+        ? {
+            ...this.buildFailureSummary(
+              pageFailures,
+              "failedPages",
+              "failedPagesTruncated",
+              "failedPagesOmittedCount",
+              failure => ({
+                url: failure.url,
+                code: this.getFailureCode(failure.error),
+                message: this.getErrorMessage(failure.error),
+                retryable: this.isRetryableFetchError(failure.error)
+              })
+            ),
+            attemptedPageCount: pageUrls.length,
+            succeededPageCount,
+            failedPageCount: failedPageUrls.length,
+            failedPageUrls: failedPageUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
+            partial: true,
+            ...(existingDiagnostics ?? {})
+          }
+        : null;
+
+    return {
+      content,
+      diagnostics
+    };
   }
 
   private isSupportedSitemapContentType(contentType: string) {
@@ -215,8 +362,9 @@ export class SitemapSourceService {
     let response: Response;
 
     try {
-      response = await fetch(url, {
-        signal: AbortSignal.timeout(10000),
+      response = await fetchWithRetry({
+        url,
+        timeoutMs: 10000,
         headers: {
           Accept: "application/xml,text/xml"
         }
@@ -236,5 +384,104 @@ export class SitemapSourceService {
     }
 
     return response.text();
+  }
+
+  private normalizePageFetchError(error: unknown) {
+    if (error instanceof BadRequestException || error instanceof BadGatewayException) {
+      return error;
+    }
+
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    return new BadGatewayException(`Failed to fetch sitemap page: ${message}`);
+  }
+
+  private normalizeChildSitemapFetchError(error: unknown) {
+    if (error instanceof BadRequestException || error instanceof BadGatewayException) {
+      return error;
+    }
+
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    return new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+  }
+
+  private buildAllPagesFailedError(pageFailures: PageFetchFailure[]) {
+    const firstFailure = pageFailures[0]?.error;
+    const message = "Failed to fetch sitemap pages: all sitemap pages failed.";
+
+    if (firstFailure instanceof BadRequestException) {
+      return new BadRequestException(message);
+    }
+
+    if (firstFailure instanceof BadGatewayException) {
+      return new BadGatewayException(message);
+    }
+
+    return new BadGatewayException(message);
+  }
+
+  private buildAllChildSitemapsFailedError(childSitemapFailures: ChildSitemapFailure[]) {
+    const firstFailure = childSitemapFailures[0]?.error;
+    const message = "Failed to fetch sitemap index children: all child sitemap fetches failed.";
+
+    if (firstFailure instanceof BadRequestException) {
+      return new BadRequestException(message);
+    }
+
+    if (firstFailure instanceof BadGatewayException) {
+      return new BadGatewayException(message);
+    }
+
+    return new BadGatewayException(message);
+  }
+
+  private getErrorMessage(error: unknown) {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return "Unknown fetch error.";
+  }
+
+  private isRetryableFetchError(error: unknown) {
+    return !(error instanceof BadRequestException);
+  }
+
+  private getFailureCode(error: unknown) {
+    const message = this.getErrorMessage(error);
+
+    if (message.startsWith("Unsupported web page content type:")) {
+      return "UNSUPPORTED_CONTENT_TYPE";
+    }
+
+    if (message.startsWith("Unsupported sitemap content type:") || message.includes("payload is empty")) {
+      return "INVALID_PAYLOAD";
+    }
+
+    if (message.startsWith("Failed to fetch sitemap: upstream responded with")) {
+      return "UPSTREAM_FETCH_FAILED";
+    }
+
+    if (message.startsWith("Failed to fetch web page: upstream responded with")) {
+      return "UPSTREAM_FETCH_FAILED";
+    }
+
+    return "UNKNOWN_FETCH_ERROR";
+  }
+
+  private buildFailureSummary<T, TResult>(
+    failures: T[],
+    itemsKey: string,
+    truncatedKey: string,
+    omittedCountKey: string,
+    mapItem: (failure: T) => TResult
+  ) {
+    const items = failures.slice(0, MAX_FAILURE_SUMMARY_ITEMS).map(mapItem);
+    const omittedCount = Math.max(0, failures.length - items.length);
+
+    return {
+      [itemsKey]: items,
+      [truncatedKey]: omittedCount > 0,
+      [omittedCountKey]: omittedCount
+    };
   }
 }

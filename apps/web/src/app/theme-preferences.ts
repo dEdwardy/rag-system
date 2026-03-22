@@ -38,6 +38,13 @@ export function getStoredThemePreferences(storage: StorageLike): ThemePreference
   };
 }
 
+export function getDocumentThemeDataset(storage: StorageLike): {
+  themeColor: ThemeColorMode;
+  themeLayout: ThemeLayoutMode;
+} {
+  return getStoredThemePreferences(storage);
+}
+
 export function setStoredThemePreferences(storage: StorageWriterLike, preferences: ThemePreferences) {
   storage.setItem(THEME_COLOR_STORAGE_KEY, preferences.themeColor);
   storage.setItem(THEME_LAYOUT_STORAGE_KEY, preferences.themeLayout);

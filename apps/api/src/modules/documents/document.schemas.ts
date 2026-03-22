@@ -50,3 +50,15 @@ export const createSitemapDocumentSchema = z.object({
 });
 
 export type CreateSitemapDocumentInput = z.infer<typeof createSitemapDocumentSchema>;
+
+export const listKnowledgeBaseDocumentRunsSchema = z.object({
+  documentId: z.string().min(1).optional(),
+  sourceType: z.string().min(1).max(50).optional(),
+  status: z.enum(["pending", "processing", "ready", "failed", "skipped"]).optional(),
+  trigger: z.enum(["upload", "reindex", "external_resync"]).optional(),
+  sinceHours: z.coerce.number().positive().max(24 * 30).optional(),
+  includeDiagnostics: z.coerce.boolean().optional().default(false),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+});
+
+export type ListKnowledgeBaseDocumentRunsInput = z.infer<typeof listKnowledgeBaseDocumentRunsSchema>;

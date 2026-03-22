@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors
 } from "@nestjs/common";
@@ -13,6 +14,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import {
   createDocumentSchema,
   createFeedDocumentSchema,
+  listKnowledgeBaseDocumentRunsSchema,
   createSitemapDocumentSchema,
   createWebPageDocumentSchema
 } from "./document.schemas";
@@ -25,6 +27,18 @@ export class DocumentsController {
   @Get("knowledge-bases/:id/documents")
   listKnowledgeBaseDocuments(@Param("id") knowledgeBaseId: string) {
     return this.documentsService.listKnowledgeBaseDocuments(knowledgeBaseId);
+  }
+
+  @Get("knowledge-bases/:id/document-runs")
+  listKnowledgeBaseDocumentRuns(@Param("id") knowledgeBaseId: string, @Query() query: unknown) {
+    const input = listKnowledgeBaseDocumentRunsSchema.parse(query);
+    return this.documentsService.listKnowledgeBaseDocumentRuns(knowledgeBaseId, input);
+  }
+
+  @Get("knowledge-bases/:id/document-runs/summary")
+  getKnowledgeBaseDocumentRunSummary(@Param("id") knowledgeBaseId: string, @Query() query: unknown) {
+    const input = listKnowledgeBaseDocumentRunsSchema.pick({ sinceHours: true }).parse(query);
+    return this.documentsService.getKnowledgeBaseDocumentRunSummary(knowledgeBaseId, input);
   }
 
   @Post("knowledge-bases/:id/documents")
@@ -71,6 +85,11 @@ export class DocumentsController {
   @Get("documents/:id")
   getDocument(@Param("id") id: string) {
     return this.documentsService.getDocument(id);
+  }
+
+  @Get("documents/:id/runs")
+  listDocumentRuns(@Param("id") id: string) {
+    return this.documentsService.listDocumentRuns(id);
   }
 
   @Get("documents/:id/chunks")

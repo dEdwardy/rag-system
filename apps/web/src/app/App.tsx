@@ -13,7 +13,7 @@ const queryClient = new QueryClient();
 
 export function App() {
   return (
-    <MantineProvider theme={theme}>
+    <MantineProvider forceColorScheme="dark" theme={theme}>
       <ThemePreferencesProvider>
         <I18nProvider>
           <Notifications position="top-right" />

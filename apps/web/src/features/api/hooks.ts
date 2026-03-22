@@ -7,8 +7,11 @@ import {
   Assistant,
   Conversation,
   DocumentChunk,
+  DocumentRunRecord,
   DocumentRecord,
   KnowledgeBase,
+  KnowledgeBaseDocumentRunRecord,
+  KnowledgeBaseDocumentRunSummary,
   Message,
   RetrievalProfileFilters,
   RetrievalProfile,
@@ -73,6 +76,100 @@ export function useDocument(documentId: string | null) {
       }
 
       return document.status === "pending" || document.status === "processing" ? 2000 : false;
+    }
+  });
+}
+
+export function useDocumentRuns(documentId: string | null) {
+  return useQuery({
+    queryKey: ["document-runs", documentId],
+    queryFn: () => apiRequest<DocumentRunRecord[]>(`/documents/${documentId}/runs`),
+    enabled: documentId != null,
+    refetchInterval: query => {
+      const runs = query.state.data;
+      if (!runs?.length) {
+        return false;
+      }
+
+      return runs.some(run => run.status === "pending" || run.status === "processing") ? 2000 : false;
+    }
+  });
+}
+
+export function useKnowledgeBaseDocumentRuns(
+  knowledgeBaseId: string | null,
+  input: {
+    limit?: number;
+    sinceHours?: number;
+    includeDiagnostics?: boolean;
+    status?: DocumentRunRecord["status"];
+    sourceType?: string;
+  } = {}
+) {
+  return useQuery({
+    queryKey: ["knowledge-base-document-runs", knowledgeBaseId, input],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (input.limit != null) {
+        params.set("limit", String(input.limit));
+      }
+      if (input.sinceHours != null) {
+        params.set("sinceHours", String(input.sinceHours));
+      }
+      if (input.includeDiagnostics != null) {
+        params.set("includeDiagnostics", String(input.includeDiagnostics));
+      }
+      if (input.status != null) {
+        params.set("status", input.status);
+      }
+      if (input.sourceType != null) {
+        params.set("sourceType", input.sourceType);
+      }
+
+      const query = params.toString();
+      return apiRequest<KnowledgeBaseDocumentRunRecord[]>(
+        `/knowledge-bases/${knowledgeBaseId}/document-runs${query ? `?${query}` : ""}`
+      );
+    },
+    enabled: knowledgeBaseId != null,
+    refetchInterval: query => {
+      const runs = query.state.data;
+      if (!runs?.length) {
+        return false;
+      }
+
+      return runs.some(run => run.status === "pending" || run.status === "processing") ? 2000 : false;
+    }
+  });
+}
+
+export function useKnowledgeBaseDocumentRunSummary(
+  knowledgeBaseId: string | null,
+  input: {
+    sinceHours?: number;
+  } = {}
+) {
+  return useQuery({
+    queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId, input],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (input.sinceHours != null) {
+        params.set("sinceHours", String(input.sinceHours));
+      }
+
+      const query = params.toString();
+      return apiRequest<KnowledgeBaseDocumentRunSummary>(
+        `/knowledge-bases/${knowledgeBaseId}/document-runs/summary${query ? `?${query}` : ""}`
+      );
+    },
+    enabled: knowledgeBaseId != null,
+    refetchInterval: query => {
+      const summary = query.state.data;
+      if (!summary) {
+        return false;
+      }
+
+      return summary.byStatus.pending > 0 || summary.byStatus.processing > 0 ? 2000 : false;
     }
   });
 }
@@ -222,6 +319,8 @@ export function useUploadDocument(knowledgeBaseId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
     }
   });
 }
@@ -238,6 +337,9 @@ export function useReindexDocument() {
       queryClient.invalidateQueries({ queryKey: ["documents", variables.knowledgeBaseId] });
       queryClient.invalidateQueries({ queryKey: ["document", variables.documentId] });
       queryClient.invalidateQueries({ queryKey: ["document-chunks", variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ["document-runs", variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", variables.knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", variables.knowledgeBaseId] });
     }
   });
 }
@@ -252,8 +354,11 @@ export function useDeleteDocument() {
       }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary"] });
       queryClient.removeQueries({ queryKey: ["document", variables.documentId] });
       queryClient.removeQueries({ queryKey: ["document-chunks", variables.documentId] });
+      queryClient.removeQueries({ queryKey: ["document-runs", variables.documentId] });
     }
   });
 }

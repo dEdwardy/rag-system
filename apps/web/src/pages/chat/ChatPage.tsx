@@ -1,27 +1,6 @@
-import {
-  ActionIcon,
-  Alert,
-  Anchor,
-  Avatar,
-  Badge,
-  Box,
-  Button,
-  Divider,
-  Grid,
-  Group,
-  Loader,
-  Paper,
-  ScrollArea,
-  Stack,
-  Text,
-  Textarea,
-  Title,
-  UnstyledButton
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -49,14 +28,80 @@ type ActiveStreamTurn = {
   latestResult: AskStreamFinalData | null;
 };
 
-type DisplayedMessage =
-  | Message
-  | ChatStreamUserMessage
-  | ChatStreamAssistantMessage;
+type DisplayedMessage = Message | ChatStreamUserMessage | ChatStreamAssistantMessage;
+
+function IconButton({
+  children,
+  label,
+  disabledHint,
+  onClick
+}: {
+  children: React.ReactNode;
+  label: string;
+  disabledHint?: string;
+  onClick?: () => void;
+}) {
+  const isDisabled = onClick == null;
+
+  return (
+    <button
+      aria-label={label}
+      className={[
+        "flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] transition duration-300 ease-out",
+        isDisabled
+          ? "cursor-default text-[var(--app-text-muted)] opacity-70"
+          : "text-[var(--app-text-secondary)] hover:-translate-y-0.5 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+      ].join(" ")}
+      disabled={isDisabled}
+      onClick={onClick}
+      title={isDisabled ? disabledHint ?? label : undefined}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div className="inline-flex w-fit items-center gap-1.5 rounded-[14px] bg-[var(--app-bg-elevated)] px-4 py-3">
+      {[0, 200, 400].map(delay => (
+        <span
+          className="h-2 w-2 rounded-full bg-[var(--app-accent)] animate-[typing-bounce_1.4s_ease-in-out_infinite]"
+          key={delay}
+          style={{ animationDelay: `${delay}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  hint
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-4 py-4 shadow-[0_10px_28px_rgba(0,0,0,0.18)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold text-[var(--app-text)]">{value}</div>
+      <div className="mt-1 text-[12px] leading-5 text-[var(--app-text-secondary)]">{hint}</div>
+    </div>
+  );
+}
 
 export function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
+  const [composerValue, setComposerValue] = useState("");
+  const [didAutoSelectConversation, setDidAutoSelectConversation] = useState(false);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const assistantsQuery = useAssistants();
   const conversationsQuery = useConversations();
@@ -64,14 +109,8 @@ export function ChatPage() {
   const messagesQuery = useConversationMessages(activeConversationId);
   const tracesQuery = useConversationTraces(activeConversationId);
   const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "default-assistant");
-
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
-  const form = useForm({
-    initialValues: {
-      question: ""
-    }
-  });
 
   const latestTrace = tracesQuery.data?.[0] ?? null;
   const latestModelName = activeStreamTurn?.latestResult?.modelName ?? latestTrace?.modelName ?? null;
@@ -80,6 +119,13 @@ export function ChatPage() {
   const shouldRenderStreamTurn =
     activeStreamTurn != null &&
     (activeConversationId == null || streamConversationId == null || streamConversationId === activeConversationId);
+
+  useEffect(() => {
+    if (!didAutoSelectConversation && activeConversationId == null && conversationsQuery.data?.length) {
+      setActiveConversationId(conversationsQuery.data[0].id);
+      setDidAutoSelectConversation(true);
+    }
+  }, [activeConversationId, conversationsQuery.data, didAutoSelectConversation]);
 
   useEffect(() => {
     if (!activeStreamTurn?.latestResult?.assistantMessageId || !messagesQuery.data) {
@@ -94,6 +140,25 @@ export function ChatPage() {
       setActiveStreamTurn(null);
     }
   }, [activeStreamTurn, messagesQuery.data]);
+
+  const displayedMessages: DisplayedMessage[] = useMemo(() => {
+    const items: DisplayedMessage[] = [...(messagesQuery.data ?? [])];
+
+    if (shouldRenderStreamTurn && activeStreamTurn) {
+      items.push(activeStreamTurn.userMessage, activeStreamTurn.assistantMessage);
+    }
+
+    return items;
+  }, [activeStreamTurn, messagesQuery.data, shouldRenderStreamTurn]);
+
+  useEffect(() => {
+    const target = transcriptRef.current;
+    if (!target) {
+      return;
+    }
+
+    target.scrollTop = target.scrollHeight;
+  }, [displayedMessages]);
 
   const streamStatusLabel =
     activeStreamTurn == null
@@ -114,274 +179,387 @@ export function ChatPage() {
               ? "正在生成回答"
               : "Generating answer";
 
-  const displayedMessages: DisplayedMessage[] = [...(messagesQuery.data ?? [])];
-
-  if (shouldRenderStreamTurn && activeStreamTurn) {
-    displayedMessages.push(activeStreamTurn.userMessage, activeStreamTurn.assistantMessage);
-  }
-
   const citationItems: Citation[] =
     activeStreamTurn?.assistantMessage.citations.length
       ? activeStreamTurn.assistantMessage.citations
       : latestTrace?.citationsJson ?? [];
   const activeTraceId = activeStreamTurn?.assistantMessage.traceId ?? latestTrace?.id ?? null;
-  const activeCitationCount = citationItems.length;
+  const activeConversation =
+    conversationsQuery.data?.find(conversation => conversation.id === activeConversationId) ?? null;
+  const conversationCount = conversationsQuery.data?.length ?? 0;
+  const workspaceStatus =
+    !activeAssistant
+      ? locale === "zh"
+        ? "助手不可用"
+        : "Assistant unavailable"
+      : activeStreamTurn
+        ? streamStatusLabel ?? (locale === "zh" ? "处理中" : "In progress")
+        : locale === "zh"
+          ? "准备提问"
+          : "Ready to ask";
+
+  const submitQuestion = async () => {
+    const question = composerValue.trim();
+    if (!question || !activeAssistant) {
+      return;
+    }
+
+    const pendingTurn = createPendingChatTurn({ question });
+    setActiveStreamTurn({
+      conversationId: activeConversationId,
+      phase: "started",
+      userMessage: pendingTurn.userMessage,
+      assistantMessage: pendingTurn.assistantMessage,
+      latestResult: null
+    });
+    setComposerValue("");
+
+    try {
+      await askStreamMutation.mutateAsync({
+        question,
+        conversationId: activeConversationId ?? undefined,
+        onEvent: event => {
+          const streamEvent = event as AskStreamEvent;
+
+          setActiveStreamTurn(current => {
+            if (!current) {
+              return current;
+            }
+
+            if (streamEvent.type === "status") {
+              return {
+                ...current,
+                phase: streamEvent.phase
+              };
+            }
+
+            if (streamEvent.type === "final") {
+              startTransition(() => {
+                setActiveConversationId(streamEvent.data.conversationId);
+                setDidAutoSelectConversation(true);
+              });
+              queryClient.invalidateQueries({ queryKey: ["conversations"] });
+              queryClient.invalidateQueries({
+                queryKey: ["conversation-messages", streamEvent.data.conversationId]
+              });
+              queryClient.invalidateQueries({
+                queryKey: ["conversation-traces", streamEvent.data.conversationId]
+              });
+
+              return {
+                ...current,
+                conversationId: streamEvent.data.conversationId,
+                assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent),
+                latestResult: streamEvent.data
+              };
+            }
+
+            return {
+              ...current,
+              assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent)
+            };
+          });
+        }
+      });
+    } catch (error) {
+      setActiveStreamTurn(current =>
+        current && current.assistantMessage.status !== "error"
+          ? {
+              ...current,
+              assistantMessage: applyChatStreamEvent(current.assistantMessage, {
+                type: "error",
+                message: error instanceof Error ? error.message : t("chat.states.askError")
+              })
+            }
+          : current
+      );
+      notifications.show({
+        color: "red",
+        message: error instanceof Error ? error.message : t("chat.states.askError")
+      });
+    }
+  };
 
   const getCitationContext = (citation: Citation) =>
     buildCitationContext(citation, {
       pageLabel: pageNo => t("common.misc.pageLong", { pageNo })
     });
 
-  const renderMessage = (message: DisplayedMessage) => {
-    const isAssistant = message.role === "assistant";
-    const isStreamingAssistant =
-      "status" in message && message.role === "assistant" && message.status === "streaming";
-    const isErroredAssistant =
-      "status" in message && message.role === "assistant" && message.status === "error";
-    const traceId = "traceId" in message ? message.traceId : null;
-    const messageTime = "createdAt" in message ? formatMessageTime(message.createdAt, locale) : null;
-
-    return (
-      <Box
-        key={message.id}
-        style={{
-          display: "flex",
-          justifyContent: isAssistant ? "flex-start" : "flex-end"
-        }}
-      >
-        <Group
-          align="flex-end"
-          gap="sm"
-          style={{
-            flexDirection: isAssistant ? "row" : "row-reverse",
-            maxWidth: "92%"
-          }}
-          wrap="nowrap"
-        >
-          <Avatar
-            color={isAssistant ? "gray" : "indigo"}
-            radius="xl"
-            size={36}
-            styles={{
-              root: isAssistant
-                ? {
-                    background: "rgba(255,255,255,0.06)",
-                    color: "var(--app-text)"
-                  }
-                : {
-                    background:
-                      "linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-strong) 100%)",
-                    color: "white"
-                  }
-            }}
-          >
-            {isAssistant ? "AI" : "U"}
-          </Avatar>
-
-          <Paper
-            p="md"
-            radius="xl"
-            style={{
-              minWidth: 0,
-              background: isAssistant
-                ? "linear-gradient(180deg, rgba(37, 40, 57, 0.98) 0%, rgba(30, 32, 46, 0.98) 100%)"
-                : "linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-strong) 100%)",
-              border: isAssistant
-                ? "1px solid var(--app-border)"
-                : "1px solid rgba(255,255,255,0.08)",
-              boxShadow: isAssistant
-                ? "var(--app-shadow-soft)"
-                : "0 18px 38px var(--app-accent-glow)"
-            }}
-          >
-            <Stack gap="xs">
-              <Group justify="space-between">
-                <Group gap="xs">
-                  <Badge radius="sm" variant={isAssistant ? "light" : "filled"}>
-                    {t(`common.status.${message.role}`)}
-                  </Badge>
-                  {isStreamingAssistant ? (
-                    <Badge color="orange" radius="sm" variant="light">
-                      {locale === "zh" ? "生成中" : "Streaming"}
-                    </Badge>
-                  ) : null}
-                  {isErroredAssistant ? (
-                    <Badge color="red" radius="sm" variant="light">
-                      {locale === "zh" ? "失败" : "Failed"}
-                    </Badge>
-                  ) : null}
-                </Group>
-                {traceId ? (
-                  <Anchor
-                    c={isAssistant ? undefined : "rgba(255,255,255,0.84)"}
-                    component={Link}
-                    size="xs"
-                    to={`/traces/${traceId}`}
-                  >
-                    {traceId}
-                  </Anchor>
-                ) : null}
-              </Group>
-
-              <Text c={isAssistant ? "var(--app-text)" : "white"} style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
-                {message.content || (isStreamingAssistant ? (locale === "zh" ? "正在生成回答..." : "Drafting answer...") : "")}
-              </Text>
-
-              {isStreamingAssistant ? (
-                <Group gap={6}>
-                  {[0.95, 0.72, 0.5].map(opacity => (
-                    <Box
-                      key={opacity}
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 999,
-                        background: "#d97706",
-                        opacity
-                      }}
-                    />
-                  ))}
-                </Group>
-              ) : null}
-
-              <Group justify="space-between">
-                <Text c={isAssistant ? "var(--app-text-muted)" : "rgba(255,255,255,0.78)"} size="xs">
-                  {messageTime ?? (isStreamingAssistant ? streamStatusLabel : "")}
-                </Text>
-              </Group>
-
-              {isErroredAssistant && "errorMessage" in message ? (
-                <Alert color="red" radius="lg" variant="light">
-                  {message.errorMessage}
-                </Alert>
-              ) : null}
-            </Stack>
-          </Paper>
-        </Group>
-      </Box>
-    );
-  };
-
   return (
-    <Stack gap="md">
-      <Paper
-        p="md"
-        radius="xl"
-        style={{
-          background: "rgba(20, 22, 34, 0.82)",
-          border: "1px solid var(--app-border)",
-          boxShadow: "var(--app-shadow-soft)",
-          backdropFilter: "blur(18px)"
-        }}
-      >
-        <Group align="center" justify="space-between">
-          <Group align="center" gap="md">
-            <Avatar
-              color="indigo"
-              radius="xl"
-              size={48}
-              styles={{
-                root: {
-                  background: "linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-strong) 100%)",
-                  boxShadow: "0 12px 30px var(--app-accent-glow)"
-                }
-              }}
-            >
+    <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <section className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
+        <div className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-6 md:px-8">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-lg font-bold text-white shadow-[0_4px_20px_var(--app-accent-glow)]">
               AI
-            </Avatar>
-            <Stack gap={6}>
-              <Group gap="xs">
-                <Title
-                  order={4}
-                  c="var(--app-text)"
-                  style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
-                >
-                  {t("chat.title")}
-                </Title>
-                {activeAssistant ? (
-                  <Badge color="indigo" radius="sm" size="lg" variant="filled">
-                    {activeAssistant.name}
-                  </Badge>
-                ) : null}
-              </Group>
-              <Text c="var(--app-text-muted)" maw={560} size="sm">
-                {t("chat.subtitle")}
-              </Text>
-              <Group gap="xs" mt={2}>
-                <Badge color="indigo" radius="sm" size="md" variant="light">
-                  {locale === "zh" ? "在线" : "Online"}
-                </Badge>
-                {latestModelName ? (
-                  <Badge color="gray" radius="sm" size="md" variant="light">
-                    {latestModelName}
-                  </Badge>
-                ) : null}
-                {streamStatusLabel ? (
-                  <Badge color="orange" radius="sm" size="md" variant="light">
-                    {streamStatusLabel}
-                  </Badge>
-                ) : null}
-              </Group>
-            </Stack>
-          </Group>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold tracking-[-0.02em] text-[var(--app-text)]">
+                {locale === "zh" ? "智能问答助手" : "Intelligent answer assistant"}
+              </h2>
+              <p className="mt-0.5 text-xs text-[var(--app-text-muted)]">
+                {locale === "zh"
+                  ? "基于知识库的智能问答与溯源"
+                  : "Knowledge-grounded answers with citations and traces"}
+              </p>
+            </div>
+          </div>
 
-          <Box
-            style={{
-              minWidth: 220,
-              maxWidth: 280,
-              padding: "12px 14px",
-              borderRadius: 18,
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid var(--app-border)"
-            }}
-          >
-            <Text c="var(--app-text-muted)" size="xs" tt="uppercase">
-              {locale === "zh" ? "体验目标" : "Experience goal"}
-            </Text>
-            <Text c="var(--app-text)" fw={600} mt={6} size="sm">
-              {locale === "zh"
-                ? "让身份、状态、时间和输入区更贴近高频对话工作台。"
-                : "Bring identity, status, timing, and the composer closer to a real chat workspace"}
-            </Text>
-          </Box>
-        </Group>
-      </Paper>
+          <div className="flex items-center gap-2">
+            {latestModelName ? (
+              <span className="hidden rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--app-text-secondary)] md:inline-flex">
+                {latestModelName}
+              </span>
+            ) : null}
+            <IconButton
+              disabledHint={locale === "zh" ? "更多操作即将支持" : "More actions coming soon"}
+              label={locale === "zh" ? "更多操作" : "More actions"}
+            >
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" fill="currentColor" r="1" />
+                <circle cx="19" cy="12" fill="currentColor" r="1" />
+                <circle cx="5" cy="12" fill="currentColor" r="1" />
+              </svg>
+            </IconButton>
+          </div>
+        </div>
 
-      <Grid gutter="lg">
-        <Grid.Col span={{ base: 12, md: 3 }}>
-          <Paper
-            p="md"
-            radius="xl"
-            style={{
-              background: "linear-gradient(180deg, rgba(24, 26, 38, 0.96) 0%, rgba(21, 23, 34, 0.94) 100%)",
-              border: "1px solid var(--app-border)",
-              boxShadow: "var(--app-shadow-soft)"
-            }}
-          >
-            <Stack gap="md">
-              <Group justify="space-between">
-                <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
-                  {t("chat.conversations")}
-                </Text>
-                <Group gap="xs">
-                  {conversationsQuery.data?.length ? (
-                    <Badge color="indigo" radius="sm" variant="light">
-                      {conversationsQuery.data.length}
-                    </Badge>
-                  ) : null}
-                  <Button
-                    color="indigo"
-                    disabled={askStreamMutation.isPending}
-                    onClick={() => setActiveConversationId(null)}
-                    radius="xl"
-                    size="xs"
-                    variant="light"
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8" ref={transcriptRef}>
+          <div className="flex flex-col gap-6">
+            <div className="workspace-chat-summary grid gap-3 md:grid-cols-3">
+              <SummaryCard
+                hint={
+                  activeConversation
+                    ? locale === "zh"
+                      ? "当前会话会继承最新引用和 Trace 视图。"
+                      : "The active conversation drives the latest citations and trace view."
+                    : locale === "zh"
+                      ? "新问题会自动创建新的会话记录。"
+                      : "A new question will start a fresh conversation."
+                }
+                label={locale === "zh" ? "当前工作区" : "Current workspace"}
+                value={
+                  activeConversation?.title ??
+                  (locale === "zh" ? "新会话草稿" : "New conversation draft")
+                }
+              />
+              <SummaryCard
+                hint={
+                  activeAssistant
+                    ? locale === "zh"
+                      ? "默认助手已绑定，可以直接发起提问。"
+                      : "The default assistant is bound and ready for questions."
+                    : locale === "zh"
+                      ? "需要先恢复助手配置。"
+                      : "Restore assistant configuration before sending questions."
+                }
+                label={locale === "zh" ? "提问状态" : "Ask status"}
+                value={workspaceStatus}
+              />
+              <SummaryCard
+                hint={
+                  locale === "zh"
+                    ? `${conversationCount} 个会话，${citationItems.length} 条当前引用。`
+                    : `${conversationCount} conversations, ${citationItems.length} current citations.`
+                }
+                label={locale === "zh" ? "引用与溯源" : "Citations and trace"}
+                value={
+                  activeTraceId ??
+                  (locale === "zh" ? "等待本轮 Trace" : "Waiting for next trace")
+                }
+              />
+            </div>
+
+            {activeConversationId == null && activeStreamTurn == null ? (
+              <StatePanel
+                description={t("chat.states.noActiveConversationDescription")}
+                title={t("chat.states.noActiveConversationTitle")}
+              />
+            ) : messagesQuery.isLoading && !shouldRenderStreamTurn ? (
+              <StatePanel
+                description={t("chat.states.loadingMessagesDescription")}
+                title={t("chat.states.loadingMessagesTitle")}
+                tone="loading"
+              />
+            ) : messagesQuery.isError && !shouldRenderStreamTurn ? (
+              <StatePanel
+                description={messagesQuery.error instanceof Error ? messagesQuery.error.message : undefined}
+                title={t("chat.states.messagesErrorTitle")}
+                tone="error"
+              />
+            ) : displayedMessages.length ? (
+              displayedMessages.map(message => {
+                const isAssistant = message.role === "assistant";
+                const isStreamingAssistant =
+                  "status" in message && message.role === "assistant" && message.status === "streaming";
+                const isErroredAssistant =
+                  "status" in message && message.role === "assistant" && message.status === "error";
+                const traceId = "traceId" in message ? message.traceId : null;
+                const messageTime = "createdAt" in message ? formatMessageTime(message.createdAt, locale) : null;
+
+                return (
+                  <div
+                    className={["flex gap-4", isAssistant ? "max-w-[85%]" : "ml-auto max-w-[85%] flex-row-reverse"].join(" ")}
+                    key={message.id}
                   >
-                    {locale === "zh" ? "新会话" : "New chat"}
-                  </Button>
-                </Group>
-              </Group>
+                    <div
+                      className={[
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] text-[13px] font-semibold",
+                        isAssistant
+                          ? "bg-[linear-gradient(135deg,rgba(99,102,241,0.2)_0%,rgba(99,102,241,0.1)_100%)] text-[#818cf8]"
+                          : "bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-white"
+                      ].join(" ")}
+                    >
+                      {isAssistant ? "AI" : "U"}
+                    </div>
 
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={[
+                          "rounded-[20px] px-5 py-4 text-sm leading-7 shadow-[0_8px_32px_rgba(0,0,0,0.24)]",
+                          isAssistant
+                            ? "rounded-tl-[6px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)]"
+                            : "rounded-tr-[6px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-white"
+                        ].join(" ")}
+                      >
+                        {message.content ? (
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                        ) : isStreamingAssistant ? (
+                          <TypingIndicator />
+                        ) : null}
+                        {isStreamingAssistant && message.content ? (
+                          <div className="mt-4">
+                            <TypingIndicator />
+                          </div>
+                        ) : null}
+                        {isErroredAssistant && "errorMessage" in message ? (
+                          <p className="mt-3 text-sm text-red-300">{message.errorMessage}</p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-2.5 flex items-center gap-3 px-1">
+                        <span className="text-[11px] text-[var(--app-text-muted)]">
+                          {messageTime ?? (isStreamingAssistant ? streamStatusLabel : "")}
+                        </span>
+                        {traceId ? (
+                          <Link className="text-[11px] text-[var(--app-text-muted)] transition hover:text-[var(--app-text)]" to={`/traces/${traceId}`}>
+                            {traceId}
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <StatePanel
+                description={t("chat.states.noMessagesDescription")}
+                title={t("chat.states.noMessagesTitle")}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--app-border)] bg-[linear-gradient(180deg,transparent_0%,rgba(22,22,29,0.5)_100%)] px-5 pb-6 pt-5 md:px-8">
+          <form
+            onSubmit={event => {
+              event.preventDefault();
+              void submitQuestion();
+            }}
+          >
+            <div className="mb-3 flex items-center justify-between px-1">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-muted)]">
+                  {locale === "zh" ? "提问输入区" : "Ask composer"}
+                </div>
+                <div className="mt-1 text-xs text-[var(--app-text-secondary)]">
+                  {canAsk
+                    ? locale === "zh"
+                      ? "按 Enter 直接发送，引用和 Trace 结果会保留在右侧。"
+                      : "Press Enter to send. Citations and trace results stay visible on the right."
+                    : locale === "zh"
+                      ? "当前助手不可用，输入区已暂时禁用。"
+                      : "The assistant is unavailable, so the composer is temporarily disabled."}
+                </div>
+              </div>
+              <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1 text-[11px] text-[var(--app-text-secondary)]">
+                {workspaceStatus}
+              </span>
+            </div>
+
+            <div className="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-2 transition duration-300 focus-within:border-[var(--app-accent)] focus-within:shadow-[0_0_0_3px_var(--app-accent-glow)]">
+              <div className="flex items-end gap-3">
+                <textarea
+                  className="min-h-6 max-h-[120px] flex-1 resize-none bg-transparent px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-muted)]"
+                  disabled={!canAsk}
+                  onChange={event => setComposerValue(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void submitQuestion();
+                    }
+                  }}
+                  placeholder={locale === "zh" ? "输入问题，按 Enter 发送..." : "Ask a question and press Enter..."}
+                  rows={1}
+                  value={composerValue}
+                />
+                <div className="flex items-center gap-2 pr-1">
+                  <button
+                    aria-label={locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}
+                    className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] opacity-65"
+                    disabled
+                    title={locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}
+                    type="button"
+                  >
+                    <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
+                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                    </svg>
+                  </button>
+                  <button
+                    className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-white shadow-[0_4px_16px_var(--app-accent-glow)] transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_24px_var(--app-accent-glow)] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={!canAsk}
+                    type="submit"
+                  >
+                    <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
+                      <line stroke="currentColor" strokeWidth="2" x1="22" x2="11" y1="2" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center justify-between px-2 text-[11px] text-[var(--app-text-muted)]">
+              <span>{locale === "zh" ? "回车发送，Shift + Enter 换行" : "Press Enter to send, Shift + Enter for a new line"}</span>
+              <span>{locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}</span>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <aside className="flex min-h-0 flex-col bg-[var(--app-bg-elevated)]">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <section className="mb-6">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.5px] text-[var(--app-text-muted)]">
+                {locale === "zh" ? "历史会话" : "History"}
+              </span>
+              <button
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--app-border-strong)] px-3 py-1.5 text-[11px] font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
+                onClick={() => {
+                  setActiveConversationId(null);
+                  setActiveStreamTurn(null);
+                }}
+                type="button"
+              >
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" viewBox="0 0 24 24">
+                  <line stroke="currentColor" strokeWidth="2" x1="12" x2="12" y1="5" y2="19" />
+                  <line stroke="currentColor" strokeWidth="2" x1="5" x2="19" y1="12" y2="12" />
+                </svg>
+                {locale === "zh" ? "新会话" : "New chat"}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
               {conversationsQuery.isLoading ? (
                 <StatePanel
                   description={t("chat.states.loadingConversationsDescription")}
@@ -395,386 +573,57 @@ export function ChatPage() {
                   tone="error"
                 />
               ) : conversationsQuery.data?.length ? (
-                <Stack gap="xs">
-                  {conversationsQuery.data.map(conversation => {
-                    const isActive = activeConversationId === conversation.id;
+                conversationsQuery.data.map(conversation => {
+                  const isActive = activeConversationId === conversation.id;
 
-                    return (
-                      <UnstyledButton
-                        key={conversation.id}
-                        onClick={() => setActiveConversationId(conversation.id)}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          padding: "12px 14px",
-                          minHeight: 72,
-                          borderRadius: 18,
-                          textAlign: "left",
-                          background: isActive
-                            ? "linear-gradient(135deg, rgba(109, 114, 255, 0.2) 0%, rgba(109, 114, 255, 0.08) 100%)"
-                            : "rgba(255,255,255,0.03)",
-                          border: isActive
-                            ? "1px solid rgba(109, 114, 255, 0.36)"
-                            : "1px solid var(--app-border)",
-                          boxShadow: isActive
-                            ? "0 16px 34px rgba(109, 114, 255, 0.14)"
-                            : "none"
-                        }}
-                      >
-                        <Stack gap={8}>
-                          <Group justify="space-between" wrap="nowrap">
-                            <Text c="var(--app-text)" fw={600} lineClamp={2} size="sm">
-                              {conversation.title}
-                            </Text>
-                            {isActive ? (
-                              <Badge color="indigo" radius="sm" size="xs" variant="light">
-                                {locale === "zh" ? "当前" : "Active"}
-                              </Badge>
-                            ) : null}
-                          </Group>
-                          <Text c="var(--app-text-muted)" size="xs">
-                            {formatConversationUpdatedAt(conversation.updatedAt, locale)}
-                          </Text>
-                        </Stack>
-                      </UnstyledButton>
-                    );
-                  })}
-                </Stack>
+                  return (
+                    <button
+                      className={[
+                        "rounded-[14px] border px-4 py-3 text-left transition duration-300 ease-out hover:-translate-y-0.5",
+                        isActive
+                          ? "border-[rgba(99,102,241,0.3)] bg-[linear-gradient(135deg,rgba(99,102,241,0.15)_0%,rgba(99,102,241,0.05)_100%)]"
+                          : "border-transparent bg-[var(--app-bg-elevated)] hover:border-[var(--app-border-strong)]"
+                      ].join(" ")}
+                      key={conversation.id}
+                      onClick={() => setActiveConversationId(conversation.id)}
+                      type="button"
+                    >
+                      <div className="mb-1.5 line-clamp-2 text-[13px] font-medium leading-5 text-[var(--app-text)]">
+                        {conversation.title}
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] text-[var(--app-text-muted)]">
+                          {formatConversationUpdatedAt(conversation.updatedAt, locale)}
+                        </span>
+                        <span className="max-w-[140px] truncate text-[11px] text-[var(--app-text-muted)]">
+                          {locale === "zh" ? "会话记录" : "Conversation"}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
               ) : (
                 <StatePanel
                   description={t("chat.states.noConversationsDescription")}
                   title={t("chat.states.noConversationsTitle")}
                 />
               )}
-            </Stack>
-          </Paper>
-        </Grid.Col>
+            </div>
+          </section>
 
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Stack gap="md">
-            <Paper
-              p="lg"
-              radius="xl"
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(24, 26, 38, 0.98) 0%, rgba(19, 21, 32, 0.98) 100%)",
-                border: "1px solid var(--app-border)",
-                boxShadow: "var(--app-shadow-strong)"
-              }}
-            >
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Group align="center" gap="sm">
-                    <Avatar
-                      color="gray"
-                      radius="xl"
-                      size={42}
-                      styles={{
-                        root: {
-                          background: "rgba(255,255,255,0.06)",
-                          color: "var(--app-text)"
-                        }
-                      }}
-                    >
-                      AI
-                    </Avatar>
-                    <div>
-                      <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
-                        {locale === "zh" ? "对话工作区" : "Conversation workspace"}
-                      </Text>
-                      <Text c="var(--app-text-muted)" size="sm">
-                        {activeConversationId
-                          ? locale === "zh"
-                            ? "历史消息、流式回答与最新引用会在这里汇合。"
-                            : "History, streamed answers, and the latest citations meet here."
-                          : locale === "zh"
-                            ? "发送第一个问题即可开始新会话。"
-                            : "Send the first question to start a new session."}
-                      </Text>
-                    </div>
-                  </Group>
-                  {askStreamMutation.isPending ? <Loader color="indigo" size="sm" /> : null}
-                </Group>
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.5px] text-[var(--app-text-muted)]">
+                {locale === "zh" ? "当前引用" : "Current citations"}
+              </span>
+              {activeTraceId ? (
+                <Link className="text-[11px] text-[#818cf8] transition hover:text-white" to={`/traces/${activeTraceId}`}>
+                  {locale === "zh" ? "查看 Trace" : "View trace"}
+                </Link>
+              ) : null}
+            </div>
 
-                <Divider color="var(--app-border)" />
-
-                <Box
-                  style={{
-                    borderRadius: 22,
-                    background:
-                      "linear-gradient(180deg, rgba(14, 16, 25, 0.92) 0%, rgba(18, 20, 30, 0.86) 100%)",
-                    border: "1px solid var(--app-border)",
-                    padding: 14
-                  }}
-                >
-                  <ScrollArea.Autosize mah={500} offsetScrollbars>
-                    <Stack gap="md">
-                      {activeConversationId == null && activeStreamTurn == null ? (
-                        <StatePanel
-                          description={t("chat.states.noActiveConversationDescription")}
-                          title={t("chat.states.noActiveConversationTitle")}
-                        />
-                      ) : messagesQuery.isLoading && !shouldRenderStreamTurn ? (
-                        <StatePanel
-                          description={t("chat.states.loadingMessagesDescription")}
-                          title={t("chat.states.loadingMessagesTitle")}
-                          tone="loading"
-                        />
-                      ) : messagesQuery.isError && !shouldRenderStreamTurn ? (
-                        <StatePanel
-                          description={messagesQuery.error instanceof Error ? messagesQuery.error.message : undefined}
-                          title={t("chat.states.messagesErrorTitle")}
-                          tone="error"
-                        />
-                      ) : displayedMessages.length ? (
-                        displayedMessages.map(renderMessage)
-                      ) : (
-                        <StatePanel
-                          description={t("chat.states.noMessagesDescription")}
-                          title={t("chat.states.noMessagesTitle")}
-                        />
-                      )}
-                    </Stack>
-                  </ScrollArea.Autosize>
-                </Box>
-              </Stack>
-            </Paper>
-
-            <Paper
-              component="form"
-              onSubmit={form.onSubmit(async values => {
-                const question = values.question.trim();
-                if (!question || !activeAssistant) {
-                  return;
-                }
-
-                const pendingTurn = createPendingChatTurn({
-                  question
-                });
-
-                setActiveStreamTurn({
-                  conversationId: activeConversationId,
-                  phase: "started",
-                  userMessage: pendingTurn.userMessage,
-                  assistantMessage: pendingTurn.assistantMessage,
-                  latestResult: null
-                });
-                form.reset();
-
-                try {
-                  await askStreamMutation.mutateAsync({
-                    question,
-                    conversationId: activeConversationId ?? undefined,
-                    onEvent: event => {
-                      const streamEvent = event as AskStreamEvent;
-                      setActiveStreamTurn(current => {
-                        if (!current) {
-                          return current;
-                        }
-
-                        if (streamEvent.type === "status") {
-                          return {
-                            ...current,
-                            phase: streamEvent.phase
-                          };
-                        }
-
-                        if (streamEvent.type === "final") {
-                          startTransition(() => {
-                            setActiveConversationId(streamEvent.data.conversationId);
-                          });
-                          queryClient.invalidateQueries({ queryKey: ["conversations"] });
-                          queryClient.invalidateQueries({
-                            queryKey: ["conversation-messages", streamEvent.data.conversationId]
-                          });
-                          queryClient.invalidateQueries({
-                            queryKey: ["conversation-traces", streamEvent.data.conversationId]
-                          });
-
-                          return {
-                            ...current,
-                            conversationId: streamEvent.data.conversationId,
-                            assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent),
-                            latestResult: streamEvent.data
-                          };
-                        }
-
-                        return {
-                          ...current,
-                          assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent)
-                        };
-                      });
-                    }
-                  });
-                } catch (error) {
-                  setActiveStreamTurn(current =>
-                    current && current.assistantMessage.status !== "error"
-                      ? {
-                          ...current,
-                          assistantMessage: applyChatStreamEvent(current.assistantMessage, {
-                            type: "error",
-                            message: error instanceof Error ? error.message : t("chat.states.askError")
-                          })
-                        }
-                      : current
-                  );
-                  notifications.show({
-                    color: "red",
-                    message: error instanceof Error ? error.message : t("chat.states.askError")
-                  });
-                }
-              })}
-              p="md"
-              radius="xl"
-              style={{
-                background: "rgba(20, 22, 34, 0.92)",
-                border: "1px solid var(--app-border)",
-                boxShadow: "var(--app-shadow-soft)"
-              }}
-            >
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <div>
-                    <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
-                      {locale === "zh" ? "提问输入区" : "Question composer"}
-                    </Text>
-                    <Text c="var(--app-text-muted)" size="sm">
-                      {activeStreamTurn && activeStreamTurn.assistantMessage.status === "streaming"
-                        ? streamStatusLabel
-                        : canAsk
-                          ? locale === "zh"
-                            ? "消息会立即出现，回答会随着流式返回逐步展开。"
-                            : "Your message appears immediately and the answer reveals progressively."
-                          : t("chat.askHintDisabled")}
-                    </Text>
-                  </div>
-                  {activeAssistant ? (
-                    <Badge color="indigo" radius="sm" variant="filled">
-                      {activeAssistant.name}
-                    </Badge>
-                  ) : null}
-                </Group>
-
-                <Group align="flex-end" gap="sm" wrap="nowrap">
-                  <Textarea
-                    autosize
-                    disabled={!canAsk}
-                    minRows={3}
-                    placeholder={t("chat.askPlaceholder")}
-                    radius="xl"
-                    styles={{
-                      root: {
-                        flex: 1
-                      },
-                      input: {
-                        background: "rgba(255,255,255,0.04)",
-                        color: "var(--app-text)",
-                        border: "1px solid var(--app-border)",
-                        fontSize: 15,
-                        lineHeight: 1.7,
-                        padding: "16px 18px",
-                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.01)"
-                      }
-                    }}
-                    {...form.getInputProps("question")}
-                  />
-
-                  <ActionIcon
-                    aria-label={t("common.actions.ask")}
-                    color="indigo"
-                    disabled={!canAsk}
-                    loading={askStreamMutation.isPending}
-                    radius="xl"
-                    size={52}
-                    type="submit"
-                    variant="filled"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      fill="none"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      width="18"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M5 12H19M19 12L13 6M19 12L13 18"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  </ActionIcon>
-                </Group>
-              </Stack>
-            </Paper>
-
-            {assistantsQuery.isError ? (
-              <StatePanel
-                description={assistantsQuery.error instanceof Error ? assistantsQuery.error.message : undefined}
-                title={t("chat.states.assistantErrorTitle")}
-                tone="error"
-              />
-            ) : null}
-          </Stack>
-        </Grid.Col>
-
-        <Grid.Col span={{ base: 12, md: 3 }}>
-          <Paper
-            p="md"
-            radius="xl"
-            style={{
-              background: "linear-gradient(180deg, rgba(24, 26, 38, 0.96) 0%, rgba(21, 23, 34, 0.94) 100%)",
-              border: "1px solid var(--app-border)",
-              boxShadow: "var(--app-shadow-soft)"
-            }}
-          >
-            <Stack gap="md">
-              <div>
-                <Text c="var(--app-text-secondary)" fw={700} size="sm" tt="uppercase">
-                  {t("chat.latestCitations")}
-                </Text>
-                <Text c="var(--app-text-muted)" size="sm">
-                  {locale === "zh"
-                    ? "优先展示当前流式回答的引用，其次展示最新 trace。"
-                    : "Current streamed answer citations take priority, then the latest trace."}
-                </Text>
-              </div>
-
-              {(activeConversationId != null || activeStreamTurn != null) && (
-                <Paper
-                  p="sm"
-                  radius="lg"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid var(--app-border)"
-                  }}
-                >
-                  <Group justify="space-between">
-                    <div>
-                      <Text c="var(--app-text-muted)" size="xs" tt="uppercase">
-                        {locale === "zh" ? "当前上下文" : "Current context"}
-                      </Text>
-                      <Text c="var(--app-text)" fw={600} size="sm">
-                        {activeCitationCount > 0
-                          ? locale === "zh"
-                            ? `已捕获 ${activeCitationCount} 条引用`
-                            : `${activeCitationCount} citations captured`
-                          : locale === "zh"
-                            ? "等待引用返回"
-                            : "Waiting for citations"}
-                      </Text>
-                    </div>
-                    {activeTraceId ? (
-                      <Badge color="indigo" radius="sm" variant="light">
-                        Trace
-                      </Badge>
-                    ) : null}
-                  </Group>
-                </Paper>
-              )}
-
+            <div className="flex flex-col gap-3">
               {activeConversationId == null && activeStreamTurn == null ? (
                 <StatePanel
                   description={t("chat.states.noTraceDescription")}
@@ -793,58 +642,46 @@ export function ChatPage() {
                   tone="error"
                 />
               ) : citationItems.length ? (
-                <Stack gap="sm">
-                  {citationItems.map(citation => {
-                    const citationContext = getCitationContext(citation);
+                citationItems.map(citation => {
+                  const citationContext = getCitationContext(citation);
 
-                    return (
-                      <Paper
-                        key={citation.chunkId}
-                        p="sm"
-                        radius="lg"
-                        style={{
-                          background: "rgba(255,255,255,0.04)",
-                          border: "1px solid var(--app-border)",
-                          boxShadow: "none"
-                        }}
-                      >
-                        <Stack gap={8}>
-                          <Anchor c="var(--app-text)" component={Link} fw={700} size="sm" to={`/documents/${citation.documentId}`}>
+                  return (
+                    <div
+                      className="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-4 transition duration-300 ease-out hover:-translate-y-0.5 hover:border-[var(--app-border-strong)]"
+                      key={`${citation.chunkId}-${citation.documentId}`}
+                    >
+                      <div className="mb-2.5 flex items-start gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(135deg,rgba(99,102,241,0.2)_0%,rgba(99,102,241,0.1)_100%)] text-[#818cf8]">
+                          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="2" />
+                            <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="2" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0">
+                          <Link className="block truncate text-sm font-semibold text-[var(--app-text)] transition hover:text-[#c7d2fe]" to={`/documents/${citation.documentId}`}>
                             {citation.documentTitle}
-                          </Anchor>
-                          <Group gap={6}>
-                            <Badge color="indigo" radius="sm" size="xs" variant="light">
-                              {t("common.misc.chunkLabel", { chunkId: citation.chunkId })}
-                            </Badge>
-                            {citationContext ? (
-                              <Text c="var(--app-text-muted)" size="xs">
-                                {citationContext}
-                              </Text>
-                            ) : null}
-                          </Group>
-                          <Text c="var(--app-text-secondary)" size="sm" style={{ lineHeight: 1.65 }}>
-                            {citation.snippet}
-                          </Text>
-                        </Stack>
-                      </Paper>
-                    );
-                  })}
-                  {activeTraceId ? (
-                    <Button color="indigo" component={Link} radius="xl" size="sm" to={`/traces/${activeTraceId}`} variant="light">
-                      {t("common.actions.viewTraceDetails")}
-                    </Button>
-                  ) : null}
-                </Stack>
+                          </Link>
+                          <div className="mt-0.5 truncate text-[11px] text-[var(--app-text-muted)]">
+                            {citationContext ?? t("common.misc.chunkLabel", { chunkId: citation.chunkId })}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm leading-6 text-[var(--app-text-secondary)]">
+                        {citation.snippet}
+                      </p>
+                    </div>
+                  );
+                })
               ) : (
                 <StatePanel
                   description={t("chat.states.noCitationsDescription")}
                   title={t("chat.states.noCitationsTitle")}
                 />
               )}
-            </Stack>
-          </Paper>
-        </Grid.Col>
-      </Grid>
-    </Stack>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </div>
   );
 }

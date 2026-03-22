@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { DocumentProcessingStage, DocumentStatus } from "@prisma/client";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { DocumentProcessingStage, DocumentRunFailedStage, DocumentRunTrigger, DocumentStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { FeedSourceService } from "../../infra/feed-source/feed-source.service";
 import { SitemapSourceService } from "../../infra/sitemap-source/sitemap-source.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { WebPageService } from "../../infra/web-page/web-page.service";
+import { DocumentRunsService } from "../document-runs/document-runs.service";
 import { IngestionService } from "../ingestion/ingestion.service";
 import { IndexingService } from "../indexing/indexing.service";
 import { KnowledgeBasesService } from "../knowledge-bases/knowledge-bases.service";
@@ -12,8 +13,24 @@ import {
   CreateDocumentInput,
   CreateFeedDocumentInput,
   CreateSitemapDocumentInput,
-  CreateWebPageDocumentInput
+  CreateWebPageDocumentInput,
+  ListKnowledgeBaseDocumentRunsInput
 } from "./document.schemas";
+
+type ExternalSourceConfig =
+  | { kind: "web_page"; url: string }
+  | { kind: "feed"; url: string; maxItems: number }
+  | { kind: "sitemap"; url: string; maxPages: number };
+
+type FetchedExternalSource = {
+  title: string | null;
+  content: string;
+  diagnostics?: ExternalSourcePartialDiagnostics | null;
+};
+
+type ExternalSourcePartialDiagnostics = Record<string, Prisma.InputJsonValue> & {
+  partial: boolean;
+};
 
 @Injectable()
 export class DocumentsService {
@@ -24,6 +41,7 @@ export class DocumentsService {
     private readonly feedSourceService: FeedSourceService,
     private readonly sitemapSourceService: SitemapSourceService,
     private readonly webPageService: WebPageService,
+    private readonly documentRunsService: DocumentRunsService,
     private readonly ingestionService: IngestionService,
     private readonly indexingService: IndexingService
   ) {}
@@ -36,9 +54,25 @@ export class DocumentsService {
         kbId: knowledgeBaseId
       },
       orderBy: {
-        createdAt: "desc"
+        updatedAt: "desc"
       }
     });
+  }
+
+  async listKnowledgeBaseDocumentRuns(
+    knowledgeBaseId: string,
+    input: ListKnowledgeBaseDocumentRunsInput
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId, input);
+  }
+
+  async getKnowledgeBaseDocumentRunSummary(
+    knowledgeBaseId: string,
+    input?: Pick<ListKnowledgeBaseDocumentRunsInput, "sinceHours">
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId, input);
   }
 
   async getDocument(id: string) {
@@ -66,6 +100,11 @@ export class DocumentsService {
     });
   }
 
+  async listDocumentRuns(id: string) {
+    await this.getDocument(id);
+    return this.documentRunsService.listDocumentRuns(id);
+  }
+
   async createDocument(knowledgeBaseId: string, input: CreateDocumentInput) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
 
@@ -77,8 +116,10 @@ export class DocumentsService {
         title: input.title,
         mimeType: input.mimeType,
         storageKey: input.storageKey,
+        sourceConfigJson: Prisma.JsonNull,
         status: DocumentStatus.pending,
-        processingStage: DocumentProcessingStage.uploaded
+        processingStage: DocumentProcessingStage.uploaded,
+        diagnosticsJson: Prisma.JsonNull
       }
     });
   }
@@ -104,70 +145,138 @@ export class DocumentsService {
       storageKey: storedFile.storageKey
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.documentRunsService.createRun({
+      documentId: document.id,
+      version: document.version,
+      trigger: DocumentRunTrigger.upload
+    });
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
 
   async createWebPageDocument(knowledgeBaseId: string, input: CreateWebPageDocumentInput) {
-    const fetchedPage = await this.webPageService.fetchWebPage(input.url);
+    const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
+    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+      sourceType: "web_page",
+      sourceName: normalizedUrl,
+      title: input.title ?? null,
+      sourceConfig: {
+        kind: "web_page",
+        url: normalizedUrl
+      }
+    });
+    await this.documentRunsService.createRun({
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
+    });
+
+    const fetchedPage = await this.fetchExternalSourceOrRecordFailure(
+      reservedDocument,
+      () => this.webPageService.fetchWebPage(normalizedUrl)
+    );
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedPage.content
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
-      sourceType: "web_page",
-      sourceName: input.url,
-      title: input.title ?? fetchedPage.title ?? this.buildRemoteSourceFallbackTitle(input.url),
+    const document = await this.finalizeExternalDocument(reservedDocument.id, {
+      title: input.title ?? fetchedPage.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
 
   async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput) {
-    const fetchedFeed = await this.feedSourceService.fetchFeed({
-      url: input.url,
-      maxItems: input.maxItems
+    const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
+    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+      sourceType: "feed",
+      sourceName: normalizedUrl,
+      title: input.title ?? null,
+      sourceConfig: {
+        kind: "feed",
+        url: normalizedUrl,
+        maxItems: input.maxItems
+      }
     });
+    await this.documentRunsService.createRun({
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
+    });
+
+    const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
+      this.feedSourceService.fetchFeed({
+        url: normalizedUrl,
+        maxItems: input.maxItems
+      })
+    );
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedFeed.content
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
-      sourceType: "feed",
-      sourceName: input.url,
-      title: input.title ?? fetchedFeed.title ?? this.buildRemoteSourceFallbackTitle(input.url),
+    const document = await this.finalizeExternalDocument(reservedDocument.id, {
+      title: input.title ?? fetchedFeed.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
-      storageKey: storedFile.storageKey
+      storageKey: storedFile.storageKey,
+      diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+        reservedDocument.version,
+        fetchedFeed.diagnostics,
+        "Feed source completed with partial entry validation failures.",
+        false
+      )
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
 
   async createSitemapDocument(knowledgeBaseId: string, input: CreateSitemapDocumentInput) {
-    const fetchedSitemap = await this.sitemapSourceService.fetchSitemap({
-      url: input.url,
-      maxPages: input.maxPages
+    const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
+    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+      sourceType: "sitemap",
+      sourceName: normalizedUrl,
+      title: input.title ?? null,
+      sourceConfig: {
+        kind: "sitemap",
+        url: normalizedUrl,
+        maxPages: input.maxPages
+      }
     });
+    await this.documentRunsService.createRun({
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
+    });
+
+    const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
+      this.sitemapSourceService.fetchSitemap({
+        url: normalizedUrl,
+        maxPages: input.maxPages
+      })
+    );
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedSitemap.content
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
-      sourceType: "sitemap",
-      sourceName: input.url,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(input.url),
+    const document = await this.finalizeExternalDocument(reservedDocument.id, {
+      title: input.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
-      storageKey: storedFile.storageKey
+      storageKey: storedFile.storageKey,
+      diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+        reservedDocument.version,
+        fetchedSitemap.diagnostics,
+        "Sitemap source completed with partial page fetch failures.",
+        true
+      )
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
@@ -175,17 +284,30 @@ export class DocumentsService {
   async reindexDocument(id: string) {
     const document = await this.getDocument(id);
 
-    await this.prisma.document.update({
+    if (this.isExternalSourceType(document.sourceType)) {
+      return this.resyncExternalDocument(document);
+    }
+
+    const updatedDocument = await this.prisma.document.update({
       where: { id },
       data: {
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
         chunkCount: 0,
-        errorMessage: null
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
       }
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.documentRunsService.createRun({
+      documentId: updatedDocument.id,
+      version: updatedDocument.version,
+      trigger: DocumentRunTrigger.reindex
+    });
+    await this.ingestionService.enqueueDocument(document.id, updatedDocument.version);
 
     return this.getDocument(id);
   }
@@ -206,5 +328,312 @@ export class DocumentsService {
     const parsed = new URL(url);
     const path = `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
     return path.slice(0, 255);
+  }
+
+  private async reserveExternalDocument(
+    knowledgeBaseId: string,
+    input: {
+      sourceType: string;
+      sourceName: string;
+      title: string | null;
+      sourceConfig: ExternalSourceConfig;
+    }
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+
+    const existingDocument = await this.prisma.document.findFirst({
+      where: {
+        kbId: knowledgeBaseId,
+        sourceType: input.sourceType,
+        sourceName: input.sourceName
+      }
+    });
+
+    if (!existingDocument) {
+      return this.prisma.document.create({
+        data: {
+          kbId: knowledgeBaseId,
+          sourceType: input.sourceType,
+          sourceName: input.sourceName,
+          title: input.title ?? this.buildRemoteSourceFallbackTitle(input.sourceName),
+          mimeType: "text/plain",
+          storageKey: "external-source:pending",
+          sourceConfigJson: input.sourceConfig,
+          status: DocumentStatus.pending,
+          processingStage: DocumentProcessingStage.uploaded,
+          diagnosticsJson: Prisma.JsonNull
+        }
+      });
+    }
+
+    return this.prisma.document.update({
+      where: {
+        id: existingDocument.id
+      },
+      data: {
+        sourceName: input.sourceName,
+        title: input.title ?? existingDocument.title ?? this.buildRemoteSourceFallbackTitle(input.sourceName),
+        sourceConfigJson: input.sourceConfig,
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    });
+  }
+
+  private finalizeExternalDocument(
+    id: string,
+    input: Pick<CreateDocumentInput, "title" | "mimeType" | "storageKey"> & {
+      diagnosticsJson?: Prisma.InputJsonValue | null;
+    }
+  ) {
+    return this.prisma.document.update({
+      where: { id },
+      data: {
+        title: input.title,
+        mimeType: input.mimeType,
+        storageKey: input.storageKey,
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        errorMessage: null,
+        diagnosticsJson: input.diagnosticsJson ?? Prisma.JsonNull
+      }
+    });
+  }
+
+  private async fetchExternalSourceOrRecordFailure<T>(
+    document: {
+      id: string;
+      version: number;
+    },
+    operation: () => Promise<T>
+  ) {
+    try {
+      return await operation();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown external source fetch error.";
+      const retryable = this.isRetryableExternalSourceError(error);
+      const diagnostics = {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable,
+        documentVersion: document.version,
+        message
+      } satisfies Prisma.InputJsonValue;
+
+      await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          status: DocumentStatus.failed,
+          processingStage: DocumentProcessingStage.failed,
+          errorMessage: message,
+          diagnosticsJson: diagnostics
+        }
+      });
+      await this.documentRunsService.markRunFailed(document.id, document.version, {
+        failedStage: DocumentRunFailedStage.source_fetch,
+        diagnosticsJson: diagnostics
+      });
+
+      throw error;
+    }
+  }
+
+  private normalizeRemoteSourceUrl(url: string) {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return parsed.toString();
+  }
+
+  private async resyncExternalDocument(document: Awaited<ReturnType<DocumentsService["getDocument"]>>) {
+    const queuedDocument = await this.prisma.document.update({
+      where: { id: document.id },
+      data: {
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    });
+    await this.documentRunsService.createRun({
+      documentId: queuedDocument.id,
+      version: queuedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
+    });
+    const sourceConfig = await this.parseExternalSourceConfigOrRecordFailure(
+      queuedDocument,
+      document.sourceConfigJson
+    );
+
+    const fetchedSource = await this.fetchExternalSourceOrRecordFailure(queuedDocument, () =>
+      this.fetchExternalSourceFromConfig(sourceConfig)
+    );
+    const storedFile = await this.storageService.saveGeneratedTextFile({
+      content: fetchedSource.content
+    });
+
+    const updatedDocument = await this.prisma.document.update({
+      where: { id: document.id },
+      data: {
+        title: fetchedSource.title ?? document.title ?? this.buildRemoteSourceFallbackTitle(document.sourceName),
+        mimeType: "text/plain",
+        storageKey: storedFile.storageKey,
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        errorMessage: null,
+        diagnosticsJson:
+          sourceConfig.kind === "sitemap"
+            ? (this.buildExternalSourcePartialDiagnostics(
+                queuedDocument.version,
+                fetchedSource.diagnostics ?? null,
+                "Sitemap source completed with partial page fetch failures.",
+                true
+              ) ??
+              Prisma.JsonNull)
+            : sourceConfig.kind === "feed"
+              ? (this.buildExternalSourcePartialDiagnostics(
+                  queuedDocument.version,
+                  fetchedSource.diagnostics ?? null,
+                  "Feed source completed with partial entry validation failures.",
+                  false
+                ) ??
+              Prisma.JsonNull)
+            : Prisma.JsonNull
+      }
+    });
+
+    await this.ingestionService.enqueueDocument(updatedDocument.id, updatedDocument.version);
+
+    return this.getDocument(document.id);
+  }
+
+  private async parseExternalSourceConfigOrRecordFailure(
+    document: {
+      id: string;
+      version: number;
+    },
+    value: Prisma.JsonValue | null
+  ) {
+    try {
+      return this.parseExternalSourceConfig(value);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "External source config is invalid.";
+      const diagnostics = {
+        code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: document.version,
+        message
+      } satisfies Prisma.InputJsonValue;
+
+      await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          status: DocumentStatus.failed,
+          processingStage: DocumentProcessingStage.failed,
+          errorMessage: message,
+          diagnosticsJson: diagnostics
+        }
+      });
+      await this.documentRunsService.markRunFailed(document.id, document.version, {
+        failedStage: DocumentRunFailedStage.source_fetch,
+        diagnosticsJson: diagnostics
+      });
+
+      throw error;
+    }
+  }
+
+  private parseExternalSourceConfig(value: Prisma.JsonValue | null): ExternalSourceConfig {
+    if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") {
+      throw new Error("External source config is missing.");
+    }
+
+    if (value.kind === "web_page" && typeof value.url === "string") {
+      return {
+        kind: "web_page",
+        url: value.url
+      };
+    }
+
+    if (value.kind === "feed" && typeof value.url === "string" && typeof value.maxItems === "number") {
+      return {
+        kind: "feed",
+        url: value.url,
+        maxItems: value.maxItems
+      };
+    }
+
+    if (value.kind === "sitemap" && typeof value.url === "string" && typeof value.maxPages === "number") {
+      return {
+        kind: "sitemap",
+        url: value.url,
+        maxPages: value.maxPages
+      };
+    }
+
+    throw new Error("External source config is invalid.");
+  }
+
+  private async fetchExternalSourceFromConfig(sourceConfig: ExternalSourceConfig): Promise<FetchedExternalSource> {
+    if (sourceConfig.kind === "web_page") {
+      return this.webPageService.fetchWebPage(sourceConfig.url);
+    }
+
+    if (sourceConfig.kind === "feed") {
+      return this.feedSourceService.fetchFeed({
+        url: sourceConfig.url,
+        maxItems: sourceConfig.maxItems
+      });
+    }
+
+    const fetchedSitemap = await this.sitemapSourceService.fetchSitemap({
+      url: sourceConfig.url,
+      maxPages: sourceConfig.maxPages
+    });
+
+    return {
+      title: null,
+      content: fetchedSitemap.content,
+      diagnostics: fetchedSitemap.diagnostics
+    };
+  }
+
+  private isExternalSourceType(sourceType: string) {
+    return sourceType === "web_page" || sourceType === "feed" || sourceType === "sitemap";
+  }
+
+  private isRetryableExternalSourceError(error: unknown) {
+    return !(error instanceof BadRequestException);
+  }
+
+  private buildExternalSourcePartialDiagnostics(
+    documentVersion: number,
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
+    message: string,
+    retryable: boolean
+  ) {
+    if (!diagnostics?.partial) {
+      return null;
+    }
+
+    return {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable,
+      documentVersion,
+      message,
+      ...diagnostics,
+      partial: true
+    } satisfies Prisma.InputJsonValue;
   }
 }

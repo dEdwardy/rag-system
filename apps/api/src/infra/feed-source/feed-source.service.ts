@@ -1,4 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
+import { fetchWithRetry } from "../http/fetch-with-retry";
 
 type FetchFeedOptions = {
   url: string;
@@ -13,6 +14,7 @@ type ExtractFeedOptions = {
 type FetchedFeed = {
   title: string | null;
   content: string;
+  diagnostics: FeedFetchDiagnostics | null;
 };
 
 type FeedEntry = {
@@ -22,14 +24,40 @@ type FeedEntry = {
   publishedAt: string | null;
 };
 
+type FeedFetchDiagnostics = {
+  attemptedEntryCount: number;
+  succeededEntryCount: number;
+  failedEntryCount: number;
+  failedEntryRefs: string[];
+  failedEntries: Array<{
+    ref: string;
+    code: string;
+    message: string;
+    retryable: boolean;
+  }>;
+  failedEntriesTruncated: boolean;
+  failedEntriesOmittedCount: number;
+  partial: boolean;
+};
+
+type FeedEntryFailure = {
+  ref: string;
+  code: string;
+  message: string;
+  retryable: boolean;
+};
+
+const MAX_FAILURE_SUMMARY_ITEMS = 10;
+
 @Injectable()
 export class FeedSourceService {
   async fetchFeed(options: FetchFeedOptions) {
     let response: Response;
 
     try {
-      response = await fetch(options.url, {
-        signal: AbortSignal.timeout(10000),
+      response = await fetchWithRetry({
+        url: options.url,
+        timeoutMs: 10000,
         headers: {
           Accept: "application/rss+xml,application/atom+xml,application/xml,text/xml"
         }
@@ -115,6 +143,7 @@ export class FeedSourceService {
     sourceUrl: string;
   }): FetchedFeed {
     const lines: string[] = [];
+    const failedEntries: FeedEntryFailure[] = [];
 
     if (input.title) {
       lines.push(`Feed: ${input.title}`);
@@ -126,7 +155,14 @@ export class FeedSourceService {
       lines.push(`Description: ${input.description}`);
     }
 
-    input.entries.forEach((entry, index) => {
+    input.entries.forEach(entry => {
+      const failure = this.validateEntry(entry);
+      if (failure) {
+        failedEntries.push(failure);
+        return;
+      }
+
+      const index = lines.filter(line => line.startsWith("Entry ")).length;
       const entryLines = [`Entry ${index + 1}: ${entry.title ?? "Untitled"}`];
 
       if (entry.publishedAt) {
@@ -145,13 +181,52 @@ export class FeedSourceService {
     });
 
     const content = lines.join("\n\n").trim();
+    if (!input.entries.length) {
+      throw new BadRequestException("Extracted feed content is empty.");
+    }
+
+    if (input.entries.length > 0 && failedEntries.length === input.entries.length) {
+      throw new BadRequestException("Extracted feed content is empty: all feed entries were invalid.");
+    }
+
     if (!content) {
       throw new BadRequestException("Extracted feed content is empty.");
     }
 
+    const summarizedFailedEntries = failedEntries.slice(0, MAX_FAILURE_SUMMARY_ITEMS);
+
     return {
       title: input.title ?? null,
-      content
+      content,
+      diagnostics:
+        failedEntries.length > 0
+          ? {
+              attemptedEntryCount: input.entries.length,
+              succeededEntryCount: input.entries.length - failedEntries.length,
+              failedEntryCount: failedEntries.length,
+              failedEntryRefs: failedEntries.slice(0, MAX_FAILURE_SUMMARY_ITEMS).map(entry => entry.ref),
+              failedEntries: summarizedFailedEntries,
+              failedEntriesTruncated: failedEntries.length > summarizedFailedEntries.length,
+              failedEntriesOmittedCount: Math.max(0, failedEntries.length - summarizedFailedEntries.length),
+              partial: true
+            }
+          : null
+    };
+  }
+
+  private validateEntry(entry: FeedEntry): FeedEntryFailure | null {
+    const hasSummary = Boolean(entry.summary?.trim());
+    const hasLink = Boolean(entry.link?.trim());
+
+    if (hasSummary || hasLink) {
+      return null;
+    }
+
+    return {
+      ref: entry.title ?? "Untitled",
+      code: "ENTRY_CONTENT_EMPTY",
+      message: "Feed entry is missing both summary and link.",
+      retryable: false
     };
   }
 

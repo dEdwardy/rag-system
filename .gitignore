@@ -17,3 +17,8 @@ api-server.log
 api-server.err.log
 .codex/
 .worktrees/
+.playwright-cli/
+output/
+ui/suggestion.md
+ui/version-a-constrained.*
+ui/version-b-creative.*

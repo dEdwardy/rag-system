@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-22
+更新时间：2026-03-23
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -31,8 +31,9 @@
 
 - 当前主线状态：`MVP 可运行 + 第一版可诊断 + 第一版可配置`
 - 当前最适合继续推进的方向：
-  - `chat` 流处理能力已完成，但当前这轮 `PC Web chat experience polish` 整体仍待收尾
-  - 下一整个大方向仍是 `external knowledge source expansion`
+  - `PC Web chat experience polish` 这一轮收口已完成，可先视为 done
+  - `external knowledge source expansion` 在当前限定范围内已完成 backend / API 收口
+  - 下一步更适合切到新的 backend-first 增量，而不是继续在现有 source family 上重复补洞
   - 继续保持 `PC Web` 优先、移动端后置
 - 当前本地执行约束：
   - 优先严格串行执行
@@ -118,14 +119,27 @@
   - `processing`
   - `ready`
   - `failed`
+- ✅ document run history 第一版
+  - run 级持久化已覆盖 `upload` / `reindex` / `external_resync`
+  - 当前每次 run 会记录：
+    - `documentId`
+    - `version`
+    - `trigger`
+    - `status`
+    - `failedStage`
+    - `diagnosticsJson`
+    - `startedAt` / `finishedAt`
+  - stale ingestion job 当前也会把旧 run 显式落为 `skipped`
 - ✅ `reindex`
 
 当前相关 API：
 
 - ✅ `GET /knowledge-bases/:id/documents`
+- ✅ `GET /knowledge-bases/:id/document-runs`
 - ✅ `POST /knowledge-bases/:id/documents`
 - ✅ `POST /knowledge-bases/:id/documents/upload`
 - ✅ `GET /documents/:id`
+- ✅ `GET /documents/:id/runs`
 - ✅ `GET /documents/:id/chunks`
 - ✅ `DELETE /documents/:id`
 - ✅ `POST /documents/:id/reindex`
@@ -323,16 +337,16 @@
 ### 3.5 Next Controlled Increment
 
 - ✅ retrieval / answering systematic evolution
-- [ ] `PC Web` chat experience polish
+- [x] `PC Web` chat experience polish
   - NDJSON transport and progressive answer rendering: done
   - native answer-generation text streaming: done
-  - chat workspace UI / UX polish: pending
-- [ ] external knowledge source expansion
+  - chat workspace UI / UX polish: done
+- [x] external knowledge source expansion
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
   - sitemap source ingestion minimum increment: done
   - sitemap index source ingestion minimum increment: done
-  - the broader external knowledge source direction is not complete yet; continue backend-first expansion from the current completed source increments
+  - backend / API consistency, recovery semantics, partial diagnostics, and run-summary coverage for the current source family are now closed in the current scope
 - keep backend / API first
 - keep `PC Web` as the current client priority
 - do not expand mobile work yet
@@ -353,7 +367,7 @@
   - one direct RSS / Atom feed source
   - one direct sitemap `urlset` source
   - one root sitemap `sitemapindex` source that expands child direct sitemaps
-- 后续的 `external knowledge source expansion` 仍然是当前的下一个完整任务方向
+- 当前 source family 的 backend / API 收口已完成；后续如再继续外部知识源方向，应视为新的后续增量而不是当前这一轮未完成残项
 
 ---
 
@@ -407,10 +421,28 @@
 
 ### 8.2 当前推荐下一步
 
-- [ ] `PC Web` chat experience polish
+- [x] `PC Web` chat experience polish
   - chat streaming transport and native answer-generation streaming: done
-  - workspace UI / UX polish and final收口: pending
-- [ ] external knowledge source expansion
+  - workspace UI / UX polish and final收口: done
+- [x] external knowledge source expansion
+  - source stabilization phase 1: done
+  - source run history / execution observability minimum increment: done
+  - sitemap / sitemap-index partial-failure tolerance + structured partial diagnostics: done
+  - feed partial invalid-entry tolerance + structured partial diagnostics: done
+  - backend consistency / recovery / direct-failure coverage for the current source family: done
+  - current completed backend consistency scope includes:
+    - direct failed-document persistence for invalid `web page` / `feed` / `sitemap` inputs
+    - same-URL recovery cleanup for retryable and non-retryable external-source failures
+    - same-URL recovery cleanup for partial-ready diagnostics
+    - latest-activity document ordering
+    - run-history retention after recovery
+    - run-summary cleanup after recovery
+    - latest partial-failure summary selection for a document with older failed history
+    - source-level partial diagnostics normalization for repeated `feed` / `sitemap` syncs
+  - recommended next increment:
+    - choose a new backend-first direction
+    - do not reopen UI refactor
+    - do not expand into a generic connector / source-center platform rewrite
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -428,7 +460,453 @@
 
 ## 9. 最近完成的关键增量
 
+### 2026-03-23
+
+- ✅ external knowledge source expansion backend / API consistency closeout
+  - current scoped source family:
+    - `web page`
+    - `feed`
+    - `sitemap`
+    - `sitemap index`
+  - this closeout round stayed strictly inside backend / API validation and did not reopen:
+    - UI refactor
+    - mobile work
+    - source center / connector platformization
+  - newly locked focused gaps in this round:
+    - unsupported `web page` failure now has explicit same-URL recovery coverage
+    - all-invalid `feed` failure now has explicit same-URL recovery coverage
+    - all-unsupported `sitemap` failure now has both direct-failure and same-URL recovery coverage
+    - run-summary selection now explicitly prefers a newer partial-ready run over the same document's older terminal failure
+    - repeated `feed` / `sitemap` sync unit tests now explicitly assert normalized `EXTERNAL_SOURCE_PARTIAL_SUCCESS` diagnostics with the new reserved version
+  - focused validation rerun during this round:
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test apps/api/test/external-source-sync.test.js`
+  - full API regression rerun after closeout:
+    - `pnpm test:api`
+  - current result:
+    - `116 / 116` API tests passed
+    - the current external knowledge source expansion round can now be treated as backend / API complete within the present scope
+
 ### 2026-03-22
+
+- ✅ external source reindex / resync chunk-count consistency follow-up
+  - when an existing `web page` / `feed` / `sitemap` document is reused for a new `external_resync` version, the document now clears `chunkCount` immediately on the pending transition instead of temporarily exposing the previous ready-version count
+  - this keeps document-level reindex state consistent with the existing upload-document `reindex` path without adding new API fields or opening a new source-management surface
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ external source reindex invalid-config failure normalization
+  - when a persisted external source document no longer has a valid `sourceConfigJson`, `POST /documents/:id/reindex` no longer fails before run creation
+  - the backend now queues a new `external_resync` version first, then records a structured non-retryable failure on both the document and run using the existing diagnostics path
+  - this keeps document/run history consistent for corrupted or legacy external-source records without adding new API fields or expanding source-platform scope
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+
+- ✅ document-run summary latest-anchor ordering normalization
+  - `latestFailure`, `latestRetryableFailure`, and `latestSkipped` are now selected by the latest matching completed run timestamp instead of the latest started run order
+  - this closes an overlap edge case where a later-started but earlier-finished run could incorrectly replace the actual latest completed failure/skip anchor in summary
+  - the change stays inside `DocumentRunsService` summary selection logic and does not alter list ordering, counters, or API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+
+- ✅ document-run list ordering alignment
+  - `GET /documents/:id/runs` now uses the same primary ordering contract as `GET /knowledge-bases/:id/document-runs`: newest `startedAt` first, then higher `version` only as a tie-breaker
+  - this removes a small inconsistency where document-level run history previously prioritized `version` ahead of actual run recency
+  - the change stays inside `DocumentRunsService` query ordering and does not alter payload shape, filtering, or summary semantics
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
+
+- ✅ external source title preservation on title-less resync
+  - when a repeated external-source `reindex` does not return a new source-level title, the backend now keeps the current document `title` instead of replacing it with the normalized URL fallback
+  - this is especially relevant for `sitemap` sources, whose re-sync path may not have a source title to refresh from
+  - the change stays inside `DocumentsService` title fallback logic and does not add new fields or expand API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
+
+- ✅ run-summary recovery semantics for external sources
+  - when the same external-source document first fails and then later finishes a clean resync, `GET /knowledge-bases/:id/document-runs/summary` no longer keeps counting or anchoring that older failure for the recovered document
+  - `GET /knowledge-bases/:id/documents`, `GET /documents/:id`, and `GET /documents/:id/runs` remain unchanged, so history is still available while the aggregate summary now aligns with the recovered current state
+  - the change stays inside `DocumentRunsService` summary selection logic and does not add fields or alter run list/detail payloads
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ latest-skipped summary anchor preservation
+  - summary recovery cleanup now applies only to failure-style anchors and counters; `latestSkipped` still reports the most recent skipped run event from matching history even if the same document later completes successfully
+  - this keeps skipped-run observability aligned with run-history semantics while preserving the new recovered-failure cleanup behavior
+  - focused validation rerun:
+    - `node --test apps/api/test/document-runs-summary.test.js`
+
+- ✅ external source title preservation on repeated same-URL reuse
+  - when posting the same `web page` / `feed` / `sitemap` URL again and the backend reuses the existing document record, the existing document `title` is now preserved whenever the refreshed source still does not provide a new source-level title
+  - this keeps same-URL create/reuse behavior aligned with the new title-less `reindex` / `external_resync` semantics and avoids replacing curated titles with normalized URL fallbacks during pending-state reuse
+  - the change stays inside `DocumentsService` reserve/finalize title fallback logic and does not add new fields or expand API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
+
+- ✅ PC Web source run observability consumption minimum increment
+  - current implementation stays inside the existing `Knowledge Base` and `Document Detail` pages instead of opening a new source center or a broader UI refactor
+  - `Knowledge Base` now minimally consumes:
+    - `GET /knowledge-bases/:id/document-runs`
+    - `GET /knowledge-bases/:id/document-runs/summary`
+  - it currently surfaces:
+    - recent source/document runs
+    - a compact recent-run summary
+    - latest failure context
+  - `Document Detail` now minimally consumes:
+    - `GET /documents/:id/runs`
+  - it currently surfaces:
+    - document-level run history
+    - status / trigger / startedAt / finishedAt / failedStage
+    - latest failure message and minimal diagnostics expansion
+  - this increment deliberately avoids:
+    - new backend fields
+    - a new mobile path
+    - broader UI restructuring
+    - platform-style source center abstraction
+  - shared web path additions for this round:
+    - typed run observability API models
+    - shared run observability hooks
+    - shared run list / diagnostics helper component
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/document-run-observability.test.js`
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ PC Web source run observability actionability follow-up
+  - `Knowledge Base` recent runs now add a minimal status filter with the existing list endpoint instead of introducing a new source console
+  - latest failure context now deep-links directly to the related document detail page
+  - recent run cards now also deep-link to the corresponding document when a document summary is present
+  - failed / skipped recent runs now expose a one-item `Reindex` action that reuses the existing `POST /documents/:id/reindex` path
+  - this follow-up remains inside the current web consumer layer and does not add new backend fields, batch controls, or broader platform workflows
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/document-run-observability.test.js`
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ feed source stabilization phase 2 minimum increment
+  - feed extraction now tolerates bounded partial invalid-entry failures instead of always including every selected entry verbatim
+  - success rule for this round:
+    - at least one selected entry is usable -> generated text artifact is still produced and ingestion continues
+    - all selected entries are invalid -> source remains failed at `source_fetch`
+  - current invalid-entry rule is intentionally minimal:
+    - entry missing both `summary` and `link` is skipped as invalid
+  - partial success now persists structured diagnostics in the existing shared external-source path instead of opening a feed-specific platform branch
+  - current feed partial diagnostics payload includes:
+    - `attemptedEntryCount`
+    - `succeededEntryCount`
+    - `failedEntryCount`
+    - capped `failedEntryRefs`
+    - capped `failedEntries` reason summaries (`ref` + `code` + `message` + `retryable`)
+    - truncation metadata:
+      - `failedEntriesTruncated`
+      - `failedEntriesOmittedCount`
+    - `partial: true`
+  - document `diagnosticsJson` and final ready run diagnostics now preserve the same feed partial context through ingestion completion
+  - this increment stayed inside `FeedSourceService` plus the existing shared `DocumentsService` / `IngestionService` persistence path and did not expand into broader source platformization
+  - focused validation rerun:
+    - `apps/api/node_modules/.bin/tsc.CMD -p apps/api/tsconfig.json`
+    - `node --test apps/api/test/parsing.test.js apps/api/test/feed-source-e2e.test.js`
+    - `node --test apps/api/test/sitemap-source-e2e.test.js apps/api/test/external-source-sync.test.js apps/api/test/ingestion.orchestrator.test.js`
+
+- ✅ sitemap / sitemap-index source stabilization phase 2 minimum increment
+  - sitemap page aggregation no longer fails the whole source on the first single page fetch error
+  - current behavior now tolerates bounded partial page failures for both direct sitemap `urlset` and one-level `sitemapindex`
+  - success rule for this round:
+    - at least one page fetch succeeds -> generated text artifact is still produced and ingestion continues
+    - all page fetches fail -> source remains failed at `source_fetch`
+    - for `sitemapindex`, at least one child sitemap fetch succeeds -> expansion can still continue
+    - for `sitemapindex`, all child sitemap fetches fail -> source remains failed at `source_fetch`
+  - partial success now persists structured diagnostics in the existing shared paths instead of opening a new source platform abstraction
+  - current partial diagnostics payload includes:
+    - `attemptedPageCount`
+    - `succeededPageCount`
+    - `failedPageCount`
+    - capped `failedPageUrls`
+    - capped `failedPages` reason summaries (`url` + `code` + `message` + `retryable`)
+    - truncation metadata for page summaries:
+      - `failedPagesTruncated`
+      - `failedPagesOmittedCount`
+    - `partial: true`
+    - and for partial child sitemap expansion:
+      - `attemptedChildSitemapCount`
+      - `succeededChildSitemapCount`
+      - `failedChildSitemapCount`
+      - capped `failedChildSitemapUrls`
+      - capped `failedChildSitemaps` reason summaries (`url` + `code` + `message` + `retryable`)
+      - truncation metadata for child sitemap summaries:
+        - `failedChildSitemapsTruncated`
+        - `failedChildSitemapsOmittedCount`
+  - document `diagnosticsJson` now preserves this partial source-fetch context through ingestion completion, so `GET /documents/:id` can still expose it after the document reaches `ready`
+  - document run history now also preserves the same partial diagnostics on the final `ready` run, so `GET /documents/:id/runs` and `GET /knowledge-bases/:id/document-runs?includeDiagnostics=true` can surface it without adding new list/summary fields
+  - this increment stayed inside the existing shared `SitemapSourceService` + `DocumentsService` + `IngestionService` path and did not expand into connector/source platformization
+  - focused validation rerun:
+    - `apps/api/node_modules/.bin/tsc.CMD -p apps/api/tsconfig.json`
+    - `docker compose up -d`
+    - `node --test apps/api/test/parsing.test.js apps/api/test/sitemap-source-e2e.test.js`
+    - `node --test apps/api/test/external-source-sync.test.js apps/api/test/ingestion.orchestrator.test.js`
+
+- ✅ document ingestion / external source run-level persistence 第一轮
+  - 新增 `DocumentRun` 持久化模型，用于记录每次 `upload` / `reindex` / `external_resync`
+  - 当前每条 run 至少记录：
+    - `documentId`
+    - `version`
+    - `trigger`
+    - `status`
+    - `failedStage`
+    - `diagnosticsJson`
+    - `startedAt`
+    - `finishedAt`
+  - `GET /documents/:id/runs` 已可读取某个 document 的 run history，按最新 `version` 优先返回
+  - external source create / repeat-run / reindex 现在都会先建立对应 run，再进入 remote fetch 或 ingestion
+  - source fetch 失败不再只停留在 document failure；对应 run 也会落为 `failed` 并保留 `source_fetch` diagnostics
+  - ingestion worker 进入 `processing` 后会同步更新 run 状态；成功会落为 `ready`
+  - stale ingestion guard 现在不只跳过旧 job，也会把被新版本覆盖的旧 run 明确标成 `skipped`
+  - 这次改动继续收口在 `DocumentsService` + `IngestionService` 的共享路径，没有扩成更大的 source / connector 平台重构
+  - 新增/补强的 focused 测试：
+    - `apps/api/test/document-chain-e2e.test.js`
+    - `apps/api/test/external-source-sync.test.js`
+    - `apps/api/test/ingestion.orchestrator.test.js`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api exec prisma generate`
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js apps/api/test/ingestion.orchestrator.test.js`
+    - `pnpm --filter @rag-system/api exec prisma migrate deploy`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ knowledge-base scoped document run observability 第一轮
+  - 新增 `GET /knowledge-bases/:id/document-runs`，用于直接查看某个 knowledge base 最近的 document / source 执行历史
+  - 当前返回 run 基本字段外，还会附带一个最小 `document` 摘要，便于在不额外查 document 列表的情况下定位来源和当前状态
+  - 当前已支持最小查询过滤：
+    - `documentId`
+    - `sourceType`
+    - `status`
+    - `trigger`
+    - `sinceHours`
+    - `includeDiagnostics`
+    - `limit`
+  - `document-runs` list 当前默认不返回 `diagnosticsJson`，仅在 `includeDiagnostics=true` 时带回完整诊断 JSON，以降低列表载荷
+  - 这个接口当前优先服务 backend/API 级诊断与后续 UI 承载，但本轮没有继续开启新的 UI 重构
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ knowledge-base scoped document run summary 第一轮
+  - 新增 `GET /knowledge-bases/:id/document-runs/summary`
+  - 当前 summary 聚合输出：
+    - `totalRuns`
+    - `latestRunAt`
+    - `latestFinishedAt`
+    - `byStatus`
+    - `byTrigger`
+    - `bySourceType`
+    - `retryableFailures`
+    - `nonRetryableFailures`
+    - `failureByStage`
+    - `latestRetryableFailure`
+    - `latestSkipped`
+    - `latestFailure`
+  - `document-runs` list 现在默认也会给出轻量 `failureSummary`，不必强制打开 `includeDiagnostics=true` 才能消费最小失败上下文
+  - `latestRetryableFailure` / `latestSkipped` / `latestFailure` 现在复用同一套 `failureSummary` 归一形状：
+    - `code`
+    - `failedStage`
+    - `retryable`
+    - `message`
+  - `document-runs` list 和 `document-runs/summary` 现在都支持 `sinceHours`，便于聚焦最近一段时间的运行情况
+  - 目标是先为后续 diagnostics 承载和潜在 UI 概览提供轻量后端聚合面，而不是继续扩 source platform 抽象
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js apps/api/test/web-page-source-e2e.test.js`
+
+### 2026-03-22
+
+- ✅ document run failure summary consistency minimum increment
+  - 当前收口范围保持在 backend / API first，没有开启新一轮 UI 扩展，也没有引入新的 source platform 抽象
+  - `GET /knowledge-bases/:id/document-runs` 现在默认返回轻量 `failureSummary`，用于 failed / skipped / partial-ready run 的最小失败上下文消费
+  - `GET /documents/:id/runs` 也同步暴露同一 `failureSummary` 归一结果，避免 document-detail 与 knowledge-base recent-runs 走两套提取规则
+  - `GET /knowledge-bases/:id/document-runs/summary` 的 `latestFailure` / `latestRetryableFailure` / `latestSkipped` 现在复用同一 failure summary builder，而不是各自单独抽 message
+  - 对 partial-ready run，顶层 `failedStage` 现在也统一回落到 `failureSummary.failedStage`，避免 API 消费端看到 `failedStage: null` 与 summary diagnostics 同时存在的双重语义
+  - summary failure stats 现在也会把 `ready + partial failureSummary` 的 run 纳入统计，而不是只看 terminal `failed`
+  - `latestFailure` 现在语义上表示“最近一个 counted failure summary run”，因此可以正确指向更近的 partial-ready external source run
+  - `latestSkipped` 仍保持独立语义，不混入 failure counters
+  - 后续又补了一个 processing-state 语义修正：
+    - `pending` / `processing` run 即使暂时携带 preserved partial diagnostics，也不会计入 summary failure counters
+    - 此类 in-flight run 的顶层 `failedStage` 继续保持 `null`
+  - 这一轮保持最小字段增量：
+    - 不改既有路由
+    - 不改既有过滤参数
+    - 不把完整 `diagnosticsJson` 改成默认大 payload
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+
+- ✅ external source repeat-run dedup / re-sync 第一轮
+  - `web page` / `feed` / `sitemap` 入口现在会先对 remote URL 做归一化（去掉 hash，并使用标准化 URL 字符串）
+  - 同一 `knowledge base + sourceType + normalized URL` 再次 ingestion 时，不再创建重复 `Document`
+  - 当前改为复用原有 document 记录，更新生成的 source artifact，重置状态并递增 `version` 后重新进入 ingestion
+  - 这次改动优先收口在 `DocumentsService` 的 external source 共用边界，避免只对单一 source 类型打补丁
+  - ingestion queue 现在会携带期望的 document `version`；当旧 job 落后于当前 document version 时，worker 会在解析前直接跳过，避免旧运行覆盖新一轮 `reindex` / `re-sync`
+  - document 失败态现在会额外持久化结构化 `diagnosticsJson`，当前包含：
+    - `code`
+    - `failedStage`
+    - `retryable`
+    - `documentVersion`
+    - `message`
+  - ingestion worker 现在会真实经过 `parsing -> chunking -> indexing -> completed`，失败时会把失败边界落到 `diagnosticsJson.failedStage`
+  - external source 抓取边界现在增加共享 HTTP retry guard；当上游首次返回 `429` 或 `5xx` 时，会自动再试一次，再决定是否失败
+  - external source 创建现在会先保留一个 document 记录；如果远端 source fetch 自身失败，document 也会落为 `failed` 并保留 source-fetch diagnostics，而不是这次失败完全无记录
+  - document 现在会持久化 `sourceConfigJson`；对 `web_page` / `feed` / `sitemap` 执行 `reindex` 时，后端会按原始 source config 重新抓取远端内容，再进入 ingestion，而不再只是重跑旧的 generated artifact
+  - 新增共用回归测试：
+    - `apps/api/test/external-source-sync.test.js`
+    - `apps/api/test/fetch-with-retry.test.js`
+  - 新增 focused HTTP E2E：
+    - `apps/api/test/web-page-source-e2e.test.js`
+    - `apps/api/test/document-chain-e2e.test.js`
+    - `apps/api/test/ingestion.orchestrator.test.js`
+    - `apps/api/test/feed-source-e2e.test.js`
+    - `apps/api/test/sitemap-source-e2e.test.js`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api exec prisma migrate deploy`
+    - `pnpm --filter @rag-system/api exec prisma generate`
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test apps/api/test/fetch-with-retry.test.js`
+    - `node --test apps/api/test/ingestion.orchestrator.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ external source fetch retryability diagnostics correction
+  - external source `source_fetch` diagnostics no longer overstate retryability
+  - current behavior now distinguishes:
+    - upstream / transient fetch failures -> `retryable: true`
+    - invalid payload / unsupported content-type style failures -> `retryable: false`
+  - this keeps source run summary and failure diagnostics aligned with the real execution boundary instead of treating all source-fetch errors as retryable
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ UI 审查问题第一轮收口
+  - 基于 `ui/审查报告.md` 对当前 `PC Web` 做第一轮 focused cleanup
+  - `AppShell` 顶栏中的搜索 / 通知 / 当前知识库展示降级为非误导性的展示控件，减少假交互
+  - `Chat` 去掉右栏伪 tab，补充输入区真实说明，并把附件入口明确降级为 `coming soon`
+  - `Knowledge Base` 改为更紧凑的指标网格，避免右侧长指标列导致主区空洞
+  - `Assistant` 清理开发态说明文案，继续保持现有表单字段和提交逻辑不变
+  - `Trace Detail` 将 `raw payload` 降级为折叠式次级诊断区
+  - `index.html` 补充 favicon，消除本地巡检时的 404 噪音
+  - 新增 focused source-level 回归测试：
+    - `apps/web/test/ui-review-regressions.test.js`
+  - focused validation rerun:
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+    - `node --experimental-strip-types --test apps/web/test/chat-layout-source.test.js`
+    - `node --test apps/web/test/desktop-shell-consistency.test.js`
+    - `node --experimental-strip-types --test apps/web/test/knowledge-base-page-helpers.test.js`
+    - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Documents / Knowledge Base / Assistant / Trace 第四轮骨架收口
+  - `Documents` hero 改成更接近参考稿的左右分区式工作台头部，loading/empty panel 密度继续压缩
+  - `Document Detail` 改成更稳定的工作台双栏骨架，左侧状态区 sticky，chunk focus banner 和列表间距继续统一
+  - `Knowledge Base` 和 `Assistant` 都改为更一致的 hero + 主副栏布局，输入控件 hover/focus 继续收口到统一 B 主题语言
+  - `Trace List` / `Trace Detail` 的 hero、列表卡片、metadata 和 empty/loading 状态继续向 `ui/version-b-creative.html` 收口
+  - 仅调整前端 UI 结构和样式，不改接口、字段、路由和现有功能逻辑
+  - 本轮新增 Playwright 截图留档：
+    - `output/playwright/ui-audit-pass-6/`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题主副栏比例 + 本地巡检兼容继续收口
+  - `Knowledge Base` / `Assistant` 主工作区改回更合理的宽主栏 + 窄侧栏比例，避免关键内容被压窄
+  - `Trace List` 在仅一条会话记录时改为单列铺满，避免左窄右空的骨架浪费
+  - 前端 API base url 增加本地 hostname 归一逻辑，便于本地巡检时在 `localhost` / `127.0.0.1` 之间切换
+  - 新增基于 Playwright 路由拦截的真实数据快照巡检，便于继续比对 detail 页实际信息密度
+  - 本轮新增 Playwright 截图留档：
+    - `output/playwright/ui-audit-pass-7d/`
+    - `output/playwright/ui-audit-pass-8/`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题前端巡检稳定性补丁
+  - 修复 `apps/web/index.html` 首屏主题脚本在 `body` 尚未可用时访问 `style` 导致的浏览器运行时异常
+  - `Trace List` 单条记录时继续收紧最大宽度，避免单卡片模式下占满整行后过于松散
+  - 本轮新增 Playwright 截图留档：
+    - `output/playwright/ui-audit-pass-8b/`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Documents + Trace 第三轮细节收口
+  - `Documents` hero 改为更接近 `ui/version-b-creative.html` 的深色发光工作台头部
+  - `Documents` 表格外层、badge、行 hover、storage 文本截断和操作区层级继续收口
+  - `Document Detail` 左侧状态面板改为更稳定的 metadata list，chunk 卡片改为更清晰的内容块 + focused 态
+  - `Trace List` 改为更适合工作台的双列卡片流，保留原有 conversation -> latest trace 聚合逻辑
+  - `Trace Detail` 的 hero、metadata、retrieved chunks、citations、raw payload 面板继续统一到 B 主题 surface
+  - 保持现有接口、数据字段、路由和列表 -> 详情流转不变
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题壳层偏移 + Chat 骨架第三轮收口
+  - 修复 `AppShell.Main` 未正确避开 header / sidebar 的壳层偏移问题，主内容不再钻到壳层下方
+  - `Chat` 主区从 Mantine `Grid` 改为显式 CSS grid，稳定为更接近参考稿的三栏工作台骨架
+  - 收紧聊天页 hero、会话栏、主工作区、引用栏、输入区的宽度关系与面板高度
+  - 补充聊天布局和通用空状态的 source-level 回归测试，避免后续再次偏离参考稿或回到浅色空状态
+  - 使用 Playwright 对 `Chat` 以及其他核心路由重新截图复查
+  - focused validation rerun:
+    - `node --test apps/web/test/chat-layout-source.test.js apps/web/test/state-panel-theme.test.js`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Chat 收尾第二轮
+  - `AppShell` 左侧品牌区与导航项的内边距、字号、hover 强度继续向 `ui/version-b-creative.html` 收口
+  - `Chat` 页消息气泡、底部输入栏、右侧引用栏的圆角、边框、层级与 spacing 继续向 B 主题 token 收口
+  - 保持既有 API、流式逻辑、数据结构与 badge 数据来源不变
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ Trace 路由恢复为列表 -> 详情
+  - `Trace 日志` 左侧导航不再落到 404
+  - Web 端新增 `/traces` 列表页，复用现有 conversations + conversation traces 接口做前端聚合
+  - `/traces/:traceId` 继续保留详情页
+  - focused validation rerun:
+    - `node --test apps/web/test/trace-router.test.js`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题工作台跨页面第二轮统一
+  - `Documents` / `Document Detail` / `Knowledge Base` / `Assistant` / `Trace` 页面头部 hero 与 panel surface 继续向 `ui/version-b-creative.html` 收口
+  - 统一深色表面层级、hover、focus 高亮与工作台质感
+  - 通过 Playwright 对主要页面路由做浏览器巡检与截图留档
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Knowledge Base + Assistant 第一阶段迁移
+  - `Knowledge Base` 已切到 B 风格工作台概览布局
+  - `Assistant` 已切到 B 风格分区式配置工作台
+  - 保持原有查询、表单、payload、提交逻辑不变
+  - 新增 `Knowledge Base` workspace summary helper 测试
+  - 补充共享 workspace panel / metric / input hover 样式
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/knowledge-base-page-helpers.test.js`
+    - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
+    - `pnpm --filter @rag-system/web build`
 
 - ✅ B 主题 Chat + AppShell 第一阶段落地
   - `AppShell` 已切到 B 风格工作台壳层
@@ -537,12 +1015,47 @@
 
 ---
 
+## 10.1 Web B 主题迁移补充记录
+
+- 已继续收口 `creative-dark + workspace-app` 的 B 主题工作台壳层，当前 `Chat / Documents / Document Detail / Knowledge Base / Assistant / Traces / Trace Detail / AppShell / StatePanel` 都已统一到同一套深色 panel 语言、hero 骨架和输入控件风格。
+- 本轮重点清理了前端页面遗留的中文乱码文案，未改动接口、路由、字段和页面功能逻辑。
+- 基于 [ui/审查报告.md](/D:/FeProjects/rag-system/ui/审查报告.md) 的剩余项已完成第二轮收口：
+  - `Documents` 首屏补成工作台摘要区，新增紧凑指标网格和操作提示侧栏，弱化“空首屏”观感。
+  - `Trace List` 改为先展示问题、结果状态和时间，再进入 trace 详情，降低过强的诊断台账感。
+  - `Document Detail` 将存储键和错误信息明确下沉为次级诊断区，并统一详情页文案层级。
+  - B 主题次级文字对比度进一步抬高，减少深色主题下的小字发灰问题。
+- 继续完成下一轮高优先级 PC Web 收口：
+  - `Chat` 增加顶部工作区摘要卡、输入区状态说明和更明确的引用摘要，主工作区完成度进一步提高。
+  - `Documents` 表格把低价值的 `storage key` 首屏列替换为 `updated` 时间，提升高频扫描效率。
+  - `Trace Detail` 增加 `Execution summary` 摘要层，先看结果、命中规模、引用数量和耗时，再进入评分与原始载荷。
+  - `StatePanel + i18n` 统一了 loading / empty / error 的状态骨架与相关中文产品文案。
+- 本轮新增/补齐的主要文件：
+  - [apps/web/src/app/AppShell.tsx](/D:/FeProjects/rag-system/apps/web/src/app/AppShell.tsx)
+  - [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
+  - [apps/web/src/pages/documents/DocumentsPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentsPage.tsx)
+  - [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
+  - [apps/web/src/pages/documents/DocumentDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentDetailPage.tsx)
+  - [apps/web/src/pages/traces/TraceListPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/traces/TraceListPage.tsx)
+  - [apps/web/src/pages/traces/TraceDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/traces/TraceDetailPage.tsx)
+  - [apps/web/src/components/StatePanel.tsx](/D:/FeProjects/rag-system/apps/web/src/components/StatePanel.tsx)
+  - [apps/web/src/i18n/messages.ts](/D:/FeProjects/rag-system/apps/web/src/i18n/messages.ts)
+  - [apps/web/src/styles/global.css](/D:/FeProjects/rag-system/apps/web/src/styles/global.css)
+  - [apps/web/test/ui-review-regressions.test.js](/D:/FeProjects/rag-system/apps/web/test/ui-review-regressions.test.js)
+- 本轮 Playwright 巡检截图目录：
+  - [output/playwright/ui-audit-pass-9](/D:/FeProjects/rag-system/output/playwright/ui-audit-pass-9)
+- 本轮最小验证：
+  - `node --test apps/web/test/ui-review-regressions.test.js`
+  - `pnpm --filter @rag-system/web build`
+
+---
+
 ## 10. 最近一次已记录的验证快照
 
 最近一次已记录通过的命令：
 
 ### API
 
+- `pnpm test:api`
 - `pnpm --filter @rag-system/api build`
 - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/answering.test.js`
 - `node --test --test-concurrency=1 apps/api/test/api-flow.test.js`
@@ -573,6 +1086,7 @@
 - 不代表每次编辑本文档时都重新执行了这些命令
 - 当前 ask stream 保留 `NDJSON` 传输，但 answer generation 阶段已经升级为 provider-native text streaming
 - citations、trace ids、answering / retrieval metadata 仍然在最终 `final` 事件补齐，因此它仍不等同于“全结构化全链路原生实时流式”
+- 截至 `2026-03-23`，`pnpm test:api` 已 fresh rerun through `116 / 116` passing tests，当前 external-source backend closeout 已纳入这一整套 API 回归基线
 
 ---
 
