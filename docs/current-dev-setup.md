@@ -144,6 +144,7 @@ Notes:
   - weak insufficient-context summaries now distinguish between `no_retrieval_hits` and cases where retrieval produced context but the retrieved evidence was still insufficient
   - when a weak insufficient-context answer also carries `low_retrieval_score`, the summary now explicitly mentions the low retrieval confidence instead of dropping that signal
   - that weak low-confidence insufficient-context summary is now also covered for the minimal `zh` branch
+  - the same minimal `zh` coverage now also exists for the weak insufficient-context path where retrieval produced context, `missingInformation` is present, and retrieval confidence was low
   - grounded answers produced through local fallback generation now also degrade `qualityEvaluation.overall` to `partial`, expose `primaryIssue: fallback_generation`, and carry a fallback-specific summary instead of remaining `strong`
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
