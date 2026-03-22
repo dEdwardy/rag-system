@@ -1487,6 +1487,140 @@ test("Sitemap source E2E: all-unsupported-page failure clears current diagnostic
   }
 });
 
+test("Sitemap source E2E: all unsupported pages leave a failed document with non-retryable diagnostics", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3129;
+  const storageRoot = resolve(repoRoot, "storage", `test-sitemap-unsupported-source-${randomUUID()}`);
+  const queuePrefix = `test-sitemap-unsupported-source-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const sitemapServer = await startRecoverableUnsupportedSitemapServer(`unused-marker-${randomUUID()}`);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/sitemap`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${sitemapServer.origin}/sitemap.xml`,
+        maxPages: 2
+      })
+    });
+    assert.equal(createResponse.status, 400);
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        sourceType: documents[0].sourceType,
+        sourceName: documents[0].sourceName,
+        status: documents[0].status,
+        processingStage: documents[0].processingStage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        sourceType: "sitemap",
+        sourceName: `${sitemapServer.origin}/sitemap.xml`,
+        status: "failed",
+        processingStage: "failed",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          documentVersion: 1,
+          message: "Failed to fetch sitemap pages: all sitemap pages failed."
+        }
+      }
+    );
+
+    const detailResponse = await fetch(`http://localhost:${port}/documents/${documents[0].id}`);
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.equal(detail.errorMessage, "Failed to fetch sitemap pages: all sitemap pages failed.");
+    assert.deepEqual(detail.diagnosticsJson, documents[0].diagnosticsJson);
+
+    const runsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?includeDiagnostics=true`
+    );
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs.length, 1);
+    assert.deepEqual(
+      {
+        documentId: runs[0].documentId,
+        status: runs[0].status,
+        failedStage: runs[0].failedStage,
+        failureSummary: runs[0].failureSummary,
+        diagnosticsJson: runs[0].diagnosticsJson
+      },
+      {
+        documentId: documents[0].id,
+        status: "failed",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          message: "Failed to fetch sitemap pages: all sitemap pages failed."
+        },
+        diagnosticsJson: documents[0].diagnosticsJson
+      }
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 1);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 1);
+    assert.deepEqual(summary.failureByStage, {
+      source_fetch: 1
+    });
+    assert.deepEqual(summary.latestFailure, {
+      documentId: documents[0].id,
+      version: 1,
+      trigger: "external_resync",
+      failedStage: "source_fetch",
+      sourceType: "sitemap",
+      sourceName: `${sitemapServer.origin}/sitemap.xml`,
+      message: "Failed to fetch sitemap pages: all sitemap pages failed.",
+      finishedAt: summary.latestFailure.finishedAt,
+      failureSummary: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Failed to fetch sitemap pages: all sitemap pages failed."
+      }
+    });
+    assert.equal(summary.latestRetryableFailure, null);
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(sitemapServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
