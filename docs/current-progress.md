@@ -31,8 +31,9 @@
 
 - 当前主线状态：`MVP 可运行 + 第一版可诊断 + 第一版可配置`
 - 当前最适合继续推进的方向：
-  - `chat` 流处理能力已完成，但当前这轮 `PC Web chat experience polish` 整体仍待收尾
-  - 下一整个大方向仍是 `external knowledge source expansion`
+  - `PC Web chat experience polish` 这一轮收口已完成，可先视为 done
+  - 下一整个大方向已切回 `external knowledge source expansion`
+  - 建议继续保持 `backend / API first`，在现有 source family 上做小步稳定化增量
   - 继续保持 `PC Web` 优先、移动端后置
 - 当前本地执行约束：
   - 优先严格串行执行
@@ -323,16 +324,16 @@
 ### 3.5 Next Controlled Increment
 
 - ✅ retrieval / answering systematic evolution
-- [ ] `PC Web` chat experience polish
+- [x] `PC Web` chat experience polish
   - NDJSON transport and progressive answer rendering: done
   - native answer-generation text streaming: done
-  - chat workspace UI / UX polish: pending
+  - chat workspace UI / UX polish: done
 - [ ] external knowledge source expansion
   - web page source ingestion minimum increment: done
   - feed source ingestion minimum increment: done
   - sitemap source ingestion minimum increment: done
   - sitemap index source ingestion minimum increment: done
-  - the broader external knowledge source direction is not complete yet; continue backend-first expansion from the current completed source increments
+  - the broader external knowledge source direction is now the active next priority; continue backend-first expansion from the current completed source increments
 - keep backend / API first
 - keep `PC Web` as the current client priority
 - do not expand mobile work yet
