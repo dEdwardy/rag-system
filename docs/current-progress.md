@@ -119,6 +119,17 @@
   - `processing`
   - `ready`
   - `failed`
+- ✅ document run history 第一版
+  - run 级持久化已覆盖 `upload` / `reindex` / `external_resync`
+  - 当前每次 run 会记录：
+    - `documentId`
+    - `version`
+    - `trigger`
+    - `status`
+    - `failedStage`
+    - `diagnosticsJson`
+    - `startedAt` / `finishedAt`
+  - stale ingestion job 当前也会把旧 run 显式落为 `skipped`
 - ✅ `reindex`
 
 当前相关 API：
@@ -127,6 +138,7 @@
 - ✅ `POST /knowledge-bases/:id/documents`
 - ✅ `POST /knowledge-bases/:id/documents/upload`
 - ✅ `GET /documents/:id`
+- ✅ `GET /documents/:id/runs`
 - ✅ `GET /documents/:id/chunks`
 - ✅ `DELETE /documents/:id`
 - ✅ `POST /documents/:id/reindex`
@@ -408,10 +420,16 @@
 
 ### 8.2 当前推荐下一步
 
-- [ ] `PC Web` chat experience polish
+- [x] `PC Web` chat experience polish
   - chat streaming transport and native answer-generation streaming: done
-  - workspace UI / UX polish and final收口: pending
+  - workspace UI / UX polish and final收口: done
 - [ ] external knowledge source expansion
+  - source stabilization phase 1: done
+  - source run history / execution observability minimum increment: done
+  - current recommended next increment:
+    - keep `backend / API first`
+    - continue improving external source execution boundaries and diagnostics on top of the new run history
+    - still avoid opening a new UI refactor or a generic connector/source platform rewrite
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -430,6 +448,35 @@
 ## 9. 最近完成的关键增量
 
 ### 2026-03-22
+
+- ✅ document ingestion / external source run-level persistence 第一轮
+  - 新增 `DocumentRun` 持久化模型，用于记录每次 `upload` / `reindex` / `external_resync`
+  - 当前每条 run 至少记录：
+    - `documentId`
+    - `version`
+    - `trigger`
+    - `status`
+    - `failedStage`
+    - `diagnosticsJson`
+    - `startedAt`
+    - `finishedAt`
+  - `GET /documents/:id/runs` 已可读取某个 document 的 run history，按最新 `version` 优先返回
+  - external source create / repeat-run / reindex 现在都会先建立对应 run，再进入 remote fetch 或 ingestion
+  - source fetch 失败不再只停留在 document failure；对应 run 也会落为 `failed` 并保留 `source_fetch` diagnostics
+  - ingestion worker 进入 `processing` 后会同步更新 run 状态；成功会落为 `ready`
+  - stale ingestion guard 现在不只跳过旧 job，也会把被新版本覆盖的旧 run 明确标成 `skipped`
+  - 这次改动继续收口在 `DocumentsService` + `IngestionService` 的共享路径，没有扩成更大的 source / connector 平台重构
+  - 新增/补强的 focused 测试：
+    - `apps/api/test/document-chain-e2e.test.js`
+    - `apps/api/test/external-source-sync.test.js`
+    - `apps/api/test/ingestion.orchestrator.test.js`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api exec prisma generate`
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js apps/api/test/ingestion.orchestrator.test.js`
+    - `pnpm --filter @rag-system/api exec prisma migrate deploy`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 
 - ✅ external source repeat-run dedup / re-sync 第一轮
   - `web page` / `feed` / `sitemap` 入口现在会先对 remote URL 做归一化（去掉 hash，并使用标准化 URL 字符串）

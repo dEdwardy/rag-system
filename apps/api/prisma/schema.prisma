@@ -58,6 +58,28 @@ enum DocumentProcessingStage {
   failed
 }
 
+enum DocumentRunTrigger {
+  upload
+  reindex
+  external_resync
+}
+
+enum DocumentRunStatus {
+  pending
+  processing
+  ready
+  failed
+  skipped
+}
+
+enum DocumentRunFailedStage {
+  source_fetch
+  parsing
+  chunking
+  indexing
+  stale_guard
+}
+
 model Tenant {
   id        String         @id @default(cuid())
   name      String
@@ -117,9 +139,28 @@ model Document {
   updatedAt       DateTime                @updatedAt
   knowledgeBase   KnowledgeBase           @relation(fields: [kbId], references: [id], onDelete: Cascade)
   chunks          DocumentChunk[]
+  runs            DocumentRun[]
 
   @@index([kbId])
   @@index([status])
+}
+
+model DocumentRun {
+  id              String                @id @default(cuid())
+  documentId      String
+  version         Int
+  trigger         DocumentRunTrigger
+  status          DocumentRunStatus     @default(pending)
+  failedStage     DocumentRunFailedStage?
+  diagnosticsJson Json?
+  startedAt       DateTime              @default(now())
+  finishedAt      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  document        Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([documentId])
 }
 
 model DocumentChunk {

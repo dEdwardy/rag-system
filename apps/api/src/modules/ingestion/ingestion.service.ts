@@ -1,11 +1,12 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { DocumentProcessingStage, DocumentStatus, Prisma } from "@prisma/client";
+import { DocumentProcessingStage, DocumentRunFailedStage, DocumentStatus, Prisma } from "@prisma/client";
 import { ChunkingService } from "../../infra/parsing/chunking.service";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { ParsingService } from "../../infra/parsing/parsing.service";
 import { getDocumentIngestionQueueName } from "../../infra/queue/queue.constants";
 import { QueueService } from "../../infra/queue/queue.service";
 import { StorageService } from "../../infra/storage/storage.service";
+import { DocumentRunsService } from "../document-runs/document-runs.service";
 import { IndexingService } from "../indexing/indexing.service";
 
 const { Worker } = require("bullmq");
@@ -47,6 +48,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     private readonly parsingService: ParsingService,
     private readonly chunkingService: ChunkingService,
     private readonly queueService: QueueService,
+    private readonly documentRunsService: DocumentRunsService,
     private readonly indexingService: IndexingService
   ) {}
 
@@ -85,6 +87,17 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (typeof job.data.documentVersion === "number" && document.version !== job.data.documentVersion) {
+      await this.documentRunsService.markRunSkipped(document.id, job.data.documentVersion, {
+        failedStage: DocumentRunFailedStage.stale_guard,
+        diagnosticsJson: {
+          code: "INGESTION_RUN_SUPERSEDED",
+          failedStage: "stale_guard",
+          retryable: false,
+          documentVersion: job.data.documentVersion,
+          message: "Skipped stale ingestion job because a newer document version is already active.",
+          currentDocumentVersion: document.version
+        }
+      });
       this.logger.warn(
         `Skipping stale ingestion job for document ${document.id}: job version ${job.data.documentVersion}, current version ${document.version}.`
       );
@@ -100,6 +113,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
         diagnosticsJson: Prisma.JsonNull
       }
     });
+    await this.documentRunsService.markRunProcessing(document.id, document.version);
 
     try {
       const fileBuffer = await this.readDocumentFile(document);
@@ -144,6 +158,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           diagnosticsJson: Prisma.JsonNull
         }
       });
+      await this.documentRunsService.markRunCompleted(document.id, document.version);
     } catch (error) {
       const diagnostics = this.buildIngestionDiagnostics(document.version, error);
 
@@ -155,6 +170,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           errorMessage: diagnostics.message,
           diagnosticsJson: diagnostics
         }
+      });
+      await this.documentRunsService.markRunFailed(document.id, document.version, {
+        failedStage: this.toDocumentRunFailedStage(diagnostics.failedStage),
+        diagnosticsJson: diagnostics
       });
 
       throw error;
@@ -290,5 +309,17 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       documentVersion,
       message
     };
+  }
+
+  private toDocumentRunFailedStage(failedStage: IngestionFailedStage) {
+    if (failedStage === "chunking") {
+      return DocumentRunFailedStage.chunking;
+    }
+
+    if (failedStage === "indexing") {
+      return DocumentRunFailedStage.indexing;
+    }
+
+    return DocumentRunFailedStage.parsing;
   }
 }

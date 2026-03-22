@@ -8,6 +8,8 @@ test("IngestionService processes a document through parsing, chunking, indexing,
   const deletedChunks = [];
   const createdChunkBatches = [];
   const indexingCalls = [];
+  const processingRuns = [];
+  const completedRuns = [];
 
   const prisma = {
     document: {
@@ -16,7 +18,8 @@ test("IngestionService processes a document through parsing, chunking, indexing,
         kbId: "kb-1",
         sourceName: "guide.md",
         mimeType: "text/markdown",
-        storageKey: "documents/document-1.md"
+        storageKey: "documents/document-1.md",
+        version: 1
       }),
       update: async ({ data }) => {
         documentUpdates.push(data);
@@ -63,6 +66,14 @@ test("IngestionService processes a document through parsing, chunking, indexing,
       indexDocument: async documentId => {
         indexingCalls.push(documentId);
       }
+    },
+    documentRunsService: {
+      markRunProcessing: async (documentId, version) => {
+        processingRuns.push({ documentId, version });
+      },
+      markRunCompleted: async (documentId, version) => {
+        completedRuns.push({ documentId, version });
+      }
     }
   });
 
@@ -106,6 +117,18 @@ test("IngestionService processes a document through parsing, chunking, indexing,
     ]
   );
   assert.deepEqual(indexingCalls, ["document-1"]);
+  assert.deepEqual(processingRuns, [
+    {
+      documentId: "document-1",
+      version: 1
+    }
+  ]);
+  assert.deepEqual(completedRuns, [
+    {
+      documentId: "document-1",
+      version: 1
+    }
+  ]);
   assert.deepEqual(documentUpdates, [
     {
       status: "processing",
@@ -168,6 +191,10 @@ test("IngestionService marks the document as failed when indexing throws", async
       indexDocument: async () => {
         throw new Error("synthetic indexing failure");
       }
+    },
+    documentRunsService: {
+      markRunProcessing: async () => {},
+      markRunFailed: async () => {}
     }
   });
 
@@ -271,6 +298,10 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
       indexDocument: async documentId => {
         indexingCalls.push(documentId);
       }
+    },
+    documentRunsService: {
+      markRunProcessing: async () => {},
+      markRunCompleted: async () => {}
     }
   });
 
@@ -377,6 +408,10 @@ test("IngestionService records parsing diagnostics for unsupported file types", 
     },
     indexingService: {
       indexDocument: async () => {}
+    },
+    documentRunsService: {
+      markRunProcessing: async () => {},
+      markRunFailed: async () => {}
     }
   });
 
@@ -419,6 +454,7 @@ test("IngestionService skips a stale ingestion job when the document version has
   const indexingCalls = [];
   const parsingCalls = [];
   const storageReads = [];
+  const skippedRuns = [];
 
   const fakeService = Object.assign(Object.create(IngestionService.prototype), {
     logger: {
@@ -469,6 +505,11 @@ test("IngestionService skips a stale ingestion job when the document version has
       indexDocument: async documentId => {
         indexingCalls.push(documentId);
       }
+    },
+    documentRunsService: {
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
     }
   });
 
@@ -485,4 +526,19 @@ test("IngestionService skips a stale ingestion job when the document version has
   assert.deepEqual(indexingCalls, []);
   assert.deepEqual(parsingCalls, []);
   assert.deepEqual(storageReads, []);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: "document-stale-1",
+      version: 2,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 2,
+        message: "Skipped stale ingestion job because a newer document version is already active.",
+        currentDocumentVersion: 3
+      }
+    }
+  ]);
 });

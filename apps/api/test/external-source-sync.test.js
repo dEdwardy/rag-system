@@ -53,6 +53,8 @@ test("DocumentsService reuses an existing sitemap document when the same URL is 
 test("DocumentsService records a failed web page sync when source fetch fails", async () => {
   const enqueuedDocumentIds = [];
   const documentUpdates = [];
+  const createdRuns = [];
+  const failedRuns = [];
 
   const reservedDocument = {
     id: "reserved-web-page-document",
@@ -94,6 +96,14 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
     },
     feedSourceService: {},
     sitemapSourceService: {},
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    },
     ingestionService: {
       enqueueDocument: async documentId => {
         enqueuedDocumentIds.push(documentId);
@@ -124,6 +134,27 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
           documentVersion: reservedDocument.version,
           message: "Failed to fetch web page: upstream responded with 502."
         }
+      }
+    }
+  ]);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        documentVersion: reservedDocument.version,
+        message: "Failed to fetch web page: upstream responded with 502."
       }
     }
   ]);
@@ -211,6 +242,9 @@ async function expectExternalSourceResync({ sourceType, methodName, input, expec
         });
         return fetchResult;
       }
+    },
+    documentRunsService: {
+      createRun: async () => {}
     },
     ingestionService: {
       enqueueDocument: async documentId => {

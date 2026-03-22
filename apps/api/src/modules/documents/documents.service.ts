@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { DocumentProcessingStage, DocumentStatus, Prisma } from "@prisma/client";
+import { DocumentProcessingStage, DocumentRunFailedStage, DocumentRunTrigger, DocumentStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { FeedSourceService } from "../../infra/feed-source/feed-source.service";
 import { SitemapSourceService } from "../../infra/sitemap-source/sitemap-source.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { WebPageService } from "../../infra/web-page/web-page.service";
+import { DocumentRunsService } from "../document-runs/document-runs.service";
 import { IngestionService } from "../ingestion/ingestion.service";
 import { IndexingService } from "../indexing/indexing.service";
 import { KnowledgeBasesService } from "../knowledge-bases/knowledge-bases.service";
@@ -34,6 +35,7 @@ export class DocumentsService {
     private readonly feedSourceService: FeedSourceService,
     private readonly sitemapSourceService: SitemapSourceService,
     private readonly webPageService: WebPageService,
+    private readonly documentRunsService: DocumentRunsService,
     private readonly ingestionService: IngestionService,
     private readonly indexingService: IndexingService
   ) {}
@@ -76,6 +78,11 @@ export class DocumentsService {
     });
   }
 
+  async listDocumentRuns(id: string) {
+    await this.getDocument(id);
+    return this.documentRunsService.listDocumentRuns(id);
+  }
+
   async createDocument(knowledgeBaseId: string, input: CreateDocumentInput) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
 
@@ -116,6 +123,11 @@ export class DocumentsService {
       storageKey: storedFile.storageKey
     });
 
+    await this.documentRunsService.createRun({
+      documentId: document.id,
+      version: document.version,
+      trigger: DocumentRunTrigger.upload
+    });
     await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
@@ -131,6 +143,11 @@ export class DocumentsService {
         kind: "web_page",
         url: normalizedUrl
       }
+    });
+    await this.documentRunsService.createRun({
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
     });
 
     const fetchedPage = await this.fetchExternalSourceOrRecordFailure(
@@ -163,6 +180,11 @@ export class DocumentsService {
         url: normalizedUrl,
         maxItems: input.maxItems
       }
+    });
+    await this.documentRunsService.createRun({
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
     });
 
     const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
@@ -197,6 +219,11 @@ export class DocumentsService {
         url: normalizedUrl,
         maxPages: input.maxPages
       }
+    });
+    await this.documentRunsService.createRun({
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
     });
 
     const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
@@ -241,6 +268,11 @@ export class DocumentsService {
       }
     });
 
+    await this.documentRunsService.createRun({
+      documentId: updatedDocument.id,
+      version: updatedDocument.version,
+      trigger: DocumentRunTrigger.reindex
+    });
     await this.ingestionService.enqueueDocument(document.id, updatedDocument.version);
 
     return this.getDocument(id);
@@ -348,6 +380,13 @@ export class DocumentsService {
       return await operation();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown external source fetch error.";
+      const diagnostics = {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        documentVersion: document.version,
+        message
+      } satisfies Prisma.InputJsonValue;
 
       await this.prisma.document.update({
         where: { id: document.id },
@@ -355,14 +394,12 @@ export class DocumentsService {
           status: DocumentStatus.failed,
           processingStage: DocumentProcessingStage.failed,
           errorMessage: message,
-          diagnosticsJson: {
-            code: "EXTERNAL_SOURCE_FETCH_FAILED",
-            failedStage: "source_fetch",
-            retryable: true,
-            documentVersion: document.version,
-            message
-          }
+          diagnosticsJson: diagnostics
         }
+      });
+      await this.documentRunsService.markRunFailed(document.id, document.version, {
+        failedStage: DocumentRunFailedStage.source_fetch,
+        diagnosticsJson: diagnostics
       });
 
       throw error;
@@ -377,7 +414,25 @@ export class DocumentsService {
 
   private async resyncExternalDocument(document: Awaited<ReturnType<DocumentsService["getDocument"]>>) {
     const sourceConfig = this.parseExternalSourceConfig(document.sourceConfigJson);
-    const fetchedSource = await this.fetchExternalSourceOrRecordFailure(document, () =>
+    const queuedDocument = await this.prisma.document.update({
+      where: { id: document.id },
+      data: {
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    });
+    await this.documentRunsService.createRun({
+      documentId: queuedDocument.id,
+      version: queuedDocument.version,
+      trigger: DocumentRunTrigger.external_resync
+    });
+
+    const fetchedSource = await this.fetchExternalSourceOrRecordFailure(queuedDocument, () =>
       this.fetchExternalSourceFromConfig(sourceConfig)
     );
     const storedFile = await this.storageService.saveGeneratedTextFile({
@@ -393,10 +448,7 @@ export class DocumentsService {
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
         errorMessage: null,
-        diagnosticsJson: Prisma.JsonNull,
-        version: {
-          increment: 1
-        }
+        diagnosticsJson: Prisma.JsonNull
       }
     });
 

@@ -61,6 +61,13 @@
    - dedup guards
    - execution boundaries
 
+当前这一轮已经完成的高优先级最小增量：
+
+- source run history / execution observability minimum increment: done
+  - document ingestion / external source run 已具备 run-level persistence
+  - 当前可通过 `GET /documents/:id/runs` 读取 `upload` / `reindex` / `external_resync` 的执行历史
+  - stale ingestion job 也会在 run history 中显式标记为 `skipped`
+
 ### P1：retrieval / answering 收敛
 
 retrieval / answering 目前已经具备较多能力，后续更适合做系统化收敛，而不是继续快速堆功能。

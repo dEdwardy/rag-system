@@ -73,6 +73,11 @@ export class DocumentsController {
     return this.documentsService.getDocument(id);
   }
 
+  @Get("documents/:id/runs")
+  listDocumentRuns(@Param("id") id: string) {
+    return this.documentsService.listDocumentRuns(id);
+  }
+
   @Get("documents/:id/chunks")
   listDocumentChunks(@Param("id") id: string) {
     return this.documentsService.listDocumentChunks(id);

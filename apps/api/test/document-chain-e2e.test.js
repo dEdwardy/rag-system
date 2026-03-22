@@ -81,6 +81,20 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
     assert.equal(typeof readyDocument.chunkCount, "number");
     assert.ok(readyDocument.chunkCount >= 1);
 
+    const uploadRunsResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/runs`);
+    assert.equal(uploadRunsResponse.status, 200);
+
+    const uploadRuns = await uploadRunsResponse.json();
+    assert.equal(uploadRuns.length, 1);
+    assert.equal(uploadRuns[0].documentId, uploadedDocument.id);
+    assert.equal(uploadRuns[0].version, 1);
+    assert.equal(uploadRuns[0].trigger, "upload");
+    assert.equal(uploadRuns[0].status, "ready");
+    assert.equal(uploadRuns[0].failedStage, null);
+    assert.equal(uploadRuns[0].diagnosticsJson, null);
+    assert.ok(uploadRuns[0].startedAt);
+    assert.ok(uploadRuns[0].finishedAt);
+
     const listAfterUploadResponse = await fetch(
       `http://localhost:${port}/knowledge-bases/default-kb/documents`
     );
@@ -115,6 +129,35 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
     assert.equal(readyAfterReindex.processingStage, "completed");
     assert.ok(readyAfterReindex.chunkCount >= 1);
     assert.equal(readyAfterReindex.version, 2);
+
+    const runsAfterReindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/runs`);
+    assert.equal(runsAfterReindexResponse.status, 200);
+
+    const runsAfterReindex = await runsAfterReindexResponse.json();
+    assert.equal(runsAfterReindex.length, 2);
+    assert.deepEqual(
+      runsAfterReindex.map(run => ({
+        version: run.version,
+        trigger: run.trigger,
+        status: run.status,
+        failedStage: run.failedStage
+      })),
+      [
+        {
+          version: 2,
+          trigger: "reindex",
+          status: "ready",
+          failedStage: null
+        },
+        {
+          version: 1,
+          trigger: "upload",
+          status: "ready",
+          failedStage: null
+        }
+      ]
+    );
+    assert.ok(runsAfterReindex.every(run => run.startedAt && run.finishedAt));
 
     const chunksAfterReindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
     assert.equal(chunksAfterReindexResponse.status, 200);
@@ -198,6 +241,32 @@ test("Document chain E2E: unsupported upload records structured ingestion diagno
       documentVersion: 1,
       message: failedDocument.errorMessage
     });
+
+    const failedRunsResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/runs`);
+    assert.equal(failedRunsResponse.status, 200);
+
+    const failedRuns = await failedRunsResponse.json();
+    assert.equal(failedRuns.length, 1);
+    assert.deepEqual(
+      {
+        documentId: failedRuns[0].documentId,
+        version: failedRuns[0].version,
+        trigger: failedRuns[0].trigger,
+        status: failedRuns[0].status,
+        failedStage: failedRuns[0].failedStage,
+        diagnosticsJson: failedRuns[0].diagnosticsJson
+      },
+      {
+        documentId: uploadedDocument.id,
+        version: 1,
+        trigger: "upload",
+        status: "failed",
+        failedStage: "parsing",
+        diagnosticsJson: failedDocument.diagnosticsJson
+      }
+    );
+    assert.ok(failedRuns[0].startedAt);
+    assert.ok(failedRuns[0].finishedAt);
   } finally {
     server.kill("SIGTERM");
     rmSync(storageRoot, { recursive: true, force: true });
