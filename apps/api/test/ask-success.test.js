@@ -704,8 +704,6 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
       })
     },
     {
-      getDeterministicInsufficientContextAnswer: ({ question }) =>
-        `deterministic fallback for: ${question}`,
       buildDeterministicInsufficientContextResult: ({ question }) => ({
         answer: `deterministic fallback for: ${question}`,
         citations: [],
@@ -899,6 +897,117 @@ test("AskAssistantService also bypasses one-shot generation when noAnswerBehavio
   assert.equal(result.answerStatus, "insufficient_context");
 });
 
+test("AskAssistantService preserves best_effort one-shot no-hit answers instead of using deterministic bypass", async () => {
+  let generateAnswerCalls = 0;
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "direct",
+          outputFormat: "paragraph",
+          language: "en",
+          citationMode: "optional",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks: [],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      generateAnswer: async input => {
+        generateAnswerCalls += 1;
+        assert.equal(input.answerPolicy.noAnswerBehavior, "best_effort");
+        return {
+          answer: "Best effort answer with uncertainty.",
+          citations: [],
+          retrievedChunks: [],
+          contextGroups: [],
+          answeringMetadata: {
+            promptId: "answer.v2",
+            usedFallback: false,
+            answerPolicy: input.answerPolicy,
+            contextMode: "chunks",
+            inputChunkCount: 0,
+            contextGroupCount: 0,
+            citationCount: 0,
+            answerStatus: "insufficient_context"
+          },
+          modelName: "test-model",
+          answerStatus: "insufficient_context",
+          missingInformation: ["No relevant supporting sources were retrieved."],
+          qualityEvaluation: {
+            overall: "weak",
+            grounding: "ungrounded",
+            completeness: "insufficient",
+            primaryIssue: "no_retrieval_hits",
+            flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+            summary: "Answer quality is weak because supporting context was insufficient."
+          }
+        };
+      }
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      })
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "What detail is missing?"
+  });
+
+  assert.equal(generateAnswerCalls, 1);
+  assert.equal(result.answer, "Best effort answer with uncertainty.");
+  assert.equal(result.answeringMetadata.answerPolicy.noAnswerBehavior, "best_effort");
+  assert.equal(result.answerStatus, "insufficient_context");
+});
+
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {
   const service = new AskAssistantService(
     {
@@ -951,8 +1060,6 @@ test("AskAssistantService localizes one-shot deterministic no-hit answers for Ch
       })
     },
     {
-      getDeterministicInsufficientContextAnswer: () =>
-        "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002",
       buildDeterministicInsufficientContextResult: () => ({
         answer:
           "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002",

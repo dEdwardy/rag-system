@@ -115,6 +115,7 @@ Notes:
   - for `POST /assistants/:id/ask/stream`, when retrieval returns no chunks and `noAnswerBehavior=say_insufficient_context`, the backend now bypasses provider streaming and emits that same deterministic reply directly
   - that stream deterministic no-hit path now also bypasses streamed final-answer normalization and reuses the same centralized insufficient-context result shaping for the final payload
   - `best_effort`: the backend preserves the model's returned answer text even when the final answer status is `insufficient_context`
+  - that `best_effort` behavior is now explicitly covered at the ask-service orchestration layer too: one-shot no-hit requests still go through answer generation, and stream no-hit requests still go through streamed generation/finalization instead of reusing the deterministic insufficient-context bypass
   - the local `LlmService` no-model fallback for zero-hit answers now follows the same minimal `en` / `zh` language resolution instead of always returning English
   - that same zero-hit local fallback path now also localizes its deterministic `missingInformation` reason for `en` / `zh`
   - the native stream fallback path for zero-hit `say_insufficient_context` answers now emits that same deterministic insufficient-context reply, so streamed deltas and final payload stay aligned
