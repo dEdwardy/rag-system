@@ -367,6 +367,7 @@ Notes:
   - `ready` runs that still carry a partial `failureSummary`
 - `latestFailure` now resolves from the most recent counted `failureSummary` run, so a newer partial-ready source run can supersede an older terminal failure in the summary anchor
 - `pending` / `processing` runs that temporarily carry preserved partial diagnostics are not counted in summary failure stats, and their top-level `failedStage` remains `null`
+- `GET /knowledge-bases/:id/document-runs?status=failed` currently remains terminal-only and does not include partial-ready runs
 - each document run currently records:
   - `documentId`
   - `version`

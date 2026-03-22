@@ -229,6 +229,12 @@ test("Feed source E2E: partial invalid entries still reach ready and persist dia
     });
     assert.ok(summary.latestFailure.finishedAt);
 
+    const failedRunsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?status=failed`
+    );
+    assert.equal(failedRunsResponse.status, 200);
+    assert.deepEqual(await failedRunsResponse.json(), []);
+
     const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
       method: "POST",
       headers: {
