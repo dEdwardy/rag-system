@@ -51,11 +51,26 @@ export class DocumentRunsService {
       external_resync: 0
     };
     const bySourceType: Record<string, number> = {};
+    const failureByStage: Record<string, number> = {};
+    let retryableFailures = 0;
+    let nonRetryableFailures = 0;
 
     for (const run of runs) {
       byStatus[run.status] += 1;
       byTrigger[run.trigger] += 1;
       bySourceType[run.document.sourceType] = (bySourceType[run.document.sourceType] ?? 0) + 1;
+
+      if (run.status === DocumentRunStatus.failed) {
+        if (run.failedStage) {
+          failureByStage[run.failedStage] = (failureByStage[run.failedStage] ?? 0) + 1;
+        }
+
+        if (this.isRetryableDiagnostics(run.diagnosticsJson)) {
+          retryableFailures += 1;
+        } else {
+          nonRetryableFailures += 1;
+        }
+      }
     }
 
     const latestFailure = runs.find(run => run.status === DocumentRunStatus.failed);
@@ -79,6 +94,9 @@ export class DocumentRunsService {
       byStatus,
       byTrigger,
       bySourceType,
+      retryableFailures,
+      nonRetryableFailures,
+      failureByStage,
       latestFailure: latestFailure
         ? {
             documentId: latestFailure.documentId,
@@ -236,5 +254,13 @@ export class DocumentRunsService {
     }
 
     return typeof value.message === "string" ? value.message : null;
+  }
+
+  private isRetryableDiagnostics(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return false;
+    }
+
+    return value.retryable === true;
   }
 }

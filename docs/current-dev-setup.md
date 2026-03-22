@@ -277,6 +277,9 @@ Notes:
   - `byStatus`
   - `byTrigger`
   - `bySourceType`
+  - `retryableFailures`
+  - `nonRetryableFailures`
+  - `failureByStage`
   - `latestFailure`
 - each document run currently records:
   - `documentId`

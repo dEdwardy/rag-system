@@ -244,6 +244,9 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
     assert.deepEqual(runSummary.bySourceType, {
       upload: 2
     });
+    assert.equal(runSummary.retryableFailures, 0);
+    assert.equal(runSummary.nonRetryableFailures, 0);
+    assert.deepEqual(runSummary.failureByStage, {});
     assert.deepEqual(runSummary.latestFailure, null);
 
     const chunksAfterReindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);

@@ -502,6 +502,9 @@
     - `byStatus`
     - `byTrigger`
     - `bySourceType`
+    - `retryableFailures`
+    - `nonRetryableFailures`
+    - `failureByStage`
     - `latestFailure`
   - 目标是先为后续 diagnostics 承载和潜在 UI 概览提供轻量后端聚合面，而不是继续扩 source platform 抽象
   - focused validation rerun:

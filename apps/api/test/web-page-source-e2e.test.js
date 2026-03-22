@@ -324,6 +324,11 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
     assert.deepEqual(summary.bySourceType, {
       web_page: 1
     });
+    assert.equal(summary.retryableFailures, 1);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.failureByStage, {
+      source_fetch: 1
+    });
     assert.deepEqual(summary.latestFailure, {
       documentId: documents[0].id,
       version: 1,
