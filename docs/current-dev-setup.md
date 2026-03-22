@@ -122,6 +122,7 @@ Notes:
 - current quality-evaluation semantics:
   - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty
   - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
+  - the strong-summary wording now distinguishes between answers grounded in cited sources and answers grounded in retrieved sources without citations
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`

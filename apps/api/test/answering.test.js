@@ -315,7 +315,7 @@ test("AnsweringService keeps quality evaluation strong when citations are option
     grounding: "grounded",
     completeness: "complete",
     flags: [],
-    summary: "Answer is grounded in cited sources with no reported gaps."
+    summary: "Answer is grounded in retrieved sources with no reported gaps."
   });
 });
 

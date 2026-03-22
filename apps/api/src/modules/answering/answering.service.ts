@@ -467,7 +467,9 @@ export class AnsweringService {
 
     const summary =
       overall === "strong"
-        ? "Answer is grounded in cited sources with no reported gaps."
+        ? input.citationCount > 0
+          ? "Answer is grounded in cited sources with no reported gaps."
+          : "Answer is grounded in retrieved sources with no reported gaps."
         : overall === "partial"
           ? "Answer is grounded but incomplete because some information is missing."
           : "Answer quality is weak because supporting context was insufficient.";

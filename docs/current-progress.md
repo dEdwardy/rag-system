@@ -462,6 +462,13 @@
 
 ### 2026-03-23
 
+- ✅ optional-citation strong-summary wording alignment
+  - optional-citation 下的 `strong` quality summary 现在不会再错误声称回答“grounded in cited sources”
+  - 当回答没有 citation 但仍然 grounded / strong 时，summary 现会改为基于 retrieved sources 的表述
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
 - ✅ optional-citation quality evaluation alignment
   - `citationMode=optional` 的 grounded answers 现在不会再因为缺少 citation 被自动打上 `no_citations`
   - 当没有其他 gap 或 retrieval-risk 信号时，这类回答的 `qualityEvaluation` 现在可以保持 `strong`
