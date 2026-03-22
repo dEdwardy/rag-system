@@ -140,6 +140,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
   const events = [];
   let providerStreamCalls = 0;
+  let finalizeStreamedAnswerCalls = 0;
 
   const service = new AskAssistantService(
     {
@@ -195,10 +196,48 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
       buildStreamAnswerContext: ({ chunks }) => chunks,
       getDeterministicInsufficientContextAnswer: ({ question }) =>
         `deterministic fallback for: ${question}`,
+      buildDeterministicInsufficientContextResult: ({ question }) => ({
+        answer: `deterministic fallback for: ${question}`,
+        modelName: "fallback-local",
+        citations: [],
+        retrievedChunks: [],
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy: {
+            responseStyle: "concise",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "en",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "say_insufficient_context",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
+        answerStatus: "insufficient_context",
+        missingInformation: ["No relevant supporting sources were retrieved."],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          primaryIssue: "no_retrieval_hits",
+          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+          summary: "Answer quality is weak because supporting context was insufficient."
+        }
+      }),
       generateAnswer: async () => {
         throw new Error("one-shot generateAnswer should not be used by native streaming");
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async input => {
+        finalizeStreamedAnswerCalls += 1;
+        return {
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [],
@@ -224,7 +263,8 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
           flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
           summary: "Answer quality is weak because supporting context was insufficient."
         }
-      })
+        };
+      }
     },
     {
       createTrace: async () => ({ id: "trace-1" }),
@@ -253,6 +293,7 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   });
 
   assert.equal(providerStreamCalls, 0);
+  assert.equal(finalizeStreamedAnswerCalls, 0);
   assert.deepEqual(
     events.map(event => event.type === "status" ? `${event.type}:${event.phase}` : event.type),
     ["status:started", "status:retrieving", "status:generating", "answer_delta", "final"]

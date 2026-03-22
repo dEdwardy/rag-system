@@ -15,6 +15,7 @@
 - `POST /assistants/:id/ask` 的 deterministic no-hit `say_insufficient_context` 旁路结果现在已复用 answering 层统一结果构造，不再在 ask service 内手写英文 `missingInformation` / `qualityEvaluation.summary`
 - 这使 one-shot no-hit deterministic answer 的 answer 文本、`missingInformation`、弱质量总结在 `en` / `zh` 下保持一致本地化语义
 - one-shot no-hit deterministic bypass 现在也会在 assistant 未显式配置 `answerPolicyJson` 时生效，和 backend 默认 `noAnswerBehavior=say_insufficient_context` 语义保持一致
+- `POST /assistants/:id/ask/stream` 的 deterministic no-hit 旁路现在也直接复用同一 centralized insufficient-context result shaping，不再先旁路 provider stream 再绕回 streamed finalization
 
 ## 1. 状态总览
 

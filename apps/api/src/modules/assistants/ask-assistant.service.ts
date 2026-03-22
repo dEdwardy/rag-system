@@ -321,51 +321,48 @@ export class AskAssistantService {
         phase: "generating"
       });
 
-      const streamResult =
+      const resolvedAnswerResult =
         retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
           ? await (async () => {
-              const deterministicAnswer = this.answeringService.getDeterministicInsufficientContextAnswer({
+              const deterministicResult = this.answeringService.buildDeterministicInsufficientContextResult({
                 question: input.question,
                 answerPolicy: normalizedAnswerPolicy
               });
               await input.onEvent({
                 type: "answer_delta",
-                delta: deterministicAnswer
+                delta: deterministicResult.answer
               });
 
-              return {
-                rawAnswer: deterministicAnswer,
-                modelName: "fallback-local",
-                promptId: "answer.v2",
-                usedFallback: true
-              };
+              return deterministicResult;
             })()
-          : await this.llmService.generateAnswerStream({
-              question: input.question,
-              systemPrompt: assistant.systemPrompt,
-              answerPolicy: normalizedAnswerPolicy,
-              chunks: this.answeringService.buildStreamAnswerContext({
-                chunks: retrievedChunks,
-                contextGroups
-              }),
-              onDelta: async delta => {
-                await input.onEvent({
-                  type: "answer_delta",
-                  delta
-                });
-              }
-            });
+          : await (async () => {
+              const streamResult = await this.llmService.generateAnswerStream({
+                question: input.question,
+                systemPrompt: assistant.systemPrompt,
+                answerPolicy: normalizedAnswerPolicy,
+                chunks: this.answeringService.buildStreamAnswerContext({
+                  chunks: retrievedChunks,
+                  contextGroups
+                }),
+                onDelta: async delta => {
+                  await input.onEvent({
+                    type: "answer_delta",
+                    delta
+                  });
+                }
+              });
 
-      const resolvedAnswerResult = await this.answeringService.finalizeStreamedAnswer({
-        question: input.question,
-        answerPolicy: normalizedAnswerPolicy,
-        chunks: retrievedChunks,
-        contextGroups,
-        rawAnswer: streamResult.rawAnswer,
-        modelName: streamResult.modelName,
-        promptId: streamResult.promptId,
-        usedFallback: streamResult.usedFallback
-      });
+              return this.answeringService.finalizeStreamedAnswer({
+                question: input.question,
+                answerPolicy: normalizedAnswerPolicy,
+                chunks: retrievedChunks,
+                contextGroups,
+                rawAnswer: streamResult.rawAnswer,
+                modelName: streamResult.modelName,
+                promptId: streamResult.promptId,
+                usedFallback: streamResult.usedFallback
+              });
+            })();
 
       const assistantMessage = await this.messagesService.createMessage({
         conversationId: conversation.id,
