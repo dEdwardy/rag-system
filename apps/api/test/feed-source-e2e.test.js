@@ -361,6 +361,155 @@ test("Feed source E2E: in-flight reindex from a partial-ready source does not po
   }
 });
 
+test("Feed source E2E: partial-ready source clears current diagnostics after a later clean resync", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3112;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-partial-then-clean-${randomUUID()}`);
+  const queuePrefix = `test-feed-partial-then-clean-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const initialMarker = `feed-partial-then-clean-initial-${randomUUID()}`;
+  const cleanMarker = `feed-partial-then-clean-clean-${randomUUID()}`;
+  const feedServer = await startRecoverableFeedServer(initialMarker, cleanMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    const partialReadyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(partialReadyDocument.status, "ready");
+    assert.equal(partialReadyDocument.diagnosticsJson?.partial, true);
+
+    feedServer.setClean();
+
+    const reindexResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/reindex`, {
+      method: "POST"
+    });
+    assert.equal(reindexResponse.status, 201);
+
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.version, 2);
+    assert.equal(readyDocument.status, "ready");
+    assert.equal(readyDocument.errorMessage, null);
+    assert.equal(readyDocument.diagnosticsJson, null);
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        id: documents[0].id,
+        version: documents[0].version,
+        status: documents[0].status,
+        errorMessage: documents[0].errorMessage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        id: createdDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const detailResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}`);
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.deepEqual(
+      {
+        id: detail.id,
+        version: detail.version,
+        status: detail.status,
+        errorMessage: detail.errorMessage,
+        diagnosticsJson: detail.diagnosticsJson
+      },
+      {
+        id: createdDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const runsResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/runs`);
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs.length, 2);
+    assert.deepEqual(
+      runs.map(run => ({
+        version: run.version,
+        status: run.status,
+        failedStage: run.failedStage,
+        failureSummary: run.failureSummary
+      })),
+      [
+        {
+          version: 2,
+          status: "ready",
+          failedStage: null,
+          failureSummary: null
+        },
+        {
+          version: 1,
+          status: "ready",
+          failedStage: "source_fetch",
+          failureSummary: {
+            code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+            failedStage: "source_fetch",
+            retryable: false,
+            message: "Feed source completed with partial entry validation failures."
+          }
+        }
+      ]
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 2);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.failureByStage, {});
+    assert.equal(summary.latestRetryableFailure, null);
+    assert.equal(summary.latestFailure, null);
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -510,6 +659,59 @@ async function startControllablePartialFeedServer() {
     },
     releaseDelayedResponse() {
       releaseDelayedResponse();
+    }
+  };
+}
+
+async function startRecoverableFeedServer(initialMarker, cleanMarker) {
+  let mode = "partial";
+
+  const server = http.createServer((request, response) => {
+    if (request.url === "/updates.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/rss+xml; charset=utf-8"
+      });
+
+      if (mode === "partial") {
+        response.end(buildPartialFeedXml(initialMarker, "Release Note 1", "<p>Initial partial-ready feed payload.</p>"));
+        return;
+      }
+
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Remote Feed Updates</title>
+            <description>External knowledge source test feed.</description>
+            <item>
+              <title>Release Note 1</title>
+              <link>https://example.com/release-1</link>
+              <description><![CDATA[<p>Unique marker: ${cleanMarker}</p>]]></description>
+            </item>
+            <item>
+              <title>Release Note 2</title>
+              <link>https://example.com/release-2</link>
+              <description><![CDATA[<p>Clean recovery payload.</p>]]></description>
+            </item>
+          </channel>
+        </rss>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  return {
+    server,
+    origin: `http://127.0.0.1:${server.address().port}`,
+    setClean() {
+      mode = "clean";
     }
   };
 }
