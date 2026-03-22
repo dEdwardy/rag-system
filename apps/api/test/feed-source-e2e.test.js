@@ -1032,6 +1032,184 @@ test("Feed source E2E: all-invalid entries leave a failed document with diagnost
   }
 });
 
+test("Feed source E2E: all-invalid failure clears current diagnostics after a later successful sync", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3127;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-invalid-recovery-${randomUUID()}`);
+  const queuePrefix = `test-feed-invalid-recovery-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const recoveredMarker = `feed-invalid-recovered-marker-${randomUUID()}`;
+  const feedServer = await startRecoverableInvalidFeedServer(recoveredMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const failedCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(failedCreateResponse.status, 400);
+
+    const failedDocumentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(failedDocumentsResponse.status, 200);
+    const failedDocuments = await failedDocumentsResponse.json();
+    assert.equal(failedDocuments.length, 1);
+    assert.equal(failedDocuments[0].status, "failed");
+    assert.deepEqual(failedDocuments[0].diagnosticsJson, {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: false,
+      documentVersion: 1,
+      message: "Extracted feed content is empty: all feed entries were invalid."
+    });
+
+    feedServer.setReady();
+
+    const recoveredCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(recoveredCreateResponse.status, 201);
+
+    const recoveredDocument = await recoveredCreateResponse.json();
+    assert.equal(recoveredDocument.id, failedDocuments[0].id);
+    assert.equal(recoveredDocument.status, "pending");
+
+    const readyDocument = await waitForDocumentReady(port, recoveredDocument.id, 20000);
+    assert.deepEqual(
+      {
+        version: readyDocument.version,
+        status: readyDocument.status,
+        errorMessage: readyDocument.errorMessage,
+        diagnosticsJson: readyDocument.diagnosticsJson
+      },
+      {
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const chunksResponse = await fetch(`http://localhost:${port}/documents/${recoveredDocument.id}/chunks`);
+    assert.equal(chunksResponse.status, 200);
+    const chunks = await chunksResponse.json();
+    assert.ok(chunks.some(chunk => chunk.content.includes(recoveredMarker)));
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        id: documents[0].id,
+        version: documents[0].version,
+        status: documents[0].status,
+        errorMessage: documents[0].errorMessage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        id: recoveredDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const detailResponse = await fetch(`http://localhost:${port}/documents/${recoveredDocument.id}`);
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.deepEqual(
+      {
+        id: detail.id,
+        version: detail.version,
+        status: detail.status,
+        errorMessage: detail.errorMessage,
+        diagnosticsJson: detail.diagnosticsJson
+      },
+      {
+        id: recoveredDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 2);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.failureByStage, {});
+    assert.equal(summary.latestRetryableFailure, null);
+    assert.equal(summary.latestFailure, null);
+
+    const failedRunsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?status=failed&documentId=${recoveredDocument.id}`
+    );
+    assert.equal(failedRunsResponse.status, 200);
+    const failedRuns = await failedRunsResponse.json();
+    assert.equal(failedRuns.length, 1);
+    assert.deepEqual(
+      {
+        documentId: failedRuns[0].documentId,
+        version: failedRuns[0].version,
+        status: failedRuns[0].status,
+        failedStage: failedRuns[0].failedStage,
+        failureSummary: failedRuns[0].failureSummary
+      },
+      {
+        documentId: recoveredDocument.id,
+        version: 1,
+        status: "failed",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          message: "Extracted feed content is empty: all feed entries were invalid."
+        }
+      }
+    );
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -1371,6 +1549,71 @@ async function startInvalidFeedServer() {
   return {
     server,
     origin: `http://127.0.0.1:${server.address().port}`
+  };
+}
+
+async function startRecoverableInvalidFeedServer(marker) {
+  let mode = "invalid";
+
+  const server = http.createServer((request, response) => {
+    if (request.url === "/updates.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/rss+xml; charset=utf-8"
+      });
+
+      if (mode === "invalid") {
+        response.end(`<?xml version="1.0" encoding="UTF-8"?>
+          <rss version="2.0">
+            <channel>
+              <title>Broken Feed Updates</title>
+              <description>Every entry is invalid.</description>
+              <item>
+                <title>Broken Entry 1</title>
+              </item>
+              <item>
+                <title>Broken Entry 2</title>
+              </item>
+            </channel>
+          </rss>`);
+        return;
+      }
+
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Recovered Feed Updates</title>
+            <description>Feed recovery payload.</description>
+            <item>
+              <title>Recovered Entry 1</title>
+              <link>https://example.com/recovered-1</link>
+              <description><![CDATA[<p>Unique marker: ${marker}</p>]]></description>
+            </item>
+            <item>
+              <title>Recovered Entry 2</title>
+              <link>https://example.com/recovered-2</link>
+              <description><![CDATA[<p>Recovered clean payload.</p>]]></description>
+            </item>
+          </channel>
+        </rss>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  return {
+    server,
+    origin: `http://127.0.0.1:${server.address().port}`,
+    setReady() {
+      mode = "ready";
+    }
   };
 }
 
