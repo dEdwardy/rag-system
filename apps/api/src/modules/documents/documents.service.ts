@@ -110,15 +110,16 @@ export class DocumentsService {
   }
 
   async createWebPageDocument(knowledgeBaseId: string, input: CreateWebPageDocumentInput) {
-    const fetchedPage = await this.webPageService.fetchWebPage(input.url);
+    const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
+    const fetchedPage = await this.webPageService.fetchWebPage(normalizedUrl);
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedPage.content
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
+    const document = await this.createOrSyncExternalDocument(knowledgeBaseId, {
       sourceType: "web_page",
-      sourceName: input.url,
-      title: input.title ?? fetchedPage.title ?? this.buildRemoteSourceFallbackTitle(input.url),
+      sourceName: normalizedUrl,
+      title: input.title ?? fetchedPage.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
     });
@@ -129,18 +130,19 @@ export class DocumentsService {
   }
 
   async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput) {
+    const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
     const fetchedFeed = await this.feedSourceService.fetchFeed({
-      url: input.url,
+      url: normalizedUrl,
       maxItems: input.maxItems
     });
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedFeed.content
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
+    const document = await this.createOrSyncExternalDocument(knowledgeBaseId, {
       sourceType: "feed",
-      sourceName: input.url,
-      title: input.title ?? fetchedFeed.title ?? this.buildRemoteSourceFallbackTitle(input.url),
+      sourceName: normalizedUrl,
+      title: input.title ?? fetchedFeed.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
     });
@@ -151,18 +153,19 @@ export class DocumentsService {
   }
 
   async createSitemapDocument(knowledgeBaseId: string, input: CreateSitemapDocumentInput) {
+    const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
     const fetchedSitemap = await this.sitemapSourceService.fetchSitemap({
-      url: input.url,
+      url: normalizedUrl,
       maxPages: input.maxPages
     });
     const storedFile = await this.storageService.saveGeneratedTextFile({
       content: fetchedSitemap.content
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
+    const document = await this.createOrSyncExternalDocument(knowledgeBaseId, {
       sourceType: "sitemap",
-      sourceName: input.url,
-      title: input.title ?? this.buildRemoteSourceFallbackTitle(input.url),
+      sourceName: normalizedUrl,
+      title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey
     });
@@ -206,5 +209,49 @@ export class DocumentsService {
     const parsed = new URL(url);
     const path = `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
     return path.slice(0, 255);
+  }
+
+  private async createOrSyncExternalDocument(
+    knowledgeBaseId: string,
+    input: CreateDocumentInput
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+
+    const existingDocument = await this.prisma.document.findFirst({
+      where: {
+        kbId: knowledgeBaseId,
+        sourceType: input.sourceType,
+        sourceName: input.sourceName
+      }
+    });
+
+    if (!existingDocument) {
+      return this.createDocument(knowledgeBaseId, input);
+    }
+
+    return this.prisma.document.update({
+      where: {
+        id: existingDocument.id
+      },
+      data: {
+        sourceName: input.sourceName,
+        title: input.title,
+        mimeType: input.mimeType,
+        storageKey: input.storageKey,
+        status: DocumentStatus.pending,
+        processingStage: DocumentProcessingStage.uploaded,
+        chunkCount: 0,
+        errorMessage: null,
+        version: {
+          increment: 1
+        }
+      }
+    });
+  }
+
+  private normalizeRemoteSourceUrl(url: string) {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return parsed.toString();
   }
 }

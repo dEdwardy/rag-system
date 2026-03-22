@@ -431,6 +431,20 @@
 
 ### 2026-03-22
 
+- ✅ external source repeat-run dedup / re-sync 第一轮
+  - `web page` / `feed` / `sitemap` 入口现在会先对 remote URL 做归一化（去掉 hash，并使用标准化 URL 字符串）
+  - 同一 `knowledge base + sourceType + normalized URL` 再次 ingestion 时，不再创建重复 `Document`
+  - 当前改为复用原有 document 记录，更新生成的 source artifact，重置状态并递增 `version` 后重新进入 ingestion
+  - 这次改动优先收口在 `DocumentsService` 的 external source 共用边界，避免只对单一 source 类型打补丁
+  - 新增共用回归测试：
+    - `apps/api/test/external-source-sync.test.js`
+  - 新增 focused HTTP E2E：
+    - `apps/api/test/web-page-source-e2e.test.js`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
 - ✅ UI 审查问题第一轮收口
   - 基于 `ui/审查报告.md` 对当前 `PC Web` 做第一轮 focused cleanup
   - `AppShell` 顶栏中的搜索 / 通知 / 当前知识库展示降级为非误导性的展示控件，减少假交互

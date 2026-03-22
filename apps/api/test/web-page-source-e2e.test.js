@@ -115,6 +115,83 @@ test("Web page source E2E: url -> ready -> chunks -> ask -> reindex", async () =
   }
 });
 
+test("Web page source E2E: ingesting the same URL again reuses the document and refreshes content", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3114;
+  const storageRoot = resolve(repoRoot, "storage", `test-web-page-resync-${randomUUID()}`);
+  const queuePrefix = `test-web-page-resync-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  let pageMarker = `web-page-source-marker-${randomUUID()}`;
+  const pageServer = await startWebPageServer(() => pageMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const firstCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/web-page`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${pageServer.origin}/knowledge/article#intro`
+      })
+    });
+    assert.equal(firstCreateResponse.status, 201);
+
+    const firstDocument = await firstCreateResponse.json();
+    const firstReadyDocument = await waitForDocumentReady(port, firstDocument.id, 20000);
+    assert.equal(firstReadyDocument.version, 1);
+
+    pageMarker = `web-page-source-marker-${randomUUID()}`;
+
+    const secondCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/web-page`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${pageServer.origin}/knowledge/article`
+      })
+    });
+    assert.equal(secondCreateResponse.status, 201);
+
+    const secondDocument = await secondCreateResponse.json();
+    assert.equal(secondDocument.id, firstDocument.id);
+    assert.equal(secondDocument.sourceName, `${pageServer.origin}/knowledge/article`);
+    assert.equal(secondDocument.status, "pending");
+
+    const refreshedDocument = await waitForDocumentReady(port, secondDocument.id, 20000);
+    assert.equal(refreshedDocument.version, 2);
+
+    const chunksResponse = await fetch(`http://localhost:${port}/documents/${secondDocument.id}/chunks`);
+    assert.equal(chunksResponse.status, 200);
+
+    const chunks = await chunksResponse.json();
+    assert.ok(chunks.some(chunk => chunk.content.includes(pageMarker)));
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(pageServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -127,9 +204,10 @@ async function resetTestState() {
   await prisma.document.deleteMany();
 }
 
-async function startWebPageServer(marker) {
+async function startWebPageServer(markerOrFactory) {
   const server = http.createServer((request, response) => {
     if (request.url === "/knowledge/article") {
+      const marker = typeof markerOrFactory === "function" ? markerOrFactory() : markerOrFactory;
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8"
       });
