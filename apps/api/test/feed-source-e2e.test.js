@@ -510,6 +510,146 @@ test("Feed source E2E: partial-ready source clears current diagnostics after a l
   }
 });
 
+test("Feed source E2E: same-URL reuse clears partial diagnostics after a later clean sync", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3118;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-partial-reuse-clean-${randomUUID()}`);
+  const queuePrefix = `test-feed-partial-reuse-clean-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const initialMarker = `feed-partial-reuse-initial-${randomUUID()}`;
+  const cleanMarker = `feed-partial-reuse-clean-${randomUUID()}`;
+  const feedServer = await startRecoverableFeedServer(initialMarker, cleanMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const firstCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml#latest`,
+        maxItems: 2
+      })
+    });
+    assert.equal(firstCreateResponse.status, 201);
+
+    const firstDocument = await firstCreateResponse.json();
+    const partialReadyDocument = await waitForDocumentReady(port, firstDocument.id, 20000);
+    assert.equal(partialReadyDocument.status, "ready");
+    assert.equal(partialReadyDocument.diagnosticsJson?.partial, true);
+
+    feedServer.setClean();
+
+    const secondCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(secondCreateResponse.status, 201);
+
+    const secondDocument = await secondCreateResponse.json();
+    assert.equal(secondDocument.id, firstDocument.id);
+    assert.equal(secondDocument.status, "pending");
+
+    const readyDocument = await waitForDocumentReady(port, secondDocument.id, 20000);
+    assert.equal(readyDocument.version, 2);
+    assert.equal(readyDocument.status, "ready");
+    assert.equal(readyDocument.errorMessage, null);
+    assert.equal(readyDocument.diagnosticsJson, null);
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        id: documents[0].id,
+        version: documents[0].version,
+        status: documents[0].status,
+        errorMessage: documents[0].errorMessage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        id: firstDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const runsResponse = await fetch(`http://localhost:${port}/documents/${firstDocument.id}/runs`);
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs.length, 2);
+    assert.deepEqual(
+      runs.map(run => ({
+        version: run.version,
+        status: run.status,
+        failedStage: run.failedStage,
+        failureSummary: run.failureSummary
+      })),
+      [
+        {
+          version: 2,
+          status: "ready",
+          failedStage: null,
+          failureSummary: null
+        },
+        {
+          version: 1,
+          status: "ready",
+          failedStage: "source_fetch",
+          failureSummary: {
+            code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+            failedStage: "source_fetch",
+            retryable: false,
+            message: "Feed source completed with partial entry validation failures."
+          }
+        }
+      ]
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 2);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.failureByStage, {});
+    assert.equal(summary.latestRetryableFailure, null);
+    assert.equal(summary.latestFailure, null);
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
