@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { Prisma } = require("@prisma/client");
 const { DocumentsService } = require("../dist/modules/documents/documents.service.js");
 
 test("DocumentsService reuses an existing web page document when the same URL is ingested again", async () => {
@@ -156,6 +157,7 @@ async function expectExternalSourceResync({ sourceType, methodName, input, expec
       processingStage: "uploaded",
       chunkCount: 0,
       errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull,
       version: {
         increment: 1
       }

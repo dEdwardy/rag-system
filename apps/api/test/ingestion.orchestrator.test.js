@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { Prisma } = require("@prisma/client");
 const { IngestionService } = require("../dist/modules/ingestion/ingestion.service.js");
 
 test("IngestionService processes a document through parsing, chunking, indexing, and ready status", async () => {
@@ -34,7 +35,7 @@ test("IngestionService processes a document through parsing, chunking, indexing,
     }
   };
 
-  const fakeService = {
+  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
     prisma,
     storageService: {
       readFileByStorageKey: async storageKey => {
@@ -63,7 +64,7 @@ test("IngestionService processes a document through parsing, chunking, indexing,
         indexingCalls.push(documentId);
       }
     }
-  };
+  });
 
   await IngestionService.prototype.processDocument.call(fakeService, {
     data: {
@@ -109,7 +110,11 @@ test("IngestionService processes a document through parsing, chunking, indexing,
     {
       status: "processing",
       processingStage: "parsing",
-      errorMessage: null
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    {
+      processingStage: "chunking"
     },
     {
       processingStage: "indexing"
@@ -118,7 +123,8 @@ test("IngestionService processes a document through parsing, chunking, indexing,
       status: "ready",
       processingStage: "completed",
       chunkCount: 2,
-      errorMessage: null
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
     }
   ]);
 });
@@ -133,7 +139,8 @@ test("IngestionService marks the document as failed when indexing throws", async
         kbId: "kb-1",
         sourceName: "guide.md",
         mimeType: "text/markdown",
-        storageKey: "documents/document-2.md"
+        storageKey: "documents/document-2.md",
+        version: 1
       }),
       update: async ({ data }) => {
         documentUpdates.push(data);
@@ -146,7 +153,7 @@ test("IngestionService marks the document as failed when indexing throws", async
     }
   };
 
-  const fakeService = {
+  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
     prisma,
     storageService: {
       readFileByStorageKey: async () => Buffer.from("# Guide\n\nAlpha")
@@ -162,7 +169,7 @@ test("IngestionService marks the document as failed when indexing throws", async
         throw new Error("synthetic indexing failure");
       }
     }
-  };
+  });
 
   await assert.rejects(
     IngestionService.prototype.processDocument.call(fakeService, {
@@ -177,7 +184,11 @@ test("IngestionService marks the document as failed when indexing throws", async
     {
       status: "processing",
       processingStage: "parsing",
-      errorMessage: null
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    {
+      processingStage: "chunking"
     },
     {
       processingStage: "indexing"
@@ -185,7 +196,14 @@ test("IngestionService marks the document as failed when indexing throws", async
     {
       status: "failed",
       processingStage: "failed",
-      errorMessage: "synthetic indexing failure"
+      errorMessage: "synthetic indexing failure",
+      diagnosticsJson: {
+        code: "INGESTION_INDEXING_FAILED",
+        failedStage: "indexing",
+        retryable: true,
+        documentVersion: 1,
+        message: "synthetic indexing failure"
+      }
     }
   ]);
 });
@@ -222,7 +240,7 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
     }
   };
 
-  const fakeService = {
+  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
     prisma,
     storageService: {
       readFileByStorageKey: async storageKey => {
@@ -254,7 +272,7 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
         indexingCalls.push(documentId);
       }
     }
-  };
+  });
 
   await IngestionService.prototype.processDocument.call(fakeService, {
     data: {
@@ -300,7 +318,11 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
     {
       status: "processing",
       processingStage: "parsing",
-      errorMessage: null
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    {
+      processingStage: "chunking"
     },
     {
       processingStage: "indexing"
@@ -309,7 +331,83 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
       status: "ready",
       processingStage: "completed",
       chunkCount: 2,
-      errorMessage: null
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    }
+  ]);
+});
+
+test("IngestionService records parsing diagnostics for unsupported file types", async () => {
+  const documentUpdates = [];
+
+  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => ({
+          id: "document-unsupported-1",
+          kbId: "kb-1",
+          sourceName: "archive.bin",
+          mimeType: "application/octet-stream",
+          storageKey: "documents/archive.bin",
+          version: 4
+        }),
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async () => ({ count: 0 })
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async () => Buffer.from("raw-binary")
+    },
+    parsingService: {
+      parseDocument: async () => {
+        throw new Error("Unsupported file type for ingestion: archive.bin (application/octet-stream).");
+      }
+    },
+    chunkingService: {
+      buildChunks: () => []
+    },
+    indexingService: {
+      indexDocument: async () => {}
+    }
+  });
+
+  await assert.rejects(
+    IngestionService.prototype.processDocument.call(fakeService, {
+      data: {
+        documentId: "document-unsupported-1",
+        documentVersion: 4
+      }
+    }),
+    /Unsupported file type/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      status: "processing",
+      processingStage: "parsing",
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    {
+      status: "failed",
+      processingStage: "failed",
+      errorMessage: "Unsupported file type for ingestion: archive.bin (application/octet-stream).",
+      diagnosticsJson: {
+        code: "INGESTION_UNSUPPORTED_FILE_TYPE",
+        failedStage: "parsing",
+        retryable: false,
+        documentVersion: 4,
+        message: "Unsupported file type for ingestion: archive.bin (application/octet-stream)."
+      }
     }
   ]);
 });

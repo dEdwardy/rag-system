@@ -256,6 +256,8 @@ Notes:
 - for sitemap-index expansion, the current backend processes up to `20` child sitemap files and still caps the final fetched page set with request `maxPages`
 - posting the same external source URL again now reuses the existing document record for that `kbId + sourceType + normalized URL`, increments `version`, replaces the generated source artifact, and re-runs ingestion instead of creating duplicate documents
 - ingestion queue jobs now carry the expected document `version`; stale jobs are skipped before parsing/chunk deletion/index writes so an older reindex or resync run cannot overwrite a newer one
+- document failure states now also persist `diagnosticsJson` with a stable `code`, `failedStage`, `retryable`, `documentVersion`, and `message`, so `GET /documents/:id` exposes structured ingestion diagnostics instead of only a flat `errorMessage`
+- the ingestion worker now records `chunking` as a real intermediate processing stage between `parsing` and `indexing`
 - backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
 - the current stream path now forwards native answer-generation text deltas from the configured provider during the generation phase
 - it still keeps citations, trace ids, and the completed ask payload in the final completion event instead of attempting full structured real-time metadata streaming

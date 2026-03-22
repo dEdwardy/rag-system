@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { DocumentProcessingStage, DocumentStatus } from "@prisma/client";
+import { DocumentProcessingStage, DocumentStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { FeedSourceService } from "../../infra/feed-source/feed-source.service";
 import { SitemapSourceService } from "../../infra/sitemap-source/sitemap-source.service";
@@ -78,7 +78,8 @@ export class DocumentsService {
         mimeType: input.mimeType,
         storageKey: input.storageKey,
         status: DocumentStatus.pending,
-        processingStage: DocumentProcessingStage.uploaded
+        processingStage: DocumentProcessingStage.uploaded,
+        diagnosticsJson: Prisma.JsonNull
       }
     });
   }
@@ -185,6 +186,7 @@ export class DocumentsService {
         processingStage: DocumentProcessingStage.uploaded,
         chunkCount: 0,
         errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
         version: {
           increment: 1
         }
@@ -245,6 +247,7 @@ export class DocumentsService {
         processingStage: DocumentProcessingStage.uploaded,
         chunkCount: 0,
         errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
         version: {
           increment: 1
         }

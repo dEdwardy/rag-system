@@ -437,6 +437,13 @@
   - 当前改为复用原有 document 记录，更新生成的 source artifact，重置状态并递增 `version` 后重新进入 ingestion
   - 这次改动优先收口在 `DocumentsService` 的 external source 共用边界，避免只对单一 source 类型打补丁
   - ingestion queue 现在会携带期望的 document `version`；当旧 job 落后于当前 document version 时，worker 会在解析前直接跳过，避免旧运行覆盖新一轮 `reindex` / `re-sync`
+  - document 失败态现在会额外持久化结构化 `diagnosticsJson`，当前包含：
+    - `code`
+    - `failedStage`
+    - `retryable`
+    - `documentVersion`
+    - `message`
+  - ingestion worker 现在会真实经过 `parsing -> chunking -> indexing -> completed`，失败时会把失败边界落到 `diagnosticsJson.failedStage`
   - 新增共用回归测试：
     - `apps/api/test/external-source-sync.test.js`
   - 新增 focused HTTP E2E：
@@ -444,6 +451,8 @@
     - `apps/api/test/document-chain-e2e.test.js`
     - `apps/api/test/ingestion.orchestrator.test.js`
   - focused validation rerun:
+    - `pnpm --filter @rag-system/api exec prisma migrate deploy`
+    - `pnpm --filter @rag-system/api exec prisma generate`
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/external-source-sync.test.js`
     - `node --test apps/api/test/ingestion.orchestrator.test.js`

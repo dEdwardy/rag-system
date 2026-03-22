@@ -146,6 +146,64 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
   }
 });
 
+test("Document chain E2E: unsupported upload records structured ingestion diagnostics", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3115;
+  const storageRoot = resolve(repoRoot, "storage", `test-document-failure-${randomUUID()}`);
+  const queuePrefix = `test-document-failure-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new Blob([Buffer.from([0xde, 0xad, 0xbe, 0xef])], { type: "application/octet-stream" }),
+      "unsupported.bin"
+    );
+
+    const uploadResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/upload`, {
+      method: "POST",
+      body: formData
+    });
+    assert.equal(uploadResponse.status, 201);
+
+    const uploadedDocument = await uploadResponse.json();
+    const failedDocument = await waitForDocumentFailed(port, uploadedDocument.id, 20000);
+
+    assert.equal(failedDocument.status, "failed");
+    assert.equal(failedDocument.processingStage, "failed");
+    assert.match(failedDocument.errorMessage, /Unsupported file type/);
+    assert.deepEqual(failedDocument.diagnosticsJson, {
+      code: "INGESTION_UNSUPPORTED_FILE_TYPE",
+      failedStage: "parsing",
+      retryable: false,
+      documentVersion: 1,
+      message: failedDocument.errorMessage
+    });
+  } finally {
+    server.kill("SIGTERM");
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -195,6 +253,24 @@ async function waitForDocumentReady(port, documentId, timeoutMs) {
   }
 
   throw new Error(`Timed out waiting for document ${documentId} to become ready.`);
+}
+
+async function waitForDocumentFailed(port, documentId, timeoutMs) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const response = await fetch(`http://localhost:${port}/documents/${documentId}`);
+    if (response.ok) {
+      const document = await response.json();
+      if (document.status === "failed") {
+        return document;
+      }
+    }
+
+    await sleep(500);
+  }
+
+  throw new Error(`Timed out waiting for document ${documentId} to fail.`);
 }
 
 function sleep(ms) {
