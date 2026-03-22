@@ -1,7 +1,18 @@
 import { Badge, Box, Button, Grid, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { Link } from "react-router-dom";
+import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
+import {
+  formatRunSourceTypeLabel,
+  formatRunTriggerLabel
+} from "../../components/document-runs/document-run-observability";
 import { StatePanel } from "../../components/StatePanel";
-import { useAssistants, useDocuments, useKnowledgeBases } from "../../features/api/hooks";
+import {
+  useAssistants,
+  useDocuments,
+  useKnowledgeBaseDocumentRuns,
+  useKnowledgeBaseDocumentRunSummary,
+  useKnowledgeBases
+} from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { buildKnowledgeBaseWorkspaceSummary } from "./knowledge-base-page-helpers";
 
@@ -10,6 +21,14 @@ export function KnowledgeBasePage() {
   const assistantsQuery = useAssistants();
   const knowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(knowledgeBase?.id ?? "default-kb");
+  const recentRunsQuery = useKnowledgeBaseDocumentRuns(knowledgeBase?.id ?? null, {
+    limit: 6,
+    sinceHours: 72,
+    includeDiagnostics: true
+  });
+  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(knowledgeBase?.id ?? null, {
+    sinceHours: 72
+  });
   const documents = documentsQuery.data ?? [];
   const assistants = assistantsQuery.data ?? [];
   const assistantCount = assistants.filter(assistant => assistant.kbId === knowledgeBase?.id).length;
@@ -300,6 +319,84 @@ export function KnowledgeBasePage() {
                   </Paper>
                 </Stack>
               </Paper>
+
+              <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Stack gap="md">
+                  <div>
+                    <Text className="workspace-section-heading">
+                      {locale === "zh" ? "Recent source runs" : "Recent source runs"}
+                    </Text>
+                    <Text className="workspace-section-copy">
+                      {locale === "zh"
+                        ? "先承载最近执行概况、最新失败上下文和最小 run 列表，不把这里扩成诊断工作台。"
+                        : "Surface a recent execution readout, the latest failure anchor, and a small run list without turning this page into a diagnostics workbench."}
+                    </Text>
+                  </div>
+
+                  {runSummaryQuery.isLoading ? (
+                    <StatePanel
+                      title={locale === "zh" ? "加载 run 摘要中" : "Loading run summary"}
+                      description={
+                        locale === "zh"
+                          ? "正在读取最近 72 小时 source runs。"
+                          : "Fetching the most recent 72 hours of source runs."
+                      }
+                      tone="loading"
+                    />
+                  ) : null}
+
+                  {runSummaryQuery.data ? (
+                    <>
+                      <div className="workspace-metric-grid">
+                        <Paper className="workspace-subpanel" p="md" radius="xl">
+                          <Text className="workspace-section-heading">{locale === "zh" ? "最近运行总数" : "Recent runs"}</Text>
+                          <Text c="var(--app-text)" fw={700} mt={6}>
+                            {runSummaryQuery.data.totalRuns}
+                          </Text>
+                        </Paper>
+                        <Paper className="workspace-subpanel" p="md" radius="xl">
+                          <Text className="workspace-section-heading">{locale === "zh" ? "可重试失败" : "Retryable failures"}</Text>
+                          <Text c="var(--app-text)" fw={700} mt={6}>
+                            {runSummaryQuery.data.retryableFailures}
+                          </Text>
+                        </Paper>
+                        <Paper className="workspace-subpanel" p="md" radius="xl">
+                          <Text className="workspace-section-heading">{locale === "zh" ? "最新完成时间" : "Latest finished"}</Text>
+                          <Text c="var(--app-text)" fw={700} mt={6} size="sm">
+                            {runSummaryQuery.data.latestFinishedAt
+                              ? formatDateTime(runSummaryQuery.data.latestFinishedAt)
+                              : locale === "zh"
+                                ? "暂无"
+                                : "No finished runs yet"}
+                          </Text>
+                        </Paper>
+                      </div>
+
+                      {runSummaryQuery.data.latestFailure ? (
+                        <Paper className="workspace-focus-banner" p="md" radius="xl">
+                          <Stack gap={6}>
+                            <Text c="var(--app-text)" fw={700} size="sm">
+                              {locale === "zh" ? "最新失败上下文" : "Latest failure context"}
+                            </Text>
+                            <Group gap="xs">
+                              <Badge color="red" variant="light">
+                                {formatRunSourceTypeLabel(runSummaryQuery.data.latestFailure.sourceType)}
+                              </Badge>
+                              <Badge color="gray" variant="light">
+                                {formatRunTriggerLabel(runSummaryQuery.data.latestFailure.trigger)}
+                              </Badge>
+                            </Group>
+                            <Text c="var(--app-text-secondary)" size="sm">
+                              {runSummaryQuery.data.latestFailure.message ??
+                                (locale === "zh" ? "暂无 message。" : "No failure message recorded.")}
+                            </Text>
+                          </Stack>
+                        </Paper>
+                      ) : null}
+                    </>
+                  ) : null}
+                </Stack>
+              </Paper>
             </div>
           </div>
 
@@ -361,6 +458,36 @@ export function KnowledgeBasePage() {
               )}
             </Stack>
           </Paper>
+
+          {recentRunsQuery.isError ? (
+            <StatePanel
+              title={locale === "zh" ? "加载 recent runs 失败" : "Failed to load recent runs"}
+              description={
+                recentRunsQuery.error instanceof Error
+                  ? recentRunsQuery.error.message
+                  : locale === "zh"
+                    ? "最近 source runs 暂时不可用。"
+                    : "Recent source runs are currently unavailable."
+              }
+              tone="error"
+            />
+          ) : (
+            <DocumentRunList
+              title={locale === "zh" ? "Knowledge base recent runs" : "Knowledge base recent runs"}
+              description={
+                locale === "zh"
+                  ? "按最近时间展示已有 source/document runs，先优先承载状态、触发方式、来源类型、起止时间和失败上下文。"
+                  : "Recent source/document runs ordered by time, carrying status, trigger, source type, timing, and failure context first."
+              }
+              runs={recentRunsQuery.data ?? []}
+              emptyTitle={locale === "zh" ? "暂无 recent runs" : "No recent runs yet"}
+              emptyDescription={
+                locale === "zh"
+                  ? "当前知识库还没有可展示的 source run 历史。"
+                  : "This knowledge base does not have recent source run history yet."
+              }
+            />
+          )}
         </>
       ) : null}
     </Stack>

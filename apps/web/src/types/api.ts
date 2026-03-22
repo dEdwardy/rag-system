@@ -89,6 +89,98 @@ export type DocumentRecord = {
   updatedAt: string;
 };
 
+export type DocumentRunStatus = "pending" | "processing" | "ready" | "failed" | "skipped";
+
+export type DocumentRunTrigger = "upload" | "reindex" | "external_resync";
+
+export type DocumentRunFailedStage =
+  | "source_fetch"
+  | "parsing"
+  | "chunking"
+  | "indexing"
+  | "stale_guard"
+  | null;
+
+export type DocumentRunRecord = {
+  id: string;
+  documentId: string;
+  version: number;
+  trigger: DocumentRunTrigger;
+  status: DocumentRunStatus;
+  failedStage: DocumentRunFailedStage;
+  diagnosticsJson: JsonValue | null;
+  startedAt: string;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeBaseDocumentRunRecord = {
+  id: string;
+  documentId: string;
+  version: number;
+  trigger: DocumentRunTrigger;
+  status: DocumentRunStatus;
+  failedStage: DocumentRunFailedStage;
+  diagnosticsJson?: JsonValue | null;
+  startedAt: string;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  document: {
+    id: string;
+    kbId: string;
+    sourceType: string;
+    sourceName: string;
+    title: string;
+    status: DocumentRecord["status"];
+    processingStage: DocumentRecord["processingStage"];
+    version: number;
+  };
+};
+
+export type KnowledgeBaseDocumentRunSummary = {
+  totalRuns: number;
+  latestRunAt: string | null;
+  latestFinishedAt: string | null;
+  byStatus: Record<DocumentRunStatus, number>;
+  byTrigger: Record<DocumentRunTrigger, number>;
+  bySourceType: Record<string, number>;
+  retryableFailures: number;
+  nonRetryableFailures: number;
+  failureByStage: Record<string, number>;
+  latestRetryableFailure: {
+    documentId: string;
+    version: number;
+    trigger: DocumentRunTrigger;
+    failedStage: DocumentRunFailedStage;
+    sourceType: string;
+    sourceName: string;
+    message: string | null;
+    finishedAt: string | null;
+  } | null;
+  latestSkipped: {
+    documentId: string;
+    version: number;
+    trigger: DocumentRunTrigger;
+    failedStage: DocumentRunFailedStage;
+    sourceType: string;
+    sourceName: string;
+    message: string | null;
+    finishedAt: string | null;
+  } | null;
+  latestFailure: {
+    documentId: string;
+    version: number;
+    trigger: DocumentRunTrigger;
+    failedStage: DocumentRunFailedStage;
+    sourceType: string;
+    sourceName: string;
+    message: string | null;
+    finishedAt: string | null;
+  } | null;
+};
+
 export type DocumentChunk = {
   id: string;
   documentId: string;

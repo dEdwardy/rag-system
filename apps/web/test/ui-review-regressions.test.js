@@ -31,6 +31,9 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
 
   assert.match(source, /workspace-metric-grid/);
   assert.doesNotMatch(source, /workspace-page-grid-main-first/);
+  assert.match(source, /useKnowledgeBaseDocumentRuns/);
+  assert.match(source, /useKnowledgeBaseDocumentRunSummary/);
+  assert.match(source, /Latest failure context|最新失败上下文/);
 });
 
 test("assistant copy avoids exposing backend field names and trace raw payload is secondary", () => {
@@ -49,6 +52,8 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.match(documentsSource, /workspace-metric-grid/);
   assert.match(documentsSource, /workspace-subpanel/);
   assert.match(detailSource, /workspace-detail-secondary-grid|workspace-collection-grid/);
+  assert.match(detailSource, /useDocumentRuns/);
+  assert.match(detailSource, /Document runs|文档 runs/);
   assert.match(traceListSource, /workspace-trace-list/);
   assert.doesNotMatch(traceListSource, /Conversation ID[^]*Latest trace[^]*Created/);
 });

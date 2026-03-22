@@ -452,6 +452,36 @@
 
 ### 2026-03-22
 
+- ✅ PC Web source run observability consumption minimum increment
+  - current implementation stays inside the existing `Knowledge Base` and `Document Detail` pages instead of opening a new source center or a broader UI refactor
+  - `Knowledge Base` now minimally consumes:
+    - `GET /knowledge-bases/:id/document-runs`
+    - `GET /knowledge-bases/:id/document-runs/summary`
+  - it currently surfaces:
+    - recent source/document runs
+    - a compact recent-run summary
+    - latest failure context
+  - `Document Detail` now minimally consumes:
+    - `GET /documents/:id/runs`
+  - it currently surfaces:
+    - document-level run history
+    - status / trigger / startedAt / finishedAt / failedStage
+    - latest failure message and minimal diagnostics expansion
+  - this increment deliberately avoids:
+    - new backend fields
+    - a new mobile path
+    - broader UI restructuring
+    - platform-style source center abstraction
+  - shared web path additions for this round:
+    - typed run observability API models
+    - shared run observability hooks
+    - shared run list / diagnostics helper component
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/document-run-observability.test.js`
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ feed source stabilization phase 2 minimum increment
   - feed extraction now tolerates bounded partial invalid-entry failures instead of always including every selected entry verbatim
   - success rule for this round:

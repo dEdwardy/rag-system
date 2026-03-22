@@ -231,6 +231,13 @@ Focused chat UI polish validation:
 node --experimental-strip-types --test apps/web/test/chat-page-helpers.test.js
 ```
 
+Focused source run observability UI validation:
+
+```bash
+node --experimental-strip-types --test apps/web/test/document-run-observability.test.js
+node --test apps/web/test/ui-review-regressions.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash
@@ -317,6 +324,9 @@ Notes:
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`
+- the current PC Web now minimally consumes these run observability endpoints in existing pages:
+  - `Knowledge Base` shows recent source/document runs plus a small recent-run summary and latest failure context
+  - `Document Detail` shows per-document run history with status, trigger, source timing, and minimal diagnostics expansion
 - the knowledge-base scoped run list currently supports minimal query filters:
   - `documentId`
   - `sourceType`

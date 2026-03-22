@@ -13,8 +13,15 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useEffect, useRef } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
 import { StatePanel } from "../../components/StatePanel";
-import { useDeleteDocument, useDocument, useDocumentChunks, useReindexDocument } from "../../features/api/hooks";
+import {
+  useDeleteDocument,
+  useDocument,
+  useDocumentChunks,
+  useDocumentRuns,
+  useReindexDocument
+} from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { JsonValue } from "../../types/api";
 
@@ -38,6 +45,7 @@ export function DocumentDetailPage() {
   const focusedIsCited = searchParams.get("isCited") === "1";
   const documentQuery = useDocument(documentId);
   const chunksQuery = useDocumentChunks(documentId);
+  const runsQuery = useDocumentRuns(documentId);
   const reindexMutation = useReindexDocument();
   const deleteMutation = useDeleteDocument();
   const document = documentQuery.data;
@@ -266,6 +274,32 @@ export function DocumentDetailPage() {
                     ) : null}
                   </Stack>
                 </Paper>
+
+                {runsQuery.isError ? (
+                  <Alert color="red" radius="xl" variant="light">
+                    {runsQuery.error instanceof Error
+                      ? runsQuery.error.message
+                      : locale === "zh"
+                        ? "加载文档 runs 失败。"
+                        : "Failed to load document runs."}
+                  </Alert>
+                ) : (
+                  <DocumentRunList
+                    title={locale === "zh" ? "文档 runs" : "Document runs"}
+                    description={
+                      locale === "zh"
+                        ? "按版本和时间查看该文档的 upload / reindex / external resync 历史。"
+                        : "Review the upload, reindex, and external resync history for this document by version and time."
+                    }
+                    runs={runsQuery.data ?? []}
+                    emptyTitle={locale === "zh" ? "暂无文档 runs" : "No document runs yet"}
+                    emptyDescription={
+                      locale === "zh"
+                        ? "当前文档还没有可展示的执行历史。"
+                        : "This document does not have execution history yet."
+                    }
+                  />
+                )}
               </Stack>
             </div>
           </div>
