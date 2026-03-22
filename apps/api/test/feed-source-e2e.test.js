@@ -249,6 +249,112 @@ test("Feed source E2E: partial invalid entries still reach ready and persist dia
   }
 });
 
+test("Feed source E2E: in-flight reindex from a partial-ready source does not pollute current failure summary", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3111;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-partial-reindex-${randomUUID()}`);
+  const queuePrefix = `test-feed-partial-reindex-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const feedServer = await startControllablePartialFeedServer();
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.status, "ready");
+
+    const delayedMarker = `feed-reindex-marker-${randomUUID()}`;
+    feedServer.setDelayedLargePartial(delayedMarker);
+
+    const reindexResponsePromise = fetch(`http://localhost:${port}/documents/${createdDocument.id}/reindex`, {
+      method: "POST"
+    });
+
+    const pendingRun = await waitForDocumentRun(port, createdDocument.id, run => run.version === 2, 10000);
+    assert.equal(pendingRun.status, "pending");
+    assert.equal(pendingRun.failedStage, null);
+    assert.equal(pendingRun.failureSummary, null);
+
+    const pendingSummaryResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`
+    );
+    assert.equal(pendingSummaryResponse.status, 200);
+    const pendingSummary = await pendingSummaryResponse.json();
+    assert.equal(pendingSummary.nonRetryableFailures, 1);
+    assert.deepEqual(pendingSummary.failureByStage, {
+      source_fetch: 1
+    });
+    assert.equal(pendingSummary.latestFailure.version, 1);
+
+    feedServer.releaseDelayedResponse();
+
+    const reindexResponse = await reindexResponsePromise;
+    assert.equal(reindexResponse.status, 201);
+
+    const processingRun = await waitForDocumentRun(
+      port,
+      createdDocument.id,
+      run => run.version === 2 && run.status === "processing",
+      15000
+    );
+    assert.equal(processingRun.failedStage, null);
+    assert.deepEqual(processingRun.failureSummary, {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Feed source completed with partial entry validation failures."
+    });
+
+    const processingSummaryResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`
+    );
+    assert.equal(processingSummaryResponse.status, 200);
+    const processingSummary = await processingSummaryResponse.json();
+    assert.equal(processingSummary.nonRetryableFailures, 1);
+    assert.deepEqual(processingSummary.failureByStage, {
+      source_fetch: 1
+    });
+    assert.equal(processingSummary.latestFailure.version, 1);
+
+    const readyAfterReindex = await waitForDocumentReady(port, createdDocument.id, 60000);
+    assert.equal(readyAfterReindex.version, 2);
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -346,6 +452,84 @@ async function startPartialFeedServer(marker) {
   };
 }
 
+async function startControllablePartialFeedServer() {
+  let mode = "initial";
+  let delayedMarker = "";
+  let delayedResponsePromise = Promise.resolve();
+  let releaseDelayedResponse = () => {};
+
+  const server = http.createServer(async (request, response) => {
+    if (request.url === "/updates.xml") {
+      if (mode === "delayed-large-partial") {
+        await delayedResponsePromise;
+        response.writeHead(200, {
+          "Content-Type": "application/rss+xml; charset=utf-8"
+        });
+        response.end(buildPartialFeedXml(delayedMarker, "Large Entry", buildLargeFeedBody(delayedMarker)));
+        return;
+      }
+
+      response.writeHead(200, {
+        "Content-Type": "application/rss+xml; charset=utf-8"
+      });
+      response.end(
+        buildPartialFeedXml(
+          `feed-initial-marker-${randomUUID()}`,
+          "Release Note 1",
+          "<p>Initial partial-ready feed payload.</p>"
+        )
+      );
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  return {
+    server,
+    origin: `http://127.0.0.1:${server.address().port}`,
+    setDelayedLargePartial(marker) {
+      mode = "delayed-large-partial";
+      delayedMarker = marker;
+      delayedResponsePromise = new Promise(resolvePromise => {
+        releaseDelayedResponse = resolvePromise;
+      });
+    },
+    releaseDelayedResponse() {
+      releaseDelayedResponse();
+    }
+  };
+}
+
+function buildPartialFeedXml(marker, entryTitle, descriptionHtml) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Remote Feed Updates</title>
+        <description>External knowledge source test feed.</description>
+        <item>
+          <title>${entryTitle}</title>
+          <link>https://example.com/release-1</link>
+          <description><![CDATA[${descriptionHtml}<p>Unique marker: ${marker}</p>]]></description>
+        </item>
+        <item>
+          <title>Broken Entry</title>
+        </item>
+      </channel>
+    </rss>`;
+}
+
+function buildLargeFeedBody(marker) {
+  return Array.from({ length: 1200 }, (_, index) => `<p>${marker} paragraph ${index}</p>`).join("");
+}
+
 async function stopServer(server) {
   await new Promise((resolvePromise, rejectPromise) => {
     server.close(error => {
@@ -396,6 +580,25 @@ async function waitForDocumentReady(port, documentId, timeoutMs) {
   }
 
   throw new Error(`Timed out waiting for document ${documentId} to become ready.`);
+}
+
+async function waitForDocumentRun(port, documentId, predicate, timeoutMs) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const response = await fetch(`http://localhost:${port}/documents/${documentId}/runs`);
+    if (response.ok) {
+      const runs = await response.json();
+      const matched = runs.find(predicate);
+      if (matched) {
+        return matched;
+      }
+    }
+
+    await sleep(100);
+  }
+
+  throw new Error(`Timed out waiting for a matching run on document ${documentId}.`);
 }
 
 function sleep(ms) {
