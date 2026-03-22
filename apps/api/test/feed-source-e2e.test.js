@@ -650,6 +650,146 @@ test("Feed source E2E: same-URL reuse clears partial diagnostics after a later c
   }
 });
 
+test("Feed source E2E: same-URL reuse clears failed diagnostics after a later successful sync", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3119;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-failed-reuse-recovered-${randomUUID()}`);
+  const queuePrefix = `test-feed-failed-reuse-recovered-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const recoveredMarker = `feed-reuse-recovered-marker-${randomUUID()}`;
+  const feedServer = await startRecoverableFailedFeedServer(recoveredMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const firstCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml#latest`,
+        maxItems: 2
+      })
+    });
+    assert.equal(firstCreateResponse.status, 502);
+
+    const failedDocumentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(failedDocumentsResponse.status, 200);
+    const failedDocuments = await failedDocumentsResponse.json();
+    assert.equal(failedDocuments.length, 1);
+    assert.equal(failedDocuments[0].status, "failed");
+
+    feedServer.setReady();
+
+    const secondCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(secondCreateResponse.status, 201);
+
+    const secondDocument = await secondCreateResponse.json();
+    assert.equal(secondDocument.id, failedDocuments[0].id);
+    assert.equal(secondDocument.status, "pending");
+
+    const readyDocument = await waitForDocumentReady(port, secondDocument.id, 20000);
+    assert.equal(readyDocument.version, 2);
+    assert.equal(readyDocument.status, "ready");
+    assert.equal(readyDocument.errorMessage, null);
+    assert.equal(readyDocument.diagnosticsJson, null);
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        id: documents[0].id,
+        version: documents[0].version,
+        status: documents[0].status,
+        errorMessage: documents[0].errorMessage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        id: failedDocuments[0].id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const runsResponse = await fetch(`http://localhost:${port}/documents/${failedDocuments[0].id}/runs`);
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs.length, 2);
+    assert.deepEqual(
+      runs.map(run => ({
+        version: run.version,
+        status: run.status,
+        failedStage: run.failedStage,
+        failureSummary: run.failureSummary
+      })),
+      [
+        {
+          version: 2,
+          status: "ready",
+          failedStage: null,
+          failureSummary: null
+        },
+        {
+          version: 1,
+          status: "failed",
+          failedStage: "source_fetch",
+          failureSummary: {
+            code: "EXTERNAL_SOURCE_FETCH_FAILED",
+            failedStage: "source_fetch",
+            retryable: true,
+            message: "Failed to fetch feed: upstream responded with 502."
+          }
+        }
+      ]
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 2);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.failureByStage, {});
+    assert.equal(summary.latestRetryableFailure, null);
+    assert.equal(summary.latestFailure, null);
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -852,6 +992,61 @@ async function startRecoverableFeedServer(initialMarker, cleanMarker) {
     origin: `http://127.0.0.1:${server.address().port}`,
     setClean() {
       mode = "clean";
+    }
+  };
+}
+
+async function startRecoverableFailedFeedServer(marker) {
+  let mode = "failed";
+
+  const server = http.createServer((request, response) => {
+    if (request.url === "/updates.xml") {
+      if (mode === "failed") {
+        response.writeHead(502, {
+          "Content-Type": "text/plain; charset=utf-8"
+        });
+        response.end("temporary upstream failure");
+        return;
+      }
+
+      response.writeHead(200, {
+        "Content-Type": "application/rss+xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Remote Feed Updates</title>
+            <description>External knowledge source test feed.</description>
+            <item>
+              <title>Release Note 1</title>
+              <link>https://example.com/release-1</link>
+              <description><![CDATA[<p>Unique marker: ${marker}</p>]]></description>
+            </item>
+            <item>
+              <title>Release Note 2</title>
+              <link>https://example.com/release-2</link>
+              <description><![CDATA[<p>Recovered clean payload.</p>]]></description>
+            </item>
+          </channel>
+        </rss>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  return {
+    server,
+    origin: `http://127.0.0.1:${server.address().port}`,
+    setReady() {
+      mode = "ready";
     }
   };
 }
