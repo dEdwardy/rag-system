@@ -43,6 +43,10 @@ export type RetrievalContextGroup = {
 export type RetrievalResult = {
   retrievedChunks: RetrievedChunk[];
   contextGroups: RetrievalContextGroup[];
+  execution: {
+    actualMode: "vector" | "hybrid" | "lexical";
+    usedFallback: boolean;
+  };
 };
 
 @Injectable()
@@ -88,7 +92,9 @@ export class RetrievalService {
         ...input,
         enableRerank: resolvedEnableRerank,
         filters: normalizedFilters,
-        lexicalCandidates
+        lexicalCandidates,
+        actualMode: "lexical",
+        usedFallback: false
       });
     }
 
@@ -131,7 +137,10 @@ export class RetrievalService {
             input.chunkWindow ?? 0,
             normalizedFilters
           );
-          return this.buildRetrievalResult(retrievedChunks);
+          return this.buildRetrievalResult(retrievedChunks, {
+            actualMode: candidateSelectionMode,
+            usedFallback: false
+          });
         }
       }
     } catch (error) {
@@ -143,7 +152,9 @@ export class RetrievalService {
       ...input,
       enableRerank: resolvedEnableRerank,
       filters: normalizedFilters,
-      lexicalCandidates
+      lexicalCandidates,
+      actualMode: "lexical",
+      usedFallback: true
     });
   }
 
@@ -156,6 +167,8 @@ export class RetrievalService {
     enableRerank?: boolean;
     lexicalCandidates?: RetrievalCandidate[];
     filters?: RetrievalProfileFilters;
+    actualMode: "lexical";
+    usedFallback: boolean;
   }) {
     const lexicalCandidates =
       input.lexicalCandidates ??
@@ -179,9 +192,15 @@ export class RetrievalService {
         input.chunkWindow ?? 0,
         input.filters
       );
-      return this.buildRetrievalResult(retrievedChunks);
+      return this.buildRetrievalResult(retrievedChunks, {
+        actualMode: input.actualMode,
+        usedFallback: input.usedFallback
+      });
     }
-    return this.buildRetrievalResult([]);
+    return this.buildRetrievalResult([], {
+      actualMode: input.actualMode,
+      usedFallback: input.usedFallback
+    });
   }
 
   private async getLexicalCandidates(input: {
@@ -469,10 +488,14 @@ export class RetrievalService {
     });
   }
 
-  private buildRetrievalResult(retrievedChunks: RetrievedChunk[]): RetrievalResult {
+  private buildRetrievalResult(
+    retrievedChunks: RetrievedChunk[],
+    execution: RetrievalResult["execution"]
+  ): RetrievalResult {
     return {
       retrievedChunks,
-      contextGroups: this.buildContextGroups(retrievedChunks)
+      contextGroups: this.buildContextGroups(retrievedChunks),
+      execution
     };
   }
 

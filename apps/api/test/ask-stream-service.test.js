@@ -52,7 +52,11 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
             sectionTitle: "Facts"
           }
         ],
-        contextGroups: []
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
       })
     },
     {

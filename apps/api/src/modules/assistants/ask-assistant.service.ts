@@ -113,7 +113,8 @@ export class AskAssistantService {
       scoreThreshold: retrievalProfile.scoreThreshold,
       chunkWindow: retrievalProfile.chunkWindow,
       retrievedChunks,
-      contextGroups
+      contextGroups,
+      execution: retrievalResult.execution
     });
 
     const trace = await this.tracesService.createTrace({
@@ -298,7 +299,8 @@ export class AskAssistantService {
       scoreThreshold: retrievalProfile.scoreThreshold,
       chunkWindow: retrievalProfile.chunkWindow,
       retrievedChunks,
-      contextGroups
+      contextGroups,
+      execution: retrievalResult.execution
     });
 
     const trace = await this.tracesService.createTrace({
@@ -453,6 +455,10 @@ export class AskAssistantService {
     chunkWindow: number;
     retrievedChunks: AskResultChunk[];
     contextGroups: Array<{ primaryChunkIds: string[] }>;
+    execution: {
+      actualMode: "vector" | "hybrid" | "lexical";
+      usedFallback: boolean;
+    };
   }): Prisma.InputJsonValue {
     return {
       strategy: input.strategy,
@@ -468,6 +474,8 @@ export class AskAssistantService {
         topK: input.topK,
         scoreThreshold: input.scoreThreshold,
         chunkWindow: input.chunkWindow,
+        actualMode: input.execution.actualMode,
+        usedFallback: input.execution.usedFallback,
         retrievedChunkCount: input.retrievedChunks.length,
         contextGroupCount: input.contextGroups.length,
         primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length

@@ -487,6 +487,9 @@ The following path has been validated locally on `2026-03-21`:
   - if vector retrieval is unavailable, the backend still falls back to lexical scoring
   - but when all candidates still miss the configured retrieval threshold, the backend now returns an empty retrieval result instead of injecting arbitrary first chunks from the knowledge base
   - this keeps `insufficient_context` handling aligned with real retrieval evidence
+- ask / trace retrieval metadata `execution` now also exposes:
+  - `actualMode`: the actual retrieval path used for the final result (`vector` / `hybrid` / `lexical`)
+  - `usedFallback`: whether the backend had to fall back away from the requested vector path
 - Chunk-window context grouping for ask responses:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments

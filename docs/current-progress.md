@@ -462,6 +462,16 @@
 
 ### 2026-03-23
 
+- ✅ retrieval execution metadata actual-path exposure
+  - `ask` / trace retrieval metadata `execution` 现在除了 query、threshold 和 chunk counts 之外，也会显式暴露：
+    - `actualMode`: `vector` / `hybrid` / `lexical`
+    - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
+  - 这样当前 retrieval metadata 不再只表达“想要的策略”，也能表达“最终实际走到的检索路径”
+  - 当前改动保持 API 向后兼容，只是在既有 `retrievalMetadata.execution` 里增加字段
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ structured missing-information normalization dedup
   - LLM structured-answer schema 现在会对 `missingInformation` 做和 `citations` / `citationEvidence` 一致的收口：trim、去空、按首次出现顺序去重
   - 这避免模型输出重复 gap item 时把同一缺失原因在最终响应里重复展开

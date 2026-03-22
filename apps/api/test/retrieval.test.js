@@ -769,6 +769,52 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
   assert.equal(embedCalls, 0);
   assert.equal(vectorCalls, 0);
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
+  assert.deepEqual(result.execution, {
+    actualMode: "lexical",
+    usedFallback: false
+  });
+});
+
+test("RetrievalService reports lexical fallback when vector retrieval cannot produce candidates", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async () => [
+        {
+          id: "chunk-lexical",
+          documentId: "doc-1",
+          chunkIndex: 0,
+          content: "lexical fallback marker",
+          pageNo: null,
+          sectionTitle: "Overview",
+          document: { title: "Doc 1" }
+        }
+      ]
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => {
+      throw new Error("vector disabled");
+    }
+  };
+
+  const vectorStoreService = {
+    search: async () => []
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "lexical fallback marker",
+    topK: 1,
+    scoreThreshold: 0
+  });
+
+  assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
+  assert.deepEqual(result.execution, {
+    actualMode: "lexical",
+    usedFallback: true
+  });
 });
 
 test("RetrievalService hybrid ranking honors configured strategy weights", async () => {
