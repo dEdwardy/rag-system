@@ -642,15 +642,24 @@
 
 - 已继续收口 `creative-dark + workspace-app` 的 B 主题工作台壳层，当前 `Chat / Documents / Document Detail / Knowledge Base / Assistant / Traces / Trace Detail / AppShell / StatePanel` 都已统一到同一套深色 panel 语言、hero 骨架和输入控件风格。
 - 本轮重点清理了前端页面遗留的中文乱码文案，未改动接口、路由、字段和页面功能逻辑。
+- 基于 [ui/审查报告.md](/D:/FeProjects/rag-system/ui/审查报告.md) 的剩余项已完成第二轮收口：
+  - `Documents` 首屏补成工作台摘要区，新增紧凑指标网格和操作提示侧栏，弱化“空首屏”观感。
+  - `Trace List` 改为先展示问题、结果状态和时间，再进入 trace 详情，降低过强的诊断台账感。
+  - `Document Detail` 将存储键和错误信息明确下沉为次级诊断区，并统一详情页文案层级。
+  - B 主题次级文字对比度进一步抬高，减少深色主题下的小字发灰问题。
 - 本轮新增/补齐的主要文件：
   - [apps/web/src/app/AppShell.tsx](/D:/FeProjects/rag-system/apps/web/src/app/AppShell.tsx)
   - [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
   - [apps/web/src/pages/documents/DocumentsPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentsPage.tsx)
   - [apps/web/src/pages/documents/DocumentDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentDetailPage.tsx)
+  - [apps/web/src/pages/traces/TraceListPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/traces/TraceListPage.tsx)
   - [apps/web/src/pages/traces/TraceDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/traces/TraceDetailPage.tsx)
+  - [apps/web/src/styles/global.css](/D:/FeProjects/rag-system/apps/web/src/styles/global.css)
+  - [apps/web/test/ui-review-regressions.test.js](/D:/FeProjects/rag-system/apps/web/test/ui-review-regressions.test.js)
 - 本轮 Playwright 巡检截图目录：
   - [output/playwright/ui-audit-pass-9](/D:/FeProjects/rag-system/output/playwright/ui-audit-pass-9)
 - 本轮最小验证：
+  - `node --test apps/web/test/ui-review-regressions.test.js`
   - `pnpm --filter @rag-system/web build`
 
 ---

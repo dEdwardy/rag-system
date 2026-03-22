@@ -30,8 +30,8 @@ html[data-theme-color="creative-dark"] {
   --app-border: rgba(255, 255, 255, 0.1);
   --app-border-strong: rgba(255, 255, 255, 0.16);
   --app-text: #f4f4f5;
-  --app-text-secondary: #bebec8;
-  --app-text-muted: #91919d;
+  --app-text-secondary: #c9c9d4;
+  --app-text-muted: #a2a2af;
   --app-accent: #6366f1;
   --app-accent-strong: #4f46e5;
   --app-accent-soft: rgba(99, 102, 241, 0.14);
@@ -399,6 +399,17 @@ html[data-theme-layout="workspace-app"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .workspace-trace-list {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .workspace-split-summary {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  }
+
   .workspace-skeleton-panel {
     overflow: hidden;
     position: relative;
@@ -440,7 +451,8 @@ html[data-theme-layout="workspace-app"] {
   @media (max-width: 80rem) {
     .workspace-page-grid,
     .workspace-page-grid-main-first,
-    .workspace-detail-secondary-grid {
+    .workspace-detail-secondary-grid,
+    .workspace-split-summary {
       grid-template-columns: minmax(0, 1fr);
     }
 

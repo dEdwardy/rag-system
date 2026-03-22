@@ -5,8 +5,12 @@ const { resolve } = require("node:path");
 
 const appShellPath = resolve(__dirname, "../src/app/AppShell.tsx");
 const chatPagePath = resolve(__dirname, "../src/pages/chat/ChatPage.tsx");
+const documentsPath = resolve(__dirname, "../src/pages/documents/DocumentsPage.tsx");
+const documentDetailPath = resolve(__dirname, "../src/pages/documents/DocumentDetailPage.tsx");
 const knowledgeBasePath = resolve(__dirname, "../src/pages/knowledge-base/KnowledgeBasePage.tsx");
+const traceListPath = resolve(__dirname, "../src/pages/traces/TraceListPage.tsx");
 const traceDetailPath = resolve(__dirname, "../src/pages/traces/TraceDetailPage.tsx");
+const globalCssPath = resolve(__dirname, "../src/styles/global.css");
 const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
 const indexHtmlPath = resolve(__dirname, "../index.html");
 
@@ -35,6 +39,25 @@ test("assistant copy avoids exposing backend field names and trace raw payload i
 
   assert.doesNotMatch(messagesSource, /enableHybrid|enableRerank/);
   assert.match(traceSource, /<details[\s\S]*common\.fields\.rawPayload/);
+});
+
+test("documents and trace list emphasize readable workspace summaries over sparse or overly technical cards", () => {
+  const documentsSource = readFileSync(documentsPath, "utf8");
+  const detailSource = readFileSync(documentDetailPath, "utf8");
+  const traceListSource = readFileSync(traceListPath, "utf8");
+
+  assert.match(documentsSource, /workspace-metric-grid/);
+  assert.match(documentsSource, /workspace-subpanel/);
+  assert.match(detailSource, /workspace-detail-secondary-grid|workspace-collection-grid/);
+  assert.match(traceListSource, /workspace-trace-list/);
+  assert.doesNotMatch(traceListSource, /Conversation ID[^]*Latest trace[^]*Created/);
+});
+
+test("shared secondary text contrast is lifted above the previous dim baseline", () => {
+  const cssSource = readFileSync(globalCssPath, "utf8");
+
+  assert.match(cssSource, /--app-text-secondary:\s*#c9c9d4;/);
+  assert.match(cssSource, /--app-text-muted:\s*#a2a2af;/);
 });
 
 test("index html defines a favicon to avoid the default 404 noise", () => {

@@ -28,11 +28,16 @@ export function DocumentsPage() {
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
   const reindexMutation = useReindexDocument();
-  const hasProcessingDocuments = documentsQuery.data?.some(
-    document => document.status === "pending" || document.status === "processing"
-  );
   const { t, locale } = useI18n();
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
+  const documentCount = documentsQuery.data?.length ?? 0;
+  const readyCount = documentsQuery.data?.filter(document => document.status === "ready").length ?? 0;
+  const processingCount =
+    documentsQuery.data?.filter(
+      document => document.status === "pending" || document.status === "processing"
+    ).length ?? 0;
+  const failedCount = documentsQuery.data?.filter(document => document.status === "failed").length ?? 0;
+  const hasProcessingDocuments = processingCount > 0;
 
   return (
     <Stack gap="md">
@@ -42,7 +47,7 @@ export function DocumentsPage() {
             <Box className="workspace-hero-icon">DOC</Box>
             <div className="workspace-hero-copy">
               <Text className="workspace-hero-kicker">
-                {locale === "zh" ? "文档工作区" : "Knowledge documents"}
+                {locale === "zh" ? "文档工作台" : "Knowledge documents"}
               </Text>
               <Title
                 order={3}
@@ -56,7 +61,7 @@ export function DocumentsPage() {
               </Text>
               <Group gap="xs" mt="sm">
                 <Badge color="gray" radius="sm" variant="light">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "默认 KB" : "Default KB")}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "默认知识库" : "Default KB")}
                 </Badge>
                 <Badge color={hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
                   {hasProcessingDocuments
@@ -74,8 +79,8 @@ export function DocumentsPage() {
           <Stack align="flex-end" gap={10}>
             <Text className="workspace-hero-sidecopy" ta="right">
               {locale === "zh"
-                ? "继续保留上传、状态检查、详情打开和重建索引四个核心动作，只收紧 B 主题层级和密度。"
-                : "Keep upload, status inspection, detail navigation, and reindex in one dense workspace surface."}
+                ? "上传、状态查看、详情跳转和重建索引仍然保留在同一工作台，只把首屏层级和密度收紧。"
+                : "Keep upload, status review, detail navigation, and reindex in one tighter workspace surface."}
             </Text>
             <FileButton
               onChange={async file => {
@@ -138,22 +143,94 @@ export function DocumentsPage() {
         </Alert>
       ) : null}
 
+      <div className="workspace-split-summary">
+        <div className="workspace-metric-grid">
+          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+            <Text className="workspace-metric-label">
+              {locale === "zh" ? "文档总数" : "Total documents"}
+            </Text>
+            <Text className="workspace-metric-value">{documentCount}</Text>
+            <Text className="workspace-metric-subtle">
+              {locale === "zh"
+                ? "当前知识库下全部文档"
+                : "All documents in the active knowledge base"}
+            </Text>
+          </Paper>
+          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+            <Text className="workspace-metric-label">{locale === "zh" ? "可检索" : "Ready"}</Text>
+            <Text className="workspace-metric-value">{readyCount}</Text>
+            <Text className="workspace-metric-subtle">
+              {locale === "zh" ? "已完成切分与索引" : "Indexed and available for retrieval"}
+            </Text>
+          </Paper>
+          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+            <Text className="workspace-metric-label">{locale === "zh" ? "处理中" : "Processing"}</Text>
+            <Text className="workspace-metric-value">{processingCount}</Text>
+            <Text className="workspace-metric-subtle">
+              {locale === "zh" ? "等待上传或重建完成" : "Waiting for upload or reindex to finish"}
+            </Text>
+          </Paper>
+          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+            <Text className="workspace-metric-label">{locale === "zh" ? "需要关注" : "Needs attention"}</Text>
+            <Text className="workspace-metric-value">{failedCount}</Text>
+            <Text className="workspace-metric-subtle">
+              {locale === "zh" ? "失败文档建议重试或删除" : "Failed documents should be retried or removed"}
+            </Text>
+          </Paper>
+        </div>
+
+        <Paper className="workspace-subpanel" p="lg" radius="xl">
+          <Stack gap="md">
+            <div>
+              <Text className="workspace-section-heading">
+                {locale === "zh" ? "当前工作提示" : "Workspace readout"}
+              </Text>
+              <Text className="workspace-section-copy">
+                {locale === "zh"
+                  ? "这一页只承担文档资产管理，不在首屏堆叠过多解释。优先看状态、数量和待处理队列。"
+                  : "This page stays focused on document operations. Use the top summary to scan readiness, volume, and queue pressure first."}
+              </Text>
+            </div>
+            <div className="workspace-meta-list">
+              <div className="workspace-meta-row">
+                <span className="workspace-meta-label">{locale === "zh" ? "当前知识库" : "Current KB"}</span>
+                <span className="workspace-meta-value">
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "默认知识库" : "Default KB")}
+                </span>
+              </div>
+              <div className="workspace-meta-row">
+                <span className="workspace-meta-label">{locale === "zh" ? "下一步" : "Next action"}</span>
+                <span className="workspace-meta-value">
+                  {hasProcessingDocuments
+                    ? locale === "zh"
+                      ? "等待队列完成后复查失败项"
+                      : "Review failed items after the queue settles"
+                    : locale === "zh"
+                      ? "优先补充新文档或复查低质量来源"
+                      : "Upload new material or review weaker sources"}
+                </span>
+              </div>
+            </div>
+          </Stack>
+        </Paper>
+      </div>
+
       <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
         <Stack gap="md">
           <Group justify="space-between" wrap="nowrap">
             <div>
               <Text className="workspace-section-heading">
-                {locale === "zh" ? "文档主列表" : "Document workspace"}
+                {locale === "zh" ? "文档列表" : "Document workspace"}
               </Text>
               <Text className="workspace-section-copy">
                 {locale === "zh"
-                  ? "保留现有列表逻辑，只继续收紧头部、表格层级、按钮密度和空态视觉。"
+                  ? "保留现有列表逻辑，只继续收紧头部、表格层级、按钮密度和空态表达。"
                   : "Keep the existing list logic and tighten hierarchy, spacing, and state density only."}
               </Text>
             </div>
-            {documentsQuery.data?.length ? (
+            {documentCount ? (
               <Badge color="indigo" radius="sm" variant="light">
-                {documentsQuery.data.length}
+                {documentCount}
               </Badge>
             ) : null}
           </Group>
