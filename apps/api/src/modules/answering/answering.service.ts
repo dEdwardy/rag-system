@@ -332,8 +332,17 @@ export class AnsweringService {
       .map(chunkNumber => input.chunks[chunkNumber - 1] ?? null)
       .filter((chunk): chunk is RetrievedChunk => chunk !== null);
 
-    if (extractedFromAnswer.length > 0) {
-      return extractedFromAnswer;
+    const uniqueExtractedFromAnswer: RetrievedChunk[] = [];
+    for (const chunk of extractedFromAnswer) {
+      if (uniqueExtractedFromAnswer.some(candidate => candidate.chunkId === chunk.chunkId)) {
+        continue;
+      }
+
+      uniqueExtractedFromAnswer.push(chunk);
+    }
+
+    if (uniqueExtractedFromAnswer.length > 0) {
+      return uniqueExtractedFromAnswer;
     }
 
     if (input.citationMode === "optional") {

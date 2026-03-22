@@ -462,6 +462,14 @@
 
 ### 2026-03-23
 
+- ✅ plain-text citation-marker dedup in answering fallback path
+  - 当模型没有返回 structured citations、backend 退回到解析答案内联 marker（如 `[1][1][2]`）时，当前会按首次出现顺序去重同一 source
+  - 这样最终 citation 列表和 `answeringMetadata.citationCount` 不再因为重复 marker 被虚增
+  - 当前改动只收在 answering backend fallback normalization，不改 API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
 - ✅ retrieval execution metadata actual-path exposure
   - `ask` / trace retrieval metadata `execution` 现在除了 query、threshold 和 chunk counts 之外，也会显式暴露：
     - `actualMode`: `vector` / `hybrid` / `lexical`

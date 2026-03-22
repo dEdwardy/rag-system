@@ -508,6 +508,7 @@ The following path has been validated locally on `2026-03-21`:
 - Structured answer JSON is now schema-validated and normalized before backend consumption
   - constrained fields: `answer`, `status`, `citations`, `missingInformation`
 - Citation snippets now prefer structured `citationEvidence` quotes after backend source-local validation, with deterministic fallback snippets when validation fails
+- when structured citations are absent and the backend falls back to inline answer markers like `[1]`, repeated markers for the same source are now de-duplicated before final citation expansion
 - Trace persistence now includes `qualityEvaluationJson`
 - Assistant-level `answerPolicyJson` validation and ask-time policy application
   - richer answer-policy prompt controls for tone, output format, and answer language

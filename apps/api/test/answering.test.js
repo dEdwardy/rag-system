@@ -152,6 +152,49 @@ test("AnsweringService falls back to default structured metadata when the model 
   assert.equal(result.citations[0].chunkId, "chunk-1");
 });
 
+test("AnsweringService de-duplicates repeated inline citation markers from plain-text answers", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Fallback answer [1][1][2][1]",
+      modelName: "test-model"
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      },
+      {
+        chunkId: "chunk-2",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 1,
+        content: "second chunk with answer",
+        score: 0.8,
+        pageNo: null,
+        sectionTitle: "B"
+      }
+    ]
+  });
+
+  assert.deepEqual(
+    result.citations.map(citation => citation.chunkId),
+    ["chunk-1", "chunk-2"]
+  );
+  assert.equal(result.answeringMetadata.citationCount, 2);
+});
+
 test("AnsweringService does not fabricate heuristic citations when citationMode is optional", async () => {
   const llmService = {
     generateAnswer: async () => ({
