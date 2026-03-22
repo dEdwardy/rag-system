@@ -72,6 +72,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
         contextGroups: input.contextGroups,
         answeringMetadata: {
           promptId: "answer.v2",
+          usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
           contextMode: "chunks",
           inputChunkCount: input.chunks.length,
@@ -107,7 +108,8 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
         return {
           rawAnswer: "Alpha Beta",
           modelName: "ollama:qwen-test",
-          promptId: "answer.v2"
+          promptId: "answer.v2",
+          usedFallback: false
         };
       }
     }

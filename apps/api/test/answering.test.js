@@ -100,6 +100,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
   assert.equal(result.citations[0].chunkId, "chunk-2");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
+    usedFallback: false,
     answerPolicy: {
       responseStyle: "concise",
       tone: "neutral",
@@ -150,6 +151,40 @@ test("AnsweringService falls back to default structured metadata when the model 
   assert.deepEqual(result.missingInformation, []);
   assert.equal(result.citations.length, 1);
   assert.equal(result.citations[0].chunkId, "chunk-1");
+});
+
+test("AnsweringService exposes usedFallback in answering metadata for local fallback answers", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Fallback answer [1]",
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.answeringMetadata.usedFallback, true);
 });
 
 test("AnsweringService de-duplicates repeated inline citation markers from plain-text answers", async () => {
@@ -349,6 +384,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
   ]);
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
+    usedFallback: false,
     answerPolicy: {
       responseStyle: "concise",
       tone: "neutral",

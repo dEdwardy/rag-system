@@ -134,6 +134,7 @@ export class LlmService {
     return {
       modelName: `ollama:${model}`,
       promptId: prompt.promptId,
+      usedFallback: false,
       ...this.parseAnswerOutput(answer)
     };
   }
@@ -184,6 +185,7 @@ export class LlmService {
     return {
       modelName: model,
       promptId: prompt.promptId,
+      usedFallback: false,
       ...this.parseAnswerOutput(answer)
     };
   }
@@ -192,10 +194,12 @@ export class LlmService {
     rawAnswer: string;
     modelName: string;
     promptId: string;
+    usedFallback: boolean;
   }): GenerateAnswerOutput {
     return {
       modelName: input.modelName,
       promptId: input.promptId,
+      usedFallback: input.usedFallback,
       ...this.parseAnswerOutput(input.rawAnswer)
     };
   }
@@ -250,7 +254,8 @@ export class LlmService {
     return {
       rawAnswer: rawAnswer.trim(),
       modelName: `ollama:${model}`,
-      promptId: prompt.promptId
+      promptId: prompt.promptId,
+      usedFallback: false
     };
   }
 
@@ -348,7 +353,8 @@ export class LlmService {
     return {
       rawAnswer: rawAnswer.trim(),
       modelName: model,
-      promptId: prompt.promptId
+      promptId: prompt.promptId,
+      usedFallback: false
     };
   }
 
@@ -447,6 +453,7 @@ export class LlmService {
         answer: this.buildFallbackNoHitAnswer(input.question, input.answerPolicy.language),
         modelName: "fallback-local",
         promptId: this.promptManager.getAnswerPromptId(),
+        usedFallback: true,
         answerStatus: "insufficient_context",
         missingInformation: ["No relevant supporting sources were retrieved."]
       };
@@ -463,6 +470,7 @@ export class LlmService {
       answer,
       modelName: "fallback-local",
       promptId: this.promptManager.getAnswerPromptId(),
+      usedFallback: true,
       answerStatus: "grounded",
       missingInformation: [],
       citedChunkNumbers: [1]
@@ -512,7 +520,8 @@ export class LlmService {
     return {
       rawAnswer: result.answer,
       modelName: result.modelName,
-      promptId: result.promptId
+      promptId: result.promptId,
+      usedFallback: result.usedFallback
     };
   }
 
@@ -609,7 +618,7 @@ export class LlmService {
     return value?.replace(/^["'`\s]+|["'`\s]+$/g, "").replace(/\s+/g, " ").trim() ?? "";
   }
 
-  private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId"> {
+  private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId" | "usedFallback"> {
     const parsed = this.tryParseStructuredAnswer(rawAnswer);
     if (parsed) {
       return parsed;
@@ -624,7 +633,9 @@ export class LlmService {
     };
   }
 
-  private tryParseStructuredAnswer(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId"> | null {
+  private tryParseStructuredAnswer(
+    rawAnswer: string
+  ): Omit<GenerateAnswerOutput, "modelName" | "promptId" | "usedFallback"> | null {
     const normalized = rawAnswer.trim();
     const candidates = [normalized];
     const fencedMatch = normalized.match(/```(?:json)?\s*([\s\S]*?)```/i);

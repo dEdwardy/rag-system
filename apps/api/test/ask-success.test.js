@@ -143,6 +143,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           contextGroups,
           answeringMetadata: {
             promptId: "answer.v2",
+            usedFallback: true,
             answerPolicy: {
               responseStyle: "balanced",
               tone: "friendly",
@@ -332,6 +333,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.deepEqual(updateTraceCalls[0].input.retrievalMetadataJson, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(updateTraceCalls[0].input.answeringMetadataJson, {
     promptId: "answer.v2",
+    usedFallback: true,
     answerPolicy: {
       responseStyle: "balanced",
       tone: "friendly",
@@ -357,6 +359,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
+    usedFallback: true,
     answerPolicy: {
       responseStyle: "balanced",
       tone: "friendly",
@@ -459,6 +462,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         contextGroups: [],
         answeringMetadata: {
           promptId: "answer.v2",
+          usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
             tone: "neutral",
@@ -578,6 +582,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   });
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
+    usedFallback: true,
     answerPolicy: {
       responseStyle: "concise",
       tone: "neutral",

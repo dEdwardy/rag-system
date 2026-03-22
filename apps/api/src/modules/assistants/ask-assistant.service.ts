@@ -345,7 +345,8 @@ export class AskAssistantService {
         contextGroups,
         rawAnswer: streamResult.rawAnswer,
         modelName: streamResult.modelName,
-        promptId: streamResult.promptId
+        promptId: streamResult.promptId,
+        usedFallback: streamResult.usedFallback
       });
 
       const assistantMessage = await this.messagesService.createMessage({

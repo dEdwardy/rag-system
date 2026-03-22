@@ -39,6 +39,7 @@ type QualityEvaluation = {
 
 export type AnsweringMetadata = {
   promptId: string;
+  usedFallback: boolean;
   answerPolicy: AnswerPolicy;
   contextMode: "chunks" | "context_groups";
   inputChunkCount: number;
@@ -95,12 +96,14 @@ export class AnsweringService {
     rawAnswer: string;
     modelName: string;
     promptId: string;
+    usedFallback: boolean;
   }) {
     const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
     const llmResult = this.llmService.parseStructuredAnswer({
       rawAnswer: input.rawAnswer,
       modelName: input.modelName,
-      promptId: input.promptId
+      promptId: input.promptId,
+      usedFallback: input.usedFallback
     });
 
     return this.finalizeResolvedAnswer({
@@ -128,12 +131,14 @@ export class AnsweringService {
       answer: string;
       modelName: string;
       promptId: string;
+      usedFallback?: boolean;
       answerStatus?: "grounded" | "insufficient_context";
       missingInformation?: string[];
       citedChunkNumbers?: number[];
       citationEvidence?: CitationEvidence[];
     };
   }) {
+    const usedFallback = input.result.usedFallback ?? input.result.modelName === "fallback-local";
     const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
     const missingInformation = this.resolveMissingInformation({
       answerStatus,
@@ -161,6 +166,7 @@ export class AnsweringService {
         modelName: input.result.modelName,
         answeringMetadata: {
           promptId: input.result.promptId ?? "answer.v2",
+          usedFallback,
           answerPolicy: input.answerPolicy,
           contextMode: "chunks",
           inputChunkCount: 0,
@@ -211,6 +217,7 @@ export class AnsweringService {
       modelName: input.result.modelName,
       answeringMetadata: {
         promptId: input.result.promptId ?? "answer.v2",
+        usedFallback,
         answerPolicy: input.answerPolicy,
         contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
         inputChunkCount: input.chunks.length,

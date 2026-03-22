@@ -116,6 +116,9 @@ Notes:
   - for grounded answers, `includeMissingInformation=false` still clears advisory gap items from the final response
   - for `insufficient_context` answers, the backend now always preserves `missingInformation`, and fills a deterministic default reason when the model omits one
   - structured-answer normalization now also trims and de-duplicates `missingInformation` entries while preserving first-seen order
+- current answering metadata semantics:
+  - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path
+  - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`

@@ -462,6 +462,14 @@
 
 ### 2026-03-23
 
+- ✅ answering metadata fallback-path exposure
+  - `answeringMetadata` 现已显式返回 `usedFallback`，用于区分 provider-backed answer generation 和本地 fallback 路径
+  - one-shot ask、native stream final payload，以及持久化 trace 中的 `answeringMetadataJson` 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ local grounded fallback answer language alignment
   - 当没有可用模型 provider、但 retrieval 已命中内容时，`LlmService` 本地 grounded fallback answer 不再固定使用英文前缀
   - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，让 hitful local fallback 与 no-hit local fallback 的语言策略保持一致
