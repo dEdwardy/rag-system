@@ -435,6 +435,7 @@
     - still avoid opening a new UI refactor or a generic connector/source platform rewrite
   - latest backend consistency follow-up:
     - external source `external_resync` now resets document-level `chunkCount` to `0` as soon as a new pending version is queued, aligning repeated source syncs with the existing upload-document `reindex` semantics
+    - external source `reindex` with missing or invalid persisted `sourceConfigJson` now still lands a new `external_resync` run/version and records a structured non-retryable failure instead of escaping before run history is written
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -461,6 +462,14 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/external-source-sync.test.js`
     - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
+- ✅ external source reindex invalid-config failure normalization
+  - when a persisted external source document no longer has a valid `sourceConfigJson`, `POST /documents/:id/reindex` no longer fails before run creation
+  - the backend now queues a new `external_resync` version first, then records a structured non-retryable failure on both the document and run using the existing diagnostics path
+  - this keeps document/run history consistent for corrupted or legacy external-source records without adding new API fields or expanding source-platform scope
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
 
 - ✅ PC Web source run observability consumption minimum increment
   - current implementation stays inside the existing `Knowledge Base` and `Document Detail` pages instead of opening a new source center or a broader UI refactor

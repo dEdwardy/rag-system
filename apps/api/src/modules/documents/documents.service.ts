@@ -451,7 +451,6 @@ export class DocumentsService {
   }
 
   private async resyncExternalDocument(document: Awaited<ReturnType<DocumentsService["getDocument"]>>) {
-    const sourceConfig = this.parseExternalSourceConfig(document.sourceConfigJson);
     const queuedDocument = await this.prisma.document.update({
       where: { id: document.id },
       data: {
@@ -470,6 +469,10 @@ export class DocumentsService {
       version: queuedDocument.version,
       trigger: DocumentRunTrigger.external_resync
     });
+    const sourceConfig = await this.parseExternalSourceConfigOrRecordFailure(
+      queuedDocument,
+      document.sourceConfigJson
+    );
 
     const fetchedSource = await this.fetchExternalSourceOrRecordFailure(queuedDocument, () =>
       this.fetchExternalSourceFromConfig(sourceConfig)
@@ -511,6 +514,43 @@ export class DocumentsService {
     await this.ingestionService.enqueueDocument(updatedDocument.id, updatedDocument.version);
 
     return this.getDocument(document.id);
+  }
+
+  private async parseExternalSourceConfigOrRecordFailure(
+    document: {
+      id: string;
+      version: number;
+    },
+    value: Prisma.JsonValue | null
+  ) {
+    try {
+      return this.parseExternalSourceConfig(value);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "External source config is invalid.";
+      const diagnostics = {
+        code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: document.version,
+        message
+      } satisfies Prisma.InputJsonValue;
+
+      await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          status: DocumentStatus.failed,
+          processingStage: DocumentProcessingStage.failed,
+          errorMessage: message,
+          diagnosticsJson: diagnostics
+        }
+      });
+      await this.documentRunsService.markRunFailed(document.id, document.version, {
+        failedStage: DocumentRunFailedStage.source_fetch,
+        diagnosticsJson: diagnostics
+      });
+
+      throw error;
+    }
   }
 
   private parseExternalSourceConfig(value: Prisma.JsonValue | null): ExternalSourceConfig {
