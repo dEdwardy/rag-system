@@ -713,13 +713,25 @@ export class AnsweringService {
     }
 
     if (resolvedLanguage === "zh") {
-      return input.flags.includes("no_retrieval_hits")
-        ? "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002"
-        : "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\u3002";
+      if (input.flags.includes("no_retrieval_hits")) {
+        return "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002";
+      }
+
+      if (input.flags.includes("low_retrieval_score")) {
+        return "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002";
+      }
+
+      return "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\u3002";
     }
 
-    return input.flags.includes("no_retrieval_hits")
-      ? "Answer quality is weak because supporting context was insufficient."
-      : "Answer quality is weak because retrieved context was still insufficient.";
+    if (input.flags.includes("no_retrieval_hits")) {
+      return "Answer quality is weak because supporting context was insufficient.";
+    }
+
+    if (input.flags.includes("low_retrieval_score")) {
+      return "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low.";
+    }
+
+    return "Answer quality is weak because retrieved context was still insufficient.";
   }
 }

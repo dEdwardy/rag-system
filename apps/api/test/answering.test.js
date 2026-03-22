@@ -955,6 +955,56 @@ test("AnsweringService distinguishes weak insufficient-context summaries when re
   });
 });
 
+test("AnsweringService mentions low retrieval confidence in weak insufficient-context summaries", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "I don't know.",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["Need pricing details."]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with partial support",
+        score: 0.4,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "insufficient_context");
+  assert.deepEqual(result.qualityEvaluation.flags, [
+    "insufficient_context",
+    "missing_information",
+    "low_retrieval_score"
+  ]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
+  );
+});
+
 test("AnsweringService enforces say_insufficient_context with a deterministic fallback answer", async () => {
   const llmService = {
     generateAnswer: async () => ({
