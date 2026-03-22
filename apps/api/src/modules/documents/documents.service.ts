@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { DocumentProcessingStage, DocumentRunFailedStage, DocumentRunTrigger, DocumentStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { FeedSourceService } from "../../infra/feed-source/feed-source.service";
@@ -397,10 +397,11 @@ export class DocumentsService {
       return await operation();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown external source fetch error.";
+      const retryable = this.isRetryableExternalSourceError(error);
       const diagnostics = {
         code: "EXTERNAL_SOURCE_FETCH_FAILED",
         failedStage: "source_fetch",
-        retryable: true,
+        retryable,
         documentVersion: document.version,
         message
       } satisfies Prisma.InputJsonValue;
@@ -530,5 +531,9 @@ export class DocumentsService {
 
   private isExternalSourceType(sourceType: string) {
     return sourceType === "web_page" || sourceType === "feed" || sourceType === "sitemap";
+  }
+
+  private isRetryableExternalSourceError(error: unknown) {
+    return !(error instanceof BadRequestException);
   }
 }

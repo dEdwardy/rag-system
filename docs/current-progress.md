@@ -552,6 +552,17 @@
     - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
     - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 
+- ✅ external source fetch retryability diagnostics correction
+  - external source `source_fetch` diagnostics no longer overstate retryability
+  - current behavior now distinguishes:
+    - upstream / transient fetch failures -> `retryable: true`
+    - invalid payload / unsupported content-type style failures -> `retryable: false`
+  - this keeps source run summary and failure diagnostics aligned with the real execution boundary instead of treating all source-fetch errors as retryable
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+
 - ✅ UI 审查问题第一轮收口
   - 基于 `ui/审查报告.md` 对当前 `PC Web` 做第一轮 focused cleanup
   - `AppShell` 顶栏中的搜索 / 通知 / 当前知识库展示降级为非误导性的展示控件，减少假交互

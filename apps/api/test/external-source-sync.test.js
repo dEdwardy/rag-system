@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { BadRequestException } = require("@nestjs/common");
 const { Prisma } = require("@prisma/client");
 const { DocumentsService } = require("../dist/modules/documents/documents.service.js");
 
@@ -159,6 +160,80 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
     }
   ]);
   assert.deepEqual(enqueuedDocumentIds, []);
+});
+
+test("DocumentsService records non-retryable diagnostics for invalid external source payloads", async () => {
+  const documentUpdates = [];
+  const failedRuns = [];
+
+  const reservedDocument = {
+    id: "reserved-invalid-web-page-document",
+    version: 4
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...reservedDocument,
+            ...args.data
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.fetchExternalSourceOrRecordFailure.call(
+      fakeService,
+      reservedDocument,
+      async () => {
+        throw new BadRequestException("Unsupported web page content type: application/pdf.");
+      }
+    ),
+    /Unsupported web page content type/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      where: {
+        id: reservedDocument.id
+      },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "Unsupported web page content type: application/pdf.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          documentVersion: reservedDocument.version,
+          message: "Unsupported web page content type: application/pdf."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: reservedDocument.version,
+        message: "Unsupported web page content type: application/pdf."
+      }
+    }
+  ]);
 });
 
 async function expectExternalSourceResync({ sourceType, methodName, input, expectedSourceName, fetchResult }) {

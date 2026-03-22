@@ -261,6 +261,9 @@ Notes:
 - external source HTTP fetches now share a small retry guard: one automatic retry for transient `429` / `5xx` upstream responses before surfacing the failure
 - external source creation now reserves a `Document` record before remote fetch, so when `web page` / `feed` / `sitemap` source fetch fails the failure is still visible later through `GET /knowledge-bases/:id/documents` and `GET /documents/:id`
 - external source documents now persist `sourceConfigJson`, and `POST /documents/:id/reindex` for `web_page` / `feed` / `sitemap` performs a true remote re-sync using the stored source config instead of only re-parsing the previous generated text artifact
+- external source fetch diagnostics now distinguish retryability at the source-fetch boundary:
+  - upstream / transient fetch failures remain `retryable: true`
+  - invalid payload / unsupported content type style failures now persist as `retryable: false`
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`
