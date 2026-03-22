@@ -365,6 +365,126 @@ test("DocumentsService records a failed external_resync run when stored source c
   assert.deepEqual(enqueuedDocumentIds, []);
 });
 
+test("DocumentsService reindex preserves an existing sitemap title when the resynced source has no title", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-sitemap-document",
+    kbId: "default-kb",
+    sourceType: "sitemap",
+    sourceName: "https://example.com/sitemap.xml",
+    title: "Curated sitemap title",
+    mimeType: "text/plain",
+    storageKey: "generated/sitemap.txt",
+    sourceConfigJson: {
+      kind: "sitemap",
+      url: "https://example.com/sitemap.xml",
+      maxPages: 10
+    },
+    status: "ready",
+    processingStage: "completed",
+    version: 4,
+    chunkCount: 3,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    sitemapSourceService: {
+      fetchSitemap: async options => {
+        assert.deepEqual(options, {
+          url: "https://example.com/sitemap.xml",
+          maxPages: 10
+        });
+        return {
+          content: "Updated sitemap content",
+          diagnostics: null
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Updated sitemap content");
+        return {
+          storageKey: "generated/sitemap-refreshed.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 5,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Curated sitemap title",
+        mimeType: "text/plain",
+        storageKey: "generated/sitemap-refreshed.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
 async function expectExternalSourceResync({ sourceType, methodName, input, expectedSourceName, fetchResult }) {
   const enqueuedDocumentIds = [];
   const documentCreates = [];

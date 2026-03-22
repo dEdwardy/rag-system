@@ -438,6 +438,7 @@
     - external source `reindex` with missing or invalid persisted `sourceConfigJson` now still lands a new `external_resync` run/version and records a structured non-retryable failure instead of escaping before run history is written
     - document-run summary latest anchors now resolve by the latest matching completed run timestamp, so overlapping runs do not let a later-started but earlier-finished run override `latestFailure` / `latestRetryableFailure` / `latestSkipped`
     - document-level run history now uses the same primary recent-run ordering as the knowledge-base scoped run list: `startedAt desc` first, then `version desc` for ties
+    - external source re-sync now preserves the current document title whenever the refreshed source payload does not provide a new source-level title
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -490,6 +491,15 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/document-runs-summary.test.js`
     - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
+
+- ✅ external source title preservation on title-less resync
+  - when a repeated external-source `reindex` does not return a new source-level title, the backend now keeps the current document `title` instead of replacing it with the normalized URL fallback
+  - this is especially relevant for `sitemap` sources, whose re-sync path may not have a source title to refresh from
+  - the change stays inside `DocumentsService` title fallback logic and does not add new fields or expand API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
 
 - ✅ PC Web source run observability consumption minimum increment
   - current implementation stays inside the existing `Knowledge Base` and `Document Detail` pages instead of opening a new source center or a broader UI refactor

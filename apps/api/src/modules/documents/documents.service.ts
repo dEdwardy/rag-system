@@ -484,7 +484,7 @@ export class DocumentsService {
     const updatedDocument = await this.prisma.document.update({
       where: { id: document.id },
       data: {
-        title: fetchedSource.title ?? this.buildRemoteSourceFallbackTitle(document.sourceName),
+        title: fetchedSource.title ?? document.title ?? this.buildRemoteSourceFallbackTitle(document.sourceName),
         mimeType: "text/plain",
         storageKey: storedFile.storageKey,
         status: DocumentStatus.pending,
