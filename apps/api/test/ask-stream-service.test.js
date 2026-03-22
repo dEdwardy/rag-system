@@ -136,3 +136,129 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answer, "Alpha Beta");
   assert.equal(finalResult.traceId, "trace-1");
 });
+
+test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
+  const events = [];
+  let providerStreamCalls = 0;
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "concise",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "en",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "say_insufficient_context",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks: [],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      buildStreamAnswerContext: ({ chunks }) => chunks,
+      getDeterministicInsufficientContextAnswer: ({ question }) =>
+        `deterministic fallback for: ${question}`,
+      generateAnswer: async () => {
+        throw new Error("one-shot generateAnswer should not be used by native streaming");
+      },
+      finalizeStreamedAnswer: async input => ({
+        answer: input.rawAnswer,
+        modelName: input.modelName,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: input.promptId,
+          usedFallback: input.usedFallback,
+          answerPolicy: input.answerPolicy,
+          contextMode: "chunks",
+          inputChunkCount: input.chunks.length,
+          contextGroupCount: input.contextGroups.length,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
+        answerStatus: "insufficient_context",
+        missingInformation: ["No relevant supporting sources were retrieved."],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          primaryIssue: "no_retrieval_hits",
+          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+          summary: "Answer quality is weak because supporting context was insufficient."
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async () => {
+        providerStreamCalls += 1;
+        throw new Error("provider stream should be bypassed");
+      }
+    }
+  );
+
+  const finalResult = await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "What detail is missing?",
+    onEvent: event => {
+      events.push(event);
+    }
+  });
+
+  assert.equal(providerStreamCalls, 0);
+  assert.deepEqual(
+    events.map(event => event.type === "status" ? `${event.type}:${event.phase}` : event.type),
+    ["status:started", "status:retrieving", "status:generating", "answer_delta", "final"]
+  );
+  assert.equal(events[3].delta, "deterministic fallback for: What detail is missing?");
+  assert.equal(events[4].data.answer, "deterministic fallback for: What detail is missing?");
+  assert.equal(finalResult.answer, "deterministic fallback for: What detail is missing?");
+  assert.equal(finalResult.answeringMetadata.usedFallback, true);
+});

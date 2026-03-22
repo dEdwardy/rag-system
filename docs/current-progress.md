@@ -462,6 +462,15 @@
 
 ### 2026-03-23
 
+- ✅ no-hit ask-stream deterministic bypass
+  - `POST /assistants/:id/ask/stream` 在 `no hits + say_insufficient_context` 时，现在会直接跳过 provider streaming
+  - backend 会直接发出 deterministic insufficient-context delta，并让最终 `final.answer` 复用同一文本
+  - 这样 no-hit deterministic policy 不再先流出 provider / fallback 自由文本，再在 final payload 改写成另一版答案
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/ask-stream-service.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/llm-answer-stream.test.js`
+
 - ✅ quality-summary localization alignment
   - backend 生成的 deterministic `qualityEvaluation.summary` 现在也会按问题语言和 policy 做最小 `en` / `zh` 分流
   - 当前至少已对齐：

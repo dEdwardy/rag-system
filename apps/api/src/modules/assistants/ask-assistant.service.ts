@@ -322,21 +322,40 @@ export class AskAssistantService {
         phase: "generating"
       });
 
-      const streamResult = await this.llmService.generateAnswerStream({
-        question: input.question,
-        systemPrompt: assistant.systemPrompt,
-        answerPolicy: normalizedAnswerPolicy,
-        chunks: this.answeringService.buildStreamAnswerContext({
-          chunks: retrievedChunks,
-          contextGroups
-        }),
-        onDelta: async delta => {
-          await input.onEvent({
-            type: "answer_delta",
-            delta
-          });
-        }
-      });
+      const streamResult =
+        retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
+          ? await (async () => {
+              const deterministicAnswer = this.answeringService.getDeterministicInsufficientContextAnswer({
+                question: input.question,
+                answerPolicy
+              });
+              await input.onEvent({
+                type: "answer_delta",
+                delta: deterministicAnswer
+              });
+
+              return {
+                rawAnswer: deterministicAnswer,
+                modelName: "fallback-local",
+                promptId: "answer.v2",
+                usedFallback: true
+              };
+            })()
+          : await this.llmService.generateAnswerStream({
+              question: input.question,
+              systemPrompt: assistant.systemPrompt,
+              answerPolicy: normalizedAnswerPolicy,
+              chunks: this.answeringService.buildStreamAnswerContext({
+                chunks: retrievedChunks,
+                contextGroups
+              }),
+              onDelta: async delta => {
+                await input.onEvent({
+                  type: "answer_delta",
+                  delta
+                });
+              }
+            });
 
       const resolvedAnswerResult = await this.answeringService.finalizeStreamedAnswer({
         question: input.question,

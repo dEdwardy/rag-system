@@ -109,6 +109,7 @@ Notes:
 - current backend enforcement for `noAnswerBehavior`:
   - `say_insufficient_context`: when the final answer status is `insufficient_context`, the backend now replaces model free-form text with a deterministic insufficient-context reply
   - the fallback reply is localized for `en` / `zh`, and `auto` / `same_as_question` currently resolve by simple question-language detection
+  - for `POST /assistants/:id/ask/stream`, when retrieval returns no chunks and `noAnswerBehavior=say_insufficient_context`, the backend now bypasses provider streaming and emits that same deterministic reply directly
   - `best_effort`: the backend preserves the model's returned answer text even when the final answer status is `insufficient_context`
   - the local `LlmService` no-model fallback for zero-hit answers now follows the same minimal `en` / `zh` language resolution instead of always returning English
   - that same zero-hit local fallback path now also localizes its deterministic `missingInformation` reason for `en` / `zh`

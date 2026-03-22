@@ -135,6 +135,14 @@ export class AnsweringService {
     return this.buildAnswerContextChunks(input.chunks, input.contextGroups);
   }
 
+  getDeterministicInsufficientContextAnswer(input: {
+    question: string;
+    answerPolicy?: Partial<AnswerPolicy> | null;
+  }) {
+    const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
+    return this.buildInsufficientContextAnswer(input.question, answerPolicy.language);
+  }
+
   private finalizeResolvedAnswer(input: {
     question: string;
     answerPolicy: AnswerPolicy;
