@@ -251,7 +251,8 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
       failedPages: [
         {
           url: `${sitemapServer.origin}/pages/failing`,
-          message: "Failed to fetch web page: upstream responded with 502."
+          message: "Unsupported web page content type: application/pdf.",
+          retryable: false
         }
       ],
       partial: true
@@ -354,7 +355,8 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
       failedChildSitemaps: [
         {
           url: `${sitemapServer.origin}/sitemaps/failing.xml`,
-          message: "Failed to fetch sitemap: upstream responded with 502."
+          message: "Failed to fetch sitemap: upstream responded with 502.",
+          retryable: true
         }
       ]
     });
@@ -635,10 +637,10 @@ async function startPartialFailureSitemapServer(marker) {
     }
 
     if (request.url === "/pages/failing") {
-      response.writeHead(502, {
-        "Content-Type": "text/plain; charset=utf-8"
+      response.writeHead(200, {
+        "Content-Type": "application/pdf"
       });
-      response.end("upstream failed");
+      response.end("%PDF-1.7");
       return;
     }
 

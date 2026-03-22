@@ -281,10 +281,10 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
     }
 
     if (normalizedUrl === "https://example.com/pages/bad") {
-      return new Response("upstream exploded", {
-        status: 502,
+      return new Response("%PDF-1.7", {
+        status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          "Content-Type": "application/pdf"
         }
       });
     }
@@ -308,7 +308,8 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
       failedPages: [
         {
           url: "https://example.com/pages/bad",
-          message: "Failed to fetch web page: upstream responded with 502."
+          message: "Unsupported web page content type: application/pdf.",
+          retryable: false
         }
       ],
       partial: true
@@ -452,7 +453,8 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
       failedChildSitemaps: [
         {
           url: "https://example.com/sitemaps/bad.xml",
-          message: "Failed to fetch sitemap: upstream responded with 502."
+          message: "Failed to fetch sitemap: upstream responded with 502.",
+          retryable: true
         }
       ]
     });

@@ -36,6 +36,7 @@ type SitemapPartialDiagnostics = {
   failedPages?: Array<{
     url: string;
     message: string;
+    retryable: boolean;
   }>;
   partial: boolean;
   attemptedChildSitemapCount?: number;
@@ -45,6 +46,7 @@ type SitemapPartialDiagnostics = {
   failedChildSitemaps?: Array<{
     url: string;
     message: string;
+    retryable: boolean;
   }>;
 };
 

@@ -25,6 +25,7 @@ type SitemapFetchDiagnostics = {
   failedPages?: Array<{
     url: string;
     message: string;
+    retryable: boolean;
   }>;
   partial: boolean;
   attemptedChildSitemapCount?: number;
@@ -34,6 +35,7 @@ type SitemapFetchDiagnostics = {
   failedChildSitemaps?: Array<{
     url: string;
     message: string;
+    retryable: boolean;
   }>;
 };
 
@@ -224,7 +226,8 @@ export class SitemapSourceService {
               failedChildSitemapUrls: failedChildSitemapUrls.slice(0, 10),
               failedChildSitemaps: childSitemapFailures.slice(0, 10).map(failure => ({
                 url: failure.url,
-                message: this.getErrorMessage(failure.error)
+                message: this.getErrorMessage(failure.error),
+                retryable: this.isRetryableFetchError(failure.error)
               })),
               partial: true
             }
@@ -285,7 +288,8 @@ export class SitemapSourceService {
             failedPageUrls: failedPageUrls.slice(0, 10),
             failedPages: pageFailures.slice(0, 10).map(failure => ({
               url: failure.url,
-              message: this.getErrorMessage(failure.error)
+              message: this.getErrorMessage(failure.error),
+              retryable: this.isRetryableFetchError(failure.error)
             })),
             partial: true,
             ...(existingDiagnostics ?? {})
@@ -415,5 +419,9 @@ export class SitemapSourceService {
     }
 
     return "Unknown fetch error.";
+  }
+
+  private isRetryableFetchError(error: unknown) {
+    return !(error instanceof BadRequestException);
   }
 }
