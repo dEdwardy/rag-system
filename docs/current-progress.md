@@ -493,6 +493,21 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js apps/api/test/web-page-source-e2e.test.js`
 
+- ✅ knowledge-base scoped document run summary 第一轮
+  - 新增 `GET /knowledge-bases/:id/document-runs/summary`
+  - 当前 summary 聚合输出：
+    - `totalRuns`
+    - `latestRunAt`
+    - `latestFinishedAt`
+    - `byStatus`
+    - `byTrigger`
+    - `bySourceType`
+    - `latestFailure`
+  - 目标是先为后续 diagnostics 承载和潜在 UI 概览提供轻量后端聚合面，而不是继续扩 source platform 抽象
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js apps/api/test/web-page-source-e2e.test.js`
+
 - ✅ external source repeat-run dedup / re-sync 第一轮
   - `web page` / `feed` / `sitemap` 入口现在会先对 remote URL 做归一化（去掉 hash，并使用标准化 URL 字符串）
   - 同一 `knowledge base + sourceType + normalized URL` 再次 ingestion 时，不再创建重复 `Document`

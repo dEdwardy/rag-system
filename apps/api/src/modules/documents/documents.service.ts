@@ -62,6 +62,11 @@ export class DocumentsService {
     return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId, input);
   }
 
+  async getKnowledgeBaseDocumentRunSummary(knowledgeBaseId: string) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId);
+  }
+
   async getDocument(id: string) {
     const document = await this.prisma.document.findUnique({
       where: { id }

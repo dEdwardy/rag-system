@@ -12,6 +12,88 @@ import { ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schema
 export class DocumentRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getKnowledgeBaseRunSummary(knowledgeBaseId: string) {
+    const runs = await this.prisma.documentRun.findMany({
+      where: {
+        document: {
+          kbId: knowledgeBaseId
+        }
+      },
+      orderBy: [{ startedAt: "desc" }, { version: "desc" }],
+      select: {
+        documentId: true,
+        version: true,
+        trigger: true,
+        status: true,
+        failedStage: true,
+        diagnosticsJson: true,
+        startedAt: true,
+        finishedAt: true,
+        document: {
+          select: {
+            sourceType: true,
+            sourceName: true
+          }
+        }
+      }
+    });
+
+    const byStatus = {
+      pending: 0,
+      processing: 0,
+      ready: 0,
+      failed: 0,
+      skipped: 0
+    };
+    const byTrigger = {
+      upload: 0,
+      reindex: 0,
+      external_resync: 0
+    };
+    const bySourceType: Record<string, number> = {};
+
+    for (const run of runs) {
+      byStatus[run.status] += 1;
+      byTrigger[run.trigger] += 1;
+      bySourceType[run.document.sourceType] = (bySourceType[run.document.sourceType] ?? 0) + 1;
+    }
+
+    const latestFailure = runs.find(run => run.status === DocumentRunStatus.failed);
+    const latestFailureMessage = this.getDiagnosticsMessage(latestFailure?.diagnosticsJson ?? null);
+
+    return {
+      totalRuns: runs.length,
+      latestRunAt: runs[0]?.startedAt ?? null,
+      latestFinishedAt:
+        runs.reduce<Date | null>((latest, run) => {
+          if (!run.finishedAt) {
+            return latest;
+          }
+
+          if (!latest || run.finishedAt > latest) {
+            return run.finishedAt;
+          }
+
+          return latest;
+        }, null) ?? null,
+      byStatus,
+      byTrigger,
+      bySourceType,
+      latestFailure: latestFailure
+        ? {
+            documentId: latestFailure.documentId,
+            version: latestFailure.version,
+            trigger: latestFailure.trigger,
+            failedStage: latestFailure.failedStage,
+            sourceType: latestFailure.document.sourceType,
+            sourceName: latestFailure.document.sourceName,
+            message: latestFailureMessage,
+            finishedAt: latestFailure.finishedAt
+          }
+        : null
+    };
+  }
+
   listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
     return this.prisma.documentRun.findMany({
       where: {
@@ -146,5 +228,13 @@ export class DocumentRunsService {
       },
       data
     });
+  }
+
+  private getDiagnosticsMessage(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+
+    return typeof value.message === "string" ? value.message : null;
   }
 }

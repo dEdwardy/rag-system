@@ -301,6 +301,40 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
         failedStage: "source_fetch"
       }
     );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 1);
+    assert.equal(summary.latestRunAt !== null, true);
+    assert.equal(summary.latestFinishedAt !== null, true);
+    assert.deepEqual(summary.byStatus, {
+      pending: 0,
+      processing: 0,
+      ready: 0,
+      failed: 1,
+      skipped: 0
+    });
+    assert.deepEqual(summary.byTrigger, {
+      upload: 0,
+      reindex: 0,
+      external_resync: 1
+    });
+    assert.deepEqual(summary.bySourceType, {
+      web_page: 1
+    });
+    assert.deepEqual(summary.latestFailure, {
+      documentId: documents[0].id,
+      version: 1,
+      trigger: "external_resync",
+      failedStage: "source_fetch",
+      sourceType: "web_page",
+      sourceName: `${pageServer.origin}/knowledge/down`,
+      message: "Failed to fetch web page: upstream responded with 502.",
+      finishedAt: summary.latestFailure.finishedAt
+    });
+    assert.ok(summary.latestFailure.finishedAt);
   } finally {
     server.kill("SIGTERM");
     await stopServer(pageServer.server);
