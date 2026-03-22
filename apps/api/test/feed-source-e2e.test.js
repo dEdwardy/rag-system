@@ -118,6 +118,84 @@ test("Feed source E2E: url -> ready -> chunks -> ask -> reindex", async () => {
   }
 });
 
+test("Feed source E2E: Atom feed -> ready -> chunks -> ask", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3122;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-atom-source-${randomUUID()}`);
+  const queuePrefix = `test-feed-atom-source-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const feedMarker = `feed-atom-marker-${randomUUID()}`;
+  const feedServer = await startAtomFeedServer(feedMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/atom.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    assert.equal(createdDocument.kbId, "default-kb");
+    assert.equal(createdDocument.sourceType, "feed");
+    assert.equal(createdDocument.sourceName, `${feedServer.origin}/atom.xml`);
+
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.status, "ready");
+    assert.equal(readyDocument.processingStage, "completed");
+    assert.ok(readyDocument.chunkCount >= 1);
+
+    const chunksResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/chunks`);
+    assert.equal(chunksResponse.status, 200);
+    const chunks = await chunksResponse.json();
+    assert.ok(Array.isArray(chunks));
+    assert.ok(chunks.some(chunk => chunk.content.includes(feedMarker)));
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: `What unique marker appears in the ingested Atom feed? Return ${feedMarker}`
+      })
+    });
+    assert.equal(askResponse.status, 201);
+
+    const askResult = await askResponse.json();
+    assert.ok(Array.isArray(askResult.retrievedChunks));
+    assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(feedMarker)));
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test("Feed source E2E: partial invalid entries still reach ready and persist diagnostics", async () => {
   await resetTestState();
   execFileSync(process.execPath, ["prisma/seed.js"], {
@@ -897,6 +975,49 @@ async function startPartialFeedServer(marker) {
             </item>
           </channel>
         </rss>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  const address = server.address();
+  return {
+    server,
+    origin: `http://127.0.0.1:${address.port}`
+  };
+}
+
+async function startAtomFeedServer(marker) {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/atom.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/atom+xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <title>Remote Atom Updates</title>
+          <subtitle>External knowledge source test atom feed.</subtitle>
+          <entry>
+            <title>Atom Release 1</title>
+            <link rel="alternate" href="https://example.com/atom/release-1" />
+            <updated>2026-03-22T10:00:00Z</updated>
+            <summary><![CDATA[<p>Unique marker: ${marker}</p>]]></summary>
+          </entry>
+          <entry>
+            <title>Atom Release 2</title>
+            <link rel="alternate" href="https://example.com/atom/release-2" />
+            <published>2026-03-21T08:00:00Z</published>
+            <content type="html"><![CDATA[<div>Atom feed fallback content.</div>]]></content>
+          </entry>
+        </feed>`);
       return;
     }
 
