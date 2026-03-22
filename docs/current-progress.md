@@ -488,7 +488,9 @@
     - `status`
     - `trigger`
     - `sinceHours`
+    - `includeDiagnostics`
     - `limit`
+  - `document-runs` list 当前默认不返回 `diagnosticsJson`，仅在 `includeDiagnostics=true` 时带回完整诊断 JSON，以降低列表载荷
   - 这个接口当前优先服务 backend/API 级诊断与后续 UI 承载，但本轮没有继续开启新的 UI 重构
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`

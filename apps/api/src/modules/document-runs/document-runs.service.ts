@@ -156,7 +156,22 @@ export class DocumentRunsService {
           sourceType: input.sourceType
         }
       },
-      include: {
+      select: {
+        id: true,
+        documentId: true,
+        version: true,
+        trigger: true,
+        status: true,
+        failedStage: true,
+        startedAt: true,
+        finishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        ...(input.includeDiagnostics
+          ? {
+              diagnosticsJson: true
+            }
+          : {}),
         document: {
           select: {
             id: true,

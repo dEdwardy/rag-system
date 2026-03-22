@@ -270,8 +270,10 @@ Notes:
   - `status`
   - `trigger`
   - `sinceHours`
+  - `includeDiagnostics`
   - `limit` (default `20`, max `100`)
 - the run summary endpoint also supports `sinceHours` so recent-run diagnostics can be scoped to a smaller time window
+- `document-runs` list now defaults to a lighter payload and only includes `diagnosticsJson` when `includeDiagnostics=true`
 - the summary payload currently includes:
   - `totalRuns`
   - `latestRunAt`

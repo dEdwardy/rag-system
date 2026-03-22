@@ -68,6 +68,7 @@
   - 当前可通过 `GET /documents/:id/runs` 读取 `upload` / `reindex` / `external_resync` 的执行历史
   - 当前也可通过 `GET /knowledge-bases/:id/document-runs` 在 knowledge-base 级别查看最近 run history
   - knowledge-base 级 run history 已支持最小过滤和 limit，便于直接聚焦失败 run 或某类 source
+  - run list 默认已收紧 payload，仅在 `includeDiagnostics=true` 时返回大诊断 JSON
   - 当前也可通过 `GET /knowledge-bases/:id/document-runs/summary` 读取轻量聚合概览
   - summary 已能直接区分 retryable / non-retryable failures，并按 failed stage 聚合
   - list / summary 当前都支持 `sinceHours` 时间窗过滤，更适合最近运行排查

@@ -255,6 +255,7 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
 
     const runs = await runsResponse.json();
     assert.equal(runs.length, 1);
+    assert.equal("diagnosticsJson" in runs[0], false);
     assert.deepEqual(
       {
         documentId: runs[0].documentId,
@@ -262,7 +263,6 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
         trigger: runs[0].trigger,
         status: runs[0].status,
         failedStage: runs[0].failedStage,
-        diagnosticsJson: runs[0].diagnosticsJson,
         sourceType: runs[0].document.sourceType,
         sourceName: runs[0].document.sourceName
       },
@@ -272,11 +272,19 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
         trigger: "external_resync",
         status: "failed",
         failedStage: "source_fetch",
-        diagnosticsJson: documents[0].diagnosticsJson,
         sourceType: "web_page",
         sourceName: `${pageServer.origin}/knowledge/down`
       }
     );
+
+    const runsWithDiagnosticsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?includeDiagnostics=true`
+    );
+    assert.equal(runsWithDiagnosticsResponse.status, 200);
+
+    const runsWithDiagnostics = await runsWithDiagnosticsResponse.json();
+    assert.equal(runsWithDiagnostics.length, 1);
+    assert.deepEqual(runsWithDiagnostics[0].diagnosticsJson, documents[0].diagnosticsJson);
 
     const filteredRunsResponse = await fetch(
       `http://localhost:${port}/knowledge-bases/default-kb/document-runs?status=failed&trigger=external_resync&sourceType=web_page&limit=1`
