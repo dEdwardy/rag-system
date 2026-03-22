@@ -458,6 +458,42 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       }
     },
     {
+      buildDeterministicInsufficientContextResult: () => ({
+        answer: "answer",
+        citations: [],
+        retrievedChunks: [],
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy: {
+            responseStyle: "concise",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "auto",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "say_insufficient_context",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
+        modelName: "fallback-local",
+        answerStatus: "insufficient_context",
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          primaryIssue: "no_retrieval_hits",
+          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+          summary: "Answer quality is weak because supporting context was insufficient."
+        }
+      }),
       generateAnswer: async () => ({
         answer: "answer",
         citations: [],
@@ -750,6 +786,117 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
     flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
     summary: "Answer quality is weak because supporting context was insufficient."
   });
+});
+
+test("AskAssistantService also bypasses one-shot generation when noAnswerBehavior comes from backend defaults", async () => {
+  let generateAnswerCalls = 0;
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: null,
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks: [],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      buildDeterministicInsufficientContextResult: ({ question }) => ({
+        answer: `deterministic fallback for: ${question}`,
+        citations: [],
+        retrievedChunks: [],
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy: {
+            responseStyle: "concise",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "auto",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "say_insufficient_context",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          answerStatus: "insufficient_context"
+        },
+        modelName: "fallback-local",
+        answerStatus: "insufficient_context",
+        missingInformation: ["No relevant supporting sources were retrieved."],
+        qualityEvaluation: {
+          overall: "weak",
+          grounding: "ungrounded",
+          completeness: "insufficient",
+          primaryIssue: "no_retrieval_hits",
+          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+          summary: "Answer quality is weak because supporting context was insufficient."
+        }
+      }),
+      generateAnswer: async () => {
+        generateAnswerCalls += 1;
+        throw new Error("generateAnswer should be bypassed when defaults say insufficient context");
+      }
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      })
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "What detail is missing?"
+  });
+
+  assert.equal(generateAnswerCalls, 0);
+  assert.equal(result.answer, "deterministic fallback for: What detail is missing?");
+  assert.equal(result.answeringMetadata.answerPolicy.noAnswerBehavior, "say_insufficient_context");
+  assert.equal(result.answerStatus, "insufficient_context");
 });
 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {

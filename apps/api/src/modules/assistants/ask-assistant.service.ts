@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
+import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
@@ -88,6 +89,7 @@ export class AskAssistantService {
       assistant.retrievalProfile.filtersJson ?? undefined
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
+    const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const retrievalResult = await this.retrievalService.retrieve({
       kbId: assistant.kbId,
       query: retrievalQuery,
@@ -131,15 +133,15 @@ export class AskAssistantService {
     });
     try {
       const resolvedAnswerResult =
-        retrievedChunks.length === 0 && answerPolicy?.noAnswerBehavior === "say_insufficient_context"
+        retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
           ? this.answeringService.buildDeterministicInsufficientContextResult({
               question: input.question,
-              answerPolicy
+              answerPolicy: normalizedAnswerPolicy
             })
           : await this.answeringService.generateAnswer({
               question: input.question,
               systemPrompt: assistant.systemPrompt,
-              answerPolicy,
+              answerPolicy: normalizedAnswerPolicy,
               chunks: retrievedChunks,
               contextGroups
             });
@@ -264,16 +266,7 @@ export class AskAssistantService {
       assistant.retrievalProfile.filtersJson ?? undefined
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
-    const normalizedAnswerPolicy = {
-      responseStyle: answerPolicy?.responseStyle ?? "concise",
-      tone: answerPolicy?.tone ?? "neutral",
-      outputFormat: answerPolicy?.outputFormat ?? "paragraph",
-      language: answerPolicy?.language ?? "auto",
-      citationMode: answerPolicy?.citationMode ?? "required",
-      maxCitations: answerPolicy?.maxCitations ?? 3,
-      noAnswerBehavior: answerPolicy?.noAnswerBehavior ?? "say_insufficient_context",
-      includeMissingInformation: answerPolicy?.includeMissingInformation ?? true
-    } as const;
+    const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
 
     await input.onEvent({
       type: "status",
@@ -333,7 +326,7 @@ export class AskAssistantService {
           ? await (async () => {
               const deterministicAnswer = this.answeringService.getDeterministicInsufficientContextAnswer({
                 question: input.question,
-                answerPolicy
+                answerPolicy: normalizedAnswerPolicy
               });
               await input.onEvent({
                 type: "answer_delta",
@@ -365,7 +358,7 @@ export class AskAssistantService {
 
       const resolvedAnswerResult = await this.answeringService.finalizeStreamedAnswer({
         question: input.question,
-        answerPolicy,
+        answerPolicy: normalizedAnswerPolicy,
         chunks: retrievedChunks,
         contextGroups,
         rawAnswer: streamResult.rawAnswer,
@@ -440,6 +433,19 @@ export class AskAssistantService {
         }
       });
     }
+  }
+
+  private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null) {
+    return {
+      responseStyle: input?.responseStyle ?? "concise",
+      tone: input?.tone ?? "neutral",
+      outputFormat: input?.outputFormat ?? "paragraph",
+      language: input?.language ?? "auto",
+      citationMode: input?.citationMode ?? "required",
+      maxCitations: input?.maxCitations ?? 3,
+      noAnswerBehavior: input?.noAnswerBehavior ?? "say_insufficient_context",
+      includeMissingInformation: input?.includeMissingInformation ?? true
+    } as const;
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {
