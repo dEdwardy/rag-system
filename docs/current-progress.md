@@ -462,6 +462,15 @@
 
 ### 2026-03-23
 
+- ✅ no-hit one-shot deterministic bypass
+  - `POST /assistants/:id/ask` 在 `no hits + say_insufficient_context` 时，现在也会直接跳过 answer generation
+  - backend 会直接返回 deterministic insufficient-context answer，而不是先调用 provider / fallback answer generation 再在末尾覆盖文本
+  - 这样 one-shot 和 stream 两条 deterministic no-answer 路径的执行语义已经对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/ask-success.test.js`
+    - `node --test apps/api/test/ask-stream-service.test.js apps/api/test/answering.test.js`
+
 - ✅ no-hit ask-stream deterministic bypass
   - `POST /assistants/:id/ask/stream` 在 `no hits + say_insufficient_context` 时，现在会直接跳过 provider streaming
   - backend 会直接发出 deterministic insufficient-context delta，并让最终 `final.answer` 复用同一文本

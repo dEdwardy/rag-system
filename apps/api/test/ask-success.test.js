@@ -613,3 +613,105 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     summary: "Answer quality is weak because supporting context was insufficient."
   });
 });
+
+test("AskAssistantService bypasses one-shot generation for no-hit say_insufficient_context answers", async () => {
+  let generateAnswerCalls = 0;
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "concise",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "en",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "say_insufficient_context",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks: [],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      getDeterministicInsufficientContextAnswer: ({ question }) =>
+        `deterministic fallback for: ${question}`,
+      generateAnswer: async () => {
+        generateAnswerCalls += 1;
+        throw new Error("generateAnswer should be bypassed");
+      },
+      finalizeStreamedAnswer: async () => {
+        throw new Error("finalizeStreamedAnswer should not be used by one-shot ask");
+      }
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async () => {
+        throw new Error("stream generation should not be used by one-shot ask");
+      }
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "What detail is missing?"
+  });
+
+  assert.equal(generateAnswerCalls, 0);
+  assert.equal(result.answer, "deterministic fallback for: What detail is missing?");
+  assert.equal(result.modelName, "fallback-local");
+  assert.equal(result.answeringMetadata.usedFallback, true);
+  assert.equal(result.answerStatus, "insufficient_context");
+  assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because supporting context was insufficient."
+  });
+});
