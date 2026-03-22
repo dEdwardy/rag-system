@@ -1550,3 +1550,150 @@ test("AskAssistantService persists heuristic-citation strong summaries without u
     "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
   );
 });
+
+test("AskAssistantService preserves localized heuristic-citation strong summaries in Chinese", async () => {
+  const updateTraceCalls = [];
+
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "中文内容",
+      score: 0.9,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "same_as_question",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      generateAnswer: async () => ({
+        answer: "没有显式来源标记的回答。",
+        citations: [
+          {
+            chunkId: "chunk-1",
+            documentId: "document-1",
+            documentTitle: "Document 1",
+            snippet: "中文内容"
+          }
+        ],
+        retrievedChunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: false,
+          answerPolicy: {
+            responseStyle: "balanced",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "same_as_question",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "best_effort",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 1,
+          contextGroupCount: 0,
+          citationCount: 1,
+          answerStatus: "grounded"
+        },
+        modelName: "test-model",
+        answerStatus: "grounded",
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "strong",
+          grounding: "grounded",
+          completeness: "complete",
+          primaryIssue: "none",
+          flags: [],
+          summary: "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      })
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "标记在哪里？"
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "none");
+  assert.deepEqual(result.qualityEvaluation.flags, []);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
+  );
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.summary,
+    "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
+  );
+});
