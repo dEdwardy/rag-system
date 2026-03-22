@@ -1,4 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
+import { fetchWithRetry } from "../http/fetch-with-retry";
 
 type FetchFeedOptions = {
   url: string;
@@ -28,8 +29,9 @@ export class FeedSourceService {
     let response: Response;
 
     try {
-      response = await fetch(options.url, {
-        signal: AbortSignal.timeout(10000),
+      response = await fetchWithRetry({
+        url: options.url,
+        timeoutMs: 10000,
         headers: {
           Accept: "application/rss+xml,application/atom+xml,application/xml,text/xml"
         }

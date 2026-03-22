@@ -1,4 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
+import { fetchWithRetry } from "../http/fetch-with-retry";
 import { WebPageService } from "../web-page/web-page.service";
 
 type FetchSitemapOptions = {
@@ -26,8 +27,9 @@ export class SitemapSourceService {
     let response: Response;
 
     try {
-      response = await fetch(options.url, {
-        signal: AbortSignal.timeout(10000),
+      response = await fetchWithRetry({
+        url: options.url,
+        timeoutMs: 10000,
         headers: {
           Accept: "application/xml,text/xml"
         }
@@ -215,8 +217,9 @@ export class SitemapSourceService {
     let response: Response;
 
     try {
-      response = await fetch(url, {
-        signal: AbortSignal.timeout(10000),
+      response = await fetchWithRetry({
+        url,
+        timeoutMs: 10000,
         headers: {
           Accept: "application/xml,text/xml"
         }

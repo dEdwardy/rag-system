@@ -1,4 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
+import { fetchWithRetry } from "../http/fetch-with-retry";
 
 type FetchedWebPage = {
   title: string | null;
@@ -11,8 +12,9 @@ export class WebPageService {
     let response: Response;
 
     try {
-      response = await fetch(url, {
-        signal: AbortSignal.timeout(10000),
+      response = await fetchWithRetry({
+        url,
+        timeoutMs: 10000,
         headers: {
           Accept: "text/html,application/xhtml+xml"
         }

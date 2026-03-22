@@ -444,17 +444,22 @@
     - `documentVersion`
     - `message`
   - ingestion worker 现在会真实经过 `parsing -> chunking -> indexing -> completed`，失败时会把失败边界落到 `diagnosticsJson.failedStage`
+  - external source 抓取边界现在增加共享 HTTP retry guard；当上游首次返回 `429` 或 `5xx` 时，会自动再试一次，再决定是否失败
   - 新增共用回归测试：
     - `apps/api/test/external-source-sync.test.js`
+    - `apps/api/test/fetch-with-retry.test.js`
   - 新增 focused HTTP E2E：
     - `apps/api/test/web-page-source-e2e.test.js`
     - `apps/api/test/document-chain-e2e.test.js`
     - `apps/api/test/ingestion.orchestrator.test.js`
+    - `apps/api/test/feed-source-e2e.test.js`
+    - `apps/api/test/sitemap-source-e2e.test.js`
   - focused validation rerun:
     - `pnpm --filter @rag-system/api exec prisma migrate deploy`
     - `pnpm --filter @rag-system/api exec prisma generate`
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test apps/api/test/fetch-with-retry.test.js`
     - `node --test apps/api/test/ingestion.orchestrator.test.js`
     - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
     - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
