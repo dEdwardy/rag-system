@@ -462,6 +462,14 @@
 
 ### 2026-03-23
 
+- ✅ quality-evaluation primary-issue exposure
+  - `qualityEvaluation` 现已新增 `primaryIssue`，用于给上层稳定表达当前质量评估的主因，而不必自行解释 `flags` 优先级
+  - 当前已覆盖的主因包括：`none`、`no_retrieval_hits`、`insufficient_context`、`missing_information`、`low_retrieval_score`、`no_citations`、`other`
+  - one-shot answering、ask orchestration、stream final payload / trace 相关断言现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ weak insufficient-context summary alignment
   - `qualityEvaluation.summary` 现在会区分两类 weak answering 场景：
     - 完全没有 retrieval hits

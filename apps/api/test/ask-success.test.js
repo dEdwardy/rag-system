@@ -167,6 +167,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
             overall: "strong",
             grounding: "grounded",
             completeness: "complete",
+            primaryIssue: "none",
             flags: [],
             summary: "Answer is grounded in cited sources with no reported gaps."
           }
@@ -327,6 +328,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     overall: "strong",
     grounding: "grounded",
     completeness: "complete",
+    primaryIssue: "none",
     flags: [],
     summary: "Answer is grounded in cited sources with no reported gaps."
   });
@@ -383,6 +385,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     overall: "strong",
     grounding: "grounded",
     completeness: "complete",
+    primaryIssue: "none",
     flags: [],
     summary: "Answer is grounded in cited sources with no reported gaps."
   });
@@ -486,6 +489,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           overall: "weak",
           grounding: "ungrounded",
           completeness: "insufficient",
+          primaryIssue: "no_retrieval_hits",
           flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
           summary: "Answer quality is weak because supporting context was insufficient."
         }
@@ -604,6 +608,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     overall: "weak",
     grounding: "ungrounded",
     completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
     flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
     summary: "Answer quality is weak because supporting context was insufficient."
   });

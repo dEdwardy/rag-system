@@ -33,6 +33,14 @@ type QualityEvaluation = {
   overall: "strong" | "partial" | "weak";
   grounding: "grounded" | "partially_grounded" | "ungrounded";
   completeness: "complete" | "partial" | "insufficient";
+  primaryIssue:
+    | "none"
+    | "no_retrieval_hits"
+    | "insufficient_context"
+    | "missing_information"
+    | "low_retrieval_score"
+    | "no_citations"
+    | "other";
   flags: string[];
   summary: string;
 };
@@ -485,6 +493,21 @@ export class AnsweringService {
             ? "Answer quality is weak because supporting context was insufficient."
             : "Answer quality is weak because retrieved context was still insufficient.";
 
+    const primaryIssue =
+      overall === "strong"
+        ? "none"
+        : flags.includes("no_retrieval_hits")
+          ? "no_retrieval_hits"
+          : flags.includes("insufficient_context")
+            ? "insufficient_context"
+            : flags.includes("missing_information")
+              ? "missing_information"
+              : flags.includes("low_retrieval_score")
+                ? "low_retrieval_score"
+                : flags.includes("no_citations")
+                  ? "no_citations"
+                  : "other";
+
     const normalizedFlags =
       overall === "strong"
         ? flags.filter(flag => !["no_citations", "missing_information", "insufficient_context", "no_retrieval_hits"].includes(flag))
@@ -494,6 +517,7 @@ export class AnsweringService {
       overall,
       grounding,
       completeness,
+      primaryIssue,
       flags: normalizedFlags,
       summary
     };

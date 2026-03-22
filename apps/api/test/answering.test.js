@@ -314,6 +314,7 @@ test("AnsweringService keeps quality evaluation strong when citations are option
     overall: "strong",
     grounding: "grounded",
     completeness: "complete",
+    primaryIssue: "none",
     flags: [],
     summary: "Answer is grounded in retrieved sources with no reported gaps."
   });
@@ -573,6 +574,7 @@ test("AnsweringService returns strong quality evaluation for grounded answers wi
     overall: "strong",
     grounding: "grounded",
     completeness: "complete",
+    primaryIssue: "none",
     flags: [],
     summary: "Answer is grounded in cited sources with no reported gaps."
   });
@@ -610,6 +612,7 @@ test("AnsweringService returns partial quality evaluation when information is mi
   assert.equal(result.qualityEvaluation.overall, "partial");
   assert.equal(result.qualityEvaluation.grounding, "grounded");
   assert.equal(result.qualityEvaluation.completeness, "partial");
+  assert.equal(result.qualityEvaluation.primaryIssue, "missing_information");
   assert.deepEqual(result.qualityEvaluation.flags, ["missing_information"]);
 });
 
@@ -655,6 +658,7 @@ test("AnsweringService reports a retrieval-score-specific partial quality summar
   assert.equal(result.qualityEvaluation.overall, "partial");
   assert.equal(result.qualityEvaluation.grounding, "grounded");
   assert.equal(result.qualityEvaluation.completeness, "complete");
+  assert.equal(result.qualityEvaluation.primaryIssue, "low_retrieval_score");
   assert.deepEqual(result.qualityEvaluation.flags, ["low_retrieval_score"]);
   assert.equal(
     result.qualityEvaluation.summary,
@@ -683,6 +687,7 @@ test("AnsweringService returns weak quality evaluation for insufficient-context 
     overall: "weak",
     grounding: "ungrounded",
     completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
     flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
     summary: "Answer quality is weak because supporting context was insufficient."
   });
@@ -730,6 +735,7 @@ test("AnsweringService distinguishes weak insufficient-context summaries when re
     overall: "weak",
     grounding: "ungrounded",
     completeness: "insufficient",
+    primaryIssue: "insufficient_context",
     flags: ["insufficient_context", "missing_information"],
     summary: "Answer quality is weak because retrieved context was still insufficient."
   });

@@ -86,6 +86,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
           overall: "strong",
           grounding: "grounded",
           completeness: "complete",
+          primaryIssue: "none",
           flags: [],
           summary: "Answer is grounded in cited sources with no reported gaps."
         }
