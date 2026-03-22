@@ -462,6 +462,13 @@
 
 ### 2026-03-23
 
+- ✅ local grounded fallback answer language alignment
+  - 当没有可用模型 provider、但 retrieval 已命中内容时，`LlmService` 本地 grounded fallback answer 不再固定使用英文前缀
+  - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，让 hitful local fallback 与 no-hit local fallback 的语言策略保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm.test.js`
+
 - ✅ local no-hit fallback answer language alignment
   - 当没有可用模型 provider 且 retrieval 命中为空时，`LlmService` 本地 fallback answer 不再固定返回英文
   - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，和已有 insufficient-context backend fallback 语言策略保持一致

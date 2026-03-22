@@ -453,7 +453,11 @@ export class LlmService {
     }
 
     const topChunk = input.chunks[0];
-    const answer = `Based on the retrieved sources [1], the most relevant information is:\n\n${topChunk.content}`;
+    const answer = this.buildFallbackGroundedAnswer({
+      question: input.question,
+      language: input.answerPolicy.language,
+      content: topChunk.content
+    });
 
     return {
       answer,
@@ -472,6 +476,19 @@ export class LlmService {
     }
 
     return "I couldn't find relevant information in the knowledge base.";
+  }
+
+  private buildFallbackGroundedAnswer(input: {
+    question: string;
+    language: GenerateAnswerInput["answerPolicy"]["language"];
+    content: string;
+  }) {
+    const resolvedLanguage = this.resolveAnswerLanguage(input.question, input.language);
+    if (resolvedLanguage === "zh") {
+      return `根据检索到的来源 [1]，目前最相关的信息是：\n\n${input.content}`;
+    }
+
+    return `Based on the retrieved sources [1], the most relevant information is:\n\n${input.content}`;
   }
 
   private resolveAnswerLanguage(
