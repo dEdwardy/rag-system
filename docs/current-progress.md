@@ -462,6 +462,18 @@
 
 ### 2026-03-23
 
+- ✅ answering no-answer policy backend enforcement
+  - `answerPolicyJson.noAnswerBehavior` 不再只是 prompt-level 软约束，当前 backend 已在 `AnsweringService` 收口成确定性语义
+  - 当最终 `answerStatus=insufficient_context` 且策略为 `say_insufficient_context` 时，backend 会用统一兜底文案替换模型自由文本，避免不足上下文时把猜测性回答直接透出
+  - 当前兜底文案已支持最小语言分流：
+    - `language=en` -> 英文固定回复
+    - `language=zh` -> 中文固定回复
+    - `language=auto` / `same_as_question` -> 按问题文本做最小中英文检测
+  - 当策略为 `best_effort` 时，backend 继续保留模型返回的原始回答文本，仅通过现有 `answerStatus` / `missingInformation` / `qualityEvaluation` 表达不确定性
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
 - ✅ external knowledge source expansion backend / API consistency closeout
   - current scoped source family:
     - `web page`

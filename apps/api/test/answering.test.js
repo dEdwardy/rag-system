@@ -511,3 +511,99 @@ test("AnsweringService returns weak quality evaluation for insufficient-context 
     summary: "Answer quality is weak because supporting context was insufficient."
   });
 });
+
+test("AnsweringService enforces say_insufficient_context with a deterministic fallback answer", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Hallucinated answer that should not leak through.",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["No relevant supporting sources were retrieved."]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "What is the unsupported detail?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    chunks: []
+  });
+
+  assert.equal(
+    result.answer,
+    "I don't have enough information in the retrieved sources to answer that reliably."
+  );
+  assert.equal(result.answerStatus, "insufficient_context");
+});
+
+test("AnsweringService preserves best_effort answers even when context is insufficient", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Best effort answer with uncertainty.",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["No relevant supporting sources were retrieved."]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "What is the unsupported detail?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "direct",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "optional",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: []
+  });
+
+  assert.equal(result.answer, "Best effort answer with uncertainty.");
+  assert.equal(result.answerStatus, "insufficient_context");
+});
+
+test("AnsweringService localizes the deterministic insufficient-context fallback for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "不应该透出的猜测性回答。",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["No relevant supporting sources were retrieved."]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "这个问题缺少什么信息？",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    chunks: []
+  });
+
+  assert.equal(result.answer, "根据当前检索到的资料，我还没有足够信息来可靠回答这个问题。");
+  assert.equal(result.answerStatus, "insufficient_context");
+});

@@ -106,6 +106,10 @@ Notes:
     - `maxCitations`: `3`
     - `noAnswerBehavior`: `say_insufficient_context`
     - `includeMissingInformation`: `true`
+- current backend enforcement for `noAnswerBehavior`:
+  - `say_insufficient_context`: when the final answer status is `insufficient_context`, the backend now replaces model free-form text with a deterministic insufficient-context reply
+  - the fallback reply is localized for `en` / `zh`, and `auto` / `same_as_question` currently resolve by simple question-language detection
+  - `best_effort`: the backend preserves the model's returned answer text even when the final answer status is `insufficient_context`
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`

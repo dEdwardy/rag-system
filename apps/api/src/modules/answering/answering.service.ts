@@ -136,6 +136,12 @@ export class AnsweringService {
   }) {
     const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
     const missingInformation = input.answerPolicy.includeMissingInformation ? (input.result.missingInformation ?? []) : [];
+    const answer = this.resolveAnswerText({
+      question: input.question,
+      answer: input.result.answer,
+      answerStatus,
+      answerPolicy: input.answerPolicy
+    });
 
     if (input.chunks.length === 0) {
       const qualityEvaluation = this.buildQualityEvaluation({
@@ -147,7 +153,7 @@ export class AnsweringService {
       });
 
       return {
-        answer: input.result.answer,
+        answer,
         modelName: input.result.modelName,
         answeringMetadata: {
           promptId: input.result.promptId ?? "answer.v2",
@@ -197,7 +203,7 @@ export class AnsweringService {
     });
 
     return {
-      answer: input.result.answer,
+      answer,
       modelName: input.result.modelName,
       answeringMetadata: {
         promptId: input.result.promptId ?? "answer.v2",
@@ -215,6 +221,44 @@ export class AnsweringService {
       retrievedChunks: input.chunks,
       contextGroups: input.contextGroups ?? []
     };
+  }
+
+  private resolveAnswerText(input: {
+    question: string;
+    answer: string;
+    answerStatus: "grounded" | "insufficient_context";
+    answerPolicy: AnswerPolicy;
+  }) {
+    if (
+      input.answerStatus !== "insufficient_context" ||
+      input.answerPolicy.noAnswerBehavior !== "say_insufficient_context"
+    ) {
+      return input.answer;
+    }
+
+    return this.buildInsufficientContextAnswer(input.question, input.answerPolicy.language);
+  }
+
+  private buildInsufficientContextAnswer(
+    question: string,
+    language: AnswerPolicy["language"]
+  ) {
+    const resolvedLanguage = this.resolvePolicyLanguage(question, language);
+
+    if (resolvedLanguage === "zh") {
+      return "根据当前检索到的资料，我还没有足够信息来可靠回答这个问题。";
+    }
+
+    return "I don't have enough information in the retrieved sources to answer that reliably.";
+  }
+
+  private resolvePolicyLanguage(question: string, language: AnswerPolicy["language"]) {
+    if (language === "zh" || language === "en") {
+      return language;
+    }
+
+    const hasChinese = /[\u3400-\u9fff]/.test(question);
+    return hasChinese ? "zh" : "en";
   }
 
   private buildAnswerContextChunks(chunks: RetrievedChunk[], contextGroups?: RetrievedContextGroup[]) {
