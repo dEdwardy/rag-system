@@ -397,6 +397,155 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
   }
 });
 
+test("Sitemap source E2E: partial page diagnostics clear after a later clean resync", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3113;
+  const storageRoot = resolve(repoRoot, "storage", `test-sitemap-partial-then-clean-${randomUUID()}`);
+  const queuePrefix = `test-sitemap-partial-then-clean-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const initialMarker = `sitemap-partial-then-clean-initial-${randomUUID()}`;
+  const cleanMarker = `sitemap-partial-then-clean-clean-${randomUUID()}`;
+  const sitemapServer = await startRecoverablePartialSitemapServer(initialMarker, cleanMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/sitemap`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${sitemapServer.origin}/sitemap.xml`,
+        maxPages: 3
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    const partialReadyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(partialReadyDocument.status, "ready");
+    assert.equal(partialReadyDocument.diagnosticsJson?.partial, true);
+
+    sitemapServer.setClean();
+
+    const reindexResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/reindex`, {
+      method: "POST"
+    });
+    assert.equal(reindexResponse.status, 201);
+
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.version, 2);
+    assert.equal(readyDocument.status, "ready");
+    assert.equal(readyDocument.errorMessage, null);
+    assert.equal(readyDocument.diagnosticsJson, null);
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        id: documents[0].id,
+        version: documents[0].version,
+        status: documents[0].status,
+        errorMessage: documents[0].errorMessage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        id: createdDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const detailResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}`);
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.deepEqual(
+      {
+        id: detail.id,
+        version: detail.version,
+        status: detail.status,
+        errorMessage: detail.errorMessage,
+        diagnosticsJson: detail.diagnosticsJson
+      },
+      {
+        id: createdDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const runsResponse = await fetch(`http://localhost:${port}/documents/${createdDocument.id}/runs`);
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs.length, 2);
+    assert.deepEqual(
+      runs.map(run => ({
+        version: run.version,
+        status: run.status,
+        failedStage: run.failedStage,
+        failureSummary: run.failureSummary
+      })),
+      [
+        {
+          version: 2,
+          status: "ready",
+          failedStage: null,
+          failureSummary: null
+        },
+        {
+          version: 1,
+          status: "ready",
+          failedStage: "source_fetch",
+          failureSummary: {
+            code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+            failedStage: "source_fetch",
+            retryable: true,
+            message: "Sitemap source completed with partial page fetch failures."
+          }
+        }
+      ]
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 2);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.failureByStage, {});
+    assert.equal(summary.latestRetryableFailure, null);
+    assert.equal(summary.latestFailure, null);
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(sitemapServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -755,6 +904,95 @@ async function startPartialChildFailureSitemapIndexServer(marker) {
   return {
     server,
     origin: `http://127.0.0.1:${address.port}`
+  };
+}
+
+async function startRecoverablePartialSitemapServer(initialMarker, cleanMarker) {
+  let mode = "partial";
+
+  const server = http.createServer((request, response) => {
+    if (request.url === "/sitemap.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+
+      const failingPageEntry =
+        mode === "partial"
+          ? `<url><loc>http://127.0.0.1:${server.address().port}/pages/failing</loc></url>`
+          : "";
+
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/alpha</loc></url>
+          ${failingPageEntry}
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/beta</loc></url>
+        </urlset>`);
+      return;
+    }
+
+    if (request.url === "/pages/alpha") {
+      const marker = mode === "partial" ? initialMarker : cleanMarker;
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Recoverable Alpha</title>
+          </head>
+          <body>
+            <main>
+              <h1>Recoverable Alpha</h1>
+              <p>Unique marker: ${marker}</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    if (request.url === "/pages/beta") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Recoverable Beta</title>
+          </head>
+          <body>
+            <main>
+              <h1>Recoverable Beta</h1>
+              <p>Additional reachable page.</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    if (request.url === "/pages/failing") {
+      response.writeHead(200, {
+        "Content-Type": "application/pdf"
+      });
+      response.end("%PDF-1.7");
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  return {
+    server,
+    origin: `http://127.0.0.1:${server.address().port}`,
+    setClean() {
+      mode = "clean";
+    }
   };
 }
 
