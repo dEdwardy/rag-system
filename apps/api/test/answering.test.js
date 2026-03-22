@@ -1051,6 +1051,55 @@ test("AnsweringService keeps fallback_generation as the primary issue when fallb
   );
 });
 
+test("AnsweringService localizes partial summaries when fallback answers also miss information", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "本地 fallback 部分回答 [1]",
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "grounded",
+      missingInformation: ["缺少价格信息。"],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "在哪里？",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "第一段上下文",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information", "fallback_generation"]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "回答已基于检索到的内容，但仍不完整：部分信息缺失，且它是通过本地 fallback 生成的。"
+  );
+});
+
 test("AnsweringService returns weak quality evaluation for insufficient-context answers", async () => {
   const llmService = {
     generateAnswer: async () => ({
