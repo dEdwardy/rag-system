@@ -77,3 +77,66 @@ test("LlmService exposes a native answer streaming API that emits provider delta
     delete process.env.OLLAMA_MODEL;
   }
 });
+
+test("LlmService fallback stream aligns no-hit deltas with say_insufficient_context behavior", async () => {
+  const service = new LlmService({
+    buildAnswerPrompt: () => ({
+      promptId: "answer.v2",
+      systemPrompt: "system prompt",
+      userPrompt: "user prompt",
+      fullPrompt: "system\n\nuser"
+    }),
+    buildRewritePrompt: () => ({
+      promptId: "rewrite-query.v1",
+      fullPrompt: "rewrite"
+    }),
+    getAnswerPromptId: () => "answer.v2",
+    getRewritePromptId: () => "rewrite-query.v1"
+  });
+
+  const originalFetch = global.fetch;
+  const originalBaseUrl = process.env.OLLAMA_BASE_URL;
+  const originalModel = process.env.OLLAMA_MODEL;
+  const originalApiKey = process.env.OPENAI_API_KEY;
+  const deltas = [];
+
+  delete process.env.OLLAMA_BASE_URL;
+  delete process.env.OLLAMA_MODEL;
+  delete process.env.OPENAI_API_KEY;
+
+  try {
+    const result = await service.generateAnswerStream({
+      question: "What detail is missing?",
+      systemPrompt: "system prompt",
+      answerPolicy: {
+        responseStyle: "concise",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: true
+      },
+      chunks: [],
+      onDelta: delta => {
+        deltas.push(delta);
+      }
+    });
+
+    assert.deepEqual(deltas, [
+      "I don't have enough information in the retrieved sources to answer that reliably."
+    ]);
+    assert.equal(
+      result.rawAnswer,
+      "I don't have enough information in the retrieved sources to answer that reliably."
+    );
+    assert.equal(result.modelName, "fallback-local");
+    assert.equal(result.promptId, "answer.v2");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.OLLAMA_BASE_URL = originalBaseUrl;
+    process.env.OLLAMA_MODEL = originalModel;
+    process.env.OPENAI_API_KEY = originalApiKey;
+  }
+});

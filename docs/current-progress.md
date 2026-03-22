@@ -462,6 +462,14 @@
 
 ### 2026-03-23
 
+- ✅ no-hit stream fallback answer alignment
+  - native stream path 在 `no hits + say_insufficient_context` 时，fallback delta 文本现在和最终 `final.answer` 使用同一 deterministic insufficient-context reply
+  - 这样流式渲染不再先显示一版 “couldn't find relevant information” 再在最终 payload 里切成另一版 backend fallback answer
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm-answer-stream.test.js`
+    - `node --test apps/api/test/ask-stream-service.test.js apps/api/test/ask-success.test.js`
+
 - ✅ heuristic-citation strong-summary alignment
   - 当 `citationMode=required` 且 backend 因模型未显式给 citation 而回填 heuristic citations 时，`qualityEvaluation.summary` 不再误称答案“grounded in cited sources”
   - 当前只有模型显式提供的 structured citations 或 inline markers 才会触发 cited-sources 强文案

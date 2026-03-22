@@ -112,6 +112,7 @@ Notes:
   - `best_effort`: the backend preserves the model's returned answer text even when the final answer status is `insufficient_context`
   - the local `LlmService` no-model fallback for zero-hit answers now follows the same minimal `en` / `zh` language resolution instead of always returning English
   - that same zero-hit local fallback path now also localizes its deterministic `missingInformation` reason for `en` / `zh`
+  - the native stream fallback path for zero-hit `say_insufficient_context` answers now emits that same deterministic insufficient-context reply, so streamed deltas and final payload stay aligned
   - the local `LlmService` grounded fallback for hitful answers now also follows that same minimal `en` / `zh` language resolution instead of using an English-only prefix
 - current backend enforcement for `includeMissingInformation`:
   - for grounded answers, `includeMissingInformation=false` still clears advisory gap items from the final response

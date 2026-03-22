@@ -527,14 +527,30 @@ export class LlmService {
     input: GenerateAnswerStreamInput
   ): Promise<GenerateAnswerStreamOutput> {
     const result = this.generateFallbackAnswer(input);
-    await input.onDelta(result.answer);
+    const streamAnswer =
+      input.chunks.length === 0 && input.answerPolicy.noAnswerBehavior === "say_insufficient_context"
+        ? this.buildStreamInsufficientContextAnswer(input.question, input.answerPolicy.language)
+        : result.answer;
+    await input.onDelta(streamAnswer);
 
     return {
-      rawAnswer: result.answer,
+      rawAnswer: streamAnswer,
       modelName: result.modelName,
       promptId: result.promptId,
       usedFallback: result.usedFallback
     };
+  }
+
+  private buildStreamInsufficientContextAnswer(
+    question: string,
+    language: GenerateAnswerInput["answerPolicy"]["language"]
+  ) {
+    const resolvedLanguage = this.resolveAnswerLanguage(question, language);
+    if (resolvedLanguage === "zh") {
+      return "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002";
+    }
+
+    return "I don't have enough information in the retrieved sources to answer that reliably.";
   }
 
   private async emitVisibleAnswerDelta(input: {
