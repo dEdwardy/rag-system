@@ -313,3 +313,78 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
     }
   ]);
 });
+
+test("IngestionService skips a stale ingestion job when the document version has moved on", async () => {
+  const documentUpdates = [];
+  const deletedChunks = [];
+  const createdChunkBatches = [];
+  const indexingCalls = [];
+  const parsingCalls = [];
+  const storageReads = [];
+
+  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => ({
+          id: "document-stale-1",
+          kbId: "kb-1",
+          sourceName: "guide.md",
+          mimeType: "text/markdown",
+          storageKey: "documents/document-stale-1.md",
+          version: 3
+        }),
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async args => {
+          deletedChunks.push(args);
+          return { count: 0 };
+        },
+        createMany: async args => {
+          createdChunkBatches.push(args.data);
+          return { count: args.data.length };
+        }
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async storageKey => {
+        storageReads.push(storageKey);
+        return Buffer.from("# Guide\n\nAlpha");
+      }
+    },
+    parsingService: {
+      parseDocument: async input => {
+        parsingCalls.push(input);
+        return "# Guide\n\nAlpha";
+      }
+    },
+    chunkingService: {
+      buildChunks: () => [{ content: "Alpha", sectionTitle: "Guide" }]
+    },
+    indexingService: {
+      indexDocument: async documentId => {
+        indexingCalls.push(documentId);
+      }
+    }
+  });
+
+  await IngestionService.prototype.processDocument.call(fakeService, {
+    data: {
+      documentId: "document-stale-1",
+      documentVersion: 2
+    }
+  });
+
+  assert.deepEqual(documentUpdates, []);
+  assert.deepEqual(deletedChunks, []);
+  assert.deepEqual(createdChunkBatches, []);
+  assert.deepEqual(indexingCalls, []);
+  assert.deepEqual(parsingCalls, []);
+  assert.deepEqual(storageReads, []);
+});

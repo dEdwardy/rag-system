@@ -72,6 +72,7 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
     const uploadedDocument = await uploadResponse.json();
     assert.equal(uploadedDocument.kbId, "default-kb");
     assert.equal(uploadedDocument.sourceName, "document-chain-test.md");
+    assert.equal(uploadedDocument.version, 1);
 
     const readyDocument = await waitForDocumentReady(port, uploadedDocument.id, 20000);
     assert.equal(readyDocument.status, "ready");
@@ -107,11 +108,13 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
     assert.equal(reindexResult.id, uploadedDocument.id);
     assert.equal(reindexResult.status, "pending");
     assert.equal(reindexResult.processingStage, "uploaded");
+    assert.equal(reindexResult.version, 2);
 
     const readyAfterReindex = await waitForDocumentReady(port, uploadedDocument.id, 20000);
     assert.equal(readyAfterReindex.status, "ready");
     assert.equal(readyAfterReindex.processingStage, "completed");
     assert.ok(readyAfterReindex.chunkCount >= 1);
+    assert.equal(readyAfterReindex.version, 2);
 
     const chunksAfterReindexResponse = await fetch(`http://localhost:${port}/documents/${uploadedDocument.id}/chunks`);
     assert.equal(chunksAfterReindexResponse.status, 200);

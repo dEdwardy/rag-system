@@ -13,6 +13,7 @@ const IORedis = require("ioredis");
 
 type DocumentIngestionJobData = {
   documentId: string;
+  documentVersion?: number;
 };
 
 @Injectable()
@@ -32,8 +33,8 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     private readonly indexingService: IndexingService
   ) {}
 
-  enqueueDocument(documentId: string) {
-    return this.queueService.addDocumentIngestionJob(documentId);
+  enqueueDocument(documentId: string, documentVersion?: number) {
+    return this.queueService.addDocumentIngestionJob(documentId, documentVersion);
   }
 
   onModuleInit() {
@@ -63,6 +64,13 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     });
 
     if (!document) {
+      return;
+    }
+
+    if (typeof job.data.documentVersion === "number" && document.version !== job.data.documentVersion) {
+      this.logger.warn(
+        `Skipping stale ingestion job for document ${document.id}: job version ${job.data.documentVersion}, current version ${document.version}.`
+      );
       return;
     }
 

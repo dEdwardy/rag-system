@@ -436,13 +436,18 @@
   - 同一 `knowledge base + sourceType + normalized URL` 再次 ingestion 时，不再创建重复 `Document`
   - 当前改为复用原有 document 记录，更新生成的 source artifact，重置状态并递增 `version` 后重新进入 ingestion
   - 这次改动优先收口在 `DocumentsService` 的 external source 共用边界，避免只对单一 source 类型打补丁
+  - ingestion queue 现在会携带期望的 document `version`；当旧 job 落后于当前 document version 时，worker 会在解析前直接跳过，避免旧运行覆盖新一轮 `reindex` / `re-sync`
   - 新增共用回归测试：
     - `apps/api/test/external-source-sync.test.js`
   - 新增 focused HTTP E2E：
     - `apps/api/test/web-page-source-e2e.test.js`
+    - `apps/api/test/document-chain-e2e.test.js`
+    - `apps/api/test/ingestion.orchestrator.test.js`
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/external-source-sync.test.js`
+    - `node --test apps/api/test/ingestion.orchestrator.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
     - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 
 - ✅ UI 审查问题第一轮收口

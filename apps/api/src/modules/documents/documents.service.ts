@@ -104,7 +104,7 @@ export class DocumentsService {
       storageKey: storedFile.storageKey
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
@@ -124,7 +124,7 @@ export class DocumentsService {
       storageKey: storedFile.storageKey
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
@@ -147,7 +147,7 @@ export class DocumentsService {
       storageKey: storedFile.storageKey
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
@@ -170,7 +170,7 @@ export class DocumentsService {
       storageKey: storedFile.storageKey
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, document.version);
 
     return document;
   }
@@ -178,17 +178,20 @@ export class DocumentsService {
   async reindexDocument(id: string) {
     const document = await this.getDocument(id);
 
-    await this.prisma.document.update({
+    const updatedDocument = await this.prisma.document.update({
       where: { id },
       data: {
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
         chunkCount: 0,
-        errorMessage: null
+        errorMessage: null,
+        version: {
+          increment: 1
+        }
       }
     });
 
-    await this.ingestionService.enqueueDocument(document.id);
+    await this.ingestionService.enqueueDocument(document.id, updatedDocument.version);
 
     return this.getDocument(id);
   }
