@@ -54,7 +54,7 @@ export class DocumentsService {
         kbId: knowledgeBaseId
       },
       orderBy: {
-        createdAt: "desc"
+        updatedAt: "desc"
       }
     });
   }

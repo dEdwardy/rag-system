@@ -435,6 +435,7 @@
     - still avoid opening a new UI refactor or a generic connector/source platform rewrite
   - latest backend consistency follow-up:
     - external source `external_resync` now resets document-level `chunkCount` to `0` as soon as a new pending version is queued, aligning repeated source syncs with the existing upload-document `reindex` semantics
+    - `GET /knowledge-bases/:id/documents` now sorts by latest `updatedAt desc`, so a recovered or resynced external source appears with the newest current activity instead of staying pinned to its original creation time
     - external source `reindex` with missing or invalid persisted `sourceConfigJson` now still lands a new `external_resync` run/version and records a structured non-retryable failure instead of escaping before run history is written
     - document-run summary latest anchors now resolve by the latest matching completed run timestamp, so overlapping runs do not let a later-started but earlier-finished run override `latestFailure` / `latestRetryableFailure` / `latestSkipped`
     - document-level run history now uses the same primary recent-run ordering as the knowledge-base scoped run list: `startedAt desc` first, then `version desc` for ties

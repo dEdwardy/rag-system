@@ -4,6 +4,42 @@ const { BadRequestException } = require("@nestjs/common");
 const { Prisma } = require("@prisma/client");
 const { DocumentsService } = require("../dist/modules/documents/documents.service.js");
 
+test("DocumentsService lists knowledge-base documents by latest update activity", async () => {
+  const findManyCalls = [];
+  const fakeDocuments = [{ id: "document-2" }, { id: "document-1" }];
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findMany: async args => {
+          findManyCalls.push(args);
+          return fakeDocuments;
+        }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async knowledgeBaseId => {
+        assert.equal(knowledgeBaseId, "default-kb");
+        return { id: knowledgeBaseId };
+      }
+    }
+  });
+
+  const result = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "default-kb");
+
+  assert.deepEqual(result, fakeDocuments);
+  assert.deepEqual(findManyCalls, [
+    {
+      where: {
+        kbId: "default-kb"
+      },
+      orderBy: {
+        updatedAt: "desc"
+      }
+    }
+  ]);
+});
+
 test("DocumentsService reuses an existing web page document when the same URL is ingested again", async () => {
   await expectExternalSourceResync({
     sourceType: "web_page",
