@@ -124,6 +124,7 @@ Notes:
   - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
   - the strong-summary wording now distinguishes between answers grounded in cited sources and answers grounded in retrieved sources without citations
   - low retrieval confidence (`low_retrieval_score`) now degrades `qualityEvaluation.overall` to `partial` and yields a retrieval-confidence-specific summary instead of remaining `strong`
+  - weak insufficient-context summaries now distinguish between `no_retrieval_hits` and cases where retrieval produced context but the retrieved evidence was still insufficient
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`

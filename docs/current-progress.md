@@ -462,6 +462,15 @@
 
 ### 2026-03-23
 
+- ✅ weak insufficient-context summary alignment
+  - `qualityEvaluation.summary` 现在会区分两类 weak answering 场景：
+    - 完全没有 retrieval hits
+    - 已有 retrieval context，但证据仍不足以支持回答
+  - 这让 `insufficient_context` 的弱场景文案与实际 retrieval 执行结果保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
 - ✅ low-retrieval-score quality downgrade alignment
   - grounded answers 在 supporting context 的 top retrieval score 偏低时，`qualityEvaluation.overall` 现在会从 `strong` 降为 `partial`
   - 同时 summary 会明确指出是 retrieval confidence 偏低，而不是沿用泛化的缺失信息文案

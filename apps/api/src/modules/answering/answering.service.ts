@@ -481,7 +481,9 @@ export class AnsweringService {
               : flags.includes("low_retrieval_score")
                 ? "Answer is grounded, but retrieval confidence was low for the supporting context."
                 : "Answer is grounded but still has unresolved quality limitations."
-          : "Answer quality is weak because supporting context was insufficient.";
+          : flags.includes("no_retrieval_hits")
+            ? "Answer quality is weak because supporting context was insufficient."
+            : "Answer quality is weak because retrieved context was still insufficient.";
 
     const normalizedFlags =
       overall === "strong"
