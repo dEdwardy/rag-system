@@ -212,6 +212,10 @@ html[data-theme-layout="workspace-app"] {
     min-height: 9.5rem;
   }
 
+  .workspace-metric-card-compact {
+    min-height: 7rem;
+  }
+
   .workspace-subpanel {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -319,6 +323,24 @@ html[data-theme-layout="workspace-app"] {
     padding: 0.38rem 0.6rem;
   }
 
+  .workspace-collapsible-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: #d4d4d8;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    list-style: none;
+    text-transform: uppercase;
+  }
+
+  .workspace-collapsible-summary::-webkit-details-marker {
+    display: none;
+  }
+
   .workspace-link {
     color: #c7d2fe;
   }
@@ -368,6 +390,12 @@ html[data-theme-layout="workspace-app"] {
   }
 
   .workspace-loading-grid.metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workspace-metric-grid {
+    display: grid;
+    gap: 1rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -422,6 +450,10 @@ html[data-theme-layout="workspace-app"] {
   }
 
   @media (max-width: 48rem) {
+    .workspace-metric-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .workspace-hero-split {
       flex-direction: column;
     }
@@ -429,6 +461,12 @@ html[data-theme-layout="workspace-app"] {
     .workspace-hero-sidecopy {
       max-width: none;
       text-align: left;
+    }
+  }
+
+  @media (max-width: 32rem) {
+    .workspace-metric-grid {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 }

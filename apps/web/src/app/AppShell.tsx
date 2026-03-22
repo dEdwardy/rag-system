@@ -75,13 +75,13 @@ function NavIcon({ type }: NavIconProps) {
 
 function ActionButton({ children, label }: { children: React.ReactNode; label: string }) {
   return (
-    <button
-      aria-label={label}
-      className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text-secondary)] transition duration-300 ease-out hover:-translate-y-0.5 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
-      type="button"
+    <span
+      aria-hidden="true"
+      className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text-muted)] opacity-80"
+      title={label}
     >
       {children}
-    </button>
+    </span>
   );
 }
 
@@ -108,24 +108,27 @@ export function AppShell() {
   const documentBadge = documentsQuery.isSuccess ? String(documentsQuery.data.length) : null;
   const conversationBadge = conversationsQuery.isSuccess ? String(conversationsQuery.data.length) : null;
 
-  const links = useMemo<NavGroup[]>(() => [
-    {
-      heading: locale === "zh" ? "主要功能" : "Main",
-      items: [
-        { to: "/", label: locale === "zh" ? "对话" : "Chat", badge: conversationBadge, end: true, icon: "chat" },
-        { to: "/documents", label: locale === "zh" ? "文档" : "Documents", badge: documentBadge, icon: "documents" },
-        { to: "/knowledge-base", label: locale === "zh" ? "知识库" : "Knowledge Base", icon: "knowledge" },
-        { to: "/assistant", label: locale === "zh" ? "助手配置" : "Assistant", icon: "assistant" }
-      ]
-    },
-    {
-      heading: locale === "zh" ? "追踪与分析" : "Tracing",
-      items: [
-        { to: "/traces", label: locale === "zh" ? "Trace 日志" : "Trace log", icon: "trace" },
-        { to: "/usage", label: locale === "zh" ? "使用统计" : "Usage", icon: "usage" }
-      ]
-    }
-  ], [conversationBadge, documentBadge, locale]);
+  const links = useMemo<NavGroup[]>(
+    () => [
+      {
+        heading: locale === "zh" ? "主要功能" : "Main",
+        items: [
+          { to: "/", label: locale === "zh" ? "对话" : "Chat", badge: conversationBadge, end: true, icon: "chat" },
+          { to: "/documents", label: locale === "zh" ? "文档" : "Documents", badge: documentBadge, icon: "documents" },
+          { to: "/knowledge-base", label: locale === "zh" ? "知识库" : "Knowledge Base", icon: "knowledge" },
+          { to: "/assistant", label: locale === "zh" ? "助手配置" : "Assistant", icon: "assistant" }
+        ]
+      },
+      {
+        heading: locale === "zh" ? "追踪与分析" : "Tracing",
+        items: [
+          { to: "/traces", label: locale === "zh" ? "Trace 日志" : "Trace log", icon: "trace" },
+          { to: "/usage", label: locale === "zh" ? "使用统计" : "Usage", icon: "usage" }
+        ]
+      }
+    ],
+    [conversationBadge, documentBadge, locale]
+  );
 
   const isLinkActive = (link: NavItem) => {
     if (link.end) {
@@ -170,7 +173,7 @@ export function AppShell() {
                   RAG System
                 </h1>
                 <p className="mt-0.5 text-[11px] text-[var(--app-text-muted)]">
-                  {locale === "zh" ? "智能知识库问答平台" : "Intelligent knowledge workspace"}
+                  {locale === "zh" ? "智能知识库问答工作台" : "Intelligent knowledge workspace"}
                 </p>
               </div>
             </div>
@@ -247,17 +250,17 @@ export function AppShell() {
                 <span className="text-[var(--app-text-muted)]/50">/</span>
                 <span className="truncate font-medium text-[var(--app-text)]">{activeLabel}</span>
               </div>
-              <button
-                aria-label={locale === "zh" ? "当前知识库" : "Current knowledge base"}
-                className="hidden items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition duration-300 ease-out hover:border-[var(--app-accent)] hover:text-[var(--app-text)] md:flex"
-                type="button"
+              <div
+                aria-hidden="true"
+                className="hidden items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--app-text-secondary)] md:flex"
+                title={locale === "zh" ? "当前知识库" : "Current knowledge base"}
               >
                 <span className="h-2 w-2 rounded-full bg-[#10b981]" />
                 {activeKnowledgeBase?.name ?? (locale === "zh" ? "知识库加载中" : "Loading knowledge base")}
                 <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
                   <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
                 </svg>
-              </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">

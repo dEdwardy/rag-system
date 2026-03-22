@@ -30,12 +30,31 @@ type ActiveStreamTurn = {
 
 type DisplayedMessage = Message | ChatStreamUserMessage | ChatStreamAssistantMessage;
 
-function IconButton({ children, label, onClick }: { children: React.ReactNode; label: string; onClick?: () => void }) {
+function IconButton({
+  children,
+  label,
+  disabledHint,
+  onClick
+}: {
+  children: React.ReactNode;
+  label: string;
+  disabledHint?: string;
+  onClick?: () => void;
+}) {
+  const isDisabled = onClick == null;
+
   return (
     <button
       aria-label={label}
-      className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text-secondary)] transition duration-300 ease-out hover:-translate-y-0.5 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+      className={[
+        "flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] transition duration-300 ease-out",
+        isDisabled
+          ? "cursor-default text-[var(--app-text-muted)] opacity-70"
+          : "text-[var(--app-text-secondary)] hover:-translate-y-0.5 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+      ].join(" ")}
+      disabled={isDisabled}
       onClick={onClick}
+      title={isDisabled ? disabledHint ?? label : undefined}
       type="button"
     >
       {children}
@@ -259,7 +278,10 @@ export function ChatPage() {
                 {latestModelName}
               </span>
             ) : null}
-            <IconButton label={locale === "zh" ? "更多操作" : "More actions"}>
+            <IconButton
+              disabledHint={locale === "zh" ? "更多操作即将支持" : "More actions coming soon"}
+              label={locale === "zh" ? "更多操作" : "More actions"}
+            >
               <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" fill="currentColor" r="1" />
                 <circle cx="19" cy="12" fill="currentColor" r="1" />
@@ -386,7 +408,10 @@ export function ChatPage() {
                 />
                 <div className="flex items-center gap-2 pr-1">
                   <button
-                    className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] transition duration-300 hover:bg-[var(--app-surface)] hover:text-[var(--app-text-secondary)]"
+                    aria-label={locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}
+                    className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] opacity-65"
+                    disabled
+                    title={locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}
                     type="button"
                   >
                     <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
@@ -406,26 +431,15 @@ export function ChatPage() {
                 </div>
               </div>
             </div>
+            <div className="mt-2 flex items-center justify-between px-2 text-[11px] text-[var(--app-text-muted)]">
+              <span>{locale === "zh" ? "回车发送，Shift + Enter 换行" : "Press Enter to send, Shift + Enter for a new line"}</span>
+              <span>{locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}</span>
+            </div>
           </form>
         </div>
       </section>
 
       <aside className="flex min-h-0 flex-col bg-[var(--app-bg-elevated)]">
-        <div className="flex gap-1 border-b border-[var(--app-border)] px-5 py-4">
-          <button
-            className="flex-1 rounded-[10px] bg-[var(--app-surface)] px-4 py-2.5 text-xs font-semibold text-[var(--app-text)]"
-            type="button"
-          >
-            {locale === "zh" ? "会话" : "Conversations"}
-          </button>
-          <button
-            className="flex-1 rounded-[10px] px-4 py-2.5 text-xs font-semibold text-[var(--app-text-muted)] transition duration-300 hover:text-[var(--app-text-secondary)]"
-            type="button"
-          >
-            {locale === "zh" ? "引用" : "Citations"}
-          </button>
-        </div>
-
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <section className="mb-6">
             <div className="mb-3 flex items-center justify-between">

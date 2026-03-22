@@ -1,8 +1,9 @@
-import { Alert, Badge, Button, Card, Grid, Group, Stack, Text, Title } from "@mantine/core";
+import { Badge, Box, Button, Grid, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useDocuments, useKnowledgeBases } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import { buildKnowledgeBaseWorkspaceSummary } from "./knowledge-base-page-helpers";
 
 export function KnowledgeBasePage() {
   const knowledgeBasesQuery = useKnowledgeBases();
@@ -11,40 +12,103 @@ export function KnowledgeBasePage() {
   const documentsQuery = useDocuments(knowledgeBase?.id ?? "default-kb");
   const documents = documentsQuery.data ?? [];
   const assistants = assistantsQuery.data ?? [];
-  const chunkCount = documents.reduce((sum, document) => sum + document.chunkCount, 0);
-  const readyCount = documents.filter(document => document.status === "ready").length;
-  const processingCount = documents.filter(
-    document => document.status === "pending" || document.status === "processing"
-  ).length;
-  const failedCount = documents.filter(document => document.status === "failed").length;
   const assistantCount = assistants.filter(assistant => assistant.kbId === knowledgeBase?.id).length;
-  const { formatDateTime, t } = useI18n();
+  const { formatDateTime, t, locale } = useI18n();
+  const summary = buildKnowledgeBaseWorkspaceSummary({
+    documents,
+    assistantCount
+  });
 
-  const knowledgeBaseTone =
-    failedCount > 0 ? "failed" : processingCount > 0 ? "processing" : readyCount > 0 ? "ready" : "empty";
-  const toneColor =
-    knowledgeBaseTone === "failed"
-      ? "red"
-      : knowledgeBaseTone === "processing"
-        ? "yellow"
-        : knowledgeBaseTone === "ready"
-          ? "teal"
-          : "gray";
-  const toneLabelKey =
-    knowledgeBaseTone === "failed"
-      ? "knowledgeBase.summary.failed"
-      : knowledgeBaseTone === "processing"
-        ? "knowledgeBase.summary.processing"
-        : knowledgeBaseTone === "ready"
-          ? "knowledgeBase.summary.ready"
-          : "knowledgeBase.summary.empty";
+  const metricCards = [
+    {
+      key: "documents",
+      label: t("common.fields.documents"),
+      value: documents.length,
+      testId: "knowledge-base-document-count"
+    },
+    {
+      key: "chunks",
+      label: t("common.fields.chunks"),
+      value: summary.chunkCount,
+      testId: "knowledge-base-chunk-count"
+    },
+    {
+      key: "ready",
+      label: t("knowledgeBase.metrics.readyDocuments"),
+      value: summary.readyCount,
+      testId: "knowledge-base-ready-count"
+    },
+    {
+      key: "processing",
+      label: t("knowledgeBase.metrics.processingDocuments"),
+      value: summary.processingCount,
+      testId: "knowledge-base-processing-count"
+    },
+    {
+      key: "failed",
+      label: t("knowledgeBase.metrics.failedDocuments"),
+      value: summary.failedCount,
+      testId: "knowledge-base-failed-count"
+    },
+    {
+      key: "assistants",
+      label: t("knowledgeBase.metrics.boundAssistants"),
+      value: assistantCount,
+      testId: "knowledge-base-assistant-count"
+    }
+  ];
 
   return (
-    <Stack data-testid="knowledge-base-page" gap="lg">
-      <div>
-        <Title order={2}>{t("knowledgeBase.title")}</Title>
-        <Text c="dimmed">{t("knowledgeBase.subtitle")}</Text>
-      </div>
+    <Stack data-testid="knowledge-base-page" gap="md">
+      <Paper className="workspace-hero" p="lg" radius="xl">
+        <div className="workspace-hero-split">
+          <Group gap="md" wrap="nowrap">
+            <Box className="workspace-hero-icon">KB</Box>
+            <div className="workspace-hero-copy">
+              <Text className="workspace-hero-kicker">
+                {locale === "zh" ? "知识库工作台" : "Knowledge workspace"}
+              </Text>
+              <Title
+                c="var(--app-text)"
+                order={3}
+                style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+              >
+                {t("knowledgeBase.title")}
+              </Title>
+              <Text c="var(--app-text-muted)" mt={4} size="sm">
+                {t("knowledgeBase.subtitle")}
+              </Text>
+            </div>
+          </Group>
+
+          <Stack align="flex-end" gap={10}>
+            <Group gap="xs">
+              <Badge color={summary.toneColor} radius="sm" variant="light">
+                {t(summary.toneLabelKey)}
+              </Badge>
+              <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/documents" variant="light">
+                {t("knowledgeBase.actions.openDocuments")}
+              </Button>
+              <Button
+                className="workspace-button"
+                color="indigo"
+                component={Link}
+                data-testid="knowledge-base-open-assistant"
+                radius="xl"
+                to="/assistant"
+                variant="light"
+              >
+                {t("knowledgeBase.actions.openAssistant")}
+              </Button>
+            </Group>
+            <Text className="workspace-hero-sidecopy" ta="right">
+              {locale === "zh"
+                ? "用同一套工作台语言集中展示 corpus 覆盖、处理状态和助手绑定关系。"
+                : "Keep the operational summary tight and readable without pushing metrics into a long side rail."}
+            </Text>
+          </Stack>
+        </div>
+      </Paper>
 
       {knowledgeBasesQuery.isLoading ? (
         <StatePanel
@@ -98,148 +162,206 @@ export function KnowledgeBasePage() {
       ) : null}
 
       {knowledgeBase ? (
-        <Grid align="stretch" gutter="lg">
-          <Grid.Col span={{ base: 12, md: 7 }}>
-            <Card withBorder padding="lg" radius="lg">
-              <Stack gap="md">
-                <Group justify="space-between" align="flex-start">
+        <>
+          <div className="workspace-metric-grid">
+            {metricCards.map(metric => (
+              <Paper className="workspace-metric-card workspace-metric-card-compact" key={metric.key} p="lg" radius="xl">
+                <Text c="var(--app-text-secondary)" fw={700} size="xs" tt="uppercase">
+                  {metric.label}
+                </Text>
+                <Title c="var(--app-text)" data-testid={metric.testId} mt={8} order={2}>
+                  {metric.value}
+                </Title>
+              </Paper>
+            ))}
+          </div>
+
+          <div className="workspace-page-grid">
+            <div className="workspace-page-side-stack">
+              <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+                <Stack gap="md">
+                  <Group align="flex-start" justify="space-between" wrap="nowrap">
+                    <div>
+                      <Text className="workspace-section-heading">
+                        {locale === "zh" ? "知识库身份" : "Knowledge base identity"}
+                      </Text>
+                      <Title c="var(--app-text)" order={2} style={{ fontFamily: "var(--app-font-display)" }}>
+                        {knowledgeBase.name}
+                      </Title>
+                      <Text c="var(--app-text-muted)" data-testid="knowledge-base-id" size="sm">
+                        {knowledgeBase.id}
+                      </Text>
+                    </div>
+                    <Badge color={summary.toneColor} radius="sm" variant="light">
+                      {t(summary.toneLabelKey)}
+                    </Badge>
+                  </Group>
+
                   <div>
-                    <Text c="dimmed" size="sm">
-                      {t("common.fields.name")}
-                    </Text>
-                    <Title order={3}>{knowledgeBase.name}</Title>
-                    <Text c="dimmed" data-testid="knowledge-base-id" size="sm">
-                      {knowledgeBase.id}
+                    <Text className="workspace-section-heading">{t("common.fields.description")}</Text>
+                    <Text c="var(--app-text)" mt={6}>
+                      {knowledgeBase.description ?? t("common.noDescription")}
                     </Text>
                   </div>
-                  <Badge color={toneColor} variant="light">
-                    {t(toneLabelKey)}
-                  </Badge>
-                </Group>
 
-                <div>
-                  <Text c="dimmed" size="sm">
-                    {t("common.fields.description")}
-                  </Text>
-                  <Text>{knowledgeBase.description ?? t("common.noDescription")}</Text>
-                </div>
+                  <Grid gutter="md">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Text className="workspace-section-heading">{t("common.fields.status")}</Text>
+                      <Text c="var(--app-text)" fw={600} mt={6}>
+                        {t(`common.status.${knowledgeBase.status}`)}
+                      </Text>
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Text className="workspace-section-heading">{t("common.fields.updated")}</Text>
+                      <Text c="var(--app-text)" fw={600} mt={6}>
+                        {formatDateTime(knowledgeBase.updatedAt)}
+                      </Text>
+                    </Grid.Col>
+                  </Grid>
+                </Stack>
+              </Paper>
+            </div>
 
+            <div className="workspace-page-main-stack">
+              <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Stack gap="md">
+                  <div>
+                    <Text className="workspace-section-heading">
+                      {locale === "zh" ? "工作台读数" : "Workspace readout"}
+                    </Text>
+                    <Text className="workspace-section-copy">
+                      {locale === "zh"
+                        ? "把当前可检索资料、处理中任务和助手绑定关系压缩到一眼能扫完的摘要里。"
+                        : "Keep corpus coverage, queue state, and assistant binding in one compact operational readout."}
+                    </Text>
+                  </div>
+
+                  <Paper className="workspace-subpanel" p="md" radius="xl">
+                    <Group gap="sm" wrap="nowrap">
+                      <Box
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 999,
+                          background:
+                            summary.toneColor === "red"
+                              ? "#ef4444"
+                              : summary.toneColor === "yellow"
+                                ? "#f59e0b"
+                                : summary.toneColor === "indigo"
+                                  ? "var(--app-accent)"
+                                  : "rgba(255,255,255,0.35)",
+                          boxShadow:
+                            summary.toneColor === "gray"
+                              ? "none"
+                              : `0 0 0 6px ${summary.toneColor === "indigo" ? "rgba(99, 102, 241, 0.12)" : "rgba(255,255,255,0.06)"}`
+                        }}
+                      />
+                      <Text c="var(--app-text-secondary)" size="sm">
+                        {summary.processingCount > 0
+                          ? t("knowledgeBase.summary.processingDescription", { count: summary.processingCount })
+                          : summary.failedCount > 0
+                            ? t("knowledgeBase.summary.failedDescription", { count: summary.failedCount })
+                            : summary.readyCount > 0
+                              ? t("knowledgeBase.summary.readyDescription", { count: summary.readyCount })
+                              : t("knowledgeBase.summary.emptyDescription")}
+                      </Text>
+                    </Group>
+                  </Paper>
+
+                  <Paper className="workspace-subpanel" p="md" radius="xl">
+                    <Stack gap={6}>
+                      <Text className="workspace-section-heading">{t("knowledgeBase.summary.title")}</Text>
+                      <Text c="var(--app-text)" fw={600} size="sm">
+                        {t("knowledgeBase.summary.caption", {
+                          documents: documents.length,
+                          chunks: summary.chunkCount,
+                          assistants: assistantCount
+                        })}
+                      </Text>
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {summary.tone === "processing"
+                          ? locale === "zh"
+                            ? "当前仍有 ingestion 正在队列中推进。"
+                            : "Active ingestion is still moving through the queue."
+                          : summary.tone === "failed"
+                            ? locale === "zh"
+                              ? "部分资料需要处理后，检索质量才会稳定。"
+                              : "Some source material needs attention before retrieval quality stabilizes."
+                            : summary.tone === "ready"
+                              ? locale === "zh"
+                                ? "当前资料已经可以稳定用于检索和助手问答。"
+                                : "The current corpus is ready for retrieval and assistant usage."
+                              : locale === "zh"
+                                ? "先添加文档，再逐步形成知识库主体。"
+                                : "Add source documents to start shaping the knowledge base."}
+                      </Text>
+                    </Stack>
+                  </Paper>
+                </Stack>
+              </Paper>
+            </div>
+          </div>
+
+          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+            <Stack gap="xs">
+              <Title c="var(--app-text)" order={4}>
+                {t("knowledgeBase.summary.title")}
+              </Title>
+              <Text c="var(--app-text-muted)">
+                {t("knowledgeBase.summary.caption", {
+                  documents: documents.length,
+                  chunks: summary.chunkCount,
+                  assistants: assistantCount
+                })}
+              </Text>
+              {documents.length === 0 ? (
+                <StatePanel
+                  title={t("knowledgeBase.states.noDocumentsTitle")}
+                  description={t("knowledgeBase.states.noDocumentsDescription")}
+                  action={
+                    <Button className="workspace-button" color="indigo" component={Link} radius="xl" size="xs" to="/documents" variant="light">
+                      {t("knowledgeBase.actions.openDocuments")}
+                    </Button>
+                  }
+                />
+              ) : (
                 <Grid gutter="md">
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <Text c="dimmed" size="sm">
-                      {t("common.fields.status")}
-                    </Text>
-                    <Text fw={600}>{t(`common.status.${knowledgeBase.status}`)}</Text>
+                  <Grid.Col span={{ base: 12, md: 4 }}>
+                    <Paper className="workspace-subpanel" p="md" radius="xl">
+                      <Text className="workspace-section-heading">
+                        {locale === "zh" ? "语料覆盖" : "Corpus coverage"}
+                      </Text>
+                      <Text c="var(--app-text)" fw={600} mt={6} size="sm">
+                        {summary.readyCount} ready / {documents.length} total
+                      </Text>
+                    </Paper>
                   </Grid.Col>
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <Text c="dimmed" size="sm">
-                      {t("common.fields.updated")}
-                    </Text>
-                    <Text fw={600}>{formatDateTime(knowledgeBase.updatedAt)}</Text>
+                  <Grid.Col span={{ base: 12, md: 4 }}>
+                    <Paper className="workspace-subpanel" p="md" radius="xl">
+                      <Text className="workspace-section-heading">
+                        {locale === "zh" ? "检索材料" : "Retrieval material"}
+                      </Text>
+                      <Text c="var(--app-text)" fw={600} mt={6} size="sm">
+                        {summary.chunkCount} chunks available for retrieval.
+                      </Text>
+                    </Paper>
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, md: 4 }}>
+                    <Paper className="workspace-subpanel" p="md" radius="xl">
+                      <Text className="workspace-section-heading">
+                        {locale === "zh" ? "助手绑定" : "Assistant binding"}
+                      </Text>
+                      <Text c="var(--app-text)" fw={600} mt={6} size="sm">
+                        {assistantCount} assistant{assistantCount === 1 ? "" : "s"} currently attached.
+                      </Text>
+                    </Paper>
                   </Grid.Col>
                 </Grid>
-
-                <Alert color={toneColor} variant="light">
-                  {processingCount > 0
-                    ? t("knowledgeBase.summary.processingDescription", { count: processingCount })
-                    : failedCount > 0
-                      ? t("knowledgeBase.summary.failedDescription", { count: failedCount })
-                      : readyCount > 0
-                        ? t("knowledgeBase.summary.readyDescription", { count: readyCount })
-                        : t("knowledgeBase.summary.emptyDescription")}
-                </Alert>
-
-                <Group>
-                  <Button component={Link} to="/documents" variant="light">
-                    {t("knowledgeBase.actions.openDocuments")}
-                  </Button>
-                  <Button component={Link} data-testid="knowledge-base-open-assistant" to="/assistant" variant="light">
-                    {t("knowledgeBase.actions.openAssistant")}
-                  </Button>
-                </Group>
-              </Stack>
-            </Card>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 5 }}>
-            <Grid gutter="md">
-              <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
-                <Card withBorder padding="lg" radius="lg">
-                  <Text c="dimmed" size="sm">
-                    {t("common.fields.documents")}
-                  </Text>
-                  <Title data-testid="knowledge-base-document-count" order={3}>{documents.length}</Title>
-                </Card>
-              </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
-                <Card withBorder padding="lg" radius="lg">
-                  <Text c="dimmed" size="sm">
-                    {t("common.fields.chunks")}
-                  </Text>
-                  <Title data-testid="knowledge-base-chunk-count" order={3}>{chunkCount}</Title>
-                </Card>
-              </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
-                <Card withBorder padding="lg" radius="lg">
-                  <Text c="dimmed" size="sm">
-                    {t("knowledgeBase.metrics.readyDocuments")}
-                  </Text>
-                  <Title data-testid="knowledge-base-ready-count" order={3}>{readyCount}</Title>
-                </Card>
-              </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
-                <Card withBorder padding="lg" radius="lg">
-                  <Text c="dimmed" size="sm">
-                    {t("knowledgeBase.metrics.processingDocuments")}
-                  </Text>
-                  <Title data-testid="knowledge-base-processing-count" order={3}>{processingCount}</Title>
-                </Card>
-              </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
-                <Card withBorder padding="lg" radius="lg">
-                  <Text c="dimmed" size="sm">
-                    {t("knowledgeBase.metrics.failedDocuments")}
-                  </Text>
-                  <Title data-testid="knowledge-base-failed-count" order={3}>{failedCount}</Title>
-                </Card>
-              </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 4, md: 6 }}>
-                <Card withBorder padding="lg" radius="lg">
-                  <Text c="dimmed" size="sm">
-                    {t("knowledgeBase.metrics.boundAssistants")}
-                  </Text>
-                  <Title data-testid="knowledge-base-assistant-count" order={3}>{assistantCount}</Title>
-                </Card>
-              </Grid.Col>
-            </Grid>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12 }}>
-            <Card withBorder padding="lg" radius="lg">
-              <Stack gap="xs">
-                <Title order={4}>{t("knowledgeBase.summary.title")}</Title>
-                <Text c="dimmed">
-                  {t("knowledgeBase.summary.caption", {
-                    documents: documents.length,
-                    chunks: chunkCount,
-                    assistants: assistantCount
-                  })}
-                </Text>
-                {documents.length === 0 ? (
-                  <StatePanel
-                    title={t("knowledgeBase.states.noDocumentsTitle")}
-                    description={t("knowledgeBase.states.noDocumentsDescription")}
-                    action={
-                      <Button component={Link} size="xs" to="/documents" variant="light">
-                        {t("knowledgeBase.actions.openDocuments")}
-                      </Button>
-                    }
-                  />
-                ) : null}
-              </Stack>
-            </Card>
-          </Grid.Col>
-        </Grid>
+              )}
+            </Stack>
+          </Paper>
+        </>
       ) : null}
     </Stack>
   );

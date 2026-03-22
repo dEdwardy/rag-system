@@ -2,11 +2,7 @@ import {
   Alert,
   Anchor,
   Badge,
-  Card,
-  Code,
-  Grid,
   Group,
-  Loader,
   Paper,
   SimpleGrid,
   Stack,
@@ -14,6 +10,7 @@ import {
   Title
 } from "@mantine/core";
 import { Link, useParams } from "react-router-dom";
+import { StatePanel } from "../../components/StatePanel";
 import { useTrace } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { Citation, JsonValue } from "../../types/api";
@@ -132,7 +129,7 @@ export function TraceDetailPage() {
   const retrievedChunkIds = normalizeChunkIds(trace?.retrievedChunkIdsJson);
   const scores = normalizeScores(trace?.retrievalScoresJson);
   const citations = normalizeCitations(trace?.citationsJson);
-  const { formatDateTime, t } = useI18n();
+  const { formatDateTime, t, locale } = useI18n();
   const citationsByChunkId = new Map(citations.map(citation => [citation.chunkId, citation]));
   const scoreChunkIds = new Set(scores.map(item => item.chunkId));
   const rankedEntries = [
@@ -160,98 +157,149 @@ export function TraceDetailPage() {
   const hasRewrite = Boolean(trace?.rewrittenQuery);
 
   return (
-    <Stack gap="lg">
-      <div>
-        <Text c="dimmed" component={Link} size="sm" to="/">
-          {t("common.actions.backToChat")}
-        </Text>
-        <Title order={2} mt={4}>
-          {t("trace.title")}
-        </Title>
-        <Text c="dimmed">{t("trace.subtitle")}</Text>
-      </div>
+    <Stack gap="md">
+      <Paper className="workspace-hero" p="lg" radius="xl">
+        <Stack gap="sm">
+          <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/traces">
+            {locale === "zh" ? "返回 Trace 列表" : "Back to trace list"}
+          </Text>
+          <div className="workspace-hero-split">
+            <div className="workspace-hero-copy">
+              <Text className="workspace-hero-kicker">Trace detail</Text>
+              <Title
+                order={3}
+                c="var(--app-text)"
+                style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+              >
+                {trace?.id ?? t("trace.title")}
+              </Title>
+              <Text c="var(--app-text-muted)" mt={4}>
+                {t("trace.subtitle")}
+              </Text>
+            </div>
+            {trace ? (
+              <Stack align="flex-end" gap={10}>
+                <Group gap="xs">
+                  <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
+                    {t(`common.status.${trace.status}`)}
+                  </Badge>
+                  <Badge color="gray" variant="light">
+                    {trace.modelName ?? "-"}
+                  </Badge>
+                </Group>
+                <Text className="workspace-hero-sidecopy" ta="right">
+                  {locale === "zh"
+                    ? "保留 trace 原始数据、引用、chunk 深链和评分展示，只进一步统一 B 主题 panel 语言。"
+                    : "Keep raw payload, citations, chunk deep links, and scoring intact while tightening the B-theme panel language."}
+                </Text>
+              </Stack>
+            ) : null}
+          </div>
+        </Stack>
+      </Paper>
 
-      {traceQuery.isLoading ? <Loader size="sm" /> : null}
+      {traceQuery.isLoading ? (
+        <StatePanel description={t("trace.subtitle")} title={t("trace.title")} tone="loading" />
+      ) : null}
       {traceQuery.isError ? (
-        <Alert color="red" variant="light">
+        <Alert color="red" radius="xl" variant="light">
           {traceQuery.error instanceof Error ? traceQuery.error.message : t("trace.loadError")}
         </Alert>
       ) : null}
 
       {trace ? (
-        <Grid gutter="lg">
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Stack gap="lg">
-              <Card padding="lg" radius="lg" withBorder>
-                <Stack gap="sm">
-                  <Group justify="space-between">
-                    <Title order={4}>{trace.id}</Title>
-                    <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
-                      {t(`common.status.${trace.status}`)}
-                    </Badge>
-                  </Group>
-                  <Text size="sm">{t("common.fields.created")}: {formatDateTime(trace.createdAt)}</Text>
-                  <Text size="sm">{t("common.fields.conversation")}: {trace.conversationId}</Text>
-                  <Text size="sm">{t("common.fields.assistant")}: {trace.assistantId}</Text>
-                  <Text size="sm">{t("common.fields.latency")}: {trace.latencyMs ?? "-"} ms</Text>
-                  <Text size="sm">{t("common.fields.model")}: {trace.modelName ?? "-"}</Text>
-                  {trace.errorMessage ? (
-                    <Alert color="red" variant="light">
-                      {trace.errorMessage}
-                    </Alert>
-                  ) : null}
-                </Stack>
-              </Card>
+        <div className="workspace-page-grid">
+          <div className="workspace-page-side-stack">
+            <div className="workspace-sticky-panel">
+              <Stack gap="md">
+                <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+                  <Stack gap="md">
+                    <Text className="workspace-section-heading">
+                      {locale === "zh" ? "Trace 元数据" : "Trace metadata"}
+                    </Text>
+                    <div className="workspace-meta-list">
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{t("common.fields.created")}</span>
+                        <span className="workspace-meta-value">{formatDateTime(trace.createdAt)}</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{t("common.fields.conversation")}</span>
+                        <span className="workspace-meta-value">{trace.conversationId}</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{t("common.fields.assistant")}</span>
+                        <span className="workspace-meta-value">{trace.assistantId}</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{t("common.fields.latency")}</span>
+                        <span className="workspace-meta-value">{trace.latencyMs ?? "-"} ms</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{t("common.fields.model")}</span>
+                        <span className="workspace-meta-value">{trace.modelName ?? "-"}</span>
+                      </div>
+                    </div>
+                    {trace.errorMessage ? (
+                      <Alert color="red" radius="xl" variant="light">
+                        {trace.errorMessage}
+                      </Alert>
+                    ) : null}
+                  </Stack>
+                </Paper>
 
-              <Card padding="lg" radius="lg" withBorder>
-                <Stack gap="sm">
-                  <Group justify="space-between">
-                    <Title order={4}>{t("trace.queryComparison")}</Title>
-                    <Badge color={hasRewrite ? "blue" : "gray"} variant="light">
-                      {hasRewrite ? t("trace.rewriteApplied") : t("trace.rewriteNotApplied")}
-                    </Badge>
-                  </Group>
-                  <Text c="dimmed" size="sm">
-                    {t("trace.queryComparisonDescription")}
-                  </Text>
-                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                    <Paper p="sm" radius="md" withBorder>
-                      <Stack gap="xs">
-                        <Text c="dimmed" size="sm">
-                          {t("common.fields.userQuery")}
-                        </Text>
-                        <Text style={{ whiteSpace: "pre-wrap" }}>{trace.userQuery}</Text>
-                      </Stack>
-                    </Paper>
-                    <Paper p="sm" radius="md" withBorder>
-                      <Stack gap="xs">
-                        <Text c="dimmed" size="sm">
-                          {t("common.fields.rewrittenQuery")}
-                        </Text>
-                        <Text style={{ whiteSpace: "pre-wrap" }}>
-                          {trace.rewrittenQuery ?? t("trace.rewriteSameAsOriginal")}
-                        </Text>
-                      </Stack>
-                    </Paper>
-                  </SimpleGrid>
-                </Stack>
-              </Card>
-            </Stack>
-          </Grid.Col>
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                  <Stack gap="md">
+                    <Group justify="space-between">
+                      <Text className="workspace-section-heading">{t("trace.queryComparison")}</Text>
+                      <Badge color={hasRewrite ? "blue" : "gray"} variant="light">
+                        {hasRewrite ? t("trace.rewriteApplied") : t("trace.rewriteNotApplied")}
+                      </Badge>
+                    </Group>
+                    <Text className="workspace-section-copy">{t("trace.queryComparisonDescription")}</Text>
+                    <Stack gap="sm">
+                      <div className="workspace-content-block">
+                        <Stack gap={6}>
+                          <Text c="var(--app-text-muted)" size="xs">
+                            {t("common.fields.userQuery")}
+                          </Text>
+                          <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                            {trace.userQuery}
+                          </Text>
+                        </Stack>
+                      </div>
+                      <div className="workspace-content-block">
+                        <Stack gap={6}>
+                          <Text c="var(--app-text-muted)" size="xs">
+                            {t("common.fields.rewrittenQuery")}
+                          </Text>
+                          <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                            {trace.rewrittenQuery ?? t("trace.rewriteSameAsOriginal")}
+                          </Text>
+                        </Stack>
+                      </div>
+                    </Stack>
+                  </Stack>
+                </Paper>
+              </Stack>
+            </div>
+          </div>
 
-          <Grid.Col span={{ base: 12, md: 8 }}>
-            <Stack gap="lg">
-              <Card padding="lg" radius="lg" withBorder>
+          <div className="workspace-page-main-stack">
+            <Stack gap="md">
+              <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
                 <Stack gap="md">
                   <Group justify="space-between">
-                    <Title order={4}>{t("trace.retrievedChunks")}</Title>
+                    <div>
+                      <Text className="workspace-section-heading">{t("trace.retrievedChunks")}</Text>
+                      <Text className="workspace-section-copy">
+                        {scores.length > 0 ? t("trace.sortedByScore") : t("trace.sortedByTraceOrder")}
+                      </Text>
+                    </div>
                     <Badge variant="light">{retrievedChunkIds.length}</Badge>
                   </Group>
+
                   {rankedEntries.length > 0 ? (
-                    <Stack gap="sm">
-                      <Text c="dimmed" size="sm">
-                      {scores.length > 0 ? t("trace.sortedByScore") : t("trace.sortedByTraceOrder")}
-                      </Text>
+                    <div className="workspace-collection-grid">
                       {rankedEntries.map((item, index) => {
                         const linkedCitation = citationsByChunkId.get(item.chunkId);
                         const linkDocumentId = item.documentId ?? linkedCitation?.documentId ?? null;
@@ -262,10 +310,10 @@ export function TraceDetailPage() {
                         const isCited = linkedCitation != null;
 
                         return (
-                          <Paper key={item.chunkId} p="sm" radius="md" withBorder>
+                          <Paper className="workspace-citation-card workspace-panel-muted" key={item.chunkId} p="md" radius="lg">
                             <Stack gap="sm">
                               <Group justify="space-between" align="flex-start">
-                                <Stack gap={4}>
+                                <Stack gap={8}>
                                   <Group gap="xs">
                                     <Badge variant="light">{t("trace.rankLabel", { rank: index + 1 })}</Badge>
                                     {item.isPrimary === true ? (
@@ -283,6 +331,7 @@ export function TraceDetailPage() {
                                       </Badge>
                                     ) : null}
                                   </Group>
+
                                   {canLink ? (
                                     <Anchor
                                       component={Link}
@@ -294,27 +343,35 @@ export function TraceDetailPage() {
                                         score: item.score
                                       })}
                                     >
-                                      {titleText}
+                                      <Text c="var(--app-text)" fw={600} span>
+                                        {titleText}
+                                      </Text>
                                     </Anchor>
                                   ) : (
-                                    <Text fw={600}>{titleText}</Text>
+                                    <Text c="var(--app-text)" fw={600}>
+                                      {titleText}
+                                    </Text>
                                   )}
+
                                   <Group gap="xs">
-                                    <Code>{item.chunkId}</Code>
+                                    <span className="workspace-inline-chip">{item.chunkId}</span>
                                     {item.chunkIndex != null ? <Badge variant="light">#{item.chunkIndex}</Badge> : null}
                                   </Group>
+
                                   {sectionText || pageNo != null ? (
-                                    <Text c="dimmed" size="sm">
+                                    <Text c="var(--app-text-muted)" size="sm">
                                       {sectionText ?? t("common.misc.noSection")}
-                                      {pageNo != null ? ` · ${t("common.misc.pageLong", { pageNo })}` : ""}
+                                      {pageNo != null ? ` / ${t("common.misc.pageLong", { pageNo })}` : ""}
                                     </Text>
                                   ) : null}
                                 </Stack>
+
                                 <Badge color="blue" size="lg" variant="light">
                                   {t("trace.finalScoreLabel", { score: formatScore(item.score) })}
                                 </Badge>
                               </Group>
-                              <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
+
+                              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
                                 <Badge color="gray" variant="light">
                                   {t("trace.vectorScoreLabel", { score: formatScore(item.vectorScore) })}
                                 </Badge>
@@ -328,82 +385,109 @@ export function TraceDetailPage() {
                                   {t("trace.rerankScoreLabel", { score: formatScore(item.rerankScore) })}
                                 </Badge>
                               </SimpleGrid>
+
                               {item.contentPreview || linkedCitation ? (
-                                <Paper bg="gray.0" p="sm" radius="md" withBorder>
+                                <div className="workspace-content-block">
                                   <Stack gap={6}>
-                                    <Text c="dimmed" size="xs">
+                                    <Text c="var(--app-text-muted)" size="xs">
                                       {t("trace.chunkPreview")}
                                     </Text>
-                                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
                                       {isCited ? linkedCitation.snippet : item.contentPreview}
                                     </Text>
                                   </Stack>
-                                </Paper>
+                                </div>
                               ) : null}
                             </Stack>
                           </Paper>
                         );
                       })}
-                    </Stack>
+                    </div>
                   ) : (
-                    <Alert color="gray" variant="light">
-                      {t("trace.noRetrievedChunks")}
-                    </Alert>
+                    <StatePanel description={t("trace.noRetrievedChunks")} title={t("trace.retrievedChunks")} />
                   )}
                 </Stack>
-              </Card>
+              </Paper>
 
-              <Card padding="lg" radius="lg" withBorder>
-                <Stack gap="md">
-                  <Group justify="space-between">
-                    <Title order={4}>{t("trace.citations")}</Title>
-                    <Badge variant="light">{citations.length}</Badge>
-                  </Group>
-                  {citations.map(citation => (
-                    <Paper key={citation.chunkId} p="md" radius="md" withBorder>
-                      <Stack gap="xs">
-                        <Group justify="space-between" align="flex-start">
-                          <Anchor
-                            component={Link}
-                            fw={600}
-                            to={buildDocumentChunkLink(citation.documentId, citation.chunkId, {
-                              traceId: trace.id,
-                              isCited: true
-                            })}
+              <div className="workspace-detail-secondary-grid">
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                  <Stack gap="md">
+                    <Group justify="space-between">
+                      <Text className="workspace-section-heading">{t("trace.citations")}</Text>
+                      <Badge variant="light">{citations.length}</Badge>
+                    </Group>
+
+                    {citations.length > 0 ? (
+                      <div className="workspace-collection-grid">
+                        {citations.map(citation => (
+                          <Paper
+                            className="workspace-citation-card"
+                            key={citation.chunkId}
+                            p="md"
+                            radius="lg"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
                           >
-                            {citation.documentTitle}
-                          </Anchor>
-                          <Code>{citation.chunkId}</Code>
-                        </Group>
-                        <Text c="dimmed" size="sm">
-                          {citation.sectionTitle ?? t("common.misc.noSection")}
-                          {citation.pageNo != null ? ` · ${t("common.misc.pageLong", { pageNo: citation.pageNo })}` : ""}
-                        </Text>
-                        <Text style={{ whiteSpace: "pre-wrap" }}>{citation.snippet}</Text>
-                      </Stack>
-                    </Paper>
-                  ))}
-                  {citations.length === 0 ? (
-                    <Alert color="gray" variant="light">
-                      {t("trace.noCitations")}
-                    </Alert>
-                  ) : null}
-                </Stack>
-              </Card>
+                            <Stack gap="xs">
+                              <Group justify="space-between" align="flex-start">
+                                <Anchor
+                                  component={Link}
+                                  fw={600}
+                                  to={buildDocumentChunkLink(citation.documentId, citation.chunkId, {
+                                    traceId: trace.id,
+                                    isCited: true
+                                  })}
+                                >
+                                  <Text c="var(--app-text)" fw={600} span>
+                                    {citation.documentTitle}
+                                  </Text>
+                                </Anchor>
+                                <span className="workspace-inline-chip">{citation.chunkId}</span>
+                              </Group>
+                              <Text c="var(--app-text-muted)" size="sm">
+                                {citation.sectionTitle ?? t("common.misc.noSection")}
+                                {citation.pageNo != null ? ` / ${t("common.misc.pageLong", { pageNo: citation.pageNo })}` : ""}
+                              </Text>
+                              <div className="workspace-content-block">
+                                <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                                  {citation.snippet}
+                                </Text>
+                              </div>
+                            </Stack>
+                          </Paper>
+                        ))}
+                      </div>
+                    ) : (
+                      <StatePanel description={t("trace.noCitations")} title={t("trace.citations")} />
+                    )}
+                  </Stack>
+                </Paper>
 
-              <Card padding="lg" radius="lg" withBorder>
-                <Stack gap="sm">
-                  <Title order={4}>{t("common.fields.rawPayload")}</Title>
-                  <Code block>{formatJson({
-                    retrievedChunkIdsJson: trace.retrievedChunkIdsJson,
-                    retrievalScoresJson: trace.retrievalScoresJson,
-                    citationsJson: trace.citationsJson
-                  })}</Code>
-                </Stack>
-              </Card>
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                  <details>
+                    <summary className="workspace-collapsible-summary">
+                      <span>{t("common.fields.rawPayload")}</span>
+                      <span className="workspace-inline-chip">
+                        {locale === "zh" ? "次级诊断" : "Secondary diagnostics"}
+                      </span>
+                    </summary>
+                    <Text c="var(--app-text-muted)" mt="sm" size="sm">
+                      {locale === "zh"
+                        ? "仅在需要核对原始 trace 载荷时展开。"
+                        : "Expand only when you need to inspect the captured trace payload directly."}
+                    </Text>
+                    <pre className="workspace-code-block workspace-code-block-scroll" style={{ marginTop: "0.9rem" }}>
+                      {formatJson({
+                        retrievedChunkIdsJson: trace.retrievedChunkIdsJson,
+                        retrievalScoresJson: trace.retrievalScoresJson,
+                        citationsJson: trace.citationsJson
+                      })}
+                    </pre>
+                  </details>
+                </Paper>
+              </div>
             </Stack>
-          </Grid.Col>
-        </Grid>
+          </div>
+        </div>
       ) : null}
     </Stack>
   );

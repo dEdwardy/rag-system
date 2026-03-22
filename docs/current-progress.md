@@ -430,6 +430,107 @@
 
 ### 2026-03-22
 
+- ✅ UI 审查问题第一轮收口
+  - 基于 `ui/审查报告.md` 对当前 `PC Web` 做第一轮 focused cleanup
+  - `AppShell` 顶栏中的搜索 / 通知 / 当前知识库展示降级为非误导性的展示控件，减少假交互
+  - `Chat` 去掉右栏伪 tab，补充输入区真实说明，并把附件入口明确降级为 `coming soon`
+  - `Knowledge Base` 改为更紧凑的指标网格，避免右侧长指标列导致主区空洞
+  - `Assistant` 清理开发态说明文案，继续保持现有表单字段和提交逻辑不变
+  - `Trace Detail` 将 `raw payload` 降级为折叠式次级诊断区
+  - `index.html` 补充 favicon，消除本地巡检时的 404 噪音
+  - 新增 focused source-level 回归测试：
+    - `apps/web/test/ui-review-regressions.test.js`
+  - focused validation rerun:
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+    - `node --experimental-strip-types --test apps/web/test/chat-layout-source.test.js`
+    - `node --test apps/web/test/desktop-shell-consistency.test.js`
+    - `node --experimental-strip-types --test apps/web/test/knowledge-base-page-helpers.test.js`
+    - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Documents / Knowledge Base / Assistant / Trace 第四轮骨架收口
+  - `Documents` hero 改成更接近参考稿的左右分区式工作台头部，loading/empty panel 密度继续压缩
+  - `Document Detail` 改成更稳定的工作台双栏骨架，左侧状态区 sticky，chunk focus banner 和列表间距继续统一
+  - `Knowledge Base` 和 `Assistant` 都改为更一致的 hero + 主副栏布局，输入控件 hover/focus 继续收口到统一 B 主题语言
+  - `Trace List` / `Trace Detail` 的 hero、列表卡片、metadata 和 empty/loading 状态继续向 `ui/version-b-creative.html` 收口
+  - 仅调整前端 UI 结构和样式，不改接口、字段、路由和现有功能逻辑
+  - 本轮新增 Playwright 截图留档：
+    - `output/playwright/ui-audit-pass-6/`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题主副栏比例 + 本地巡检兼容继续收口
+  - `Knowledge Base` / `Assistant` 主工作区改回更合理的宽主栏 + 窄侧栏比例，避免关键内容被压窄
+  - `Trace List` 在仅一条会话记录时改为单列铺满，避免左窄右空的骨架浪费
+  - 前端 API base url 增加本地 hostname 归一逻辑，便于本地巡检时在 `localhost` / `127.0.0.1` 之间切换
+  - 新增基于 Playwright 路由拦截的真实数据快照巡检，便于继续比对 detail 页实际信息密度
+  - 本轮新增 Playwright 截图留档：
+    - `output/playwright/ui-audit-pass-7d/`
+    - `output/playwright/ui-audit-pass-8/`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题前端巡检稳定性补丁
+  - 修复 `apps/web/index.html` 首屏主题脚本在 `body` 尚未可用时访问 `style` 导致的浏览器运行时异常
+  - `Trace List` 单条记录时继续收紧最大宽度，避免单卡片模式下占满整行后过于松散
+  - 本轮新增 Playwright 截图留档：
+    - `output/playwright/ui-audit-pass-8b/`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Documents + Trace 第三轮细节收口
+  - `Documents` hero 改为更接近 `ui/version-b-creative.html` 的深色发光工作台头部
+  - `Documents` 表格外层、badge、行 hover、storage 文本截断和操作区层级继续收口
+  - `Document Detail` 左侧状态面板改为更稳定的 metadata list，chunk 卡片改为更清晰的内容块 + focused 态
+  - `Trace List` 改为更适合工作台的双列卡片流，保留原有 conversation -> latest trace 聚合逻辑
+  - `Trace Detail` 的 hero、metadata、retrieved chunks、citations、raw payload 面板继续统一到 B 主题 surface
+  - 保持现有接口、数据字段、路由和列表 -> 详情流转不变
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题壳层偏移 + Chat 骨架第三轮收口
+  - 修复 `AppShell.Main` 未正确避开 header / sidebar 的壳层偏移问题，主内容不再钻到壳层下方
+  - `Chat` 主区从 Mantine `Grid` 改为显式 CSS grid，稳定为更接近参考稿的三栏工作台骨架
+  - 收紧聊天页 hero、会话栏、主工作区、引用栏、输入区的宽度关系与面板高度
+  - 补充聊天布局和通用空状态的 source-level 回归测试，避免后续再次偏离参考稿或回到浅色空状态
+  - 使用 Playwright 对 `Chat` 以及其他核心路由重新截图复查
+  - focused validation rerun:
+    - `node --test apps/web/test/chat-layout-source.test.js apps/web/test/state-panel-theme.test.js`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Chat 收尾第二轮
+  - `AppShell` 左侧品牌区与导航项的内边距、字号、hover 强度继续向 `ui/version-b-creative.html` 收口
+  - `Chat` 页消息气泡、底部输入栏、右侧引用栏的圆角、边框、层级与 spacing 继续向 B 主题 token 收口
+  - 保持既有 API、流式逻辑、数据结构与 badge 数据来源不变
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ Trace 路由恢复为列表 -> 详情
+  - `Trace 日志` 左侧导航不再落到 404
+  - Web 端新增 `/traces` 列表页，复用现有 conversations + conversation traces 接口做前端聚合
+  - `/traces/:traceId` 继续保留详情页
+  - focused validation rerun:
+    - `node --test apps/web/test/trace-router.test.js`
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题工作台跨页面第二轮统一
+  - `Documents` / `Document Detail` / `Knowledge Base` / `Assistant` / `Trace` 页面头部 hero 与 panel surface 继续向 `ui/version-b-creative.html` 收口
+  - 统一深色表面层级、hover、focus 高亮与工作台质感
+  - 通过 Playwright 对主要页面路由做浏览器巡检与截图留档
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ B 主题 Knowledge Base + Assistant 第一阶段迁移
+  - `Knowledge Base` 已切到 B 风格工作台概览布局
+  - `Assistant` 已切到 B 风格分区式配置工作台
+  - 保持原有查询、表单、payload、提交逻辑不变
+  - 新增 `Knowledge Base` workspace summary helper 测试
+  - 补充共享 workspace panel / metric / input hover 样式
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/knowledge-base-page-helpers.test.js`
+    - `node --experimental-strip-types --test apps/web/test/assistant-config.test.js`
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ B 主题 Chat + AppShell 第一阶段落地
   - `AppShell` 已切到 B 风格工作台壳层
   - `Chat` 已切到 B 风格深色工作区主方向
@@ -534,6 +635,23 @@
 - [docs/superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md)
 - [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
 - [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
+
+---
+
+## 10.1 Web B 主题迁移补充记录
+
+- 已继续收口 `creative-dark + workspace-app` 的 B 主题工作台壳层，当前 `Chat / Documents / Document Detail / Knowledge Base / Assistant / Traces / Trace Detail / AppShell / StatePanel` 都已统一到同一套深色 panel 语言、hero 骨架和输入控件风格。
+- 本轮重点清理了前端页面遗留的中文乱码文案，未改动接口、路由、字段和页面功能逻辑。
+- 本轮新增/补齐的主要文件：
+  - [apps/web/src/app/AppShell.tsx](/D:/FeProjects/rag-system/apps/web/src/app/AppShell.tsx)
+  - [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
+  - [apps/web/src/pages/documents/DocumentsPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentsPage.tsx)
+  - [apps/web/src/pages/documents/DocumentDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentDetailPage.tsx)
+  - [apps/web/src/pages/traces/TraceDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/traces/TraceDetailPage.tsx)
+- 本轮 Playwright 巡检截图目录：
+  - [output/playwright/ui-audit-pass-9](/D:/FeProjects/rag-system/output/playwright/ui-audit-pass-9)
+- 本轮最小验证：
+  - `pnpm --filter @rag-system/web build`
 
 ---
 
