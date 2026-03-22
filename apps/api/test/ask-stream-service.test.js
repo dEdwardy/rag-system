@@ -594,3 +594,158 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
     "fallback_generation"
   ]);
 });
+
+test("AskAssistantService stream preserves fallback_generation as the primary quality issue when fallback answers also miss information", async () => {
+  const events = [];
+  const updateTraceCalls = [];
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "marker content",
+      score: 0.9,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: null,
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      buildStreamAnswerContext: ({ chunks }) => chunks,
+      generateAnswer: async () => {
+        throw new Error("one-shot generateAnswer should not be used by native streaming");
+      },
+      finalizeStreamedAnswer: async input => ({
+        answer: input.rawAnswer,
+        modelName: input.modelName,
+        citations: [
+          {
+            chunkId: "chunk-1",
+            documentId: "document-1",
+            documentTitle: "Document 1",
+            snippet: "marker content"
+          }
+        ],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: input.promptId,
+          usedFallback: input.usedFallback,
+          answerPolicy: input.answerPolicy,
+          contextMode: "chunks",
+          inputChunkCount: input.chunks.length,
+          contextGroupCount: input.contextGroups.length,
+          citationCount: 1,
+          answerStatus: "grounded"
+        },
+        answerStatus: "grounded",
+        missingInformation: ["Need pricing details."],
+        qualityEvaluation: {
+          overall: "partial",
+          grounding: "grounded",
+          completeness: "partial",
+          primaryIssue: "fallback_generation",
+          flags: ["missing_information", "fallback_generation"],
+          summary:
+            "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async input => {
+        await input.onDelta("Fallback ");
+        await input.onDelta("partial answer [1]");
+        return {
+          rawAnswer: "Fallback partial answer [1]",
+          modelName: "fallback-local",
+          promptId: "answer.v2",
+          usedFallback: true
+        };
+      }
+    }
+  );
+
+  const finalResult = await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "Where is the marker?",
+    onEvent: event => {
+      events.push(event);
+    }
+  });
+
+  assert.deepEqual(
+    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
+    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+  );
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.deepEqual(finalResult.qualityEvaluation.flags, [
+    "missing_information",
+    "fallback_generation"
+  ]);
+  assert.equal(
+    finalResult.qualityEvaluation.summary,
+    "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+  );
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(updateTraceCalls[0].input.qualityEvaluationJson.primaryIssue, "fallback_generation");
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson.flags, [
+    "missing_information",
+    "fallback_generation"
+  ]);
+});
