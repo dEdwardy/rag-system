@@ -568,6 +568,34 @@ test("Web page source E2E: a failed source no longer remains in summary after a 
     assert.deepEqual(summary.failureByStage, {});
     assert.equal(summary.latestRetryableFailure, null);
     assert.equal(summary.latestFailure, null);
+
+    const failedRunsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?status=failed&trigger=external_resync&sourceType=web_page&limit=10`
+    );
+    assert.equal(failedRunsResponse.status, 200);
+    const failedRuns = await failedRunsResponse.json();
+    assert.equal(failedRuns.length, 1);
+    assert.deepEqual(
+      {
+        documentId: failedRuns[0].documentId,
+        version: failedRuns[0].version,
+        status: failedRuns[0].status,
+        failedStage: failedRuns[0].failedStage,
+        failureSummary: failedRuns[0].failureSummary
+      },
+      {
+        documentId: failedDocuments[0].id,
+        version: 1,
+        status: "failed",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: true,
+          message: "Failed to fetch web page: upstream responded with 502."
+        }
+      }
+    );
   } finally {
     server.kill("SIGTERM");
     await stopServer(pageServer.server);
