@@ -616,6 +616,56 @@ test("AnsweringService returns partial quality evaluation when information is mi
   assert.deepEqual(result.qualityEvaluation.flags, ["missing_information"]);
 });
 
+test("AnsweringService mentions both missing information and low retrieval confidence in partial summaries when both apply", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Partial answer [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: ["Need pricing details"],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.4,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.overall, "partial");
+  assert.equal(result.qualityEvaluation.grounding, "grounded");
+  assert.equal(result.qualityEvaluation.completeness, "partial");
+  assert.equal(result.qualityEvaluation.primaryIssue, "missing_information");
+  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information", "low_retrieval_score"]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low."
+  );
+});
+
 test("AnsweringService reports a retrieval-score-specific partial quality summary when top retrieval confidence is low", async () => {
   const llmService = {
     generateAnswer: async () => ({

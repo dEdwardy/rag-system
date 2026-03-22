@@ -482,13 +482,15 @@ export class AnsweringService {
           ? "Answer is grounded in cited sources with no reported gaps."
           : "Answer is grounded in retrieved sources with no reported gaps."
         : overall === "partial"
-          ? flags.includes("missing_information")
-            ? "Answer is grounded but incomplete because some information is missing."
-            : flags.includes("no_citations")
-              ? "Answer is only partially grounded because it does not include supporting citations."
-              : flags.includes("low_retrieval_score")
-                ? "Answer is grounded, but retrieval confidence was low for the supporting context."
-                : "Answer is grounded but still has unresolved quality limitations."
+          ? flags.includes("missing_information") && flags.includes("low_retrieval_score")
+            ? "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low."
+            : flags.includes("missing_information")
+              ? "Answer is grounded but incomplete because some information is missing."
+              : flags.includes("no_citations")
+                ? "Answer is only partially grounded because it does not include supporting citations."
+                : flags.includes("low_retrieval_score")
+                  ? "Answer is grounded, but retrieval confidence was low for the supporting context."
+                  : "Answer is grounded but still has unresolved quality limitations."
           : flags.includes("no_retrieval_hits")
             ? "Answer quality is weak because supporting context was insufficient."
             : "Answer quality is weak because retrieved context was still insufficient.";
