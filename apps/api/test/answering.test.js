@@ -999,6 +999,58 @@ test("AnsweringService keeps fallback_generation as the primary issue when fallb
   );
 });
 
+test("AnsweringService keeps fallback_generation as the primary issue when fallback answers also miss information", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Fallback partial answer [1]",
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "grounded",
+      missingInformation: ["Need pricing details."],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.equal(result.qualityEvaluation.overall, "partial");
+  assert.equal(result.qualityEvaluation.grounding, "grounded");
+  assert.equal(result.qualityEvaluation.completeness, "partial");
+  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information", "fallback_generation"]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+  );
+});
+
 test("AnsweringService returns weak quality evaluation for insufficient-context answers", async () => {
   const llmService = {
     generateAnswer: async () => ({

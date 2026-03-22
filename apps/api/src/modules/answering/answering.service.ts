@@ -595,13 +595,13 @@ export class AnsweringService {
           ? "no_retrieval_hits"
           : flags.includes("insufficient_context")
             ? "insufficient_context"
-            : flags.includes("missing_information")
-              ? "missing_information"
-              : flags.includes("fallback_generation")
+            : flags.includes("fallback_generation")
                   ? "fallback_generation"
-                : flags.includes("low_retrieval_score")
-                  ? "low_retrieval_score"
-                  : "other";
+                : flags.includes("missing_information")
+                  ? "missing_information"
+                  : flags.includes("low_retrieval_score")
+                    ? "low_retrieval_score"
+                    : "other";
 
     const normalizedFlags =
       overall === "strong"

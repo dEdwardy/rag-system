@@ -15,6 +15,7 @@
 - strong quality summary 现在也会单独区分 `required citation` 下由 backend heuristic 回填的引用路径，不再与普通 `retrieved without citations` 共用同一条文案
 - 上述 heuristic-citation strong summary 现已补齐最小 `en` / `zh` 回归覆盖
 - `fallback_generation + low_retrieval_score` 的 grounded partial 组合现在也已对齐 `primaryIssue` 优先级：主因继续锚定 `fallback_generation`，而不是被低检索分覆盖
+- grounded fallback answer 在 `missing_information` 组合下的 `primaryIssue` 现在也继续锚定 `fallback_generation`，不再被信息缺口标记覆盖
 - `POST /assistants/:id/ask` 的 deterministic no-hit `say_insufficient_context` 旁路结果现在已复用 answering 层统一结果构造，不再在 ask service 内手写英文 `missingInformation` / `qualityEvaluation.summary`
 - 这使 one-shot no-hit deterministic answer 的 answer 文本、`missingInformation`、弱质量总结在 `en` / `zh` 下保持一致本地化语义
 - one-shot no-hit deterministic bypass 现在也会在 assistant 未显式配置 `answerPolicyJson` 时生效，和 backend 默认 `noAnswerBehavior=say_insufficient_context` 语义保持一致
