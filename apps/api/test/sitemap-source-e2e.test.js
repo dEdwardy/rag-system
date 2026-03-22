@@ -1309,6 +1309,184 @@ test("Sitemap source E2E: failed child sitemap fetch leaves a failed document wi
   }
 });
 
+test("Sitemap source E2E: all-unsupported-page failure clears current diagnostics after a later successful sync", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3128;
+  const storageRoot = resolve(repoRoot, "storage", `test-sitemap-unsupported-recovery-${randomUUID()}`);
+  const queuePrefix = `test-sitemap-unsupported-recovery-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const recoveredMarker = `sitemap-unsupported-recovered-marker-${randomUUID()}`;
+  const sitemapServer = await startRecoverableUnsupportedSitemapServer(recoveredMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const failedCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/sitemap`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${sitemapServer.origin}/sitemap.xml`,
+        maxPages: 2
+      })
+    });
+    assert.equal(failedCreateResponse.status, 400);
+
+    const failedDocumentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(failedDocumentsResponse.status, 200);
+    const failedDocuments = await failedDocumentsResponse.json();
+    assert.equal(failedDocuments.length, 1);
+    assert.equal(failedDocuments[0].status, "failed");
+    assert.deepEqual(failedDocuments[0].diagnosticsJson, {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: false,
+      documentVersion: 1,
+      message: "Failed to fetch sitemap pages: all sitemap pages failed."
+    });
+
+    sitemapServer.setReady();
+
+    const recoveredCreateResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/sitemap`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${sitemapServer.origin}/sitemap.xml`,
+        maxPages: 2
+      })
+    });
+    assert.equal(recoveredCreateResponse.status, 201);
+
+    const recoveredDocument = await recoveredCreateResponse.json();
+    assert.equal(recoveredDocument.id, failedDocuments[0].id);
+    assert.equal(recoveredDocument.status, "pending");
+
+    const readyDocument = await waitForDocumentReady(port, recoveredDocument.id, 20000);
+    assert.deepEqual(
+      {
+        version: readyDocument.version,
+        status: readyDocument.status,
+        errorMessage: readyDocument.errorMessage,
+        diagnosticsJson: readyDocument.diagnosticsJson
+      },
+      {
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const chunksResponse = await fetch(`http://localhost:${port}/documents/${recoveredDocument.id}/chunks`);
+    assert.equal(chunksResponse.status, 200);
+    const chunks = await chunksResponse.json();
+    assert.ok(chunks.some(chunk => chunk.content.includes(recoveredMarker)));
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        id: documents[0].id,
+        version: documents[0].version,
+        status: documents[0].status,
+        errorMessage: documents[0].errorMessage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        id: recoveredDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const detailResponse = await fetch(`http://localhost:${port}/documents/${recoveredDocument.id}`);
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.deepEqual(
+      {
+        id: detail.id,
+        version: detail.version,
+        status: detail.status,
+        errorMessage: detail.errorMessage,
+        diagnosticsJson: detail.diagnosticsJson
+      },
+      {
+        id: recoveredDocument.id,
+        version: 2,
+        status: "ready",
+        errorMessage: null,
+        diagnosticsJson: null
+      }
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 2);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.failureByStage, {});
+    assert.equal(summary.latestRetryableFailure, null);
+    assert.equal(summary.latestFailure, null);
+
+    const failedRunsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?status=failed&documentId=${recoveredDocument.id}`
+    );
+    assert.equal(failedRunsResponse.status, 200);
+    const failedRuns = await failedRunsResponse.json();
+    assert.equal(failedRuns.length, 1);
+    assert.deepEqual(
+      {
+        documentId: failedRuns[0].documentId,
+        version: failedRuns[0].version,
+        status: failedRuns[0].status,
+        failedStage: failedRuns[0].failedStage,
+        failureSummary: failedRuns[0].failureSummary
+      },
+      {
+        documentId: recoveredDocument.id,
+        version: 1,
+        status: "failed",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          message: "Failed to fetch sitemap pages: all sitemap pages failed."
+        }
+      }
+    );
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(sitemapServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -2054,6 +2232,68 @@ async function startRecoverableFailedChildSitemapIndexServer(marker) {
             <main>
               <h1>Recovered Child Sitemap Beta</h1>
               <p>Recovered clean payload.</p>
+            </main>
+          </body>
+        </html>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  return {
+    server,
+    origin: `http://127.0.0.1:${server.address().port}`,
+    setReady() {
+      mode = "ready";
+    }
+  };
+}
+
+async function startRecoverableUnsupportedSitemapServer(marker) {
+  let mode = "unsupported";
+
+  const server = http.createServer((request, response) => {
+    if (request.url === "/sitemap.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/alpha</loc></url>
+          <url><loc>http://127.0.0.1:${server.address().port}/pages/beta</loc></url>
+        </urlset>`);
+      return;
+    }
+
+    if (request.url === "/pages/alpha" || request.url === "/pages/beta") {
+      if (mode === "unsupported") {
+        response.writeHead(200, {
+          "Content-Type": "application/pdf"
+        });
+        response.end("%PDF-1.7");
+        return;
+      }
+
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8"
+      });
+      response.end(`<!doctype html>
+        <html>
+          <head>
+            <title>Recovered Sitemap Page</title>
+          </head>
+          <body>
+            <main>
+              <h1>Recovered Sitemap Page</h1>
+              <p>Unique marker: ${marker}</p>
             </main>
           </body>
         </html>`);
