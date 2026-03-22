@@ -135,7 +135,11 @@ export class AnsweringService {
     };
   }) {
     const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
-    const missingInformation = input.answerPolicy.includeMissingInformation ? (input.result.missingInformation ?? []) : [];
+    const missingInformation = this.resolveMissingInformation({
+      answerStatus,
+      answerPolicy: input.answerPolicy,
+      missingInformation: input.result.missingInformation ?? []
+    });
     const answer = this.resolveAnswerText({
       question: input.question,
       answer: input.result.answer,
@@ -237,6 +241,20 @@ export class AnsweringService {
     }
 
     return this.buildInsufficientContextAnswer(input.question, input.answerPolicy.language);
+  }
+
+  private resolveMissingInformation(input: {
+    answerStatus: "grounded" | "insufficient_context";
+    answerPolicy: AnswerPolicy;
+    missingInformation: string[];
+  }) {
+    if (input.answerStatus === "insufficient_context") {
+      return input.missingInformation.length > 0
+        ? input.missingInformation
+        : ["No relevant supporting sources were retrieved."];
+    }
+
+    return input.answerPolicy.includeMissingInformation ? input.missingInformation : [];
   }
 
   private buildInsufficientContextAnswer(

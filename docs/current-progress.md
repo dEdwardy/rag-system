@@ -462,6 +462,15 @@
 
 ### 2026-03-23
 
+- ✅ answering missing-information normalization for insufficient-context
+  - `includeMissingInformation=false` 当前只对 grounded 回答继续生效，不再把 `insufficient_context` 场景的缺失原因一并清空
+  - 当最终回答是 `insufficient_context` 时，backend 现在会优先保留模型返回的 `missingInformation`
+  - 如果模型没有提供缺失原因，backend 会补一个稳定默认值：`No relevant supporting sources were retrieved.`
+  - 这样当前响应里的 `missingInformation`、`qualityEvaluation.flags` 与 `answerStatus=insufficient_context` 语义保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
 - ✅ retrieval no-hit fallback tightening
   - retrieval 在 vector 不可用时仍会回退 lexical scoring，但当前不会再在“所有候选都低于阈值”时额外塞入 knowledge base 的前几个任意 chunk
   - backend 现在会在这种 no-hit 情况下直接返回空 retrieval result，让 answering 走既有 `insufficient_context` 语义，而不是基于无关 chunk 做低质量 best-effort 猜测

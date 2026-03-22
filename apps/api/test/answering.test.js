@@ -607,3 +607,73 @@ test("AnsweringService localizes the deterministic insufficient-context fallback
   assert.equal(result.answer, "根据当前检索到的资料，我还没有足够信息来可靠回答这个问题。");
   assert.equal(result.answerStatus, "insufficient_context");
 });
+
+test("AnsweringService preserves missingInformation for insufficient-context answers even when the policy disables advisory gaps", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "I don't know.",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["Need pricing details."]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "What is the price?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: false
+    },
+    chunks: []
+  });
+
+  assert.deepEqual(result.missingInformation, ["Need pricing details."]);
+  assert.deepEqual(result.qualityEvaluation.flags, [
+    "no_retrieval_hits",
+    "insufficient_context",
+    "missing_information"
+  ]);
+});
+
+test("AnsweringService fills a deterministic missingInformation reason for insufficient-context answers when the model omits one", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "I don't know.",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "What is the price?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    chunks: []
+  });
+
+  assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
+  assert.deepEqual(result.qualityEvaluation.flags, [
+    "no_retrieval_hits",
+    "insufficient_context",
+    "missing_information"
+  ]);
+});
