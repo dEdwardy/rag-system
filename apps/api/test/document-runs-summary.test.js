@@ -648,6 +648,60 @@ test("DocumentRunsService summary anchors prefer the latest finished matching ru
   });
 });
 
+test("DocumentRunsService summary ignores an older failure once the same document later completes successfully", async () => {
+  const runs = [
+    {
+      documentId: "doc-recovered",
+      version: 2,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: null,
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/recoverable"
+      }
+    },
+    {
+      documentId: "doc-recovered",
+      version: 1,
+      trigger: "external_resync",
+      status: "failed",
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "temporary upstream failure"
+      },
+      startedAt: new Date("2026-03-22T10:03:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/recoverable"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.equal(summary.retryableFailures, 0);
+  assert.equal(summary.nonRetryableFailures, 0);
+  assert.deepEqual(summary.failureByStage, {});
+  assert.equal(summary.latestRetryableFailure, null);
+  assert.equal(summary.latestFailure, null);
+});
+
 test("DocumentRunsService listDocumentRuns orders a document run history by startedAt before version", async () => {
   const queryArgs = [];
   const fakeRuns = [

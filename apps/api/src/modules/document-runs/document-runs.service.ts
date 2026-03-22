@@ -56,13 +56,16 @@ export class DocumentRunsService {
     const failureByStage: Record<string, number> = {};
     let retryableFailures = 0;
     let nonRetryableFailures = 0;
+    const latestCompletedRuns = this.getLatestCompletedRunsByDocument(runs);
 
     for (const run of runs) {
-      const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
-
       byStatus[run.status] += 1;
       byTrigger[run.trigger] += 1;
       bySourceType[run.document.sourceType] = (bySourceType[run.document.sourceType] ?? 0) + 1;
+    }
+
+    for (const run of latestCompletedRuns) {
+      const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
 
       if (!this.shouldCountFailureSummary(run.status, failureSummary) || !failureSummary) {
         continue;
@@ -80,14 +83,14 @@ export class DocumentRunsService {
     }
 
     const latestFailure = this.findLatestRunAnchor(
-      runs,
+      latestCompletedRuns,
       run => this.shouldCountFailureSummary(run.status, this.buildFailureSummary(run.diagnosticsJson, run.failedStage))
     );
-    const latestRetryableFailure = this.findLatestRunAnchor(runs, run => {
+    const latestRetryableFailure = this.findLatestRunAnchor(latestCompletedRuns, run => {
       const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
       return this.shouldCountFailureSummary(run.status, failureSummary) && failureSummary?.retryable === true;
     });
-    const latestSkipped = this.findLatestRunAnchor(runs, run => run.status === DocumentRunStatus.skipped);
+    const latestSkipped = this.findLatestRunAnchor(latestCompletedRuns, run => run.status === DocumentRunStatus.skipped);
     return {
       totalRuns: runs.length,
       latestRunAt: runs[0]?.startedAt ?? null,
@@ -428,6 +431,38 @@ export class DocumentRunsService {
 
       return latest;
     }, null);
+  }
+
+  private getLatestCompletedRunsByDocument<
+    T extends { documentId: string; status: DocumentRunStatus; finishedAt: Date | null; startedAt: Date; version: number }
+  >(runs: T[]) {
+    const latestRuns = new Map<string, T>();
+
+    for (const run of runs) {
+      if (run.status === DocumentRunStatus.pending || run.status === DocumentRunStatus.processing) {
+        continue;
+      }
+
+      const latest = latestRuns.get(run.documentId);
+      if (!latest) {
+        latestRuns.set(run.documentId, run);
+        continue;
+      }
+
+      const runAnchorAt = run.finishedAt ?? run.startedAt;
+      const latestAnchorAt = latest.finishedAt ?? latest.startedAt;
+
+      if (runAnchorAt > latestAnchorAt) {
+        latestRuns.set(run.documentId, run);
+        continue;
+      }
+
+      if (runAnchorAt.getTime() === latestAnchorAt.getTime() && run.version > latest.version) {
+        latestRuns.set(run.documentId, run);
+      }
+    }
+
+    return Array.from(latestRuns.values());
   }
 
   private resolveStartedAtFilter(sinceHours?: number) {

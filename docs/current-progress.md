@@ -440,6 +440,7 @@
     - document-level run history now uses the same primary recent-run ordering as the knowledge-base scoped run list: `startedAt desc` first, then `version desc` for ties
     - external source re-sync now preserves the current document title whenever the refreshed source payload does not provide a new source-level title
     - repeated posting of the same external source URL now preserves the existing document title too when the refreshed source payload still does not provide a new title
+    - knowledge-base run summary failure counters and latest failure anchors now collapse to each document's latest completed run, so a later successful resync clears that document's stale failure signal from summary without changing run history endpoints
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -501,6 +502,15 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/external-source-sync.test.js`
     - `node --test --test-concurrency=1 apps/api/test/sitemap-source-e2e.test.js`
+
+- ✅ run-summary recovery semantics for external sources
+  - when the same external-source document first fails and then later finishes a clean resync, `GET /knowledge-bases/:id/document-runs/summary` no longer keeps counting or anchoring that older failure for the recovered document
+  - `GET /knowledge-bases/:id/documents`, `GET /documents/:id`, and `GET /documents/:id/runs` remain unchanged, so history is still available while the aggregate summary now aligns with the recovered current state
+  - the change stays inside `DocumentRunsService` summary selection logic and does not add fields or alter run list/detail payloads
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
 
 - ✅ external source title preservation on repeated same-URL reuse
   - when posting the same `web page` / `feed` / `sitemap` URL again and the backend reuses the existing document record, the existing document `title` is now preserved whenever the refreshed source still does not provide a new source-level title
