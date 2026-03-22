@@ -462,6 +462,13 @@
 
 ### 2026-03-23
 
+- ✅ local no-hit fallback answer language alignment
+  - 当没有可用模型 provider 且 retrieval 命中为空时，`LlmService` 本地 fallback answer 不再固定返回英文
+  - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，和已有 insufficient-context backend fallback 语言策略保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm.test.js`
+
 - ✅ plain-text citation-marker dedup in answering fallback path
   - 当模型没有返回 structured citations、backend 退回到解析答案内联 marker（如 `[1][1][2]`）时，当前会按首次出现顺序去重同一 source
   - 这样最终 citation 列表和 `answeringMetadata.citationCount` 不再因为重复 marker 被虚增

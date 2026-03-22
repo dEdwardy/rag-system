@@ -444,7 +444,7 @@ export class LlmService {
   private generateFallbackAnswer(input: GenerateAnswerInput): GenerateAnswerOutput {
     if (input.chunks.length === 0) {
       return {
-        answer: "I couldn't find relevant information in the knowledge base.",
+        answer: this.buildFallbackNoHitAnswer(input.question, input.answerPolicy.language),
         modelName: "fallback-local",
         promptId: this.promptManager.getAnswerPromptId(),
         answerStatus: "insufficient_context",
@@ -463,6 +463,27 @@ export class LlmService {
       missingInformation: [],
       citedChunkNumbers: [1]
     };
+  }
+
+  private buildFallbackNoHitAnswer(question: string, language: GenerateAnswerInput["answerPolicy"]["language"]) {
+    const resolvedLanguage = this.resolveAnswerLanguage(question, language);
+    if (resolvedLanguage === "zh") {
+      return "我没有在知识库中找到足够相关的信息来回答这个问题。";
+    }
+
+    return "I couldn't find relevant information in the knowledge base.";
+  }
+
+  private resolveAnswerLanguage(
+    question: string,
+    language: GenerateAnswerInput["answerPolicy"]["language"]
+  ) {
+    if (language === "zh" || language === "en") {
+      return language;
+    }
+
+    const hasChinese = /[\u3400-\u9fff]/.test(question);
+    return hasChinese ? "zh" : "en";
   }
 
   private async generateFallbackAnswerStream(

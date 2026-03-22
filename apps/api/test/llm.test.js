@@ -328,3 +328,111 @@ test("LlmService falls back when structured answer payload fails schema validati
     process.env.OLLAMA_MODEL = originalModel;
   }
 });
+
+test("LlmService local fallback no-hit answer respects explicit zh language policy", async () => {
+  const originalFetch = global.fetch;
+  const originalBaseUrl = process.env.OLLAMA_BASE_URL;
+  const originalModel = process.env.OLLAMA_MODEL;
+  const originalApiKey = process.env.OPENAI_API_KEY;
+
+  delete process.env.OLLAMA_BASE_URL;
+  delete process.env.OLLAMA_MODEL;
+  delete process.env.OPENAI_API_KEY;
+
+  const service = new LlmService({
+    buildAnswerPrompt: () => ({
+      promptId: "answer.v1",
+      systemPrompt: "managed system prompt",
+      userPrompt: "managed user prompt",
+      fullPrompt: "managed full prompt"
+    }),
+    buildRewritePrompt: () => ({
+      promptId: "rewrite-query.v1",
+      systemPrompt: "managed rewrite system",
+      userPrompt: "managed rewrite user",
+      fullPrompt: "managed rewrite full prompt"
+    }),
+    getAnswerPromptId: () => "answer.v1",
+    getRewritePromptId: () => "rewrite-query.v1"
+  });
+
+  try {
+    const result = await service.generateAnswer({
+      question: "价格是多少？",
+      systemPrompt: "ignored direct system prompt",
+      answerPolicy: {
+        responseStyle: "concise",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "zh",
+        citationMode: "required",
+        maxCitations: 2,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: true
+      },
+      chunks: []
+    });
+
+    assert.equal(result.answer, "我没有在知识库中找到足够相关的信息来回答这个问题。");
+    assert.equal(result.answerStatus, "insufficient_context");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.OLLAMA_BASE_URL = originalBaseUrl;
+    process.env.OLLAMA_MODEL = originalModel;
+    process.env.OPENAI_API_KEY = originalApiKey;
+  }
+});
+
+test("LlmService local fallback no-hit answer follows same_as_question language detection", async () => {
+  const originalFetch = global.fetch;
+  const originalBaseUrl = process.env.OLLAMA_BASE_URL;
+  const originalModel = process.env.OLLAMA_MODEL;
+  const originalApiKey = process.env.OPENAI_API_KEY;
+
+  delete process.env.OLLAMA_BASE_URL;
+  delete process.env.OLLAMA_MODEL;
+  delete process.env.OPENAI_API_KEY;
+
+  const service = new LlmService({
+    buildAnswerPrompt: () => ({
+      promptId: "answer.v1",
+      systemPrompt: "managed system prompt",
+      userPrompt: "managed user prompt",
+      fullPrompt: "managed full prompt"
+    }),
+    buildRewritePrompt: () => ({
+      promptId: "rewrite-query.v1",
+      systemPrompt: "managed rewrite system",
+      userPrompt: "managed rewrite user",
+      fullPrompt: "managed rewrite full prompt"
+    }),
+    getAnswerPromptId: () => "answer.v1",
+    getRewritePromptId: () => "rewrite-query.v1"
+  });
+
+  try {
+    const result = await service.generateAnswer({
+      question: "这个文档里提到了什么？",
+      systemPrompt: "ignored direct system prompt",
+      answerPolicy: {
+        responseStyle: "concise",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "same_as_question",
+        citationMode: "required",
+        maxCitations: 2,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: true
+      },
+      chunks: []
+    });
+
+    assert.equal(result.answer, "我没有在知识库中找到足够相关的信息来回答这个问题。");
+    assert.equal(result.answerStatus, "insufficient_context");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.OLLAMA_BASE_URL = originalBaseUrl;
+    process.env.OLLAMA_MODEL = originalModel;
+    process.env.OPENAI_API_KEY = originalApiKey;
+  }
+});
