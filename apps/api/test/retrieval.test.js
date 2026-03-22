@@ -334,7 +334,7 @@ test("RetrievalService forwards page and section filters to vector search", asyn
   assert.equal(chunks[0].chunkId, "chunk-2");
 });
 
-test("RetrievalService fallback remains inside configured filter scope", async () => {
+test("RetrievalService returns no chunks when all filtered candidates miss the score threshold", async () => {
   let callCount = 0;
   const prisma = {
     documentChunk: {
@@ -385,11 +385,9 @@ test("RetrievalService fallback remains inside configured filter scope", async (
   });
   const chunks = result.retrievedChunks;
 
-  assert.equal(callCount >= 2, true);
-  assert.deepEqual(
-    chunks.map(chunk => chunk.documentId),
-    ["doc-allowed"]
-  );
+  assert.equal(callCount, 1);
+  assert.deepEqual(chunks, []);
+  assert.deepEqual(result.contextGroups, []);
 });
 
 test("RetrievalService compiles section-title contains filters for lexical retrieval", async () => {
@@ -446,7 +444,7 @@ test("RetrievalService compiles section-title contains filters for lexical retri
   assert.equal(chunks[0].chunkId, "chunk-specs");
 });
 
-test("RetrievalService compiles page-number ranges and document exclusions", async () => {
+test("RetrievalService returns no chunks when page-filtered candidates all miss the score threshold", async () => {
   let callCount = 0;
   const prisma = {
     documentChunk: {
@@ -510,11 +508,9 @@ test("RetrievalService compiles page-number ranges and document exclusions", asy
   });
   const chunks = result.retrievedChunks;
 
-  assert.equal(callCount >= 2, true);
-  assert.deepEqual(
-    chunks.map(chunk => chunk.documentId),
-    ["doc-allowed"]
-  );
+  assert.equal(callCount, 1);
+  assert.deepEqual(chunks, []);
+  assert.deepEqual(result.contextGroups, []);
 });
 
 test("RetrievalService groups contiguous expanded chunks into one context group", async () => {

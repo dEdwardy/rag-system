@@ -181,34 +181,7 @@ export class RetrievalService {
       );
       return this.buildRetrievalResult(retrievedChunks);
     }
-
-    const chunks = await this.prisma.documentChunk.findMany({
-      where: this.buildChunkWhere(input.kbId, input.filters),
-      include: {
-        document: true
-      },
-      orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
-    });
-
-    const fallbackChunks = chunks.slice(0, input.topK).map(chunk => ({
-      chunkId: chunk.id,
-      documentId: chunk.documentId,
-      documentTitle: chunk.document.title,
-      chunkIndex: chunk.chunkIndex,
-      content: chunk.content,
-      score: 0,
-      isPrimary: true,
-      pageNo: chunk.pageNo,
-      sectionTitle: chunk.sectionTitle
-    }));
-
-    const retrievedChunks = await this.expandChunkWindow(
-      input.kbId,
-      fallbackChunks,
-      input.chunkWindow ?? 0,
-      input.filters
-    );
-    return this.buildRetrievalResult(retrievedChunks);
+    return this.buildRetrievalResult([]);
   }
 
   private async getLexicalCandidates(input: {

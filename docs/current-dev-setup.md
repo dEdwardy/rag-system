@@ -479,6 +479,10 @@ The following path has been validated locally on `2026-03-21`:
   - `candidateSelection.minCandidates`
   - `hybrid.vectorWeight` / `hybrid.lexicalWeight`
   - `rerank.enabled`
+- retrieval no-hit behavior is now stricter:
+  - if vector retrieval is unavailable, the backend still falls back to lexical scoring
+  - but when all candidates still miss the configured retrieval threshold, the backend now returns an empty retrieval result instead of injecting arbitrary first chunks from the knowledge base
+  - this keeps `insufficient_context` handling aligned with real retrieval evidence
 - Chunk-window context grouping for ask responses:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments
