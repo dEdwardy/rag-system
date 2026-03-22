@@ -428,6 +428,7 @@
   - source stabilization phase 1: done
   - source run history / execution observability minimum increment: done
   - sitemap / sitemap-index partial-failure tolerance + structured partial diagnostics: done
+  - feed partial invalid-entry tolerance + structured partial diagnostics: done
   - current recommended next increment:
     - keep `backend / API first`
     - continue improving external source execution boundaries and diagnostics on top of the new run history
@@ -450,6 +451,31 @@
 ## 9. 最近完成的关键增量
 
 ### 2026-03-22
+
+- ✅ feed source stabilization phase 2 minimum increment
+  - feed extraction now tolerates bounded partial invalid-entry failures instead of always including every selected entry verbatim
+  - success rule for this round:
+    - at least one selected entry is usable -> generated text artifact is still produced and ingestion continues
+    - all selected entries are invalid -> source remains failed at `source_fetch`
+  - current invalid-entry rule is intentionally minimal:
+    - entry missing both `summary` and `link` is skipped as invalid
+  - partial success now persists structured diagnostics in the existing shared external-source path instead of opening a feed-specific platform branch
+  - current feed partial diagnostics payload includes:
+    - `attemptedEntryCount`
+    - `succeededEntryCount`
+    - `failedEntryCount`
+    - capped `failedEntryRefs`
+    - capped `failedEntries` reason summaries (`ref` + `code` + `message` + `retryable`)
+    - truncation metadata:
+      - `failedEntriesTruncated`
+      - `failedEntriesOmittedCount`
+    - `partial: true`
+  - document `diagnosticsJson` and final ready run diagnostics now preserve the same feed partial context through ingestion completion
+  - this increment stayed inside `FeedSourceService` plus the existing shared `DocumentsService` / `IngestionService` persistence path and did not expand into broader source platformization
+  - focused validation rerun:
+    - `apps/api/node_modules/.bin/tsc.CMD -p apps/api/tsconfig.json`
+    - `node --test apps/api/test/parsing.test.js apps/api/test/feed-source-e2e.test.js`
+    - `node --test apps/api/test/sitemap-source-e2e.test.js apps/api/test/external-source-sync.test.js apps/api/test/ingestion.orchestrator.test.js`
 
 - ✅ sitemap / sitemap-index source stabilization phase 2 minimum increment
   - sitemap page aggregation no longer fails the whole source on the first single page fetch error

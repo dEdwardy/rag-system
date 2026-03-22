@@ -25,35 +25,11 @@ type ExternalSourceConfig =
 type FetchedExternalSource = {
   title: string | null;
   content: string;
-  diagnostics?: SitemapPartialDiagnostics | null;
+  diagnostics?: ExternalSourcePartialDiagnostics | null;
 };
 
-type SitemapPartialDiagnostics = {
-  attemptedPageCount: number;
-  succeededPageCount: number;
-  failedPageCount: number;
-  failedPageUrls: string[];
-  failedPages?: Array<{
-    url: string;
-    code: string;
-    message: string;
-    retryable: boolean;
-  }>;
-  failedPagesTruncated?: boolean;
-  failedPagesOmittedCount?: number;
+type ExternalSourcePartialDiagnostics = Record<string, Prisma.InputJsonValue> & {
   partial: boolean;
-  attemptedChildSitemapCount?: number;
-  succeededChildSitemapCount?: number;
-  failedChildSitemapCount?: number;
-  failedChildSitemapUrls?: string[];
-  failedChildSitemaps?: Array<{
-    url: string;
-    code: string;
-    message: string;
-    retryable: boolean;
-  }>;
-  failedChildSitemapsTruncated?: boolean;
-  failedChildSitemapsOmittedCount?: number;
 };
 
 @Injectable()
@@ -246,7 +222,13 @@ export class DocumentsService {
     const document = await this.finalizeExternalDocument(reservedDocument.id, {
       title: input.title ?? fetchedFeed.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
-      storageKey: storedFile.storageKey
+      storageKey: storedFile.storageKey,
+      diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+        reservedDocument.version,
+        fetchedFeed.diagnostics,
+        "Feed source completed with partial entry validation failures.",
+        false
+      )
     });
 
     await this.ingestionService.enqueueDocument(document.id, document.version);
@@ -286,7 +268,12 @@ export class DocumentsService {
       title: input.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
       mimeType: "text/plain",
       storageKey: storedFile.storageKey,
-      diagnosticsJson: this.buildSitemapPartialDiagnostics(reservedDocument.version, fetchedSitemap.diagnostics)
+      diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+        reservedDocument.version,
+        fetchedSitemap.diagnostics,
+        "Sitemap source completed with partial page fetch failures.",
+        true
+      )
     });
 
     await this.ingestionService.enqueueDocument(document.id, document.version);
@@ -500,7 +487,20 @@ export class DocumentsService {
         errorMessage: null,
         diagnosticsJson:
           sourceConfig.kind === "sitemap"
-            ? (this.buildSitemapPartialDiagnostics(queuedDocument.version, fetchedSource.diagnostics ?? null) ??
+            ? (this.buildExternalSourcePartialDiagnostics(
+                queuedDocument.version,
+                fetchedSource.diagnostics ?? null,
+                "Sitemap source completed with partial page fetch failures.",
+                true
+              ) ??
+              Prisma.JsonNull)
+            : sourceConfig.kind === "feed"
+              ? (this.buildExternalSourcePartialDiagnostics(
+                  queuedDocument.version,
+                  fetchedSource.diagnostics ?? null,
+                  "Feed source completed with partial entry validation failures.",
+                  false
+                ) ??
               Prisma.JsonNull)
             : Prisma.JsonNull
       }
@@ -574,9 +574,11 @@ export class DocumentsService {
     return !(error instanceof BadRequestException);
   }
 
-  private buildSitemapPartialDiagnostics(
+  private buildExternalSourcePartialDiagnostics(
     documentVersion: number,
-    diagnostics?: SitemapPartialDiagnostics | null
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
+    message: string,
+    retryable: boolean
   ) {
     if (!diagnostics?.partial) {
       return null;
@@ -585,28 +587,11 @@ export class DocumentsService {
     return {
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
-      retryable: true,
+      retryable,
       documentVersion,
-      message: "Sitemap source completed with partial page fetch failures.",
-      attemptedPageCount: diagnostics.attemptedPageCount,
-      succeededPageCount: diagnostics.succeededPageCount,
-      failedPageCount: diagnostics.failedPageCount,
-      failedPageUrls: diagnostics.failedPageUrls,
-      failedPages: diagnostics.failedPages ?? [],
-      failedPagesTruncated: diagnostics.failedPagesTruncated ?? false,
-      failedPagesOmittedCount: diagnostics.failedPagesOmittedCount ?? 0,
-      partial: true,
-      ...(typeof diagnostics.attemptedChildSitemapCount === "number"
-        ? {
-            attemptedChildSitemapCount: diagnostics.attemptedChildSitemapCount,
-            succeededChildSitemapCount: diagnostics.succeededChildSitemapCount ?? 0,
-            failedChildSitemapCount: diagnostics.failedChildSitemapCount ?? 0,
-            failedChildSitemapUrls: diagnostics.failedChildSitemapUrls ?? [],
-            failedChildSitemaps: diagnostics.failedChildSitemaps ?? [],
-            failedChildSitemapsTruncated: diagnostics.failedChildSitemapsTruncated ?? false,
-            failedChildSitemapsOmittedCount: diagnostics.failedChildSitemapsOmittedCount ?? 0
-          }
-        : {})
+      message,
+      ...diagnostics,
+      partial: true
     } satisfies Prisma.InputJsonValue;
   }
 }

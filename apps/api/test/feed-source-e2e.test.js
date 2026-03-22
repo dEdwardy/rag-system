@@ -118,6 +118,101 @@ test("Feed source E2E: url -> ready -> chunks -> ask -> reindex", async () => {
   }
 });
 
+test("Feed source E2E: partial invalid entries still reach ready and persist diagnostics", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3110;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-partial-source-${randomUUID()}`);
+  const queuePrefix = `test-feed-partial-source-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const feedMarker = `feed-partial-marker-${randomUUID()}`;
+  const feedServer = await startPartialFeedServer(feedMarker);
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(createResponse.status, 201);
+
+    const createdDocument = await createResponse.json();
+    const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
+    assert.equal(readyDocument.status, "ready");
+    assert.deepEqual(readyDocument.diagnosticsJson, {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      documentVersion: readyDocument.version,
+      message: "Feed source completed with partial entry validation failures.",
+      attemptedEntryCount: 2,
+      succeededEntryCount: 1,
+      failedEntryCount: 1,
+      failedEntryRefs: ["Broken Entry"],
+      failedEntries: [
+        {
+          ref: "Broken Entry",
+          code: "ENTRY_CONTENT_EMPTY",
+          message: "Feed entry is missing both summary and link.",
+          retryable: false
+        }
+      ],
+      failedEntriesTruncated: false,
+      failedEntriesOmittedCount: 0,
+      partial: true
+    });
+
+    const runsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?includeDiagnostics=true`
+    );
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs[0].status, "ready");
+    assert.deepEqual(runs[0].diagnosticsJson, readyDocument.diagnosticsJson);
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: `What unique marker appears in the ingested feed? Return ${feedMarker}`
+      })
+    });
+    assert.equal(askResponse.status, 201);
+
+    const askResult = await askResponse.json();
+    assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(feedMarker)));
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -151,6 +246,47 @@ async function startFeedServer(markerOrFactory) {
             <item>
               <title>Release Note 2</title>
               <description>Background details for the source integration path.</description>
+            </item>
+          </channel>
+        </rss>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  const address = server.address();
+  return {
+    server,
+    origin: `http://127.0.0.1:${address.port}`
+  };
+}
+
+async function startPartialFeedServer(marker) {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/updates.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/rss+xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Remote Feed Updates</title>
+            <description>External knowledge source test feed.</description>
+            <item>
+              <title>Release Note 1</title>
+              <link>https://example.com/release-1</link>
+              <description><![CDATA[<p>Unique marker: ${marker}</p>]]></description>
+            </item>
+            <item>
+              <title>Broken Entry</title>
             </item>
           </channel>
         </rss>`);

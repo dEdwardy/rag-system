@@ -115,6 +115,76 @@ test("FeedSourceService extracts normalized title and entry text from RSS", asyn
   assert.doesNotMatch(extracted.content, /Release B/);
 });
 
+test("FeedSourceService skips invalid entries and returns partial diagnostics", async () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <description>Recent delivery notes.</description>
+        <item>
+          <title>Release A</title>
+          <link>https://example.com/releases/a</link>
+          <description><![CDATA[<p>Marker alpha summary.</p>]]></description>
+        </item>
+        <item>
+          <title>Broken Entry</title>
+        </item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 2
+    }
+  );
+
+  assert.equal(extracted.title, "Engineering Updates");
+  assert.match(extracted.content, /Release A/);
+  assert.doesNotMatch(extracted.content, /Broken Entry/);
+  assert.deepEqual(extracted.diagnostics, {
+    attemptedEntryCount: 2,
+    succeededEntryCount: 1,
+    failedEntryCount: 1,
+    failedEntryRefs: ["Broken Entry"],
+    failedEntries: [
+      {
+        ref: "Broken Entry",
+        code: "ENTRY_CONTENT_EMPTY",
+        message: "Feed entry is missing both summary and link.",
+        retryable: false
+      }
+    ],
+    failedEntriesTruncated: false,
+    failedEntriesOmittedCount: 0,
+    partial: true
+  });
+});
+
+test("FeedSourceService still fails when all feed entries are invalid", async () => {
+  const service = new FeedSourceService();
+
+  assert.throws(
+    () =>
+      service.extractFromXml(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Engineering Updates</title>
+            <item>
+              <title>Broken Entry</title>
+            </item>
+          </channel>
+        </rss>`,
+        {
+          url: "https://example.com/feed.xml",
+          maxItems: 1
+        }
+      ),
+    /all feed entries were invalid/i
+  );
+});
+
 test("SitemapSourceService extracts ordered unique page URLs from sitemap XML", () => {
   const service = new SitemapSourceService(new WebPageService());
   const extracted = service.extractPageUrls(

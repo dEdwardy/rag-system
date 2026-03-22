@@ -251,6 +251,23 @@ Notes:
 - the current first version fetches static HTML server-side, extracts normalized text, stores it as a generated local text artifact, and then reuses the existing ingestion/indexing path
 - backend now also supports `POST /knowledge-bases/:id/documents/feed` for one direct RSS or Atom feed URL
 - the current feed version fetches XML server-side, extracts feed metadata plus bounded entry summaries into one generated local text artifact, and then reuses the existing ingestion/indexing path
+- feed source fetch now also tolerates bounded partial invalid-entry failures:
+  - when at least one entry remains usable, the source still generates a document and enters ingestion
+  - when all selected entries are invalid, the source still fails at `source_fetch`
+  - partial success currently persists structured diagnostics on both the document and its run, including:
+    - `attemptedEntryCount`
+    - `succeededEntryCount`
+    - `failedEntryCount`
+    - capped `failedEntryRefs`
+    - capped `failedEntries` summary objects with:
+      - `ref`
+      - `code`
+      - `message`
+      - `retryable`
+    - truncation metadata when capped:
+      - `failedEntriesTruncated`
+      - `failedEntriesOmittedCount`
+    - `partial: true`
 - backend now also supports `POST /knowledge-bases/:id/documents/sitemap` for one direct sitemap XML URL
 - the current sitemap version fetches one sitemap XML URL server-side, supports either one direct `urlset` or one root `sitemapindex`, expands a bounded set of page URLs, aggregates extracted page text into one generated local text artifact, and then reuses the existing ingestion/indexing path
 - for sitemap-index expansion, the current backend processes up to `20` child sitemap files and still caps the final fetched page set with request `maxPages`
