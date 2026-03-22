@@ -898,6 +898,140 @@ test("Feed source E2E: same-URL reuse clears failed diagnostics after a later su
   }
 });
 
+test("Feed source E2E: all-invalid entries leave a failed document with diagnostics", async () => {
+  await resetTestState();
+  execFileSync(process.execPath, ["prisma/seed.js"], {
+    cwd: apiRoot,
+    stdio: "pipe"
+  });
+
+  const port = 3124;
+  const storageRoot = resolve(repoRoot, "storage", `test-feed-invalid-source-${randomUUID()}`);
+  const queuePrefix = `test-feed-invalid-source-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const feedServer = await startInvalidFeedServer();
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const createResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents/feed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: `${feedServer.origin}/updates.xml`,
+        maxItems: 2
+      })
+    });
+    assert.equal(createResponse.status, 400);
+
+    const documentsResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/documents`);
+    assert.equal(documentsResponse.status, 200);
+    const documents = await documentsResponse.json();
+    assert.equal(documents.length, 1);
+    assert.deepEqual(
+      {
+        sourceType: documents[0].sourceType,
+        sourceName: documents[0].sourceName,
+        status: documents[0].status,
+        processingStage: documents[0].processingStage,
+        diagnosticsJson: documents[0].diagnosticsJson
+      },
+      {
+        sourceType: "feed",
+        sourceName: `${feedServer.origin}/updates.xml`,
+        status: "failed",
+        processingStage: "failed",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          documentVersion: 1,
+          message: "Extracted feed content is empty: all feed entries were invalid."
+        }
+      }
+    );
+
+    const detailResponse = await fetch(`http://localhost:${port}/documents/${documents[0].id}`);
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.equal(detail.errorMessage, "Extracted feed content is empty: all feed entries were invalid.");
+    assert.deepEqual(detail.diagnosticsJson, documents[0].diagnosticsJson);
+
+    const runsResponse = await fetch(
+      `http://localhost:${port}/knowledge-bases/default-kb/document-runs?includeDiagnostics=true`
+    );
+    assert.equal(runsResponse.status, 200);
+    const runs = await runsResponse.json();
+    assert.equal(runs.length, 1);
+    assert.deepEqual(
+      {
+        documentId: runs[0].documentId,
+        status: runs[0].status,
+        failedStage: runs[0].failedStage,
+        failureSummary: runs[0].failureSummary,
+        diagnosticsJson: runs[0].diagnosticsJson
+      },
+      {
+        documentId: documents[0].id,
+        status: "failed",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          message: "Extracted feed content is empty: all feed entries were invalid."
+        },
+        diagnosticsJson: documents[0].diagnosticsJson
+      }
+    );
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 1);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 1);
+    assert.deepEqual(summary.failureByStage, {
+      source_fetch: 1
+    });
+    assert.deepEqual(summary.latestFailure, {
+      documentId: documents[0].id,
+      version: 1,
+      trigger: "external_resync",
+      failedStage: "source_fetch",
+      sourceType: "feed",
+      sourceName: `${feedServer.origin}/updates.xml`,
+      message: "Extracted feed content is empty: all feed entries were invalid.",
+      finishedAt: summary.latestFailure.finishedAt,
+      failureSummary: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Extracted feed content is empty: all feed entries were invalid."
+      }
+    });
+    assert.equal(summary.latestRetryableFailure, null);
+  } finally {
+    server.kill("SIGTERM");
+    await stopServer(feedServer.server);
+    rmSync(storageRoot, { recursive: true, force: true });
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -1199,6 +1333,44 @@ async function startRecoverableFailedFeedServer(marker) {
     setReady() {
       mode = "ready";
     }
+  };
+}
+
+async function startInvalidFeedServer() {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/updates.xml") {
+      response.writeHead(200, {
+        "Content-Type": "application/rss+xml; charset=utf-8"
+      });
+      response.end(`<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Broken Feed Updates</title>
+            <description>Every entry is invalid.</description>
+            <item>
+              <title>Broken Entry 1</title>
+            </item>
+            <item>
+              <title>Broken Entry 2</title>
+            </item>
+          </channel>
+        </rss>`);
+      return;
+    }
+
+    response.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("Not found");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  return {
+    server,
+    origin: `http://127.0.0.1:${server.address().port}`
   };
 }
 
