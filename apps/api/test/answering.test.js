@@ -710,7 +710,57 @@ test("AnsweringService does not claim cited-source grounding when citations were
     completeness: "complete",
     primaryIssue: "none",
     flags: [],
-    summary: "Answer is grounded in retrieved sources with no reported gaps."
+    summary:
+      "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
+  });
+});
+
+test("AnsweringService localizes strong summaries when citations were heuristically backfilled", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "没有显式来源标记的回答。",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "标记在哪里？",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "marker evidence line",
+        score: 0.92,
+        pageNo: null,
+        sectionTitle: "Facts"
+      }
+    ]
+  });
+
+  assert.equal(result.citations.length, 1);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "none",
+    flags: [],
+    summary: "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
   });
 });
 

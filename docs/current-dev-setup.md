@@ -139,6 +139,7 @@ Notes:
     - answers grounded in explicit cited sources
     - answers grounded in retrieved sources without citations
     - answers where required citations were only heuristically backfilled by the backend rather than explicitly supplied by the model
+  - that heuristic-citation strong-summary branch now has its own explicit `en` / `zh` wording instead of collapsing back to the generic retrieved-source summary
   - partial summaries now also combine `missing_information` + `low_retrieval_score` into a dual-cause explanation instead of dropping the retrieval-confidence warning
   - that dual-cause partial summary is now also covered for the minimal `zh` branch
   - low retrieval confidence (`low_retrieval_score`) now degrades `qualityEvaluation.overall` to `partial` and yields a retrieval-confidence-specific summary instead of remaining `strong`

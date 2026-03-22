@@ -272,7 +272,7 @@ export class AnsweringService {
       usedFallback,
       citationMode: input.answerPolicy.citationMode,
       citationCount: citations.length,
-      hasExplicitCitations: citationSelection.attribution === "explicit",
+      citationAttribution: citationSelection.attribution,
       chunkCount: input.chunks.length,
       topScore: input.chunks[0]?.score ?? null
     });
@@ -523,7 +523,7 @@ export class AnsweringService {
     usedFallback: boolean;
     citationMode: "required" | "optional";
     citationCount: number;
-    hasExplicitCitations?: boolean;
+    citationAttribution?: CitationSelection["attribution"];
     chunkCount: number;
     topScore: number | null;
   }): QualityEvaluation {
@@ -585,7 +585,7 @@ export class AnsweringService {
       overall,
       flags,
       citationCount: input.citationCount,
-      hasExplicitCitations: input.hasExplicitCitations ?? false
+      citationAttribution: input.citationAttribution ?? "none"
     });
 
     const primaryIssue =
@@ -624,20 +624,32 @@ export class AnsweringService {
     overall: QualityEvaluation["overall"];
     flags: string[];
     citationCount: number;
-    hasExplicitCitations: boolean;
+    citationAttribution: CitationSelection["attribution"];
   }) {
     const resolvedLanguage = this.resolvePolicyLanguage(input.question, input.language);
 
     if (input.overall === "strong") {
       if (resolvedLanguage === "zh") {
-        return input.citationCount > 0 && input.hasExplicitCitations
-          ? "\u56de\u7b54\u5df2\u57fa\u4e8e\u5f15\u7528\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002"
-          : "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
+        if (input.citationCount > 0 && input.citationAttribution === "explicit") {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u5f15\u7528\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
+        }
+
+        if (input.citationCount > 0 && input.citationAttribution === "heuristic") {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u6765\u6e90\uff0c\u5f15\u7528\u7531\u540e\u7aef\u63a8\u65ad\u8865\u9f50\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
+        }
+
+        return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
       }
 
-      return input.citationCount > 0 && input.hasExplicitCitations
-        ? "Answer is grounded in cited sources with no reported gaps."
-        : "Answer is grounded in retrieved sources with no reported gaps.";
+      if (input.citationCount > 0 && input.citationAttribution === "explicit") {
+        return "Answer is grounded in cited sources with no reported gaps.";
+      }
+
+      if (input.citationCount > 0 && input.citationAttribution === "heuristic") {
+        return "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps.";
+      }
+
+      return "Answer is grounded in retrieved sources with no reported gaps.";
     }
 
     if (input.overall === "partial") {
