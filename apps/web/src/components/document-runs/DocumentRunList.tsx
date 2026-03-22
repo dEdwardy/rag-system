@@ -1,4 +1,5 @@
-import { Badge, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Badge, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Link } from "react-router-dom";
 import { StatePanel } from "../StatePanel";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { DocumentRunRecord, KnowledgeBaseDocumentRunRecord } from "../../types/api";
@@ -86,6 +87,7 @@ type Props = {
   runs: RunRecord[];
   emptyTitle: string;
   emptyDescription: string;
+  onReindexRun?: (run: RunRecord) => Promise<void> | void;
 };
 
 export function DocumentRunList(props: Props) {
@@ -181,6 +183,34 @@ export function DocumentRunList(props: Props) {
                             {getDiagnosticsSummaryLabel(item.key, locale)}: {item.value}
                           </Badge>
                         ))}
+                      </Group>
+                    ) : null}
+
+                    {document ? (
+                      <Group gap="xs">
+                        <Button
+                          className="workspace-button"
+                          color="indigo"
+                          component={Link}
+                          radius="xl"
+                          size="xs"
+                          to={`/documents/${run.documentId}`}
+                          variant="light"
+                        >
+                          {locale === "zh" ? "查看文档" : "Open document"}
+                        </Button>
+                        {props.onReindexRun && (run.status === "failed" || run.status === "skipped") ? (
+                          <Button
+                            className="workspace-button"
+                            color="indigo"
+                            onClick={() => props.onReindexRun?.(run)}
+                            radius="xl"
+                            size="xs"
+                            variant="light"
+                          >
+                            {t("common.actions.reindex")}
+                          </Button>
+                        ) : null}
                       </Group>
                     ) : null}
 

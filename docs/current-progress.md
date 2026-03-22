@@ -482,6 +482,18 @@
     - `pnpm --filter @rag-system/web typecheck`
     - `pnpm --filter @rag-system/web build`
 
+- ✅ PC Web source run observability actionability follow-up
+  - `Knowledge Base` recent runs now add a minimal status filter with the existing list endpoint instead of introducing a new source console
+  - latest failure context now deep-links directly to the related document detail page
+  - recent run cards now also deep-link to the corresponding document when a document summary is present
+  - failed / skipped recent runs now expose a one-item `Reindex` action that reuses the existing `POST /documents/:id/reindex` path
+  - this follow-up remains inside the current web consumer layer and does not add new backend fields, batch controls, or broader platform workflows
+  - focused validation rerun:
+    - `node --experimental-strip-types --test apps/web/test/document-run-observability.test.js`
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ feed source stabilization phase 2 minimum increment
   - feed extraction now tolerates bounded partial invalid-entry failures instead of always including every selected entry verbatim
   - success rule for this round:

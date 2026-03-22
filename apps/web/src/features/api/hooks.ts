@@ -102,6 +102,8 @@ export function useKnowledgeBaseDocumentRuns(
     limit?: number;
     sinceHours?: number;
     includeDiagnostics?: boolean;
+    status?: DocumentRunRecord["status"];
+    sourceType?: string;
   } = {}
 ) {
   return useQuery({
@@ -116,6 +118,12 @@ export function useKnowledgeBaseDocumentRuns(
       }
       if (input.includeDiagnostics != null) {
         params.set("includeDiagnostics", String(input.includeDiagnostics));
+      }
+      if (input.status != null) {
+        params.set("status", input.status);
+      }
+      if (input.sourceType != null) {
+        params.set("sourceType", input.sourceType);
       }
 
       const query = params.toString();

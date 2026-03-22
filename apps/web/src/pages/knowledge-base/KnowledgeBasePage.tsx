@@ -1,4 +1,6 @@
-import { Badge, Box, Button, Grid, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Badge, Box, Button, Grid, Group, Paper, SegmentedControl, Stack, Text, Title } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
 import {
@@ -11,7 +13,8 @@ import {
   useDocuments,
   useKnowledgeBaseDocumentRuns,
   useKnowledgeBaseDocumentRunSummary,
-  useKnowledgeBases
+  useKnowledgeBases,
+  useReindexDocument
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { buildKnowledgeBaseWorkspaceSummary } from "./knowledge-base-page-helpers";
@@ -21,10 +24,13 @@ export function KnowledgeBasePage() {
   const assistantsQuery = useAssistants();
   const knowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(knowledgeBase?.id ?? "default-kb");
+  const reindexMutation = useReindexDocument();
+  const [runFilter, setRunFilter] = useState<"all" | "failed" | "processing">("all");
   const recentRunsQuery = useKnowledgeBaseDocumentRuns(knowledgeBase?.id ?? null, {
     limit: 6,
     sinceHours: 72,
-    includeDiagnostics: true
+    includeDiagnostics: true,
+    status: runFilter === "all" ? undefined : runFilter
   });
   const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(knowledgeBase?.id ?? null, {
     sinceHours: 72
@@ -333,6 +339,27 @@ export function KnowledgeBasePage() {
                     </Text>
                   </div>
 
+                  <SegmentedControl
+                    data={[
+                      {
+                        label: locale === "zh" ? "全部" : "All",
+                        value: "all"
+                      },
+                      {
+                        label: locale === "zh" ? "失败" : "Failed",
+                        value: "failed"
+                      },
+                      {
+                        label: locale === "zh" ? "处理中" : "Processing",
+                        value: "processing"
+                      }
+                    ]}
+                    onChange={value => setRunFilter(value as "all" | "failed" | "processing")}
+                    radius="xl"
+                    size="sm"
+                    value={runFilter}
+                  />
+
                   {runSummaryQuery.isLoading ? (
                     <StatePanel
                       title={locale === "zh" ? "加载 run 摘要中" : "Loading run summary"}
@@ -390,6 +417,19 @@ export function KnowledgeBasePage() {
                               {runSummaryQuery.data.latestFailure.message ??
                                 (locale === "zh" ? "暂无 message。" : "No failure message recorded.")}
                             </Text>
+                            <Group gap="xs">
+                              <Button
+                                className="workspace-button"
+                                color="indigo"
+                                component={Link}
+                                radius="xl"
+                                size="xs"
+                                to={`/documents/${runSummaryQuery.data.latestFailure.documentId}`}
+                                variant="light"
+                              >
+                                {locale === "zh" ? "查看文档" : "Open document"}
+                              </Button>
+                            </Group>
                           </Stack>
                         </Paper>
                       ) : null}
@@ -486,6 +526,35 @@ export function KnowledgeBasePage() {
                   ? "当前知识库还没有可展示的 source run 历史。"
                   : "This knowledge base does not have recent source run history yet."
               }
+              onReindexRun={async run => {
+                if (!("document" in run)) {
+                  return;
+                }
+
+                try {
+                  await reindexMutation.mutateAsync({
+                    documentId: run.documentId,
+                    knowledgeBaseId: run.document.kbId
+                  });
+                  notifications.show({
+                    color: "indigo",
+                    message:
+                      locale === "zh"
+                        ? `已请求重新索引：${run.document.title}`
+                        : `Reindex requested for ${run.document.title}`
+                  });
+                } catch (error) {
+                  notifications.show({
+                    color: "red",
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : locale === "zh"
+                          ? "重新索引失败。"
+                          : "Reindex failed."
+                  });
+                }
+              }}
             />
           )}
         </>

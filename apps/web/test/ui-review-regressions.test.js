@@ -34,6 +34,8 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
   assert.match(source, /useKnowledgeBaseDocumentRuns/);
   assert.match(source, /useKnowledgeBaseDocumentRunSummary/);
   assert.match(source, /Latest failure context|最新失败上下文/);
+  assert.match(source, /status:\s*runFilter === "all" \? undefined : runFilter/);
+  assert.match(source, /to=\{`\/documents\/\$\{runSummaryQuery\.data\.latestFailure\.documentId\}`\}/);
 });
 
 test("assistant copy avoids exposing backend field names and trace raw payload is secondary", () => {
@@ -47,6 +49,7 @@ test("assistant copy avoids exposing backend field names and trace raw payload i
 test("documents and trace list emphasize readable workspace summaries over sparse or overly technical cards", () => {
   const documentsSource = readFileSync(documentsPath, "utf8");
   const detailSource = readFileSync(documentDetailPath, "utf8");
+  const runListSource = readFileSync(resolve(__dirname, "../src/components/document-runs/DocumentRunList.tsx"), "utf8");
   const traceListSource = readFileSync(traceListPath, "utf8");
 
   assert.match(documentsSource, /workspace-metric-grid/);
@@ -54,6 +57,9 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.match(detailSource, /workspace-detail-secondary-grid|workspace-collection-grid/);
   assert.match(detailSource, /useDocumentRuns/);
   assert.match(detailSource, /Document runs|文档 runs/);
+  assert.match(runListSource, /component=\{Link\}/);
+  assert.match(runListSource, /to=\{`\/documents\/\$\{run\.documentId\}`\}/);
+  assert.match(runListSource, /onReindexRun/);
   assert.match(traceListSource, /workspace-trace-list/);
   assert.doesNotMatch(traceListSource, /Conversation ID[^]*Latest trace[^]*Created/);
 });
