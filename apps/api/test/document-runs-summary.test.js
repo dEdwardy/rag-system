@@ -647,3 +647,45 @@ test("DocumentRunsService summary anchors prefer the latest finished matching ru
     }
   });
 });
+
+test("DocumentRunsService listDocumentRuns orders a document run history by startedAt before version", async () => {
+  const queryArgs = [];
+  const fakeRuns = [
+    {
+      id: "run-a",
+      documentId: "doc-1",
+      version: 2,
+      trigger: "reindex",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: null,
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      createdAt: new Date("2026-03-22T10:05:00.000Z"),
+      updatedAt: new Date("2026-03-22T10:06:00.000Z")
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async args => {
+          queryArgs.push(args);
+          return fakeRuns;
+        }
+      }
+    }
+  });
+
+  const runs = await DocumentRunsService.prototype.listDocumentRuns.call(fakeService, "doc-1");
+
+  assert.equal(runs.length, 1);
+  assert.deepEqual(queryArgs, [
+    {
+      where: {
+        documentId: "doc-1"
+      },
+      orderBy: [{ startedAt: "desc" }, { version: "desc" }]
+    }
+  ]);
+});

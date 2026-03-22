@@ -190,7 +190,7 @@ export class DocumentRunsService {
       where: {
         documentId
       },
-      orderBy: [{ version: "desc" }, { startedAt: "desc" }]
+      orderBy: [{ startedAt: "desc" }, { version: "desc" }]
     });
 
     return runs.map(run => ({

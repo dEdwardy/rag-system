@@ -437,6 +437,7 @@
     - external source `external_resync` now resets document-level `chunkCount` to `0` as soon as a new pending version is queued, aligning repeated source syncs with the existing upload-document `reindex` semantics
     - external source `reindex` with missing or invalid persisted `sourceConfigJson` now still lands a new `external_resync` run/version and records a structured non-retryable failure instead of escaping before run history is written
     - document-run summary latest anchors now resolve by the latest matching completed run timestamp, so overlapping runs do not let a later-started but earlier-finished run override `latestFailure` / `latestRetryableFailure` / `latestSkipped`
+    - document-level run history now uses the same primary recent-run ordering as the knowledge-base scoped run list: `startedAt desc` first, then `version desc` for ties
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -480,6 +481,15 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/document-runs-summary.test.js`
     - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
+
+- ✅ document-run list ordering alignment
+  - `GET /documents/:id/runs` now uses the same primary ordering contract as `GET /knowledge-bases/:id/document-runs`: newest `startedAt` first, then higher `version` only as a tie-breaker
+  - this removes a small inconsistency where document-level run history previously prioritized `version` ahead of actual run recency
+  - the change stays inside `DocumentRunsService` query ordering and does not alter payload shape, filtering, or summary semantics
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/document-runs-summary.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
 
 - ✅ PC Web source run observability consumption minimum increment
   - current implementation stays inside the existing `Knowledge Base` and `Document Detail` pages instead of opening a new source center or a broader UI refactor

@@ -388,6 +388,7 @@ Notes:
   - `status`
   - `processingStage`
   - `version`
+- `GET /documents/:id/runs` and `GET /knowledge-bases/:id/document-runs` now both order recent runs by `startedAt desc` first, with `version desc` only as a secondary tie-breaker
 - stale ingestion jobs now also mark their superseded run as `skipped` with structured diagnostics instead of leaving an older run stuck in a pending state
 - backend now also supports `POST /assistants/:id/ask/stream` for NDJSON-based chat streaming
 - the current stream path now forwards native answer-generation text deltas from the configured provider during the generation phase
