@@ -1195,3 +1195,45 @@ test("AnsweringService localizes the deterministic missingInformation reason for
     "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
   ]);
 });
+
+test("AnsweringService localizes the hit-aware deterministic missingInformation reason for Chinese insufficient-context answers", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "\u4e0d\u77e5\u9053\u3002",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "\u8fd9\u4e2a\u4ef7\u683c\u662f\u591a\u5c11\uff1f",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "document-1",
+        documentTitle: "Document 1",
+        content: "\u8fd9\u4e00\u6bb5\u63d0\u5230\u4e86\u4ea7\u54c1\uff0c\u4f46\u6ca1\u6709\u4ef7\u683c\u4fe1\u606f\u3002",
+        score: 0.82,
+        pageNo: null,
+        sectionTitle: "Overview"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.missingInformation, [
+    "\u5df2\u68c0\u7d22\u5230\u76f8\u5173\u4e0a\u4e0b\u6587\uff0c\u4f46\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\u3002"
+  ]);
+});
