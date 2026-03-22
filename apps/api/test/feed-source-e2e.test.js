@@ -192,6 +192,41 @@ test("Feed source E2E: partial invalid entries still reach ready and persist dia
     const runs = await runsResponse.json();
     assert.equal(runs[0].status, "ready");
     assert.deepEqual(runs[0].diagnosticsJson, readyDocument.diagnosticsJson);
+    assert.deepEqual(runs[0].failureSummary, {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Feed source completed with partial entry validation failures."
+    });
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+
+    const summary = await summaryResponse.json();
+    assert.equal(summary.totalRuns, 1);
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 1);
+    assert.deepEqual(summary.failureByStage, {
+      source_fetch: 1
+    });
+    assert.deepEqual(summary.latestRetryableFailure, null);
+    assert.deepEqual(summary.latestFailure, {
+      documentId: createdDocument.id,
+      version: readyDocument.version,
+      trigger: "external_resync",
+      failedStage: null,
+      sourceType: "feed",
+      sourceName: `${feedServer.origin}/updates.xml`,
+      message: "Feed source completed with partial entry validation failures.",
+      finishedAt: summary.latestFailure.finishedAt,
+      failureSummary: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Feed source completed with partial entry validation failures."
+      }
+    });
+    assert.ok(summary.latestFailure.finishedAt);
 
     const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
       method: "POST",

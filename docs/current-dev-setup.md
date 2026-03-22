@@ -361,6 +361,10 @@ Notes:
   - `failedStage`
   - `retryable`
   - `message`
+- summary failure stats now count both:
+  - terminal `failed` runs
+  - `ready` runs that still carry a partial `failureSummary`
+- `latestFailure` now resolves from the most recent counted `failureSummary` run, so a newer partial-ready source run can supersede an older terminal failure in the summary anchor
 - each document run currently records:
   - `documentId`
   - `version`

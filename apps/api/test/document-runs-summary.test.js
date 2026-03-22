@@ -273,19 +273,110 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
     }
   });
   assert.deepEqual(summary.latestFailure, {
-    documentId: "doc-failed",
-    version: 2,
+    documentId: "doc-partial",
+    version: 3,
     trigger: "external_resync",
-    failedStage: "source_fetch",
-    sourceType: "web_page",
-    sourceName: "https://example.com/down",
-    message: "temporary upstream failure",
+    failedStage: null,
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    message: "Feed source completed with partial entry validation failures.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Feed source completed with partial entry validation failures."
+    }
+  });
+});
+
+test("DocumentRunsService summary counts partial ready runs as failure summaries", async () => {
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => [
+          {
+            documentId: "doc-partial",
+            version: 5,
+            trigger: "external_resync",
+            status: "ready",
+            failedStage: null,
+            diagnosticsJson: {
+              code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+              failedStage: "source_fetch",
+              retryable: false,
+              message: "Feed source completed with partial entry validation failures.",
+              partial: true
+            },
+            startedAt: new Date("2026-03-22T10:05:00.000Z"),
+            finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+            document: {
+              sourceType: "feed",
+              sourceName: "https://example.com/feed.xml"
+            }
+          },
+          {
+            documentId: "doc-skipped",
+            version: 4,
+            trigger: "reindex",
+            status: "skipped",
+            failedStage: "stale_guard",
+            diagnosticsJson: {
+              code: "INGESTION_RUN_SUPERSEDED",
+              failedStage: "stale_guard",
+              retryable: false,
+              message: "superseded by a newer run"
+            },
+            startedAt: new Date("2026-03-22T10:03:00.000Z"),
+            finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+            document: {
+              sourceType: "upload",
+              sourceName: "guide.md"
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.equal(summary.retryableFailures, 0);
+  assert.equal(summary.nonRetryableFailures, 1);
+  assert.deepEqual(summary.failureByStage, {
+    source_fetch: 1
+  });
+  assert.deepEqual(summary.latestRetryableFailure, null);
+  assert.deepEqual(summary.latestSkipped, {
+    documentId: "doc-skipped",
+    version: 4,
+    trigger: "reindex",
+    failedStage: "stale_guard",
+    sourceType: "upload",
+    sourceName: "guide.md",
+    message: "superseded by a newer run",
     finishedAt: new Date("2026-03-22T10:04:00.000Z"),
     failureSummary: {
-      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      code: "INGESTION_RUN_SUPERSEDED",
+      failedStage: "stale_guard",
+      retryable: false,
+      message: "superseded by a newer run"
+    }
+  });
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-partial",
+    version: 5,
+    trigger: "external_resync",
+    failedStage: null,
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    message: "Feed source completed with partial entry validation failures.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
-      retryable: true,
-      message: "temporary upstream failure"
+      retryable: false,
+      message: "Feed source completed with partial entry validation failures."
     }
   });
 });

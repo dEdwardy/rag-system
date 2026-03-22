@@ -636,6 +636,9 @@
   - `GET /knowledge-bases/:id/document-runs` 现在默认返回轻量 `failureSummary`，用于 failed / skipped / partial-ready run 的最小失败上下文消费
   - `GET /documents/:id/runs` 也同步暴露同一 `failureSummary` 归一结果，避免 document-detail 与 knowledge-base recent-runs 走两套提取规则
   - `GET /knowledge-bases/:id/document-runs/summary` 的 `latestFailure` / `latestRetryableFailure` / `latestSkipped` 现在复用同一 failure summary builder，而不是各自单独抽 message
+  - summary failure stats 现在也会把 `ready + partial failureSummary` 的 run 纳入统计，而不是只看 terminal `failed`
+  - `latestFailure` 现在语义上表示“最近一个 counted failure summary run”，因此可以正确指向更近的 partial-ready external source run
+  - `latestSkipped` 仍保持独立语义，不混入 failure counters
   - 这一轮保持最小字段增量：
     - 不改既有路由
     - 不改既有过滤参数
@@ -645,6 +648,7 @@
     - `node --test apps/api/test/document-runs-summary.test.js`
     - `node --test --test-concurrency=1 apps/api/test/document-chain-e2e.test.js`
     - `node --test --test-concurrency=1 apps/api/test/web-page-source-e2e.test.js`
+    - `node --test --test-concurrency=1 apps/api/test/feed-source-e2e.test.js`
 
 - ✅ external source repeat-run dedup / re-sync 第一轮
   - `web page` / `feed` / `sitemap` 入口现在会先对 remote URL 做归一化（去掉 hash，并使用标准化 URL 字符串）

@@ -58,26 +58,35 @@ export class DocumentRunsService {
     let nonRetryableFailures = 0;
 
     for (const run of runs) {
+      const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+
       byStatus[run.status] += 1;
       byTrigger[run.trigger] += 1;
       bySourceType[run.document.sourceType] = (bySourceType[run.document.sourceType] ?? 0) + 1;
 
-      if (run.status === DocumentRunStatus.failed) {
-        if (run.failedStage) {
-          failureByStage[run.failedStage] = (failureByStage[run.failedStage] ?? 0) + 1;
-        }
+      if (!this.shouldCountFailureSummary(run.status, failureSummary) || !failureSummary) {
+        continue;
+      }
 
-        if (this.isRetryableDiagnostics(run.diagnosticsJson)) {
-          retryableFailures += 1;
-        } else {
-          nonRetryableFailures += 1;
-        }
+      if (failureSummary.failedStage) {
+        failureByStage[failureSummary.failedStage] = (failureByStage[failureSummary.failedStage] ?? 0) + 1;
+      }
+
+      if (failureSummary.retryable) {
+        retryableFailures += 1;
+      } else {
+        nonRetryableFailures += 1;
       }
     }
 
-    const latestFailure = runs.find(run => run.status === DocumentRunStatus.failed);
+    const latestFailure = runs.find(run =>
+      this.shouldCountFailureSummary(run.status, this.buildFailureSummary(run.diagnosticsJson, run.failedStage))
+    );
     const latestRetryableFailure = runs.find(
-      run => run.status === DocumentRunStatus.failed && this.isRetryableDiagnostics(run.diagnosticsJson)
+      run => {
+        const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+        return this.shouldCountFailureSummary(run.status, failureSummary) && failureSummary?.retryable === true;
+      }
     );
     const latestSkipped = runs.find(run => run.status === DocumentRunStatus.skipped);
     return {
@@ -359,6 +368,17 @@ export class DocumentRunsService {
       finishedAt: run.finishedAt,
       failureSummary
     };
+  }
+
+  private shouldCountFailureSummary(
+    status: DocumentRunStatus,
+    failureSummary: ReturnType<DocumentRunsService["buildFailureSummary"]>
+  ) {
+    if (!failureSummary) {
+      return false;
+    }
+
+    return status !== DocumentRunStatus.skipped;
   }
 
   private resolveStartedAtFilter(sinceHours?: number) {
