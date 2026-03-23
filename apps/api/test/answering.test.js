@@ -1685,16 +1685,14 @@ test("AnsweringService mentions low retrieval confidence in weak insufficient-co
     ]
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "insufficient_context");
-  assert.deepEqual(result.qualityEvaluation.flags, [
-    "insufficient_context",
-    "missing_information",
-    "low_retrieval_score"
-  ]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+    summary: "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
+  });
 });
 
 test("AnsweringService localizes low-confidence weak insufficient-context summaries for Chinese questions", async () => {
