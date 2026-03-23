@@ -240,11 +240,12 @@ Current fast-lane test support helpers also include:
 
 - `apps/api/test/support/llm-test-helpers.js` for `LlmService` / prompt-manager / env / fetch test scaffolding
 - `apps/api/test/support/ask-assistant-test-helpers.js` for `AskAssistantService` dependency defaults, assistant-record scaffolding, and reusable answer-policy defaults
-- the current first migrated ask-path callers are:
+- the current helper-backed ask-path callers are:
   - `apps/api/test/ask-success.test.js`
   - `apps/api/test/ask-stream-service.test.js`
   - `apps/api/test/ask-failures.test.js`
   - `apps/api/test/ask-stream-retrieval-failure.test.js`
+- `ask-success.test.js` and `ask-stream-service.test.js` now also reuse the helper-backed outer `AskAssistantService` service scaffolding across their remaining localized summary cases, so ad-hoc `new AskAssistantService(...)` setup has been cleared from those two fast-lane files
 
 Focused fast API theme entrypoints:
 

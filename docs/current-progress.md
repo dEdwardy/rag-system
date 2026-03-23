@@ -18,7 +18,8 @@
 - fast-lane test support 现已新增通用 helper：
   - `apps/api/test/support/llm-test-helpers.js`
   - `apps/api/test/support/ask-assistant-test-helpers.js`
-- `AskAssistantService` fast tests 的支撑层收口继续推进中；`ask-success.test.js`、`ask-stream-service.test.js`、`ask-failures.test.js`、`ask-stream-retrieval-failure.test.js` 已开始复用统一依赖默认值和 assistant-record scaffolding
+- `AskAssistantService` fast tests 的当前支撑层收口已完成到既定 helper 边界；`ask-success.test.js`、`ask-stream-service.test.js`、`ask-failures.test.js`、`ask-stream-retrieval-failure.test.js` 已复用统一依赖默认值和 assistant-record scaffolding
+- `ask-success.test.js` / `ask-stream-service.test.js` 中剩余的 localized summary cases 现也已清掉外层手写 `new AskAssistantService(...)` 装配，改为复用统一 helper；当前未继续向更深层 localized payload 文本抽象，以避免为历史编码块引入高风险重写
 - 当前这轮 backend test work 的目标仍是“测试支撑层提效”，重点放在减少 fast tests 中重复的 service mock 构造与默认依赖样板，不涉及业务行为调整
 
 - trace 读取接口现在会直接返回 additive `traceSummary`，把 `answerStatus`、`qualityOverall`、`primaryIssue`、`retrievalMode`、`generationMode`、`rewriteApplied`、`fallbackReason`、`citationAttribution`、`missingInformationCount`、`insufficientContextReason`、`failedStage`、`failureMessage`、`retrievedChunkCount`、`citationCount`、`usedFallback` 从持久化 trace JSON 中归一化提取出来
