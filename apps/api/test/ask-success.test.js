@@ -119,6 +119,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
             fallbackReason: null,
             rerankApplied: true,
             chunkWindowApplied: true,
+            vectorSearchAttempted: true,
+            lexicalSearchAttempted: true,
             vectorCandidateLimitHit: false,
             lexicalCandidateLimitHit: false,
             rankingTopKHit: false,
@@ -316,6 +318,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     queryRewrite: {
       enabled: true,
       applied: true,
+      finalQuerySource: "rewritten",
       usedFallback: true,
       promptId: "rewrite-query.v1"
     },
@@ -329,6 +332,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       fallbackReason: null,
       rerankApplied: true,
       chunkWindowApplied: true,
+      vectorSearchAttempted: true,
+      lexicalSearchAttempted: true,
       vectorCandidateLimitHit: false,
       lexicalCandidateLimitHit: false,
       rankingTopKHit: false,
@@ -504,6 +509,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
             fallbackReason: null,
             rerankApplied: true,
             chunkWindowApplied: false,
+            vectorSearchAttempted: false,
+            lexicalSearchAttempted: true,
             vectorCandidateLimitHit: false,
             lexicalCandidateLimitHit: false,
             rankingTopKHit: false,
@@ -680,6 +687,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     queryRewrite: {
       enabled: false,
       applied: false,
+      finalQuerySource: "original_disabled",
       usedFallback: null,
       promptId: null
     },
@@ -693,6 +701,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       fallbackReason: null,
       rerankApplied: true,
       chunkWindowApplied: false,
+      vectorSearchAttempted: false,
+      lexicalSearchAttempted: true,
       vectorCandidateLimitHit: false,
       lexicalCandidateLimitHit: false,
       rankingTopKHit: false,

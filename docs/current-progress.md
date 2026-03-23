@@ -697,6 +697,15 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
 
+- ✅ retrieval rewrite-source and search-attempt diagnostics
+  - `retrievalMetadata.queryRewrite` 现在也会显式返回 `finalQuerySource`，当前值收口为 `rewritten` / `original_disabled` / `original_unchanged`
+  - `retrievalMetadata.execution` 现在也会显式返回 `vectorSearchAttempted` / `lexicalSearchAttempted`
+  - 这样上层不再需要从最终 query、strategy mode 和 fallback 状态自己反推“原问题为什么被保留”以及“这一轮实际尝试过哪些检索路径”
+  - one-shot ask、native stream final payload、以及 trace persistence 里的 retrieval metadata 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/retrieval.test.js apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ structured missing-information normalization dedup
   - LLM structured-answer schema 现在会对 `missingInformation` 做和 `citations` / `citationEvidence` 一致的收口：trim、去空、按首次出现顺序去重
   - 这避免模型输出重复 gap item 时把同一缺失原因在最终响应里重复展开

@@ -49,6 +49,8 @@ export type RetrievalResult = {
     fallbackReason: "vector_error" | "no_ranked_candidates" | null;
     rerankApplied: boolean;
     chunkWindowApplied: boolean;
+    vectorSearchAttempted: boolean;
+    lexicalSearchAttempted: boolean;
     vectorCandidateLimitHit: boolean;
     lexicalCandidateLimitHit: boolean;
     rankingTopKHit: boolean;
@@ -158,6 +160,8 @@ export class RetrievalService {
             fallbackReason: null,
             rerankApplied: resolvedEnableRerank,
             chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+            vectorSearchAttempted: true,
+            lexicalSearchAttempted: candidateSelectionMode === "hybrid",
             vectorCandidateLimitHit: vectorCandidates.length >= candidateLimit,
             lexicalCandidateLimitHit: (lexicalCandidates?.length ?? 0) >= candidateLimit,
             rankingTopKHit: rankedCandidates.length >= input.topK,
@@ -244,6 +248,8 @@ export class RetrievalService {
         fallbackReason: input.fallbackReason,
         rerankApplied: input.rerankApplied,
         chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+        vectorSearchAttempted: input.usedFallback,
+        lexicalSearchAttempted: true,
         vectorCandidateLimitHit: input.vectorCandidateCount >= input.candidateLimit,
         lexicalCandidateLimitHit: lexicalCandidates.length >= input.candidateLimit,
         rankingTopKHit: ranked.length >= input.topK,
@@ -260,6 +266,8 @@ export class RetrievalService {
       fallbackReason: input.fallbackReason,
       rerankApplied: input.rerankApplied,
       chunkWindowApplied: false,
+      vectorSearchAttempted: input.usedFallback,
+      lexicalSearchAttempted: true,
       vectorCandidateLimitHit: input.vectorCandidateCount >= input.candidateLimit,
       lexicalCandidateLimitHit: lexicalCandidates.length >= input.candidateLimit,
       rankingTopKHit: false,

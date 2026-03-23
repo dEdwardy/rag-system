@@ -490,6 +490,8 @@ export class AskAssistantService {
         fallbackReason: "vector_error" | "no_ranked_candidates" | null;
         rerankApplied: boolean;
         chunkWindowApplied: boolean;
+        vectorSearchAttempted: boolean;
+        lexicalSearchAttempted: boolean;
         vectorCandidateLimitHit: boolean;
         lexicalCandidateLimitHit: boolean;
         rankingTopKHit: boolean;
@@ -506,6 +508,11 @@ export class AskAssistantService {
       queryRewrite: {
         enabled: input.strategy.queryRewrite.enabled,
         applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
+        finalQuerySource: !input.strategy.queryRewrite.enabled
+          ? "original_disabled"
+          : input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
+            ? "rewritten"
+            : "original_unchanged",
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
       },
@@ -519,6 +526,8 @@ export class AskAssistantService {
         fallbackReason: input.execution.fallbackReason,
         rerankApplied: input.execution.rerankApplied,
         chunkWindowApplied: input.execution.chunkWindowApplied,
+        vectorSearchAttempted: input.execution.vectorSearchAttempted,
+        lexicalSearchAttempted: input.execution.lexicalSearchAttempted,
         vectorCandidateLimitHit: input.execution.vectorCandidateLimitHit,
         lexicalCandidateLimitHit: input.execution.lexicalCandidateLimitHit,
         rankingTopKHit: input.execution.rankingTopKHit,

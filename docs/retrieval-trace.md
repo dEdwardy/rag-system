@@ -73,6 +73,7 @@ Current shape includes:
 - `queryRewrite`
   - `enabled`
   - `applied`
+  - `finalQuerySource`
   - `usedFallback`
   - `promptId`
 - `execution`
@@ -85,6 +86,8 @@ Current shape includes:
   - `fallbackReason`
   - `rerankApplied`
   - `chunkWindowApplied`
+  - `vectorSearchAttempted`
+  - `lexicalSearchAttempted`
   - `vectorCandidateLimitHit`
   - `lexicalCandidateLimitHit`
   - `rankingTopKHit`
