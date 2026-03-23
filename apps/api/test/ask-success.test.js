@@ -1777,47 +1777,16 @@ test("AskAssistantService preserves localized generic strong summaries without c
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "same_as_question",
-          citationMode: "optional",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: createAnswerPolicy({
+        responseStyle: "balanced",
+        language: "same_as_question",
+        citationMode: "optional",
+        noAnswerBehavior: "best_effort"
       })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -1827,7 +1796,7 @@ test("AskAssistantService preserves localized generic strong summaries without c
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "杩欐槸涓€涓病鏈夋樉寮忓紩鐢ㄧ殑鍥炵瓟銆?",
         citations: [],
@@ -1865,14 +1834,14 @@ test("AskAssistantService preserves localized generic strong summaries without c
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -1880,7 +1849,7 @@ test("AskAssistantService preserves localized generic strong summaries without c
         promptId: null
       })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
