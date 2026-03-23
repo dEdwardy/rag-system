@@ -123,6 +123,8 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     citationAttribution: "explicit",
     missingInformationCount: 0,
     missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
     answerStatus: "grounded"
   });
 });
@@ -663,6 +665,8 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     citationAttribution: "explicit",
     missingInformationCount: 0,
     missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
     answerStatus: "grounded"
   });
 });
@@ -1843,6 +1847,8 @@ test("AnsweringService preserves best_effort answers even when context is insuff
 
   assert.equal(result.answer, "Best effort answer with uncertainty.");
   assert.equal(result.answerStatus, "insufficient_context");
+  assert.equal(result.answeringMetadata.answerTextSource, "model");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
 });
 
 test("AnsweringService localizes the deterministic insufficient-context fallback for Chinese questions", async () => {
@@ -1905,6 +1911,8 @@ test("AnsweringService preserves missingInformation for insufficient-context ans
 
   assert.deepEqual(result.missingInformation, ["Need pricing details."]);
   assert.equal(result.answeringMetadata.missingInformationSource, "model");
+  assert.equal(result.answeringMetadata.answerTextSource, "deterministic_policy");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",
@@ -1944,6 +1952,8 @@ test("AnsweringService fills a deterministic missingInformation reason for insuf
 
   assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
   assert.equal(result.answeringMetadata.missingInformationSource, "deterministic_default");
+  assert.equal(result.answeringMetadata.answerTextSource, "deterministic_policy");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",
@@ -1994,6 +2004,8 @@ test("AnsweringService uses a hit-aware deterministic missingInformation reason 
   assert.deepEqual(result.missingInformation, [
     "Retrieved context was still insufficient to support a reliable answer."
   ]);
+  assert.equal(result.answeringMetadata.answerTextSource, "model");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "retrieved_context_insufficient");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",

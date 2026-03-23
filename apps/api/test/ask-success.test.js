@@ -179,6 +179,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
             citationAttribution: "explicit",
             missingInformationCount: 0,
             missingInformationSource: "none",
+            answerTextSource: "model",
+            insufficientContextReason: null,
             answerStatus: "grounded"
           },
           modelName: "fallback-local",
@@ -395,6 +397,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     citationAttribution: "explicit",
     missingInformationCount: 0,
     missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
     answerStatus: "grounded"
   });
   assert.equal(result.conversationId, "conversation-1");
@@ -429,6 +433,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     citationAttribution: "explicit",
     missingInformationCount: 0,
     missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
     answerStatus: "grounded"
   });
   assert.equal(result.modelName, "fallback-local");
@@ -554,6 +560,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           citationAttribution: "none",
           missingInformationCount: 0,
           missingInformationSource: "none",
+          answerTextSource: "deterministic_policy",
+          insufficientContextReason: "no_retrieval_hits",
           answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
@@ -743,6 +751,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     citationAttribution: "none",
     missingInformationCount: 0,
     missingInformationSource: "none",
+    answerTextSource: "deterministic_policy",
+    insufficientContextReason: "no_retrieval_hits",
     answerStatus: "insufficient_context"
   });
   assert.equal(result.traceId, "trace-1");
@@ -1061,21 +1071,23 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
       generateAnswer: async input => {
         generateAnswerCalls += 1;
         assert.equal(input.answerPolicy.noAnswerBehavior, "best_effort");
-        return {
-          answer: "Best effort answer with uncertainty.",
-          citations: [],
-          retrievedChunks: [],
-          contextGroups: [],
+          return {
+            answer: "Best effort answer with uncertainty.",
+            citations: [],
+            retrievedChunks: [],
+            contextGroups: [],
           answeringMetadata: {
             promptId: "answer.v2",
             usedFallback: false,
             answerPolicy: input.answerPolicy,
             contextMode: "chunks",
-            inputChunkCount: 0,
-            contextGroupCount: 0,
-            citationCount: 0,
-            answerStatus: "insufficient_context"
-          },
+              inputChunkCount: 0,
+              contextGroupCount: 0,
+              citationCount: 0,
+              answerTextSource: "model",
+              insufficientContextReason: "no_retrieval_hits",
+              answerStatus: "insufficient_context"
+            },
           modelName: "test-model",
           answerStatus: "insufficient_context",
           missingInformation: ["No relevant supporting sources were retrieved."],
@@ -1113,6 +1125,8 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
   assert.equal(result.answer, "Best effort answer with uncertainty.");
   assert.equal(result.answeringMetadata.answerPolicy.noAnswerBehavior, "best_effort");
   assert.equal(result.answerStatus, "insufficient_context");
+  assert.equal(result.answeringMetadata.answerTextSource, "model");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
 });
 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {

@@ -66,6 +66,8 @@ export type AnsweringMetadata = {
   citationAttribution: CitationSelection["attribution"];
   missingInformationCount: number;
   missingInformationSource: "none" | "model" | "deterministic_default" | "suppressed_by_policy";
+  answerTextSource: "model" | "deterministic_policy";
+  insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
   answerStatus: "grounded" | "insufficient_context";
 };
 
@@ -184,6 +186,8 @@ export class AnsweringService {
           citationAttribution: "none",
           missingInformationCount: missingInformation.length,
           missingInformationSource: "deterministic_default",
+          answerTextSource: "deterministic_policy",
+          insufficientContextReason: "no_retrieval_hits",
           answerStatus: "insufficient_context" as const
         },
       modelName: "fallback-local",
@@ -263,6 +267,14 @@ export class AnsweringService {
             includeMissingInformation: input.answerPolicy.includeMissingInformation,
             rawMissingInformationCount: rawMissingInformation.length
           }),
+          answerTextSource: this.resolveAnswerTextSource({
+            answerStatus,
+            noAnswerBehavior: input.answerPolicy.noAnswerBehavior
+          }),
+          insufficientContextReason: this.resolveInsufficientContextReason({
+            answerStatus,
+            hasRetrievedContext: false
+          }),
           answerStatus
         },
         answerStatus,
@@ -333,6 +345,14 @@ export class AnsweringService {
           includeMissingInformation: input.answerPolicy.includeMissingInformation,
           rawMissingInformationCount: rawMissingInformation.length
         }),
+        answerTextSource: this.resolveAnswerTextSource({
+          answerStatus,
+          noAnswerBehavior: input.answerPolicy.noAnswerBehavior
+        }),
+        insufficientContextReason: this.resolveInsufficientContextReason({
+          answerStatus,
+          hasRetrievedContext: input.chunks.length > 0
+        }),
         answerStatus
       },
       answerStatus,
@@ -396,6 +416,31 @@ export class AnsweringService {
     }
 
     return input.includeMissingInformation ? "model" : "suppressed_by_policy";
+  }
+
+  private resolveAnswerTextSource(input: {
+    answerStatus: "grounded" | "insufficient_context";
+    noAnswerBehavior: AnswerPolicy["noAnswerBehavior"];
+  }): AnsweringMetadata["answerTextSource"] {
+    if (
+      input.answerStatus === "insufficient_context" &&
+      input.noAnswerBehavior === "say_insufficient_context"
+    ) {
+      return "deterministic_policy";
+    }
+
+    return "model";
+  }
+
+  private resolveInsufficientContextReason(input: {
+    answerStatus: "grounded" | "insufficient_context";
+    hasRetrievedContext: boolean;
+  }): AnsweringMetadata["insufficientContextReason"] {
+    if (input.answerStatus !== "insufficient_context") {
+      return null;
+    }
+
+    return input.hasRetrievedContext ? "retrieved_context_insufficient" : "no_retrieval_hits";
   }
 
   private buildInsufficientContextAnswer(

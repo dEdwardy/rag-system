@@ -121,6 +121,8 @@ Current shape includes:
 - `citationAttribution`
 - `missingInformationCount`
 - `missingInformationSource`
+- `answerTextSource`
+- `insufficientContextReason`
 - `answerStatus`
 
 This is the stable summary of how answer generation actually ran for the trace.

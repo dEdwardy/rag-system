@@ -484,7 +484,7 @@ The following path has been validated locally on `2026-03-21`:
    - `missingInformation` is returned as an array
    - `qualityEvaluation` is returned with `overall`, `grounding`, `completeness`, `flags`, and `summary`
    - `retrievalMetadata` is returned with resolved strategy, rewrite execution, and retrieval execution summary, including final query source, actual mode, attempted search paths, fallback reason, rerank application, chunk-window application, candidate flow, candidate-budget saturation signals, and neighbor expansion counts
-  - `answeringMetadata` is returned with prompt id, normalized answer policy, resolved language, generation mode, context mode, prompt-context count, citation counts before/after truncation, citation attribution, and missing-information count/source
+   - `answeringMetadata` is returned with prompt id, normalized answer policy, resolved language, generation mode, context mode, prompt-context count, citation counts before/after truncation, citation attribution, missing-information count/source, answer-text source, and insufficient-context reason
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
    - `contextGroups` is returned as an array
@@ -494,7 +494,7 @@ The following path has been validated locally on `2026-03-21`:
    - trace may contain `rewrittenQuery`
    - trace `retrievalScoresJson` may contain `vectorScore`, `lexicalScore`, `hybridScore`, and `rerankScore`
    - trace `retrievalMetadataJson` records the effective retrieval strategy, filters, rewrite execution, and retrieval summary, including final query source and attempted search paths
-   - trace `answeringMetadataJson` records the effective answer prompt id and normalized answer-policy execution, including citation truncation and missing-information provenance
+   - trace `answeringMetadataJson` records the effective answer prompt id and normalized answer-policy execution, including citation truncation, missing-information provenance, answer-text source, and insufficient-context reason
    - trace persistence is successful
 
 ## Current implementation scope

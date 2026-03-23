@@ -86,6 +86,8 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
           citationAttribution: "none",
           missingInformationCount: 0,
           missingInformationSource: "none",
+          answerTextSource: "model",
+          insufficientContextReason: null,
           answerStatus: "grounded"
         },
         answerStatus: "grounded",
@@ -149,6 +151,8 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answeringMetadata.citationLimitHit, false);
   assert.equal(finalResult.answeringMetadata.missingInformationCount, 0);
   assert.equal(finalResult.answeringMetadata.missingInformationSource, "none");
+  assert.equal(finalResult.answeringMetadata.answerTextSource, "model");
+  assert.equal(finalResult.answeringMetadata.insufficientContextReason, null);
   assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
   assert.equal(finalResult.answeringMetadata.generationMode, "generated");
 });
@@ -235,11 +239,13 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
           inputChunkCount: 0,
           promptContextCount: 0,
           contextGroupCount: 0,
-          citationCount: 0,
-          citationAttribution: "none",
-          missingInformationCount: 1,
-          answerStatus: "insufficient_context"
-        },
+            citationCount: 0,
+            citationAttribution: "none",
+            missingInformationCount: 1,
+            answerTextSource: "deterministic_policy",
+            insufficientContextReason: "no_retrieval_hits",
+            answerStatus: "insufficient_context"
+          },
         answerStatus: "insufficient_context",
         missingInformation: ["No relevant supporting sources were retrieved."],
         qualityEvaluation: {
@@ -266,12 +272,14 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
-          inputChunkCount: input.chunks.length,
-          contextGroupCount: input.contextGroups.length,
-          citationCount: 0,
-          answerStatus: "insufficient_context"
-        },
+              contextMode: "chunks",
+              inputChunkCount: input.chunks.length,
+              contextGroupCount: input.contextGroups.length,
+              citationCount: 0,
+              answerTextSource: "model",
+              insufficientContextReason: "no_retrieval_hits",
+              answerStatus: "insufficient_context"
+            },
         answerStatus: "insufficient_context",
         missingInformation: ["No relevant supporting sources were retrieved."],
         qualityEvaluation: {
@@ -321,6 +329,8 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   assert.equal(events[4].data.answer, "deterministic fallback for: What detail is missing?");
   assert.equal(finalResult.answer, "deterministic fallback for: What detail is missing?");
   assert.equal(finalResult.answeringMetadata.usedFallback, true);
+  assert.equal(finalResult.answeringMetadata.answerTextSource, "deterministic_policy");
+  assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
 });
 
 test("AskAssistantService preserves best_effort stream no-hit answers instead of using deterministic bypass", async () => {
@@ -400,6 +410,8 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
             inputChunkCount: input.chunks.length,
             contextGroupCount: input.contextGroups.length,
             citationCount: 0,
+            answerTextSource: "model",
+            insufficientContextReason: "no_retrieval_hits",
             answerStatus: "insufficient_context"
           },
           answerStatus: "insufficient_context",
@@ -459,6 +471,8 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
   assert.equal(events[5].data.answer, "Best effort stream answer.");
   assert.equal(finalResult.answer, "Best effort stream answer.");
   assert.equal(finalResult.answeringMetadata.answerPolicy.noAnswerBehavior, "best_effort");
+  assert.equal(finalResult.answeringMetadata.answerTextSource, "model");
+  assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
 });
 
 test("AskAssistantService stream preserves fallback_generation as the primary quality issue in final payload and trace", async () => {
