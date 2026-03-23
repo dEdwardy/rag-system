@@ -53,7 +53,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
         tone: "friendly",
         outputFormat: "bullets",
@@ -62,7 +62,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         maxCitations: 2,
         noAnswerBehavior: "say_insufficient_context",
         includeMissingInformation: false
-      },
+      }),
       retrievalProfile: {
         scoreThreshold: 0.2,
         chunkWindow: 1,
@@ -758,16 +758,9 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      }
+      answerPolicyJson: createAnswerPolicy({
+        language: "en"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -952,16 +945,13 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
         tone: "direct",
-        outputFormat: "paragraph",
         language: "en",
         citationMode: "optional",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -1039,16 +1029,9 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "same_as_question",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      }
+      answerPolicyJson: createAnswerPolicy({
+        language: "same_as_question"
+      })
     }),
     answering: {
       buildDeterministicInsufficientContextResult: () => ({

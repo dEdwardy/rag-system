@@ -141,16 +141,9 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      }
+      answerPolicyJson: createAnswerPolicy({
+        language: "en"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -293,16 +286,13 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
         tone: "direct",
-        outputFormat: "paragraph",
         language: "en",
         citationMode: "optional",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
