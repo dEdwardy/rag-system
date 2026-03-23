@@ -13,6 +13,7 @@ apps/web/node_modules
 apps/api/node_modules
 packages/shared/node_modules
 /storage
+apps/api/storage/
 api-server.log
 api-server.err.log
 .codex/
