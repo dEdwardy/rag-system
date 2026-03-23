@@ -1750,47 +1750,20 @@ test("AskAssistantService preserves generic strong summaries without citations",
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "same_as_question",
-          citationMode: "optional",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "same_as_question",
+        citationMode: "optional",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -1800,7 +1773,7 @@ test("AskAssistantService preserves generic strong summaries without citations",
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "Here is a grounded answer without explicit citations.",
         citations: [],
@@ -1838,22 +1811,14 @@ test("AskAssistantService preserves generic strong summaries without citations",
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -2854,47 +2819,20 @@ test("AskAssistantService preserves grounded partial summaries when information 
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -2904,7 +2842,7 @@ test("AskAssistantService preserves grounded partial summaries when information 
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "Partial grounded answer [1]",
         citations: [
@@ -2949,22 +2887,14 @@ test("AskAssistantService preserves grounded partial summaries when information 
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -3154,47 +3084,20 @@ test("AskAssistantService preserves low-retrieval grounded summaries", async () 
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -3204,7 +3107,7 @@ test("AskAssistantService preserves low-retrieval grounded summaries", async () 
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "Grounded answer [1]",
         citations: [
@@ -3249,22 +3152,14 @@ test("AskAssistantService preserves low-retrieval grounded summaries", async () 
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -3454,47 +3349,20 @@ test("AskAssistantService preserves fallback-only grounded summaries", async () 
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -3504,7 +3372,7 @@ test("AskAssistantService preserves fallback-only grounded summaries", async () 
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "Grounded fallback answer [1]",
         citations: [
@@ -3549,22 +3417,14 @@ test("AskAssistantService preserves fallback-only grounded summaries", async () 
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
