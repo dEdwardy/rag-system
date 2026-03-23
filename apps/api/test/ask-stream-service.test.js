@@ -2606,17 +2606,23 @@ test("AskAssistantService stream preserves grounded partial summaries when infor
     events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
     ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "missing_information");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, ["missing_information"]);
-  assert.equal(
-    finalResult.qualityEvaluation.summary,
-    "Answer is grounded but incomplete because some information is missing."
-  );
+  assert.deepEqual(finalResult.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information"],
+    summary: "Answer is grounded but incomplete because some information is missing."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded but incomplete because some information is missing."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information"],
+    summary: "Answer is grounded but incomplete because some information is missing."
+  });
 });
 
 test("AskAssistantService stream preserves localized grounded partial summaries when information is missing", async () => {
