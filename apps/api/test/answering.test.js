@@ -117,6 +117,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     contextGroupCount: 0,
     citationCount: 1,
     citationAttribution: "explicit",
+    missingInformationCount: 0,
     answerStatus: "grounded"
   });
 });
@@ -415,6 +416,7 @@ test("AnsweringService does not fabricate heuristic citations when citationMode 
 
   assert.deepEqual(result.citations, []);
   assert.equal(result.answeringMetadata.citationAttribution, "none");
+  assert.equal(result.answeringMetadata.missingInformationCount, 0);
 });
 
 test("AnsweringService keeps quality evaluation strong when citations are optional and no other gaps exist", async () => {
@@ -645,6 +647,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     contextGroupCount: 1,
     citationCount: 1,
     citationAttribution: "explicit",
+    missingInformationCount: 0,
     answerStatus: "grounded"
   });
 });
@@ -826,6 +829,7 @@ test("AnsweringService does not claim cited-source grounding when citations were
       "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
   });
   assert.equal(result.answeringMetadata.citationAttribution, "heuristic");
+  assert.equal(result.answeringMetadata.missingInformationCount, 0);
 });
 
 test("AnsweringService localizes strong summaries when citations were heuristically backfilled", async () => {

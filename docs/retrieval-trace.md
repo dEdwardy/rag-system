@@ -106,6 +106,7 @@ Current shape includes:
 - `contextGroupCount`
 - `citationCount`
 - `citationAttribution`
+- `missingInformationCount`
 - `answerStatus`
 
 This is the stable summary of how answer generation actually ran for the trace.

@@ -80,6 +80,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
           contextGroupCount: input.contextGroups.length,
           citationCount: 0,
           citationAttribution: "none",
+          missingInformationCount: 0,
           answerStatus: "grounded"
         },
         answerStatus: "grounded",
@@ -139,6 +140,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.traceId, "trace-1");
   assert.equal(finalResult.answeringMetadata.promptContextCount, 1);
   assert.equal(finalResult.answeringMetadata.citationAttribution, "none");
+  assert.equal(finalResult.answeringMetadata.missingInformationCount, 0);
 });
 
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {

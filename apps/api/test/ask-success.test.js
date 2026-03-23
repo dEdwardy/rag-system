@@ -165,6 +165,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       contextGroupCount: 1,
       citationCount: 1,
       citationAttribution: "explicit",
+      missingInformationCount: 0,
       answerStatus: "grounded"
           },
           modelName: "fallback-local",
@@ -366,6 +367,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     contextGroupCount: 1,
     citationCount: 1,
     citationAttribution: "explicit",
+    missingInformationCount: 0,
     answerStatus: "grounded"
   });
   assert.equal(result.conversationId, "conversation-1");
@@ -394,6 +396,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     contextGroupCount: 1,
     citationCount: 1,
     citationAttribution: "explicit",
+    missingInformationCount: 0,
     answerStatus: "grounded"
   });
   assert.equal(result.modelName, "fallback-local");
@@ -505,6 +508,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       contextGroupCount: 0,
       citationCount: 0,
       citationAttribution: "none",
+      missingInformationCount: 0,
       answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
@@ -671,6 +675,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     contextGroupCount: 0,
     citationCount: 0,
     citationAttribution: "none",
+    missingInformationCount: 0,
     answerStatus: "insufficient_context"
   });
   assert.equal(result.traceId, "trace-1");
