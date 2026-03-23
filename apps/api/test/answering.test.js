@@ -1001,6 +1001,55 @@ test("AnsweringService localizes partial summaries that combine missing informat
   );
 });
 
+test("AnsweringService localizes missing-information partial summaries for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "部分回答 [1]",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: ["缺少价格信息"],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "在哪里？",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "第一段上下文",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information"],
+    summary: "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+  });
+});
+
 test("AnsweringService reports a retrieval-score-specific partial quality summary when top retrieval confidence is low", async () => {
   const llmService = {
     generateAnswer: async () => ({
