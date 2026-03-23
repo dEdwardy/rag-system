@@ -46,6 +46,19 @@ export type RetrievalResult = {
   execution: {
     actualMode: "vector" | "hybrid" | "lexical";
     usedFallback: boolean;
+    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+    rerankApplied: boolean;
+    chunkWindowApplied: boolean;
+    vectorSearchAttempted: boolean;
+    lexicalSearchAttempted: boolean;
+    vectorCandidateLimitHit: boolean;
+    lexicalCandidateLimitHit: boolean;
+    rankingTopKHit: boolean;
+    candidateLimit: number;
+    vectorCandidateCount: number;
+    lexicalCandidateCount: number;
+    mergedCandidateCount: number;
+    rankedCandidateCount: number;
   };
 };
 
@@ -93,8 +106,12 @@ export class RetrievalService {
         enableRerank: resolvedEnableRerank,
         filters: normalizedFilters,
         lexicalCandidates,
+        candidateLimit,
+        vectorCandidateCount: 0,
         actualMode: "lexical",
-        usedFallback: false
+        usedFallback: false,
+        fallbackReason: null,
+        rerankApplied: resolvedEnableRerank
       });
     }
 
@@ -139,13 +156,38 @@ export class RetrievalService {
           );
           return this.buildRetrievalResult(retrievedChunks, {
             actualMode: candidateSelectionMode,
-            usedFallback: false
+            usedFallback: false,
+            fallbackReason: null,
+            rerankApplied: resolvedEnableRerank,
+            chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+            vectorSearchAttempted: true,
+            lexicalSearchAttempted: candidateSelectionMode === "hybrid",
+            vectorCandidateLimitHit: vectorCandidates.length >= candidateLimit,
+            lexicalCandidateLimitHit: (lexicalCandidates?.length ?? 0) >= candidateLimit,
+            rankingTopKHit: rankedCandidates.length >= input.topK,
+            candidateLimit,
+            vectorCandidateCount: vectorCandidates.length,
+            lexicalCandidateCount: lexicalCandidates?.length ?? 0,
+            mergedCandidateCount: mergedCandidates.length,
+            rankedCandidateCount: rankedCandidates.length
           });
         }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown vector retrieval error.";
       this.logger.warn(`Vector retrieval failed, falling back to lexical scoring. ${message}`);
+      return this.retrieveWithLexicalFallback({
+        ...input,
+        enableRerank: resolvedEnableRerank,
+        filters: normalizedFilters,
+        lexicalCandidates,
+        candidateLimit,
+        vectorCandidateCount: 0,
+        actualMode: "lexical",
+        usedFallback: true,
+        fallbackReason: "vector_error",
+        rerankApplied: resolvedEnableRerank
+      });
     }
 
     return this.retrieveWithLexicalFallback({
@@ -153,8 +195,12 @@ export class RetrievalService {
       enableRerank: resolvedEnableRerank,
       filters: normalizedFilters,
       lexicalCandidates,
+      candidateLimit,
+      vectorCandidateCount: 0,
       actualMode: "lexical",
-      usedFallback: true
+      usedFallback: true,
+      fallbackReason: "no_ranked_candidates",
+      rerankApplied: resolvedEnableRerank
     });
   }
 
@@ -166,16 +212,20 @@ export class RetrievalService {
     chunkWindow?: number;
     enableRerank?: boolean;
     lexicalCandidates?: RetrievalCandidate[];
+    candidateLimit: number;
+    vectorCandidateCount: number;
     filters?: RetrievalProfileFilters;
     actualMode: "lexical";
     usedFallback: boolean;
+    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+    rerankApplied: boolean;
   }) {
     const lexicalCandidates =
       input.lexicalCandidates ??
       (await this.getLexicalCandidates({
         kbId: input.kbId,
         query: input.query,
-        limit: Math.max(input.topK * 3, input.topK),
+        limit: input.candidateLimit,
         filters: input.filters
       }));
     const ranked = this.rankCandidates(lexicalCandidates, {
@@ -194,12 +244,38 @@ export class RetrievalService {
       );
       return this.buildRetrievalResult(retrievedChunks, {
         actualMode: input.actualMode,
-        usedFallback: input.usedFallback
+        usedFallback: input.usedFallback,
+        fallbackReason: input.fallbackReason,
+        rerankApplied: input.rerankApplied,
+        chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+        vectorSearchAttempted: input.usedFallback,
+        lexicalSearchAttempted: true,
+        vectorCandidateLimitHit: input.vectorCandidateCount >= input.candidateLimit,
+        lexicalCandidateLimitHit: lexicalCandidates.length >= input.candidateLimit,
+        rankingTopKHit: ranked.length >= input.topK,
+        candidateLimit: input.candidateLimit,
+        vectorCandidateCount: input.vectorCandidateCount,
+        lexicalCandidateCount: lexicalCandidates.length,
+        mergedCandidateCount: lexicalCandidates.length,
+        rankedCandidateCount: ranked.length
       });
     }
     return this.buildRetrievalResult([], {
       actualMode: input.actualMode,
-      usedFallback: input.usedFallback
+      usedFallback: input.usedFallback,
+      fallbackReason: input.fallbackReason,
+      rerankApplied: input.rerankApplied,
+      chunkWindowApplied: false,
+      vectorSearchAttempted: input.usedFallback,
+      lexicalSearchAttempted: true,
+      vectorCandidateLimitHit: input.vectorCandidateCount >= input.candidateLimit,
+      lexicalCandidateLimitHit: lexicalCandidates.length >= input.candidateLimit,
+      rankingTopKHit: false,
+      candidateLimit: input.candidateLimit,
+      vectorCandidateCount: input.vectorCandidateCount,
+      lexicalCandidateCount: lexicalCandidates.length,
+      mergedCandidateCount: lexicalCandidates.length,
+      rankedCandidateCount: 0
     });
   }
 

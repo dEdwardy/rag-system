@@ -771,7 +771,20 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
-    usedFallback: false
+    usedFallback: false,
+    fallbackReason: null,
+    rerankApplied: false,
+    chunkWindowApplied: false,
+    vectorSearchAttempted: false,
+    lexicalSearchAttempted: true,
+    vectorCandidateLimitHit: false,
+    lexicalCandidateLimitHit: false,
+    rankingTopKHit: true,
+    candidateLimit: 3,
+    vectorCandidateCount: 0,
+    lexicalCandidateCount: 1,
+    mergedCandidateCount: 1,
+    rankedCandidateCount: 1
   });
 });
 
@@ -813,7 +826,63 @@ test("RetrievalService reports lexical fallback when vector retrieval cannot pro
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
-    usedFallback: true
+    usedFallback: true,
+    fallbackReason: "vector_error",
+    rerankApplied: false,
+    chunkWindowApplied: false,
+    vectorSearchAttempted: true,
+    lexicalSearchAttempted: true,
+    vectorCandidateLimitHit: false,
+    lexicalCandidateLimitHit: false,
+    rankingTopKHit: true,
+    candidateLimit: 3,
+    vectorCandidateCount: 0,
+    lexicalCandidateCount: 1,
+    mergedCandidateCount: 1,
+    rankedCandidateCount: 1
+  });
+});
+
+test("RetrievalService reports empty-ranking fallback when vector retrieval yields no ranked candidates", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => (args.where.id?.in ? [] : [])
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => []
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "no matches",
+    topK: 1,
+    scoreThreshold: 0
+  });
+
+  assert.deepEqual(result.retrievedChunks, []);
+  assert.deepEqual(result.execution, {
+    actualMode: "lexical",
+    usedFallback: true,
+    fallbackReason: "no_ranked_candidates",
+    rerankApplied: false,
+    chunkWindowApplied: false,
+    vectorSearchAttempted: true,
+    lexicalSearchAttempted: true,
+    vectorCandidateLimitHit: false,
+    lexicalCandidateLimitHit: false,
+    rankingTopKHit: false,
+    candidateLimit: 3,
+    vectorCandidateCount: 0,
+    lexicalCandidateCount: 0,
+    mergedCandidateCount: 0,
+    rankedCandidateCount: 0
   });
 });
 
@@ -896,4 +965,129 @@ test("RetrievalService hybrid ranking honors configured strategy weights", async
     result.retrievedChunks.map(chunk => chunk.chunkId),
     ["chunk-lexical", "chunk-vector"]
   );
+});
+
+test("RetrievalService reports candidate-budget saturation signals", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-vector-1",
+              documentId: "doc-1",
+              chunkIndex: 0,
+              content: "semantic alpha",
+              pageNo: null,
+              sectionTitle: "Overview",
+              document: { title: "Doc 1" }
+            },
+            {
+              id: "chunk-vector-2",
+              documentId: "doc-2",
+              chunkIndex: 0,
+              content: "semantic beta",
+              pageNo: null,
+              sectionTitle: "Overview",
+              document: { title: "Doc 2" }
+            }
+          ];
+        }
+
+        return [
+          {
+            id: "chunk-vector-1",
+            documentId: "doc-1",
+            chunkIndex: 0,
+            content: "semantic alpha",
+            pageNo: null,
+            sectionTitle: "Overview",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-vector-2",
+            documentId: "doc-2",
+            chunkIndex: 0,
+            content: "semantic beta",
+            pageNo: null,
+            sectionTitle: "Overview",
+            document: { title: "Doc 2" }
+          },
+          {
+            id: "chunk-lexical-3",
+            documentId: "doc-3",
+            chunkIndex: 0,
+            content: "alpha phrase alpha phrase",
+            pageNo: null,
+            sectionTitle: "alpha phrase",
+            document: { title: "Doc 3" }
+          },
+          {
+            id: "chunk-lexical-4",
+            documentId: "doc-4",
+            chunkIndex: 0,
+            content: "alpha phrase exact match",
+            pageNo: null,
+            sectionTitle: "alpha phrase",
+            document: { title: "Doc 4" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [
+      { chunkId: "chunk-vector-1", score: 0.91 },
+      { chunkId: "chunk-vector-2", score: 0.89 }
+    ]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "alpha phrase",
+    topK: 2,
+    scoreThreshold: 0,
+    enableHybrid: true,
+    strategy: {
+      queryRewrite: {
+        enabled: false
+      },
+      candidateSelection: {
+        mode: "hybrid",
+        candidateMultiplier: 1,
+        minCandidates: 2
+      },
+      hybrid: {
+        vectorWeight: 0.5,
+        lexicalWeight: 0.5
+      },
+      rerank: {
+        enabled: false
+      }
+    }
+  });
+
+  assert.deepEqual(result.execution, {
+    actualMode: "hybrid",
+    usedFallback: false,
+    fallbackReason: null,
+    rerankApplied: false,
+    chunkWindowApplied: false,
+    vectorSearchAttempted: true,
+    lexicalSearchAttempted: true,
+    vectorCandidateLimitHit: true,
+    lexicalCandidateLimitHit: true,
+    rankingTopKHit: true,
+    candidateLimit: 2,
+    vectorCandidateCount: 2,
+    lexicalCandidateCount: 2,
+    mergedCandidateCount: 4,
+    rankedCandidateCount: 2
+  });
 });

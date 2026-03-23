@@ -483,8 +483,8 @@ The following path has been validated locally on `2026-03-21`:
    - `answerStatus` is `grounded` or `insufficient_context`
    - `missingInformation` is returned as an array
    - `qualityEvaluation` is returned with `overall`, `grounding`, `completeness`, `flags`, and `summary`
-   - `retrievalMetadata` is returned with resolved strategy, rewrite execution, and retrieval execution summary
-   - `answeringMetadata` is returned with prompt id, normalized answer policy, context mode, and citation count
+   - `retrievalMetadata` is returned with resolved strategy, rewrite execution, and retrieval execution summary, including final query source, actual mode, attempted search paths, fallback reason, rerank application, chunk-window application, candidate flow, candidate-budget saturation signals, and neighbor expansion counts
+   - `answeringMetadata` is returned with prompt id, normalized answer policy, resolved language, generation mode, context mode, prompt-context count, citation counts before/after truncation, citation attribution/source, missing-information count/source, answer-text source, answer-status source, and insufficient-context reason
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
    - `contextGroups` is returned as an array
@@ -493,8 +493,8 @@ The following path has been validated locally on `2026-03-21`:
    - `retrievedChunks` include vector similarity scores
    - trace may contain `rewrittenQuery`
    - trace `retrievalScoresJson` may contain `vectorScore`, `lexicalScore`, `hybridScore`, and `rerankScore`
-   - trace `retrievalMetadataJson` records the effective retrieval strategy, filters, rewrite execution, and retrieval summary
-   - trace `answeringMetadataJson` records the effective answer prompt id and normalized answer-policy execution
+   - trace `retrievalMetadataJson` records the effective retrieval strategy, filters, rewrite execution, and retrieval summary, including final query source and attempted search paths
+   - trace `answeringMetadataJson` records the effective answer prompt id and normalized answer-policy execution, including citation provenance, citation truncation, missing-information provenance, answer-text source, answer-status source, and insufficient-context reason
    - trace persistence is successful
 
 ## Current implementation scope
@@ -526,6 +526,11 @@ The following path has been validated locally on `2026-03-21`:
 - ask / trace retrieval metadata `execution` now also exposes:
   - `actualMode`: the actual retrieval path used for the final result (`vector` / `hybrid` / `lexical`)
   - `usedFallback`: whether the backend had to fall back away from the requested vector path
+  - `candidateLimit`: the resolved retrieval candidate budget after candidate-selection strategy expansion
+  - `vectorCandidateCount` / `lexicalCandidateCount`: how many vector and lexical candidates were produced before merge
+  - `mergedCandidateCount`: how many candidates remained after hybrid merge or lexical fallback resolution
+  - `rankedCandidateCount`: how many candidates survived thresholding and ranking before chunk-window expansion
+  - `neighborChunkCount`: how many returned chunks were added by chunk-window expansion rather than selected as direct primary hits
 - Chunk-window context grouping for ask responses:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments

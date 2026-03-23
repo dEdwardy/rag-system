@@ -605,6 +605,72 @@
     - `node --test apps/api/test/answering.test.js`
     - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
 
+- ✅ answering metadata prompt-context count exposure
+  - `answeringMetadata` 现在也会显式返回 `promptContextCount`，用于表示实际送进 answer generation 的上下文单元数
+  - 该字段与 `contextMode` 对齐：
+    - `chunks` 模式下等于 raw `inputChunkCount`
+    - `context_groups` 模式下等于 merged context group 数，而不再需要上层自己从 `contextMode` 和 `contextGroupCount` 推断
+  - one-shot、native stream final payload、以及持久化 trace 中的 `answeringMetadataJson` 语义现已一起补齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ answering citation-attribution metadata exposure
+  - `answeringMetadata` 现在也会显式返回 `citationAttribution`，用于区分最终 citation 是 `explicit`、`heuristic` 还是 `none`
+  - 这样上层不再需要从 `qualityEvaluation.summary` 或 grounded wording 间接反推 citation 来源
+  - one-shot、native stream final payload、以及持久化 trace 中的 `answeringMetadataJson` 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ answering missing-information count exposure
+  - `answeringMetadata` 现在也会显式返回 `missingInformationCount`，用于表达最终响应里保留了多少条缺失信息项
+  - 这样上层不再需要从 `missingInformation.length` 自己推导 metadata 统计，也能更直接地读 trace persistence
+  - one-shot、native stream final payload、以及持久化 trace 中的 `answeringMetadataJson` 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ answering resolved-language exposure
+  - `answeringMetadata` 现在也会显式返回 `resolvedLanguage`，用于表达 backend 最终把 `auto` / `same_as_question` 解析成了哪种实际语言
+  - 这样上层不再需要结合 policy 与问题文本自己推断当前回答链路到底按 `en` 还是 `zh` 落地
+  - one-shot、native stream final payload、以及持久化 trace 中的 `answeringMetadataJson` 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+  - ✅ answering generation-mode exposure
+  - `answeringMetadata` 现在也会显式返回 `generationMode`，用于区分当前回答是正常走了 answer generation，还是在 no-hit `say_insufficient_context` 路径上直接走了 deterministic bypass
+  - 当前值收口为 `generated` / `deterministic_bypass`，对应 one-shot 与 native stream 的最终 payload，以及 trace 持久化里的 `answeringMetadataJson`
+    - 这样上层不再需要结合 `noAnswerBehavior`、retrieval hit 情况和 orchestration 逻辑，自己反推这一轮是否实际绕过了 provider generation
+    - focused validation rerun:
+      - `pnpm --filter @rag-system/api build`
+      - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+  - ✅ answering citation-truncation and gap-provenance exposure
+    - `answeringMetadata` 现在也会显式返回 `citationCountBeforeLimit` 与 `citationLimitHit`，用于区分最终 citation 数量到底是天然较少，还是被 `maxCitations` 截断过
+    - `answeringMetadata` 同时显式返回 `missingInformationSource`，当前值收口为 `none` / `model` / `deterministic_default` / `suppressed_by_policy`
+    - 这样上层不再需要从 `maxCitations`、最终 citation 数量和 `missingInformation` 本体去反推 citation 截断或 advisory gap 的来源
+    - one-shot、native stream final payload、以及 trace 持久化里的 `answeringMetadataJson` 语义现已对齐
+    - focused validation rerun:
+      - `pnpm --filter @rag-system/api build`
+      - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+  - ✅ answering answer-text-source and insufficient-context-reason exposure
+    - `answeringMetadata` 现在也会显式返回 `answerTextSource`，当前值收口为 `model` / `deterministic_policy`
+    - `answeringMetadata` 同时显式返回 `insufficientContextReason`，当前值收口为 `no_retrieval_hits` / `retrieved_context_insufficient` / `null`
+    - 这样上层不再需要结合 `noAnswerBehavior`、最终 answer text、以及 retrieval hit 情况，自己反推这轮回答是否被 deterministic policy 覆盖，以及 `insufficient_context` 到底来自 no-hit 还是 hit-aware 证据不足
+    - one-shot、native stream final payload、以及 trace 持久化里的 `answeringMetadataJson` 语义现已对齐
+  - ✅ answering citation-source and status-source provenance
+    - `answeringMetadata` 现在也会显式返回 `citationSelectionSource`，当前值收口为 `structured` / `inline_markers` / `heuristic` / `none`
+    - `answeringMetadata` 同时显式返回 `answerStatusSource`，当前值收口为 `model` / `inferred_from_retrieval` / `deterministic_policy`
+    - 这样上层不再需要自己判断 citation 是来自 structured output、plain-text marker 解析还是 heuristic backfill，也不需要再从结果形态反推 `answerStatus` 是模型明确给出的还是 backend 推断出来的
+    - one-shot、native stream final payload、以及 trace 持久化里的 `answeringMetadataJson` 语义现已对齐
+    - focused validation rerun:
+      - `pnpm --filter @rag-system/api build`
+      - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+    - focused validation rerun:
+      - `pnpm --filter @rag-system/api build`
+      - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ local grounded fallback answer language alignment
   - 当没有可用模型 provider、但 retrieval 已命中内容时，`LlmService` 本地 grounded fallback answer 不再固定使用英文前缀
   - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，让 hitful local fallback 与 no-hit local fallback 的语言策略保持一致
@@ -629,13 +695,32 @@
 
 - ✅ retrieval execution metadata actual-path exposure
   - `ask` / trace retrieval metadata `execution` 现在除了 query、threshold 和 chunk counts 之外，也会显式暴露：
-    - `actualMode`: `vector` / `hybrid` / `lexical`
-    - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
+      - `actualMode`: `vector` / `hybrid` / `lexical`
+      - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
+      - `fallbackReason`: 当前 lexical fallback 是由向量错误触发，还是因为没有留下可排序候选
+      - `rerankApplied`: 当前结果是否按 rerank 路径完成最终排序
+      - `chunkWindowApplied`: 当前结果是否实际走过 chunk-window 扩展
+      - `vectorCandidateLimitHit` / `lexicalCandidateLimitHit`: 当前向量/词法候选是否打满了 candidate budget
+      - `rankingTopKHit`: 当前 ranking 结果是否打满了最终 `topK` 上限
+      - `candidateLimit`: 当前 candidate-selection 策略最终解析出的候选预算
+      - `vectorCandidateCount` / `lexicalCandidateCount`: merge 之前各自拿到了多少候选
+      - `mergedCandidateCount`: hybrid merge 或 lexical fallback 之后还保留了多少候选
+    - `rankedCandidateCount`: threshold + ranking 之后、chunk-window 扩展之前剩余多少候选
+    - `neighborChunkCount`: 最终返回 chunk 里，有多少是 chunk-window 扩展出来的邻接块，而不是 direct primary hit
   - 这样当前 retrieval metadata 不再只表达“想要的策略”，也能表达“最终实际走到的检索路径”
   - 当前改动保持 API 向后兼容，只是在既有 `retrievalMetadata.execution` 里增加字段
   - focused validation rerun:
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ retrieval rewrite-source and search-attempt diagnostics
+  - `retrievalMetadata.queryRewrite` 现在也会显式返回 `finalQuerySource`，当前值收口为 `rewritten` / `original_disabled` / `original_unchanged`
+  - `retrievalMetadata.execution` 现在也会显式返回 `vectorSearchAttempted` / `lexicalSearchAttempted`
+  - 这样上层不再需要从最终 query、strategy mode 和 fallback 状态自己反推“原问题为什么被保留”以及“这一轮实际尝试过哪些检索路径”
+  - one-shot ask、native stream final payload、以及 trace persistence 里的 retrieval metadata 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/retrieval.test.js apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
 
 - ✅ structured missing-information normalization dedup
   - LLM structured-answer schema 现在会对 `missingInformation` 做和 `citations` / `citationEvidence` 一致的收口：trim、去空、按首次出现顺序去重

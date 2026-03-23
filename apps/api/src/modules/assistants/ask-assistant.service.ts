@@ -484,9 +484,22 @@ export class AskAssistantService {
     chunkWindow: number;
     retrievedChunks: AskResultChunk[];
     contextGroups: Array<{ primaryChunkIds: string[] }>;
-    execution: {
-      actualMode: "vector" | "hybrid" | "lexical";
-      usedFallback: boolean;
+      execution: {
+        actualMode: "vector" | "hybrid" | "lexical";
+        usedFallback: boolean;
+        fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+        rerankApplied: boolean;
+        chunkWindowApplied: boolean;
+        vectorSearchAttempted: boolean;
+        lexicalSearchAttempted: boolean;
+        vectorCandidateLimitHit: boolean;
+        lexicalCandidateLimitHit: boolean;
+        rankingTopKHit: boolean;
+        candidateLimit: number;
+        vectorCandidateCount: number;
+      lexicalCandidateCount: number;
+      mergedCandidateCount: number;
+      rankedCandidateCount: number;
     };
   }): Prisma.InputJsonValue {
     return {
@@ -495,6 +508,11 @@ export class AskAssistantService {
       queryRewrite: {
         enabled: input.strategy.queryRewrite.enabled,
         applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
+        finalQuerySource: !input.strategy.queryRewrite.enabled
+          ? "original_disabled"
+          : input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
+            ? "rewritten"
+            : "original_unchanged",
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
       },
@@ -505,9 +523,23 @@ export class AskAssistantService {
         chunkWindow: input.chunkWindow,
         actualMode: input.execution.actualMode,
         usedFallback: input.execution.usedFallback,
+        fallbackReason: input.execution.fallbackReason,
+        rerankApplied: input.execution.rerankApplied,
+        chunkWindowApplied: input.execution.chunkWindowApplied,
+        vectorSearchAttempted: input.execution.vectorSearchAttempted,
+        lexicalSearchAttempted: input.execution.lexicalSearchAttempted,
+        vectorCandidateLimitHit: input.execution.vectorCandidateLimitHit,
+        lexicalCandidateLimitHit: input.execution.lexicalCandidateLimitHit,
+        rankingTopKHit: input.execution.rankingTopKHit,
+        candidateLimit: input.execution.candidateLimit,
+        vectorCandidateCount: input.execution.vectorCandidateCount,
+        lexicalCandidateCount: input.execution.lexicalCandidateCount,
+        mergedCandidateCount: input.execution.mergedCandidateCount,
+        rankedCandidateCount: input.execution.rankedCandidateCount,
         retrievedChunkCount: input.retrievedChunks.length,
         contextGroupCount: input.contextGroups.length,
-        primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length
+        primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length,
+        neighborChunkCount: input.retrievedChunks.filter(chunk => !(chunk.isPrimary ?? true)).length
       }
     } as Prisma.InputJsonValue;
   }

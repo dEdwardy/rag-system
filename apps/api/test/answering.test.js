@@ -111,10 +111,22 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: true
     },
+    resolvedLanguage: "en",
+    generationMode: "generated",
     contextMode: "chunks",
     inputChunkCount: 2,
+    promptContextCount: 2,
     contextGroupCount: 0,
+    citationCountBeforeLimit: 2,
     citationCount: 1,
+    citationLimitHit: true,
+    citationAttribution: "explicit",
+    citationSelectionSource: "structured",
+    missingInformationCount: 0,
+    missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
+    answerStatusSource: "model",
     answerStatus: "grounded"
   });
 });
@@ -151,6 +163,8 @@ test("AnsweringService falls back to default structured metadata when the model 
   assert.deepEqual(result.missingInformation, []);
   assert.equal(result.citations.length, 1);
   assert.equal(result.citations[0].chunkId, "chunk-1");
+  assert.equal(result.answeringMetadata.citationSelectionSource, "structured");
+  assert.equal(result.answeringMetadata.answerStatusSource, "inferred_from_retrieval");
 });
 
 test("AnsweringService exposes usedFallback in answering metadata for local fallback answers", async () => {
@@ -320,7 +334,14 @@ test("AnsweringService localizes fallback-generation quality summaries for Chine
     ]
   });
 
-  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002");
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["fallback_generation"],
+    summary: "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002"
+  });
 });
 
 test("AnsweringService de-duplicates repeated inline citation markers from plain-text answers", async () => {
@@ -405,6 +426,12 @@ test("AnsweringService does not fabricate heuristic citations when citationMode 
   });
 
   assert.deepEqual(result.citations, []);
+  assert.equal(result.answeringMetadata.citationAttribution, "none");
+  assert.equal(result.answeringMetadata.citationCountBeforeLimit, 0);
+  assert.equal(result.answeringMetadata.citationLimitHit, false);
+  assert.equal(result.answeringMetadata.missingInformationCount, 0);
+  assert.equal(result.answeringMetadata.missingInformationSource, "none");
+  assert.equal(result.answeringMetadata.resolvedLanguage, "en");
 });
 
 test("AnsweringService keeps quality evaluation strong when citations are optional and no other gaps exist", async () => {
@@ -545,6 +572,7 @@ test("AnsweringService clears missingInformation when the policy disables it", a
   });
 
   assert.deepEqual(result.missingInformation, []);
+  assert.equal(result.answeringMetadata.missingInformationSource, "suppressed_by_policy");
 });
 
 test("AnsweringService prefers merged contextGroups content when calling the model", async () => {
@@ -629,10 +657,22 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: true
     },
+    resolvedLanguage: "en",
+    generationMode: "generated",
     contextMode: "context_groups",
     inputChunkCount: 2,
+    promptContextCount: 1,
     contextGroupCount: 1,
+    citationCountBeforeLimit: 1,
     citationCount: 1,
+    citationLimitHit: false,
+    citationAttribution: "explicit",
+    citationSelectionSource: "structured",
+    missingInformationCount: 0,
+    missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
+    answerStatusSource: "inferred_from_retrieval",
     answerStatus: "grounded"
   });
 });
@@ -813,6 +853,9 @@ test("AnsweringService does not claim cited-source grounding when citations were
     summary:
       "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
   });
+  assert.equal(result.answeringMetadata.citationAttribution, "heuristic");
+  assert.equal(result.answeringMetadata.missingInformationCount, 0);
+  assert.equal(result.answeringMetadata.resolvedLanguage, "en");
 });
 
 test("AnsweringService localizes strong summaries when citations were heuristically backfilled", async () => {
@@ -1507,7 +1550,14 @@ test("AnsweringService localizes weak insufficient-context quality summaries for
     chunks: []
   });
 
-  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002");
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002"
+  });
 });
 
 test("AnsweringService preserves localized no-hit weak quality metadata for Chinese questions", async () => {
@@ -1729,16 +1779,15 @@ test("AnsweringService localizes low-confidence weak insufficient-context summar
     ]
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "insufficient_context");
-  assert.deepEqual(result.qualityEvaluation.flags, [
-    "insufficient_context",
-    "missing_information",
-    "low_retrieval_score"
-  ]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002"
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+    summary:
+      "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002"
+  });
 });
 
 test("AnsweringService enforces say_insufficient_context with a deterministic fallback answer", async () => {
@@ -1804,6 +1853,9 @@ test("AnsweringService preserves best_effort answers even when context is insuff
 
   assert.equal(result.answer, "Best effort answer with uncertainty.");
   assert.equal(result.answerStatus, "insufficient_context");
+  assert.equal(result.answeringMetadata.answerTextSource, "model");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
 });
 
 test("AnsweringService localizes the deterministic insufficient-context fallback for Chinese questions", async () => {
@@ -1865,6 +1917,10 @@ test("AnsweringService preserves missingInformation for insufficient-context ans
   });
 
   assert.deepEqual(result.missingInformation, ["Need pricing details."]);
+  assert.equal(result.answeringMetadata.missingInformationSource, "model");
+  assert.equal(result.answeringMetadata.answerTextSource, "deterministic_policy");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",
@@ -1903,6 +1959,10 @@ test("AnsweringService fills a deterministic missingInformation reason for insuf
   });
 
   assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
+  assert.equal(result.answeringMetadata.missingInformationSource, "deterministic_default");
+  assert.equal(result.answeringMetadata.answerTextSource, "deterministic_policy");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",
@@ -1953,6 +2013,9 @@ test("AnsweringService uses a hit-aware deterministic missingInformation reason 
   assert.deepEqual(result.missingInformation, [
     "Retrieved context was still insufficient to support a reliable answer."
   ]);
+  assert.equal(result.answeringMetadata.answerTextSource, "model");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "retrieved_context_insufficient");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",

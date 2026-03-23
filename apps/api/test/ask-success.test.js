@@ -115,7 +115,20 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           contextGroups,
           execution: {
             actualMode: "hybrid",
-            usedFallback: false
+            usedFallback: false,
+            fallbackReason: null,
+            rerankApplied: true,
+            chunkWindowApplied: true,
+            vectorSearchAttempted: true,
+            lexicalSearchAttempted: true,
+            vectorCandidateLimitHit: false,
+            lexicalCandidateLimitHit: false,
+            rankingTopKHit: false,
+            candidateLimit: 12,
+            vectorCandidateCount: 3,
+            lexicalCandidateCount: 2,
+            mergedCandidateCount: 4,
+            rankedCandidateCount: 1
           }
         };
       }
@@ -154,10 +167,22 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
               noAnswerBehavior: "say_insufficient_context",
               includeMissingInformation: false
             },
+            resolvedLanguage: "en",
+            generationMode: "generated",
             contextMode: "context_groups",
             inputChunkCount: 1,
+            promptContextCount: 1,
             contextGroupCount: 1,
+            citationCountBeforeLimit: 1,
             citationCount: 1,
+            citationLimitHit: false,
+            citationAttribution: "explicit",
+            citationSelectionSource: "structured",
+            missingInformationCount: 0,
+            missingInformationSource: "none",
+            answerTextSource: "model",
+            insufficientContextReason: null,
+            answerStatusSource: "model",
             answerStatus: "grounded"
           },
           modelName: "fallback-local",
@@ -297,6 +322,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     queryRewrite: {
       enabled: true,
       applied: true,
+      finalQuerySource: "rewritten",
       usedFallback: true,
       promptId: "rewrite-query.v1"
     },
@@ -307,11 +333,26 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       chunkWindow: 1,
       actualMode: "hybrid",
       usedFallback: false,
+      fallbackReason: null,
+      rerankApplied: true,
+      chunkWindowApplied: true,
+      vectorSearchAttempted: true,
+      lexicalSearchAttempted: true,
+      vectorCandidateLimitHit: false,
+      lexicalCandidateLimitHit: false,
+      rankingTopKHit: false,
+      candidateLimit: 12,
+      vectorCandidateCount: 3,
+      lexicalCandidateCount: 2,
+      mergedCandidateCount: 4,
+      rankedCandidateCount: 1,
       retrievedChunkCount: 1,
       contextGroupCount: 1,
-      primaryChunkCount: 1
+      primaryChunkCount: 1,
+      neighborChunkCount: 0
     }
   });
+  assert.equal(createTraceCalls[0].retrievalMetadataJson.execution.neighborChunkCount, 0);
   assert.deepEqual(attachedTraces, [
     {
       messageId: "user-message-1",
@@ -346,10 +387,22 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: false
     },
+    resolvedLanguage: "en",
+    generationMode: "generated",
     contextMode: "context_groups",
     inputChunkCount: 1,
+    promptContextCount: 1,
     contextGroupCount: 1,
+    citationCountBeforeLimit: 1,
     citationCount: 1,
+    citationLimitHit: false,
+    citationAttribution: "explicit",
+    citationSelectionSource: "structured",
+    missingInformationCount: 0,
+    missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
+    answerStatusSource: "model",
     answerStatus: "grounded"
   });
   assert.equal(result.conversationId, "conversation-1");
@@ -372,10 +425,22 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: false
     },
+    resolvedLanguage: "en",
+    generationMode: "generated",
     contextMode: "context_groups",
     inputChunkCount: 1,
+    promptContextCount: 1,
     contextGroupCount: 1,
+    citationCountBeforeLimit: 1,
     citationCount: 1,
+    citationLimitHit: false,
+    citationAttribution: "explicit",
+    citationSelectionSource: "structured",
+    missingInformationCount: 0,
+    missingInformationSource: "none",
+    answerTextSource: "model",
+    insufficientContextReason: null,
+    answerStatusSource: "model",
     answerStatus: "grounded"
   });
   assert.equal(result.modelName, "fallback-local");
@@ -452,7 +517,20 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           contextGroups: [],
           execution: {
             actualMode: "lexical",
-            usedFallback: false
+            usedFallback: false,
+            fallbackReason: null,
+            rerankApplied: true,
+            chunkWindowApplied: false,
+            vectorSearchAttempted: false,
+            lexicalSearchAttempted: true,
+            vectorCandidateLimitHit: false,
+            lexicalCandidateLimitHit: false,
+            rankingTopKHit: false,
+            candidateLimit: 20,
+            vectorCandidateCount: 0,
+            lexicalCandidateCount: 0,
+            mergedCandidateCount: 0,
+            rankedCandidateCount: 0
           }
         };
       }
@@ -476,10 +554,22 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
             noAnswerBehavior: "say_insufficient_context",
             includeMissingInformation: true
           },
+          resolvedLanguage: "en",
+          generationMode: "deterministic_bypass",
           contextMode: "chunks",
           inputChunkCount: 0,
+          promptContextCount: 0,
           contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
           citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: "none",
+          citationSelectionSource: "none",
+          missingInformationCount: 0,
+          missingInformationSource: "none",
+          answerTextSource: "deterministic_policy",
+          insufficientContextReason: "no_retrieval_hits",
+          answerStatusSource: "deterministic_policy",
           answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
@@ -512,10 +602,18 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
             noAnswerBehavior: "say_insufficient_context",
             includeMissingInformation: true
           },
+          resolvedLanguage: "en",
+          generationMode: "deterministic_bypass",
           contextMode: "chunks",
           inputChunkCount: 0,
+          promptContextCount: 0,
           contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
           citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: "none",
+          missingInformationCount: 0,
+          missingInformationSource: "none",
           answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
@@ -605,6 +703,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     queryRewrite: {
       enabled: false,
       applied: false,
+      finalQuerySource: "original_disabled",
       usedFallback: null,
       promptId: null
     },
@@ -615,11 +714,26 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       chunkWindow: 0,
       actualMode: "lexical",
       usedFallback: false,
+      fallbackReason: null,
+      rerankApplied: true,
+      chunkWindowApplied: false,
+      vectorSearchAttempted: false,
+      lexicalSearchAttempted: true,
+      vectorCandidateLimitHit: false,
+      lexicalCandidateLimitHit: false,
+      rankingTopKHit: false,
+      candidateLimit: 20,
+      vectorCandidateCount: 0,
+      lexicalCandidateCount: 0,
+      mergedCandidateCount: 0,
+      rankedCandidateCount: 0,
       retrievedChunkCount: 0,
       contextGroupCount: 0,
-      primaryChunkCount: 0
+      primaryChunkCount: 0,
+      neighborChunkCount: 0
     }
   });
+  assert.equal(result.retrievalMetadata.execution.neighborChunkCount, 0);
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,
@@ -633,10 +747,22 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: true
     },
+    resolvedLanguage: "en",
+    generationMode: "deterministic_bypass",
     contextMode: "chunks",
     inputChunkCount: 0,
+    promptContextCount: 0,
     contextGroupCount: 0,
+    citationCountBeforeLimit: 0,
     citationCount: 0,
+    citationLimitHit: false,
+    citationAttribution: "none",
+    citationSelectionSource: "none",
+    missingInformationCount: 0,
+    missingInformationSource: "none",
+    answerTextSource: "deterministic_policy",
+    insufficientContextReason: "no_retrieval_hits",
+    answerStatusSource: "deterministic_policy",
     answerStatus: "insufficient_context"
   });
   assert.equal(result.traceId, "trace-1");
@@ -718,11 +844,12 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
             outputFormat: "paragraph",
             language: "auto",
             citationMode: "required",
-            maxCitations: 3,
-            noAnswerBehavior: "say_insufficient_context",
-            includeMissingInformation: true
-          },
-          contextMode: "chunks",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    resolvedLanguage: "en",
+    contextMode: "chunks",
           inputChunkCount: 0,
           contextGroupCount: 0,
           citationCount: 0,
@@ -954,21 +1081,24 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
       generateAnswer: async input => {
         generateAnswerCalls += 1;
         assert.equal(input.answerPolicy.noAnswerBehavior, "best_effort");
-        return {
-          answer: "Best effort answer with uncertainty.",
-          citations: [],
-          retrievedChunks: [],
-          contextGroups: [],
+          return {
+            answer: "Best effort answer with uncertainty.",
+            citations: [],
+            retrievedChunks: [],
+            contextGroups: [],
           answeringMetadata: {
             promptId: "answer.v2",
             usedFallback: false,
             answerPolicy: input.answerPolicy,
             contextMode: "chunks",
-            inputChunkCount: 0,
-            contextGroupCount: 0,
-            citationCount: 0,
-            answerStatus: "insufficient_context"
-          },
+              inputChunkCount: 0,
+              contextGroupCount: 0,
+              citationCount: 0,
+              answerTextSource: "model",
+              insufficientContextReason: "no_retrieval_hits",
+              answerStatusSource: "model",
+              answerStatus: "insufficient_context"
+            },
           modelName: "test-model",
           answerStatus: "insufficient_context",
           missingInformation: ["No relevant supporting sources were retrieved."],
@@ -1006,6 +1136,8 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
   assert.equal(result.answer, "Best effort answer with uncertainty.");
   assert.equal(result.answeringMetadata.answerPolicy.noAnswerBehavior, "best_effort");
   assert.equal(result.answerStatus, "insufficient_context");
+  assert.equal(result.answeringMetadata.answerTextSource, "model");
+  assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
 });
 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {
@@ -1130,7 +1262,14 @@ test("AskAssistantService localizes one-shot deterministic no-hit answers for Ch
   assert.deepEqual(result.missingInformation, [
     "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
   ]);
-  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002");
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002"
+  });
 });
 
 test("AskAssistantService preserves fallback_generation as the primary quality issue when persisting grounded fallback answers", async () => {

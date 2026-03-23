@@ -73,6 +73,7 @@ Current shape includes:
 - `queryRewrite`
   - `enabled`
   - `applied`
+  - `finalQuerySource`
   - `usedFallback`
   - `promptId`
 - `execution`
@@ -80,9 +81,25 @@ Current shape includes:
   - `topK`
   - `scoreThreshold`
   - `chunkWindow`
+  - `actualMode`
+  - `usedFallback`
+  - `fallbackReason`
+  - `rerankApplied`
+  - `chunkWindowApplied`
+  - `vectorSearchAttempted`
+  - `lexicalSearchAttempted`
+  - `vectorCandidateLimitHit`
+  - `lexicalCandidateLimitHit`
+  - `rankingTopKHit`
+  - `candidateLimit`
+  - `vectorCandidateCount`
+  - `lexicalCandidateCount`
+  - `mergedCandidateCount`
+  - `rankedCandidateCount`
   - `retrievedChunkCount`
   - `contextGroupCount`
   - `primaryChunkCount`
+  - `neighborChunkCount`
 
 This is the stable summary of how retrieval actually ran for the trace.
 
@@ -92,10 +109,22 @@ Current shape includes:
 
 - `promptId`
 - normalized `answerPolicy`
+- `resolvedLanguage`
+- `generationMode`
 - `contextMode`
 - `inputChunkCount`
+- `promptContextCount`
 - `contextGroupCount`
+- `citationCountBeforeLimit`
 - `citationCount`
+- `citationLimitHit`
+- `citationAttribution`
+- `citationSelectionSource`
+- `missingInformationCount`
+- `missingInformationSource`
+- `answerTextSource`
+- `answerStatusSource`
+- `insufficientContextReason`
 - `answerStatus`
 
 This is the stable summary of how answer generation actually ran for the trace.

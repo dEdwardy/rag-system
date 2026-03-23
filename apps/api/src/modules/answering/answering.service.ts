@@ -32,6 +32,7 @@ type CitationEvidence = {
 type CitationSelection = {
   chunks: RetrievedChunk[];
   attribution: "explicit" | "heuristic" | "none";
+  source: "structured" | "inline_markers" | "heuristic" | "none";
 };
 
 type QualityEvaluation = {
@@ -54,10 +55,22 @@ export type AnsweringMetadata = {
   promptId: string;
   usedFallback: boolean;
   answerPolicy: AnswerPolicy;
+  resolvedLanguage: "en" | "zh";
+  generationMode: "generated" | "deterministic_bypass";
   contextMode: "chunks" | "context_groups";
   inputChunkCount: number;
+  promptContextCount: number;
   contextGroupCount: number;
+  citationCountBeforeLimit: number;
   citationCount: number;
+  citationLimitHit: boolean;
+  citationAttribution: CitationSelection["attribution"];
+  citationSelectionSource: CitationSelection["source"];
+  missingInformationCount: number;
+  missingInformationSource: "none" | "model" | "deterministic_default" | "suppressed_by_policy";
+  answerTextSource: "model" | "deterministic_policy";
+  insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
+  answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy";
   answerStatus: "grounded" | "insufficient_context";
 };
 
@@ -160,16 +173,28 @@ export class AnsweringService {
       citations: [],
       retrievedChunks: [],
       contextGroups: [],
-      answeringMetadata: {
-        promptId: "answer.v2",
-        usedFallback: true,
-        answerPolicy,
-        contextMode: "chunks" as const,
-        inputChunkCount: 0,
-        contextGroupCount: 0,
-        citationCount: 0,
-        answerStatus: "insufficient_context" as const
-      },
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy,
+          resolvedLanguage: this.resolvePolicyLanguage(input.question, answerPolicy.language),
+          generationMode: "deterministic_bypass",
+          contextMode: "chunks" as const,
+          inputChunkCount: 0,
+          promptContextCount: 0,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: "none",
+          citationSelectionSource: "none",
+          missingInformationCount: missingInformation.length,
+          missingInformationSource: "deterministic_default",
+          answerTextSource: "deterministic_policy",
+          insufficientContextReason: "no_retrieval_hits",
+          answerStatusSource: "deterministic_policy",
+          answerStatus: "insufficient_context" as const
+        },
       modelName: "fallback-local",
       answerStatus: "insufficient_context" as const,
       missingInformation,
@@ -195,12 +220,14 @@ export class AnsweringService {
   }) {
     const usedFallback = input.result.usedFallback ?? input.result.modelName === "fallback-local";
     const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
+    const resolvedLanguage = this.resolvePolicyLanguage(input.question, input.answerPolicy.language);
+    const rawMissingInformation = input.result.missingInformation ?? [];
     const missingInformation = this.resolveMissingInformation({
       question: input.question,
       answerStatus,
       answerPolicy: input.answerPolicy,
       hasRetrievedContext: input.chunks.length > 0,
-      missingInformation: input.result.missingInformation ?? []
+      missingInformation: rawMissingInformation
     });
     const answer = this.resolveAnswerText({
       question: input.question,
@@ -229,10 +256,34 @@ export class AnsweringService {
           promptId: input.result.promptId ?? "answer.v2",
           usedFallback,
           answerPolicy: input.answerPolicy,
+          resolvedLanguage,
+          generationMode: "deterministic_bypass",
           contextMode: "chunks",
           inputChunkCount: 0,
+          promptContextCount: 0,
           contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
           citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: "none",
+          citationSelectionSource: "none",
+          missingInformationCount: missingInformation.length,
+          missingInformationSource: this.resolveMissingInformationSource({
+            answerStatus,
+            includeMissingInformation: input.answerPolicy.includeMissingInformation,
+            rawMissingInformationCount: rawMissingInformation.length
+          }),
+          answerTextSource: this.resolveAnswerTextSource({
+            answerStatus,
+            noAnswerBehavior: input.answerPolicy.noAnswerBehavior
+          }),
+          insufficientContextReason: this.resolveInsufficientContextReason({
+            answerStatus,
+            hasRetrievedContext: false
+          }),
+          answerStatusSource: this.resolveAnswerStatusSource({
+            answerStatusProvided: input.result.answerStatus != null
+          }),
           answerStatus
         },
         answerStatus,
@@ -250,6 +301,7 @@ export class AnsweringService {
       answer: input.result.answer,
       citationMode: input.answerPolicy.citationMode
     });
+    const citationCountBeforeLimit = citationSelection.chunks.length;
     const citedChunks = citationSelection.chunks.slice(0, input.answerPolicy.maxCitations);
     const citations = citedChunks.map(chunk => ({
       chunkId: chunk.chunkId,
@@ -284,10 +336,36 @@ export class AnsweringService {
         promptId: input.result.promptId ?? "answer.v2",
         usedFallback,
         answerPolicy: input.answerPolicy,
+        resolvedLanguage,
+        generationMode: "generated",
         contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
         inputChunkCount: input.chunks.length,
+        promptContextCount: input.contextGroups && input.contextGroups.length > 0
+          ? input.contextGroups.length
+          : input.chunks.length,
         contextGroupCount: input.contextGroups?.length ?? 0,
+        citationCountBeforeLimit,
         citationCount: citations.length,
+        citationLimitHit: citationCountBeforeLimit > input.answerPolicy.maxCitations,
+        citationAttribution: citationSelection.attribution,
+        citationSelectionSource: citationSelection.source,
+        missingInformationCount: missingInformation.length,
+        missingInformationSource: this.resolveMissingInformationSource({
+          answerStatus,
+          includeMissingInformation: input.answerPolicy.includeMissingInformation,
+          rawMissingInformationCount: rawMissingInformation.length
+        }),
+        answerTextSource: this.resolveAnswerTextSource({
+          answerStatus,
+          noAnswerBehavior: input.answerPolicy.noAnswerBehavior
+        }),
+        insufficientContextReason: this.resolveInsufficientContextReason({
+          answerStatus,
+          hasRetrievedContext: input.chunks.length > 0
+        }),
+        answerStatusSource: this.resolveAnswerStatusSource({
+          answerStatusProvided: input.result.answerStatus != null
+        }),
         answerStatus
       },
       answerStatus,
@@ -335,6 +413,53 @@ export class AnsweringService {
     }
 
     return input.answerPolicy.includeMissingInformation ? input.missingInformation : [];
+  }
+
+  private resolveMissingInformationSource(input: {
+    answerStatus: "grounded" | "insufficient_context";
+    includeMissingInformation: boolean;
+    rawMissingInformationCount: number;
+  }): AnsweringMetadata["missingInformationSource"] {
+    if (input.answerStatus === "insufficient_context") {
+      return input.rawMissingInformationCount > 0 ? "model" : "deterministic_default";
+    }
+
+    if (input.rawMissingInformationCount === 0) {
+      return "none";
+    }
+
+    return input.includeMissingInformation ? "model" : "suppressed_by_policy";
+  }
+
+  private resolveAnswerTextSource(input: {
+    answerStatus: "grounded" | "insufficient_context";
+    noAnswerBehavior: AnswerPolicy["noAnswerBehavior"];
+  }): AnsweringMetadata["answerTextSource"] {
+    if (
+      input.answerStatus === "insufficient_context" &&
+      input.noAnswerBehavior === "say_insufficient_context"
+    ) {
+      return "deterministic_policy";
+    }
+
+    return "model";
+  }
+
+  private resolveInsufficientContextReason(input: {
+    answerStatus: "grounded" | "insufficient_context";
+    hasRetrievedContext: boolean;
+  }): AnsweringMetadata["insufficientContextReason"] {
+    if (input.answerStatus !== "insufficient_context") {
+      return null;
+    }
+
+    return input.hasRetrievedContext ? "retrieved_context_insufficient" : "no_retrieval_hits";
+  }
+
+  private resolveAnswerStatusSource(input: {
+    answerStatusProvided: boolean;
+  }): AnsweringMetadata["answerStatusSource"] {
+    return input.answerStatusProvided ? "model" : "inferred_from_retrieval";
   }
 
   private buildInsufficientContextAnswer(
@@ -423,7 +548,8 @@ export class AnsweringService {
     if (validChunks.length > 0) {
       return {
         chunks: validChunks,
-        attribution: "explicit"
+        attribution: "explicit",
+        source: "structured"
       };
     }
 
@@ -445,20 +571,23 @@ export class AnsweringService {
     if (uniqueExtractedFromAnswer.length > 0) {
       return {
         chunks: uniqueExtractedFromAnswer,
-        attribution: "explicit"
+        attribution: "explicit",
+        source: "inline_markers"
       };
     }
 
     if (input.citationMode === "optional") {
       return {
         chunks: [],
-        attribution: "none"
+        attribution: "none",
+        source: "none"
       };
     }
 
     return {
       chunks: input.chunks.slice(0, Math.min(3, input.chunks.length)),
-      attribution: input.chunks.length > 0 ? "heuristic" : "none"
+      attribution: input.chunks.length > 0 ? "heuristic" : "none",
+      source: input.chunks.length > 0 ? "heuristic" : "none"
     };
   }
 
