@@ -1856,47 +1856,20 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -1906,7 +1879,7 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
         }
       })
     },
-    {
+    answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
         throw new Error("one-shot generateAnswer should not be used by native streaming");
@@ -1940,14 +1913,14 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -1965,7 +1938,7 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
         };
       }
     }
-  );
+  });
 
   const finalResult = await service.askAssistantStream({
     assistantId: "assistant-1",
@@ -2017,47 +1990,20 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -2067,7 +2013,7 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
         }
       })
     },
-    {
+    answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
         throw new Error("one-shot generateAnswer should not be used by native streaming");
@@ -2100,14 +2046,14 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -2125,7 +2071,7 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
         };
       }
     }
-  );
+  });
 
   const finalResult = await service.askAssistantStream({
     assistantId: "assistant-1",
