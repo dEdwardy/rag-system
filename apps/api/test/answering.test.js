@@ -112,6 +112,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
       includeMissingInformation: true
     },
     resolvedLanguage: "en",
+    generationMode: "generated",
     contextMode: "chunks",
     inputChunkCount: 2,
     promptContextCount: 2,
@@ -644,6 +645,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
       includeMissingInformation: true
     },
     resolvedLanguage: "en",
+    generationMode: "generated",
     contextMode: "context_groups",
     inputChunkCount: 2,
     promptContextCount: 1,

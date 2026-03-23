@@ -639,6 +639,14 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
 
+- ✅ answering generation-mode exposure
+  - `answeringMetadata` 现在也会显式返回 `generationMode`，用于区分当前回答是正常走了 answer generation，还是在 no-hit `say_insufficient_context` 路径上直接走了 deterministic bypass
+  - 当前值收口为 `generated` / `deterministic_bypass`，对应 one-shot 与 native stream 的最终 payload，以及 trace 持久化里的 `answeringMetadataJson`
+  - 这样上层不再需要结合 `noAnswerBehavior`、retrieval hit 情况和 orchestration 逻辑，自己反推这一轮是否实际绕过了 provider generation
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ local grounded fallback answer language alignment
   - 当没有可用模型 provider、但 retrieval 已命中内容时，`LlmService` 本地 grounded fallback answer 不再固定使用英文前缀
   - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，让 hitful local fallback 与 no-hit local fallback 的语言策略保持一致

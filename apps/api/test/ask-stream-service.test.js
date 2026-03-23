@@ -75,6 +75,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
           resolvedLanguage: "en",
+          generationMode: "generated",
           contextMode: "chunks",
           inputChunkCount: input.chunks.length,
           promptContextCount: input.chunks.length,
@@ -143,6 +144,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answeringMetadata.citationAttribution, "none");
   assert.equal(finalResult.answeringMetadata.missingInformationCount, 0);
   assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
+  assert.equal(finalResult.answeringMetadata.generationMode, "generated");
 });
 
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
@@ -221,10 +223,15 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
             noAnswerBehavior: "say_insufficient_context",
             includeMissingInformation: true
           },
+          resolvedLanguage: "en",
+          generationMode: "deterministic_bypass",
           contextMode: "chunks",
           inputChunkCount: 0,
+          promptContextCount: 0,
           contextGroupCount: 0,
           citationCount: 0,
+          citationAttribution: "none",
+          missingInformationCount: 1,
           answerStatus: "insufficient_context"
         },
         answerStatus: "insufficient_context",

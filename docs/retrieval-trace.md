@@ -101,6 +101,7 @@ Current shape includes:
 - `promptId`
 - normalized `answerPolicy`
 - `resolvedLanguage`
+- `generationMode`
 - `contextMode`
 - `inputChunkCount`
 - `promptContextCount`

@@ -55,6 +55,7 @@ export type AnsweringMetadata = {
   usedFallback: boolean;
   answerPolicy: AnswerPolicy;
   resolvedLanguage: "en" | "zh";
+  generationMode: "generated" | "deterministic_bypass";
   contextMode: "chunks" | "context_groups";
   inputChunkCount: number;
   promptContextCount: number;
@@ -164,16 +165,21 @@ export class AnsweringService {
       citations: [],
       retrievedChunks: [],
       contextGroups: [],
-      answeringMetadata: {
-        promptId: "answer.v2",
-        usedFallback: true,
-        answerPolicy,
-        contextMode: "chunks" as const,
-        inputChunkCount: 0,
-        contextGroupCount: 0,
-        citationCount: 0,
-        answerStatus: "insufficient_context" as const
-      },
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy,
+          resolvedLanguage: this.resolvePolicyLanguage(input.question, answerPolicy.language),
+          generationMode: "deterministic_bypass",
+          contextMode: "chunks" as const,
+          inputChunkCount: 0,
+          promptContextCount: 0,
+          contextGroupCount: 0,
+          citationCount: 0,
+          citationAttribution: "none",
+          missingInformationCount: missingInformation.length,
+          answerStatus: "insufficient_context" as const
+        },
       modelName: "fallback-local",
       answerStatus: "insufficient_context" as const,
       missingInformation,
@@ -235,6 +241,7 @@ export class AnsweringService {
           usedFallback,
           answerPolicy: input.answerPolicy,
           resolvedLanguage,
+          generationMode: "deterministic_bypass",
           contextMode: "chunks",
           inputChunkCount: 0,
           promptContextCount: 0,
@@ -294,6 +301,7 @@ export class AnsweringService {
         usedFallback,
         answerPolicy: input.answerPolicy,
         resolvedLanguage,
+        generationMode: "generated",
         contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
         inputChunkCount: input.chunks.length,
         promptContextCount: input.contextGroups && input.contextGroups.length > 0
