@@ -1552,17 +1552,23 @@ test("AskAssistantService persists heuristic-citation strong summaries without u
     question: "Where is the marker?"
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "none");
-  assert.deepEqual(result.qualityEvaluation.flags, []);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "none",
+    flags: [],
+    summary: "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "none",
+    flags: [],
+    summary: "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
+  });
 });
 
 test("AskAssistantService preserves localized heuristic-citation strong summaries in Chinese", async () => {
@@ -1983,14 +1989,23 @@ test("AskAssistantService preserves generic strong summaries without citations",
     question: "What happened?"
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "none");
-  assert.deepEqual(result.qualityEvaluation.flags, []);
-  assert.equal(result.qualityEvaluation.summary, "Answer is grounded in retrieved sources with no reported gaps.");
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "none",
+    flags: [],
+    summary: "Answer is grounded in retrieved sources with no reported gaps."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded in retrieved sources with no reported gaps."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "none",
+    flags: [],
+    summary: "Answer is grounded in retrieved sources with no reported gaps."
+  });
 });
 
 test("AskAssistantService preserves localized generic strong summaries without citations in Chinese", async () => {

@@ -2293,20 +2293,23 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
     events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
     ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "insufficient_context");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, [
-    "insufficient_context",
-    "missing_information"
-  ]);
-  assert.equal(
-    finalResult.qualityEvaluation.summary,
-    "Answer quality is weak because retrieved context was still insufficient."
-  );
+  assert.deepEqual(finalResult.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because retrieved context was still insufficient."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer quality is weak because retrieved context was still insufficient."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because retrieved context was still insufficient."
+  });
 });
 
 test("AskAssistantService stream preserves localized hit-aware weak insufficient-context summaries in Chinese", async () => {
@@ -2934,17 +2937,23 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
     events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
     ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "low_retrieval_score");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, ["low_retrieval_score"]);
-  assert.equal(
-    finalResult.qualityEvaluation.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context."
-  );
+  assert.deepEqual(finalResult.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "low_retrieval_score",
+    flags: ["low_retrieval_score"],
+    summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "low_retrieval_score",
+    flags: ["low_retrieval_score"],
+    summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+  });
 });
 
 test("AskAssistantService stream preserves localized low-retrieval grounded summaries", async () => {
@@ -3252,17 +3261,23 @@ test("AskAssistantService stream preserves fallback-only grounded summaries", as
     events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
     ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "fallback_generation");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, ["fallback_generation"]);
-  assert.equal(
-    finalResult.qualityEvaluation.summary,
-    "Answer is grounded, but it was produced through local fallback behavior."
-  );
+  assert.deepEqual(finalResult.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["fallback_generation"],
+    summary: "Answer is grounded, but it was produced through local fallback behavior."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded, but it was produced through local fallback behavior."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["fallback_generation"],
+    summary: "Answer is grounded, but it was produced through local fallback behavior."
+  });
 });
 
 test("AskAssistantService stream preserves localized fallback-only grounded summaries", async () => {
