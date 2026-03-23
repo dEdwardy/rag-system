@@ -1865,11 +1865,14 @@ test("AnsweringService preserves missingInformation for insufficient-context ans
   });
 
   assert.deepEqual(result.missingInformation, ["Need pricing details."]);
-  assert.deepEqual(result.qualityEvaluation.flags, [
-    "no_retrieval_hits",
-    "insufficient_context",
-    "missing_information"
-  ]);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because supporting context was insufficient."
+  });
 });
 
 test("AnsweringService fills a deterministic missingInformation reason for insufficient-context answers when the model omits one", async () => {
