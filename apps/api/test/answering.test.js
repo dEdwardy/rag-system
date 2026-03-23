@@ -943,15 +943,14 @@ test("AnsweringService mentions both missing information and low retrieval confi
     ]
   });
 
-  assert.equal(result.qualityEvaluation.overall, "partial");
-  assert.equal(result.qualityEvaluation.grounding, "grounded");
-  assert.equal(result.qualityEvaluation.completeness, "partial");
-  assert.equal(result.qualityEvaluation.primaryIssue, "missing_information");
-  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information", "low_retrieval_score"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information", "low_retrieval_score"],
+    summary: "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low."
+  });
 });
 
 test("AnsweringService localizes partial summaries that combine missing information and low retrieval confidence", async () => {
