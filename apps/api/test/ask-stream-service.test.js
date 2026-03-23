@@ -2593,16 +2593,11 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -2890,16 +2885,11 @@ test("AskAssistantService stream preserves fallback-only grounded summaries", as
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({

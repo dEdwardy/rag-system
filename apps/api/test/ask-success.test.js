@@ -2441,16 +2441,11 @@ test("AskAssistantService preserves low-confidence weak insufficient-context sum
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -2559,16 +2554,11 @@ test("AskAssistantService preserves hit-aware weak insufficient-context summarie
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
