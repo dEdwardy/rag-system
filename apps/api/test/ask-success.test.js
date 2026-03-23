@@ -3160,3 +3160,297 @@ test("AskAssistantService preserves localized low-retrieval grounded summaries",
     "回答已基于检索到的内容，但支持上下文的检索置信度偏低。"
   );
 });
+
+test("AskAssistantService preserves fallback-only grounded summaries", async () => {
+  const updateTraceCalls = [];
+
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "marker content",
+      score: 0.9,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "en",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      generateAnswer: async () => ({
+        answer: "Grounded fallback answer [1]",
+        citations: [
+          {
+            chunkId: "chunk-1",
+            documentId: "document-1",
+            documentTitle: "Document 1",
+            snippet: "marker content"
+          }
+        ],
+        retrievedChunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy: {
+            responseStyle: "balanced",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "en",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "best_effort",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 1,
+          contextGroupCount: 0,
+          citationCount: 1,
+          answerStatus: "grounded"
+        },
+        modelName: "fallback-local",
+        answerStatus: "grounded",
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "partial",
+          grounding: "grounded",
+          completeness: "complete",
+          primaryIssue: "fallback_generation",
+          flags: ["fallback_generation"],
+          summary: "Answer is grounded, but it was produced through local fallback behavior."
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      })
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "Where is the marker?"
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.deepEqual(result.qualityEvaluation.flags, ["fallback_generation"]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "Answer is grounded, but it was produced through local fallback behavior."
+  );
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.summary,
+    "Answer is grounded, but it was produced through local fallback behavior."
+  );
+});
+
+test("AskAssistantService preserves localized fallback-only grounded summaries", async () => {
+  const updateTraceCalls = [];
+
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "中文内容",
+      score: 0.9,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "same_as_question",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      generateAnswer: async () => ({
+        answer: "回答 [1]",
+        citations: [
+          {
+            chunkId: "chunk-1",
+            documentId: "document-1",
+            documentTitle: "Document 1",
+            snippet: "中文内容"
+          }
+        ],
+        retrievedChunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerPolicy: {
+            responseStyle: "balanced",
+            tone: "neutral",
+            outputFormat: "paragraph",
+            language: "same_as_question",
+            citationMode: "required",
+            maxCitations: 3,
+            noAnswerBehavior: "best_effort",
+            includeMissingInformation: true
+          },
+          contextMode: "chunks",
+          inputChunkCount: 1,
+          contextGroupCount: 0,
+          citationCount: 1,
+          answerStatus: "grounded"
+        },
+        modelName: "fallback-local",
+        answerStatus: "grounded",
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "partial",
+          grounding: "grounded",
+          completeness: "complete",
+          primaryIssue: "fallback_generation",
+          flags: ["fallback_generation"],
+          summary: "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      })
+    }
+  );
+
+  const result = await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "标记在哪里？"
+  });
+
+  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.deepEqual(result.qualityEvaluation.flags, ["fallback_generation"]);
+  assert.equal(
+    result.qualityEvaluation.summary,
+    "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
+  );
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.summary,
+    "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
+  );
+});
