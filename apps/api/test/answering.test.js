@@ -1410,6 +1410,54 @@ test("AnsweringService distinguishes weak insufficient-context summaries when re
   });
 });
 
+test("AnsweringService localizes hit-aware weak insufficient-context summaries for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "不知道。",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["缺少价格信息。"]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "在哪里？",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "部分上下文",
+        score: 0.8,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information"],
+    summary: "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+  });
+});
+
 test("AnsweringService mentions low retrieval confidence in weak insufficient-context summaries", async () => {
   const llmService = {
     generateAnswer: async () => ({
