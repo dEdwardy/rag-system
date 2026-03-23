@@ -183,6 +183,8 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       citationAttribution: trace.answeringMetadataJson.citationAttribution,
       missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
       insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
+      failedStage: null,
+      failureMessage: null,
       retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
       citationCount: trace.citationsJson.length,
       usedFallback: trace.answeringMetadataJson.usedFallback

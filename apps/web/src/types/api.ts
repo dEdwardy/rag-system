@@ -330,6 +330,8 @@ export type TraceRecord = {
     citationAttribution: "explicit" | "heuristic" | "none" | null;
     missingInformationCount: number;
     insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
+    failedStage: "answering" | null;
+    failureMessage: string | null;
     retrievedChunkCount: number;
     citationCount: number;
     usedFallback: boolean;

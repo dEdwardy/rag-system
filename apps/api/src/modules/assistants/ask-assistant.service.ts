@@ -193,7 +193,10 @@ export class AskAssistantService {
         rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
         retrievedChunkIdsJson: retrievedChunks.map(chunk => chunk.chunkId),
         retrievalScoresJson,
-        retrievalMetadataJson: retrievalMetadata,
+        retrievalMetadataJson: this.withFailureMetadata(retrievalMetadata, {
+          stage: "answering",
+          message
+        }),
         status: TraceStatus.failed,
         errorMessage: message
       });
@@ -418,7 +421,10 @@ export class AskAssistantService {
         rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
         retrievedChunkIdsJson: retrievedChunks.map(chunk => chunk.chunkId),
         retrievalScoresJson,
-        retrievalMetadataJson: retrievalMetadata,
+        retrievalMetadataJson: this.withFailureMetadata(retrievalMetadata, {
+          stage: "answering",
+          message
+        }),
         status: TraceStatus.failed,
         errorMessage: message
       });
@@ -540,6 +546,19 @@ export class AskAssistantService {
         contextGroupCount: input.contextGroups.length,
         primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length,
         neighborChunkCount: input.retrievedChunks.filter(chunk => !(chunk.isPrimary ?? true)).length
+      }
+    } as Prisma.InputJsonValue;
+  }
+
+  private withFailureMetadata(
+    retrievalMetadata: Prisma.InputJsonValue,
+    failure: { stage: "answering"; message: string }
+  ): Prisma.InputJsonValue {
+    return {
+      ...(retrievalMetadata as Record<string, unknown>),
+      failure: {
+        stage: failure.stage,
+        message: failure.message
       }
     } as Prisma.InputJsonValue;
   }

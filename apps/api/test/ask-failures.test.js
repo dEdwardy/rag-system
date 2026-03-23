@@ -116,4 +116,8 @@ test("AskAssistantService marks trace as failed when answer generation throws", 
   assert.equal(traceUpdates[0].id, "trace-1");
   assert.equal(traceUpdates[0].input.status, "failed");
   assert.equal(traceUpdates[0].input.errorMessage, "synthetic answer failure");
+  assert.deepEqual(traceUpdates[0].input.retrievalMetadataJson.failure, {
+    stage: "answering",
+    message: "synthetic answer failure"
+  });
 });

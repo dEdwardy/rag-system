@@ -148,11 +148,20 @@ Current `traceSummary` shape includes:
 - `citationAttribution`
 - `missingInformationCount`
 - `insufficientContextReason`
+- `failedStage`
+- `failureMessage`
 - `retrievedChunkCount`
 - `citationCount`
 - `usedFallback`
 
 This summary is derived from the persisted trace JSON, so callers can read the main execution outcome directly without reconstructing it from `retrievalMetadataJson`, `answeringMetadataJson`, and `qualityEvaluationJson`.
+
+For failed ask traces, the backend now also writes additive `failure` data into `retrievalMetadataJson`:
+
+- `stage`
+- `message`
+
+The trace read model lifts that into `traceSummary.failedStage` and `traceSummary.failureMessage`.
 
 ## Current limitations
 

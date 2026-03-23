@@ -144,6 +144,8 @@ Notes:
     - `citationAttribution`
     - `missingInformationCount`
     - `insufficientContextReason`
+    - `failedStage`
+    - `failureMessage`
     - `retrievedChunkCount`
     - `citationCount`
     - `usedFallback`

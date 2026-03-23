@@ -77,6 +77,7 @@ export class TracesService {
     const citationCount = Array.isArray(trace.citationsJson) ? trace.citationsJson.length : 0;
     const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
     const retrievalExecution = this.readObject(retrievalMetadata?.execution);
+    const retrievalFailure = this.readObject(retrievalMetadata?.failure);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
 
@@ -93,6 +94,8 @@ export class TracesService {
         citationAttribution: this.readString(answeringMetadata?.citationAttribution),
         missingInformationCount: this.readNumber(answeringMetadata?.missingInformationCount) ?? 0,
         insufficientContextReason: this.readString(answeringMetadata?.insufficientContextReason),
+        failedStage: this.readString(retrievalFailure?.stage),
+        failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
         retrievedChunkCount,
         citationCount,
         usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
