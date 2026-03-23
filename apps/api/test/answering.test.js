@@ -405,6 +405,55 @@ test("AnsweringService keeps quality evaluation strong when citations are option
   });
 });
 
+test("AnsweringService localizes generic strong summaries when citations are optional", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "杩欐槸涓€涓病鏈夋樉寮忓紩鐢ㄧ殑鍥炵瓟銆?",
+      modelName: "test-model",
+      answerStatus: "grounded",
+      missingInformation: []
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "鍙戠敓浜嗕粈涔堬紵",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "optional",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "涓枃涓婁笅鏂?",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.citations, []);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "strong",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "none",
+    flags: [],
+    summary: "回答已基于检索到的来源，且没有发现已知缺口。"
+  });
+});
+
 test("AnsweringService clears missingInformation when the policy disables it", async () => {
   const llmService = {
     generateAnswer: async () => ({
