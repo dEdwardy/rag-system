@@ -1345,15 +1345,14 @@ test("AnsweringService keeps fallback_generation as the primary issue when fallb
     ]
   });
 
-  assert.equal(result.qualityEvaluation.overall, "partial");
-  assert.equal(result.qualityEvaluation.grounding, "grounded");
-  assert.equal(result.qualityEvaluation.completeness, "partial");
-  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
-  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information", "fallback_generation"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "fallback_generation",
+    flags: ["missing_information", "fallback_generation"],
+    summary: "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+  });
 });
 
 test("AnsweringService localizes partial summaries when fallback answers also miss information", async () => {
