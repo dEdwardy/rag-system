@@ -1362,6 +1362,43 @@ test("AnsweringService localizes weak insufficient-context quality summaries for
   assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002");
 });
 
+test("AnsweringService preserves localized no-hit weak quality metadata for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "不知道。",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: ["没有检索到可用于支持回答的相关来源。"]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "这个问题缺少什么信息？",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    chunks: []
+  });
+
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "回答质量较弱，因为没有足够的支持上下文。"
+  });
+});
+
 test("AnsweringService distinguishes weak insufficient-context summaries when retrieval produced context", async () => {
   const llmService = {
     generateAnswer: async () => ({
