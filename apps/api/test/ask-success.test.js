@@ -1130,7 +1130,14 @@ test("AskAssistantService localizes one-shot deterministic no-hit answers for Ch
   assert.deepEqual(result.missingInformation, [
     "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002"
   ]);
-  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002");
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002"
+  });
 });
 
 test("AskAssistantService preserves fallback_generation as the primary quality issue when persisting grounded fallback answers", async () => {
