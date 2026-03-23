@@ -1215,6 +1215,304 @@ test("AskAssistantService stream preserves localized cited-source strong summari
   );
 });
 
+test("AskAssistantService stream preserves generic strong summaries without citations", async () => {
+  const events = [];
+  const updateTraceCalls = [];
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "Citation-free grounded answer support",
+      score: 0.9,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "same_as_question",
+          citationMode: "optional",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      buildStreamAnswerContext: ({ chunks }) => chunks,
+      generateAnswer: async () => {
+        throw new Error("one-shot generateAnswer should not be used by native streaming");
+      },
+      finalizeStreamedAnswer: async input => ({
+        answer: input.rawAnswer,
+        modelName: input.modelName,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: input.promptId,
+          usedFallback: input.usedFallback,
+          answerPolicy: input.answerPolicy,
+          contextMode: "chunks",
+          inputChunkCount: input.chunks.length,
+          contextGroupCount: input.contextGroups.length,
+          citationCount: 0,
+          answerStatus: "grounded"
+        },
+        answerStatus: "grounded",
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "strong",
+          grounding: "grounded",
+          completeness: "complete",
+          primaryIssue: "none",
+          flags: [],
+          summary: "Answer is grounded in retrieved sources with no reported gaps."
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async input => {
+        await input.onDelta("Here is a grounded ");
+        await input.onDelta("answer without explicit citations.");
+        return {
+          rawAnswer: "Here is a grounded answer without explicit citations.",
+          modelName: "test-model",
+          promptId: "answer.v2",
+          usedFallback: false
+        };
+      }
+    }
+  );
+
+  const finalResult = await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "What happened?",
+    onEvent: event => {
+      events.push(event);
+    }
+  });
+
+  assert.deepEqual(
+    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
+    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+  );
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, "none");
+  assert.deepEqual(finalResult.qualityEvaluation.flags, []);
+  assert.equal(finalResult.qualityEvaluation.summary, "Answer is grounded in retrieved sources with no reported gaps.");
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.summary,
+    "Answer is grounded in retrieved sources with no reported gaps."
+  );
+});
+
+test("AskAssistantService stream preserves localized generic strong summaries without citations in Chinese", async () => {
+  const events = [];
+  const updateTraceCalls = [];
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "涓枃鍐呭",
+      score: 0.9,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "same_as_question",
+          citationMode: "optional",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      buildStreamAnswerContext: ({ chunks }) => chunks,
+      generateAnswer: async () => {
+        throw new Error("one-shot generateAnswer should not be used by native streaming");
+      },
+      finalizeStreamedAnswer: async input => ({
+        answer: input.rawAnswer,
+        modelName: input.modelName,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: input.promptId,
+          usedFallback: input.usedFallback,
+          answerPolicy: input.answerPolicy,
+          contextMode: "chunks",
+          inputChunkCount: input.chunks.length,
+          contextGroupCount: input.contextGroups.length,
+          citationCount: 0,
+          answerStatus: "grounded"
+        },
+        answerStatus: "grounded",
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "strong",
+          grounding: "grounded",
+          completeness: "complete",
+          primaryIssue: "none",
+          flags: [],
+          summary: "鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?"
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async input => {
+        await input.onDelta("杩欐槸涓€涓?");
+        await input.onDelta("娌℃湁鏄惧紡寮曠敤鐨勫洖绛斻€?");
+        return {
+          rawAnswer: "杩欐槸涓€涓病鏈夋樉寮忓紩鐢ㄧ殑鍥炵瓟銆?",
+          modelName: "test-model",
+          promptId: "answer.v2",
+          usedFallback: false
+        };
+      }
+    }
+  );
+
+  const finalResult = await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "鍙戠敓浜嗕粈涔堬紵",
+    onEvent: event => {
+      events.push(event);
+    }
+  });
+
+  assert.deepEqual(
+    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
+    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+  );
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, "none");
+  assert.deepEqual(finalResult.qualityEvaluation.flags, []);
+  assert.equal(finalResult.qualityEvaluation.summary, "鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?");
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.summary,
+    "鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?"
+  );
+});
+
 test("AskAssistantService stream preserves localized fallback partial summaries in Chinese", async () => {
   const events = [];
   const updateTraceCalls = [];
