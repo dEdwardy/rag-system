@@ -2133,21 +2133,25 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
     events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
     ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "insufficient_context");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, [
-    "insufficient_context",
-    "missing_information",
-    "low_retrieval_score"
-  ]);
-  assert.equal(
-    finalResult.qualityEvaluation.summary,
-    "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
-  );
+  assert.deepEqual(finalResult.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+    summary:
+      "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+    summary:
+      "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
+  });
 });
 
 test("AskAssistantService stream preserves hit-aware weak insufficient-context summaries", async () => {

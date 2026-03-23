@@ -1259,18 +1259,25 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
     question: "Where is the marker?"
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
-  assert.deepEqual(result.qualityEvaluation.flags, ["low_retrieval_score", "fallback_generation"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["low_retrieval_score", "fallback_generation"],
+    summary:
+      "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(updateTraceCalls[0].input.qualityEvaluationJson.primaryIssue, "fallback_generation");
-  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson.flags, [
-    "low_retrieval_score",
-    "fallback_generation"
-  ]);
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["low_retrieval_score", "fallback_generation"],
+    summary:
+      "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
+  });
 });
 
 test("AskAssistantService preserves fallback_generation as the primary quality issue when fallback answers also miss information", async () => {
@@ -1399,18 +1406,25 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
     question: "Where is the marker?"
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
-  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information", "fallback_generation"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "fallback_generation",
+    flags: ["missing_information", "fallback_generation"],
+    summary:
+      "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(updateTraceCalls[0].input.qualityEvaluationJson.primaryIssue, "fallback_generation");
-  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson.flags, [
-    "missing_information",
-    "fallback_generation"
-  ]);
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "fallback_generation",
+    flags: ["missing_information", "fallback_generation"],
+    summary:
+      "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+  });
 });
 
 test("AskAssistantService persists heuristic-citation strong summaries without upgrading them to explicit cited-source wording", async () => {
