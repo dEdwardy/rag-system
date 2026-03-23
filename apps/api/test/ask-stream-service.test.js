@@ -2456,11 +2456,27 @@ test("AskAssistantService stream preserves localized hit-aware weak insufficient
     "insufficient_context",
     "missing_information"
   ]);
+  assert.deepEqual(finalResult.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information"],
+    summary: "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+  });
   assert.equal(
     finalResult.qualityEvaluation.summary,
     "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
   );
   assert.equal(updateTraceCalls.length, 1);
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information"],
+    summary: "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+  });
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
     "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
@@ -2780,11 +2796,27 @@ test("AskAssistantService stream preserves localized grounded partial summaries 
   );
   assert.equal(finalResult.qualityEvaluation.primaryIssue, "missing_information");
   assert.deepEqual(finalResult.qualityEvaluation.flags, ["missing_information"]);
+  assert.deepEqual(finalResult.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information"],
+    summary: "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+  });
   assert.equal(
     finalResult.qualityEvaluation.summary,
     "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
   );
   assert.equal(updateTraceCalls.length, 1);
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information"],
+    summary: "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+  });
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
     "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
