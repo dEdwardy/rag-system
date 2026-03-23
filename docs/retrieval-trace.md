@@ -144,6 +144,10 @@ Current `traceSummary` shape includes:
 - `retrievalMode`
 - `generationMode`
 - `rewriteApplied`
+- `fallbackReason`
+- `citationAttribution`
+- `missingInformationCount`
+- `insufficientContextReason`
 - `retrievedChunkCount`
 - `citationCount`
 - `usedFallback`

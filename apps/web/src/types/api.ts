@@ -326,6 +326,10 @@ export type TraceRecord = {
     retrievalMode: "vector" | "hybrid" | "lexical" | null;
     generationMode: "generated" | "deterministic_bypass" | null;
     rewriteApplied: boolean;
+    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+    citationAttribution: "explicit" | "heuristic" | "none" | null;
+    missingInformationCount: number;
+    insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
     retrievedChunkCount: number;
     citationCount: number;
     usedFallback: boolean;

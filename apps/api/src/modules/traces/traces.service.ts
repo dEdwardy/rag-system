@@ -89,6 +89,10 @@ export class TracesService {
         retrievalMode: this.readString(retrievalExecution?.actualMode),
         generationMode: this.readString(answeringMetadata?.generationMode),
         rewriteApplied: trace.rewrittenQuery != null,
+        fallbackReason: this.readString(retrievalExecution?.fallbackReason),
+        citationAttribution: this.readString(answeringMetadata?.citationAttribution),
+        missingInformationCount: this.readNumber(answeringMetadata?.missingInformationCount) ?? 0,
+        insufficientContextReason: this.readString(answeringMetadata?.insufficientContextReason),
         retrievedChunkCount,
         citationCount,
         usedFallback: this.readBoolean(answeringMetadata?.usedFallback)

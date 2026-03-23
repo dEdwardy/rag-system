@@ -142,6 +142,17 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof listedTrace?.traceSummary?.retrievalMode, "string");
     assert.equal(typeof listedTrace?.traceSummary?.generationMode, "string");
     assert.equal(typeof listedTrace?.traceSummary?.rewriteApplied, "boolean");
+    assert.equal(
+      listedTrace?.traceSummary?.fallbackReason === null || typeof listedTrace?.traceSummary?.fallbackReason === "string",
+      true
+    );
+    assert.equal(typeof listedTrace?.traceSummary?.citationAttribution, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.missingInformationCount, "number");
+    assert.equal(
+      listedTrace?.traceSummary?.insufficientContextReason === null ||
+        typeof listedTrace?.traceSummary?.insufficientContextReason === "string",
+      true
+    );
     assert.equal(typeof listedTrace?.traceSummary?.retrievedChunkCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.citationCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.usedFallback, "boolean");
@@ -168,6 +179,10 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
       generationMode: trace.answeringMetadataJson.generationMode,
       rewriteApplied: trace.rewrittenQuery !== null,
+      fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+      citationAttribution: trace.answeringMetadataJson.citationAttribution,
+      missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
+      insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
       retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
       citationCount: trace.citationsJson.length,
       usedFallback: trace.answeringMetadataJson.usedFallback

@@ -140,6 +140,10 @@ Notes:
     - `retrievalMode`
     - `generationMode`
     - `rewriteApplied`
+    - `fallbackReason`
+    - `citationAttribution`
+    - `missingInformationCount`
+    - `insufficientContextReason`
     - `retrievedChunkCount`
     - `citationCount`
     - `usedFallback`

@@ -207,6 +207,20 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
   assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievalMode === "string"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.generationMode === "string"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.rewriteApplied === "boolean"));
+  assert.ok(
+    traces.every(
+      trace => trace.traceSummary?.fallbackReason === null || typeof trace.traceSummary?.fallbackReason === "string"
+    )
+  );
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.citationAttribution === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.missingInformationCount === "number"));
+  assert.ok(
+    traces.every(
+      trace =>
+        trace.traceSummary?.insufficientContextReason === null ||
+        typeof trace.traceSummary?.insufficientContextReason === "string"
+    )
+  );
   assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievedChunkCount === "number"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.citationCount === "number"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.usedFallback === "boolean"));
@@ -243,6 +257,10 @@ async function assertTraceState(port, traceId) {
     retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
     generationMode: trace.answeringMetadataJson.generationMode,
     rewriteApplied: trace.rewrittenQuery !== null,
+    fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+    citationAttribution: trace.answeringMetadataJson.citationAttribution,
+    missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
+    insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
     retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
     citationCount: trace.citationsJson.length,
     usedFallback: trace.answeringMetadataJson.usedFallback
