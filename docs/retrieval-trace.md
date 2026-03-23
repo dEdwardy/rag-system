@@ -140,6 +140,10 @@ Current `traceSummary` shape includes:
 
 - `answerStatus`
 - `qualityOverall`
+- `primaryIssue`
+- `retrievalMode`
+- `generationMode`
+- `rewriteApplied`
 - `retrievedChunkCount`
 - `citationCount`
 - `usedFallback`

@@ -138,6 +138,10 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     const listedTrace = conversationTraces.find(trace => trace.id === askResult.traceId);
     assert.equal(typeof listedTrace?.traceSummary?.answerStatus, "string");
     assert.equal(typeof listedTrace?.traceSummary?.qualityOverall, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.primaryIssue, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.retrievalMode, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.generationMode, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.rewriteApplied, "boolean");
     assert.equal(typeof listedTrace?.traceSummary?.retrievedChunkCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.citationCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.usedFallback, "boolean");
@@ -160,6 +164,10 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.deepEqual(trace.traceSummary, {
       answerStatus: trace.answeringMetadataJson.answerStatus,
       qualityOverall: trace.qualityEvaluationJson.overall,
+      primaryIssue: trace.qualityEvaluationJson.primaryIssue,
+      retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+      generationMode: trace.answeringMetadataJson.generationMode,
+      rewriteApplied: trace.rewrittenQuery !== null,
       retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
       citationCount: trace.citationsJson.length,
       usedFallback: trace.answeringMetadataJson.usedFallback

@@ -136,6 +136,10 @@ Notes:
   - current `traceSummary` fields are:
     - `answerStatus`
     - `qualityOverall`
+    - `primaryIssue`
+    - `retrievalMode`
+    - `generationMode`
+    - `rewriteApplied`
     - `retrievedChunkCount`
     - `citationCount`
     - `usedFallback`

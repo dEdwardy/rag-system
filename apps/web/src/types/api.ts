@@ -314,6 +314,18 @@ export type TraceRecord = {
   traceSummary: {
     answerStatus: "grounded" | "insufficient_context" | null;
     qualityOverall: "strong" | "partial" | "weak" | null;
+    primaryIssue:
+      | "none"
+      | "no_retrieval_hits"
+      | "insufficient_context"
+      | "missing_information"
+      | "low_retrieval_score"
+      | "fallback_generation"
+      | "other"
+      | null;
+    retrievalMode: "vector" | "hybrid" | "lexical" | null;
+    generationMode: "generated" | "deterministic_bypass" | null;
+    rewriteApplied: boolean;
     retrievedChunkCount: number;
     citationCount: number;
     usedFallback: boolean;

@@ -75,6 +75,8 @@ export class TracesService {
   private attachTraceSummary(trace: NonNullable<PersistedTrace>) {
     const retrievedChunkCount = this.readRetrievedChunkCount(trace);
     const citationCount = Array.isArray(trace.citationsJson) ? trace.citationsJson.length : 0;
+    const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
+    const retrievalExecution = this.readObject(retrievalMetadata?.execution);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
 
@@ -83,6 +85,10 @@ export class TracesService {
       traceSummary: {
         answerStatus: this.readString(answeringMetadata?.answerStatus),
         qualityOverall: this.readString(qualityEvaluation?.overall),
+        primaryIssue: this.readString(qualityEvaluation?.primaryIssue),
+        retrievalMode: this.readString(retrievalExecution?.actualMode),
+        generationMode: this.readString(answeringMetadata?.generationMode),
+        rewriteApplied: trace.rewrittenQuery != null,
         retrievedChunkCount,
         citationCount,
         usedFallback: this.readBoolean(answeringMetadata?.usedFallback)

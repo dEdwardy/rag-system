@@ -203,6 +203,10 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
   assert.equal(traces.length, expectedTraceIds.length);
   assert.ok(traces.every(trace => typeof trace.traceSummary?.answerStatus === "string"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.qualityOverall === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.primaryIssue === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievalMode === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.generationMode === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.rewriteApplied === "boolean"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievedChunkCount === "number"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.citationCount === "number"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.usedFallback === "boolean"));
@@ -235,6 +239,10 @@ async function assertTraceState(port, traceId) {
   assert.deepEqual(trace.traceSummary, {
     answerStatus: trace.answeringMetadataJson.answerStatus,
     qualityOverall: trace.qualityEvaluationJson.overall,
+    primaryIssue: trace.qualityEvaluationJson.primaryIssue,
+    retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+    generationMode: trace.answeringMetadataJson.generationMode,
+    rewriteApplied: trace.rewrittenQuery !== null,
     retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
     citationCount: trace.citationsJson.length,
     usedFallback: trace.answeringMetadataJson.usedFallback
