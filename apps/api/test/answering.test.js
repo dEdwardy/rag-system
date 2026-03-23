@@ -1900,11 +1900,14 @@ test("AnsweringService fills a deterministic missingInformation reason for insuf
   });
 
   assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
-  assert.deepEqual(result.qualityEvaluation.flags, [
-    "no_retrieval_hits",
-    "insufficient_context",
-    "missing_information"
-  ]);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "no_retrieval_hits",
+    flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because supporting context was insufficient."
+  });
 });
 
 test("AnsweringService uses a hit-aware deterministic missingInformation reason when retrieved context is still insufficient", async () => {
