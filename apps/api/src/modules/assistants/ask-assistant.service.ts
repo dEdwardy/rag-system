@@ -487,7 +487,9 @@ export class AskAssistantService {
       execution: {
         actualMode: "vector" | "hybrid" | "lexical";
         usedFallback: boolean;
+        fallbackReason: "vector_error" | "no_ranked_candidates" | null;
         rerankApplied: boolean;
+        chunkWindowApplied: boolean;
         candidateLimit: number;
         vectorCandidateCount: number;
       lexicalCandidateCount: number;
@@ -511,7 +513,9 @@ export class AskAssistantService {
         chunkWindow: input.chunkWindow,
         actualMode: input.execution.actualMode,
         usedFallback: input.execution.usedFallback,
+        fallbackReason: input.execution.fallbackReason,
         rerankApplied: input.execution.rerankApplied,
+        chunkWindowApplied: input.execution.chunkWindowApplied,
         candidateLimit: input.execution.candidateLimit,
         vectorCandidateCount: input.execution.vectorCandidateCount,
         lexicalCandidateCount: input.execution.lexicalCandidateCount,

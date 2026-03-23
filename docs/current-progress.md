@@ -671,12 +671,14 @@
 
 - ✅ retrieval execution metadata actual-path exposure
   - `ask` / trace retrieval metadata `execution` 现在除了 query、threshold 和 chunk counts 之外，也会显式暴露：
-    - `actualMode`: `vector` / `hybrid` / `lexical`
-    - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
-    - `rerankApplied`: 当前结果是否按 rerank 路径完成最终排序
-    - `candidateLimit`: 当前 candidate-selection 策略最终解析出的候选预算
-    - `vectorCandidateCount` / `lexicalCandidateCount`: merge 之前各自拿到了多少候选
-    - `mergedCandidateCount`: hybrid merge 或 lexical fallback 之后还保留了多少候选
+      - `actualMode`: `vector` / `hybrid` / `lexical`
+      - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
+      - `fallbackReason`: 当前 lexical fallback 是由向量错误触发，还是因为没有留下可排序候选
+      - `rerankApplied`: 当前结果是否按 rerank 路径完成最终排序
+      - `chunkWindowApplied`: 当前结果是否实际走过 chunk-window 扩展
+      - `candidateLimit`: 当前 candidate-selection 策略最终解析出的候选预算
+      - `vectorCandidateCount` / `lexicalCandidateCount`: merge 之前各自拿到了多少候选
+      - `mergedCandidateCount`: hybrid merge 或 lexical fallback 之后还保留了多少候选
     - `rankedCandidateCount`: threshold + ranking 之后、chunk-window 扩展之前剩余多少候选
     - `neighborChunkCount`: 最终返回 chunk 里，有多少是 chunk-window 扩展出来的邻接块，而不是 direct primary hit
   - 这样当前 retrieval metadata 不再只表达“想要的策略”，也能表达“最终实际走到的检索路径”

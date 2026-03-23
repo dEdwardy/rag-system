@@ -772,7 +772,9 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
     usedFallback: false,
+    fallbackReason: null,
     rerankApplied: false,
+    chunkWindowApplied: false,
     candidateLimit: 3,
     vectorCandidateCount: 0,
     lexicalCandidateCount: 1,
@@ -820,12 +822,52 @@ test("RetrievalService reports lexical fallback when vector retrieval cannot pro
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
     usedFallback: true,
+    fallbackReason: "vector_error",
     rerankApplied: false,
+    chunkWindowApplied: false,
     candidateLimit: 3,
     vectorCandidateCount: 0,
     lexicalCandidateCount: 1,
     mergedCandidateCount: 1,
     rankedCandidateCount: 1
+  });
+});
+
+test("RetrievalService reports empty-ranking fallback when vector retrieval yields no ranked candidates", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => (args.where.id?.in ? [] : [])
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => []
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "no matches",
+    topK: 1,
+    scoreThreshold: 0
+  });
+
+  assert.deepEqual(result.retrievedChunks, []);
+  assert.deepEqual(result.execution, {
+    actualMode: "lexical",
+    usedFallback: true,
+    fallbackReason: "no_ranked_candidates",
+    rerankApplied: false,
+    chunkWindowApplied: false,
+    candidateLimit: 3,
+    vectorCandidateCount: 0,
+    lexicalCandidateCount: 0,
+    mergedCandidateCount: 0,
+    rankedCandidateCount: 0
   });
 });
 

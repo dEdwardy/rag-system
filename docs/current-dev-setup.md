@@ -483,7 +483,7 @@ The following path has been validated locally on `2026-03-21`:
    - `answerStatus` is `grounded` or `insufficient_context`
    - `missingInformation` is returned as an array
    - `qualityEvaluation` is returned with `overall`, `grounding`, `completeness`, `flags`, and `summary`
-   - `retrievalMetadata` is returned with resolved strategy, rewrite execution, and retrieval execution summary, including actual mode, rerank application, candidate flow, and neighbor expansion counts
+   - `retrievalMetadata` is returned with resolved strategy, rewrite execution, and retrieval execution summary, including actual mode, fallback reason, rerank application, chunk-window application, candidate flow, and neighbor expansion counts
   - `answeringMetadata` is returned with prompt id, normalized answer policy, resolved language, generation mode, context mode, prompt-context count, citation count, citation attribution, and missing-information count
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
