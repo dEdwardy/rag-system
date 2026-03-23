@@ -772,6 +772,7 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
     usedFallback: false,
+    rerankApplied: false,
     candidateLimit: 3,
     vectorCandidateCount: 0,
     lexicalCandidateCount: 1,
@@ -819,6 +820,7 @@ test("RetrievalService reports lexical fallback when vector retrieval cannot pro
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
     usedFallback: true,
+    rerankApplied: false,
     candidateLimit: 3,
     vectorCandidateCount: 0,
     lexicalCandidateCount: 1,

@@ -46,6 +46,7 @@ export type RetrievalResult = {
   execution: {
     actualMode: "vector" | "hybrid" | "lexical";
     usedFallback: boolean;
+    rerankApplied: boolean;
     candidateLimit: number;
     vectorCandidateCount: number;
     lexicalCandidateCount: number;
@@ -93,16 +94,17 @@ export class RetrievalService {
         filters: normalizedFilters
       });
 
-      return this.retrieveWithLexicalFallback({
-        ...input,
-        enableRerank: resolvedEnableRerank,
-        filters: normalizedFilters,
-        lexicalCandidates,
-        candidateLimit,
-        vectorCandidateCount: 0,
-        actualMode: "lexical",
-        usedFallback: false
-      });
+        return this.retrieveWithLexicalFallback({
+          ...input,
+          enableRerank: resolvedEnableRerank,
+          filters: normalizedFilters,
+          lexicalCandidates,
+          candidateLimit,
+          vectorCandidateCount: 0,
+          actualMode: "lexical",
+          usedFallback: false,
+          rerankApplied: resolvedEnableRerank
+        });
     }
 
     const lexicalCandidates =
@@ -144,11 +146,12 @@ export class RetrievalService {
             input.chunkWindow ?? 0,
             normalizedFilters
           );
-          return this.buildRetrievalResult(retrievedChunks, {
-            actualMode: candidateSelectionMode,
-            usedFallback: false,
-            candidateLimit,
-            vectorCandidateCount: vectorCandidates.length,
+            return this.buildRetrievalResult(retrievedChunks, {
+              actualMode: candidateSelectionMode,
+              usedFallback: false,
+              rerankApplied: resolvedEnableRerank,
+              candidateLimit,
+              vectorCandidateCount: vectorCandidates.length,
             lexicalCandidateCount: lexicalCandidates?.length ?? 0,
             mergedCandidateCount: mergedCandidates.length,
             rankedCandidateCount: rankedCandidates.length
@@ -160,16 +163,17 @@ export class RetrievalService {
       this.logger.warn(`Vector retrieval failed, falling back to lexical scoring. ${message}`);
     }
 
-    return this.retrieveWithLexicalFallback({
-      ...input,
-      enableRerank: resolvedEnableRerank,
-      filters: normalizedFilters,
-      lexicalCandidates,
-      candidateLimit,
-      vectorCandidateCount: 0,
-      actualMode: "lexical",
-      usedFallback: true
-    });
+      return this.retrieveWithLexicalFallback({
+        ...input,
+        enableRerank: resolvedEnableRerank,
+        filters: normalizedFilters,
+        lexicalCandidates,
+        candidateLimit,
+        vectorCandidateCount: 0,
+        actualMode: "lexical",
+        usedFallback: true,
+        rerankApplied: resolvedEnableRerank
+      });
   }
 
   private async retrieveWithLexicalFallback(input: {
@@ -185,6 +189,7 @@ export class RetrievalService {
     filters?: RetrievalProfileFilters;
     actualMode: "lexical";
     usedFallback: boolean;
+    rerankApplied: boolean;
   }) {
     const lexicalCandidates =
       input.lexicalCandidates ??
@@ -208,20 +213,22 @@ export class RetrievalService {
         input.chunkWindow ?? 0,
         input.filters
       );
-      return this.buildRetrievalResult(retrievedChunks, {
-        actualMode: input.actualMode,
-        usedFallback: input.usedFallback,
-        candidateLimit: input.candidateLimit,
+        return this.buildRetrievalResult(retrievedChunks, {
+          actualMode: input.actualMode,
+          usedFallback: input.usedFallback,
+          rerankApplied: input.rerankApplied,
+          candidateLimit: input.candidateLimit,
         vectorCandidateCount: input.vectorCandidateCount,
         lexicalCandidateCount: lexicalCandidates.length,
         mergedCandidateCount: lexicalCandidates.length,
         rankedCandidateCount: ranked.length
       });
     }
-    return this.buildRetrievalResult([], {
-      actualMode: input.actualMode,
-      usedFallback: input.usedFallback,
-      candidateLimit: input.candidateLimit,
+      return this.buildRetrievalResult([], {
+        actualMode: input.actualMode,
+        usedFallback: input.usedFallback,
+        rerankApplied: input.rerankApplied,
+        candidateLimit: input.candidateLimit,
       vectorCandidateCount: input.vectorCandidateCount,
       lexicalCandidateCount: lexicalCandidates.length,
       mergedCandidateCount: lexicalCandidates.length,

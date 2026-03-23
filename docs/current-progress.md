@@ -673,6 +673,7 @@
   - `ask` / trace retrieval metadata `execution` 现在除了 query、threshold 和 chunk counts 之外，也会显式暴露：
     - `actualMode`: `vector` / `hybrid` / `lexical`
     - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
+    - `rerankApplied`: 当前结果是否按 rerank 路径完成最终排序
     - `candidateLimit`: 当前 candidate-selection 策略最终解析出的候选预算
     - `vectorCandidateCount` / `lexicalCandidateCount`: merge 之前各自拿到了多少候选
     - `mergedCandidateCount`: hybrid merge 或 lexical fallback 之后还保留了多少候选

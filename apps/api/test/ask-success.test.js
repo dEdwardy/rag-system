@@ -116,6 +116,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           execution: {
             actualMode: "hybrid",
             usedFallback: false,
+            rerankApplied: true,
             candidateLimit: 12,
             vectorCandidateCount: 3,
             lexicalCandidateCount: 2,
@@ -317,6 +318,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       chunkWindow: 1,
       actualMode: "hybrid",
       usedFallback: false,
+      rerankApplied: true,
       candidateLimit: 12,
       vectorCandidateCount: 3,
       lexicalCandidateCount: 2,
@@ -480,6 +482,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           execution: {
             actualMode: "lexical",
             usedFallback: false,
+            rerankApplied: true,
             candidateLimit: 20,
             vectorCandidateCount: 0,
             lexicalCandidateCount: 0,
@@ -657,6 +660,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       chunkWindow: 0,
       actualMode: "lexical",
       usedFallback: false,
+      rerankApplied: true,
       candidateLimit: 20,
       vectorCandidateCount: 0,
       lexicalCandidateCount: 0,

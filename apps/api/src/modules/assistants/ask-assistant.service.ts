@@ -484,11 +484,12 @@ export class AskAssistantService {
     chunkWindow: number;
     retrievedChunks: AskResultChunk[];
     contextGroups: Array<{ primaryChunkIds: string[] }>;
-    execution: {
-      actualMode: "vector" | "hybrid" | "lexical";
-      usedFallback: boolean;
-      candidateLimit: number;
-      vectorCandidateCount: number;
+      execution: {
+        actualMode: "vector" | "hybrid" | "lexical";
+        usedFallback: boolean;
+        rerankApplied: boolean;
+        candidateLimit: number;
+        vectorCandidateCount: number;
       lexicalCandidateCount: number;
       mergedCandidateCount: number;
       rankedCandidateCount: number;
@@ -510,6 +511,7 @@ export class AskAssistantService {
         chunkWindow: input.chunkWindow,
         actualMode: input.execution.actualMode,
         usedFallback: input.execution.usedFallback,
+        rerankApplied: input.execution.rerankApplied,
         candidateLimit: input.execution.candidateLimit,
         vectorCandidateCount: input.execution.vectorCandidateCount,
         lexicalCandidateCount: input.execution.lexicalCandidateCount,

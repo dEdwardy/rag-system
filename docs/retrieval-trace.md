@@ -82,6 +82,7 @@ Current shape includes:
   - `chunkWindow`
   - `actualMode`
   - `usedFallback`
+  - `rerankApplied`
   - `candidateLimit`
   - `vectorCandidateCount`
   - `lexicalCandidateCount`
