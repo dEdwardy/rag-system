@@ -676,6 +676,8 @@
       - `fallbackReason`: 当前 lexical fallback 是由向量错误触发，还是因为没有留下可排序候选
       - `rerankApplied`: 当前结果是否按 rerank 路径完成最终排序
       - `chunkWindowApplied`: 当前结果是否实际走过 chunk-window 扩展
+      - `vectorCandidateLimitHit` / `lexicalCandidateLimitHit`: 当前向量/词法候选是否打满了 candidate budget
+      - `rankingTopKHit`: 当前 ranking 结果是否打满了最终 `topK` 上限
       - `candidateLimit`: 当前 candidate-selection 策略最终解析出的候选预算
       - `vectorCandidateCount` / `lexicalCandidateCount`: merge 之前各自拿到了多少候选
       - `mergedCandidateCount`: hybrid merge 或 lexical fallback 之后还保留了多少候选

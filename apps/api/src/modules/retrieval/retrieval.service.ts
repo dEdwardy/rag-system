@@ -49,6 +49,9 @@ export type RetrievalResult = {
     fallbackReason: "vector_error" | "no_ranked_candidates" | null;
     rerankApplied: boolean;
     chunkWindowApplied: boolean;
+    vectorCandidateLimitHit: boolean;
+    lexicalCandidateLimitHit: boolean;
+    rankingTopKHit: boolean;
     candidateLimit: number;
     vectorCandidateCount: number;
     lexicalCandidateCount: number;
@@ -155,6 +158,9 @@ export class RetrievalService {
             fallbackReason: null,
             rerankApplied: resolvedEnableRerank,
             chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+            vectorCandidateLimitHit: vectorCandidates.length >= candidateLimit,
+            lexicalCandidateLimitHit: (lexicalCandidates?.length ?? 0) >= candidateLimit,
+            rankingTopKHit: rankedCandidates.length >= input.topK,
             candidateLimit,
             vectorCandidateCount: vectorCandidates.length,
             lexicalCandidateCount: lexicalCandidates?.length ?? 0,
@@ -238,6 +244,9 @@ export class RetrievalService {
         fallbackReason: input.fallbackReason,
         rerankApplied: input.rerankApplied,
         chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+        vectorCandidateLimitHit: input.vectorCandidateCount >= input.candidateLimit,
+        lexicalCandidateLimitHit: lexicalCandidates.length >= input.candidateLimit,
+        rankingTopKHit: ranked.length >= input.topK,
         candidateLimit: input.candidateLimit,
         vectorCandidateCount: input.vectorCandidateCount,
         lexicalCandidateCount: lexicalCandidates.length,
@@ -251,6 +260,9 @@ export class RetrievalService {
       fallbackReason: input.fallbackReason,
       rerankApplied: input.rerankApplied,
       chunkWindowApplied: false,
+      vectorCandidateLimitHit: input.vectorCandidateCount >= input.candidateLimit,
+      lexicalCandidateLimitHit: lexicalCandidates.length >= input.candidateLimit,
+      rankingTopKHit: false,
       candidateLimit: input.candidateLimit,
       vectorCandidateCount: input.vectorCandidateCount,
       lexicalCandidateCount: lexicalCandidates.length,

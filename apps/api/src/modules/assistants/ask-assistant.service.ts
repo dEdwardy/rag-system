@@ -490,6 +490,9 @@ export class AskAssistantService {
         fallbackReason: "vector_error" | "no_ranked_candidates" | null;
         rerankApplied: boolean;
         chunkWindowApplied: boolean;
+        vectorCandidateLimitHit: boolean;
+        lexicalCandidateLimitHit: boolean;
+        rankingTopKHit: boolean;
         candidateLimit: number;
         vectorCandidateCount: number;
       lexicalCandidateCount: number;
@@ -516,6 +519,9 @@ export class AskAssistantService {
         fallbackReason: input.execution.fallbackReason,
         rerankApplied: input.execution.rerankApplied,
         chunkWindowApplied: input.execution.chunkWindowApplied,
+        vectorCandidateLimitHit: input.execution.vectorCandidateLimitHit,
+        lexicalCandidateLimitHit: input.execution.lexicalCandidateLimitHit,
+        rankingTopKHit: input.execution.rankingTopKHit,
         candidateLimit: input.execution.candidateLimit,
         vectorCandidateCount: input.execution.vectorCandidateCount,
         lexicalCandidateCount: input.execution.lexicalCandidateCount,

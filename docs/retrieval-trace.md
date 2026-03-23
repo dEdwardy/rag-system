@@ -85,6 +85,9 @@ Current shape includes:
   - `fallbackReason`
   - `rerankApplied`
   - `chunkWindowApplied`
+  - `vectorCandidateLimitHit`
+  - `lexicalCandidateLimitHit`
+  - `rankingTopKHit`
   - `candidateLimit`
   - `vectorCandidateCount`
   - `lexicalCandidateCount`
