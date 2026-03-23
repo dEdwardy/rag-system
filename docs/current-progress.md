@@ -615,6 +615,14 @@
     - `pnpm --filter @rag-system/api build`
     - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
 
+- ✅ answering citation-attribution metadata exposure
+  - `answeringMetadata` 现在也会显式返回 `citationAttribution`，用于区分最终 citation 是 `explicit`、`heuristic` 还是 `none`
+  - 这样上层不再需要从 `qualityEvaluation.summary` 或 grounded wording 间接反推 citation 来源
+  - one-shot、native stream final payload、以及持久化 trace 中的 `answeringMetadataJson` 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ local grounded fallback answer language alignment
   - 当没有可用模型 provider、但 retrieval 已命中内容时，`LlmService` 本地 grounded fallback answer 不再固定使用英文前缀
   - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，让 hitful local fallback 与 no-hit local fallback 的语言策略保持一致

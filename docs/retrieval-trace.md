@@ -105,6 +105,7 @@ Current shape includes:
 - `promptContextCount`
 - `contextGroupCount`
 - `citationCount`
+- `citationAttribution`
 - `answerStatus`
 
 This is the stable summary of how answer generation actually ran for the trace.

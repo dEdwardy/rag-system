@@ -484,7 +484,7 @@ The following path has been validated locally on `2026-03-21`:
    - `missingInformation` is returned as an array
    - `qualityEvaluation` is returned with `overall`, `grounding`, `completeness`, `flags`, and `summary`
    - `retrievalMetadata` is returned with resolved strategy, rewrite execution, and retrieval execution summary
-  - `answeringMetadata` is returned with prompt id, normalized answer policy, context mode, prompt-context count, and citation count
+  - `answeringMetadata` is returned with prompt id, normalized answer policy, context mode, prompt-context count, citation count, and citation attribution
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
    - `contextGroups` is returned as an array

@@ -59,6 +59,7 @@ export type AnsweringMetadata = {
   promptContextCount: number;
   contextGroupCount: number;
   citationCount: number;
+  citationAttribution: CitationSelection["attribution"];
   answerStatus: "grounded" | "insufficient_context";
 };
 
@@ -235,6 +236,7 @@ export class AnsweringService {
           promptContextCount: 0,
           contextGroupCount: 0,
           citationCount: 0,
+          citationAttribution: "none",
           answerStatus
         },
         answerStatus,
@@ -293,6 +295,7 @@ export class AnsweringService {
           : input.chunks.length,
         contextGroupCount: input.contextGroups?.length ?? 0,
         citationCount: citations.length,
+        citationAttribution: citationSelection.attribution,
         answerStatus
       },
       answerStatus,
