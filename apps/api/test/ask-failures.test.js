@@ -121,3 +121,94 @@ test("AskAssistantService marks trace as failed when answer generation throws", 
     message: "synthetic answer failure"
   });
 });
+
+test("AskAssistantService creates a failed trace when retrieval throws before trace creation", async () => {
+  const createdTraces = [];
+  const assistantsService = {
+    getAssistant: async () => ({
+      id: "assistant-1",
+      tenantId: "tenant-1",
+      kbId: "kb-1",
+      systemPrompt: "system prompt",
+      retrievalProfile: {
+        topK: 3,
+        scoreThreshold: 0,
+        chunkWindow: 0,
+        enableHybrid: false,
+        enableRerank: false,
+        filtersJson: null,
+        strategyJson: null
+      }
+    })
+  };
+  const conversationsService = {
+    createConversation: async () => ({ id: "conversation-1" }),
+    getConversation: async () => ({ id: "conversation-1" }),
+    touchConversation: async () => ({})
+  };
+  const messagesService = {
+    createMessage: async input => ({
+      id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+      ...input
+    }),
+    attachTrace: async () => ({})
+  };
+  const retrievalService = {
+    retrieve: async () => {
+      throw new Error("synthetic retrieval failure");
+    }
+  };
+  const tracesService = {
+    createTrace: async input => {
+      createdTraces.push(input);
+      return { id: "trace-retrieval-1", ...input };
+    },
+    updateTrace: async () => {
+      throw new Error("updateTrace should not be used when retrieval fails before trace creation");
+    }
+  };
+  const llmService = {
+    rewriteQuery: async ({ question }) => ({
+      rewrittenQuery: question,
+      modelName: "fallback-rewrite-local",
+      usedFallback: true,
+      promptId: "rewrite.v1"
+    })
+  };
+
+  const service = new AskAssistantService(
+    assistantsService,
+    conversationsService,
+    messagesService,
+    retrievalService,
+    {},
+    tracesService,
+    llmService
+  );
+
+  await assert.rejects(
+    service.askAssistant({
+      assistantId: "assistant-1",
+      question: "why did retrieval fail?"
+    }),
+    error => {
+      assert.equal(error.getStatus(), 502);
+      const response = error.getResponse();
+      assert.equal(response.code, "ASK_PIPELINE_FAILED");
+      assert.equal(response.traceId, "trace-retrieval-1");
+      assert.deepEqual(response.details, {
+        stage: "retrieval",
+        cause: "synthetic retrieval failure"
+      });
+      return true;
+    }
+  );
+
+  assert.equal(createdTraces.length, 1);
+  assert.equal(createdTraces[0].status, "failed");
+  assert.equal(createdTraces[0].errorMessage, "synthetic retrieval failure");
+  assert.deepEqual(createdTraces[0].retrievalMetadataJson.failure, {
+    stage: "retrieval",
+    message: "synthetic retrieval failure"
+  });
+});

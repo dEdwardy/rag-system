@@ -149,6 +149,8 @@ Notes:
     - `retrievedChunkCount`
     - `citationCount`
     - `usedFallback`
+  - retrieval-stage ask failures now also create a failed trace before the pipeline aborts
+  - that failed trace carries minimal retrieval failure metadata so `traceSummary.failedStage` and `traceSummary.failureMessage` remain available even when retrieval fails before any chunks are returned
 - current quality-evaluation semantics:
   - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `fallback_generation`, `other`) alongside the existing flags array
   - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty

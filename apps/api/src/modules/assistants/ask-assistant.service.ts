@@ -90,16 +90,17 @@ export class AskAssistantService {
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
-    const retrievalResult = await this.retrievalService.retrieve({
-      kbId: assistant.kbId,
-      query: retrievalQuery,
-      topK: retrievalProfile.topK,
-      scoreThreshold: retrievalProfile.scoreThreshold,
-      chunkWindow: retrievalProfile.chunkWindow,
-      enableHybrid: retrievalProfile.enableHybrid,
-      enableRerank: retrievalProfile.enableRerank,
-      filters: retrievalFilters,
-      strategy: retrievalStrategy
+    const retrievalResult = await this.retrieveOrCreateFailedTrace({
+      assistantId: assistant.id,
+      assistantKbId: assistant.kbId,
+      conversationId: conversation.id,
+      userMessageId: userMessage.id,
+      userQuery: input.question,
+      retrievalQuery,
+      retrievalProfile,
+      retrievalStrategy,
+      retrievalFilters,
+      rewritten
     });
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
@@ -276,16 +277,17 @@ export class AskAssistantService {
       phase: "retrieving"
     });
 
-    const retrievalResult = await this.retrievalService.retrieve({
-      kbId: assistant.kbId,
-      query: retrievalQuery,
-      topK: retrievalProfile.topK,
-      scoreThreshold: retrievalProfile.scoreThreshold,
-      chunkWindow: retrievalProfile.chunkWindow,
-      enableHybrid: retrievalProfile.enableHybrid,
-      enableRerank: retrievalProfile.enableRerank,
-      filters: retrievalFilters,
-      strategy: retrievalStrategy
+    const retrievalResult = await this.retrieveOrCreateFailedTrace({
+      assistantId: assistant.id,
+      assistantKbId: assistant.kbId,
+      conversationId: conversation.id,
+      userMessageId: userMessage.id,
+      userQuery: input.question,
+      retrievalQuery,
+      retrievalProfile,
+      retrievalStrategy,
+      retrievalFilters,
+      rewritten
     });
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
@@ -546,6 +548,120 @@ export class AskAssistantService {
         contextGroupCount: input.contextGroups.length,
         primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length,
         neighborChunkCount: input.retrievedChunks.filter(chunk => !(chunk.isPrimary ?? true)).length
+      }
+    } as Prisma.InputJsonValue;
+  }
+
+  private async retrieveOrCreateFailedTrace(input: {
+    assistantId: string;
+    assistantKbId: string;
+    conversationId: string;
+    userMessageId: string;
+    userQuery: string;
+    retrievalQuery: string;
+    retrievalProfile: {
+      topK: number;
+      scoreThreshold: number;
+      chunkWindow: number;
+      enableHybrid: boolean;
+      enableRerank: boolean;
+    };
+    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>;
+    retrievalFilters?: RetrievalProfileFilters;
+    rewritten: {
+      rewrittenQuery: string | null;
+      modelName: string | null;
+      usedFallback: boolean | null;
+      promptId: string | null;
+    };
+  }) {
+    try {
+      return await this.retrievalService.retrieve({
+        kbId: input.assistantKbId,
+        query: input.retrievalQuery,
+        topK: input.retrievalProfile.topK,
+        scoreThreshold: input.retrievalProfile.scoreThreshold,
+        chunkWindow: input.retrievalProfile.chunkWindow,
+        enableHybrid: input.retrievalProfile.enableHybrid,
+        enableRerank: input.retrievalProfile.enableRerank,
+        filters: input.retrievalFilters,
+        strategy: input.retrievalStrategy
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown retrieval pipeline error.";
+      const failedTrace = await this.tracesService.createTrace({
+        conversationId: input.conversationId,
+        assistantId: input.assistantId,
+        userMessageId: input.userMessageId,
+        userQuery: input.userQuery,
+        rewrittenQuery: input.retrievalQuery !== input.userQuery ? input.retrievalQuery : null,
+        retrievalMetadataJson: this.buildRetrievalFailureMetadata({
+          strategy: input.retrievalStrategy,
+          filters: input.retrievalFilters,
+          rewrittenQuery: input.rewritten.rewrittenQuery,
+          rewritePromptId: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.promptId : null,
+          rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.usedFallback : null,
+          originalQuestion: input.userQuery,
+          topK: input.retrievalProfile.topK,
+          scoreThreshold: input.retrievalProfile.scoreThreshold,
+          chunkWindow: input.retrievalProfile.chunkWindow,
+          failure: {
+            stage: "retrieval",
+            message
+          }
+        }),
+        modelName: input.rewritten.modelName ?? undefined,
+        status: TraceStatus.failed,
+        errorMessage: message
+      });
+      throw new AskAssistantError({
+        traceId: failedTrace.id,
+        details: {
+          stage: "retrieval",
+          cause: message
+        }
+      });
+    }
+  }
+
+  private buildRetrievalFailureMetadata(input: {
+    strategy: ReturnType<typeof resolveRetrievalStrategy>;
+    filters?: RetrievalProfileFilters;
+    rewrittenQuery: string | null;
+    rewritePromptId: string | null;
+    rewriteUsedFallback: boolean | null;
+    originalQuestion: string;
+    topK: number;
+    scoreThreshold: number;
+    chunkWindow: number;
+    failure: {
+      stage: "retrieval";
+      message: string;
+    };
+  }): Prisma.InputJsonValue {
+    return {
+      strategy: input.strategy,
+      filters: input.filters ?? null,
+      queryRewrite: {
+        enabled: input.strategy.queryRewrite.enabled,
+        applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
+        finalQuerySource: !input.strategy.queryRewrite.enabled
+          ? "original_disabled"
+          : input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
+            ? "rewritten"
+            : "original_unchanged",
+        usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+      },
+      execution: {
+        retrievalQuery: input.rewrittenQuery || input.originalQuestion,
+        topK: input.topK,
+        scoreThreshold: input.scoreThreshold,
+        chunkWindow: input.chunkWindow
+      },
+      failure: {
+        stage: input.failure.stage,
+        message: input.failure.message
       }
     } as Prisma.InputJsonValue;
   }

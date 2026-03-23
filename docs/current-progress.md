@@ -13,6 +13,7 @@
 
 - trace 读取接口现在会直接返回 additive `traceSummary`，把 `answerStatus`、`qualityOverall`、`primaryIssue`、`retrievalMode`、`generationMode`、`rewriteApplied`、`fallbackReason`、`citationAttribution`、`missingInformationCount`、`insufficientContextReason`、`failedStage`、`failureMessage`、`retrievedChunkCount`、`citationCount`、`usedFallback` 从持久化 trace JSON 中归一化提取出来
 - ask 失败路径现在也会把最小 `failure` 元数据写进现有 `retrievalMetadataJson`，供 trace read-model 直接提取失败阶段和失败消息
+- one-shot / stream ask 在 retrieval 阶段抛错时，现在也会先创建 failed trace，再返回 `ASK_PIPELINE_FAILED`，不再只有 answering 阶段失败才能拿到 `traceId`
 - 这样 `GET /traces/:id` 与 `GET /conversations/:id/traces` 不再要求上层自己拼接这几项执行结论
 - answering / retrieval backend 收口继续推进中
 - strong quality summary 现在也会单独区分 `required citation` 下由 backend heuristic 回填的引用路径，不再与普通 `retrieved without citations` 共用同一条文案
