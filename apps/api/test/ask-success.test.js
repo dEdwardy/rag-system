@@ -177,10 +177,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
             citationCount: 1,
             citationLimitHit: false,
             citationAttribution: "explicit",
+            citationSelectionSource: "structured",
             missingInformationCount: 0,
             missingInformationSource: "none",
             answerTextSource: "model",
             insufficientContextReason: null,
+            answerStatusSource: "model",
             answerStatus: "grounded"
           },
           modelName: "fallback-local",
@@ -395,10 +397,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     citationCount: 1,
     citationLimitHit: false,
     citationAttribution: "explicit",
+    citationSelectionSource: "structured",
     missingInformationCount: 0,
     missingInformationSource: "none",
     answerTextSource: "model",
     insufficientContextReason: null,
+    answerStatusSource: "model",
     answerStatus: "grounded"
   });
   assert.equal(result.conversationId, "conversation-1");
@@ -431,10 +435,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     citationCount: 1,
     citationLimitHit: false,
     citationAttribution: "explicit",
+    citationSelectionSource: "structured",
     missingInformationCount: 0,
     missingInformationSource: "none",
     answerTextSource: "model",
     insufficientContextReason: null,
+    answerStatusSource: "model",
     answerStatus: "grounded"
   });
   assert.equal(result.modelName, "fallback-local");
@@ -558,10 +564,12 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           citationCount: 0,
           citationLimitHit: false,
           citationAttribution: "none",
+          citationSelectionSource: "none",
           missingInformationCount: 0,
           missingInformationSource: "none",
           answerTextSource: "deterministic_policy",
           insufficientContextReason: "no_retrieval_hits",
+          answerStatusSource: "deterministic_policy",
           answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
@@ -749,10 +757,12 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     citationCount: 0,
     citationLimitHit: false,
     citationAttribution: "none",
+    citationSelectionSource: "none",
     missingInformationCount: 0,
     missingInformationSource: "none",
     answerTextSource: "deterministic_policy",
     insufficientContextReason: "no_retrieval_hits",
+    answerStatusSource: "deterministic_policy",
     answerStatus: "insufficient_context"
   });
   assert.equal(result.traceId, "trace-1");
@@ -1086,6 +1096,7 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
               citationCount: 0,
               answerTextSource: "model",
               insufficientContextReason: "no_retrieval_hits",
+              answerStatusSource: "model",
               answerStatus: "insufficient_context"
             },
           modelName: "test-model",

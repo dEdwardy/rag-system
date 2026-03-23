@@ -121,10 +121,12 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     citationCount: 1,
     citationLimitHit: true,
     citationAttribution: "explicit",
+    citationSelectionSource: "structured",
     missingInformationCount: 0,
     missingInformationSource: "none",
     answerTextSource: "model",
     insufficientContextReason: null,
+    answerStatusSource: "model",
     answerStatus: "grounded"
   });
 });
@@ -161,6 +163,8 @@ test("AnsweringService falls back to default structured metadata when the model 
   assert.deepEqual(result.missingInformation, []);
   assert.equal(result.citations.length, 1);
   assert.equal(result.citations[0].chunkId, "chunk-1");
+  assert.equal(result.answeringMetadata.citationSelectionSource, "structured");
+  assert.equal(result.answeringMetadata.answerStatusSource, "inferred_from_retrieval");
 });
 
 test("AnsweringService exposes usedFallback in answering metadata for local fallback answers", async () => {
@@ -663,10 +667,12 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     citationCount: 1,
     citationLimitHit: false,
     citationAttribution: "explicit",
+    citationSelectionSource: "structured",
     missingInformationCount: 0,
     missingInformationSource: "none",
     answerTextSource: "model",
     insufficientContextReason: null,
+    answerStatusSource: "inferred_from_retrieval",
     answerStatus: "grounded"
   });
 });
@@ -1849,6 +1855,7 @@ test("AnsweringService preserves best_effort answers even when context is insuff
   assert.equal(result.answerStatus, "insufficient_context");
   assert.equal(result.answeringMetadata.answerTextSource, "model");
   assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
 });
 
 test("AnsweringService localizes the deterministic insufficient-context fallback for Chinese questions", async () => {
@@ -1913,6 +1920,7 @@ test("AnsweringService preserves missingInformation for insufficient-context ans
   assert.equal(result.answeringMetadata.missingInformationSource, "model");
   assert.equal(result.answeringMetadata.answerTextSource, "deterministic_policy");
   assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",
@@ -1954,6 +1962,7 @@ test("AnsweringService fills a deterministic missingInformation reason for insuf
   assert.equal(result.answeringMetadata.missingInformationSource, "deterministic_default");
   assert.equal(result.answeringMetadata.answerTextSource, "deterministic_policy");
   assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",
@@ -2006,6 +2015,7 @@ test("AnsweringService uses a hit-aware deterministic missingInformation reason 
   ]);
   assert.equal(result.answeringMetadata.answerTextSource, "model");
   assert.equal(result.answeringMetadata.insufficientContextReason, "retrieved_context_insufficient");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",

@@ -32,6 +32,7 @@ type CitationEvidence = {
 type CitationSelection = {
   chunks: RetrievedChunk[];
   attribution: "explicit" | "heuristic" | "none";
+  source: "structured" | "inline_markers" | "heuristic" | "none";
 };
 
 type QualityEvaluation = {
@@ -64,10 +65,12 @@ export type AnsweringMetadata = {
   citationCount: number;
   citationLimitHit: boolean;
   citationAttribution: CitationSelection["attribution"];
+  citationSelectionSource: CitationSelection["source"];
   missingInformationCount: number;
   missingInformationSource: "none" | "model" | "deterministic_default" | "suppressed_by_policy";
   answerTextSource: "model" | "deterministic_policy";
   insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
+  answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy";
   answerStatus: "grounded" | "insufficient_context";
 };
 
@@ -184,10 +187,12 @@ export class AnsweringService {
           citationCount: 0,
           citationLimitHit: false,
           citationAttribution: "none",
+          citationSelectionSource: "none",
           missingInformationCount: missingInformation.length,
           missingInformationSource: "deterministic_default",
           answerTextSource: "deterministic_policy",
           insufficientContextReason: "no_retrieval_hits",
+          answerStatusSource: "deterministic_policy",
           answerStatus: "insufficient_context" as const
         },
       modelName: "fallback-local",
@@ -261,6 +266,7 @@ export class AnsweringService {
           citationCount: 0,
           citationLimitHit: false,
           citationAttribution: "none",
+          citationSelectionSource: "none",
           missingInformationCount: missingInformation.length,
           missingInformationSource: this.resolveMissingInformationSource({
             answerStatus,
@@ -274,6 +280,9 @@ export class AnsweringService {
           insufficientContextReason: this.resolveInsufficientContextReason({
             answerStatus,
             hasRetrievedContext: false
+          }),
+          answerStatusSource: this.resolveAnswerStatusSource({
+            answerStatusProvided: input.result.answerStatus != null
           }),
           answerStatus
         },
@@ -339,6 +348,7 @@ export class AnsweringService {
         citationCount: citations.length,
         citationLimitHit: citationCountBeforeLimit > input.answerPolicy.maxCitations,
         citationAttribution: citationSelection.attribution,
+        citationSelectionSource: citationSelection.source,
         missingInformationCount: missingInformation.length,
         missingInformationSource: this.resolveMissingInformationSource({
           answerStatus,
@@ -352,6 +362,9 @@ export class AnsweringService {
         insufficientContextReason: this.resolveInsufficientContextReason({
           answerStatus,
           hasRetrievedContext: input.chunks.length > 0
+        }),
+        answerStatusSource: this.resolveAnswerStatusSource({
+          answerStatusProvided: input.result.answerStatus != null
         }),
         answerStatus
       },
@@ -443,6 +456,12 @@ export class AnsweringService {
     return input.hasRetrievedContext ? "retrieved_context_insufficient" : "no_retrieval_hits";
   }
 
+  private resolveAnswerStatusSource(input: {
+    answerStatusProvided: boolean;
+  }): AnsweringMetadata["answerStatusSource"] {
+    return input.answerStatusProvided ? "model" : "inferred_from_retrieval";
+  }
+
   private buildInsufficientContextAnswer(
     question: string,
     language: AnswerPolicy["language"]
@@ -529,7 +548,8 @@ export class AnsweringService {
     if (validChunks.length > 0) {
       return {
         chunks: validChunks,
-        attribution: "explicit"
+        attribution: "explicit",
+        source: "structured"
       };
     }
 
@@ -551,20 +571,23 @@ export class AnsweringService {
     if (uniqueExtractedFromAnswer.length > 0) {
       return {
         chunks: uniqueExtractedFromAnswer,
-        attribution: "explicit"
+        attribution: "explicit",
+        source: "inline_markers"
       };
     }
 
     if (input.citationMode === "optional") {
       return {
         chunks: [],
-        attribution: "none"
+        attribution: "none",
+        source: "none"
       };
     }
 
     return {
       chunks: input.chunks.slice(0, Math.min(3, input.chunks.length)),
-      attribution: input.chunks.length > 0 ? "heuristic" : "none"
+      attribution: input.chunks.length > 0 ? "heuristic" : "none",
+      source: input.chunks.length > 0 ? "heuristic" : "none"
     };
   }
 

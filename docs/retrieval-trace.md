@@ -119,9 +119,11 @@ Current shape includes:
 - `citationCount`
 - `citationLimitHit`
 - `citationAttribution`
+- `citationSelectionSource`
 - `missingInformationCount`
 - `missingInformationSource`
 - `answerTextSource`
+- `answerStatusSource`
 - `insufficientContextReason`
 - `answerStatus`
 

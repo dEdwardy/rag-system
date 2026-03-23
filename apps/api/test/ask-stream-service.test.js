@@ -84,10 +84,12 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
           citationCount: 0,
           citationLimitHit: false,
           citationAttribution: "none",
+          citationSelectionSource: "none",
           missingInformationCount: 0,
           missingInformationSource: "none",
           answerTextSource: "model",
           insufficientContextReason: null,
+          answerStatusSource: "model",
           answerStatus: "grounded"
         },
         answerStatus: "grounded",
@@ -241,9 +243,11 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
           contextGroupCount: 0,
             citationCount: 0,
             citationAttribution: "none",
+            citationSelectionSource: "none",
             missingInformationCount: 1,
             answerTextSource: "deterministic_policy",
             insufficientContextReason: "no_retrieval_hits",
+            answerStatusSource: "deterministic_policy",
             answerStatus: "insufficient_context"
           },
         answerStatus: "insufficient_context",
@@ -278,6 +282,7 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
               citationCount: 0,
               answerTextSource: "model",
               insufficientContextReason: "no_retrieval_hits",
+              answerStatusSource: "model",
               answerStatus: "insufficient_context"
             },
         answerStatus: "insufficient_context",

@@ -659,6 +659,14 @@
     - `answeringMetadata` 同时显式返回 `insufficientContextReason`，当前值收口为 `no_retrieval_hits` / `retrieved_context_insufficient` / `null`
     - 这样上层不再需要结合 `noAnswerBehavior`、最终 answer text、以及 retrieval hit 情况，自己反推这轮回答是否被 deterministic policy 覆盖，以及 `insufficient_context` 到底来自 no-hit 还是 hit-aware 证据不足
     - one-shot、native stream final payload、以及 trace 持久化里的 `answeringMetadataJson` 语义现已对齐
+  - ✅ answering citation-source and status-source provenance
+    - `answeringMetadata` 现在也会显式返回 `citationSelectionSource`，当前值收口为 `structured` / `inline_markers` / `heuristic` / `none`
+    - `answeringMetadata` 同时显式返回 `answerStatusSource`，当前值收口为 `model` / `inferred_from_retrieval` / `deterministic_policy`
+    - 这样上层不再需要自己判断 citation 是来自 structured output、plain-text marker 解析还是 heuristic backfill，也不需要再从结果形态反推 `answerStatus` 是模型明确给出的还是 backend 推断出来的
+    - one-shot、native stream final payload、以及 trace 持久化里的 `answeringMetadataJson` 语义现已对齐
+    - focused validation rerun:
+      - `pnpm --filter @rag-system/api build`
+      - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
     - focused validation rerun:
       - `pnpm --filter @rag-system/api build`
       - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
