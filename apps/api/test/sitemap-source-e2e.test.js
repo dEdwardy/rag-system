@@ -6,17 +6,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Sitemap source E2E: sitemap -> ready -> chunks -> ask -> reindex", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3106;
   const storageRoot = resolve(repoRoot, "storage", `test-sitemap-source-${randomUUID()}`);
@@ -120,10 +121,6 @@ test("Sitemap source E2E: sitemap -> ready -> chunks -> ask -> reindex", async (
 
 test("Sitemap source E2E: sitemap index -> ready -> chunks -> ask", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3107;
   const storageRoot = resolve(repoRoot, "storage", `test-sitemap-index-source-${randomUUID()}`);
@@ -196,10 +193,6 @@ test("Sitemap source E2E: sitemap index -> ready -> chunks -> ask", async () => 
 
 test("Sitemap source E2E: partial page failure still reaches ready and persists partial diagnostics", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3108;
   const storageRoot = resolve(repoRoot, "storage", `test-sitemap-partial-source-${randomUUID()}`);
@@ -297,10 +290,6 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
 
 test("Sitemap source E2E: partial child sitemap failure still reaches ready and persists child diagnostics", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3109;
   const storageRoot = resolve(repoRoot, "storage", `test-sitemap-index-partial-source-${randomUUID()}`);
@@ -399,10 +388,6 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
 
 test("Sitemap source E2E: partial page diagnostics clear after a later clean resync", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3113;
   const storageRoot = resolve(repoRoot, "storage", `test-sitemap-partial-then-clean-${randomUUID()}`);

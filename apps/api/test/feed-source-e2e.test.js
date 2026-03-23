@@ -6,17 +6,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Feed source E2E: url -> ready -> chunks -> ask -> reindex", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3105;
   const storageRoot = resolve(repoRoot, "storage", `test-feed-source-${randomUUID()}`);
@@ -120,10 +121,6 @@ test("Feed source E2E: url -> ready -> chunks -> ask -> reindex", async () => {
 
 test("Feed source E2E: Atom feed -> ready -> chunks -> ask", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3122;
   const storageRoot = resolve(repoRoot, "storage", `test-feed-atom-source-${randomUUID()}`);
@@ -198,10 +195,6 @@ test("Feed source E2E: Atom feed -> ready -> chunks -> ask", async () => {
 
 test("Feed source E2E: partial invalid entries still reach ready and persist diagnostics", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3110;
   const storageRoot = resolve(repoRoot, "storage", `test-feed-partial-source-${randomUUID()}`);
@@ -335,10 +328,6 @@ test("Feed source E2E: partial invalid entries still reach ready and persist dia
 
 test("Feed source E2E: in-flight reindex from a partial-ready source does not pollute current failure summary", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3111;
   const storageRoot = resolve(repoRoot, "storage", `test-feed-partial-reindex-${randomUUID()}`);
@@ -441,10 +430,6 @@ test("Feed source E2E: in-flight reindex from a partial-ready source does not po
 
 test("Feed source E2E: partial-ready source clears current diagnostics after a later clean resync", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3112;
   const storageRoot = resolve(repoRoot, "storage", `test-feed-partial-then-clean-${randomUUID()}`);

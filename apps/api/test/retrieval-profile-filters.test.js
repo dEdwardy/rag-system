@@ -5,17 +5,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Retrieval profile filters can be cleared through PATCH", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3106;
   const storageRoot = resolve(repoRoot, "storage", `test-clear-filters-${randomUUID()}`);
@@ -85,10 +86,6 @@ test("Retrieval profile filters can be cleared through PATCH", async () => {
 
 test("Retrieval profile filters constrain ask retrieved chunks", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3102;
   const storageRoot = resolve(repoRoot, "storage", `test-filters-${randomUUID()}`);
@@ -183,10 +180,6 @@ test("Retrieval profile filters constrain ask retrieved chunks", async () => {
 
 test("Retrieval profile strategy filters accept richer operators and constrain ask retrieved chunks", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3104;
   const storageRoot = resolve(repoRoot, "storage", `test-filter-strategy-${randomUUID()}`);

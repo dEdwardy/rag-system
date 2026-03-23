@@ -5,17 +5,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Ask chain E2E: upload -> grounded ask -> conversation reuse -> trace growth -> reindex -> ask", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3103;
   const storageRoot = resolve(repoRoot, "storage", `test-ask-chain-${randomUUID()}`);
@@ -201,6 +202,29 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
 
   const traces = await tracesResponse.json();
   assert.equal(traces.length, expectedTraceIds.length);
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.answerStatus === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.qualityOverall === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.primaryIssue === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievalMode === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.generationMode === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.rewriteApplied === "boolean"));
+  assert.ok(
+    traces.every(
+      trace => trace.traceSummary?.fallbackReason === null || typeof trace.traceSummary?.fallbackReason === "string"
+    )
+  );
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.citationAttribution === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.missingInformationCount === "number"));
+  assert.ok(
+    traces.every(
+      trace =>
+        trace.traceSummary?.insufficientContextReason === null ||
+        typeof trace.traceSummary?.insufficientContextReason === "string"
+    )
+  );
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievedChunkCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.citationCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.usedFallback === "boolean"));
   assert.deepEqual(
     traces.map(trace => trace.id).sort(),
     [...expectedTraceIds].sort()
@@ -227,6 +251,23 @@ async function assertTraceState(port, traceId) {
   assert.equal(typeof trace.answeringMetadataJson?.answerStatus, "string");
   assert.equal(typeof trace.qualityEvaluationJson?.overall, "string");
   assert.equal(typeof trace.qualityEvaluationJson?.summary, "string");
+  assert.deepEqual(trace.traceSummary, {
+    answerStatus: trace.answeringMetadataJson.answerStatus,
+    qualityOverall: trace.qualityEvaluationJson.overall,
+    primaryIssue: trace.qualityEvaluationJson.primaryIssue,
+    retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+    generationMode: trace.answeringMetadataJson.generationMode,
+    rewriteApplied: trace.rewrittenQuery !== null,
+    fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+    citationAttribution: trace.answeringMetadataJson.citationAttribution,
+    missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
+    insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
+    failedStage: null,
+    failureMessage: null,
+    retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
+    citationCount: trace.citationsJson.length,
+    usedFallback: trace.answeringMetadataJson.usedFallback
+  });
   assert.equal(typeof trace.rewrittenQuery === "string" || trace.rewrittenQuery === null, true);
   assert.equal(typeof trace.modelName, "string");
 }

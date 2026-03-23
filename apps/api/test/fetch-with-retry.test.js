@@ -1,7 +1,6 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const { fetchWithRetry } = require("../dist/infra/http/fetch-with-retry.js");
+const { fetchWithRetry } = require("../src/infra/http/fetch-with-retry.ts");
 
 test("fetchWithRetry retries once after a transient 5xx response", async () => {
   let requestCount = 0;

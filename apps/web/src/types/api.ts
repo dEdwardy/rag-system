@@ -311,6 +311,31 @@ export type TraceRecord = {
   citationsJson: Citation[] | null;
   modelName: string | null;
   latencyMs: number | null;
+  traceSummary: {
+    answerStatus: "grounded" | "insufficient_context" | null;
+    qualityOverall: "strong" | "partial" | "weak" | null;
+    primaryIssue:
+      | "none"
+      | "no_retrieval_hits"
+      | "insufficient_context"
+      | "missing_information"
+      | "low_retrieval_score"
+      | "fallback_generation"
+      | "other"
+      | null;
+    retrievalMode: "vector" | "hybrid" | "lexical" | null;
+    generationMode: "generated" | "deterministic_bypass" | null;
+    rewriteApplied: boolean;
+    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+    citationAttribution: "explicit" | "heuristic" | "none" | null;
+    missingInformationCount: number;
+    insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
+    failedStage: "answering" | null;
+    failureMessage: string | null;
+    retrievedChunkCount: number;
+    citationCount: number;
+    usedFallback: boolean;
+  };
   status: "success" | "failed";
   errorMessage: string | null;
   createdAt: string;

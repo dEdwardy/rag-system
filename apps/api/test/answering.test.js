@@ -1,6 +1,5 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
-const { AnsweringService } = require("../dist/modules/answering/answering.service.js");
+const { AnsweringService } = require("../src/modules/answering/answering.service.ts");
 
 test("AnsweringService returns only cited citations when the model cites sources", async () => {
   const llmService = {

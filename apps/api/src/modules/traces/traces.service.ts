@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, TraceStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 
+type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
+
 @Injectable()
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -14,7 +16,7 @@ export class TracesService {
         throw new NotFoundException(`Trace ${id} not found.`);
       }
 
-      return trace;
+      return this.attachTraceSummary(trace);
     });
   }
 
@@ -24,7 +26,7 @@ export class TracesService {
       orderBy: {
         createdAt: "desc"
       }
-    });
+    }).then(traces => traces.map(trace => this.attachTraceSummary(trace)));
   }
 
   createTrace(input: {
@@ -68,5 +70,65 @@ export class TracesService {
       where: { id },
       data: input
     });
+  }
+
+  private attachTraceSummary(trace: NonNullable<PersistedTrace>) {
+    const retrievedChunkCount = this.readRetrievedChunkCount(trace);
+    const citationCount = Array.isArray(trace.citationsJson) ? trace.citationsJson.length : 0;
+    const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
+    const retrievalExecution = this.readObject(retrievalMetadata?.execution);
+    const retrievalFailure = this.readObject(retrievalMetadata?.failure);
+    const answeringMetadata = this.readObject(trace.answeringMetadataJson);
+    const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
+
+    return {
+      ...trace,
+      traceSummary: {
+        answerStatus: this.readString(answeringMetadata?.answerStatus),
+        qualityOverall: this.readString(qualityEvaluation?.overall),
+        primaryIssue: this.readString(qualityEvaluation?.primaryIssue),
+        retrievalMode: this.readString(retrievalExecution?.actualMode),
+        generationMode: this.readString(answeringMetadata?.generationMode),
+        rewriteApplied: trace.rewrittenQuery != null,
+        fallbackReason: this.readString(retrievalExecution?.fallbackReason),
+        citationAttribution: this.readString(answeringMetadata?.citationAttribution),
+        missingInformationCount: this.readNumber(answeringMetadata?.missingInformationCount) ?? 0,
+        insufficientContextReason: this.readString(answeringMetadata?.insufficientContextReason),
+        failedStage: this.readString(retrievalFailure?.stage),
+        failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
+        retrievedChunkCount,
+        citationCount,
+        usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
+      }
+    };
+  }
+
+  private readRetrievedChunkCount(trace: NonNullable<PersistedTrace>) {
+    const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
+    const execution = this.readObject(retrievalMetadata?.execution);
+    const executionCount = this.readNumber(execution?.retrievedChunkCount);
+    if (executionCount != null) {
+      return executionCount;
+    }
+
+    return Array.isArray(trace.retrievedChunkIdsJson) ? trace.retrievedChunkIdsJson.length : 0;
+  }
+
+  private readObject(value: unknown): Record<string, unknown> | null {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  }
+
+  private readString(value: unknown) {
+    return typeof value === "string" ? value : null;
+  }
+
+  private readBoolean(value: unknown) {
+    return typeof value === "boolean" ? value : false;
+  }
+
+  private readNumber(value: unknown) {
+    return typeof value === "number" ? value : null;
   }
 }

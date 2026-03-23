@@ -3,14 +3,29 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-23
+更新时间：2026-03-24
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
 > 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
 
-补充进展（2026-03-23）：
+补充进展（2026-03-24）：
 
+- API fast test lane 现已切到 `Vitest`，integration / E2E 继续保留当前 Node test runner + `dist` 启动路径，形成快慢分层的 backend test workflow
+- `pnpm test:api:file -- <path>` 现已按测试文件类型自动分流：fast-lane 文件直接走 `Vitest`，heavy 文件先做 build freshness 检查，再走原 runner
+- heavy API test lane 现已具备 on-demand build 检查；仅当 `src/`、`prisma/` 或关键 API 配置文件比 `dist/main.js` 更新时，才会重新 build
+- integration / chain E2E / source E2E 文件现已统一为“每文件 seed 一次默认数据、每条测试前 reset mutable state”，减少重复 seed 与重测试启动成本
+- fast-lane test support 现已新增通用 helper：
+  - `apps/api/test/support/llm-test-helpers.js`
+  - `apps/api/test/support/ask-assistant-test-helpers.js`
+- `AskAssistantService` fast tests 的当前支撑层收口已完成到既定 helper 边界；`ask-success.test.js`、`ask-stream-service.test.js`、`ask-failures.test.js`、`ask-stream-retrieval-failure.test.js` 已复用统一依赖默认值和 assistant-record scaffolding
+- `ask-success.test.js` / `ask-stream-service.test.js` 中剩余的 localized summary cases 现也已清掉外层手写 `new AskAssistantService(...)` 装配，改为复用统一 helper；当前未继续向更深层 localized payload 文本抽象，以避免为历史编码块引入高风险重写
+- 当前这轮 backend test work 的目标仍是“测试支撑层提效”，重点放在减少 fast tests 中重复的 service mock 构造与默认依赖样板，不涉及业务行为调整
+
+- trace 读取接口现在会直接返回 additive `traceSummary`，把 `answerStatus`、`qualityOverall`、`primaryIssue`、`retrievalMode`、`generationMode`、`rewriteApplied`、`fallbackReason`、`citationAttribution`、`missingInformationCount`、`insufficientContextReason`、`failedStage`、`failureMessage`、`retrievedChunkCount`、`citationCount`、`usedFallback` 从持久化 trace JSON 中归一化提取出来
+- ask 失败路径现在也会把最小 `failure` 元数据写进现有 `retrievalMetadataJson`，供 trace read-model 直接提取失败阶段和失败消息
+- one-shot / stream ask 在 retrieval 阶段抛错时，现在也会先创建 failed trace，再返回 `ASK_PIPELINE_FAILED`，不再只有 answering 阶段失败才能拿到 `traceId`
+- 这样 `GET /traces/:id` 与 `GET /conversations/:id/traces` 不再要求上层自己拼接这几项执行结论
 - answering / retrieval backend 收口继续推进中
 - strong quality summary 现在也会单独区分 `required citation` 下由 backend heuristic 回填的引用路径，不再与普通 `retrieved without citations` 共用同一条文案
 - 上述 heuristic-citation strong summary 现已补齐最小 `en` / `zh` 回归覆盖

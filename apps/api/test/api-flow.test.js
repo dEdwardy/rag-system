@@ -5,17 +5,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("API flow integration: upload -> ready -> ask -> trace", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3101;
   const storageRoot = resolve(repoRoot, "storage", `test-e2e-${randomUUID()}`);
@@ -135,6 +136,27 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     const conversationTraces = await conversationTracesResponse.json();
     assert.ok(Array.isArray(conversationTraces));
     assert.ok(conversationTraces.some(trace => trace.id === askResult.traceId));
+    const listedTrace = conversationTraces.find(trace => trace.id === askResult.traceId);
+    assert.equal(typeof listedTrace?.traceSummary?.answerStatus, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.qualityOverall, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.primaryIssue, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.retrievalMode, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.generationMode, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.rewriteApplied, "boolean");
+    assert.equal(
+      listedTrace?.traceSummary?.fallbackReason === null || typeof listedTrace?.traceSummary?.fallbackReason === "string",
+      true
+    );
+    assert.equal(typeof listedTrace?.traceSummary?.citationAttribution, "string");
+    assert.equal(typeof listedTrace?.traceSummary?.missingInformationCount, "number");
+    assert.equal(
+      listedTrace?.traceSummary?.insufficientContextReason === null ||
+        typeof listedTrace?.traceSummary?.insufficientContextReason === "string",
+      true
+    );
+    assert.equal(typeof listedTrace?.traceSummary?.retrievedChunkCount, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.citationCount, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.usedFallback, "boolean");
 
     const traceResponse = await fetch(`http://localhost:${port}/traces/${askResult.traceId}`);
     assert.equal(traceResponse.status, 200);
@@ -151,6 +173,23 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof trace.retrievalMetadataJson?.execution?.retrievedChunkCount, "number");
     assert.equal(typeof trace.answeringMetadataJson?.promptId, "string");
     assert.equal(typeof trace.answeringMetadataJson?.answerStatus, "string");
+    assert.deepEqual(trace.traceSummary, {
+      answerStatus: trace.answeringMetadataJson.answerStatus,
+      qualityOverall: trace.qualityEvaluationJson.overall,
+      primaryIssue: trace.qualityEvaluationJson.primaryIssue,
+      retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+      generationMode: trace.answeringMetadataJson.generationMode,
+      rewriteApplied: trace.rewrittenQuery !== null,
+      fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+      citationAttribution: trace.answeringMetadataJson.citationAttribution,
+      missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
+      insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
+      failedStage: null,
+      failureMessage: null,
+      retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
+      citationCount: trace.citationsJson.length,
+      usedFallback: trace.answeringMetadataJson.usedFallback
+    });
     assert.ok(
       trace.retrievalScoresJson.every(item =>
         typeof item.chunkId === "string" &&

@@ -5,17 +5,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex -> delete", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3102;
   const storageRoot = resolve(repoRoot, "storage", `test-document-chain-${randomUUID()}`);
@@ -316,10 +317,6 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
 
 test("Document chain E2E: unsupported upload records structured ingestion diagnostics", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3115;
   const storageRoot = resolve(repoRoot, "storage", `test-document-failure-${randomUUID()}`);

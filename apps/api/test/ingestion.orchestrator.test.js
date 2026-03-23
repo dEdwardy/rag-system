@@ -1,7 +1,6 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Prisma } = require("@prisma/client");
-const { IngestionService } = require("../dist/modules/ingestion/ingestion.service.js");
+const { IngestionService } = require("../src/modules/ingestion/ingestion.service.ts");
 
 test("IngestionService processes a document through parsing, chunking, indexing, and ready status", async () => {
   const documentUpdates = [];

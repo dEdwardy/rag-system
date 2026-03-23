@@ -1,12 +1,11 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { Document, Packer, Paragraph, TextRun } = require("docx");
-const { ParsingService } = require("../dist/infra/parsing/parsing.service.js");
-const { FeedSourceService } = require("../dist/infra/feed-source/feed-source.service.js");
-const { SitemapSourceService } = require("../dist/infra/sitemap-source/sitemap-source.service.js");
-const { WebPageService } = require("../dist/infra/web-page/web-page.service.js");
+const { ParsingService } = require("../src/infra/parsing/parsing.service.ts");
+const { FeedSourceService } = require("../src/infra/feed-source/feed-source.service.ts");
+const { SitemapSourceService } = require("../src/infra/sitemap-source/sitemap-source.service.ts");
+const { WebPageService } = require("../src/infra/web-page/web-page.service.ts");
 
 test("ParsingService parses text-based PDFs", async () => {
   const service = new ParsingService();

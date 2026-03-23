@@ -1,6 +1,22 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
-const { LlmService } = require("../dist/infra/llm/llm.service.js");
+const { createLlmService, withEnv, withFetchMock } = require("./support/llm-test-helpers.js");
+
+const conciseAnswerPolicy = {
+  responseStyle: "concise",
+  citationMode: "required",
+  maxCitations: 2,
+  noAnswerBehavior: "say_insufficient_context"
+};
+
+const localizedAnswerPolicy = {
+  responseStyle: "concise",
+  tone: "neutral",
+  outputFormat: "paragraph",
+  citationMode: "required",
+  maxCitations: 2,
+  noAnswerBehavior: "say_insufficient_context",
+  includeMissingInformation: true
+};
 
 test("LlmService uses prompt manager output for Ollama answer generation", async () => {
   const originalFetch = global.fetch;
@@ -22,31 +38,13 @@ test("LlmService uses prompt manager output for Ollama answer generation", async
   process.env.OLLAMA_BASE_URL = "http://localhost:11434";
   process.env.OLLAMA_MODEL = "test-model";
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    })
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "Where is the answer?",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context"
-      },
+      answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
@@ -79,20 +77,7 @@ test("LlmService uses prompt manager output for Ollama rewrite generation", asyn
   process.env.OLLAMA_BASE_URL = "http://localhost:11434";
   process.env.OLLAMA_MODEL = "test-model";
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    })
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.rewriteQuery({
@@ -125,31 +110,13 @@ test("LlmService normalizes structured answer JSON with schema constraints", asy
   process.env.OLLAMA_BASE_URL = "http://localhost:11434";
   process.env.OLLAMA_MODEL = "test-model";
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    })
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "Where is the answer?",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context"
-      },
+      answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
@@ -180,31 +147,13 @@ test("LlmService preserves first-seen order when deduplicating missingInformatio
   process.env.OLLAMA_BASE_URL = "http://localhost:11434";
   process.env.OLLAMA_MODEL = "test-model";
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    })
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "Where is the answer?",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context"
-      },
+      answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
@@ -232,31 +181,13 @@ test("LlmService parses structured citation evidence objects", async () => {
   process.env.OLLAMA_BASE_URL = "http://localhost:11434";
   process.env.OLLAMA_MODEL = "test-model";
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    })
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "Where is the marker?",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context"
-      },
+      answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
@@ -290,31 +221,13 @@ test("LlmService falls back when structured answer payload fails schema validati
   process.env.OLLAMA_BASE_URL = "http://localhost:11434";
   process.env.OLLAMA_MODEL = "test-model";
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    })
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "Where is the answer?",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context"
-      },
+      answerPolicy: conciseAnswerPolicy,
       chunks: []
     });
 
@@ -339,37 +252,13 @@ test("LlmService local fallback no-hit answer respects explicit zh language poli
   delete process.env.OLLAMA_MODEL;
   delete process.env.OPENAI_API_KEY;
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    }),
-    getAnswerPromptId: () => "answer.v1",
-    getRewritePromptId: () => "rewrite-query.v1"
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "价格是多少？",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "zh",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      },
+      answerPolicy: { ...localizedAnswerPolicy, language: "zh" },
       chunks: []
     });
 
@@ -393,37 +282,13 @@ test("LlmService local fallback no-hit answer follows same_as_question language 
   delete process.env.OLLAMA_MODEL;
   delete process.env.OPENAI_API_KEY;
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    }),
-    getAnswerPromptId: () => "answer.v1",
-    getRewritePromptId: () => "rewrite-query.v1"
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "这个文档里提到了什么？",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "same_as_question",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      },
+      answerPolicy: { ...localizedAnswerPolicy, language: "same_as_question" },
       chunks: []
     });
 
@@ -447,37 +312,13 @@ test("LlmService local fallback no-hit missingInformation follows same_as_questi
   delete process.env.OLLAMA_MODEL;
   delete process.env.OPENAI_API_KEY;
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    }),
-    getAnswerPromptId: () => "answer.v1",
-    getRewritePromptId: () => "rewrite-query.v1"
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "\u8fd9\u4e2a\u6587\u6863\u91cc\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "same_as_question",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      },
+      answerPolicy: { ...localizedAnswerPolicy, language: "same_as_question" },
       chunks: []
     });
 
@@ -502,37 +343,13 @@ test("LlmService local fallback grounded answer respects explicit zh language po
   delete process.env.OLLAMA_MODEL;
   delete process.env.OPENAI_API_KEY;
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    }),
-    getAnswerPromptId: () => "answer.v1",
-    getRewritePromptId: () => "rewrite-query.v1"
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "\u8fd9\u4e2a\u6587\u6863\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "zh",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      },
+      answerPolicy: { ...localizedAnswerPolicy, language: "zh" },
       chunks: [
         {
           content: "\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002",
@@ -565,37 +382,13 @@ test("LlmService local fallback grounded answer follows same_as_question languag
   delete process.env.OLLAMA_MODEL;
   delete process.env.OPENAI_API_KEY;
 
-  const service = new LlmService({
-    buildAnswerPrompt: () => ({
-      promptId: "answer.v1",
-      systemPrompt: "managed system prompt",
-      userPrompt: "managed user prompt",
-      fullPrompt: "managed full prompt"
-    }),
-    buildRewritePrompt: () => ({
-      promptId: "rewrite-query.v1",
-      systemPrompt: "managed rewrite system",
-      userPrompt: "managed rewrite user",
-      fullPrompt: "managed rewrite full prompt"
-    }),
-    getAnswerPromptId: () => "answer.v1",
-    getRewritePromptId: () => "rewrite-query.v1"
-  });
+  const service = createLlmService();
 
   try {
     const result = await service.generateAnswer({
       question: "\u8fd9\u4e2a\u6587\u6863\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
       systemPrompt: "ignored direct system prompt",
-      answerPolicy: {
-        responseStyle: "concise",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "same_as_question",
-        citationMode: "required",
-        maxCitations: 2,
-        noAnswerBehavior: "say_insufficient_context",
-        includeMissingInformation: true
-      },
+      answerPolicy: { ...localizedAnswerPolicy, language: "same_as_question" },
       chunks: [
         {
           content: "\u8fd9\u662f\u68c0\u7d22\u5230\u7684\u4e2d\u6587\u7247\u6bb5\u3002",

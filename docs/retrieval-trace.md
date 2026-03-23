@@ -129,6 +129,42 @@ Current shape includes:
 
 This is the stable summary of how answer generation actually ran for the trace.
 
+## Trace read summary
+
+Trace read endpoints now also expose additive `traceSummary` on top of the raw persisted payload:
+
+- `GET /traces/:id`
+- `GET /conversations/:id/traces`
+
+Current `traceSummary` shape includes:
+
+- `answerStatus`
+- `qualityOverall`
+- `primaryIssue`
+- `retrievalMode`
+- `generationMode`
+- `rewriteApplied`
+- `fallbackReason`
+- `citationAttribution`
+- `missingInformationCount`
+- `insufficientContextReason`
+- `failedStage`
+- `failureMessage`
+- `retrievedChunkCount`
+- `citationCount`
+- `usedFallback`
+
+This summary is derived from the persisted trace JSON, so callers can read the main execution outcome directly without reconstructing it from `retrievalMetadataJson`, `answeringMetadataJson`, and `qualityEvaluationJson`.
+
+For failed ask traces, the backend now also writes additive `failure` data into `retrievalMetadataJson`:
+
+- `stage`
+- `message`
+
+The trace read model lifts that into `traceSummary.failedStage` and `traceSummary.failureMessage`.
+
+When retrieval itself throws before the normal success-path trace would have been created, the ask pipeline now creates a failed trace immediately with that same minimal `failure` payload. This keeps `traceId`, `failedStage`, and `failureMessage` available for both one-shot and stream retrieval failures.
+
 ## Current limitations
 
 - query rewrite is single-shot and does not yet use conversation history
