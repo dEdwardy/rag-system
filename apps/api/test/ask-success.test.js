@@ -1036,57 +1036,20 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
 });
 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "concise",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "same_as_question",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "say_insufficient_context",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
-      retrieve: async () => ({
-        retrievedChunks: [],
-        contextGroups: [],
-        execution: {
-          actualMode: "vector",
-          usedFallback: false
-        }
-      })
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "concise",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "same_as_question",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: true
+      }
+    }),
+    answering: {
       buildDeterministicInsufficientContextResult: () => ({
         answer:
           "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002",
@@ -1130,20 +1093,8 @@ test("AskAssistantService localizes one-shot deterministic no-hit answers for Ch
       generateAnswer: async () => {
         throw new Error("generateAnswer should be bypassed");
       }
-    },
-    {
-      createTrace: async () => ({ id: "trace-1" }),
-      updateTrace: async () => ({})
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -1184,38 +1135,8 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: null,
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -1225,7 +1146,7 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "Fallback grounded answer [1]",
         citations: [
@@ -1271,22 +1192,14 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -1331,38 +1244,8 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: null,
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -1372,7 +1255,7 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "Fallback partial answer [1]",
         citations: [
@@ -1418,22 +1301,14 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -1478,38 +1353,8 @@ test("AskAssistantService persists heuristic-citation strong summaries without u
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: null,
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks,
         contextGroups: [],
@@ -1519,7 +1364,7 @@ test("AskAssistantService persists heuristic-citation strong summaries without u
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async () => ({
         answer: "Answer text without explicit source markers.",
         citations: [
@@ -1564,22 +1409,14 @@ test("AskAssistantService persists heuristic-citation strong summaries without u
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
       }
-    },
-    {
-      rewriteQuery: async () => ({
-        rewrittenQuery: null,
-        modelName: null,
-        usedFallback: null,
-        promptId: null
-      })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
