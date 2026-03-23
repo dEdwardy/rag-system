@@ -129,6 +129,23 @@ Current shape includes:
 
 This is the stable summary of how answer generation actually ran for the trace.
 
+## Trace read summary
+
+Trace read endpoints now also expose additive `traceSummary` on top of the raw persisted payload:
+
+- `GET /traces/:id`
+- `GET /conversations/:id/traces`
+
+Current `traceSummary` shape includes:
+
+- `answerStatus`
+- `qualityOverall`
+- `retrievedChunkCount`
+- `citationCount`
+- `usedFallback`
+
+This summary is derived from the persisted trace JSON, so callers can read the main execution outcome directly without reconstructing it from `retrievalMetadataJson`, `answeringMetadataJson`, and `qualityEvaluationJson`.
+
 ## Current limitations
 
 - query rewrite is single-shot and does not yet use conversation history

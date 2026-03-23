@@ -311,6 +311,13 @@ export type TraceRecord = {
   citationsJson: Citation[] | null;
   modelName: string | null;
   latencyMs: number | null;
+  traceSummary: {
+    answerStatus: "grounded" | "insufficient_context" | null;
+    qualityOverall: "strong" | "partial" | "weak" | null;
+    retrievedChunkCount: number;
+    citationCount: number;
+    usedFallback: boolean;
+  };
   status: "success" | "failed";
   errorMessage: string | null;
   createdAt: string;

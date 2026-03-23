@@ -201,6 +201,11 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
 
   const traces = await tracesResponse.json();
   assert.equal(traces.length, expectedTraceIds.length);
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.answerStatus === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.qualityOverall === "string"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievedChunkCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.citationCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.usedFallback === "boolean"));
   assert.deepEqual(
     traces.map(trace => trace.id).sort(),
     [...expectedTraceIds].sort()
@@ -227,6 +232,13 @@ async function assertTraceState(port, traceId) {
   assert.equal(typeof trace.answeringMetadataJson?.answerStatus, "string");
   assert.equal(typeof trace.qualityEvaluationJson?.overall, "string");
   assert.equal(typeof trace.qualityEvaluationJson?.summary, "string");
+  assert.deepEqual(trace.traceSummary, {
+    answerStatus: trace.answeringMetadataJson.answerStatus,
+    qualityOverall: trace.qualityEvaluationJson.overall,
+    retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
+    citationCount: trace.citationsJson.length,
+    usedFallback: trace.answeringMetadataJson.usedFallback
+  });
   assert.equal(typeof trace.rewrittenQuery === "string" || trace.rewrittenQuery === null, true);
   assert.equal(typeof trace.modelName, "string");
 }

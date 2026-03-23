@@ -130,6 +130,15 @@ Notes:
 - current answering metadata semantics:
   - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path
   - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
+- current trace read semantics:
+  - `GET /traces/:id` and `GET /conversations/:id/traces` now also return additive `traceSummary`
+  - `traceSummary` is derived from persisted trace JSON rather than stored separately
+  - current `traceSummary` fields are:
+    - `answerStatus`
+    - `qualityOverall`
+    - `retrievedChunkCount`
+    - `citationCount`
+    - `usedFallback`
 - current quality-evaluation semantics:
   - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `fallback_generation`, `other`) alongside the existing flags array
   - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty

@@ -11,6 +11,8 @@
 
 补充进展（2026-03-23）：
 
+- trace 读取接口现在会直接返回 additive `traceSummary`，把 `answerStatus`、`qualityOverall`、`retrievedChunkCount`、`citationCount`、`usedFallback` 从持久化 trace JSON 中归一化提取出来
+- 这样 `GET /traces/:id` 与 `GET /conversations/:id/traces` 不再要求上层自己拼接这几项执行结论
 - answering / retrieval backend 收口继续推进中
 - strong quality summary 现在也会单独区分 `required citation` 下由 backend heuristic 回填的引用路径，不再与普通 `retrieved without citations` 共用同一条文案
 - 上述 heuristic-citation strong summary 现已补齐最小 `en` / `zh` 回归覆盖

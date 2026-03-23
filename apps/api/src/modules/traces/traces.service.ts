@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, TraceStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 
+type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
+
 @Injectable()
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -14,7 +16,7 @@ export class TracesService {
         throw new NotFoundException(`Trace ${id} not found.`);
       }
 
-      return trace;
+      return this.attachTraceSummary(trace);
     });
   }
 
@@ -24,7 +26,7 @@ export class TracesService {
       orderBy: {
         createdAt: "desc"
       }
-    });
+    }).then(traces => traces.map(trace => this.attachTraceSummary(trace)));
   }
 
   createTrace(input: {
@@ -68,5 +70,52 @@ export class TracesService {
       where: { id },
       data: input
     });
+  }
+
+  private attachTraceSummary(trace: NonNullable<PersistedTrace>) {
+    const retrievedChunkCount = this.readRetrievedChunkCount(trace);
+    const citationCount = Array.isArray(trace.citationsJson) ? trace.citationsJson.length : 0;
+    const answeringMetadata = this.readObject(trace.answeringMetadataJson);
+    const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
+
+    return {
+      ...trace,
+      traceSummary: {
+        answerStatus: this.readString(answeringMetadata?.answerStatus),
+        qualityOverall: this.readString(qualityEvaluation?.overall),
+        retrievedChunkCount,
+        citationCount,
+        usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
+      }
+    };
+  }
+
+  private readRetrievedChunkCount(trace: NonNullable<PersistedTrace>) {
+    const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
+    const execution = this.readObject(retrievalMetadata?.execution);
+    const executionCount = this.readNumber(execution?.retrievedChunkCount);
+    if (executionCount != null) {
+      return executionCount;
+    }
+
+    return Array.isArray(trace.retrievedChunkIdsJson) ? trace.retrievedChunkIdsJson.length : 0;
+  }
+
+  private readObject(value: unknown): Record<string, unknown> | null {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  }
+
+  private readString(value: unknown) {
+    return typeof value === "string" ? value : null;
+  }
+
+  private readBoolean(value: unknown) {
+    return typeof value === "boolean" ? value : false;
+  }
+
+  private readNumber(value: unknown) {
+    return typeof value === "number" ? value : null;
   }
 }
