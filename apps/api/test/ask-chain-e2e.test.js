@@ -5,17 +5,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Ask chain E2E: upload -> grounded ask -> conversation reuse -> trace growth -> reindex -> ask", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3103;
   const storageRoot = resolve(repoRoot, "storage", `test-ask-chain-${randomUUID()}`);

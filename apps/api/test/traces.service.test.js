@@ -1,7 +1,6 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { TracesService } = require("../dist/modules/traces/traces.service.js");
+const { TracesService } = require("../src/modules/traces/traces.service.ts");
 
 test("TracesService exposes failedStage and failureMessage in traceSummary for failed traces", async () => {
   const persistedTrace = {

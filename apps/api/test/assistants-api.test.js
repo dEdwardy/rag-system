@@ -4,17 +4,18 @@ const { spawn, execFileSync } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Assistant API accepts valid answerPolicyJson and rejects invalid policy values", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3103;
   const queuePrefix = `test-assistants-${randomUUID()}`;

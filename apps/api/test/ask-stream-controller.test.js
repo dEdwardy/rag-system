@@ -1,8 +1,7 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { AssistantsController } = require("../dist/modules/assistants/assistants.controller.js");
-const { AskAssistantError } = require("../dist/modules/assistants/ask-assistant.error.js");
+const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
+const { AskAssistantError } = require("../src/modules/assistants/ask-assistant.error.ts");
 
 test("askAssistantStream appends structured error diagnostics after stream events have started", async () => {
   const controller = new AssistantsController(

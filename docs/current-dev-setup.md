@@ -203,7 +203,8 @@ Current client focus for this stage:
 - `PC Web` only
 - current first UX priority is the `Chat` page experience
 - mobile adaptation is intentionally deferred until the core feature surface and validation coverage are more mature
-- current local execution preference is strict serial execution to avoid workstation stalls during validation
+- current local execution preference is to keep heavy validation tasks serial
+- small focused tests and static checks may run in parallel when they do not start the full API, worker, or real integration stack
 
 Language behavior in the current web app:
 
@@ -226,6 +227,114 @@ API package-level test command:
 ```bash
 pnpm --filter @rag-system/api test
 ```
+
+Faster day-to-day API test entrypoint:
+
+```bash
+pnpm test:api:fast
+```
+
+The fast API lane now runs on `Vitest`, while integration and E2E lanes stay on the current Node test runner plus `dist` startup path.
+
+Current fast-lane test support helpers also include:
+
+- `apps/api/test/support/llm-test-helpers.js` for `LlmService` / prompt-manager / env / fetch test scaffolding
+- `apps/api/test/support/ask-assistant-test-helpers.js` for `AskAssistantService` dependency defaults and assistant-record scaffolding
+- the current first migrated ask-path callers are:
+  - `apps/api/test/ask-success.test.js`
+  - `apps/api/test/ask-stream-service.test.js`
+  - `apps/api/test/ask-failures.test.js`
+  - `apps/api/test/ask-stream-retrieval-failure.test.js`
+
+Focused fast API theme entrypoints:
+
+```bash
+pnpm test:api:fast:llm
+pnpm test:api:fast:retrieval
+pnpm test:api:fast:assistants
+pnpm test:api:fast:documents
+pnpm test:api:fast:infra
+```
+
+High-frequency combined API entrypoints:
+
+```bash
+pnpm test:api:focus:ask
+pnpm test:api:focus:llm-retrieval
+pnpm test:api:focus:documents
+pnpm test:api:focus:sources
+pnpm test:api:focus:api-config
+```
+
+Single-file API test entrypoint:
+
+```bash
+pnpm test:api:file -- test/prompt-manager.test.js
+pnpm test:api:file -- apps/api/test/prompt-manager.test.js
+```
+
+`test:api:file` now auto-selects `Vitest` for fast-lane files and keeps the current build-aware runner for heavier integration or E2E files.
+
+Focused API integration entrypoint:
+
+```bash
+pnpm test:api:integration
+```
+
+Current heavy API lanes now run an on-demand build check first and only rebuild when `src/`, `prisma/`, or key API config files are newer than `dist/main.js`.
+
+Current integration and E2E files also seed default records once per file and then reset mutable test state between individual tests.
+
+Focused API chain E2E entrypoint:
+
+```bash
+pnpm test:api:e2e:chains
+```
+
+Focused API source E2E entrypoint:
+
+```bash
+pnpm test:api:e2e:sources
+```
+
+Focused API closeout / heavier E2E entrypoint:
+
+```bash
+pnpm test:api:e2e
+```
+
+Recommended API test entrypoints by change type:
+
+- prompt / llm / answer parsing / stream shaping:
+  - `pnpm test:api:fast:llm`
+- retrieval ranking / filters / answer quality shaping:
+  - `pnpm test:api:fast:retrieval`
+- ask orchestration / assistant ask or stream behavior:
+  - `pnpm test:api:fast:assistants`
+- ask orchestration plus retrieval behavior together:
+  - `pnpm test:api:focus:ask`
+- prompt / llm changes that also affect retrieval shaping:
+  - `pnpm test:api:focus:llm-retrieval`
+- parsing / chunking / ingestion / document run summary / external source sync helpers:
+  - `pnpm test:api:fast:documents`
+- document-chain backend work with shared infra helpers:
+  - `pnpm test:api:focus:documents`
+- shared infra utilities and lightweight backend plumbing:
+  - `pnpm test:api:fast:infra`
+- one touched test file only:
+  - `pnpm test:api:file -- test/<name>.test.js`
+- assistant API patch / retrieval-profile API behavior:
+  - `pnpm test:api:integration`
+- assistant API config work plus ask-path regression coverage:
+  - `pnpm test:api:focus:api-config`
+- document / ask main flow closeout:
+  - `pnpm test:api:e2e:chains`
+- external source closeout:
+  - `pnpm test:api:e2e:sources`
+- source backend changes with both local helpers and source E2E:
+  - `pnpm test:api:focus:sources`
+- cross-module backend closeout:
+  - `pnpm test:api`
 
 Current API test coverage:
 
@@ -313,9 +422,31 @@ pnpm --filter @rag-system/web build
 node --test apps/web/test/pc-web-smoke.test.js
 ```
 
+## Local development rhythm
+
+For day-to-day backend work in the current repository, prefer a lighter feedback loop instead of rerunning the full API suite after every small edit.
+
+- default local development path:
+  - implement one small but complete increment first
+  - then run `typecheck` plus only the 1..3 most relevant focused tests
+- use stricter TDD mainly for:
+  - pure logic
+  - schema normalization
+  - ranking / metadata / utility behavior
+- for service orchestration, controller wiring, queue flow, Prisma persistence, and streaming paths:
+  - allow block-wise implementation first
+  - then add or adjust focused tests for the changed path
+- treat heavier integration / E2E coverage as closeout validation, not the default inner-loop step
+- reserve full-suite validation such as `pnpm test:api` for:
+  - end-of-increment verification
+  - cross-module backend changes
+  - pre-commit or pre-push closeout
+
 Notes:
 
-- when running local validation in the current workstation environment, prefer strict serial execution
+- run at most one heavy validation task at a time in the current workstation environment
+- heavy tasks include repository build, `pnpm test:api`, API integration / E2E flows, or any validation that starts the real API, worker, Prisma, Redis, or indexing chain
+- small focused tests and static checks may run in parallel when they stay within a light local feedback loop
 - do not run multiple heavy builds or node test processes at the same time
 - do not overlap heavy validation with AI review
 - this smoke test is currently scoped to `PC Web`

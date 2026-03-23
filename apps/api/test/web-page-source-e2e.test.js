@@ -6,17 +6,18 @@ const { randomUUID } = require("node:crypto");
 const { mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
 const prisma = new PrismaClient();
 
+test.before(() => {
+  seedDefaultRecords(apiRoot);
+});
+
 test("Web page source E2E: url -> ready -> chunks -> ask -> reindex", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3104;
   const storageRoot = resolve(repoRoot, "storage", `test-web-page-source-${randomUUID()}`);
@@ -119,10 +120,6 @@ test("Web page source E2E: url -> ready -> chunks -> ask -> reindex", async () =
 
 test("Web page source E2E: ingesting the same URL again reuses the document and refreshes content", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3114;
   const storageRoot = resolve(repoRoot, "storage", `test-web-page-resync-${randomUUID()}`);
@@ -196,10 +193,6 @@ test("Web page source E2E: ingesting the same URL again reuses the document and 
 
 test("Web page source E2E: failed fetch leaves a failed document with diagnostics", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3116;
   const storageRoot = resolve(repoRoot, "storage", `test-web-page-failed-fetch-${randomUUID()}`);
@@ -405,10 +398,6 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
 
 test("Web page source E2E: a failed source no longer remains in summary after a later successful recovery", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3117;
   const storageRoot = resolve(repoRoot, "storage", `test-web-page-failed-then-recovered-${randomUUID()}`);
@@ -743,10 +732,6 @@ test("Web page source E2E: same-URL reuse clears failed diagnostics after a late
 
 test("Web page source E2E: unsupported content type leaves a failed document with diagnostics", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3125;
   const storageRoot = resolve(repoRoot, "storage", `test-web-page-unsupported-source-${randomUUID()}`);
@@ -876,10 +861,6 @@ test("Web page source E2E: unsupported content type leaves a failed document wit
 
 test("Web page source E2E: unsupported-content failure clears current diagnostics after a later successful sync", async () => {
   await resetTestState();
-  execFileSync(process.execPath, ["prisma/seed.js"], {
-    cwd: apiRoot,
-    stdio: "pipe"
-  });
 
   const port = 3126;
   const storageRoot = resolve(repoRoot, "storage", `test-web-page-unsupported-recovery-${randomUUID()}`);

@@ -1,8 +1,7 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 const { BadRequestException } = require("@nestjs/common");
 const { Prisma } = require("@prisma/client");
-const { DocumentsService } = require("../dist/modules/documents/documents.service.js");
+const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
 
 test("DocumentsService lists knowledge-base documents by latest update activity", async () => {
   const findManyCalls = [];

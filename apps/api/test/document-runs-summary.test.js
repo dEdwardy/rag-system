@@ -1,6 +1,5 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
-const { DocumentRunsService } = require("../dist/modules/document-runs/document-runs.service.js");
+const { DocumentRunsService } = require("../src/modules/document-runs/document-runs.service.ts");
 
 test("DocumentRunsService summary exposes latest retryable failure and latest skipped run", async () => {
   const startedAt = new Date("2026-03-22T10:00:00.000Z");

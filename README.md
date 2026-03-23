@@ -72,8 +72,11 @@ Default local web URL: `http://localhost:5173`
 pnpm build
 pnpm lint
 pnpm typecheck
+pnpm test:api:fast
 pnpm test:api
 ```
+
+For day-to-day backend work, prefer focused API test entrypoints such as `pnpm test:api:fast`, `pnpm test:api:file -- test/<name>.test.js`, or the themed commands documented in [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md). Reserve full `pnpm test:api` runs for broader closeout verification.
 
 ## Key Docs
 

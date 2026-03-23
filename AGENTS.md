@@ -60,11 +60,13 @@ Run the smallest relevant validation for the change you make. Common commands:
 pnpm build
 pnpm lint
 pnpm typecheck
+pnpm test:api:fast
 pnpm test:api
 ```
 
 At minimum:
 
+- for day-to-day backend work, prefer the smallest focused API test command that matches the changed area; use full `pnpm test:api` mainly for closeout or broader cross-module verification
 - backend behavior changes should run `pnpm test:api` when practical
 - cross-package changes should run `pnpm build` or the relevant package build
 - frontend-only changes should run at least the relevant build or typecheck if available

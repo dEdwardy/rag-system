@@ -1,6 +1,5 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
-const { RetrievalService } = require("../dist/modules/retrieval/retrieval.service.js");
+const { RetrievalService } = require("../src/modules/retrieval/retrieval.service.ts");
 
 test("RetrievalService expands neighbor chunks when chunkWindow is enabled", async () => {
   const prisma = {

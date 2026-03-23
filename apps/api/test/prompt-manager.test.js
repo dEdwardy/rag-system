@@ -1,6 +1,5 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PromptManagerService } = require("../dist/infra/llm/prompt-manager.service.js");
+const { PromptManagerService } = require("../src/infra/llm/prompt-manager.service.ts");
 
 test("PromptManagerService builds versioned answer prompts", () => {
   const service = new PromptManagerService();

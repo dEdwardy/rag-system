@@ -1,7 +1,6 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 const { HttpException, HttpStatus } = require("@nestjs/common");
-const { GlobalHttpExceptionFilter } = require("../dist/common/http-exception.filter.js");
+const { GlobalHttpExceptionFilter } = require("../src/common/http-exception.filter.ts");
 
 test("GlobalHttpExceptionFilter preserves structured HttpException fields", () => {
   const filter = new GlobalHttpExceptionFilter();

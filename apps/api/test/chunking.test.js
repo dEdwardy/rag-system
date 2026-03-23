@@ -1,6 +1,5 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
-const { ChunkingService } = require("../dist/infra/parsing/chunking.service.js");
+const { ChunkingService } = require("../src/infra/parsing/chunking.service.ts");
 
 test("ChunkingService splits oversized paragraphs and preserves section titles", () => {
   const service = new ChunkingService();
