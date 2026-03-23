@@ -3425,17 +3425,23 @@ test("AskAssistantService preserves low-retrieval grounded summaries", async () 
     question: "Where is the marker?"
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "low_retrieval_score");
-  assert.deepEqual(result.qualityEvaluation.flags, ["low_retrieval_score"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "low_retrieval_score",
+    flags: ["low_retrieval_score"],
+    summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "low_retrieval_score",
+    flags: ["low_retrieval_score"],
+    summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+  });
 });
 
 test("AskAssistantService preserves localized low-retrieval grounded summaries", async () => {
