@@ -3125,17 +3125,23 @@ test("AskAssistantService preserves grounded partial summaries when information 
     question: "Where is the marker?"
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "missing_information");
-  assert.deepEqual(result.qualityEvaluation.flags, ["missing_information"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded but incomplete because some information is missing."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information"],
+    summary: "Answer is grounded but incomplete because some information is missing."
+  });
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(
-    updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded but incomplete because some information is missing."
-  );
+  assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "partial",
+    primaryIssue: "missing_information",
+    flags: ["missing_information"],
+    summary: "Answer is grounded but incomplete because some information is missing."
+  });
 });
 
 test("AskAssistantService preserves localized grounded partial summaries when information is missing", async () => {
