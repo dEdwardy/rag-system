@@ -755,47 +755,20 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
 test("AskAssistantService bypasses one-shot generation for no-hit say_insufficient_context answers", async () => {
   let generateAnswerCalls = 0;
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "concise",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "say_insufficient_context",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "concise",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks: [],
         contextGroups: [],
@@ -805,7 +778,7 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
         }
       })
     },
-    {
+    answering: {
       buildDeterministicInsufficientContextResult: ({ question }) => ({
         answer: `deterministic fallback for: ${question}`,
         citations: [],
@@ -851,11 +824,11 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
         throw new Error("finalizeStreamedAnswer should not be used by one-shot ask");
       }
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async () => ({})
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -866,7 +839,7 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
         throw new Error("stream generation should not be used by one-shot ask");
       }
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -892,38 +865,11 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
 test("AskAssistantService also bypasses one-shot generation when noAnswerBehavior comes from backend defaults", async () => {
   let generateAnswerCalls = 0;
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: null,
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: null
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks: [],
         contextGroups: [],
@@ -933,7 +879,7 @@ test("AskAssistantService also bypasses one-shot generation when noAnswerBehavio
         }
       })
     },
-    {
+    answering: {
       buildDeterministicInsufficientContextResult: ({ question }) => ({
         answer: `deterministic fallback for: ${question}`,
         citations: [],
@@ -975,11 +921,11 @@ test("AskAssistantService also bypasses one-shot generation when noAnswerBehavio
         throw new Error("generateAnswer should be bypassed when defaults say insufficient context");
       }
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async () => ({})
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -987,7 +933,7 @@ test("AskAssistantService also bypasses one-shot generation when noAnswerBehavio
         promptId: null
       })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -1003,47 +949,20 @@ test("AskAssistantService also bypasses one-shot generation when noAnswerBehavio
 test("AskAssistantService preserves best_effort one-shot no-hit answers instead of using deterministic bypass", async () => {
   let generateAnswerCalls = 0;
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "direct",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "optional",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "direct",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "optional",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks: [],
         contextGroups: [],
@@ -1053,7 +972,7 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
         }
       })
     },
-    {
+    answering: {
       generateAnswer: async input => {
         generateAnswerCalls += 1;
         assert.equal(input.answerPolicy.noAnswerBehavior, "best_effort");
@@ -1089,11 +1008,11 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
         };
       }
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async () => ({})
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -1101,7 +1020,7 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
         promptId: null
       })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
