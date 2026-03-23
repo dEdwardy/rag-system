@@ -2482,3 +2482,162 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
     "Answer is grounded, but retrieval confidence was low for the supporting context."
   );
 });
+
+test("AskAssistantService stream preserves localized low-retrieval grounded summaries", async () => {
+  const events = [];
+  const updateTraceCalls = [];
+  const retrievedChunks = [
+    {
+      chunkId: "chunk-1",
+      documentId: "document-1",
+      documentTitle: "Document 1",
+      chunkIndex: 0,
+      content: "中文内容",
+      score: 0.4,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: "Facts"
+    }
+  ];
+
+  const service = new AskAssistantService(
+    {
+      getAssistant: async assistantId => ({
+        id: assistantId,
+        tenantId: "tenant-1",
+        kbId: "kb-1",
+        systemPrompt: "system prompt",
+        answerPolicyJson: {
+          responseStyle: "balanced",
+          tone: "neutral",
+          outputFormat: "paragraph",
+          language: "same_as_question",
+          citationMode: "required",
+          maxCitations: 3,
+          noAnswerBehavior: "best_effort",
+          includeMissingInformation: true
+        },
+        retrievalProfile: {
+          topK: 4,
+          scoreThreshold: 0,
+          chunkWindow: 0,
+          enableHybrid: false,
+          enableRerank: false,
+          filtersJson: null,
+          strategyJson: null
+        }
+      })
+    },
+    {
+      createConversation: async () => ({ id: "conversation-1" }),
+      getConversation: async () => ({ id: "conversation-1" }),
+      touchConversation: async () => {}
+    },
+    {
+      createMessage: async input => ({
+        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
+        ...input
+      }),
+      attachTrace: async () => {}
+    },
+    {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    {
+      buildStreamAnswerContext: ({ chunks }) => chunks,
+      generateAnswer: async () => {
+        throw new Error("one-shot generateAnswer should not be used by native streaming");
+      },
+      finalizeStreamedAnswer: async input => ({
+        answer: input.rawAnswer,
+        modelName: input.modelName,
+        citations: [
+          {
+            chunkId: "chunk-1",
+            documentId: "document-1",
+            documentTitle: "Document 1",
+            snippet: "中文内容"
+          }
+        ],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: input.promptId,
+          usedFallback: input.usedFallback,
+          answerPolicy: input.answerPolicy,
+          contextMode: "chunks",
+          inputChunkCount: input.chunks.length,
+          contextGroupCount: input.contextGroups.length,
+          citationCount: 1,
+          answerStatus: "grounded"
+        },
+        answerStatus: "grounded",
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: "partial",
+          grounding: "grounded",
+          completeness: "complete",
+          primaryIssue: "low_retrieval_score",
+          flags: ["low_retrieval_score"],
+          summary: "回答已基于检索到的内容，但支持上下文的检索置信度偏低。"
+        }
+      })
+    },
+    {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async input => {
+        await input.onDelta("回答 ");
+        await input.onDelta("[1]");
+        return {
+          rawAnswer: "回答 [1]",
+          modelName: "test-model",
+          promptId: "answer.v2",
+          usedFallback: false
+        };
+      }
+    }
+  );
+
+  const finalResult = await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "标记在哪里？",
+    onEvent: event => {
+      events.push(event);
+    }
+  });
+
+  assert.deepEqual(
+    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
+    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+  );
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, "low_retrieval_score");
+  assert.deepEqual(finalResult.qualityEvaluation.flags, ["low_retrieval_score"]);
+  assert.equal(
+    finalResult.qualityEvaluation.summary,
+    "回答已基于检索到的内容，但支持上下文的检索置信度偏低。"
+  );
+  assert.equal(updateTraceCalls.length, 1);
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.summary,
+    "回答已基于检索到的内容，但支持上下文的检索置信度偏低。"
+  );
+});
