@@ -1,43 +1,17 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { AskAssistantService } = require("../dist/modules/assistants/ask-assistant.service.js");
+const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
+const {
+  createAskAssistantService,
+  createAssistantRecord
+} = require("./support/ask-assistant-test-helpers.js");
 
 test("AskAssistantService exposes a dedicated stream orchestration path with progress, deltas, and final payload", async () => {
   const events = [];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: null,
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord(),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks: [
           {
@@ -59,7 +33,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
         }
       })
     },
-    {
+    answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
         throw new Error("one-shot generateAnswer should not be used by native streaming");
@@ -104,11 +78,11 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
         }
       })
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async () => ({})
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -126,7 +100,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
         };
       }
     }
-  );
+  });
 
   assert.equal(typeof service.askAssistantStream, "function");
 
@@ -164,47 +138,20 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   let providerStreamCalls = 0;
   let finalizeStreamedAnswerCalls = 0;
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "concise",
-          tone: "neutral",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "required",
-          maxCitations: 3,
-          noAnswerBehavior: "say_insufficient_context",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "concise",
+        tone: "neutral",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "required",
+        maxCitations: 3,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks: [],
         contextGroups: [],
@@ -214,7 +161,7 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
         }
       })
     },
-    {
+    answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       buildDeterministicInsufficientContextResult: ({ question }) => ({
         answer: `deterministic fallback for: ${question}`,
@@ -298,11 +245,11 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
         };
       }
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async () => ({})
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -314,7 +261,7 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
         throw new Error("provider stream should be bypassed");
       }
     }
-  );
+  });
 
   const finalResult = await service.askAssistantStream({
     assistantId: "assistant-1",
@@ -343,47 +290,20 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
   let providerStreamCalls = 0;
   let finalizeStreamedAnswerCalls = 0;
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "direct",
-          outputFormat: "paragraph",
-          language: "en",
-          citationMode: "optional",
-          maxCitations: 3,
-          noAnswerBehavior: "best_effort",
-          includeMissingInformation: true
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "direct",
+        outputFormat: "paragraph",
+        language: "en",
+        citationMode: "optional",
+        maxCitations: 3,
+        noAnswerBehavior: "best_effort",
+        includeMissingInformation: true
+      }
+    }),
+    retrieval: {
       retrieve: async () => ({
         retrievedChunks: [],
         contextGroups: [],
@@ -393,7 +313,7 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
         }
       })
     },
-    {
+    answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
         throw new Error("one-shot generateAnswer should not be used by native streaming");
@@ -432,11 +352,11 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
         };
       }
     },
-    {
+    traces: {
       createTrace: async () => ({ id: "trace-1" }),
       updateTrace: async () => ({})
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -455,7 +375,7 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
         };
       }
     }
-  );
+  });
 
   const finalResult = await service.askAssistantStream({
     assistantId: "assistant-1",

@@ -1,6 +1,9 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
-const { AskAssistantService } = require("../dist/modules/assistants/ask-assistant.service.js");
+const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
+const {
+  createAskAssistantService,
+  createAssistantRecord
+} = require("./support/ask-assistant-test-helpers.js");
 
 test("AskAssistantService completes the happy path with retrieval, messages, and successful trace update", async () => {
   const createConversationCalls = [];
@@ -47,42 +50,35 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     }
   ];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: {
-          responseStyle: "balanced",
-          tone: "friendly",
-          outputFormat: "bullets",
-          language: "same_as_question",
-          citationMode: "required",
-          maxCitations: 2,
-          noAnswerBehavior: "say_insufficient_context",
-          includeMissingInformation: false
-        },
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0.2,
-          chunkWindow: 1,
-          enableHybrid: true,
-          enableRerank: true,
-          filtersJson: {
-            documentIds: {
-              include: ["document-1"],
-              exclude: ["document-2"]
-            },
-            sectionTitles: {
-              contains: ["fact"]
-            }
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: {
+        responseStyle: "balanced",
+        tone: "friendly",
+        outputFormat: "bullets",
+        language: "same_as_question",
+        citationMode: "required",
+        maxCitations: 2,
+        noAnswerBehavior: "say_insufficient_context",
+        includeMissingInformation: false
+      },
+      retrievalProfile: {
+        scoreThreshold: 0.2,
+        chunkWindow: 1,
+        enableHybrid: true,
+        enableRerank: true,
+        filtersJson: {
+          documentIds: {
+            include: ["document-1"],
+            exclude: ["document-2"]
+          },
+          sectionTitles: {
+            contains: ["fact"]
           }
         }
-      })
-    },
-    {
+      }
+    }),
+    conversations: {
       createConversation: async input => {
         createConversationCalls.push(input);
         return { id: "conversation-1" };
@@ -94,7 +90,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         touchedConversations.push(conversationId);
       }
     },
-    {
+    messages: {
       createMessage: async input => {
         const message = {
           id: input.role === "user" ? "user-message-1" : "assistant-message-1",
@@ -107,7 +103,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         attachedTraces.push({ messageId, traceId });
       }
     },
-    {
+    retrieval: {
       retrieve: async input => {
         retrievalCalls.push(input);
         return {
@@ -133,7 +129,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         };
       }
     },
-    {
+    answering: {
       generateAnswer: async input => {
         assert.equal(input.question, "where is the marker?");
         assert.equal(input.systemPrompt, "system prompt");
@@ -199,7 +195,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         };
       }
     },
-    {
+    traces: {
       createTrace: async input => {
         createTraceCalls.push(input);
         return { id: "trace-1" };
@@ -209,7 +205,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         return { id, ...input };
       }
     },
-    {
+    llm: {
       rewriteQuery: async ({ question }) => ({
         rewrittenQuery: `${question} rewritten`,
         modelName: "rewrite-model",
@@ -217,7 +213,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         promptId: "rewrite-query.v1"
       })
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
@@ -460,56 +456,36 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   const retrievalCalls = [];
   let rewriteCalls = 0;
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: null,
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: true,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: {
-            queryRewrite: {
-              enabled: false
-            },
-            candidateSelection: {
-              mode: "lexical",
-              candidateMultiplier: 5,
-              minCandidates: 9
-            },
-            hybrid: {
-              vectorWeight: 0.2,
-              lexicalWeight: 0.8
-            },
-            rerank: {
-              enabled: true
-            }
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: null,
+      retrievalProfile: {
+        enableHybrid: true,
+        strategyJson: {
+          queryRewrite: {
+            enabled: false
+          },
+          candidateSelection: {
+            mode: "lexical",
+            candidateMultiplier: 5,
+            minCandidates: 9
+          },
+          hybrid: {
+            vectorWeight: 0.2,
+            lexicalWeight: 0.8
+          },
+          rerank: {
+            enabled: true
           }
         }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
+      }
+    }),
+    conversations: {
       getConversation: async () => {
         throw new Error("should not load an existing conversation in this test");
-      },
-      touchConversation: async () => {}
+      }
     },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+    retrieval: {
       retrieve: async input => {
         retrievalCalls.push(input);
         return {
@@ -535,7 +511,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         };
       }
     },
-    {
+    answering: {
       buildDeterministicInsufficientContextResult: () => ({
         answer: "answer",
         citations: [],
@@ -629,11 +605,11 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         }
       })
     },
-    {
+    traces: {
       createTrace: async input => ({ id: "trace-1", ...input }),
       updateTrace: async (id, input) => ({ id, ...input })
     },
-    {
+    llm: {
       rewriteQuery: async () => {
         rewriteCalls += 1;
         return {
@@ -644,7 +620,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         };
       }
     }
-  );
+  });
 
   const result = await service.askAssistant({
     assistantId: "assistant-1",
