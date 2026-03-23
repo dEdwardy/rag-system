@@ -319,9 +319,11 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       rankedCandidateCount: 1,
       retrievedChunkCount: 1,
       contextGroupCount: 1,
-      primaryChunkCount: 1
+      primaryChunkCount: 1,
+      neighborChunkCount: 0
     }
   });
+  assert.equal(createTraceCalls[0].retrievalMetadataJson.execution.neighborChunkCount, 0);
   assert.deepEqual(attachedTraces, [
     {
       messageId: "user-message-1",
@@ -637,9 +639,11 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       rankedCandidateCount: 0,
       retrievedChunkCount: 0,
       contextGroupCount: 0,
-      primaryChunkCount: 0
+      primaryChunkCount: 0,
+      neighborChunkCount: 0
     }
   });
+  assert.equal(result.retrievalMetadata.execution.neighborChunkCount, 0);
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,

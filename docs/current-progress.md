@@ -635,6 +635,7 @@
     - `vectorCandidateCount` / `lexicalCandidateCount`: merge 之前各自拿到了多少候选
     - `mergedCandidateCount`: hybrid merge 或 lexical fallback 之后还保留了多少候选
     - `rankedCandidateCount`: threshold + ranking 之后、chunk-window 扩展之前剩余多少候选
+    - `neighborChunkCount`: 最终返回 chunk 里，有多少是 chunk-window 扩展出来的邻接块，而不是 direct primary hit
   - 这样当前 retrieval metadata 不再只表达“想要的策略”，也能表达“最终实际走到的检索路径”
   - 当前改动保持 API 向后兼容，只是在既有 `retrievalMetadata.execution` 里增加字段
   - focused validation rerun:

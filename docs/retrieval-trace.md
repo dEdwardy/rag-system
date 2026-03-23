@@ -80,9 +80,17 @@ Current shape includes:
   - `topK`
   - `scoreThreshold`
   - `chunkWindow`
+  - `actualMode`
+  - `usedFallback`
+  - `candidateLimit`
+  - `vectorCandidateCount`
+  - `lexicalCandidateCount`
+  - `mergedCandidateCount`
+  - `rankedCandidateCount`
   - `retrievedChunkCount`
   - `contextGroupCount`
   - `primaryChunkCount`
+  - `neighborChunkCount`
 
 This is the stable summary of how retrieval actually ran for the trace.
 

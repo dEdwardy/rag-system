@@ -530,6 +530,7 @@ The following path has been validated locally on `2026-03-21`:
   - `vectorCandidateCount` / `lexicalCandidateCount`: how many vector and lexical candidates were produced before merge
   - `mergedCandidateCount`: how many candidates remained after hybrid merge or lexical fallback resolution
   - `rankedCandidateCount`: how many candidates survived thresholding and ranking before chunk-window expansion
+  - `neighborChunkCount`: how many returned chunks were added by chunk-window expansion rather than selected as direct primary hits
 - Chunk-window context grouping for ask responses:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments

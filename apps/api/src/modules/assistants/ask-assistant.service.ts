@@ -517,7 +517,8 @@ export class AskAssistantService {
         rankedCandidateCount: input.execution.rankedCandidateCount,
         retrievedChunkCount: input.retrievedChunks.length,
         contextGroupCount: input.contextGroups.length,
-        primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length
+        primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length,
+        neighborChunkCount: input.retrievedChunks.filter(chunk => !(chunk.isPrimary ?? true)).length
       }
     } as Prisma.InputJsonValue;
   }
