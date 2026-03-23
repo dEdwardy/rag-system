@@ -1947,7 +1947,14 @@ test("AnsweringService uses a hit-aware deterministic missingInformation reason 
   assert.deepEqual(result.missingInformation, [
     "Retrieved context was still insufficient to support a reliable answer."
   ]);
-  assert.deepEqual(result.qualityEvaluation.flags, ["insufficient_context", "missing_information"]);
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information"],
+    summary: "Answer quality is weak because retrieved context was still insufficient."
+  });
 });
 
 test("AnsweringService localizes the deterministic missingInformation reason for Chinese insufficient-context answers", async () => {
