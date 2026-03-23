@@ -1201,6 +1201,57 @@ test("AnsweringService keeps fallback_generation as the primary issue when fallb
   );
 });
 
+test("AnsweringService localizes low-retrieval fallback summaries for Chinese questions", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "本地 fallback 回答 [1]",
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "在哪里？",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "第一段上下文",
+        score: 0.4,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["low_retrieval_score", "fallback_generation"],
+    summary: "回答已基于检索到的内容，但支持上下文的检索置信度偏低，且它是通过本地 fallback 生成的。"
+  });
+});
+
 test("AnsweringService combines missing information, low retrieval confidence, and fallback generation in English partial summaries", async () => {
   const llmService = {
     generateAnswer: async () => ({
