@@ -22,6 +22,22 @@ function mergeDeep(base, overrides) {
   return result;
 }
 
+function createAnswerPolicy(overrides = {}) {
+  return mergeDeep(
+    {
+      responseStyle: "concise",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "auto",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    overrides
+  );
+}
+
 function createAssistantRecord(overrides = {}) {
   return mergeDeep(
     {
@@ -228,6 +244,7 @@ function createAskAssistantService(input = {}) {
 }
 
 module.exports = {
+  createAnswerPolicy,
   createAskAssistantService,
   createAssistantRecord
 };

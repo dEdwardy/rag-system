@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
 const {
+  createAnswerPolicy,
   createAskAssistantService,
   createAssistantRecord
 } = require("./support/ask-assistant-test-helpers.js");
@@ -1752,16 +1753,12 @@ test("AskAssistantService preserves generic strong summaries without citations",
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "same_as_question",
         citationMode: "optional",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -2821,16 +2818,11 @@ test("AskAssistantService preserves grounded partial summaries when information 
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -3086,16 +3078,11 @@ test("AskAssistantService preserves low-retrieval grounded summaries", async () 
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -3351,16 +3338,11 @@ test("AskAssistantService preserves fallback-only grounded summaries", async () 
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({

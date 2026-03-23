@@ -239,7 +239,7 @@ The fast API lane now runs on `Vitest`, while integration and E2E lanes stay on 
 Current fast-lane test support helpers also include:
 
 - `apps/api/test/support/llm-test-helpers.js` for `LlmService` / prompt-manager / env / fetch test scaffolding
-- `apps/api/test/support/ask-assistant-test-helpers.js` for `AskAssistantService` dependency defaults and assistant-record scaffolding
+- `apps/api/test/support/ask-assistant-test-helpers.js` for `AskAssistantService` dependency defaults, assistant-record scaffolding, and reusable answer-policy defaults
 - the current first migrated ask-path callers are:
   - `apps/api/test/ask-success.test.js`
   - `apps/api/test/ask-stream-service.test.js`

@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 
 const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
 const {
+  createAnswerPolicy,
   createAskAssistantService,
   createAssistantRecord
 } = require("./support/ask-assistant-test-helpers.js");
@@ -1858,16 +1859,11 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -1992,16 +1988,11 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
@@ -2294,16 +2285,11 @@ test("AskAssistantService stream preserves grounded partial summaries when infor
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
-      answerPolicyJson: {
+      answerPolicyJson: createAnswerPolicy({
         responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
         language: "en",
-        citationMode: "required",
-        maxCitations: 3,
-        noAnswerBehavior: "best_effort",
-        includeMissingInformation: true
-      }
+        noAnswerBehavior: "best_effort"
+      })
     }),
     retrieval: {
       retrieve: async () => ({
