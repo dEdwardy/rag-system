@@ -159,6 +159,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
               noAnswerBehavior: "say_insufficient_context",
               includeMissingInformation: false
             },
+      resolvedLanguage: "en",
       contextMode: "context_groups",
       inputChunkCount: 1,
       promptContextCount: 1,
@@ -361,6 +362,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: false
     },
+    resolvedLanguage: "en",
     contextMode: "context_groups",
     inputChunkCount: 1,
     promptContextCount: 1,
@@ -390,6 +392,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: false
     },
+    resolvedLanguage: "en",
     contextMode: "context_groups",
     inputChunkCount: 1,
     promptContextCount: 1,
@@ -502,6 +505,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
             noAnswerBehavior: "say_insufficient_context",
             includeMissingInformation: true
           },
+      resolvedLanguage: "en",
       contextMode: "chunks",
       inputChunkCount: 0,
       promptContextCount: 0,
@@ -669,6 +673,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: true
     },
+    resolvedLanguage: "en",
     contextMode: "chunks",
     inputChunkCount: 0,
     promptContextCount: 0,
@@ -757,11 +762,12 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
             outputFormat: "paragraph",
             language: "auto",
             citationMode: "required",
-            maxCitations: 3,
-            noAnswerBehavior: "say_insufficient_context",
-            includeMissingInformation: true
-          },
-          contextMode: "chunks",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    resolvedLanguage: "en",
+    contextMode: "chunks",
           inputChunkCount: 0,
           contextGroupCount: 0,
           citationCount: 0,

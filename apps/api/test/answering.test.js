@@ -111,6 +111,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: true
     },
+    resolvedLanguage: "en",
     contextMode: "chunks",
     inputChunkCount: 2,
     promptContextCount: 2,
@@ -417,6 +418,7 @@ test("AnsweringService does not fabricate heuristic citations when citationMode 
   assert.deepEqual(result.citations, []);
   assert.equal(result.answeringMetadata.citationAttribution, "none");
   assert.equal(result.answeringMetadata.missingInformationCount, 0);
+  assert.equal(result.answeringMetadata.resolvedLanguage, "en");
 });
 
 test("AnsweringService keeps quality evaluation strong when citations are optional and no other gaps exist", async () => {
@@ -641,6 +643,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
       noAnswerBehavior: "say_insufficient_context",
       includeMissingInformation: true
     },
+    resolvedLanguage: "en",
     contextMode: "context_groups",
     inputChunkCount: 2,
     promptContextCount: 1,
@@ -830,6 +833,7 @@ test("AnsweringService does not claim cited-source grounding when citations were
   });
   assert.equal(result.answeringMetadata.citationAttribution, "heuristic");
   assert.equal(result.answeringMetadata.missingInformationCount, 0);
+  assert.equal(result.answeringMetadata.resolvedLanguage, "en");
 });
 
 test("AnsweringService localizes strong summaries when citations were heuristically backfilled", async () => {

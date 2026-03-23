@@ -54,6 +54,7 @@ export type AnsweringMetadata = {
   promptId: string;
   usedFallback: boolean;
   answerPolicy: AnswerPolicy;
+  resolvedLanguage: "en" | "zh";
   contextMode: "chunks" | "context_groups";
   inputChunkCount: number;
   promptContextCount: number;
@@ -198,6 +199,7 @@ export class AnsweringService {
   }) {
     const usedFallback = input.result.usedFallback ?? input.result.modelName === "fallback-local";
     const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
+    const resolvedLanguage = this.resolvePolicyLanguage(input.question, input.answerPolicy.language);
     const missingInformation = this.resolveMissingInformation({
       question: input.question,
       answerStatus,
@@ -232,6 +234,7 @@ export class AnsweringService {
           promptId: input.result.promptId ?? "answer.v2",
           usedFallback,
           answerPolicy: input.answerPolicy,
+          resolvedLanguage,
           contextMode: "chunks",
           inputChunkCount: 0,
           promptContextCount: 0,
@@ -290,6 +293,7 @@ export class AnsweringService {
         promptId: input.result.promptId ?? "answer.v2",
         usedFallback,
         answerPolicy: input.answerPolicy,
+        resolvedLanguage,
         contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
         inputChunkCount: input.chunks.length,
         promptContextCount: input.contextGroups && input.contextGroups.length > 0

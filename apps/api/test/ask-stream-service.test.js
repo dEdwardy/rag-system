@@ -74,6 +74,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
           promptId: "answer.v2",
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
+          resolvedLanguage: "en",
           contextMode: "chunks",
           inputChunkCount: input.chunks.length,
           promptContextCount: input.chunks.length,
@@ -141,6 +142,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answeringMetadata.promptContextCount, 1);
   assert.equal(finalResult.answeringMetadata.citationAttribution, "none");
   assert.equal(finalResult.answeringMetadata.missingInformationCount, 0);
+  assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
 });
 
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
