@@ -9,6 +9,25 @@
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
 > 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
 
+补充进展（2026-03-23）：
+
+- answering / retrieval backend 收口继续推进中
+- strong quality summary 现在也会单独区分 `required citation` 下由 backend heuristic 回填的引用路径，不再与普通 `retrieved without citations` 共用同一条文案
+- 上述 heuristic-citation strong summary 现已补齐最小 `en` / `zh` 回归覆盖
+- `fallback_generation + low_retrieval_score` 的 grounded partial 组合现在也已对齐 `primaryIssue` 优先级：主因继续锚定 `fallback_generation`，而不是被低检索分覆盖
+- grounded fallback answer 在 `missing_information` 组合下的 `primaryIssue` 现在也继续锚定 `fallback_generation`，不再被信息缺口标记覆盖
+- `POST /assistants/:id/ask` 的 deterministic no-hit `say_insufficient_context` 旁路结果现在已复用 answering 层统一结果构造，不再在 ask service 内手写英文 `missingInformation` / `qualityEvaluation.summary`
+- 这使 one-shot no-hit deterministic answer 的 answer 文本、`missingInformation`、弱质量总结在 `en` / `zh` 下保持一致本地化语义
+- one-shot no-hit deterministic bypass 现在也会在 assistant 未显式配置 `answerPolicyJson` 时生效，和 backend 默认 `noAnswerBehavior=say_insufficient_context` 语义保持一致
+- `POST /assistants/:id/ask/stream` 的 deterministic no-hit 旁路现在也直接复用同一 centralized insufficient-context result shaping，不再先旁路 provider stream 再绕回 streamed finalization
+- `best_effort` 的 no-hit ask-service 编排语义现已补齐回归覆盖：one-shot 仍走 answer generation，stream 仍走 streamed generation + finalization，不会误落到 deterministic insufficient-context bypass
+- `insufficient_context` 且模型漏掉 `missingInformation` 时，backend 现在也会按 retrieval 实际命中情况区分默认理由：`no hits` 与 `hit but still insufficient` 不再共用同一条“没检索到来源”的默认文案
+- 上述 hit-aware 默认 `missingInformation` 理由现已补齐中文回归覆盖，和已有的 `no-hit` 中英文分支一起构成最小 `en` / `zh` 闭环
+- weak `insufficient_context` summary 现在也会在已有 `low_retrieval_score` flag 时显式带出“检索置信度偏低”，不再只停留在“上下文仍不足”的单因文案
+- 上述 weak low-confidence insufficient-context summary 现已补齐中文回归覆盖，和英文分支保持一致
+- 中文回归覆盖继续补齐到另一条弱 insufficient-context 组合路径：`hit but still insufficient` + `missing_information` + `low_retrieval_score`
+- partial summary 的另一条双因路径 `missing_information + low_retrieval_score` 现也已补齐中文回归覆盖
+
 ## 1. 状态总览
 
 ### 当前结论
@@ -461,6 +480,199 @@
 ## 9. 最近完成的关键增量
 
 ### 2026-03-23
+
+- ✅ no-hit one-shot deterministic bypass
+  - `POST /assistants/:id/ask` 在 `no hits + say_insufficient_context` 时，现在也会直接跳过 answer generation
+  - backend 会直接返回 deterministic insufficient-context answer，而不是先调用 provider / fallback answer generation 再在末尾覆盖文本
+  - 这样 one-shot 和 stream 两条 deterministic no-answer 路径的执行语义已经对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/ask-success.test.js`
+    - `node --test apps/api/test/ask-stream-service.test.js apps/api/test/answering.test.js`
+
+- ✅ no-hit ask-stream deterministic bypass
+  - `POST /assistants/:id/ask/stream` 在 `no hits + say_insufficient_context` 时，现在会直接跳过 provider streaming
+  - backend 会直接发出 deterministic insufficient-context delta，并让最终 `final.answer` 复用同一文本
+  - 这样 no-hit deterministic policy 不再先流出 provider / fallback 自由文本，再在 final payload 改写成另一版答案
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/ask-stream-service.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/llm-answer-stream.test.js`
+
+- ✅ quality-summary localization alignment
+  - backend 生成的 deterministic `qualityEvaluation.summary` 现在也会按问题语言和 policy 做最小 `en` / `zh` 分流
+  - 当前至少已对齐：
+    - strong cited / retrieved summary
+    - partial missing-information / low-retrieval-score / fallback-generation summary
+    - weak no-hit / hit-but-insufficient summary
+  - 这样中文场景下，`answer`、`missingInformation`、`qualityEvaluation.summary` 不再出现中英混杂
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ no-hit stream fallback answer alignment
+  - native stream path 在 `no hits + say_insufficient_context` 时，fallback delta 文本现在和最终 `final.answer` 使用同一 deterministic insufficient-context reply
+  - 这样流式渲染不再先显示一版 “couldn't find relevant information” 再在最终 payload 里切成另一版 backend fallback answer
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm-answer-stream.test.js`
+    - `node --test apps/api/test/ask-stream-service.test.js apps/api/test/ask-success.test.js`
+
+- ✅ heuristic-citation strong-summary alignment
+  - 当 `citationMode=required` 且 backend 因模型未显式给 citation 而回填 heuristic citations 时，`qualityEvaluation.summary` 不再误称答案“grounded in cited sources”
+  - 当前只有模型显式提供的 structured citations 或 inline markers 才会触发 cited-sources 强文案
+  - 如果 citation 只是 backend 为兼容 required-citation 路径补出来的，strong summary 会回到 grounded in retrieved sources 的表述
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ insufficient-context missing-information localization alignment
+  - `insufficient_context` 场景下，backend 补的 deterministic `missingInformation` reason 不再固定为英文
+  - 当前无论是：
+    - `AnsweringService` 在模型省略 `missingInformation` 时补值
+    - `LlmService` zero-hit local fallback 直接产出的 `missingInformation`
+  - 都会按问题语言和 policy 走同一套最小 `en` / `zh` 分流
+  - 这样 answer 文本与结构化 `missingInformation` 字段在中文场景下不再语言错位
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/llm.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ grounded fallback quality-evaluation alignment
+  - 当回答仍然是 `grounded`，但 answer generation 实际走了本地 fallback 路径时，`qualityEvaluation` 不再继续给出 `strong`
+  - 当前会降级为 `partial`，并暴露：
+    - `primaryIssue: fallback_generation`
+    - `flags: ["fallback_generation"]`
+    - fallback-specific summary
+  - 这样 `qualityEvaluation` 与既有的 `answeringMetadata.usedFallback` 语义保持一致，上层不必自行把执行路径再解释一遍
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ partial dual-cause quality summary alignment
+  - 当 `missing_information` 和 `low_retrieval_score` 同时出现时，`qualityEvaluation.summary` 现在会合并表达两个风险点
+  - 这样 partial 场景不再只暴露“信息缺失”而丢掉 retrieval confidence 偏低这一层信号
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
+- ✅ quality-evaluation primary-issue exposure
+  - `qualityEvaluation` 现已新增 `primaryIssue`，用于给上层稳定表达当前质量评估的主因，而不必自行解释 `flags` 优先级
+  - 当前已覆盖的主因包括：`none`、`no_retrieval_hits`、`insufficient_context`、`missing_information`、`low_retrieval_score`、`other`
+  - one-shot answering、ask orchestration、stream final payload / trace 相关断言现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ weak insufficient-context summary alignment
+  - `qualityEvaluation.summary` 现在会区分两类 weak answering 场景：
+    - 完全没有 retrieval hits
+    - 已有 retrieval context，但证据仍不足以支持回答
+  - 这让 `insufficient_context` 的弱场景文案与实际 retrieval 执行结果保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
+- ✅ low-retrieval-score quality downgrade alignment
+  - grounded answers 在 supporting context 的 top retrieval score 偏低时，`qualityEvaluation.overall` 现在会从 `strong` 降为 `partial`
+  - 同时 summary 会明确指出是 retrieval confidence 偏低，而不是沿用泛化的缺失信息文案
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
+- ✅ optional-citation strong-summary wording alignment
+  - optional-citation 下的 `strong` quality summary 现在不会再错误声称回答“grounded in cited sources”
+  - 当回答没有 citation 但仍然 grounded / strong 时，summary 现会改为基于 retrieved sources 的表述
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
+- ✅ optional-citation quality evaluation alignment
+  - `citationMode=optional` 的 grounded answers 现在不会再因为缺少 citation 被自动打上 `no_citations`
+  - 当没有其他 gap 或 retrieval-risk 信号时，这类回答的 `qualityEvaluation` 现在可以保持 `strong`
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
+- ✅ answering metadata fallback-path exposure
+  - `answeringMetadata` 现已显式返回 `usedFallback`，用于区分 provider-backed answer generation 和本地 fallback 路径
+  - one-shot ask、native stream final payload，以及持久化 trace 中的 `answeringMetadataJson` 语义现已对齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+    - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ local grounded fallback answer language alignment
+  - 当没有可用模型 provider、但 retrieval 已命中内容时，`LlmService` 本地 grounded fallback answer 不再固定使用英文前缀
+  - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，让 hitful local fallback 与 no-hit local fallback 的语言策略保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm.test.js`
+
+- ✅ local no-hit fallback answer language alignment
+  - 当没有可用模型 provider 且 retrieval 命中为空时，`LlmService` 本地 fallback answer 不再固定返回英文
+  - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，和已有 insufficient-context backend fallback 语言策略保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm.test.js`
+
+- ✅ plain-text citation-marker dedup in answering fallback path
+  - 当模型没有返回 structured citations、backend 退回到解析答案内联 marker（如 `[1][1][2]`）时，当前会按首次出现顺序去重同一 source
+  - 这样最终 citation 列表和 `answeringMetadata.citationCount` 不再因为重复 marker 被虚增
+  - 当前改动只收在 answering backend fallback normalization，不改 API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
+- ✅ retrieval execution metadata actual-path exposure
+  - `ask` / trace retrieval metadata `execution` 现在除了 query、threshold 和 chunk counts 之外，也会显式暴露：
+    - `actualMode`: `vector` / `hybrid` / `lexical`
+    - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
+  - 这样当前 retrieval metadata 不再只表达“想要的策略”，也能表达“最终实际走到的检索路径”
+  - 当前改动保持 API 向后兼容，只是在既有 `retrievalMetadata.execution` 里增加字段
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
+- ✅ structured missing-information normalization dedup
+  - LLM structured-answer schema 现在会对 `missingInformation` 做和 `citations` / `citationEvidence` 一致的收口：trim、去空、按首次出现顺序去重
+  - 这避免模型输出重复 gap item 时把同一缺失原因在最终响应里重复展开
+  - 当前变更只在 backend structured-answer normalization 层收口，不改 API shape
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/llm.test.js`
+
+- ✅ answering missing-information normalization for insufficient-context
+  - `includeMissingInformation=false` 当前只对 grounded 回答继续生效，不再把 `insufficient_context` 场景的缺失原因一并清空
+  - 当最终回答是 `insufficient_context` 时，backend 现在会优先保留模型返回的 `missingInformation`
+  - 如果模型没有提供缺失原因，backend 会补一个稳定默认值：`No relevant supporting sources were retrieved.`
+  - 这样当前响应里的 `missingInformation`、`qualityEvaluation.flags` 与 `answerStatus=insufficient_context` 语义保持一致
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
+
+- ✅ retrieval no-hit fallback tightening
+  - retrieval 在 vector 不可用时仍会回退 lexical scoring，但当前不会再在“所有候选都低于阈值”时额外塞入 knowledge base 的前几个任意 chunk
+  - backend 现在会在这种 no-hit 情况下直接返回空 retrieval result，让 answering 走既有 `insufficient_context` 语义，而不是基于无关 chunk 做低质量 best-effort 猜测
+  - 这一轮保持在 retrieval backend 内部收口，没有改 API shape、前端承载或 retrieval profile 配置结构
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/retrieval.test.js`
+
+- ✅ answering no-answer policy backend enforcement
+  - `answerPolicyJson.noAnswerBehavior` 不再只是 prompt-level 软约束，当前 backend 已在 `AnsweringService` 收口成确定性语义
+  - 当最终 `answerStatus=insufficient_context` 且策略为 `say_insufficient_context` 时，backend 会用统一兜底文案替换模型自由文本，避免不足上下文时把猜测性回答直接透出
+  - 当前兜底文案已支持最小语言分流：
+    - `language=en` -> 英文固定回复
+    - `language=zh` -> 中文固定回复
+    - `language=auto` / `same_as_question` -> 按问题文本做最小中英文检测
+  - 当策略为 `best_effort` 时，backend 继续保留模型返回的原始回答文本，仅通过现有 `answerStatus` / `missingInformation` / `qualityEvaluation` 表达不确定性
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js`
 
 - ✅ external knowledge source expansion backend / API consistency closeout
   - current scoped source family:

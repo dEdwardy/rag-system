@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
+import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
@@ -88,6 +89,7 @@ export class AskAssistantService {
       assistant.retrievalProfile.filtersJson ?? undefined
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
+    const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const retrievalResult = await this.retrievalService.retrieve({
       kbId: assistant.kbId,
       query: retrievalQuery,
@@ -113,7 +115,8 @@ export class AskAssistantService {
       scoreThreshold: retrievalProfile.scoreThreshold,
       chunkWindow: retrievalProfile.chunkWindow,
       retrievedChunks,
-      contextGroups
+      contextGroups,
+      execution: retrievalResult.execution
     });
 
     const trace = await this.tracesService.createTrace({
@@ -129,13 +132,19 @@ export class AskAssistantService {
       status: TraceStatus.success
     });
     try {
-      const resolvedAnswerResult = await this.answeringService.generateAnswer({
-        question: input.question,
-        systemPrompt: assistant.systemPrompt,
-        answerPolicy,
-        chunks: retrievedChunks,
-        contextGroups
-      });
+      const resolvedAnswerResult =
+        retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
+          ? this.answeringService.buildDeterministicInsufficientContextResult({
+              question: input.question,
+              answerPolicy: normalizedAnswerPolicy
+            })
+          : await this.answeringService.generateAnswer({
+              question: input.question,
+              systemPrompt: assistant.systemPrompt,
+              answerPolicy: normalizedAnswerPolicy,
+              chunks: retrievedChunks,
+              contextGroups
+            });
 
       const assistantMessage = await this.messagesService.createMessage({
         conversationId: conversation.id,
@@ -257,16 +266,7 @@ export class AskAssistantService {
       assistant.retrievalProfile.filtersJson ?? undefined
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
-    const normalizedAnswerPolicy = {
-      responseStyle: answerPolicy?.responseStyle ?? "concise",
-      tone: answerPolicy?.tone ?? "neutral",
-      outputFormat: answerPolicy?.outputFormat ?? "paragraph",
-      language: answerPolicy?.language ?? "auto",
-      citationMode: answerPolicy?.citationMode ?? "required",
-      maxCitations: answerPolicy?.maxCitations ?? 3,
-      noAnswerBehavior: answerPolicy?.noAnswerBehavior ?? "say_insufficient_context",
-      includeMissingInformation: answerPolicy?.includeMissingInformation ?? true
-    } as const;
+    const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
 
     await input.onEvent({
       type: "status",
@@ -298,7 +298,8 @@ export class AskAssistantService {
       scoreThreshold: retrievalProfile.scoreThreshold,
       chunkWindow: retrievalProfile.chunkWindow,
       retrievedChunks,
-      contextGroups
+      contextGroups,
+      execution: retrievalResult.execution
     });
 
     const trace = await this.tracesService.createTrace({
@@ -320,31 +321,48 @@ export class AskAssistantService {
         phase: "generating"
       });
 
-      const streamResult = await this.llmService.generateAnswerStream({
-        question: input.question,
-        systemPrompt: assistant.systemPrompt,
-        answerPolicy: normalizedAnswerPolicy,
-        chunks: this.answeringService.buildStreamAnswerContext({
-          chunks: retrievedChunks,
-          contextGroups
-        }),
-        onDelta: async delta => {
-          await input.onEvent({
-            type: "answer_delta",
-            delta
-          });
-        }
-      });
+      const resolvedAnswerResult =
+        retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
+          ? await (async () => {
+              const deterministicResult = this.answeringService.buildDeterministicInsufficientContextResult({
+                question: input.question,
+                answerPolicy: normalizedAnswerPolicy
+              });
+              await input.onEvent({
+                type: "answer_delta",
+                delta: deterministicResult.answer
+              });
 
-      const resolvedAnswerResult = await this.answeringService.finalizeStreamedAnswer({
-        question: input.question,
-        answerPolicy,
-        chunks: retrievedChunks,
-        contextGroups,
-        rawAnswer: streamResult.rawAnswer,
-        modelName: streamResult.modelName,
-        promptId: streamResult.promptId
-      });
+              return deterministicResult;
+            })()
+          : await (async () => {
+              const streamResult = await this.llmService.generateAnswerStream({
+                question: input.question,
+                systemPrompt: assistant.systemPrompt,
+                answerPolicy: normalizedAnswerPolicy,
+                chunks: this.answeringService.buildStreamAnswerContext({
+                  chunks: retrievedChunks,
+                  contextGroups
+                }),
+                onDelta: async delta => {
+                  await input.onEvent({
+                    type: "answer_delta",
+                    delta
+                  });
+                }
+              });
+
+              return this.answeringService.finalizeStreamedAnswer({
+                question: input.question,
+                answerPolicy: normalizedAnswerPolicy,
+                chunks: retrievedChunks,
+                contextGroups,
+                rawAnswer: streamResult.rawAnswer,
+                modelName: streamResult.modelName,
+                promptId: streamResult.promptId,
+                usedFallback: streamResult.usedFallback
+              });
+            })();
 
       const assistantMessage = await this.messagesService.createMessage({
         conversationId: conversation.id,
@@ -414,6 +432,19 @@ export class AskAssistantService {
     }
   }
 
+  private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null) {
+    return {
+      responseStyle: input?.responseStyle ?? "concise",
+      tone: input?.tone ?? "neutral",
+      outputFormat: input?.outputFormat ?? "paragraph",
+      language: input?.language ?? "auto",
+      citationMode: input?.citationMode ?? "required",
+      maxCitations: input?.maxCitations ?? 3,
+      noAnswerBehavior: input?.noAnswerBehavior ?? "say_insufficient_context",
+      includeMissingInformation: input?.includeMissingInformation ?? true
+    } as const;
+  }
+
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {
     return chunks.map(chunk => ({
       chunkId: chunk.chunkId,
@@ -453,6 +484,10 @@ export class AskAssistantService {
     chunkWindow: number;
     retrievedChunks: AskResultChunk[];
     contextGroups: Array<{ primaryChunkIds: string[] }>;
+    execution: {
+      actualMode: "vector" | "hybrid" | "lexical";
+      usedFallback: boolean;
+    };
   }): Prisma.InputJsonValue {
     return {
       strategy: input.strategy,
@@ -468,6 +503,8 @@ export class AskAssistantService {
         topK: input.topK,
         scoreThreshold: input.scoreThreshold,
         chunkWindow: input.chunkWindow,
+        actualMode: input.execution.actualMode,
+        usedFallback: input.execution.usedFallback,
         retrievedChunkCount: input.retrievedChunks.length,
         contextGroupCount: input.contextGroups.length,
         primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length

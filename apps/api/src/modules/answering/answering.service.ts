@@ -29,16 +29,30 @@ type CitationEvidence = {
   quote: string;
 };
 
+type CitationSelection = {
+  chunks: RetrievedChunk[];
+  attribution: "explicit" | "heuristic" | "none";
+};
+
 type QualityEvaluation = {
   overall: "strong" | "partial" | "weak";
   grounding: "grounded" | "partially_grounded" | "ungrounded";
   completeness: "complete" | "partial" | "insufficient";
+  primaryIssue:
+    | "none"
+    | "no_retrieval_hits"
+    | "insufficient_context"
+    | "missing_information"
+    | "low_retrieval_score"
+    | "fallback_generation"
+    | "other";
   flags: string[];
   summary: string;
 };
 
 export type AnsweringMetadata = {
   promptId: string;
+  usedFallback: boolean;
   answerPolicy: AnswerPolicy;
   contextMode: "chunks" | "context_groups";
   inputChunkCount: number;
@@ -95,12 +109,14 @@ export class AnsweringService {
     rawAnswer: string;
     modelName: string;
     promptId: string;
+    usedFallback: boolean;
   }) {
     const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
     const llmResult = this.llmService.parseStructuredAnswer({
       rawAnswer: input.rawAnswer,
       modelName: input.modelName,
-      promptId: input.promptId
+      promptId: input.promptId,
+      usedFallback: input.usedFallback
     });
 
     return this.finalizeResolvedAnswer({
@@ -119,6 +135,48 @@ export class AnsweringService {
     return this.buildAnswerContextChunks(input.chunks, input.contextGroups);
   }
 
+  buildDeterministicInsufficientContextResult(input: {
+    question: string;
+    answerPolicy?: Partial<AnswerPolicy> | null;
+  }) {
+    const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
+    const missingInformation = [
+      this.buildInsufficientContextMissingInformation(input.question, answerPolicy.language)
+    ];
+    const qualityEvaluation = this.buildQualityEvaluation({
+      question: input.question,
+      language: answerPolicy.language,
+      answerStatus: "insufficient_context",
+      missingInformation,
+      usedFallback: true,
+      citationMode: answerPolicy.citationMode,
+      citationCount: 0,
+      chunkCount: 0,
+      topScore: null
+    });
+
+    return {
+      answer: this.buildInsufficientContextAnswer(input.question, answerPolicy.language),
+      citations: [],
+      retrievedChunks: [],
+      contextGroups: [],
+      answeringMetadata: {
+        promptId: "answer.v2",
+        usedFallback: true,
+        answerPolicy,
+        contextMode: "chunks" as const,
+        inputChunkCount: 0,
+        contextGroupCount: 0,
+        citationCount: 0,
+        answerStatus: "insufficient_context" as const
+      },
+      modelName: "fallback-local",
+      answerStatus: "insufficient_context" as const,
+      missingInformation,
+      qualityEvaluation
+    };
+  }
+
   private finalizeResolvedAnswer(input: {
     question: string;
     answerPolicy: AnswerPolicy;
@@ -128,29 +186,48 @@ export class AnsweringService {
       answer: string;
       modelName: string;
       promptId: string;
+      usedFallback?: boolean;
       answerStatus?: "grounded" | "insufficient_context";
       missingInformation?: string[];
       citedChunkNumbers?: number[];
       citationEvidence?: CitationEvidence[];
     };
   }) {
+    const usedFallback = input.result.usedFallback ?? input.result.modelName === "fallback-local";
     const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
-    const missingInformation = input.answerPolicy.includeMissingInformation ? (input.result.missingInformation ?? []) : [];
+    const missingInformation = this.resolveMissingInformation({
+      question: input.question,
+      answerStatus,
+      answerPolicy: input.answerPolicy,
+      hasRetrievedContext: input.chunks.length > 0,
+      missingInformation: input.result.missingInformation ?? []
+    });
+    const answer = this.resolveAnswerText({
+      question: input.question,
+      answer: input.result.answer,
+      answerStatus,
+      answerPolicy: input.answerPolicy
+    });
 
     if (input.chunks.length === 0) {
       const qualityEvaluation = this.buildQualityEvaluation({
+        question: input.question,
+        language: input.answerPolicy.language,
         answerStatus,
         missingInformation,
+        usedFallback,
+        citationMode: input.answerPolicy.citationMode,
         citationCount: 0,
         chunkCount: 0,
         topScore: null
       });
 
       return {
-        answer: input.result.answer,
+        answer,
         modelName: input.result.modelName,
         answeringMetadata: {
           promptId: input.result.promptId ?? "answer.v2",
+          usedFallback,
           answerPolicy: input.answerPolicy,
           contextMode: "chunks",
           inputChunkCount: 0,
@@ -167,14 +244,13 @@ export class AnsweringService {
       };
     }
 
-    const citedChunks = this
-      .selectCitedChunks({
-        chunks: input.chunks,
-        citedChunkNumbers: input.result.citedChunkNumbers ?? [],
-        answer: input.result.answer,
-        citationMode: input.answerPolicy.citationMode
-      })
-      .slice(0, input.answerPolicy.maxCitations);
+    const citationSelection = this.selectCitedChunks({
+      chunks: input.chunks,
+      citedChunkNumbers: input.result.citedChunkNumbers ?? [],
+      answer: input.result.answer,
+      citationMode: input.answerPolicy.citationMode
+    });
+    const citedChunks = citationSelection.chunks.slice(0, input.answerPolicy.maxCitations);
     const citations = citedChunks.map(chunk => ({
       chunkId: chunk.chunkId,
       documentId: chunk.documentId,
@@ -189,18 +265,24 @@ export class AnsweringService {
       )
     }));
     const qualityEvaluation = this.buildQualityEvaluation({
+      question: input.question,
+      language: input.answerPolicy.language,
       answerStatus,
       missingInformation,
+      usedFallback,
+      citationMode: input.answerPolicy.citationMode,
       citationCount: citations.length,
+      citationAttribution: citationSelection.attribution,
       chunkCount: input.chunks.length,
       topScore: input.chunks[0]?.score ?? null
     });
 
     return {
-      answer: input.result.answer,
+      answer,
       modelName: input.result.modelName,
       answeringMetadata: {
         promptId: input.result.promptId ?? "answer.v2",
+        usedFallback,
         answerPolicy: input.answerPolicy,
         contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
         inputChunkCount: input.chunks.length,
@@ -215,6 +297,84 @@ export class AnsweringService {
       retrievedChunks: input.chunks,
       contextGroups: input.contextGroups ?? []
     };
+  }
+
+  private resolveAnswerText(input: {
+    question: string;
+    answer: string;
+    answerStatus: "grounded" | "insufficient_context";
+    answerPolicy: AnswerPolicy;
+  }) {
+    if (
+      input.answerStatus !== "insufficient_context" ||
+      input.answerPolicy.noAnswerBehavior !== "say_insufficient_context"
+    ) {
+      return input.answer;
+    }
+
+    return this.buildInsufficientContextAnswer(input.question, input.answerPolicy.language);
+  }
+
+  private resolveMissingInformation(input: {
+    question: string;
+    answerStatus: "grounded" | "insufficient_context";
+    answerPolicy: AnswerPolicy;
+    hasRetrievedContext: boolean;
+    missingInformation: string[];
+  }) {
+    if (input.answerStatus === "insufficient_context") {
+      return input.missingInformation.length > 0
+        ? input.missingInformation
+        : [
+            this.buildInsufficientContextMissingInformation(
+              input.question,
+              input.answerPolicy.language,
+              input.hasRetrievedContext
+            )
+          ];
+    }
+
+    return input.answerPolicy.includeMissingInformation ? input.missingInformation : [];
+  }
+
+  private buildInsufficientContextAnswer(
+    question: string,
+    language: AnswerPolicy["language"]
+  ) {
+    const resolvedLanguage = this.resolvePolicyLanguage(question, language);
+
+    if (resolvedLanguage === "zh") {
+      return "根据当前检索到的资料，我还没有足够信息来可靠回答这个问题。";
+    }
+
+    return "I don't have enough information in the retrieved sources to answer that reliably.";
+  }
+
+  private buildInsufficientContextMissingInformation(
+    question: string,
+    language: AnswerPolicy["language"],
+    hasRetrievedContext = false
+  ) {
+    const resolvedLanguage = this.resolvePolicyLanguage(question, language);
+
+    if (resolvedLanguage === "zh") {
+      return hasRetrievedContext
+        ? "\u5df2\u68c0\u7d22\u5230\u76f8\u5173\u4e0a\u4e0b\u6587\uff0c\u4f46\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\u3002"
+        : "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002";
+    }
+
+    return hasRetrievedContext
+      ? "Retrieved context was still insufficient to support a reliable answer."
+      : "No relevant supporting sources were retrieved.";
+  }
+
+  private resolvePolicyLanguage(question: string, language: AnswerPolicy["language"]) {
+    if (language === "zh" || language === "en") {
+      return language;
+    }
+
+    const hasChinese = /[\u3400-\u9fff]/.test(question);
+    return hasChinese ? "zh" : "en";
   }
 
   private buildAnswerContextChunks(chunks: RetrievedChunk[], contextGroups?: RetrievedContextGroup[]) {
@@ -255,13 +415,16 @@ export class AnsweringService {
     citedChunkNumbers: number[];
     answer: string;
     citationMode: AnswerPolicy["citationMode"];
-  }) {
+  }): CitationSelection {
     const validChunks = input.citedChunkNumbers
       .map(chunkNumber => input.chunks[chunkNumber - 1] ?? null)
       .filter((chunk): chunk is RetrievedChunk => chunk !== null);
 
     if (validChunks.length > 0) {
-      return validChunks;
+      return {
+        chunks: validChunks,
+        attribution: "explicit"
+      };
     }
 
     const extractedFromAnswer = [...input.answer.matchAll(/\[(\d+)\]/g)]
@@ -270,15 +433,33 @@ export class AnsweringService {
       .map(chunkNumber => input.chunks[chunkNumber - 1] ?? null)
       .filter((chunk): chunk is RetrievedChunk => chunk !== null);
 
-    if (extractedFromAnswer.length > 0) {
-      return extractedFromAnswer;
+    const uniqueExtractedFromAnswer: RetrievedChunk[] = [];
+    for (const chunk of extractedFromAnswer) {
+      if (uniqueExtractedFromAnswer.some(candidate => candidate.chunkId === chunk.chunkId)) {
+        continue;
+      }
+
+      uniqueExtractedFromAnswer.push(chunk);
+    }
+
+    if (uniqueExtractedFromAnswer.length > 0) {
+      return {
+        chunks: uniqueExtractedFromAnswer,
+        attribution: "explicit"
+      };
     }
 
     if (input.citationMode === "optional") {
-      return [];
+      return {
+        chunks: [],
+        attribution: "none"
+      };
     }
 
-    return input.chunks.slice(0, Math.min(3, input.chunks.length));
+    return {
+      chunks: input.chunks.slice(0, Math.min(3, input.chunks.length)),
+      attribution: input.chunks.length > 0 ? "heuristic" : "none"
+    };
   }
 
   private buildSnippet(content: string, question: string) {
@@ -335,9 +516,14 @@ export class AnsweringService {
   }
 
   private buildQualityEvaluation(input: {
+    question: string;
+    language: AnswerPolicy["language"];
     answerStatus: "grounded" | "insufficient_context";
     missingInformation: string[];
+    usedFallback: boolean;
+    citationMode: "required" | "optional";
     citationCount: number;
+    citationAttribution?: CitationSelection["attribution"];
     chunkCount: number;
     topScore: number | null;
   }): QualityEvaluation {
@@ -359,14 +545,14 @@ export class AnsweringService {
       flags.push("low_retrieval_score");
     }
 
-    if (input.chunkCount > 0 && input.citationCount === 0) {
-      flags.push("no_citations");
+    if (input.usedFallback && input.answerStatus === "grounded") {
+      flags.push("fallback_generation");
     }
 
     const grounding =
       input.answerStatus === "insufficient_context"
         ? "ungrounded"
-        : input.citationCount > 0
+        : input.citationCount > 0 || input.citationMode === "optional"
           ? "grounded"
           : "partially_grounded";
 
@@ -380,28 +566,184 @@ export class AnsweringService {
     const overall =
       grounding === "ungrounded"
         ? "weak"
-        : completeness === "complete" && !flags.some(flag => ["missing_information", "no_citations", "insufficient_context", "no_retrieval_hits"].includes(flag))
+        : completeness === "complete" &&
+            !flags.some(flag =>
+              [
+                "missing_information",
+                "insufficient_context",
+                "no_retrieval_hits",
+                "low_retrieval_score",
+                "fallback_generation"
+              ].includes(flag)
+            )
           ? "strong"
           : "partial";
 
-    const summary =
+    const summary = this.buildQualitySummary({
+      question: input.question,
+      language: input.language,
+      overall,
+      flags,
+      citationCount: input.citationCount,
+      citationAttribution: input.citationAttribution ?? "none"
+    });
+
+    const primaryIssue =
       overall === "strong"
-        ? "Answer is grounded in cited sources with no reported gaps."
-        : overall === "partial"
-          ? "Answer is grounded but incomplete because some information is missing."
-          : "Answer quality is weak because supporting context was insufficient.";
+        ? "none"
+        : flags.includes("no_retrieval_hits")
+          ? "no_retrieval_hits"
+          : flags.includes("insufficient_context")
+            ? "insufficient_context"
+            : flags.includes("fallback_generation")
+                  ? "fallback_generation"
+                : flags.includes("missing_information")
+                  ? "missing_information"
+                  : flags.includes("low_retrieval_score")
+                    ? "low_retrieval_score"
+                    : "other";
 
     const normalizedFlags =
       overall === "strong"
-        ? flags.filter(flag => !["no_citations", "missing_information", "insufficient_context", "no_retrieval_hits"].includes(flag))
+        ? flags.filter(flag => !["missing_information", "insufficient_context", "no_retrieval_hits"].includes(flag))
         : flags;
 
     return {
       overall,
       grounding,
       completeness,
+      primaryIssue,
       flags: normalizedFlags,
       summary
     };
+  }
+
+  private buildQualitySummary(input: {
+    question: string;
+    language: AnswerPolicy["language"];
+    overall: QualityEvaluation["overall"];
+    flags: string[];
+    citationCount: number;
+    citationAttribution: CitationSelection["attribution"];
+  }) {
+    const resolvedLanguage = this.resolvePolicyLanguage(input.question, input.language);
+
+    if (input.overall === "strong") {
+      if (resolvedLanguage === "zh") {
+        if (input.citationCount > 0 && input.citationAttribution === "explicit") {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u5f15\u7528\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
+        }
+
+        if (input.citationCount > 0 && input.citationAttribution === "heuristic") {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u6765\u6e90\uff0c\u5f15\u7528\u7531\u540e\u7aef\u63a8\u65ad\u8865\u9f50\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
+        }
+
+        return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u6765\u6e90\uff0c\u4e14\u6ca1\u6709\u53d1\u73b0\u5df2\u77e5\u7f3a\u53e3\u3002";
+      }
+
+      if (input.citationCount > 0 && input.citationAttribution === "explicit") {
+        return "Answer is grounded in cited sources with no reported gaps.";
+      }
+
+      if (input.citationCount > 0 && input.citationAttribution === "heuristic") {
+        return "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps.";
+      }
+
+      return "Answer is grounded in retrieved sources with no reported gaps.";
+    }
+
+    if (input.overall === "partial") {
+      if (resolvedLanguage === "zh") {
+        if (
+          input.flags.includes("missing_information") &&
+          input.flags.includes("low_retrieval_score") &&
+          input.flags.includes("fallback_generation")
+        ) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\uff0c\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\uff0c\u4e14\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        if (input.flags.includes("missing_information") && input.flags.includes("low_retrieval_score")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002";
+        }
+
+        if (input.flags.includes("missing_information") && input.flags.includes("fallback_generation")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\uff0c\u4e14\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        if (input.flags.includes("low_retrieval_score") && input.flags.includes("fallback_generation")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u652f\u6301\u4e0a\u4e0b\u6587\u7684\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\uff0c\u4e14\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        if (input.flags.includes("missing_information")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u4e0d\u5b8c\u6574\uff1a\u90e8\u5206\u4fe1\u606f\u7f3a\u5931\u3002";
+        }
+
+        if (input.flags.includes("low_retrieval_score")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u652f\u6301\u4e0a\u4e0b\u6587\u7684\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002";
+        }
+
+        if (input.flags.includes("fallback_generation")) {
+          return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002";
+        }
+
+        return "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u4ecd\u5b58\u5728\u672a\u89e3\u51b3\u7684\u8d28\u91cf\u9650\u5236\u3002";
+      }
+
+      if (
+        input.flags.includes("missing_information") &&
+        input.flags.includes("low_retrieval_score") &&
+        input.flags.includes("fallback_generation")
+      ) {
+        return "Answer is grounded but incomplete because some information is missing, retrieval confidence was low, and it was produced through local fallback behavior.";
+      }
+
+      if (input.flags.includes("missing_information") && input.flags.includes("low_retrieval_score")) {
+        return "Answer is grounded but incomplete because some information is missing, and retrieval confidence was low.";
+      }
+
+      if (input.flags.includes("missing_information") && input.flags.includes("fallback_generation")) {
+        return "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior.";
+      }
+
+      if (input.flags.includes("low_retrieval_score") && input.flags.includes("fallback_generation")) {
+        return "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior.";
+      }
+
+      if (input.flags.includes("missing_information")) {
+        return "Answer is grounded but incomplete because some information is missing.";
+      }
+
+      if (input.flags.includes("low_retrieval_score")) {
+        return "Answer is grounded, but retrieval confidence was low for the supporting context.";
+      }
+
+      if (input.flags.includes("fallback_generation")) {
+        return "Answer is grounded, but it was produced through local fallback behavior.";
+      }
+
+      return "Answer is grounded but still has unresolved quality limitations.";
+    }
+
+    if (resolvedLanguage === "zh") {
+      if (input.flags.includes("no_retrieval_hits")) {
+        return "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u6ca1\u6709\u8db3\u591f\u7684\u652f\u6301\u4e0a\u4e0b\u6587\u3002";
+      }
+
+      if (input.flags.includes("low_retrieval_score")) {
+        return "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002";
+      }
+
+      return "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\u3002";
+    }
+
+    if (input.flags.includes("no_retrieval_hits")) {
+      return "Answer quality is weak because supporting context was insufficient.";
+    }
+
+    if (input.flags.includes("low_retrieval_score")) {
+      return "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low.";
+    }
+
+    return "Answer quality is weak because retrieved context was still insufficient.";
   }
 }

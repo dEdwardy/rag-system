@@ -334,7 +334,7 @@ test("RetrievalService forwards page and section filters to vector search", asyn
   assert.equal(chunks[0].chunkId, "chunk-2");
 });
 
-test("RetrievalService fallback remains inside configured filter scope", async () => {
+test("RetrievalService returns no chunks when all filtered candidates miss the score threshold", async () => {
   let callCount = 0;
   const prisma = {
     documentChunk: {
@@ -385,11 +385,9 @@ test("RetrievalService fallback remains inside configured filter scope", async (
   });
   const chunks = result.retrievedChunks;
 
-  assert.equal(callCount >= 2, true);
-  assert.deepEqual(
-    chunks.map(chunk => chunk.documentId),
-    ["doc-allowed"]
-  );
+  assert.equal(callCount, 1);
+  assert.deepEqual(chunks, []);
+  assert.deepEqual(result.contextGroups, []);
 });
 
 test("RetrievalService compiles section-title contains filters for lexical retrieval", async () => {
@@ -446,7 +444,7 @@ test("RetrievalService compiles section-title contains filters for lexical retri
   assert.equal(chunks[0].chunkId, "chunk-specs");
 });
 
-test("RetrievalService compiles page-number ranges and document exclusions", async () => {
+test("RetrievalService returns no chunks when page-filtered candidates all miss the score threshold", async () => {
   let callCount = 0;
   const prisma = {
     documentChunk: {
@@ -510,11 +508,9 @@ test("RetrievalService compiles page-number ranges and document exclusions", asy
   });
   const chunks = result.retrievedChunks;
 
-  assert.equal(callCount >= 2, true);
-  assert.deepEqual(
-    chunks.map(chunk => chunk.documentId),
-    ["doc-allowed"]
-  );
+  assert.equal(callCount, 1);
+  assert.deepEqual(chunks, []);
+  assert.deepEqual(result.contextGroups, []);
 });
 
 test("RetrievalService groups contiguous expanded chunks into one context group", async () => {
@@ -773,6 +769,52 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
   assert.equal(embedCalls, 0);
   assert.equal(vectorCalls, 0);
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
+  assert.deepEqual(result.execution, {
+    actualMode: "lexical",
+    usedFallback: false
+  });
+});
+
+test("RetrievalService reports lexical fallback when vector retrieval cannot produce candidates", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async () => [
+        {
+          id: "chunk-lexical",
+          documentId: "doc-1",
+          chunkIndex: 0,
+          content: "lexical fallback marker",
+          pageNo: null,
+          sectionTitle: "Overview",
+          document: { title: "Doc 1" }
+        }
+      ]
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => {
+      throw new Error("vector disabled");
+    }
+  };
+
+  const vectorStoreService = {
+    search: async () => []
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "lexical fallback marker",
+    topK: 1,
+    scoreThreshold: 0
+  });
+
+  assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
+  assert.deepEqual(result.execution, {
+    actualMode: "lexical",
+    usedFallback: true
+  });
 });
 
 test("RetrievalService hybrid ranking honors configured strategy weights", async () => {

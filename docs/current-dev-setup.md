@@ -106,6 +106,50 @@ Notes:
     - `maxCitations`: `3`
     - `noAnswerBehavior`: `say_insufficient_context`
     - `includeMissingInformation`: `true`
+- current backend enforcement for `noAnswerBehavior`:
+  - `say_insufficient_context`: when the final answer status is `insufficient_context`, the backend now replaces model free-form text with a deterministic insufficient-context reply
+  - the fallback reply is localized for `en` / `zh`, and `auto` / `same_as_question` currently resolve by simple question-language detection
+  - for `POST /assistants/:id/ask`, when retrieval returns no chunks and `noAnswerBehavior=say_insufficient_context`, the backend now bypasses answer generation and returns that deterministic reply directly
+  - that one-shot bypass now also applies when the assistant leaves `answerPolicyJson` unset, because the backend default `noAnswerBehavior` is normalized before the no-hit branch check
+  - that one-shot deterministic no-hit path now reuses the same centralized insufficient-context result shaping, so `missingInformation` and weak quality summaries stay aligned with the localized fallback answer text
+  - for `POST /assistants/:id/ask/stream`, when retrieval returns no chunks and `noAnswerBehavior=say_insufficient_context`, the backend now bypasses provider streaming and emits that same deterministic reply directly
+  - that stream deterministic no-hit path now also bypasses streamed final-answer normalization and reuses the same centralized insufficient-context result shaping for the final payload
+  - `best_effort`: the backend preserves the model's returned answer text even when the final answer status is `insufficient_context`
+  - that `best_effort` behavior is now explicitly covered at the ask-service orchestration layer too: one-shot no-hit requests still go through answer generation, and stream no-hit requests still go through streamed generation/finalization instead of reusing the deterministic insufficient-context bypass
+  - the local `LlmService` no-model fallback for zero-hit answers now follows the same minimal `en` / `zh` language resolution instead of always returning English
+  - that same zero-hit local fallback path now also localizes its deterministic `missingInformation` reason for `en` / `zh`
+  - the native stream fallback path for zero-hit `say_insufficient_context` answers now emits that same deterministic insufficient-context reply, so streamed deltas and final payload stay aligned
+  - the local `LlmService` grounded fallback for hitful answers now also follows that same minimal `en` / `zh` language resolution instead of using an English-only prefix
+- current backend enforcement for `includeMissingInformation`:
+  - for grounded answers, `includeMissingInformation=false` still clears advisory gap items from the final response
+  - for `insufficient_context` answers, the backend now always preserves `missingInformation`, and fills a deterministic default reason when the model omits one
+  - that deterministic default `missingInformation` reason now also follows the same minimal `en` / `zh` language resolution used by the backend fallback answer text
+  - the default reason now also distinguishes between `no_retrieval_hits` and `retrieved context was still insufficient`, instead of always implying that retrieval returned nothing
+  - both branches of that default reason are now covered for minimal `en` / `zh` localization
+  - structured-answer normalization now also trims and de-duplicates `missingInformation` entries while preserving first-seen order
+- current answering metadata semantics:
+  - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path
+  - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
+- current quality-evaluation semantics:
+  - `qualityEvaluation.primaryIssue` now exposes a deterministic primary quality driver (`none`, `no_retrieval_hits`, `insufficient_context`, `missing_information`, `low_retrieval_score`, `fallback_generation`, `other`) alongside the existing flags array
+  - when `citationMode=optional`, grounded answers without citations no longer receive an automatic `no_citations` penalty
+  - in that optional-citation path, quality evaluation can remain `strong` when no other gaps or retrieval-quality issues are present
+  - deterministic `qualityEvaluation.summary` now also follows the same minimal `en` / `zh` language resolution used by the backend fallback answer text
+  - the strong-summary wording now distinguishes among:
+    - answers grounded in explicit cited sources
+    - answers grounded in retrieved sources without citations
+    - answers where required citations were only heuristically backfilled by the backend rather than explicitly supplied by the model
+  - that heuristic-citation strong-summary branch now has its own explicit `en` / `zh` wording instead of collapsing back to the generic retrieved-source summary
+  - partial summaries now also combine `missing_information` + `low_retrieval_score` into a dual-cause explanation instead of dropping the retrieval-confidence warning
+  - that dual-cause partial summary is now also covered for the minimal `zh` branch
+  - low retrieval confidence (`low_retrieval_score`) now degrades `qualityEvaluation.overall` to `partial` and yields a retrieval-confidence-specific summary instead of remaining `strong`
+  - weak insufficient-context summaries now distinguish between `no_retrieval_hits` and cases where retrieval produced context but the retrieved evidence was still insufficient
+  - when a weak insufficient-context answer also carries `low_retrieval_score`, the summary now explicitly mentions the low retrieval confidence instead of dropping that signal
+  - that weak low-confidence insufficient-context summary is now also covered for the minimal `zh` branch
+  - the same minimal `zh` coverage now also exists for the weak insufficient-context path where retrieval produced context, `missingInformation` is present, and retrieval confidence was low
+  - grounded answers produced through local fallback generation now also degrade `qualityEvaluation.overall` to `partial`, expose `primaryIssue: fallback_generation`, and carry a fallback-specific summary instead of remaining `strong`
+  - when grounded fallback-generated answers also carry `low_retrieval_score`, `primaryIssue` now stays anchored on `fallback_generation` while the summary still mentions both signals
+  - that same `primaryIssue` anchoring now also applies when grounded fallback-generated answers still report `missingInformation`
 - `PATCH /retrieval-profiles/:id` now accepts:
   - richer `filtersJson` operators:
     - `documentIds.include` / `documentIds.exclude`
@@ -475,6 +519,13 @@ The following path has been validated locally on `2026-03-21`:
   - `candidateSelection.minCandidates`
   - `hybrid.vectorWeight` / `hybrid.lexicalWeight`
   - `rerank.enabled`
+- retrieval no-hit behavior is now stricter:
+  - if vector retrieval is unavailable, the backend still falls back to lexical scoring
+  - but when all candidates still miss the configured retrieval threshold, the backend now returns an empty retrieval result instead of injecting arbitrary first chunks from the knowledge base
+  - this keeps `insufficient_context` handling aligned with real retrieval evidence
+- ask / trace retrieval metadata `execution` now also exposes:
+  - `actualMode`: the actual retrieval path used for the final result (`vector` / `hybrid` / `lexical`)
+  - `usedFallback`: whether the backend had to fall back away from the requested vector path
 - Chunk-window context grouping for ask responses:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments
@@ -493,6 +544,7 @@ The following path has been validated locally on `2026-03-21`:
 - Structured answer JSON is now schema-validated and normalized before backend consumption
   - constrained fields: `answer`, `status`, `citations`, `missingInformation`
 - Citation snippets now prefer structured `citationEvidence` quotes after backend source-local validation, with deterministic fallback snippets when validation fails
+- when structured citations are absent and the backend falls back to inline answer markers like `[1]`, repeated markers for the same source are now de-duplicated before final citation expansion
 - Trace persistence now includes `qualityEvaluationJson`
 - Assistant-level `answerPolicyJson` validation and ask-time policy application
   - richer answer-policy prompt controls for tone, output format, and answer language

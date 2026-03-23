@@ -134,6 +134,7 @@ export class LlmService {
     return {
       modelName: `ollama:${model}`,
       promptId: prompt.promptId,
+      usedFallback: false,
       ...this.parseAnswerOutput(answer)
     };
   }
@@ -184,6 +185,7 @@ export class LlmService {
     return {
       modelName: model,
       promptId: prompt.promptId,
+      usedFallback: false,
       ...this.parseAnswerOutput(answer)
     };
   }
@@ -192,10 +194,12 @@ export class LlmService {
     rawAnswer: string;
     modelName: string;
     promptId: string;
+    usedFallback: boolean;
   }): GenerateAnswerOutput {
     return {
       modelName: input.modelName,
       promptId: input.promptId,
+      usedFallback: input.usedFallback,
       ...this.parseAnswerOutput(input.rawAnswer)
     };
   }
@@ -250,7 +254,8 @@ export class LlmService {
     return {
       rawAnswer: rawAnswer.trim(),
       modelName: `ollama:${model}`,
-      promptId: prompt.promptId
+      promptId: prompt.promptId,
+      usedFallback: false
     };
   }
 
@@ -348,7 +353,8 @@ export class LlmService {
     return {
       rawAnswer: rawAnswer.trim(),
       modelName: model,
-      promptId: prompt.promptId
+      promptId: prompt.promptId,
+      usedFallback: false
     };
   }
 
@@ -444,38 +450,107 @@ export class LlmService {
   private generateFallbackAnswer(input: GenerateAnswerInput): GenerateAnswerOutput {
     if (input.chunks.length === 0) {
       return {
-        answer: "I couldn't find relevant information in the knowledge base.",
+        answer: this.buildFallbackNoHitAnswer(input.question, input.answerPolicy.language),
         modelName: "fallback-local",
         promptId: this.promptManager.getAnswerPromptId(),
+        usedFallback: true,
         answerStatus: "insufficient_context",
-        missingInformation: ["No relevant supporting sources were retrieved."]
+        missingInformation: [this.buildFallbackNoHitMissingInformation(input.question, input.answerPolicy.language)]
       };
     }
 
     const topChunk = input.chunks[0];
-    const answer = `Based on the retrieved sources [1], the most relevant information is:\n\n${topChunk.content}`;
+    const answer = this.buildFallbackGroundedAnswer({
+      question: input.question,
+      language: input.answerPolicy.language,
+      content: topChunk.content
+    });
 
     return {
       answer,
       modelName: "fallback-local",
       promptId: this.promptManager.getAnswerPromptId(),
+      usedFallback: true,
       answerStatus: "grounded",
       missingInformation: [],
       citedChunkNumbers: [1]
     };
   }
 
+  private buildFallbackNoHitAnswer(question: string, language: GenerateAnswerInput["answerPolicy"]["language"]) {
+    const resolvedLanguage = this.resolveAnswerLanguage(question, language);
+    if (resolvedLanguage === "zh") {
+      return "我没有在知识库中找到足够相关的信息来回答这个问题。";
+    }
+
+    return "I couldn't find relevant information in the knowledge base.";
+  }
+
+  private buildFallbackNoHitMissingInformation(
+    question: string,
+    language: GenerateAnswerInput["answerPolicy"]["language"]
+  ) {
+    const resolvedLanguage = this.resolveAnswerLanguage(question, language);
+    if (resolvedLanguage === "zh") {
+      return "\u6ca1\u6709\u68c0\u7d22\u5230\u53ef\u7528\u4e8e\u652f\u6301\u56de\u7b54\u7684\u76f8\u5173\u6765\u6e90\u3002";
+    }
+
+    return "No relevant supporting sources were retrieved.";
+  }
+
+  private buildFallbackGroundedAnswer(input: {
+    question: string;
+    language: GenerateAnswerInput["answerPolicy"]["language"];
+    content: string;
+  }) {
+    const resolvedLanguage = this.resolveAnswerLanguage(input.question, input.language);
+    if (resolvedLanguage === "zh") {
+      return `根据检索到的来源 [1]，目前最相关的信息是：\n\n${input.content}`;
+    }
+
+    return `Based on the retrieved sources [1], the most relevant information is:\n\n${input.content}`;
+  }
+
+  private resolveAnswerLanguage(
+    question: string,
+    language: GenerateAnswerInput["answerPolicy"]["language"]
+  ) {
+    if (language === "zh" || language === "en") {
+      return language;
+    }
+
+    const hasChinese = /[\u3400-\u9fff]/.test(question);
+    return hasChinese ? "zh" : "en";
+  }
+
   private async generateFallbackAnswerStream(
     input: GenerateAnswerStreamInput
   ): Promise<GenerateAnswerStreamOutput> {
     const result = this.generateFallbackAnswer(input);
-    await input.onDelta(result.answer);
+    const streamAnswer =
+      input.chunks.length === 0 && input.answerPolicy.noAnswerBehavior === "say_insufficient_context"
+        ? this.buildStreamInsufficientContextAnswer(input.question, input.answerPolicy.language)
+        : result.answer;
+    await input.onDelta(streamAnswer);
 
     return {
-      rawAnswer: result.answer,
+      rawAnswer: streamAnswer,
       modelName: result.modelName,
-      promptId: result.promptId
+      promptId: result.promptId,
+      usedFallback: result.usedFallback
     };
+  }
+
+  private buildStreamInsufficientContextAnswer(
+    question: string,
+    language: GenerateAnswerInput["answerPolicy"]["language"]
+  ) {
+    const resolvedLanguage = this.resolveAnswerLanguage(question, language);
+    if (resolvedLanguage === "zh") {
+      return "\u6839\u636e\u5f53\u524d\u68c0\u7d22\u5230\u7684\u8d44\u6599\uff0c\u6211\u8fd8\u6ca1\u6709\u8db3\u591f\u4fe1\u606f\u6765\u53ef\u9760\u56de\u7b54\u8fd9\u4e2a\u95ee\u9898\u3002";
+    }
+
+    return "I don't have enough information in the retrieved sources to answer that reliably.";
   }
 
   private async emitVisibleAnswerDelta(input: {
@@ -571,7 +646,7 @@ export class LlmService {
     return value?.replace(/^["'`\s]+|["'`\s]+$/g, "").replace(/\s+/g, " ").trim() ?? "";
   }
 
-  private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId"> {
+  private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId" | "usedFallback"> {
     const parsed = this.tryParseStructuredAnswer(rawAnswer);
     if (parsed) {
       return parsed;
@@ -586,7 +661,9 @@ export class LlmService {
     };
   }
 
-  private tryParseStructuredAnswer(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId"> | null {
+  private tryParseStructuredAnswer(
+    rawAnswer: string
+  ): Omit<GenerateAnswerOutput, "modelName" | "promptId" | "usedFallback"> | null {
     const normalized = rawAnswer.trim();
     const candidates = [normalized];
     const fencedMatch = normalized.match(/```(?:json)?\s*([\s\S]*?)```/i);

@@ -43,6 +43,10 @@ export type RetrievalContextGroup = {
 export type RetrievalResult = {
   retrievedChunks: RetrievedChunk[];
   contextGroups: RetrievalContextGroup[];
+  execution: {
+    actualMode: "vector" | "hybrid" | "lexical";
+    usedFallback: boolean;
+  };
 };
 
 @Injectable()
@@ -88,7 +92,9 @@ export class RetrievalService {
         ...input,
         enableRerank: resolvedEnableRerank,
         filters: normalizedFilters,
-        lexicalCandidates
+        lexicalCandidates,
+        actualMode: "lexical",
+        usedFallback: false
       });
     }
 
@@ -131,7 +137,10 @@ export class RetrievalService {
             input.chunkWindow ?? 0,
             normalizedFilters
           );
-          return this.buildRetrievalResult(retrievedChunks);
+          return this.buildRetrievalResult(retrievedChunks, {
+            actualMode: candidateSelectionMode,
+            usedFallback: false
+          });
         }
       }
     } catch (error) {
@@ -143,7 +152,9 @@ export class RetrievalService {
       ...input,
       enableRerank: resolvedEnableRerank,
       filters: normalizedFilters,
-      lexicalCandidates
+      lexicalCandidates,
+      actualMode: "lexical",
+      usedFallback: true
     });
   }
 
@@ -156,6 +167,8 @@ export class RetrievalService {
     enableRerank?: boolean;
     lexicalCandidates?: RetrievalCandidate[];
     filters?: RetrievalProfileFilters;
+    actualMode: "lexical";
+    usedFallback: boolean;
   }) {
     const lexicalCandidates =
       input.lexicalCandidates ??
@@ -179,36 +192,15 @@ export class RetrievalService {
         input.chunkWindow ?? 0,
         input.filters
       );
-      return this.buildRetrievalResult(retrievedChunks);
+      return this.buildRetrievalResult(retrievedChunks, {
+        actualMode: input.actualMode,
+        usedFallback: input.usedFallback
+      });
     }
-
-    const chunks = await this.prisma.documentChunk.findMany({
-      where: this.buildChunkWhere(input.kbId, input.filters),
-      include: {
-        document: true
-      },
-      orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
+    return this.buildRetrievalResult([], {
+      actualMode: input.actualMode,
+      usedFallback: input.usedFallback
     });
-
-    const fallbackChunks = chunks.slice(0, input.topK).map(chunk => ({
-      chunkId: chunk.id,
-      documentId: chunk.documentId,
-      documentTitle: chunk.document.title,
-      chunkIndex: chunk.chunkIndex,
-      content: chunk.content,
-      score: 0,
-      isPrimary: true,
-      pageNo: chunk.pageNo,
-      sectionTitle: chunk.sectionTitle
-    }));
-
-    const retrievedChunks = await this.expandChunkWindow(
-      input.kbId,
-      fallbackChunks,
-      input.chunkWindow ?? 0,
-      input.filters
-    );
-    return this.buildRetrievalResult(retrievedChunks);
   }
 
   private async getLexicalCandidates(input: {
@@ -496,10 +488,14 @@ export class RetrievalService {
     });
   }
 
-  private buildRetrievalResult(retrievedChunks: RetrievedChunk[]): RetrievalResult {
+  private buildRetrievalResult(
+    retrievedChunks: RetrievedChunk[],
+    execution: RetrievalResult["execution"]
+  ): RetrievalResult {
     return {
       retrievedChunks,
-      contextGroups: this.buildContextGroups(retrievedChunks)
+      contextGroups: this.buildContextGroups(retrievedChunks),
+      execution
     };
   }
 

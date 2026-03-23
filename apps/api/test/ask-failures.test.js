@@ -50,7 +50,11 @@ test("AskAssistantService marks trace as failed when answer generation throws", 
           sectionTitle: null
         }
       ],
-      contextGroups: []
+      contextGroups: [],
+      execution: {
+        actualMode: "vector",
+        usedFallback: false
+      }
     })
   };
   const answeringService = {

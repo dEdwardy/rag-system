@@ -34,6 +34,7 @@ export type GenerateAnswerOutput = {
   answer: string;
   modelName: string;
   promptId: string;
+  usedFallback: boolean;
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];
   citedChunkNumbers?: number[];
@@ -47,6 +48,7 @@ export type GenerateAnswerStreamOutput = {
   rawAnswer: string;
   modelName: string;
   promptId: string;
+  usedFallback: boolean;
 };
 
 export type RewriteQueryInput = {
