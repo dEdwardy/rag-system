@@ -80,9 +80,12 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
           inputChunkCount: input.chunks.length,
           promptContextCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
+          citationCountBeforeLimit: 0,
           citationCount: 0,
+          citationLimitHit: false,
           citationAttribution: "none",
           missingInformationCount: 0,
+          missingInformationSource: "none",
           answerStatus: "grounded"
         },
         answerStatus: "grounded",
@@ -142,7 +145,10 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.traceId, "trace-1");
   assert.equal(finalResult.answeringMetadata.promptContextCount, 1);
   assert.equal(finalResult.answeringMetadata.citationAttribution, "none");
+  assert.equal(finalResult.answeringMetadata.citationCountBeforeLimit, 0);
+  assert.equal(finalResult.answeringMetadata.citationLimitHit, false);
   assert.equal(finalResult.answeringMetadata.missingInformationCount, 0);
+  assert.equal(finalResult.answeringMetadata.missingInformationSource, "none");
   assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
   assert.equal(finalResult.answeringMetadata.generationMode, "generated");
 });

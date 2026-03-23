@@ -117,9 +117,12 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     inputChunkCount: 2,
     promptContextCount: 2,
     contextGroupCount: 0,
+    citationCountBeforeLimit: 2,
     citationCount: 1,
+    citationLimitHit: true,
     citationAttribution: "explicit",
     missingInformationCount: 0,
+    missingInformationSource: "none",
     answerStatus: "grounded"
   });
 });
@@ -418,7 +421,10 @@ test("AnsweringService does not fabricate heuristic citations when citationMode 
 
   assert.deepEqual(result.citations, []);
   assert.equal(result.answeringMetadata.citationAttribution, "none");
+  assert.equal(result.answeringMetadata.citationCountBeforeLimit, 0);
+  assert.equal(result.answeringMetadata.citationLimitHit, false);
   assert.equal(result.answeringMetadata.missingInformationCount, 0);
+  assert.equal(result.answeringMetadata.missingInformationSource, "none");
   assert.equal(result.answeringMetadata.resolvedLanguage, "en");
 });
 
@@ -560,6 +566,7 @@ test("AnsweringService clears missingInformation when the policy disables it", a
   });
 
   assert.deepEqual(result.missingInformation, []);
+  assert.equal(result.answeringMetadata.missingInformationSource, "suppressed_by_policy");
 });
 
 test("AnsweringService prefers merged contextGroups content when calling the model", async () => {
@@ -650,9 +657,12 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     inputChunkCount: 2,
     promptContextCount: 1,
     contextGroupCount: 1,
+    citationCountBeforeLimit: 1,
     citationCount: 1,
+    citationLimitHit: false,
     citationAttribution: "explicit",
     missingInformationCount: 0,
+    missingInformationSource: "none",
     answerStatus: "grounded"
   });
 });
@@ -1894,6 +1904,7 @@ test("AnsweringService preserves missingInformation for insufficient-context ans
   });
 
   assert.deepEqual(result.missingInformation, ["Need pricing details."]);
+  assert.equal(result.answeringMetadata.missingInformationSource, "model");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",
@@ -1932,6 +1943,7 @@ test("AnsweringService fills a deterministic missingInformation reason for insuf
   });
 
   assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
+  assert.equal(result.answeringMetadata.missingInformationSource, "deterministic_default");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
     grounding: "ungrounded",

@@ -112,9 +112,12 @@ Current shape includes:
 - `inputChunkCount`
 - `promptContextCount`
 - `contextGroupCount`
+- `citationCountBeforeLimit`
 - `citationCount`
+- `citationLimitHit`
 - `citationAttribution`
 - `missingInformationCount`
+- `missingInformationSource`
 - `answerStatus`
 
 This is the stable summary of how answer generation actually ran for the trace.

@@ -168,13 +168,16 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
             resolvedLanguage: "en",
             generationMode: "generated",
             contextMode: "context_groups",
-      inputChunkCount: 1,
-      promptContextCount: 1,
-      contextGroupCount: 1,
-      citationCount: 1,
-      citationAttribution: "explicit",
-      missingInformationCount: 0,
-      answerStatus: "grounded"
+            inputChunkCount: 1,
+            promptContextCount: 1,
+            contextGroupCount: 1,
+            citationCountBeforeLimit: 1,
+            citationCount: 1,
+            citationLimitHit: false,
+            citationAttribution: "explicit",
+            missingInformationCount: 0,
+            missingInformationSource: "none",
+            answerStatus: "grounded"
           },
           modelName: "fallback-local",
           answerStatus: "grounded",
@@ -381,9 +384,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     inputChunkCount: 1,
     promptContextCount: 1,
     contextGroupCount: 1,
+    citationCountBeforeLimit: 1,
     citationCount: 1,
+    citationLimitHit: false,
     citationAttribution: "explicit",
     missingInformationCount: 0,
+    missingInformationSource: "none",
     answerStatus: "grounded"
   });
   assert.equal(result.conversationId, "conversation-1");
@@ -412,9 +418,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     inputChunkCount: 1,
     promptContextCount: 1,
     contextGroupCount: 1,
+    citationCountBeforeLimit: 1,
     citationCount: 1,
+    citationLimitHit: false,
     citationAttribution: "explicit",
     missingInformationCount: 0,
+    missingInformationSource: "none",
     answerStatus: "grounded"
   });
   assert.equal(result.modelName, "fallback-local");
@@ -532,9 +541,12 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           inputChunkCount: 0,
           promptContextCount: 0,
           contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
           citationCount: 0,
+          citationLimitHit: false,
           citationAttribution: "none",
           missingInformationCount: 0,
+          missingInformationSource: "none",
           answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
@@ -573,9 +585,12 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           inputChunkCount: 0,
           promptContextCount: 0,
           contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
           citationCount: 0,
+          citationLimitHit: false,
           citationAttribution: "none",
           missingInformationCount: 0,
+          missingInformationSource: "none",
           answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
@@ -712,9 +727,12 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     inputChunkCount: 0,
     promptContextCount: 0,
     contextGroupCount: 0,
+    citationCountBeforeLimit: 0,
     citationCount: 0,
+    citationLimitHit: false,
     citationAttribution: "none",
     missingInformationCount: 0,
+    missingInformationSource: "none",
     answerStatus: "insufficient_context"
   });
   assert.equal(result.traceId, "trace-1");
