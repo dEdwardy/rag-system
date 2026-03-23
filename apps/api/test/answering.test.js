@@ -1190,15 +1190,14 @@ test("AnsweringService keeps fallback_generation as the primary issue when fallb
     ]
   });
 
-  assert.equal(result.qualityEvaluation.overall, "partial");
-  assert.equal(result.qualityEvaluation.grounding, "grounded");
-  assert.equal(result.qualityEvaluation.completeness, "complete");
-  assert.equal(result.qualityEvaluation.primaryIssue, "fallback_generation");
-  assert.deepEqual(result.qualityEvaluation.flags, ["low_retrieval_score", "fallback_generation"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["low_retrieval_score", "fallback_generation"],
+    summary: "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
+  });
 });
 
 test("AnsweringService localizes low-retrieval fallback summaries for Chinese questions", async () => {
