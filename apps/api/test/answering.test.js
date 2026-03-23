@@ -1088,15 +1088,14 @@ test("AnsweringService reports a retrieval-score-specific partial quality summar
     ]
   });
 
-  assert.equal(result.qualityEvaluation.overall, "partial");
-  assert.equal(result.qualityEvaluation.grounding, "grounded");
-  assert.equal(result.qualityEvaluation.completeness, "complete");
-  assert.equal(result.qualityEvaluation.primaryIssue, "low_retrieval_score");
-  assert.deepEqual(result.qualityEvaluation.flags, ["low_retrieval_score"]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context."
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "low_retrieval_score",
+    flags: ["low_retrieval_score"],
+    summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+  });
 });
 
 test("AnsweringService localizes low-retrieval grounded summaries for Chinese questions", async () => {
