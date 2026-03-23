@@ -771,7 +771,12 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
-    usedFallback: false
+    usedFallback: false,
+    candidateLimit: 3,
+    vectorCandidateCount: 0,
+    lexicalCandidateCount: 1,
+    mergedCandidateCount: 1,
+    rankedCandidateCount: 1
   });
 });
 
@@ -813,7 +818,12 @@ test("RetrievalService reports lexical fallback when vector retrieval cannot pro
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
   assert.deepEqual(result.execution, {
     actualMode: "lexical",
-    usedFallback: true
+    usedFallback: true,
+    candidateLimit: 3,
+    vectorCandidateCount: 0,
+    lexicalCandidateCount: 1,
+    mergedCandidateCount: 1,
+    rankedCandidateCount: 1
   });
 });
 

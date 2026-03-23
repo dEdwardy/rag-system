@@ -631,6 +631,10 @@
   - `ask` / trace retrieval metadata `execution` 现在除了 query、threshold 和 chunk counts 之外，也会显式暴露：
     - `actualMode`: `vector` / `hybrid` / `lexical`
     - `usedFallback`: 当前结果是否是从请求的向量路径回退得到
+    - `candidateLimit`: 当前 candidate-selection 策略最终解析出的候选预算
+    - `vectorCandidateCount` / `lexicalCandidateCount`: merge 之前各自拿到了多少候选
+    - `mergedCandidateCount`: hybrid merge 或 lexical fallback 之后还保留了多少候选
+    - `rankedCandidateCount`: threshold + ranking 之后、chunk-window 扩展之前剩余多少候选
   - 这样当前 retrieval metadata 不再只表达“想要的策略”，也能表达“最终实际走到的检索路径”
   - 当前改动保持 API 向后兼容，只是在既有 `retrievalMetadata.execution` 里增加字段
   - focused validation rerun:

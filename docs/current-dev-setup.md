@@ -526,6 +526,10 @@ The following path has been validated locally on `2026-03-21`:
 - ask / trace retrieval metadata `execution` now also exposes:
   - `actualMode`: the actual retrieval path used for the final result (`vector` / `hybrid` / `lexical`)
   - `usedFallback`: whether the backend had to fall back away from the requested vector path
+  - `candidateLimit`: the resolved retrieval candidate budget after candidate-selection strategy expansion
+  - `vectorCandidateCount` / `lexicalCandidateCount`: how many vector and lexical candidates were produced before merge
+  - `mergedCandidateCount`: how many candidates remained after hybrid merge or lexical fallback resolution
+  - `rankedCandidateCount`: how many candidates survived thresholding and ranking before chunk-window expansion
 - Chunk-window context grouping for ask responses:
   - `retrievedChunks` remains unchanged for compatibility
   - `contextGroups` adds contiguous same-document merged context segments

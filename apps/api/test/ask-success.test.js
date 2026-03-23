@@ -115,7 +115,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           contextGroups,
           execution: {
             actualMode: "hybrid",
-            usedFallback: false
+            usedFallback: false,
+            candidateLimit: 12,
+            vectorCandidateCount: 3,
+            lexicalCandidateCount: 2,
+            mergedCandidateCount: 4,
+            rankedCandidateCount: 1
           }
         };
       }
@@ -307,6 +312,11 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       chunkWindow: 1,
       actualMode: "hybrid",
       usedFallback: false,
+      candidateLimit: 12,
+      vectorCandidateCount: 3,
+      lexicalCandidateCount: 2,
+      mergedCandidateCount: 4,
+      rankedCandidateCount: 1,
       retrievedChunkCount: 1,
       contextGroupCount: 1,
       primaryChunkCount: 1
@@ -452,7 +462,12 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           contextGroups: [],
           execution: {
             actualMode: "lexical",
-            usedFallback: false
+            usedFallback: false,
+            candidateLimit: 20,
+            vectorCandidateCount: 0,
+            lexicalCandidateCount: 0,
+            mergedCandidateCount: 0,
+            rankedCandidateCount: 0
           }
         };
       }
@@ -615,6 +630,11 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       chunkWindow: 0,
       actualMode: "lexical",
       usedFallback: false,
+      candidateLimit: 20,
+      vectorCandidateCount: 0,
+      lexicalCandidateCount: 0,
+      mergedCandidateCount: 0,
+      rankedCandidateCount: 0,
       retrievedChunkCount: 0,
       contextGroupCount: 0,
       primaryChunkCount: 0

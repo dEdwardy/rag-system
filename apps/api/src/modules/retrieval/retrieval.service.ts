@@ -46,6 +46,11 @@ export type RetrievalResult = {
   execution: {
     actualMode: "vector" | "hybrid" | "lexical";
     usedFallback: boolean;
+    candidateLimit: number;
+    vectorCandidateCount: number;
+    lexicalCandidateCount: number;
+    mergedCandidateCount: number;
+    rankedCandidateCount: number;
   };
 };
 
@@ -93,6 +98,8 @@ export class RetrievalService {
         enableRerank: resolvedEnableRerank,
         filters: normalizedFilters,
         lexicalCandidates,
+        candidateLimit,
+        vectorCandidateCount: 0,
         actualMode: "lexical",
         usedFallback: false
       });
@@ -139,7 +146,12 @@ export class RetrievalService {
           );
           return this.buildRetrievalResult(retrievedChunks, {
             actualMode: candidateSelectionMode,
-            usedFallback: false
+            usedFallback: false,
+            candidateLimit,
+            vectorCandidateCount: vectorCandidates.length,
+            lexicalCandidateCount: lexicalCandidates?.length ?? 0,
+            mergedCandidateCount: mergedCandidates.length,
+            rankedCandidateCount: rankedCandidates.length
           });
         }
       }
@@ -153,6 +165,8 @@ export class RetrievalService {
       enableRerank: resolvedEnableRerank,
       filters: normalizedFilters,
       lexicalCandidates,
+      candidateLimit,
+      vectorCandidateCount: 0,
       actualMode: "lexical",
       usedFallback: true
     });
@@ -166,6 +180,8 @@ export class RetrievalService {
     chunkWindow?: number;
     enableRerank?: boolean;
     lexicalCandidates?: RetrievalCandidate[];
+    candidateLimit: number;
+    vectorCandidateCount: number;
     filters?: RetrievalProfileFilters;
     actualMode: "lexical";
     usedFallback: boolean;
@@ -175,7 +191,7 @@ export class RetrievalService {
       (await this.getLexicalCandidates({
         kbId: input.kbId,
         query: input.query,
-        limit: Math.max(input.topK * 3, input.topK),
+        limit: input.candidateLimit,
         filters: input.filters
       }));
     const ranked = this.rankCandidates(lexicalCandidates, {
@@ -194,12 +210,22 @@ export class RetrievalService {
       );
       return this.buildRetrievalResult(retrievedChunks, {
         actualMode: input.actualMode,
-        usedFallback: input.usedFallback
+        usedFallback: input.usedFallback,
+        candidateLimit: input.candidateLimit,
+        vectorCandidateCount: input.vectorCandidateCount,
+        lexicalCandidateCount: lexicalCandidates.length,
+        mergedCandidateCount: lexicalCandidates.length,
+        rankedCandidateCount: ranked.length
       });
     }
     return this.buildRetrievalResult([], {
       actualMode: input.actualMode,
-      usedFallback: input.usedFallback
+      usedFallback: input.usedFallback,
+      candidateLimit: input.candidateLimit,
+      vectorCandidateCount: input.vectorCandidateCount,
+      lexicalCandidateCount: lexicalCandidates.length,
+      mergedCandidateCount: lexicalCandidates.length,
+      rankedCandidateCount: 0
     });
   }
 

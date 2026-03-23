@@ -487,6 +487,11 @@ export class AskAssistantService {
     execution: {
       actualMode: "vector" | "hybrid" | "lexical";
       usedFallback: boolean;
+      candidateLimit: number;
+      vectorCandidateCount: number;
+      lexicalCandidateCount: number;
+      mergedCandidateCount: number;
+      rankedCandidateCount: number;
     };
   }): Prisma.InputJsonValue {
     return {
@@ -505,6 +510,11 @@ export class AskAssistantService {
         chunkWindow: input.chunkWindow,
         actualMode: input.execution.actualMode,
         usedFallback: input.execution.usedFallback,
+        candidateLimit: input.execution.candidateLimit,
+        vectorCandidateCount: input.execution.vectorCandidateCount,
+        lexicalCandidateCount: input.execution.lexicalCandidateCount,
+        mergedCandidateCount: input.execution.mergedCandidateCount,
+        rankedCandidateCount: input.execution.rankedCandidateCount,
         retrievedChunkCount: input.retrievedChunks.length,
         contextGroupCount: input.contextGroups.length,
         primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length
