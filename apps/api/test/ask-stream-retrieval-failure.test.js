@@ -1,50 +1,23 @@
-const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { AskAssistantService } = require("../dist/modules/assistants/ask-assistant.service.js");
+const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
+const {
+  createAskAssistantService,
+  createAssistantRecord
+} = require("./support/ask-assistant-test-helpers.js");
 
 test("AskAssistantService stream creates a failed trace when retrieval throws before trace creation", async () => {
   const events = [];
   const createdTraces = [];
 
-  const service = new AskAssistantService(
-    {
-      getAssistant: async assistantId => ({
-        id: assistantId,
-        tenantId: "tenant-1",
-        kbId: "kb-1",
-        systemPrompt: "system prompt",
-        answerPolicyJson: null,
-        retrievalProfile: {
-          topK: 4,
-          scoreThreshold: 0,
-          chunkWindow: 0,
-          enableHybrid: false,
-          enableRerank: false,
-          filtersJson: null,
-          strategyJson: null
-        }
-      })
-    },
-    {
-      createConversation: async () => ({ id: "conversation-1" }),
-      getConversation: async () => ({ id: "conversation-1" }),
-      touchConversation: async () => {}
-    },
-    {
-      createMessage: async input => ({
-        id: input.role === "user" ? "user-message-1" : "assistant-message-1",
-        ...input
-      }),
-      attachTrace: async () => {}
-    },
-    {
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord(),
+    retrieval: {
       retrieve: async () => {
         throw new Error("synthetic retrieval failure");
       }
     },
-    {},
-    {
+    traces: {
       createTrace: async input => {
         createdTraces.push(input);
         return { id: "trace-stream-retrieval-1", ...input };
@@ -53,7 +26,7 @@ test("AskAssistantService stream creates a failed trace when retrieval throws be
         throw new Error("updateTrace should not be used when retrieval fails before trace creation");
       }
     },
-    {
+    llm: {
       rewriteQuery: async () => ({
         rewrittenQuery: null,
         modelName: null,
@@ -61,7 +34,7 @@ test("AskAssistantService stream creates a failed trace when retrieval throws be
         promptId: null
       })
     }
-  );
+  });
 
   await assert.rejects(
     service.askAssistantStream({
