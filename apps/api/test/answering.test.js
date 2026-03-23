@@ -320,7 +320,14 @@ test("AnsweringService localizes fallback-generation quality summaries for Chine
     ]
   });
 
-  assert.equal(result.qualityEvaluation.summary, "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002");
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "partial",
+    grounding: "grounded",
+    completeness: "complete",
+    primaryIssue: "fallback_generation",
+    flags: ["fallback_generation"],
+    summary: "\u56de\u7b54\u5df2\u57fa\u4e8e\u68c0\u7d22\u5230\u7684\u5185\u5bb9\uff0c\u4f46\u5b83\u662f\u901a\u8fc7\u672c\u5730 fallback \u751f\u6210\u7684\u3002"
+  });
 });
 
 test("AnsweringService de-duplicates repeated inline citation markers from plain-text answers", async () => {
@@ -1729,16 +1736,15 @@ test("AnsweringService localizes low-confidence weak insufficient-context summar
     ]
   });
 
-  assert.equal(result.qualityEvaluation.primaryIssue, "insufficient_context");
-  assert.deepEqual(result.qualityEvaluation.flags, [
-    "insufficient_context",
-    "missing_information",
-    "low_retrieval_score"
-  ]);
-  assert.equal(
-    result.qualityEvaluation.summary,
-    "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002"
-  );
+  assert.deepEqual(result.qualityEvaluation, {
+    overall: "weak",
+    grounding: "ungrounded",
+    completeness: "insufficient",
+    primaryIssue: "insufficient_context",
+    flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+    summary:
+      "\u56de\u7b54\u8d28\u91cf\u8f83\u5f31\uff0c\u56e0\u4e3a\u5373\u4f7f\u5df2\u68c0\u7d22\u5230\u4e0a\u4e0b\u6587\uff0c\u4ecd\u4e0d\u8db3\u4ee5\u652f\u6301\u53ef\u9760\u56de\u7b54\uff0c\u4e14\u68c0\u7d22\u7f6e\u4fe1\u5ea6\u504f\u4f4e\u3002"
+  });
 });
 
 test("AnsweringService enforces say_insufficient_context with a deterministic fallback answer", async () => {
