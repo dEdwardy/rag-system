@@ -56,6 +56,7 @@ export type AnsweringMetadata = {
   answerPolicy: AnswerPolicy;
   contextMode: "chunks" | "context_groups";
   inputChunkCount: number;
+  promptContextCount: number;
   contextGroupCount: number;
   citationCount: number;
   answerStatus: "grounded" | "insufficient_context";
@@ -231,6 +232,7 @@ export class AnsweringService {
           answerPolicy: input.answerPolicy,
           contextMode: "chunks",
           inputChunkCount: 0,
+          promptContextCount: 0,
           contextGroupCount: 0,
           citationCount: 0,
           answerStatus
@@ -286,6 +288,9 @@ export class AnsweringService {
         answerPolicy: input.answerPolicy,
         contextMode: input.contextGroups && input.contextGroups.length > 0 ? "context_groups" : "chunks",
         inputChunkCount: input.chunks.length,
+        promptContextCount: input.contextGroups && input.contextGroups.length > 0
+          ? input.contextGroups.length
+          : input.chunks.length,
         contextGroupCount: input.contextGroups?.length ?? 0,
         citationCount: citations.length,
         answerStatus

@@ -605,6 +605,16 @@
     - `node --test apps/api/test/answering.test.js`
     - `node --test apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
 
+- ✅ answering metadata prompt-context count exposure
+  - `answeringMetadata` 现在也会显式返回 `promptContextCount`，用于表示实际送进 answer generation 的上下文单元数
+  - 该字段与 `contextMode` 对齐：
+    - `chunks` 模式下等于 raw `inputChunkCount`
+    - `context_groups` 模式下等于 merged context group 数，而不再需要上层自己从 `contextMode` 和 `contextGroupCount` 推断
+  - one-shot、native stream final payload、以及持久化 trace 中的 `answeringMetadataJson` 语义现已一起补齐
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api build`
+    - `node --test apps/api/test/answering.test.js apps/api/test/ask-success.test.js apps/api/test/ask-stream-service.test.js`
+
 - ✅ local grounded fallback answer language alignment
   - 当没有可用模型 provider、但 retrieval 已命中内容时，`LlmService` 本地 grounded fallback answer 不再固定使用英文前缀
   - 当前会按 `answerPolicy.language` 和问题文本做最小 `en` / `zh` 分流，让 hitful local fallback 与 no-hit local fallback 的语言策略保持一致

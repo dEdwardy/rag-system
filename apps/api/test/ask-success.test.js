@@ -159,11 +159,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
               noAnswerBehavior: "say_insufficient_context",
               includeMissingInformation: false
             },
-            contextMode: "context_groups",
-            inputChunkCount: 1,
-            contextGroupCount: 1,
-            citationCount: 1,
-            answerStatus: "grounded"
+      contextMode: "context_groups",
+      inputChunkCount: 1,
+      promptContextCount: 1,
+      contextGroupCount: 1,
+      citationCount: 1,
+      answerStatus: "grounded"
           },
           modelName: "fallback-local",
           answerStatus: "grounded",
@@ -360,6 +361,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     },
     contextMode: "context_groups",
     inputChunkCount: 1,
+    promptContextCount: 1,
     contextGroupCount: 1,
     citationCount: 1,
     answerStatus: "grounded"
@@ -386,6 +388,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     },
     contextMode: "context_groups",
     inputChunkCount: 1,
+    promptContextCount: 1,
     contextGroupCount: 1,
     citationCount: 1,
     answerStatus: "grounded"
@@ -493,11 +496,12 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
             noAnswerBehavior: "say_insufficient_context",
             includeMissingInformation: true
           },
-          contextMode: "chunks",
-          inputChunkCount: 0,
-          contextGroupCount: 0,
-          citationCount: 0,
-          answerStatus: "insufficient_context"
+      contextMode: "chunks",
+      inputChunkCount: 0,
+      promptContextCount: 0,
+      contextGroupCount: 0,
+      citationCount: 0,
+      answerStatus: "insufficient_context"
         },
         modelName: "fallback-local",
         answerStatus: "insufficient_context",
@@ -659,6 +663,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     },
     contextMode: "chunks",
     inputChunkCount: 0,
+    promptContextCount: 0,
     contextGroupCount: 0,
     citationCount: 0,
     answerStatus: "insufficient_context"

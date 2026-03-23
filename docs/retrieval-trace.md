@@ -102,6 +102,7 @@ Current shape includes:
 - normalized `answerPolicy`
 - `contextMode`
 - `inputChunkCount`
+- `promptContextCount`
 - `contextGroupCount`
 - `citationCount`
 - `answerStatus`

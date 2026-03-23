@@ -113,6 +113,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     },
     contextMode: "chunks",
     inputChunkCount: 2,
+    promptContextCount: 2,
     contextGroupCount: 0,
     citationCount: 1,
     answerStatus: "grounded"
@@ -638,6 +639,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     },
     contextMode: "context_groups",
     inputChunkCount: 2,
+    promptContextCount: 1,
     contextGroupCount: 1,
     citationCount: 1,
     answerStatus: "grounded"
