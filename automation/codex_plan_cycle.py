@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from automation.codex_plan_runner import run_plan
 from automation.codex_prompt_builder import (
@@ -20,11 +24,15 @@ from automation.codex_task_gate import (
 )
 
 
-def run_single_plan_attempt() -> dict[str, object]:
+def run_single_plan_attempt(timeout_seconds: int = 300) -> dict[str, object]:
     runtime_prompt = build_runtime_prompt(DEFAULT_PROMPT_FILE, DEFAULT_SKIP_QUEUE_FILE)
     DEFAULT_RUNTIME_PROMPT_FILE.write_text(runtime_prompt, encoding="utf-8")
 
-    run_plan(prompt_file=DEFAULT_RUNTIME_PROMPT_FILE, output_file=DEFAULT_INPUT_FILE)
+    run_plan(
+        prompt_file=DEFAULT_RUNTIME_PROMPT_FILE,
+        output_file=DEFAULT_INPUT_FILE,
+        timeout_seconds=timeout_seconds,
+    )
 
     increment_text = load_increment_text()
     agent_status = parse_status_label(increment_text)
@@ -47,14 +55,14 @@ def run_single_plan_attempt() -> dict[str, object]:
     }
 
 
-def run_plan_cycle() -> dict[str, object]:
-    first_result = run_single_plan_attempt()
+def run_plan_cycle(timeout_seconds: int = 300) -> dict[str, object]:
+    first_result = run_single_plan_attempt(timeout_seconds=timeout_seconds)
 
     if (
         first_result["status"] == "ALLOW"
         and first_result["agent_status"] == "NEEDS_CONTINUE"
     ):
-        second_result = run_single_plan_attempt()
+        second_result = run_single_plan_attempt(timeout_seconds=timeout_seconds)
         second_result["attempts"] = 2
         second_result["auto_continued"] = True
         return second_result

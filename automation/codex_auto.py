@@ -4,6 +4,10 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 from pathlib import Path
+import sys
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from automation.codex_plan_cycle import format_cycle_summary, run_plan_cycle
 
