@@ -177,6 +177,7 @@ Notes:
     - `sectionTitles.include` / `sectionTitles.exclude` / `sectionTitles.contains`
     - `pageNumbers.include` / `pageNumbers.exclude` / `pageNumbers.min` / `pageNumbers.max`
   - `filtersJson: null` to clear saved retrieval metadata filters
+  - `strategyJson: null` to clear a previously saved retrieval strategy override and fall back to the legacy flat-field-derived defaults
 - Local CORS is enabled by default for:
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`

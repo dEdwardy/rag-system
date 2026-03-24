@@ -15,6 +15,82 @@ test.before(() => {
   seedDefaultRecords(apiRoot);
 });
 
+test("Retrieval profile strategyJson can be cleared through PATCH", async () => {
+  await resetTestState();
+
+  const port = 3107;
+  const storageRoot = resolve(repoRoot, "storage", `test-clear-strategy-${randomUUID()}`);
+  const queuePrefix = `test-clear-strategy-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const setStrategyResponse = await fetch(
+      `http://localhost:${port}/retrieval-profiles/default-retrieval-profile`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          strategyJson: {
+            queryRewrite: {
+              enabled: false
+            },
+            candidateSelection: {
+              mode: "lexical"
+            }
+          }
+        })
+      }
+    );
+    assert.equal(setStrategyResponse.status, 200);
+
+    const clearStrategyResponse = await fetch(
+      `http://localhost:${port}/retrieval-profiles/default-retrieval-profile`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          strategyJson: null
+        })
+      }
+    );
+
+    assert.equal(clearStrategyResponse.status, 200);
+
+    const clearedProfile = await clearStrategyResponse.json();
+    assert.equal(clearedProfile.strategyJson, null);
+  } finally {
+    server.kill("SIGTERM");
+    rmSync(storageRoot, { recursive: true, force: true });
+    await prisma.retrievalProfile
+      .update({
+        where: {
+          id: "default-retrieval-profile"
+        },
+        data: {
+          strategyJson: null
+        }
+      })
+      .catch(() => {});
+  }
+});
+
 test("Retrieval profile strategyJson can disable query rewrite and force lexical retrieval", async () => {
   await resetTestState();
 

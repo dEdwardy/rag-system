@@ -228,7 +228,7 @@ export const updateRetrievalProfileSchema = z.object({
   enableRerank: z.boolean().optional(),
   scoreThreshold: z.number().min(0).max(100).optional(),
   filtersJson: retrievalProfileFiltersSchema.nullable().optional(),
-  strategyJson: retrievalStrategySchema.optional()
+  strategyJson: retrievalStrategySchema.nullable().optional()
 });
 
 export function resolveRetrievalStrategy(input: {

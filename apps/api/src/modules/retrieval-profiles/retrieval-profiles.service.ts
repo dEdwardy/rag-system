@@ -73,7 +73,10 @@ export class RetrievalProfilesService {
           : {}),
         ...(input.strategyJson !== undefined
           ? {
-              strategyJson: input.strategyJson as Prisma.InputJsonValue
+              strategyJson:
+                input.strategyJson === null
+                  ? Prisma.JsonNull
+                  : (input.strategyJson as Prisma.InputJsonValue)
             }
           : {})
       }
