@@ -11,6 +11,14 @@
 
 补充进展（2026-03-25）：
 
+- retrieval execution diagnostics 现在会在 `no_ranked_candidates` 触发 lexical fallback 时，继续保留 fallback 之前已经拿到的 vector candidate 统计：
+  - `vectorCandidateCount`
+  - `vectorCandidateLimitHit`
+- 这样当向量检索“有候选但全被阈值/排序淘汰”时，execution metadata 不再误报成“完全没有 vector candidates”
+- 当前改动只收口 retrieval read-model 级执行诊断，不改变既有 fallback 判定、排序或返回 chunk 语义
+- 上述 fallback-diagnostics 边界现已补齐最小 source-level 回归覆盖：
+  - `apps/api/test/retrieval.test.js`
+
 - web ask-response contract 现也已对齐 backend `contextGroups` 的完整返回形状：
   - `documentId`
   - `documentTitle`

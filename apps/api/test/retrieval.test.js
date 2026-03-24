@@ -885,6 +885,87 @@ test("RetrievalService reports empty-ranking fallback when vector retrieval yiel
   });
 });
 
+test("RetrievalService preserves vector candidate diagnostics when ranked vector candidates fall back to lexical", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-vector-1",
+              documentId: "doc-1",
+              chunkIndex: 0,
+              content: "vector candidate one",
+              pageNo: null,
+              sectionTitle: "Overview",
+              document: { title: "Doc 1" }
+            },
+            {
+              id: "chunk-vector-2",
+              documentId: "doc-2",
+              chunkIndex: 0,
+              content: "vector candidate two",
+              pageNo: null,
+              sectionTitle: "Overview",
+              document: { title: "Doc 2" }
+            }
+          ];
+        }
+
+        return [
+          {
+            id: "chunk-lexical",
+            documentId: "doc-3",
+            chunkIndex: 0,
+            content: "lexical fallback marker lexical fallback marker",
+            pageNo: null,
+            sectionTitle: "lexical fallback marker",
+            document: { title: "Doc 3" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [
+      { chunkId: "chunk-vector-1", score: 0.91 },
+      { chunkId: "chunk-vector-2", score: 0.89 }
+    ]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "lexical fallback marker",
+    topK: 1,
+    scoreThreshold: 5
+  });
+
+  assert.deepEqual(result.retrievedChunks.map(chunk => chunk.chunkId), ["chunk-lexical"]);
+  assert.deepEqual(result.execution, {
+    actualMode: "lexical",
+    usedFallback: true,
+    fallbackReason: "no_ranked_candidates",
+    rerankApplied: false,
+    chunkWindowApplied: false,
+    vectorSearchAttempted: true,
+    lexicalSearchAttempted: true,
+    vectorCandidateLimitHit: false,
+    lexicalCandidateLimitHit: true,
+    rankingTopKHit: false,
+    candidateLimit: 3,
+    vectorCandidateCount: 2,
+    lexicalCandidateCount: 1,
+    mergedCandidateCount: 1,
+    rankedCandidateCount: 1
+  });
+});
+
 test("RetrievalService hybrid ranking honors configured strategy weights", async () => {
   const prisma = {
     documentChunk: {

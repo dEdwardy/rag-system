@@ -124,6 +124,7 @@ export class RetrievalService {
             filters: normalizedFilters
           })
         : undefined;
+    let vectorCandidateCount = 0;
 
     try {
       const queryEmbedding = await this.embeddingService.embedQuery(input.query);
@@ -137,6 +138,7 @@ export class RetrievalService {
 
       if (vectorMatches.length > 0 || candidateSelectionMode === "hybrid") {
         const vectorCandidates = await this.getVectorCandidates(vectorMatches);
+        vectorCandidateCount = vectorCandidates.length;
         const mergedCandidates = candidateSelectionMode === "hybrid"
           ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates ?? [], strategy)
           : vectorCandidates;
@@ -166,7 +168,7 @@ export class RetrievalService {
             lexicalCandidateLimitHit: (lexicalCandidates?.length ?? 0) >= candidateLimit,
             rankingTopKHit: rankedCandidates.length >= input.topK,
             candidateLimit,
-            vectorCandidateCount: vectorCandidates.length,
+            vectorCandidateCount,
             lexicalCandidateCount: lexicalCandidates?.length ?? 0,
             mergedCandidateCount: mergedCandidates.length,
             rankedCandidateCount: rankedCandidates.length
@@ -193,15 +195,15 @@ export class RetrievalService {
     return this.retrieveWithLexicalFallback({
       ...input,
       enableRerank: resolvedEnableRerank,
-      filters: normalizedFilters,
-      lexicalCandidates,
-      candidateLimit,
-      vectorCandidateCount: 0,
-      actualMode: "lexical",
-      usedFallback: true,
-      fallbackReason: "no_ranked_candidates",
-      rerankApplied: resolvedEnableRerank
-    });
+        filters: normalizedFilters,
+        lexicalCandidates,
+        candidateLimit,
+        vectorCandidateCount,
+        actualMode: "lexical",
+        usedFallback: true,
+        fallbackReason: "no_ranked_candidates",
+        rerankApplied: resolvedEnableRerank
+      });
   }
 
   private async retrieveWithLexicalFallback(input: {
