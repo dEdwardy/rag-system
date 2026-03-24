@@ -21,6 +21,7 @@ api-server.err.log
 automation/automation-skip-queue.md
 automation/latest_plan_output.md
 automation/__pycache__/
+automation/runtime_prompt.md
 .playwright-cli/
 output/
 ui/suggestion.md
