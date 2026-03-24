@@ -18,6 +18,7 @@ api-server.log
 api-server.err.log
 .codex/
 .worktrees/
+automation/automation-skip-queue.md
 .playwright-cli/
 output/
 ui/suggestion.md
