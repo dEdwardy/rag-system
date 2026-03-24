@@ -507,6 +507,217 @@ test("DocumentRunsService ignores processing runs with preserved partial diagnos
   });
 });
 
+test("DocumentRunsService issueOnly run list includes completed issue runs and excludes skipped or in-flight diagnostics", async () => {
+  const queryArgs = [];
+  const runs = [
+    {
+      id: "run-processing-partial",
+      documentId: "doc-processing-partial",
+      version: 6,
+      trigger: "external_resync",
+      status: "processing",
+      failedStage: null,
+      startedAt: new Date("2026-03-22T10:07:00.000Z"),
+      finishedAt: null,
+      createdAt: new Date("2026-03-22T10:07:00.000Z"),
+      updatedAt: new Date("2026-03-22T10:07:00.000Z"),
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Feed source completed with partial entry validation failures.",
+        partial: true
+      },
+      document: {
+        id: "doc-processing-partial",
+        kbId: "default-kb",
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml",
+        title: "Example Feed",
+        status: "processing",
+        processingStage: "parsing",
+        version: 6
+      }
+    },
+    {
+      id: "run-ready-partial",
+      documentId: "doc-ready-partial",
+      version: 5,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      createdAt: new Date("2026-03-22T10:05:00.000Z"),
+      updatedAt: new Date("2026-03-22T10:06:00.000Z"),
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Feed source completed with partial entry validation failures.",
+        partial: true
+      },
+      document: {
+        id: "doc-ready-partial",
+        kbId: "default-kb",
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml",
+        title: "Example Feed",
+        status: "ready",
+        processingStage: "completed",
+        version: 5
+      }
+    },
+    {
+      id: "run-failed",
+      documentId: "doc-failed",
+      version: 4,
+      trigger: "external_resync",
+      status: "failed",
+      failedStage: "source_fetch",
+      startedAt: new Date("2026-03-22T10:03:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+      createdAt: new Date("2026-03-22T10:03:00.000Z"),
+      updatedAt: new Date("2026-03-22T10:04:00.000Z"),
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "temporary upstream failure"
+      },
+      document: {
+        id: "doc-failed",
+        kbId: "default-kb",
+        sourceType: "web_page",
+        sourceName: "https://example.com/down",
+        title: "Down Page",
+        status: "failed",
+        processingStage: "failed",
+        version: 4
+      }
+    },
+    {
+      id: "run-skipped",
+      documentId: "doc-skipped",
+      version: 3,
+      trigger: "reindex",
+      status: "skipped",
+      failedStage: "stale_guard",
+      startedAt: new Date("2026-03-22T10:01:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:01:30.000Z"),
+      createdAt: new Date("2026-03-22T10:01:00.000Z"),
+      updatedAt: new Date("2026-03-22T10:01:30.000Z"),
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        message: "superseded by a newer run"
+      },
+      document: {
+        id: "doc-skipped",
+        kbId: "default-kb",
+        sourceType: "upload",
+        sourceName: "guide.md",
+        title: "guide.md",
+        status: "ready",
+        processingStage: "completed",
+        version: 4
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async args => {
+          queryArgs.push(args);
+          return runs;
+        }
+      }
+    }
+  });
+
+  const list = await DocumentRunsService.prototype.listKnowledgeBaseRuns.call(fakeService, "default-kb", {
+    includeDiagnostics: false,
+    issueOnly: true,
+    limit: 20
+  });
+
+  assert.deepEqual(queryArgs, [
+    {
+      where: {
+        documentId: undefined,
+        startedAt: undefined,
+        status: undefined,
+        trigger: undefined,
+        document: {
+          kbId: "default-kb",
+          sourceType: undefined
+        }
+      },
+      select: {
+        id: true,
+        documentId: true,
+        version: true,
+        trigger: true,
+        status: true,
+        failedStage: true,
+        diagnosticsJson: true,
+        startedAt: true,
+        finishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        document: {
+          select: {
+            id: true,
+            kbId: true,
+            sourceType: true,
+            sourceName: true,
+            title: true,
+            status: true,
+            processingStage: true,
+            version: true
+          }
+        }
+      },
+      take: 100,
+      orderBy: [{ startedAt: "desc" }, { version: "desc" }]
+    }
+  ]);
+  assert.deepEqual(
+    list.map(run => ({
+      id: run.id,
+      status: run.status,
+      failedStage: run.failedStage,
+      failureSummary: run.failureSummary
+    })),
+    [
+      {
+        id: "run-ready-partial",
+        status: "ready",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+          failedStage: "source_fetch",
+          retryable: false,
+          message: "Feed source completed with partial entry validation failures."
+        }
+      },
+      {
+        id: "run-failed",
+        status: "failed",
+        failedStage: "source_fetch",
+        failureSummary: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: true,
+          message: "temporary upstream failure"
+        }
+      }
+    ]
+  );
+});
+
 test("DocumentRunsService summary anchors prefer the latest finished matching run over the latest started run", async () => {
   const runs = [
     {

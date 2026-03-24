@@ -3,13 +3,23 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-24
+更新时间：2026-03-25
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
 > 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
 
-补充进展（2026-03-24）：
+补充进展（2026-03-25）：
+
+- knowledge-base scoped recent run list 现已支持最小 `issueOnly` 过滤，可直接聚焦真正“需要关注”的 completed issue runs
+- 该过滤会对齐现有 run summary 的 failureSummary 口径：
+  - 包含 terminal `failed` runs
+  - 包含带 partial failureSummary 的 `ready` runs
+  - 不包含 `skipped` runs
+  - 不包含仅临时保留 partial diagnostics 的 `pending` / `processing` runs
+- 当前实现保持现有 `status` 过滤语义不变，只在 `GET /knowledge-bases/:id/document-runs` 上新增窄范围可选过滤
+- 上述 issue-only 过滤边界现已补齐最小 source-level 回归覆盖：
+  - `apps/api/test/document-runs-summary.test.js`
 
 - API fast test lane 现已切到 `Vitest`，integration / E2E 继续保留当前 Node test runner + `dist` 启动路径，形成快慢分层的 backend test workflow
 - `PATCH /retrieval-profiles/:id` 现也已支持 `strategyJson: null`，可显式清空已保存的 retrieval strategy override，回退到既有 flat fields 推导的默认策略语义

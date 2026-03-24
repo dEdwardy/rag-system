@@ -536,17 +536,23 @@ Notes:
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`
 - the current PC Web now minimally consumes these run observability endpoints in existing pages:
-  - `Knowledge Base` shows recent source/document runs plus a small recent-run summary and latest failure context
-  - `Knowledge Base` recent runs now also support a minimal status filter (`all` / `failed` / `processing`), direct jump to the related document, and one-item reindex for failed/skipped runs
-  - `Document Detail` shows per-document run history with status, trigger, source timing, and minimal diagnostics expansion
+- `Knowledge Base` shows recent source/document runs plus a small recent-run summary and latest failure context
+- `Knowledge Base` recent runs now also support a minimal status filter (`all` / `failed` / `processing`), direct jump to the related document, and one-item reindex for failed/skipped runs
+- `Document Detail` shows per-document run history with status, trigger, source timing, and minimal diagnostics expansion
 - the knowledge-base scoped run list currently supports minimal query filters:
   - `documentId`
   - `sourceType`
   - `status`
   - `trigger`
+  - `issueOnly`
   - `sinceHours`
   - `includeDiagnostics`
   - `limit` (default `20`, max `100`)
+- `issueOnly=true` currently narrows the run list to completed runs that still represent actionable issues under the existing summary semantics:
+  - terminal `failed` runs
+  - `ready` runs carrying a partial `failureSummary`
+  - it excludes `skipped` runs
+  - it also excludes `pending` / `processing` runs that may temporarily preserve diagnostics while still in flight
 - the run summary endpoint also supports `sinceHours` so recent-run diagnostics can be scoped to a smaller time window
 - `document-runs` list now defaults to a lighter payload and only includes `diagnosticsJson` when `includeDiagnostics=true`
 - `document-runs` list now also includes a lightweight `failureSummary` so recent-run consumers can show minimal failure context without requesting full diagnostics:

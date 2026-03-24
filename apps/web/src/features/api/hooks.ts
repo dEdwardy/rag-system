@@ -103,6 +103,7 @@ export function useKnowledgeBaseDocumentRuns(
     limit?: number;
     sinceHours?: number;
     includeDiagnostics?: boolean;
+    issueOnly?: boolean;
     status?: DocumentRunRecord["status"];
     sourceType?: string;
   } = {}
@@ -119,6 +120,9 @@ export function useKnowledgeBaseDocumentRuns(
       }
       if (input.includeDiagnostics != null) {
         params.set("includeDiagnostics", String(input.includeDiagnostics));
+      }
+      if (input.issueOnly != null) {
+        params.set("issueOnly", String(input.issueOnly));
       }
       if (input.status != null) {
         params.set("status", input.status);

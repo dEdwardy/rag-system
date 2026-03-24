@@ -120,6 +120,7 @@ export class DocumentRunsService {
 
   async listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
     const startedAt = this.resolveStartedAtFilter(input.sinceHours);
+    const queryTake = input.issueOnly ? Math.min(Math.max(input.limit * 5, input.limit), 100) : input.limit;
     const runs = await this.prisma.documentRun.findMany({
       where: {
         documentId: input.documentId,
@@ -156,27 +157,36 @@ export class DocumentRunsService {
           }
         }
       },
-      take: input.limit,
+      take: queryTake,
       orderBy: [{ startedAt: "desc" }, { version: "desc" }]
     });
 
-    return runs.map(run => {
-      const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
-      const result = {
-        id: run.id,
-        documentId: run.documentId,
-        version: run.version,
-        trigger: run.trigger,
-        status: run.status,
-        failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
-        failureSummary,
-        startedAt: run.startedAt,
-        finishedAt: run.finishedAt,
-        createdAt: run.createdAt,
-        updatedAt: run.updatedAt,
-        document: run.document
-      };
+    const listedRuns = runs
+      .map(run => {
+        const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+        return {
+          run,
+          failureSummary,
+          result: {
+            id: run.id,
+            documentId: run.documentId,
+            version: run.version,
+            trigger: run.trigger,
+            status: run.status,
+            failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
+            failureSummary,
+            startedAt: run.startedAt,
+            finishedAt: run.finishedAt,
+            createdAt: run.createdAt,
+            updatedAt: run.updatedAt,
+            document: run.document
+          }
+        };
+      })
+      .filter(entry => !input.issueOnly || this.matchesIssueOnlyFilter(entry.run.status, entry.failureSummary))
+      .slice(0, input.limit);
 
+    return listedRuns.map(({ run, result }) => {
       if (input.includeDiagnostics) {
         return {
           ...result,
@@ -387,6 +397,13 @@ export class DocumentRunsService {
     }
 
     return status === DocumentRunStatus.failed || status === DocumentRunStatus.ready;
+  }
+
+  private matchesIssueOnlyFilter(
+    status: DocumentRunStatus,
+    failureSummary: ReturnType<DocumentRunsService["buildFailureSummary"]>
+  ) {
+    return this.shouldCountFailureSummary(status, failureSummary);
   }
 
   private resolveOutputFailedStage(
