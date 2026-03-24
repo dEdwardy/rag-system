@@ -206,20 +206,58 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
   assert.ok(traces.every(trace => typeof trace.traceSummary?.qualityOverall === "string"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.primaryIssue === "string"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievalMode === "string"));
+  assert.ok(
+    traces.every(
+      trace =>
+        trace.traceSummary?.retrievalQuerySource === null ||
+        typeof trace.traceSummary?.retrievalQuerySource === "string"
+    )
+  );
   assert.ok(traces.every(trace => typeof trace.traceSummary?.generationMode === "string"));
+  assert.ok(
+    traces.every(
+      trace => trace.traceSummary?.contextMode === null || typeof trace.traceSummary?.contextMode === "string"
+    )
+  );
   assert.ok(traces.every(trace => typeof trace.traceSummary?.rewriteApplied === "boolean"));
   assert.ok(
     traces.every(
       trace => trace.traceSummary?.fallbackReason === null || typeof trace.traceSummary?.fallbackReason === "string"
     )
   );
+  assert.ok(
+    traces.every(
+      trace =>
+        trace.traceSummary?.resolvedLanguage === null || typeof trace.traceSummary?.resolvedLanguage === "string"
+    )
+  );
   assert.ok(traces.every(trace => typeof trace.traceSummary?.citationAttribution === "string"));
+  assert.ok(
+    traces.every(
+      trace =>
+        trace.traceSummary?.citationSelectionSource === null ||
+        typeof trace.traceSummary?.citationSelectionSource === "string"
+    )
+  );
   assert.ok(traces.every(trace => typeof trace.traceSummary?.missingInformationCount === "number"));
   assert.ok(
     traces.every(
       trace =>
         trace.traceSummary?.insufficientContextReason === null ||
         typeof trace.traceSummary?.insufficientContextReason === "string"
+    )
+  );
+  assert.ok(
+    traces.every(
+      trace =>
+        trace.traceSummary?.answerTextSource === null || typeof trace.traceSummary?.answerTextSource === "string"
+    )
+  );
+  assert.ok(
+    traces.every(
+      trace =>
+        trace.traceSummary?.answerStatusSource === null ||
+        typeof trace.traceSummary?.answerStatusSource === "string"
     )
   );
   assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievedChunkCount === "number"));
@@ -256,12 +294,18 @@ async function assertTraceState(port, traceId) {
     qualityOverall: trace.qualityEvaluationJson.overall,
     primaryIssue: trace.qualityEvaluationJson.primaryIssue,
     retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+    retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
     generationMode: trace.answeringMetadataJson.generationMode,
+    contextMode: trace.answeringMetadataJson.contextMode,
     rewriteApplied: trace.rewrittenQuery !== null,
     fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+    resolvedLanguage: trace.answeringMetadataJson.resolvedLanguage,
     citationAttribution: trace.answeringMetadataJson.citationAttribution,
+    citationSelectionSource: trace.answeringMetadataJson.citationSelectionSource,
     missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
     insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
+    answerTextSource: trace.answeringMetadataJson.answerTextSource,
+    answerStatusSource: trace.answeringMetadataJson.answerStatusSource,
     failedStage: null,
     failureMessage: null,
     retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,

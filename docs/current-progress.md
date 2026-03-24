@@ -11,6 +11,11 @@
 
 补充进展（2026-03-25）：
 
+- `traceSummary` 的集成 / E2E 验证基线现已对齐最近新增的 provenance 字段：
+  - `apps/api/test/api-flow.test.js`
+  - `apps/api/test/ask-chain-e2e.test.js`
+- 这样 `GET /traces/:id` 与 `GET /conversations/:id/traces` 的现有重型链路验证，不再只覆盖旧版 summary 结构
+
 - trace 读取接口的 additive `traceSummary` 现已继续补齐常用执行归因字段：
   - `retrievalQuerySource`
   - `contextMode`

@@ -141,17 +141,46 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof listedTrace?.traceSummary?.qualityOverall, "string");
     assert.equal(typeof listedTrace?.traceSummary?.primaryIssue, "string");
     assert.equal(typeof listedTrace?.traceSummary?.retrievalMode, "string");
+    assert.equal(
+      listedTrace?.traceSummary?.retrievalQuerySource === null ||
+        typeof listedTrace?.traceSummary?.retrievalQuerySource === "string",
+      true
+    );
     assert.equal(typeof listedTrace?.traceSummary?.generationMode, "string");
+    assert.equal(
+      listedTrace?.traceSummary?.contextMode === null || typeof listedTrace?.traceSummary?.contextMode === "string",
+      true
+    );
     assert.equal(typeof listedTrace?.traceSummary?.rewriteApplied, "boolean");
     assert.equal(
       listedTrace?.traceSummary?.fallbackReason === null || typeof listedTrace?.traceSummary?.fallbackReason === "string",
       true
     );
+    assert.equal(
+      listedTrace?.traceSummary?.resolvedLanguage === null ||
+        typeof listedTrace?.traceSummary?.resolvedLanguage === "string",
+      true
+    );
     assert.equal(typeof listedTrace?.traceSummary?.citationAttribution, "string");
+    assert.equal(
+      listedTrace?.traceSummary?.citationSelectionSource === null ||
+        typeof listedTrace?.traceSummary?.citationSelectionSource === "string",
+      true
+    );
     assert.equal(typeof listedTrace?.traceSummary?.missingInformationCount, "number");
     assert.equal(
       listedTrace?.traceSummary?.insufficientContextReason === null ||
         typeof listedTrace?.traceSummary?.insufficientContextReason === "string",
+      true
+    );
+    assert.equal(
+      listedTrace?.traceSummary?.answerTextSource === null ||
+        typeof listedTrace?.traceSummary?.answerTextSource === "string",
+      true
+    );
+    assert.equal(
+      listedTrace?.traceSummary?.answerStatusSource === null ||
+        typeof listedTrace?.traceSummary?.answerStatusSource === "string",
       true
     );
     assert.equal(typeof listedTrace?.traceSummary?.retrievedChunkCount, "number");
@@ -178,12 +207,18 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       qualityOverall: trace.qualityEvaluationJson.overall,
       primaryIssue: trace.qualityEvaluationJson.primaryIssue,
       retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+      retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
       generationMode: trace.answeringMetadataJson.generationMode,
+      contextMode: trace.answeringMetadataJson.contextMode,
       rewriteApplied: trace.rewrittenQuery !== null,
       fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+      resolvedLanguage: trace.answeringMetadataJson.resolvedLanguage,
       citationAttribution: trace.answeringMetadataJson.citationAttribution,
+      citationSelectionSource: trace.answeringMetadataJson.citationSelectionSource,
       missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
       insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
+      answerTextSource: trace.answeringMetadataJson.answerTextSource,
+      answerStatusSource: trace.answeringMetadataJson.answerStatusSource,
       failedStage: null,
       failureMessage: null,
       retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
