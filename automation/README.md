@@ -11,6 +11,7 @@ Current scope:
 - `codex_plan_runner.py`: run `codex exec` for the next plan step using the runtime prompt
 - `codex_plan_capture.py`: capture the latest `plan` output into the local working file
 - `codex_task_gate.py`: classify a proposed next increment as `ALLOW` or `SKIP`
+- `automation-run-log.md`: local append-only summary log for completed automation runs
 - `automation-skip-queue.md`: local queue of skipped core tasks for later manual handling
 - `latest_plan_output.md`: local input file for the latest planned increment output
 - `runtime_prompt.md`: local generated prompt file for the next Codex run
@@ -18,6 +19,7 @@ Current scope:
 Notes:
 
 - the queue file is intentionally ignored by git
+- the run log file is intentionally ignored by git
 - the latest plan output file is intentionally ignored by git
 - the runtime prompt file is intentionally ignored by git
 - scripts here should support local workflow automation, not replace repository rules in `AGENTS.md`
@@ -66,4 +68,5 @@ Current `codex_auto.py` behavior:
 - zero-argument mode
 - runs the current single-cycle automation flow
 - prints the final compact summary
+- appends the summary to `automation/automation-run-log.md`
 - returns a nonzero exit code on runtime failure
