@@ -10,6 +10,7 @@ from automation.codex_prompt_builder import (
     DEFAULT_SKIP_QUEUE_FILE,
     build_runtime_prompt,
 )
+from automation.codex_status_parser import parse_status_label
 from automation.codex_task_gate import (
     DEFAULT_INPUT_FILE,
     DEFAULT_QUEUE_FILE,
@@ -26,13 +27,24 @@ def run_plan_cycle() -> dict[str, object]:
     run_plan(prompt_file=DEFAULT_RUNTIME_PROMPT_FILE, output_file=DEFAULT_INPUT_FILE)
 
     increment_text = load_increment_text()
+    agent_status = parse_status_label(increment_text)
     hits = detect_core_hits(increment_text)
 
     if hits:
         append_skip_record(DEFAULT_QUEUE_FILE, increment_text, hits)
-        return {"status": "SKIP", "hits": hits, "increment": increment_text}
+        return {
+            "status": "SKIP",
+            "agent_status": agent_status,
+            "hits": hits,
+            "increment": increment_text,
+        }
 
-    return {"status": "ALLOW", "hits": [], "increment": increment_text}
+    return {
+        "status": "ALLOW",
+        "agent_status": agent_status,
+        "hits": [],
+        "increment": increment_text,
+    }
 
 
 def main() -> int:
