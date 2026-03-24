@@ -339,6 +339,22 @@ export type AskAnsweringMetadata = {
   answerStatus: "grounded" | "insufficient_context";
 };
 
+export type AskQualityEvaluation = {
+  overall: "strong" | "partial" | "weak";
+  grounding: "grounded" | "partially_grounded" | "ungrounded";
+  completeness: "complete" | "partial" | "insufficient";
+  primaryIssue:
+    | "none"
+    | "no_retrieval_hits"
+    | "insufficient_context"
+    | "missing_information"
+    | "low_retrieval_score"
+    | "fallback_generation"
+    | "other";
+  flags: string[];
+  summary: string;
+};
+
 export type AskResponse = {
   conversationId: string;
   userMessageId: string;
@@ -353,7 +369,7 @@ export type AskResponse = {
   answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];
-  qualityEvaluation?: JsonValue;
+  qualityEvaluation?: AskQualityEvaluation;
 };
 
 export type AskStreamFinalData = Pick<

@@ -11,6 +11,17 @@
 
 补充进展（2026-03-25）：
 
+- web ask-response contract 现也已对齐 backend 已稳定返回的 `qualityEvaluation` 最小结构：
+  - `overall`
+  - `grounding`
+  - `completeness`
+  - `primaryIssue`
+  - `flags`
+  - `summary`
+- 这样当前前端消费 ask / stream final payload 时，不再把 backend 已稳定返回的质量评估结果继续保留为完全无类型的 `JsonValue`
+- 上述 ask quality-evaluation contract alignment 现已补齐最小 source-level 回归覆盖：
+  - `apps/web/test/ask-quality-evaluation-contract.test.js`
+
 - web ask-response contract 现也已对齐 backend 已稳定返回的 `answeringMetadata` 最小结构：
   - `promptId`
   - `usedFallback`
