@@ -11,6 +11,18 @@
 
 补充进展（2026-03-25）：
 
+- trace 读取接口的 additive `traceSummary` 现已继续补齐常用执行归因字段：
+  - `retrievalQuerySource`
+  - `contextMode`
+  - `resolvedLanguage`
+  - `citationSelectionSource`
+  - `answerTextSource`
+  - `answerStatusSource`
+- 这样上层读取 trace 时，不再只能从原始 `retrievalMetadataJson` / `answeringMetadataJson` 中自行重建“最终查询来源、上下文组织方式、语言分流和答案归因”
+- 当前改动保持为 read-model 收口，不改 trace 持久化写路径，也不改 ask / stream 行为
+- 上述 trace-summary provenance 提升现已补齐最小 source-level 回归覆盖：
+  - `apps/api/test/traces.service.test.js`
+
 - knowledge-base scoped recent run list 现已支持最小 `issueOnly` 过滤，可直接聚焦真正“需要关注”的 completed issue runs
 - 该过滤会对齐现有 run summary 的 failureSummary 口径：
   - 包含 terminal `failed` runs

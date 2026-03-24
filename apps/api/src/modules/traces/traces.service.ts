@@ -76,6 +76,7 @@ export class TracesService {
     const retrievedChunkCount = this.readRetrievedChunkCount(trace);
     const citationCount = Array.isArray(trace.citationsJson) ? trace.citationsJson.length : 0;
     const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
+    const queryRewriteMetadata = this.readObject(retrievalMetadata?.queryRewrite);
     const retrievalExecution = this.readObject(retrievalMetadata?.execution);
     const retrievalFailure = this.readObject(retrievalMetadata?.failure);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
@@ -88,12 +89,18 @@ export class TracesService {
         qualityOverall: this.readString(qualityEvaluation?.overall),
         primaryIssue: this.readString(qualityEvaluation?.primaryIssue),
         retrievalMode: this.readString(retrievalExecution?.actualMode),
+        retrievalQuerySource: this.readString(queryRewriteMetadata?.finalQuerySource),
         generationMode: this.readString(answeringMetadata?.generationMode),
+        contextMode: this.readString(answeringMetadata?.contextMode),
         rewriteApplied: trace.rewrittenQuery != null,
         fallbackReason: this.readString(retrievalExecution?.fallbackReason),
+        resolvedLanguage: this.readString(answeringMetadata?.resolvedLanguage),
         citationAttribution: this.readString(answeringMetadata?.citationAttribution),
+        citationSelectionSource: this.readString(answeringMetadata?.citationSelectionSource),
         missingInformationCount: this.readNumber(answeringMetadata?.missingInformationCount) ?? 0,
         insufficientContextReason: this.readString(answeringMetadata?.insufficientContextReason),
+        answerTextSource: this.readString(answeringMetadata?.answerTextSource),
+        answerStatusSource: this.readString(answeringMetadata?.answerStatusSource),
         failedStage: this.readString(retrievalFailure?.stage),
         failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
         retrievedChunkCount,

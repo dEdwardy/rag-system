@@ -138,12 +138,18 @@ Notes:
     - `qualityOverall`
     - `primaryIssue`
     - `retrievalMode`
+    - `retrievalQuerySource`
     - `generationMode`
+    - `contextMode`
     - `rewriteApplied`
     - `fallbackReason`
+    - `resolvedLanguage`
     - `citationAttribution`
+    - `citationSelectionSource`
     - `missingInformationCount`
     - `insufficientContextReason`
+    - `answerTextSource`
+    - `answerStatusSource`
     - `failedStage`
     - `failureMessage`
     - `retrievedChunkCount`
