@@ -6,6 +6,7 @@ Current scope:
 
 - `codex_prompt.md`: fixed prompt text for Codex sessions
 - `codex_prompt_builder.py`: build a runtime prompt with skip-queue exclusions
+- `codex_plan_runner.py`: run `codex exec` for the next plan step using the runtime prompt
 - `codex_plan_capture.py`: capture the latest `plan` output into the local working file
 - `codex_task_gate.py`: classify a proposed next increment as `ALLOW` or `SKIP`
 - `automation-skip-queue.md`: local queue of skipped core tasks for later manual handling
@@ -39,3 +40,10 @@ Current `codex_prompt_builder.py` behavior:
 - reads `automation/automation-skip-queue.md` when present
 - writes `automation/runtime_prompt.md`
 - appends a skip-exclusion block when skipped core increments exist
+
+Current `codex_plan_runner.py` behavior:
+
+- zero-argument mode
+- reads `automation/runtime_prompt.md`
+- runs `codex exec` with `read-only` sandbox
+- writes the final output to `automation/latest_plan_output.md`
