@@ -128,6 +128,12 @@ export type DocumentRunRecord = {
   trigger: DocumentRunTrigger;
   status: DocumentRunStatus;
   failedStage: DocumentRunFailedStage;
+  failureSummary?: {
+    code: string | null;
+    failedStage: DocumentRunFailedStage;
+    retryable: boolean;
+    message: string | null;
+  } | null;
   diagnosticsJson: JsonValue | null;
   startedAt: string;
   finishedAt: string | null;
@@ -142,6 +148,12 @@ export type KnowledgeBaseDocumentRunRecord = {
   trigger: DocumentRunTrigger;
   status: DocumentRunStatus;
   failedStage: DocumentRunFailedStage;
+  failureSummary?: {
+    code: string | null;
+    failedStage: DocumentRunFailedStage;
+    retryable: boolean;
+    message: string | null;
+  } | null;
   diagnosticsJson?: JsonValue | null;
   startedAt: string;
   finishedAt: string | null;
@@ -178,6 +190,12 @@ export type KnowledgeBaseDocumentRunSummary = {
     sourceName: string;
     message: string | null;
     finishedAt: string | null;
+    failureSummary: {
+      code: string | null;
+      failedStage: DocumentRunFailedStage;
+      retryable: boolean;
+      message: string | null;
+    } | null;
   } | null;
   latestSkipped: {
     documentId: string;
@@ -188,6 +206,12 @@ export type KnowledgeBaseDocumentRunSummary = {
     sourceName: string;
     message: string | null;
     finishedAt: string | null;
+    failureSummary: {
+      code: string | null;
+      failedStage: DocumentRunFailedStage;
+      retryable: boolean;
+      message: string | null;
+    } | null;
   } | null;
   latestFailure: {
     documentId: string;
@@ -198,6 +222,12 @@ export type KnowledgeBaseDocumentRunSummary = {
     sourceName: string;
     message: string | null;
     finishedAt: string | null;
+    failureSummary: {
+      code: string | null;
+      failedStage: DocumentRunFailedStage;
+      retryable: boolean;
+      message: string | null;
+    } | null;
   } | null;
 };
 

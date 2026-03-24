@@ -580,6 +580,10 @@ Notes:
   - `failedStage`
   - `retryable`
   - `message`
+- current web API types are now aligned to expose that same `failureSummary` shape on:
+  - `GET /documents/:id/runs`
+  - `GET /knowledge-bases/:id/document-runs`
+  - `GET /knowledge-bases/:id/document-runs/summary` latest anchors
 - for partial-ready runs, top-level `failedStage` in list/detail/summary anchors now also falls back to `failureSummary.failedStage`, so consumers do not need to special-case `failedStage: null`
 - the summary payload currently includes:
   - `totalRuns`

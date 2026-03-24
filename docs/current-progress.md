@@ -11,6 +11,16 @@
 
 补充进展（2026-03-25）：
 
+- web document-run contract 现也已对齐 backend 已返回的 `failureSummary` 字段：
+  - `DocumentRunRecord`
+  - `KnowledgeBaseDocumentRunRecord`
+  - `KnowledgeBaseDocumentRunSummary.latestRetryableFailure`
+  - `KnowledgeBaseDocumentRunSummary.latestSkipped`
+  - `KnowledgeBaseDocumentRunSummary.latestFailure`
+- 这样当前前端消费 run list / summary anchors 时，不再把 backend 已稳定返回的最小失败摘要遗漏在过时类型之外
+- 上述 document-run contract alignment 现已补齐最小 source-level 回归覆盖：
+  - `apps/web/test/document-run-contract.test.js`
+
 - web trace contract 现已对齐 backend 已落地的 additive `traceSummary` 枚举值：
   - `retrievalQuerySource`: `rewritten` / `original_disabled` / `original_unchanged`
   - `failedStage`: `retrieval` / `answering`
