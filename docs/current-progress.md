@@ -11,6 +11,31 @@
 
 补充进展（2026-03-25）：
 
+- web ask-response contract 现也已对齐 backend 已稳定返回的 `answeringMetadata` 最小结构：
+  - `promptId`
+  - `usedFallback`
+  - `answerPolicy`
+  - `resolvedLanguage`
+  - `generationMode`
+  - `contextMode`
+  - `inputChunkCount`
+  - `promptContextCount`
+  - `contextGroupCount`
+  - `citationCountBeforeLimit`
+  - `citationCount`
+  - `citationLimitHit`
+  - `citationAttribution`
+  - `citationSelectionSource`
+  - `missingInformationCount`
+  - `missingInformationSource`
+  - `answerTextSource`
+  - `insufficientContextReason`
+  - `answerStatusSource`
+  - `answerStatus`
+- 这样当前前端消费 ask / stream final payload 时，不再把 backend 已稳定返回的 answering execution metadata 继续保留为完全无类型的 `JsonValue`
+- 上述 ask answering-metadata contract alignment 现已补齐最小 source-level 回归覆盖：
+  - `apps/web/test/ask-answering-metadata-contract.test.js`
+
 - web ask-response contract 现也已对齐 backend 已稳定返回的 `retrievalMetadata` 最小结构：
   - `strategy`
   - `filters`

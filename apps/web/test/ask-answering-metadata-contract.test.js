@@ -1,0 +1,30 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { readFile } = require("node:fs/promises");
+const { resolve } = require("node:path");
+
+test("web ask response type covers current backend answeringMetadata shape", async () => {
+  const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
+
+  assert.match(source, /answeringMetadata\?:\s*AskAnsweringMetadata;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*promptId: string;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*usedFallback: boolean;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerPolicy: AnswerPolicy;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*resolvedLanguage: "en" \| "zh";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*generationMode: "generated" \| "deterministic_bypass";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*contextMode: "chunks" \| "context_groups";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*inputChunkCount: number;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*promptContextCount: number;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*contextGroupCount: number;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationCountBeforeLimit: number;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationCount: number;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationLimitHit: boolean;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationAttribution: "explicit" \| "heuristic" \| "none";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationSelectionSource: "structured" \| "inline_markers" \| "heuristic" \| "none";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*missingInformationCount: number;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*missingInformationSource: "none" \| "model" \| "deterministic_default" \| "suppressed_by_policy";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerTextSource: "model" \| "deterministic_policy";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*insufficientContextReason: "no_retrieval_hits" \| "retrieved_context_insufficient" \| null;/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerStatusSource: "model" \| "inferred_from_retrieval" \| "deterministic_policy";/);
+  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerStatus: "grounded" \| "insufficient_context";/);
+});

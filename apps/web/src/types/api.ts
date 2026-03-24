@@ -316,6 +316,29 @@ export type AskRetrievalMetadata = {
   };
 };
 
+export type AskAnsweringMetadata = {
+  promptId: string;
+  usedFallback: boolean;
+  answerPolicy: AnswerPolicy;
+  resolvedLanguage: "en" | "zh";
+  generationMode: "generated" | "deterministic_bypass";
+  contextMode: "chunks" | "context_groups";
+  inputChunkCount: number;
+  promptContextCount: number;
+  contextGroupCount: number;
+  citationCountBeforeLimit: number;
+  citationCount: number;
+  citationLimitHit: boolean;
+  citationAttribution: "explicit" | "heuristic" | "none";
+  citationSelectionSource: "structured" | "inline_markers" | "heuristic" | "none";
+  missingInformationCount: number;
+  missingInformationSource: "none" | "model" | "deterministic_default" | "suppressed_by_policy";
+  answerTextSource: "model" | "deterministic_policy";
+  insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
+  answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy";
+  answerStatus: "grounded" | "insufficient_context";
+};
+
 export type AskResponse = {
   conversationId: string;
   userMessageId: string;
@@ -327,7 +350,7 @@ export type AskResponse = {
   retrievedChunks: RetrievedChunk[];
   contextGroups?: ContextGroup[];
   retrievalMetadata?: AskRetrievalMetadata;
-  answeringMetadata?: JsonValue;
+  answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];
   qualityEvaluation?: JsonValue;
