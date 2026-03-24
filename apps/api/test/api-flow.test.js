@@ -183,6 +183,14 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
         typeof listedTrace?.traceSummary?.answerStatusSource === "string",
       true
     );
+    assert.equal(typeof listedTrace?.traceSummary?.candidateLimit, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.vectorCandidateCount, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.lexicalCandidateCount, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.mergedCandidateCount, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.rankedCandidateCount, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.vectorCandidateLimitHit, "boolean");
+    assert.equal(typeof listedTrace?.traceSummary?.lexicalCandidateLimitHit, "boolean");
+    assert.equal(typeof listedTrace?.traceSummary?.rankingTopKHit, "boolean");
     assert.equal(typeof listedTrace?.traceSummary?.retrievedChunkCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.citationCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.usedFallback, "boolean");
@@ -221,6 +229,14 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       answerStatusSource: trace.answeringMetadataJson.answerStatusSource,
       failedStage: null,
       failureMessage: null,
+      candidateLimit: trace.retrievalMetadataJson.execution.candidateLimit,
+      vectorCandidateCount: trace.retrievalMetadataJson.execution.vectorCandidateCount,
+      lexicalCandidateCount: trace.retrievalMetadataJson.execution.lexicalCandidateCount,
+      mergedCandidateCount: trace.retrievalMetadataJson.execution.mergedCandidateCount,
+      rankedCandidateCount: trace.retrievalMetadataJson.execution.rankedCandidateCount,
+      vectorCandidateLimitHit: trace.retrievalMetadataJson.execution.vectorCandidateLimitHit,
+      lexicalCandidateLimitHit: trace.retrievalMetadataJson.execution.lexicalCandidateLimitHit,
+      rankingTopKHit: trace.retrievalMetadataJson.execution.rankingTopKHit,
       retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
       citationCount: trace.citationsJson.length,
       usedFallback: trace.answeringMetadataJson.usedFallback

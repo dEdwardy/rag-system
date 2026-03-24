@@ -16,6 +16,14 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     retrievalMetadataJson: {
       execution: {
         actualMode: "vector",
+        candidateLimit: 8,
+        vectorCandidateCount: 1,
+        lexicalCandidateCount: 0,
+        mergedCandidateCount: 1,
+        rankedCandidateCount: 1,
+        vectorCandidateLimitHit: false,
+        lexicalCandidateLimitHit: false,
+        rankingTopKHit: true,
         retrievedChunkCount: 1
       },
       failure: {
@@ -62,6 +70,14 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     answerStatusSource: null,
     failedStage: "answering",
     failureMessage: "synthetic answer failure",
+    candidateLimit: 8,
+    vectorCandidateCount: 1,
+    lexicalCandidateCount: 0,
+    mergedCandidateCount: 1,
+    rankedCandidateCount: 1,
+    vectorCandidateLimitHit: false,
+    lexicalCandidateLimitHit: false,
+    rankingTopKHit: true,
     retrievedChunkCount: 1,
     citationCount: 0,
     usedFallback: false
@@ -90,6 +106,14 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       execution: {
         actualMode: "hybrid",
         fallbackReason: "no_ranked_candidates",
+        candidateLimit: 12,
+        vectorCandidateCount: 4,
+        lexicalCandidateCount: 2,
+        mergedCandidateCount: 5,
+        rankedCandidateCount: 0,
+        vectorCandidateLimitHit: false,
+        lexicalCandidateLimitHit: false,
+        rankingTopKHit: false,
         retrievedChunkCount: 2
       }
     },
@@ -147,6 +171,14 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     answerStatusSource: "inferred_from_retrieval",
     failedStage: null,
     failureMessage: null,
+    candidateLimit: 12,
+    vectorCandidateCount: 4,
+    lexicalCandidateCount: 2,
+    mergedCandidateCount: 5,
+    rankedCandidateCount: 0,
+    vectorCandidateLimitHit: false,
+    lexicalCandidateLimitHit: false,
+    rankingTopKHit: false,
     retrievedChunkCount: 2,
     citationCount: 1,
     usedFallback: true

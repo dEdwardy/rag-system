@@ -397,6 +397,14 @@ export type TraceRecord = {
     answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy" | null;
     failedStage: "retrieval" | "answering" | null;
     failureMessage: string | null;
+    candidateLimit: number;
+    vectorCandidateCount: number;
+    lexicalCandidateCount: number;
+    mergedCandidateCount: number;
+    rankedCandidateCount: number;
+    vectorCandidateLimitHit: boolean;
+    lexicalCandidateLimitHit: boolean;
+    rankingTopKHit: boolean;
     retrievedChunkCount: number;
     citationCount: number;
     usedFallback: boolean;

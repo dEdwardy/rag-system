@@ -11,6 +11,22 @@
 
 补充进展（2026-03-25）：
 
+- trace 读取接口的 additive `traceSummary` 现已继续补齐 retrieval candidate-flow 诊断字段：
+  - `candidateLimit`
+  - `vectorCandidateCount`
+  - `lexicalCandidateCount`
+  - `mergedCandidateCount`
+  - `rankedCandidateCount`
+  - `vectorCandidateLimitHit`
+  - `lexicalCandidateLimitHit`
+  - `rankingTopKHit`
+- 这样上层读取 `GET /traces/:id` 与 `GET /conversations/:id/traces` 时，不再只能回退到原始 `retrievalMetadataJson.execution` 才能判断候选池是否打满、fallback 前拿到了多少 vector candidates，以及排序前后候选规模
+- 当前改动保持为 trace read-model 收口，不改 retrieval 排序、fallback、ask / stream 行为
+- 上述 trace-summary candidate-flow 收口现已补齐最小回归覆盖：
+  - `apps/api/test/traces.service.test.js`
+  - `apps/api/test/api-flow.test.js`
+  - `apps/web/test/trace-summary-contract.test.js`
+
 - retrieval execution diagnostics 现在会在 `no_ranked_candidates` 触发 lexical fallback 时，继续保留 fallback 之前已经拿到的 vector candidate 统计：
   - `vectorCandidateCount`
   - `vectorCandidateLimitHit`
