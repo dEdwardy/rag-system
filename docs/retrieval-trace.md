@@ -169,6 +169,16 @@ For failed ask traces, the backend now also writes additive `failure` data into 
 
 The trace read model lifts that into `traceSummary.failedStage` and `traceSummary.failureMessage`.
 
+Current normalized value sets to rely on:
+
+- `traceSummary.retrievalQuerySource`:
+  - `rewritten`
+  - `original_disabled`
+  - `original_unchanged`
+- `traceSummary.failedStage`:
+  - `retrieval`
+  - `answering`
+
 When retrieval itself throws before the normal success-path trace would have been created, the ask pipeline now creates a failed trace immediately with that same minimal `failure` payload. This keeps `traceId`, `failedStage`, and `failureMessage` available for both one-shot and stream retrieval failures.
 
 ## Current limitations

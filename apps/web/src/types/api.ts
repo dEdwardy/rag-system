@@ -344,7 +344,7 @@ export type TraceRecord = {
       | "other"
       | null;
     retrievalMode: "vector" | "hybrid" | "lexical" | null;
-    retrievalQuerySource: "rewritten" | "original" | "original_disabled" | null;
+    retrievalQuerySource: "rewritten" | "original_disabled" | "original_unchanged" | null;
     generationMode: "generated" | "deterministic_bypass" | null;
     contextMode: "chunks" | "context_groups" | null;
     rewriteApplied: boolean;
@@ -356,7 +356,7 @@ export type TraceRecord = {
     insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
     answerTextSource: "model" | "deterministic_policy" | null;
     answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy" | null;
-    failedStage: "answering" | null;
+    failedStage: "retrieval" | "answering" | null;
     failureMessage: string | null;
     retrievedChunkCount: number;
     citationCount: number;

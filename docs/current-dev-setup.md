@@ -155,6 +155,13 @@ Notes:
     - `retrievedChunkCount`
     - `citationCount`
     - `usedFallback`
+  - current `traceSummary.retrievalQuerySource` values are:
+    - `rewritten`
+    - `original_disabled`
+    - `original_unchanged`
+  - current `traceSummary.failedStage` values are:
+    - `retrieval`
+    - `answering`
   - retrieval-stage ask failures now also create a failed trace before the pipeline aborts
   - that failed trace carries minimal retrieval failure metadata so `traceSummary.failedStage` and `traceSummary.failureMessage` remain available even when retrieval fails before any chunks are returned
 - current quality-evaluation semantics:

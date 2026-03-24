@@ -11,6 +11,13 @@
 
 补充进展（2026-03-25）：
 
+- web trace contract 现已对齐 backend 已落地的 additive `traceSummary` 枚举值：
+  - `retrievalQuerySource`: `rewritten` / `original_disabled` / `original_unchanged`
+  - `failedStage`: `retrieval` / `answering`
+- 这样当前前端消费 trace summary 时，不再把 backend 已存在的 `original_unchanged` 查询来源和 `retrieval` 失败阶段误缩窄成过时联合类型
+- 上述 trace-contract alignment 现已补齐最小 source-level 回归覆盖：
+  - `apps/web/test/trace-summary-contract.test.js`
+
 - knowledge-base scoped run summary 现已支持与 run list 对齐的窄过滤输入：
   - `documentId`
   - `sourceType`
