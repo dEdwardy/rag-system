@@ -14,6 +14,7 @@ import {
   KnowledgeBaseDocumentRunSummary,
   Message,
   RetrievalProfileFilters,
+  RetrievalStrategy,
   RetrievalProfile,
   TraceRecord
 } from "../../types/api";
@@ -292,6 +293,7 @@ export function useUpdateRetrievalProfile(retrievalProfileId: string) {
       enableRerank?: boolean;
       scoreThreshold?: number;
       filtersJson?: RetrievalProfileFilters | null;
+      strategyJson?: RetrievalStrategy | null;
     }) =>
       apiRequest<RetrievalProfile>(`/retrieval-profiles/${retrievalProfileId}`, {
         method: "PATCH",

@@ -23,6 +23,26 @@ export type RetrievalProfileFilters = {
   pageNumbers?: NumberStrategyFilter;
 };
 
+export type RetrievalMode = "vector" | "hybrid" | "lexical";
+
+export type RetrievalStrategy = {
+  queryRewrite?: {
+    enabled?: boolean;
+  };
+  candidateSelection?: {
+    mode?: RetrievalMode;
+    candidateMultiplier?: number;
+    minCandidates?: number;
+  };
+  hybrid?: {
+    vectorWeight?: number;
+    lexicalWeight?: number;
+  };
+  rerank?: {
+    enabled?: boolean;
+  };
+};
+
 export type AnswerPolicy = {
   responseStyle: "concise" | "balanced" | "detailed";
   tone?: "neutral" | "friendly" | "direct";
@@ -43,7 +63,7 @@ export type RetrievalProfile = {
   enableRerank: boolean;
   scoreThreshold: number;
   filtersJson: RetrievalProfileFilters | null;
-  strategyJson: JsonValue | null;
+  strategyJson: RetrievalStrategy | null;
   createdAt: string;
   updatedAt: string;
 };

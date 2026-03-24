@@ -727,6 +727,6 @@ The following path has been validated locally on `2026-03-21`:
 - Startup currently uses a lightweight local env loader instead of Nest `ConfigModule`
 - Current PDF support is limited to text-based PDFs
 - Current automated coverage includes one real HTTP integration flow, but still not full E2E
-- Assistant/config editing is now richer, but still limited to the current single Assistant page and does not yet expose `strategyJson`
+- Assistant/config editing is now richer, and the current single Assistant page now also exposes `strategyJson` override editing for retrieval strategy tuning
 - Web i18n currently uses a local in-repo dictionary and does not yet include ICU-style pluralization
 - Trace score breakdown is persisted, but the current trace UI still mainly exposes raw payload plus final score

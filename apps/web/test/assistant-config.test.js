@@ -58,6 +58,70 @@ test("assistant config defaults apply when answer policy is missing", async () =
   assert.equal(values.includeMissingInformation, true);
   assert.equal(values.documentIdsInclude, "doc-a\ndoc-b");
   assert.equal(values.sectionTitlesContains, "spec\nfaq");
+  assert.equal(values.strategyOverrideEnabled, false);
+  assert.equal(values.queryRewriteEnabled, true);
+  assert.equal(values.candidateSelectionMode, "hybrid");
+  assert.equal(values.candidateMultiplier, 3);
+  assert.equal(values.minCandidates, 4);
+  assert.equal(values.hybridVectorWeight, 0.7);
+  assert.equal(values.hybridLexicalWeight, 0.3);
+  assert.equal(values.rerankStrategyEnabled, false);
+});
+
+test("assistant config reads existing retrieval strategy overrides into form values", async () => {
+  const { createAssistantConfigFormValues } = await loadAssistantConfigHelpers();
+
+  const values = createAssistantConfigFormValues(
+    {
+      id: "assistant-1",
+      tenantId: "tenant-1",
+      kbId: "kb-1",
+      name: "Default Assistant",
+      description: null,
+      systemPrompt: "Answer carefully.",
+      retrievalProfileId: "profile-1",
+      answerPolicyJson: null,
+      status: "active"
+    },
+    {
+      id: "profile-1",
+      name: "Default Retrieval Profile",
+      topK: 4,
+      chunkWindow: 1,
+      enableHybrid: true,
+      enableRerank: false,
+      scoreThreshold: 12,
+      filtersJson: null,
+      strategyJson: {
+        queryRewrite: {
+          enabled: false
+        },
+        candidateSelection: {
+          mode: "lexical",
+          candidateMultiplier: 4,
+          minCandidates: 9
+        },
+        hybrid: {
+          vectorWeight: 0.6,
+          lexicalWeight: 0.4
+        },
+        rerank: {
+          enabled: true
+        }
+      },
+      createdAt: "2026-03-21T00:00:00.000Z",
+      updatedAt: "2026-03-21T00:00:00.000Z"
+    }
+  );
+
+  assert.equal(values.strategyOverrideEnabled, true);
+  assert.equal(values.queryRewriteEnabled, false);
+  assert.equal(values.candidateSelectionMode, "lexical");
+  assert.equal(values.candidateMultiplier, 4);
+  assert.equal(values.minCandidates, 9);
+  assert.equal(values.hybridVectorWeight, 0.6);
+  assert.equal(values.hybridLexicalWeight, 0.4);
+  assert.equal(values.rerankStrategyEnabled, true);
 });
 
 test("assistant config payload builder normalizes answer policy and retrieval filters", async () => {
@@ -136,7 +200,15 @@ test("assistant config payload builder normalizes answer policy and retrieval fi
     pageNumbersInclude: "1, 2, 2",
     pageNumbersExclude: "9",
     pageNumbersMin: 3,
-    pageNumbersMax: 7
+    pageNumbersMax: 7,
+    strategyOverrideEnabled: true,
+    queryRewriteEnabled: false,
+    candidateSelectionMode: "lexical",
+    candidateMultiplier: 4,
+    minCandidates: 8,
+    hybridVectorWeight: 0.6,
+    hybridLexicalWeight: 0.4,
+    rerankStrategyEnabled: true
   });
 
   assert.deepEqual(retrievalPayload, {
@@ -159,6 +231,23 @@ test("assistant config payload builder normalizes answer policy and retrieval fi
         exclude: [9],
         min: 3,
         max: 7
+      }
+    },
+    strategyJson: {
+      queryRewrite: {
+        enabled: false
+      },
+      candidateSelection: {
+        mode: "lexical",
+        candidateMultiplier: 4,
+        minCandidates: 8
+      },
+      hybrid: {
+        vectorWeight: 0.6,
+        lexicalWeight: 0.4
+      },
+      rerank: {
+        enabled: true
       }
     }
   });
@@ -193,7 +282,15 @@ test("assistant config retrieval payload clears filters when all filter fields a
     pageNumbersInclude: "",
     pageNumbersExclude: "",
     pageNumbersMin: null,
-    pageNumbersMax: null
+    pageNumbersMax: null,
+    strategyOverrideEnabled: false,
+    queryRewriteEnabled: true,
+    candidateSelectionMode: "vector",
+    candidateMultiplier: 3,
+    minCandidates: 3,
+    hybridVectorWeight: 0.7,
+    hybridLexicalWeight: 0.3,
+    rerankStrategyEnabled: false
   });
 
   assert.deepEqual(retrievalPayload, {
@@ -202,6 +299,7 @@ test("assistant config retrieval payload clears filters when all filter fields a
     enableHybrid: false,
     enableRerank: false,
     scoreThreshold: 0,
-    filtersJson: null
+    filtersJson: null,
+    strategyJson: null
   });
 });

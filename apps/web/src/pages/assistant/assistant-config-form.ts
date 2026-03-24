@@ -2,7 +2,8 @@ import type {
   AnswerPolicy,
   Assistant,
   RetrievalProfile,
-  RetrievalProfileFilters
+  RetrievalProfileFilters,
+  RetrievalStrategy
 } from "../../types/api";
 
 export const DEFAULT_ANSWER_POLICY: Required<AnswerPolicy> = {
@@ -14,6 +15,24 @@ export const DEFAULT_ANSWER_POLICY: Required<AnswerPolicy> = {
   maxCitations: 3,
   noAnswerBehavior: "say_insufficient_context",
   includeMissingInformation: true
+};
+
+type ResolvedRetrievalStrategy = {
+  queryRewrite: {
+    enabled: boolean;
+  };
+  candidateSelection: {
+    mode: "vector" | "hybrid" | "lexical";
+    candidateMultiplier: number;
+    minCandidates: number;
+  };
+  hybrid: {
+    vectorWeight: number;
+    lexicalWeight: number;
+  };
+  rerank: {
+    enabled: boolean;
+  };
 };
 
 export type AssistantConfigFormValues = {
@@ -43,6 +62,14 @@ export type AssistantConfigFormValues = {
   pageNumbersExclude: string;
   pageNumbersMin: number | null;
   pageNumbersMax: number | null;
+  strategyOverrideEnabled: boolean;
+  queryRewriteEnabled: boolean;
+  candidateSelectionMode: "vector" | "hybrid" | "lexical";
+  candidateMultiplier: number;
+  minCandidates: number;
+  hybridVectorWeight: number;
+  hybridLexicalWeight: number;
+  rerankStrategyEnabled: boolean;
 };
 
 function joinLines(values?: string[] | number[] | null) {
@@ -77,6 +104,28 @@ function compactObject<T extends Record<string, unknown>>(value: T) {
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
+function resolveDefaultStrategy(retrievalProfile: RetrievalProfile | null): ResolvedRetrievalStrategy {
+  return {
+    queryRewrite: {
+      enabled: retrievalProfile?.strategyJson?.queryRewrite?.enabled ?? true
+    },
+    candidateSelection: {
+      mode:
+        retrievalProfile?.strategyJson?.candidateSelection?.mode ??
+        (retrievalProfile?.enableHybrid ? "hybrid" : "vector"),
+      candidateMultiplier: retrievalProfile?.strategyJson?.candidateSelection?.candidateMultiplier ?? 3,
+      minCandidates: retrievalProfile?.strategyJson?.candidateSelection?.minCandidates ?? (retrievalProfile?.topK ?? 3)
+    },
+    hybrid: {
+      vectorWeight: retrievalProfile?.strategyJson?.hybrid?.vectorWeight ?? 0.7,
+      lexicalWeight: retrievalProfile?.strategyJson?.hybrid?.lexicalWeight ?? 0.3
+    },
+    rerank: {
+      enabled: retrievalProfile?.strategyJson?.rerank?.enabled ?? Boolean(retrievalProfile?.enableRerank)
+    }
+  };
+}
+
 function buildFiltersJson(values: AssistantConfigFormValues): RetrievalProfileFilters | null {
   const filters = compactObject({
     documentIds: compactObject({
@@ -99,6 +148,30 @@ function buildFiltersJson(values: AssistantConfigFormValues): RetrievalProfileFi
   return filters ?? null;
 }
 
+function buildStrategyJson(values: AssistantConfigFormValues): RetrievalStrategy | null {
+  if (!values.strategyOverrideEnabled) {
+    return null;
+  }
+
+  return {
+    queryRewrite: {
+      enabled: values.queryRewriteEnabled
+    },
+    candidateSelection: {
+      mode: values.candidateSelectionMode,
+      candidateMultiplier: values.candidateMultiplier,
+      minCandidates: values.minCandidates
+    },
+    hybrid: {
+      vectorWeight: values.hybridVectorWeight,
+      lexicalWeight: values.hybridLexicalWeight
+    },
+    rerank: {
+      enabled: values.rerankStrategyEnabled
+    }
+  };
+}
+
 export function createAssistantConfigFormValues(
   assistant: Assistant | null,
   retrievalProfile: RetrievalProfile | null
@@ -108,6 +181,7 @@ export function createAssistantConfigFormValues(
     ...(assistant?.answerPolicyJson ?? {})
   };
   const filters = retrievalProfile?.filtersJson ?? null;
+  const strategy = resolveDefaultStrategy(retrievalProfile);
 
   return {
     name: assistant?.name ?? "",
@@ -135,7 +209,15 @@ export function createAssistantConfigFormValues(
     pageNumbersInclude: joinLines(filters?.pageNumbers?.include),
     pageNumbersExclude: joinLines(filters?.pageNumbers?.exclude),
     pageNumbersMin: filters?.pageNumbers?.min ?? null,
-    pageNumbersMax: filters?.pageNumbers?.max ?? null
+    pageNumbersMax: filters?.pageNumbers?.max ?? null,
+    strategyOverrideEnabled: retrievalProfile?.strategyJson != null,
+    queryRewriteEnabled: strategy.queryRewrite.enabled,
+    candidateSelectionMode: strategy.candidateSelection.mode,
+    candidateMultiplier: strategy.candidateSelection.candidateMultiplier,
+    minCandidates: strategy.candidateSelection.minCandidates,
+    hybridVectorWeight: strategy.hybrid.vectorWeight,
+    hybridLexicalWeight: strategy.hybrid.lexicalWeight,
+    rerankStrategyEnabled: strategy.rerank.enabled
   };
 }
 
@@ -165,6 +247,7 @@ export function buildRetrievalProfileUpdatePayload(values: AssistantConfigFormVa
     enableHybrid: values.enableHybrid,
     enableRerank: values.enableRerank,
     scoreThreshold: values.scoreThreshold,
-    filtersJson: buildFiltersJson(values)
+    filtersJson: buildFiltersJson(values),
+    strategyJson: buildStrategyJson(values)
   };
 }

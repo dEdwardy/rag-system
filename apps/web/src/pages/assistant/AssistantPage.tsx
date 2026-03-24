@@ -381,6 +381,104 @@ export function AssistantPage() {
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                   <Stack gap="md">
                     <div>
+                      <Text className="workspace-section-heading">{t("assistant.retrievalStrategySection")}</Text>
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {t("assistant.retrievalStrategyHelp")}
+                      </Text>
+                    </div>
+
+                    <Switch
+                      checked={form.values.strategyOverrideEnabled}
+                      label={t("assistant.strategyOverrideEnabled")}
+                      onChange={event =>
+                        form.setFieldValue("strategyOverrideEnabled", event.currentTarget.checked)
+                      }
+                    />
+
+                    {form.values.strategyOverrideEnabled ? (
+                      <Grid gutter="md">
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <NativeSelect
+                            classNames={{ input: "workspace-input" }}
+                            data={[
+                              { value: "vector", label: t("assistant.retrievalModeVector") },
+                              { value: "hybrid", label: t("assistant.retrievalModeHybrid") },
+                              { value: "lexical", label: t("assistant.retrievalModeLexical") }
+                            ]}
+                            label={t("assistant.candidateSelectionMode")}
+                            {...form.getInputProps("candidateSelectionMode")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <NumberInput
+                            classNames={{ input: "workspace-input" }}
+                            label={t("assistant.candidateMultiplier")}
+                            max={10}
+                            min={1}
+                            {...form.getInputProps("candidateMultiplier")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <NumberInput
+                            classNames={{ input: "workspace-input" }}
+                            label={t("assistant.minCandidates")}
+                            max={100}
+                            min={1}
+                            {...form.getInputProps("minCandidates")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <NumberInput
+                            classNames={{ input: "workspace-input" }}
+                            decimalScale={2}
+                            label={t("assistant.hybridVectorWeight")}
+                            max={1}
+                            min={0}
+                            step={0.1}
+                            {...form.getInputProps("hybridVectorWeight")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <NumberInput
+                            classNames={{ input: "workspace-input" }}
+                            decimalScale={2}
+                            label={t("assistant.hybridLexicalWeight")}
+                            max={1}
+                            min={0}
+                            step={0.1}
+                            {...form.getInputProps("hybridLexicalWeight")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <Switch
+                            checked={form.values.queryRewriteEnabled}
+                            label={t("assistant.queryRewriteEnabled")}
+                            onChange={event =>
+                              form.setFieldValue("queryRewriteEnabled", event.currentTarget.checked)
+                            }
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <Switch
+                            checked={form.values.rerankStrategyEnabled}
+                            label={t("assistant.rerankStrategyEnabled")}
+                            onChange={event =>
+                              form.setFieldValue("rerankStrategyEnabled", event.currentTarget.checked)
+                            }
+                          />
+                        </Grid.Col>
+                      </Grid>
+                    ) : (
+                      <Alert color="gray" radius="xl" variant="light">
+                        {t("assistant.retrievalStrategyDefaultNote")}
+                      </Alert>
+                    )}
+                  </Stack>
+                </Paper>
+
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                  <Stack gap="md">
+                    <div>
                       <Text className="workspace-section-heading">{t("assistant.retrievalFiltersSection")}</Text>
                       <Text c="var(--app-text-muted)" size="sm">
                         {t("assistant.filterHelp")}

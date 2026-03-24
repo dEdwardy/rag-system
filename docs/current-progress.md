@@ -13,6 +13,7 @@
 
 - API fast test lane 现已切到 `Vitest`，integration / E2E 继续保留当前 Node test runner + `dist` 启动路径，形成快慢分层的 backend test workflow
 - `PATCH /retrieval-profiles/:id` 现也已支持 `strategyJson: null`，可显式清空已保存的 retrieval strategy override，回退到既有 flat fields 推导的默认策略语义
+- `Assistant` 页面现也已补齐 retrieval `strategyJson` 覆盖编辑能力，可直接管理 query rewrite、candidate mode、candidate budget、hybrid weights 和 rerank override，并在关闭覆盖时提交 `strategyJson: null`
 - `pnpm test:api:file -- <path>` 现已按测试文件类型自动分流：fast-lane 文件直接走 `Vitest`，heavy 文件先做 build freshness 检查，再走原 runner
 - heavy API test lane 现已具备 on-demand build 检查；仅当 `src/`、`prisma/` 或关键 API 配置文件比 `dist/main.js` 更新时，才会重新 build
 - integration / chain E2E / source E2E 文件现已统一为“每文件 seed 一次默认数据、每条测试前 reset mutable state”，减少重复 seed 与重测试启动成本
@@ -355,6 +356,7 @@
 - ✅ 更完整的 assistant / config 管理
   - RetrievalProfile `filtersJson` 前端编辑能力
   - 更完整的 answering / assistant policy 配置
+  - RetrievalProfile `strategyJson` override 前端编辑与清空能力
 - ✅ `PC Web` Chat 体验增强第一轮
   - NDJSON-based streamed ask rendering 第一轮
   - answer generation native text streaming 已升级完成
