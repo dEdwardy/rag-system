@@ -163,6 +163,18 @@ Minimum expectation:
 - behavior changes should validate behavior, not only types
 - do not claim completion without stating what was validated
 
+## Test Boundary Rule
+
+Prefer source-first tests for the local fast feedback loop.
+
+Rules:
+
+- fast-lane, unit, and focused module tests should run against source code and should not require `dist/`
+- integration and E2E tests may continue using the current build-aware or `dist/` startup path when they validate real API or application wiring
+- do not add new `dist/` dependencies to tests that should belong to the fast lane
+- when a test can reasonably be implemented as a fast focused test, prefer that over adding another heavy build-dependent test path
+- any `dist/`-dependent validation should be treated as heavy validation by default
+
 Heavy validation must remain serial.
 Do not run multiple builds, full API suites, integration flows, or E2E flows in parallel.
 
