@@ -1,16 +1,39 @@
 # AGENTS.md
 
-This repository is an active-development monorepo. Prefer small, targeted changes that fit the existing structure.
+This repository is an active-development monorepo for a personal RAG system.
+Prefer small, targeted, reversible changes that fit the existing structure and current project phase.
 
 ## Read First
 
-Before making non-trivial changes, read:
+Before making any non-trivial change, read these in order:
 
-1. [README.md](/D:/FeProjects/rag-system/README.md)
-2. [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
-3. [docs/current-progress.md](/D:/FeProjects/rag-system/docs/current-progress.md)
+1. `docs/next_steps_rag_project_plan.md`
+2. `docs/current-progress.md`
+3. `docs/current-dev-setup.md`
+4. `README.md`
 
-Use additional docs in `docs/` only as needed for the task at hand.
+Use additional docs in `docs/` only when they are directly relevant to the task.
+
+## Environment Assumption
+
+Default development environment:
+
+- `WezTerm + WSL Ubuntu`
+- repository path: `~/projects/rag-system`
+- prefer Linux/WSL shell commands and path conventions in examples and instructions
+
+If the current session runs in a different environment, still follow the repository workflow rules in this file.
+If commands differ across environments, prefer repository-correct commands over environment-specific convenience.
+
+## Project Phase Assumption
+
+Treat this repository as an in-progress product moving from MVP into iterative hardening and feature completion.
+
+Implications:
+
+- prefer incremental backend progress over broad product reshaping
+- prefer stability and observability over clever rewrites
+- prefer extending existing flows over introducing parallel architectures
 
 ## Repository Layout
 
@@ -20,41 +43,103 @@ Use additional docs in `docs/` only as needed for the task at hand.
 - `docs`: project documentation and implementation notes
 - `storage`: local runtime data for development
 
+## Primary Development Priorities
+
+Unless the task explicitly says otherwise, prioritize work in this order:
+
+1. backend correctness
+2. retrieval / answering quality
+3. ingestion reliability
+4. diagnostics / traceability / metadata clarity
+5. frontend enablement
+6. polish / refactor
+
+Frontend work should usually support an already-defined backend capability, not lead it.
+
 ## Working Style
 
 - Preserve existing patterns unless the task clearly requires a change.
 - Prefer focused edits over broad refactors.
 - Do not rewrite unrelated areas while implementing a local feature or fix.
-- Treat this repository as an in-progress product, not a greenfield scaffold.
-- When requirements are unclear, clarify the next increment instead of expanding scope.
+- Keep each task to a single clear increment whenever possible.
+- Avoid mixing feature work, refactors, and cleanup in the same change.
+- Prefer the smallest change that closes the next meaningful gap.
+- When requirements are unclear, narrow to the next concrete increment instead of expanding scope.
+
+## Scope Control
+
+By default:
+
+- do not introduce new architecture layers unless the current structure clearly blocks progress
+- do not replace stable existing implementations just for elegance
+- do not broaden a backend task into frontend redesign
+- do not bundle nice-to-have cleanup into a functional change
+- do not add speculative abstractions for future features unless already required by the current task
+
+## Agent Strategy
+
+Default to a single main agent workflow.
+
+Do not enable broad multi-agent or OMO execution by default.
+Only consider limited parallel agent usage when all of the following are true:
+
+- the work can be split into clearly isolated file ownership
+- the tasks do not touch the same high-risk subsystem
+- final validation can still be performed serially
+- coordination cost is lower than the expected speedup
+
+When in doubt, stay single-agent.
 
 ## Default Execution Mode
 
-- Unless the user explicitly asks to pause or review before the next step, continue automatically through:
-  - task identification
-  - required spec/plan steps
-  - implementation
-  - validation
-  - documentation updates
-  - commit
-  - push
+Unless the user explicitly asks to pause or review before the next step, continue automatically through:
 
-  中文说明：默认连续执行，不需要在上述常规步骤之间逐一停下来征求确认。
+- task identification
+- required reading / spec alignment
+- implementation
+- focused validation
+- documentation updates
+- commit
+- push
 
-- Do not stop for confirmation between normal development steps unless:
-  - the requirement is materially ambiguous
-  - there is a direct conflict with existing uncommitted work
-  - the next action is destructive or unusually high-risk
+中文说明：默认连续执行，不需要在上述常规步骤之间逐一停下来征求确认。
 
-  中文说明：只有在需求存在实质歧义、与现有未提交改动冲突，或下一步属于破坏性/高风险操作时，才中断并询问。
+Do not stop for confirmation between normal development steps unless:
 
-- Treat autonomous end-to-end execution as the repository default working mode.
+- the requirement is materially ambiguous
+- there is a direct conflict with existing uncommitted work
+- the next action is destructive or unusually high-risk
+- the change would significantly alter architecture or existing behavior boundaries
 
-  中文说明：本仓库默认工作模式是端到端自动推进，而不是每一步等待人工确认。
+中文说明：只有在需求存在实质歧义、与现有未提交改动冲突、下一步属于破坏性或高风险操作，或会明显改变现有架构或行为边界时，才中断并询问。
+
+Treat autonomous end-to-end execution as the repository default working mode.
+
+中文说明：本仓库默认工作模式是端到端自动推进，而不是每一步等待人工确认。
+
+## High-Risk Areas
+
+Use extra caution and keep changes especially small in these areas:
+
+- ingestion pipelines
+- retrieval logic
+- answer generation / orchestration
+- streaming behavior
+- persistence / schema-related logic
+- cross-package shared contracts
+
+For these areas:
+
+- prefer minimal diffs
+- validate behavior with focused tests
+- avoid opportunistic refactors
+- review for regressions before closeout
 
 ## Validation
 
-Run the smallest relevant validation for the change you make. Common commands:
+Run the smallest relevant validation for the change.
+
+Common commands:
 
 ```bash
 pnpm build
@@ -64,15 +149,37 @@ pnpm test:api:fast
 pnpm test:api
 ```
 
-At minimum:
+Default validation policy:
 
-- for day-to-day backend work, prefer the smallest focused API test command that matches the changed area; use full `pnpm test:api` mainly for closeout or broader cross-module verification
-- backend behavior changes should run `pnpm test:api` when practical
+- for day-to-day backend work, run the smallest focused test command that matches the changed area
+- use full `pnpm test:api` mainly for closeout, broader cross-module verification, or behavior changes that cross boundaries
 - cross-package changes should run `pnpm build` or the relevant package build
 - frontend-only changes should run at least the relevant build or typecheck if available
+- avoid expensive full-suite validation when a smaller relevant check is sufficient for the current increment
+
+Minimum expectation:
+
+- every non-trivial change should have at least one relevant validation step
+- behavior changes should validate behavior, not only types
+- do not claim completion without stating what was validated
+
+Heavy validation must remain serial.
+Do not run multiple builds, full API suites, integration flows, or E2E flows in parallel.
 
 ## Docs
 
-- If behavior, setup, or workflow changes, update the relevant file in `docs/`.
+- If behavior, setup, workflow, or current status changes, update the relevant file in `docs/`.
 - Keep documentation practical and current rather than exhaustive.
 - Prefer updating an existing doc over creating a new one unless the topic is genuinely new.
+- Update progress/status docs when a meaningful increment is completed.
+- Keep docs aligned with actual repository behavior, not intended future state.
+
+## Completion Standard
+
+A task is usually complete only when all of the following are true:
+
+- the requested increment is implemented
+- the smallest relevant validation has been run
+- relevant docs are updated if needed
+- the change is scoped and does not include unnecessary unrelated edits
+- remaining risks or follow-up items are explicitly noted when applicable
