@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -28,6 +27,9 @@ CORE_PATH_PREFIXES = [
     "apps/api/prisma/",
     "packages/shared/",
 ]
+
+DEFAULT_INPUT_FILE = Path("automation/latest_plan_output.md")
+DEFAULT_QUEUE_FILE = Path("automation/automation-skip-queue.md")
 
 
 def normalize_text(value: str) -> str:
@@ -60,40 +62,40 @@ def append_skip_record(queue_path: Path, increment_text: str, hits: list[str]) -
         handle.write(f"{increment_text.strip()}\n\n")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Gate a proposed next increment and skip core tasks."
-    )
-    parser.add_argument(
-        "text",
-        nargs="?",
-        help="Proposed next increment text. If omitted, read from stdin.",
-    )
-    parser.add_argument(
-        "--queue-file",
-        default="automation/automation-skip-queue.md",
-        help="Path to the local skip queue markdown file.",
-    )
-    args = parser.parse_args()
+def load_increment_text() -> str:
+    stdin_text = sys.stdin.read().strip()
+    if stdin_text:
+        return stdin_text
 
-    increment_text = args.text if args.text is not None else sys.stdin.read()
-    increment_text = increment_text.strip()
+    if DEFAULT_INPUT_FILE.exists():
+        return DEFAULT_INPUT_FILE.read_text(encoding="utf-8").strip()
+
+    return ""
+
+
+def main() -> int:
+    increment_text = load_increment_text()
 
     if not increment_text:
-        print("ERROR: no increment text provided", file=sys.stderr)
+        print(
+            f"ERROR: no increment text found in stdin or {DEFAULT_INPUT_FILE}",
+            file=sys.stderr,
+        )
         return 2
 
     hits = detect_core_hits(increment_text)
-    queue_path = Path(args.queue_file)
+    queue_path = DEFAULT_QUEUE_FILE
 
     if hits:
         append_skip_record(queue_path, increment_text, hits)
         print("SKIP")
+        print(f"Input: {DEFAULT_INPUT_FILE}")
         print(f"Queue: {queue_path}")
         print(f"Hits: {', '.join(hits)}")
         return 0
 
     print("ALLOW")
+    print(f"Input: {DEFAULT_INPUT_FILE}")
     return 0
 
 
