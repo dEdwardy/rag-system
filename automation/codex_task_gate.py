@@ -63,9 +63,10 @@ def append_skip_record(queue_path: Path, increment_text: str, hits: list[str]) -
 
 
 def load_increment_text() -> str:
-    stdin_text = sys.stdin.read().strip()
-    if stdin_text:
-        return stdin_text
+    if not sys.stdin.isatty():
+        stdin_text = sys.stdin.read().strip()
+        if stdin_text:
+            return stdin_text
 
     if DEFAULT_INPUT_FILE.exists():
         return DEFAULT_INPUT_FILE.read_text(encoding="utf-8").strip()

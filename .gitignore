@@ -20,6 +20,7 @@ api-server.err.log
 .worktrees/
 automation/automation-skip-queue.md
 automation/latest_plan_output.md
+automation/__pycache__/
 .playwright-cli/
 output/
 ui/suggestion.md
