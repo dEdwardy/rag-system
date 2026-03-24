@@ -82,6 +82,10 @@ Execution requirements:
 - At the end, explain what changed, what was validated, and what risks remain
 - Commit when complete
 - If there is no material ambiguity, direct conflict, or high-risk action, do not stop to ask; continue automatically
+- Whenever stopping, explicitly begin with exactly one status label: `DONE`, `NEEDS_CONTINUE`, `BLOCKED`, or `NEEDS_DECISION`
+- If the status is `DONE`, state whether the increment is complete, whether it was committed, and provide a short ready-to-paste summary for the next new session
+- If the status is `NEEDS_CONTINUE`, expect the next user reply to be `continue`
+- If the status is `BLOCKED` or `NEEDS_DECISION`, explain the reason briefly before anything else
 
 If the current stage is plan, output only:
 1. Chosen execution mode
