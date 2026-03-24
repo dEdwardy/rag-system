@@ -5,7 +5,7 @@ This folder contains local automation helpers for repository workflow support.
 Current scope:
 
 - `codex_auto.py`: single entry point for the current Codex automation flow
-- `codex_prompt.md`: fixed prompt text for Codex sessions
+- `codex_prompt.md`: fixed plan-only prompt text for Codex automation sessions
 - `codex_prompt_builder.py`: build a runtime prompt with skip-queue exclusions
 - `codex_plan_cycle.py`: run one full `plan -> gate` cycle
 - `codex_plan_runner.py`: run `codex exec` for the next plan step using the runtime prompt
