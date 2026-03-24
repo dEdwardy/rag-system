@@ -20,7 +20,7 @@ from automation.codex_task_gate import (
 )
 
 
-def run_plan_cycle() -> dict[str, object]:
+def run_single_plan_attempt() -> dict[str, object]:
     runtime_prompt = build_runtime_prompt(DEFAULT_PROMPT_FILE, DEFAULT_SKIP_QUEUE_FILE)
     DEFAULT_RUNTIME_PROMPT_FILE.write_text(runtime_prompt, encoding="utf-8")
 
@@ -47,10 +47,29 @@ def run_plan_cycle() -> dict[str, object]:
     }
 
 
+def run_plan_cycle() -> dict[str, object]:
+    first_result = run_single_plan_attempt()
+
+    if (
+        first_result["status"] == "ALLOW"
+        and first_result["agent_status"] == "NEEDS_CONTINUE"
+    ):
+        second_result = run_single_plan_attempt()
+        second_result["attempts"] = 2
+        second_result["auto_continued"] = True
+        return second_result
+
+    first_result["attempts"] = 1
+    first_result["auto_continued"] = False
+    return first_result
+
+
 def format_cycle_summary(result: dict[str, object]) -> str:
     lines = [
         f"Cycle status: {result['status']}",
         f"Agent status: {result['agent_status'] or 'UNKNOWN'}",
+        f"Attempts: {result['attempts']}",
+        f"Auto-continued: {'yes' if result['auto_continued'] else 'no'}",
         f"Increment: {result['increment']}",
         f"Input: {DEFAULT_INPUT_FILE}",
     ]

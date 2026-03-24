@@ -54,6 +54,8 @@ Current `codex_plan_cycle.py` behavior:
 - zero-argument mode
 - builds the runtime prompt
 - runs one Codex `plan` step
+- when the first non-core result is `NEEDS_CONTINUE`, automatically reruns one more `plan` attempt
 - gates the resulting increment
 - records skipped core increments to the local skip queue
 - prints a compact cycle summary with cycle status, agent status, increment, and skip details when applicable
+- never auto-continues more than once in a single cycle
