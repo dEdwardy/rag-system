@@ -267,6 +267,18 @@ export type RetrievedChunk = {
   sectionTitle: string | null;
 };
 
+export type ContextGroup = {
+  documentId: string;
+  documentTitle: string;
+  startChunkIndex: number;
+  endChunkIndex: number;
+  chunkIds: string[];
+  primaryChunkIds: string[];
+  mergedContent: string;
+  pageNumbers: number[];
+  sectionTitles: string[];
+};
+
 export type AskResponse = {
   conversationId: string;
   userMessageId: string;
@@ -276,10 +288,7 @@ export type AskResponse = {
   answer: string;
   citations: Citation[];
   retrievedChunks: RetrievedChunk[];
-  contextGroups?: Array<{
-    primaryChunkIds: string[];
-    mergedContent: string;
-  }>;
+  contextGroups?: ContextGroup[];
   retrievalMetadata?: JsonValue;
   answeringMetadata?: JsonValue;
   answerStatus?: "grounded" | "insufficient_context";

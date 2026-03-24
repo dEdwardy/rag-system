@@ -11,6 +11,20 @@
 
 补充进展（2026-03-25）：
 
+- web ask-response contract 现也已对齐 backend `contextGroups` 的完整返回形状：
+  - `documentId`
+  - `documentTitle`
+  - `startChunkIndex`
+  - `endChunkIndex`
+  - `chunkIds`
+  - `primaryChunkIds`
+  - `mergedContent`
+  - `pageNumbers`
+  - `sectionTitles`
+- 这样当前前端消费 ask / stream final payload 时，不再把 backend 已稳定返回的 context-group metadata 缩窄成只剩 `primaryChunkIds` 和 `mergedContent`
+- 上述 ask context-group contract alignment 现已补齐最小 source-level 回归覆盖：
+  - `apps/web/test/ask-context-groups-contract.test.js`
+
 - web document-run contract 现也已对齐 backend 已返回的 `failureSummary` 字段：
   - `DocumentRunRecord`
   - `KnowledgeBaseDocumentRunRecord`

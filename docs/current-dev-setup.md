@@ -678,9 +678,19 @@ The following path has been validated locally on `2026-03-21`:
    - `answeringMetadata` is returned with prompt id, normalized answer policy, resolved language, generation mode, context mode, prompt-context count, citation counts before/after truncation, citation attribution/source, missing-information count/source, answer-text source, answer-status source, and insufficient-context reason
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
-   - `contextGroups` is returned as an array
-   - contiguous same-document chunks may be merged into one `contextGroup.mergedContent`
-   - answer may include inline source markers like `[1]`
+  - `contextGroups` is returned as an array
+  - contiguous same-document chunks may be merged into one `contextGroup.mergedContent`
+  - current `contextGroups` item shape includes:
+    - `documentId`
+    - `documentTitle`
+    - `startChunkIndex`
+    - `endChunkIndex`
+    - `chunkIds`
+    - `primaryChunkIds`
+    - `mergedContent`
+    - `pageNumbers`
+    - `sectionTitles`
+  - answer may include inline source markers like `[1]`
    - `retrievedChunks` include vector similarity scores
    - trace may contain `rewrittenQuery`
    - trace `retrievalScoresJson` may contain `vectorScore`, `lexicalScore`, `hybridScore`, and `rerankScore`
