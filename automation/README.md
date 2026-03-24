@@ -4,6 +4,7 @@ This folder contains local automation helpers for repository workflow support.
 
 Current scope:
 
+- `codex_auto.py`: single entry point for the current Codex automation flow
 - `codex_prompt.md`: fixed prompt text for Codex sessions
 - `codex_prompt_builder.py`: build a runtime prompt with skip-queue exclusions
 - `codex_plan_cycle.py`: run one full `plan -> gate` cycle
@@ -59,3 +60,10 @@ Current `codex_plan_cycle.py` behavior:
 - records skipped core increments to the local skip queue
 - prints a compact cycle summary with cycle status, agent status, increment, suggested next action, and skip details when applicable
 - never auto-continues more than once in a single cycle
+
+Current `codex_auto.py` behavior:
+
+- zero-argument mode
+- runs the current single-cycle automation flow
+- prints the final compact summary
+- returns a nonzero exit code on runtime failure
