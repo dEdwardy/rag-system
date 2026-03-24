@@ -11,6 +11,25 @@
 
 补充进展（2026-03-25）：
 
+- web ask-response contract 现也已对齐 backend 已稳定返回的 `retrievalMetadata` 最小结构：
+  - `strategy`
+  - `filters`
+  - `queryRewrite`
+  - `execution`
+- 其中 `execution` 当前也已覆盖现有稳定的 candidate-flow / context-shaping 字段：
+  - `candidateLimit`
+  - `vectorCandidateCount`
+  - `lexicalCandidateCount`
+  - `mergedCandidateCount`
+  - `rankedCandidateCount`
+  - `retrievedChunkCount`
+  - `contextGroupCount`
+  - `primaryChunkCount`
+  - `neighborChunkCount`
+- 这样当前前端消费 ask / stream final payload 时，不再把 backend 已稳定返回的 retrieval execution metadata 继续保留为完全无类型的 `JsonValue`
+- 上述 ask retrieval-metadata contract alignment 现已补齐最小 source-level 回归覆盖：
+  - `apps/web/test/ask-retrieval-metadata-contract.test.js`
+
 - trace 读取接口的 additive `traceSummary` 现已继续补齐 retrieval candidate-flow 诊断字段：
   - `candidateLimit`
   - `vectorCandidateCount`

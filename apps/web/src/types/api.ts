@@ -279,6 +279,43 @@ export type ContextGroup = {
   sectionTitles: string[];
 };
 
+export type AskRetrievalMetadata = {
+  strategy: RetrievalStrategy;
+  filters: RetrievalProfileFilters | null;
+  queryRewrite: {
+    enabled: boolean;
+    applied: boolean;
+    finalQuerySource: "rewritten" | "original_disabled" | "original_unchanged";
+    usedFallback: boolean | null;
+    promptId: string | null;
+  };
+  execution: {
+    retrievalQuery: string;
+    topK: number;
+    scoreThreshold: number;
+    chunkWindow: number;
+    actualMode: "vector" | "hybrid" | "lexical";
+    usedFallback: boolean;
+    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+    rerankApplied: boolean;
+    chunkWindowApplied: boolean;
+    vectorSearchAttempted: boolean;
+    lexicalSearchAttempted: boolean;
+    vectorCandidateLimitHit: boolean;
+    lexicalCandidateLimitHit: boolean;
+    rankingTopKHit: boolean;
+    candidateLimit: number;
+    vectorCandidateCount: number;
+    lexicalCandidateCount: number;
+    mergedCandidateCount: number;
+    rankedCandidateCount: number;
+    retrievedChunkCount: number;
+    contextGroupCount: number;
+    primaryChunkCount: number;
+    neighborChunkCount: number;
+  };
+};
+
 export type AskResponse = {
   conversationId: string;
   userMessageId: string;
@@ -289,7 +326,7 @@ export type AskResponse = {
   citations: Citation[];
   retrievedChunks: RetrievedChunk[];
   contextGroups?: ContextGroup[];
-  retrievalMetadata?: JsonValue;
+  retrievalMetadata?: AskRetrievalMetadata;
   answeringMetadata?: JsonValue;
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];
