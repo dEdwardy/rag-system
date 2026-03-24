@@ -62,6 +62,29 @@ class CodexPlanCycleTest(unittest.TestCase):
         mock_run_plan.assert_called_once()
         mock_detect_core_hits.assert_called_once_with("update docs and small web text")
 
+    @patch("automation.codex_plan_cycle.load_increment_text")
+    @patch("automation.codex_plan_cycle.detect_core_hits")
+    @patch("automation.codex_plan_cycle.parse_status_label")
+    @patch("automation.codex_plan_cycle.run_plan")
+    @patch("automation.codex_plan_cycle.build_runtime_prompt")
+    def test_run_plan_cycle_passes_timeout_to_runner(
+        self,
+        mock_build_runtime_prompt,
+        mock_run_plan,
+        mock_parse_status_label,
+        mock_detect_core_hits,
+        mock_load_increment_text,
+    ) -> None:
+        mock_build_runtime_prompt.return_value = "runtime prompt"
+        mock_load_increment_text.return_value = "update docs and small web text"
+        mock_parse_status_label.return_value = "DONE"
+        mock_detect_core_hits.return_value = []
+
+        run_plan_cycle(timeout_seconds=42)
+
+        _, kwargs = mock_run_plan.call_args
+        self.assertEqual(kwargs["timeout_seconds"], 42)
+
     @patch("automation.codex_plan_cycle.append_skip_record")
     @patch("automation.codex_plan_cycle.load_increment_text")
     @patch("automation.codex_plan_cycle.detect_core_hits")

@@ -7,7 +7,7 @@ import sys
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from automation.codex_plan_runner import run_plan
+from automation.codex_plan_runner import DEFAULT_TIMEOUT_SECONDS, run_plan
 from automation.codex_prompt_builder import (
     DEFAULT_PROMPT_FILE,
     DEFAULT_RUNTIME_PROMPT_FILE,
@@ -24,7 +24,9 @@ from automation.codex_task_gate import (
 )
 
 
-def run_single_plan_attempt(timeout_seconds: int = 300) -> dict[str, object]:
+def run_single_plan_attempt(
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, object]:
     runtime_prompt = build_runtime_prompt(DEFAULT_PROMPT_FILE, DEFAULT_SKIP_QUEUE_FILE)
     DEFAULT_RUNTIME_PROMPT_FILE.write_text(runtime_prompt, encoding="utf-8")
 
@@ -55,7 +57,9 @@ def run_single_plan_attempt(timeout_seconds: int = 300) -> dict[str, object]:
     }
 
 
-def run_plan_cycle(timeout_seconds: int = 300) -> dict[str, object]:
+def run_plan_cycle(
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, object]:
     first_result = run_single_plan_attempt(timeout_seconds=timeout_seconds)
 
     if (

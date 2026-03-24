@@ -2,10 +2,12 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+import subprocess
 
 from automation.codex_plan_runner import (
     DEFAULT_OUTPUT_FILE,
     DEFAULT_PROMPT_FILE,
+    CodexPlanRunnerTimeoutError,
     build_exec_command,
     run_plan,
 )
@@ -39,6 +41,23 @@ class CodexPlanRunnerTest(unittest.TestCase):
             self.assertEqual(kwargs["input"], "plan prompt\n")
             self.assertTrue(kwargs["text"])
             self.assertTrue(kwargs["check"])
+
+    @patch("automation.codex_plan_runner.subprocess.run")
+    def test_run_plan_raises_clear_timeout_error(self, mock_run) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            prompt_path = temp_path / "runtime_prompt.md"
+            output_path = temp_path / "latest_plan_output.md"
+            prompt_path.write_text("plan prompt\n", encoding="utf-8")
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="codex", timeout=30)
+
+            with self.assertRaises(CodexPlanRunnerTimeoutError):
+                run_plan(
+                    Path("D:/FeProjects/rag-system"),
+                    prompt_path,
+                    output_path,
+                    timeout_seconds=30,
+                )
 
 
 if __name__ == "__main__":

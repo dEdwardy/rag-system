@@ -9,6 +9,11 @@ import subprocess
 DEFAULT_WORKSPACE_ROOT = Path.cwd()
 DEFAULT_PROMPT_FILE = Path("automation/runtime_prompt.md")
 DEFAULT_OUTPUT_FILE = Path("automation/latest_plan_output.md")
+DEFAULT_TIMEOUT_SECONDS = 300
+
+
+class CodexPlanRunnerTimeoutError(RuntimeError):
+    pass
 
 
 def resolve_codex_command() -> str:
@@ -33,10 +38,22 @@ def run_plan(
     workspace_root: Path = DEFAULT_WORKSPACE_ROOT,
     prompt_file: Path = DEFAULT_PROMPT_FILE,
     output_file: Path = DEFAULT_OUTPUT_FILE,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> None:
     prompt_text = prompt_file.read_text(encoding="utf-8")
     command = build_exec_command(workspace_root, output_file)
-    subprocess.run(command, input=prompt_text, text=True, check=True)
+    try:
+        subprocess.run(
+            command,
+            input=prompt_text,
+            text=True,
+            check=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CodexPlanRunnerTimeoutError(
+            f"codex exec timed out after {timeout_seconds} seconds"
+        ) from exc
 
 
 def main() -> int:

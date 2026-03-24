@@ -71,4 +71,5 @@ Current `codex_auto.py` behavior:
 - appends the summary to `automation/automation-run-log.md`
 - supports `--no-log` to skip local log append
 - supports `--log-file <path>` to override the local log destination
+- supports `--timeout <seconds>` to bound each `codex exec` attempt
 - returns a nonzero exit code on runtime failure

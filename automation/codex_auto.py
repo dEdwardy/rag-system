@@ -9,6 +9,7 @@ import sys
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from automation.codex_plan_runner import DEFAULT_TIMEOUT_SECONDS
 from automation.codex_plan_cycle import format_cycle_summary, run_plan_cycle
 
 
@@ -24,9 +25,13 @@ def append_run_log(summary: str, log_file: Path = DEFAULT_LOG_FILE) -> None:
         handle.write("\n\n")
 
 
-def main(log_file: Path = DEFAULT_LOG_FILE, write_log: bool = True) -> int:
+def main(
+    log_file: Path = DEFAULT_LOG_FILE,
+    write_log: bool = True,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+) -> int:
     try:
-        result = run_plan_cycle()
+        result = run_plan_cycle(timeout_seconds=timeout_seconds)
         summary = format_cycle_summary(result)
         if write_log:
             append_run_log(summary, log_file)
@@ -49,8 +54,18 @@ def cli() -> int:
         default=str(DEFAULT_LOG_FILE),
         help="Custom path for the local automation run log.",
     )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Timeout in seconds for a single codex exec attempt.",
+    )
     args = parser.parse_args()
-    return main(log_file=Path(args.log_file), write_log=not args.no_log)
+    return main(
+        log_file=Path(args.log_file),
+        write_log=not args.no_log,
+        timeout_seconds=args.timeout,
+    )
 
 
 if __name__ == "__main__":
