@@ -56,3 +56,4 @@ Current `codex_plan_cycle.py` behavior:
 - runs one Codex `plan` step
 - gates the resulting increment
 - records skipped core increments to the local skip queue
+- prints a compact cycle summary with cycle status, agent status, increment, and skip details when applicable

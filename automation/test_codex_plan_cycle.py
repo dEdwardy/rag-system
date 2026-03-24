@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from automation.codex_plan_cycle import run_plan_cycle
+from automation.codex_plan_cycle import format_cycle_summary, run_plan_cycle
 
 
 class CodexPlanCycleTest(unittest.TestCase):
@@ -58,6 +58,34 @@ class CodexPlanCycleTest(unittest.TestCase):
         self.assertEqual(result["hits"], ["keyword:retrieval"])
         mock_append_skip_record.assert_called_once()
         mock_run_plan.assert_called_once()
+
+    def test_format_cycle_summary_for_allow_result(self) -> None:
+        summary = format_cycle_summary(
+            {
+                "status": "ALLOW",
+                "agent_status": "DONE",
+                "hits": [],
+                "increment": "update docs and small web text",
+            }
+        )
+
+        self.assertIn("Cycle status: ALLOW", summary)
+        self.assertIn("Agent status: DONE", summary)
+        self.assertIn("Increment: update docs and small web text", summary)
+
+    def test_format_cycle_summary_for_skip_result(self) -> None:
+        summary = format_cycle_summary(
+            {
+                "status": "SKIP",
+                "agent_status": "NEEDS_CONTINUE",
+                "hits": ["keyword:retrieval"],
+                "increment": "improve retrieval ranking",
+            }
+        )
+
+        self.assertIn("Cycle status: SKIP", summary)
+        self.assertIn("Agent status: NEEDS_CONTINUE", summary)
+        self.assertIn("Hits: keyword:retrieval", summary)
 
 
 if __name__ == "__main__":

@@ -47,13 +47,24 @@ def run_plan_cycle() -> dict[str, object]:
     }
 
 
+def format_cycle_summary(result: dict[str, object]) -> str:
+    lines = [
+        f"Cycle status: {result['status']}",
+        f"Agent status: {result['agent_status'] or 'UNKNOWN'}",
+        f"Increment: {result['increment']}",
+        f"Input: {DEFAULT_INPUT_FILE}",
+    ]
+
+    if result["status"] == "SKIP":
+        lines.append(f"Queue: {DEFAULT_QUEUE_FILE}")
+        lines.append(f"Hits: {', '.join(result['hits'])}")
+
+    return "\n".join(lines)
+
+
 def main() -> int:
     result = run_plan_cycle()
-    print(result["status"])
-    print(f"Input: {DEFAULT_INPUT_FILE}")
-    if result["status"] == "SKIP":
-        print(f"Queue: {DEFAULT_QUEUE_FILE}")
-        print(f"Hits: {', '.join(result['hits'])}")
+    print(format_cycle_summary(result))
     return 0
 
 
