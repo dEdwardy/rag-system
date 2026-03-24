@@ -14,6 +14,7 @@
 - API fast test lane 现已切到 `Vitest`，integration / E2E 继续保留当前 Node test runner + `dist` 启动路径，形成快慢分层的 backend test workflow
 - `PATCH /retrieval-profiles/:id` 现也已支持 `strategyJson: null`，可显式清空已保存的 retrieval strategy override，回退到既有 flat fields 推导的默认策略语义
 - `Assistant` 页面现也已补齐 retrieval `strategyJson` 覆盖编辑能力，可直接管理 query rewrite、candidate mode、candidate budget、hybrid weights 和 rerank override，并在关闭覆盖时提交 `strategyJson: null`
+- 上述 `Assistant strategy` 配置区现也已补齐最小 source-level 回归覆盖，锁定关键区块和控件的稳定 selector，便于后续浏览器级验证继续接入
 - `pnpm test:api:file -- <path>` 现已按测试文件类型自动分流：fast-lane 文件直接走 `Vitest`，heavy 文件先做 build freshness 检查，再走原 runner
 - heavy API test lane 现已具备 on-demand build 检查；仅当 `src/`、`prisma/` 或关键 API 配置文件比 `dist/main.js` 更新时，才会重新 build
 - integration / chain E2E / source E2E 文件现已统一为“每文件 seed 一次默认数据、每条测试前 reset mutable state”，减少重复 seed 与重测试启动成本

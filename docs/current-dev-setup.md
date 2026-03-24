@@ -416,6 +416,13 @@ node --experimental-strip-types --test apps/web/test/document-run-observability.
 node --test apps/web/test/ui-review-regressions.test.js
 ```
 
+Focused assistant strategy UI validation:
+
+```bash
+node --experimental-strip-types --test apps/web/test/assistant-config.test.js
+node --test apps/web/test/assistant-strategy-source.test.js
+```
+
 Focused PC Web smoke validation:
 
 ```bash

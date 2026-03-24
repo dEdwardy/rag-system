@@ -378,7 +378,12 @@ export function AssistantPage() {
                   </Stack>
                 </Paper>
 
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  data-testid="assistant-retrieval-strategy-section"
+                  p="lg"
+                  radius="xl"
+                >
                   <Stack gap="md">
                     <div>
                       <Text className="workspace-section-heading">{t("assistant.retrievalStrategySection")}</Text>
@@ -389,6 +394,7 @@ export function AssistantPage() {
 
                     <Switch
                       checked={form.values.strategyOverrideEnabled}
+                      data-testid="assistant-strategy-override-toggle"
                       label={t("assistant.strategyOverrideEnabled")}
                       onChange={event =>
                         form.setFieldValue("strategyOverrideEnabled", event.currentTarget.checked)
@@ -400,6 +406,7 @@ export function AssistantPage() {
                         <Grid.Col span={{ base: 12, md: 4 }}>
                           <NativeSelect
                             classNames={{ input: "workspace-input" }}
+                            data-testid="assistant-strategy-mode"
                             data={[
                               { value: "vector", label: t("assistant.retrievalModeVector") },
                               { value: "hybrid", label: t("assistant.retrievalModeHybrid") },
