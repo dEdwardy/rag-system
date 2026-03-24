@@ -151,6 +151,11 @@ export function useKnowledgeBaseDocumentRuns(
 export function useKnowledgeBaseDocumentRunSummary(
   knowledgeBaseId: string | null,
   input: {
+    documentId?: string;
+    sourceType?: string;
+    status?: DocumentRunRecord["status"];
+    trigger?: DocumentRunRecord["trigger"];
+    issueOnly?: boolean;
     sinceHours?: number;
   } = {}
 ) {
@@ -158,6 +163,21 @@ export function useKnowledgeBaseDocumentRunSummary(
     queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId, input],
     queryFn: () => {
       const params = new URLSearchParams();
+      if (input.documentId != null) {
+        params.set("documentId", input.documentId);
+      }
+      if (input.sourceType != null) {
+        params.set("sourceType", input.sourceType);
+      }
+      if (input.status != null) {
+        params.set("status", input.status);
+      }
+      if (input.trigger != null) {
+        params.set("trigger", input.trigger);
+      }
+      if (input.issueOnly != null) {
+        params.set("issueOnly", String(input.issueOnly));
+      }
       if (input.sinceHours != null) {
         params.set("sinceHours", String(input.sinceHours));
       }

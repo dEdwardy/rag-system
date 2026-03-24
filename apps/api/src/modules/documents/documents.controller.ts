@@ -37,7 +37,9 @@ export class DocumentsController {
 
   @Get("knowledge-bases/:id/document-runs/summary")
   getKnowledgeBaseDocumentRunSummary(@Param("id") knowledgeBaseId: string, @Query() query: unknown) {
-    const input = listKnowledgeBaseDocumentRunsSchema.pick({ sinceHours: true }).parse(query);
+    const input = listKnowledgeBaseDocumentRunsSchema
+      .pick({ documentId: true, sourceType: true, status: true, trigger: true, issueOnly: true, sinceHours: true })
+      .parse(query);
     return this.documentsService.getKnowledgeBaseDocumentRunSummary(knowledgeBaseId, input);
   }
 

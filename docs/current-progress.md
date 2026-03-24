@@ -11,6 +11,18 @@
 
 补充进展（2026-03-25）：
 
+- knowledge-base scoped run summary 现已支持与 run list 对齐的窄过滤输入：
+  - `documentId`
+  - `sourceType`
+  - `status`
+  - `trigger`
+  - `issueOnly`
+  - `sinceHours`
+- 这样 `GET /knowledge-bases/:id/document-runs/summary` 不再只能做全量 recent-window 聚合，现也可按已有 observability 过滤口径收窄统计和 latest anchors
+- `Knowledge Base` 页当前 recent runs summary 也已跟随现有 `all / failed / processing` 过滤切换同口径请求，避免摘要与下方列表出现口径漂移
+- 上述 summary-filter follow-up 现已补齐最小 source-level 回归覆盖：
+  - `apps/api/test/document-runs-summary.test.js`
+
 - `traceSummary` 的集成 / E2E 验证基线现已对齐最近新增的 provenance 字段：
   - `apps/api/test/api-flow.test.js`
   - `apps/api/test/ask-chain-e2e.test.js`

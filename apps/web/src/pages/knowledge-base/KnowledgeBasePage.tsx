@@ -33,7 +33,8 @@ export function KnowledgeBasePage() {
     status: runFilter === "all" ? undefined : runFilter
   });
   const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(knowledgeBase?.id ?? null, {
-    sinceHours: 72
+    sinceHours: 72,
+    status: runFilter === "all" ? undefined : runFilter
   });
   const documents = documentsQuery.data ?? [];
   const assistants = assistantsQuery.data ?? [];

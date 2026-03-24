@@ -718,6 +718,143 @@ test("DocumentRunsService issueOnly run list includes completed issue runs and e
   );
 });
 
+test("DocumentRunsService summary applies narrow run filters before aggregating anchors and counters", async () => {
+  const queryArgs = [];
+  const runs = [
+    {
+      documentId: "doc-feed-failed",
+      version: 5,
+      trigger: "external_resync",
+      status: "failed",
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "feed source is temporarily unavailable"
+      },
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml"
+      }
+    },
+    {
+      documentId: "doc-web-failed",
+      version: 4,
+      trigger: "external_resync",
+      status: "failed",
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "web page is temporarily unavailable"
+      },
+      startedAt: new Date("2026-03-22T10:03:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/down"
+      }
+    },
+    {
+      documentId: "doc-feed-ready",
+      version: 3,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: null,
+      startedAt: new Date("2026-03-22T10:01:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:02:00.000Z"),
+      document: {
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async args => {
+          queryArgs.push(args);
+          return runs.filter(
+            run =>
+              (!args.where.status || run.status === args.where.status) &&
+              (!args.where.document.sourceType || run.document.sourceType === args.where.document.sourceType)
+          );
+        }
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb", {
+    status: "failed",
+    sourceType: "feed"
+  });
+
+  assert.deepEqual(queryArgs, [
+    {
+      where: {
+        documentId: undefined,
+        startedAt: undefined,
+        status: "failed",
+        trigger: undefined,
+        document: {
+          kbId: "default-kb",
+          sourceType: "feed"
+        }
+      },
+      orderBy: [{ startedAt: "desc" }, { version: "desc" }],
+      select: {
+        documentId: true,
+        version: true,
+        trigger: true,
+        status: true,
+        failedStage: true,
+        diagnosticsJson: true,
+        startedAt: true,
+        finishedAt: true,
+        document: {
+          select: {
+            sourceType: true,
+            sourceName: true
+          }
+        }
+      }
+    }
+  ]);
+  assert.equal(summary.totalRuns, 1);
+  assert.deepEqual(summary.byStatus, {
+    pending: 0,
+    processing: 0,
+    ready: 0,
+    failed: 1,
+    skipped: 0
+  });
+  assert.deepEqual(summary.bySourceType, {
+    feed: 1
+  });
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-feed-failed",
+    version: 5,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    message: "feed source is temporarily unavailable",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: true,
+      message: "feed source is temporarily unavailable"
+    }
+  });
+});
+
 test("DocumentRunsService summary anchors prefer the latest finished matching run over the latest started run", async () => {
   const runs = [
     {

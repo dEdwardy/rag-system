@@ -69,7 +69,10 @@ export class DocumentsService {
 
   async getKnowledgeBaseDocumentRunSummary(
     knowledgeBaseId: string,
-    input?: Pick<ListKnowledgeBaseDocumentRunsInput, "sinceHours">
+    input?: Pick<
+      ListKnowledgeBaseDocumentRunsInput,
+      "documentId" | "sourceType" | "status" | "trigger" | "issueOnly" | "sinceHours"
+    >
   ) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
     return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId, input);

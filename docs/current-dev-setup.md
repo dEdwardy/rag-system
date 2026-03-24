@@ -560,6 +560,13 @@ Notes:
   - it excludes `skipped` runs
   - it also excludes `pending` / `processing` runs that may temporarily preserve diagnostics while still in flight
 - the run summary endpoint also supports `sinceHours` so recent-run diagnostics can be scoped to a smaller time window
+- `GET /knowledge-bases/:id/document-runs/summary` now also accepts the same narrow observability filters as the run list for summary scoping:
+  - `documentId`
+  - `sourceType`
+  - `status`
+  - `trigger`
+  - `issueOnly`
+  - `sinceHours`
 - `document-runs` list now defaults to a lighter payload and only includes `diagnosticsJson` when `includeDiagnostics=true`
 - `document-runs` list now also includes a lightweight `failureSummary` so recent-run consumers can show minimal failure context without requesting full diagnostics:
   - `code`

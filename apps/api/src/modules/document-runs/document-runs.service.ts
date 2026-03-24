@@ -12,13 +12,23 @@ import { ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schema
 export class DocumentRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getKnowledgeBaseRunSummary(knowledgeBaseId: string, input?: Pick<ListKnowledgeBaseDocumentRunsInput, "sinceHours">) {
+  async getKnowledgeBaseRunSummary(
+    knowledgeBaseId: string,
+    input?: Pick<
+      ListKnowledgeBaseDocumentRunsInput,
+      "documentId" | "sourceType" | "status" | "trigger" | "issueOnly" | "sinceHours"
+    >
+  ) {
     const startedAt = this.resolveStartedAtFilter(input?.sinceHours);
     const runs = await this.prisma.documentRun.findMany({
       where: {
+        documentId: input?.documentId,
         startedAt,
+        status: input?.status,
+        trigger: input?.trigger,
         document: {
-          kbId: knowledgeBaseId
+          kbId: knowledgeBaseId,
+          sourceType: input?.sourceType
         }
       },
       orderBy: [{ startedAt: "desc" }, { version: "desc" }],
@@ -39,6 +49,9 @@ export class DocumentRunsService {
         }
       }
     });
+    const filteredRuns = input?.issueOnly
+      ? runs.filter(run => this.matchesIssueOnlyFilter(run.status, this.buildFailureSummary(run.diagnosticsJson, run.failedStage)))
+      : runs;
 
     const byStatus = {
       pending: 0,
@@ -56,9 +69,9 @@ export class DocumentRunsService {
     const failureByStage: Record<string, number> = {};
     let retryableFailures = 0;
     let nonRetryableFailures = 0;
-    const latestCompletedRuns = this.getLatestCompletedRunsByDocument(runs);
+    const latestCompletedRuns = this.getLatestCompletedRunsByDocument(filteredRuns);
 
-    for (const run of runs) {
+    for (const run of filteredRuns) {
       byStatus[run.status] += 1;
       byTrigger[run.trigger] += 1;
       bySourceType[run.document.sourceType] = (bySourceType[run.document.sourceType] ?? 0) + 1;
@@ -90,12 +103,12 @@ export class DocumentRunsService {
       const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
       return this.shouldCountFailureSummary(run.status, failureSummary) && failureSummary?.retryable === true;
     });
-    const latestSkipped = this.findLatestRunAnchor(runs, run => run.status === DocumentRunStatus.skipped);
+    const latestSkipped = this.findLatestRunAnchor(filteredRuns, run => run.status === DocumentRunStatus.skipped);
     return {
-      totalRuns: runs.length,
-      latestRunAt: runs[0]?.startedAt ?? null,
+      totalRuns: filteredRuns.length,
+      latestRunAt: filteredRuns[0]?.startedAt ?? null,
       latestFinishedAt:
-        runs.reduce<Date | null>((latest, run) => {
+        filteredRuns.reduce<Date | null>((latest, run) => {
           if (!run.finishedAt) {
             return latest;
           }
