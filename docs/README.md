@@ -36,6 +36,8 @@ To reduce ambiguity, use the docs in the following order.
   - frontend i18n notes
 - [Auto Dev Workflow](/D:/FeProjects/rag-system/docs/auto-dev-workflow.md)
   - execution workflow for agent-driven repository work
+- [OpenCode Workflow](/D:/FeProjects/rag-system/docs/opencode-workflow.md)
+  - default OpenCode prompt, agent selection, and OMO usage boundaries
 
 ## Superpowers Docs
 
