@@ -64,6 +64,23 @@ def run_plan_cycle() -> dict[str, object]:
     return first_result
 
 
+def get_suggested_action(result: dict[str, object]) -> str:
+    if result["status"] == "SKIP":
+        return "review skip queue"
+
+    agent_status = result["agent_status"]
+    if agent_status == "DONE":
+        return "start a new session"
+    if agent_status == "NEEDS_CONTINUE":
+        return "rerun the cycle or inspect why more work remains"
+    if agent_status == "BLOCKED":
+        return "inspect the blocking reason"
+    if agent_status == "NEEDS_DECISION":
+        return "make the required decision"
+
+    return "inspect latest plan output"
+
+
 def format_cycle_summary(result: dict[str, object]) -> str:
     lines = [
         f"Cycle status: {result['status']}",
@@ -72,6 +89,7 @@ def format_cycle_summary(result: dict[str, object]) -> str:
         f"Auto-continued: {'yes' if result['auto_continued'] else 'no'}",
         f"Increment: {result['increment']}",
         f"Input: {DEFAULT_INPUT_FILE}",
+        f"Suggested action: {get_suggested_action(result)}",
     ]
 
     if result["status"] == "SKIP":

@@ -109,6 +109,7 @@ class CodexPlanCycleTest(unittest.TestCase):
         self.assertIn("Attempts: 1", summary)
         self.assertIn("Auto-continued: no", summary)
         self.assertIn("Increment: update docs and small web text", summary)
+        self.assertIn("Suggested action: start a new session", summary)
 
     def test_format_cycle_summary_for_skip_result(self) -> None:
         summary = format_cycle_summary(
@@ -127,6 +128,37 @@ class CodexPlanCycleTest(unittest.TestCase):
         self.assertIn("Attempts: 1", summary)
         self.assertIn("Auto-continued: no", summary)
         self.assertIn("Hits: keyword:retrieval", summary)
+        self.assertIn("Suggested action: review skip queue", summary)
+
+    def test_format_cycle_summary_for_blocked_result(self) -> None:
+        summary = format_cycle_summary(
+            {
+                "status": "ALLOW",
+                "agent_status": "BLOCKED",
+                "hits": [],
+                "increment": "blocked increment",
+                "attempts": 1,
+                "auto_continued": False,
+            }
+        )
+
+        self.assertIn("Agent status: BLOCKED", summary)
+        self.assertIn("Suggested action: inspect the blocking reason", summary)
+
+    def test_format_cycle_summary_for_needs_decision_result(self) -> None:
+        summary = format_cycle_summary(
+            {
+                "status": "ALLOW",
+                "agent_status": "NEEDS_DECISION",
+                "hits": [],
+                "increment": "decision increment",
+                "attempts": 1,
+                "auto_continued": False,
+            }
+        )
+
+        self.assertIn("Agent status: NEEDS_DECISION", summary)
+        self.assertIn("Suggested action: make the required decision", summary)
 
 
 if __name__ == "__main__":
