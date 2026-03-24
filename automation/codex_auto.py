@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -19,11 +20,12 @@ def append_run_log(summary: str, log_file: Path = DEFAULT_LOG_FILE) -> None:
         handle.write("\n\n")
 
 
-def main(log_file: Path = DEFAULT_LOG_FILE) -> int:
+def main(log_file: Path = DEFAULT_LOG_FILE, write_log: bool = True) -> int:
     try:
         result = run_plan_cycle()
         summary = format_cycle_summary(result)
-        append_run_log(summary, log_file)
+        if write_log:
+            append_run_log(summary, log_file)
         print(summary)
         return 0
     except Exception as exc:  # pragma: no cover - covered via mocked test
@@ -31,5 +33,21 @@ def main(log_file: Path = DEFAULT_LOG_FILE) -> int:
         return 1
 
 
+def cli() -> int:
+    parser = argparse.ArgumentParser(description="Run the Codex automation entrypoint.")
+    parser.add_argument(
+        "--no-log",
+        action="store_true",
+        help="Do not append the summary to the local automation run log.",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=str(DEFAULT_LOG_FILE),
+        help="Custom path for the local automation run log.",
+    )
+    args = parser.parse_args()
+    return main(log_file=Path(args.log_file), write_log=not args.no_log)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())

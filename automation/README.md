@@ -69,4 +69,6 @@ Current `codex_auto.py` behavior:
 - runs the current single-cycle automation flow
 - prints the final compact summary
 - appends the summary to `automation/automation-run-log.md`
+- supports `--no-log` to skip local log append
+- supports `--log-file <path>` to override the local log destination
 - returns a nonzero exit code on runtime failure

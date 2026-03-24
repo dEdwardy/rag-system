@@ -45,6 +45,46 @@ class CodexAutoTest(unittest.TestCase):
             self.assertIn("ERROR: boom", stdout.getvalue())
             self.assertFalse(log_path.exists())
 
+    @patch("automation.codex_auto.format_cycle_summary")
+    @patch("automation.codex_auto.run_plan_cycle")
+    def test_main_can_skip_log_write(
+        self,
+        mock_run_plan_cycle,
+        mock_format_cycle_summary,
+    ) -> None:
+        mock_run_plan_cycle.return_value = {"status": "ALLOW"}
+        mock_format_cycle_summary.return_value = "summary text"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = Path(temp_dir) / "automation-log.md"
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = codex_auto.main(log_file=log_path, write_log=False)
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stdout.getvalue(), "summary text\n")
+            self.assertFalse(log_path.exists())
+
+    @patch("automation.codex_auto.format_cycle_summary")
+    @patch("automation.codex_auto.run_plan_cycle")
+    def test_main_uses_custom_log_file(
+        self,
+        mock_run_plan_cycle,
+        mock_format_cycle_summary,
+    ) -> None:
+        mock_run_plan_cycle.return_value = {"status": "ALLOW"}
+        mock_format_cycle_summary.return_value = "summary text"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = Path(temp_dir) / "nested" / "custom-log.md"
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = codex_auto.main(log_file=log_path)
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(log_path.exists())
+            self.assertIn("summary text", log_path.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
