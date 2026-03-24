@@ -5,6 +5,11 @@ from datetime import datetime
 from pathlib import Path
 import sys
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from automation.codex_status_parser import VALID_STATUS_LABELS
+
 
 CORE_KEYWORDS = [
     "retrieval",
@@ -36,8 +41,45 @@ def normalize_text(value: str) -> str:
     return " ".join(value.lower().split())
 
 
+def extract_gate_subject_text(text: str) -> str:
+    lines = text.splitlines()
+    subject_lines: list[str] = []
+    capture_touch_points = False
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            if capture_touch_points:
+                break
+            continue
+
+        if line in VALID_STATUS_LABELS:
+            continue
+
+        if line.startswith("The next minimal increment I would take is to"):
+            subject_lines.append(line)
+            capture_touch_points = False
+            continue
+
+        if line == "Planned touch points:":
+            capture_touch_points = True
+            continue
+
+        if capture_touch_points:
+            if line.startswith("-"):
+                subject_lines.append(line)
+                continue
+            break
+
+    if subject_lines:
+        return "\n".join(subject_lines)
+
+    return text
+
+
 def detect_core_hits(text: str) -> list[str]:
-    normalized = normalize_text(text)
+    gate_subject_text = extract_gate_subject_text(text)
+    normalized = normalize_text(gate_subject_text)
     hits: list[str] = []
 
     for keyword in CORE_KEYWORDS:
@@ -48,7 +90,7 @@ def detect_core_hits(text: str) -> list[str]:
         if prefix in normalized:
             hits.append(f"path:{prefix}")
 
-    return hits
+    return list(dict.fromkeys(hits))
 
 
 def append_skip_record(queue_path: Path, increment_text: str, hits: list[str]) -> None:

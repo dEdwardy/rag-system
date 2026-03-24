@@ -29,6 +29,7 @@ Current `codex_task_gate.py` behavior:
 - zero-argument mode
 - reads from `stdin` first
 - otherwise reads from `automation/latest_plan_output.md`
+- prefers structured plan fields such as the minimal increment line and planned touch points instead of scanning all explanatory text
 - appends skipped core increments to `automation/automation-skip-queue.md`
 
 Current `codex_plan_capture.py` behavior:
