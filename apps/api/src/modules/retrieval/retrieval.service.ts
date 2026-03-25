@@ -1,8 +1,16 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
+import { EmbeddingRuntimeConfigError } from "../../infra/embedding/embedding-runtime-config";
 import { EmbeddingService } from "../../infra/embedding/embedding.service";
-import { VECTOR_STORE, VectorStore } from "../../infra/vector-store/vector-store.types";
+import {
+  VECTOR_STORE,
+  VectorSearchMatch,
+  VectorSearchResult,
+  VectorStore,
+  VectorStoreCompatibilityError,
+  VectorStoreEmbeddingDiagnostics
+} from "../../infra/vector-store/vector-store.types";
 import {
   resolveRetrievalStrategy,
   ResolvedRetrievalStrategy,
@@ -44,6 +52,7 @@ export type RetrievalContextGroup = {
 export type RetrievalResult = {
   retrievedChunks: RetrievedChunk[];
   contextGroups: RetrievalContextGroup[];
+  embedding: VectorStoreEmbeddingDiagnostics | null;
   execution: {
     actualMode: "vector" | "hybrid" | "lexical";
     usedFallback: boolean;
@@ -115,6 +124,7 @@ export class RetrievalService {
         lexicalCandidates,
         candidateLimit,
         vectorCandidateCount: 0,
+        embedding: null,
         actualMode: "lexical",
         usedFallback: false,
         fallbackReason: null,
@@ -132,16 +142,20 @@ export class RetrievalService {
           })
         : undefined;
     let vectorCandidateCount = 0;
+    let embeddingDiagnostics: VectorStoreEmbeddingDiagnostics | null = null;
 
     try {
       const queryEmbedding = await this.embeddingService.embedQuery(input.query);
-      const vectorMatches = await this.vectorStoreService.search({
+      const vectorSearch = (await this.vectorStoreService.search({
         kbId: input.kbId,
-        queryVector: queryEmbedding.vector,
+        queryEmbedding,
         topK: candidateLimit,
         scoreThreshold: input.scoreThreshold,
         filters: normalizedFilters
-      });
+      })) as VectorSearchResult | VectorSearchMatch[];
+      const normalizedVectorSearch = this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
+      const vectorMatches = normalizedVectorSearch.matches;
+      embeddingDiagnostics = normalizedVectorSearch.embedding;
 
       if (vectorMatches.length > 0 || candidateSelectionMode === "hybrid") {
         const vectorCandidates = await this.getVectorCandidates(vectorMatches);
@@ -164,6 +178,7 @@ export class RetrievalService {
             normalizedFilters
           );
           return this.buildRetrievalResult(retrievedChunks, {
+            embedding: embeddingDiagnostics,
             actualMode: candidateSelectionMode,
             usedFallback: false,
             fallbackReason: null,
@@ -183,6 +198,10 @@ export class RetrievalService {
         }
       }
     } catch (error) {
+      if (error instanceof EmbeddingRuntimeConfigError || error instanceof VectorStoreCompatibilityError) {
+        throw error;
+      }
+
       const message = error instanceof Error ? error.message : "Unknown vector retrieval error.";
       this.logger.warn(`Vector retrieval failed, falling back to lexical scoring. ${message}`);
       return this.retrieveWithLexicalFallback({
@@ -192,6 +211,7 @@ export class RetrievalService {
         lexicalCandidates,
         candidateLimit,
         vectorCandidateCount: 0,
+        embedding: embeddingDiagnostics,
         actualMode: "lexical",
         usedFallback: true,
         fallbackReason: "vector_error",
@@ -202,15 +222,16 @@ export class RetrievalService {
     return this.retrieveWithLexicalFallback({
       ...input,
       enableRerank: resolvedEnableRerank,
-        filters: normalizedFilters,
-        lexicalCandidates,
-        candidateLimit,
-        vectorCandidateCount,
-        actualMode: "lexical",
-        usedFallback: true,
-        fallbackReason: "no_ranked_candidates",
-        rerankApplied: resolvedEnableRerank
-      });
+      filters: normalizedFilters,
+      lexicalCandidates,
+      candidateLimit,
+      vectorCandidateCount,
+      embedding: embeddingDiagnostics,
+      actualMode: "lexical",
+      usedFallback: true,
+      fallbackReason: "no_ranked_candidates",
+      rerankApplied: resolvedEnableRerank
+    });
   }
 
   private async retrieveWithLexicalFallback(input: {
@@ -223,6 +244,7 @@ export class RetrievalService {
     lexicalCandidates?: RetrievalCandidate[];
     candidateLimit: number;
     vectorCandidateCount: number;
+    embedding: VectorStoreEmbeddingDiagnostics | null;
     filters?: RetrievalProfileFilters;
     actualMode: "lexical";
     usedFallback: boolean;
@@ -252,6 +274,7 @@ export class RetrievalService {
         input.filters
       );
       return this.buildRetrievalResult(retrievedChunks, {
+        embedding: input.embedding,
         actualMode: input.actualMode,
         usedFallback: input.usedFallback,
         fallbackReason: input.fallbackReason,
@@ -270,6 +293,7 @@ export class RetrievalService {
       });
     }
     return this.buildRetrievalResult([], {
+      embedding: input.embedding,
       actualMode: input.actualMode,
       usedFallback: input.usedFallback,
       fallbackReason: input.fallbackReason,
@@ -575,13 +599,79 @@ export class RetrievalService {
 
   private buildRetrievalResult(
     retrievedChunks: RetrievedChunk[],
-    execution: RetrievalResult["execution"]
+    input: {
+      embedding: RetrievalResult["embedding"];
+      actualMode: RetrievalResult["execution"]["actualMode"];
+      usedFallback: RetrievalResult["execution"]["usedFallback"];
+      fallbackReason: RetrievalResult["execution"]["fallbackReason"];
+      rerankApplied: RetrievalResult["execution"]["rerankApplied"];
+      chunkWindowApplied: RetrievalResult["execution"]["chunkWindowApplied"];
+      vectorSearchAttempted: RetrievalResult["execution"]["vectorSearchAttempted"];
+      lexicalSearchAttempted: RetrievalResult["execution"]["lexicalSearchAttempted"];
+      vectorCandidateLimitHit: RetrievalResult["execution"]["vectorCandidateLimitHit"];
+      lexicalCandidateLimitHit: RetrievalResult["execution"]["lexicalCandidateLimitHit"];
+      rankingTopKHit: RetrievalResult["execution"]["rankingTopKHit"];
+      candidateLimit: RetrievalResult["execution"]["candidateLimit"];
+      vectorCandidateCount: RetrievalResult["execution"]["vectorCandidateCount"];
+      lexicalCandidateCount: RetrievalResult["execution"]["lexicalCandidateCount"];
+      mergedCandidateCount: RetrievalResult["execution"]["mergedCandidateCount"];
+      rankedCandidateCount: RetrievalResult["execution"]["rankedCandidateCount"];
+    }
   ): RetrievalResult {
     return {
       retrievedChunks,
       contextGroups: this.buildContextGroups(retrievedChunks),
-      execution
+      embedding: input.embedding,
+      execution: {
+        actualMode: input.actualMode,
+        usedFallback: input.usedFallback,
+        fallbackReason: input.fallbackReason,
+        rerankApplied: input.rerankApplied,
+        chunkWindowApplied: input.chunkWindowApplied,
+        vectorSearchAttempted: input.vectorSearchAttempted,
+        lexicalSearchAttempted: input.lexicalSearchAttempted,
+        vectorCandidateLimitHit: input.vectorCandidateLimitHit,
+        lexicalCandidateLimitHit: input.lexicalCandidateLimitHit,
+        rankingTopKHit: input.rankingTopKHit,
+        candidateLimit: input.candidateLimit,
+        vectorCandidateCount: input.vectorCandidateCount,
+        lexicalCandidateCount: input.lexicalCandidateCount,
+        mergedCandidateCount: input.mergedCandidateCount,
+        rankedCandidateCount: input.rankedCandidateCount
+      }
     };
+  }
+
+  private normalizeVectorSearchResult(
+    queryEmbedding: Awaited<ReturnType<EmbeddingService["embedQuery"]>>,
+    result: VectorSearchResult | VectorSearchMatch[]
+  ): VectorSearchResult {
+    if (Array.isArray(result)) {
+      if (!queryEmbedding || !("provenance" in queryEmbedding) || !queryEmbedding.provenance) {
+        return {
+          matches: result,
+          embedding: null
+        };
+      }
+
+      return {
+        matches: result,
+        embedding: {
+          active: {
+            provider: queryEmbedding.provider,
+            model: queryEmbedding.model,
+            modelName: queryEmbedding.modelName,
+            dimensions: queryEmbedding.dimensions,
+            modelSource: queryEmbedding.provenance.modelSource,
+            dimensionsSource: queryEmbedding.provenance.dimensionsSource,
+            fallbackState: queryEmbedding.provenance.fallback
+          },
+          indexed: null
+        }
+      };
+    }
+
+    return result;
   }
 
   private buildContextGroups(chunks: RetrievedChunk[]): RetrievalContextGroup[] {

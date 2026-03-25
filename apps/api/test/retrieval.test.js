@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { RetrievalService } = require("../src/modules/retrieval/retrieval.service.ts");
+const { VectorStoreCompatibilityError } = require("../src/infra/vector-store/vector-store.types.ts");
 const { resolveRetrievalStrategy } = require("../src/modules/retrieval-profiles/retrieval-profile.schemas.ts");
 
 test("resolveRetrievalStrategy uses canonical vector defaults when strategyJson is present", () => {
@@ -307,6 +308,18 @@ test("RetrievalService limits lexical candidates to configured documentIds", asy
 });
 
 test("RetrievalService forwards page and section filters to vector search", async () => {
+  const queryEmbedding = {
+    provider: "fallback",
+    model: "hash-v1",
+    modelName: "fallback:hash-v1",
+    dimensions: 2,
+    provenance: {
+      modelSource: "builtin:fallback",
+      dimensionsSource: "builtin:fallback",
+      fallback: "local_deterministic"
+    },
+    vector: [1, 0]
+  };
   const prisma = {
     documentChunk: {
       findMany: async args => {
@@ -330,7 +343,7 @@ test("RetrievalService forwards page and section filters to vector search", asyn
   };
 
   const embeddingService = {
-    embedQuery: async () => ({ vector: [1, 0] })
+    embedQuery: async () => queryEmbedding
   };
 
   let vectorSearchArgs = null;
@@ -362,6 +375,7 @@ test("RetrievalService forwards page and section filters to vector search", asyn
       include: [3]
     }
   });
+  assert.deepEqual(vectorSearchArgs.queryEmbedding, queryEmbedding);
   assert.equal(chunks[0].chunkId, "chunk-2");
 });
 
@@ -872,6 +886,71 @@ test("RetrievalService reports lexical fallback when vector retrieval cannot pro
     mergedCandidateCount: 1,
     rankedCandidateCount: 1
   });
+});
+
+test("RetrievalService fails clearly instead of lexical fallback when embedding config is incompatible with indexed vectors", async () => {
+  let lexicalReads = 0;
+  const prisma = {
+    documentChunk: {
+      findMany: async () => {
+        lexicalReads += 1;
+        return [
+          {
+            id: "chunk-lexical",
+            documentId: "doc-1",
+            chunkIndex: 0,
+            content: "lexical fallback marker",
+            pageNo: null,
+            sectionTitle: "Overview",
+            document: { title: "Doc 1" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({
+      provider: "fallback",
+      model: "hash-v1",
+      modelName: "fallback:hash-v1",
+      dimensions: 256,
+      provenance: {
+        modelSource: "builtin:fallback",
+        dimensionsSource: "builtin:fallback",
+        fallback: "local_deterministic"
+      },
+      vector: [1, 0]
+    })
+  };
+
+  const vectorStoreService = {
+    search: async () => {
+      throw new VectorStoreCompatibilityError(
+        'Embedding index compatibility error for knowledge base "kb-1": Active retrieval embedding config fallback:hash-v1 (256d) (fallback=local_deterministic) is incompatible with indexed vectors openai:text-embedding-3-small (1536d) across 2 document(s). Reindex this knowledge base with one embedding config before continuing.'
+      );
+    }
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+
+  await assert.rejects(
+    service.retrieve({
+      kbId: "kb-1",
+      query: "lexical fallback marker",
+      topK: 1,
+      scoreThreshold: 0
+    }),
+    error => {
+      assert.ok(error instanceof VectorStoreCompatibilityError);
+      assert.match(error.message, /Embedding index compatibility error/);
+      assert.match(error.message, /fallback:hash-v1/);
+      assert.match(error.message, /openai:text-embedding-3-small/);
+      return true;
+    }
+  );
+
+  assert.equal(lexicalReads, 0);
 });
 
 test("RetrievalService reports empty-ranking fallback when vector retrieval yields no ranked candidates", async () => {
