@@ -23,7 +23,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
   const queuePrefix = `test-e2e-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, ["apps/api/dist/apps/api/src/main.js"], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -101,6 +101,9 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.ok(Array.isArray(askResult.qualityEvaluation?.flags));
     assert.equal(typeof askResult.qualityEvaluation?.summary, "string");
     assert.equal(typeof askResult.retrievalMetadata?.queryRewrite?.enabled, "boolean");
+    assert.equal(typeof askResult.retrievalMetadata?.embedding?.active?.modelName, "string");
+    assert.equal(typeof askResult.retrievalMetadata?.embedding?.active?.dimensions, "number");
+    assert.equal(typeof askResult.retrievalMetadata?.embedding?.active?.fallbackState, "string");
     assert.equal(typeof askResult.retrievalMetadata?.execution?.retrievedChunkCount, "number");
     assert.equal(typeof askResult.answeringMetadata?.promptId, "string");
     assert.equal(typeof askResult.answeringMetadata?.contextMode, "string");
@@ -207,6 +210,9 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof trace.rewrittenQuery === "string" || trace.rewrittenQuery === null, true);
     assert.ok(Array.isArray(trace.retrievalScoresJson));
     assert.equal(typeof trace.retrievalMetadataJson?.queryRewrite?.enabled, "boolean");
+    assert.equal(typeof trace.retrievalMetadataJson?.embedding?.active?.modelName, "string");
+    assert.equal(typeof trace.retrievalMetadataJson?.embedding?.active?.dimensions, "number");
+    assert.equal(typeof trace.retrievalMetadataJson?.embedding?.active?.fallbackState, "string");
     assert.equal(typeof trace.retrievalMetadataJson?.execution?.retrievedChunkCount, "number");
     assert.equal(typeof trace.answeringMetadataJson?.promptId, "string");
     assert.equal(typeof trace.answeringMetadataJson?.answerStatus, "string");
