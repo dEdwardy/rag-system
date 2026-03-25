@@ -53,9 +53,7 @@ export class IndexingService {
           sectionTitle: chunk.sectionTitle,
           pageNo: chunk.pageNo,
           content: chunk.content,
-          modelName: embedding.modelName,
-          dimensions: embedding.dimensions,
-          vector: embedding.vector,
+          embedding,
           metadata: {
             kbId: document.kbId,
             documentId: document.id,
