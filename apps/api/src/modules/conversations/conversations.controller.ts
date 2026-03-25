@@ -1,7 +1,8 @@
-import { Controller, Get, Param } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
 import { ConversationsService } from "./conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { TracesService } from "../traces/traces.service";
+import { listConversationTracesSchema } from "../documents/document.schemas";
 
 @Controller("conversations")
 export class ConversationsController {
@@ -27,8 +28,8 @@ export class ConversationsController {
   }
 
   @Get(":id/traces")
-  listConversationTraces(@Param("id") id: string) {
-    return this.tracesService.listConversationTraces(id);
+  listConversationTraces(@Param("id") id: string, @Query() query: unknown) {
+    const input = listConversationTracesSchema.parse(query);
+    return this.tracesService.listConversationTraces(id, input);
   }
 }
-

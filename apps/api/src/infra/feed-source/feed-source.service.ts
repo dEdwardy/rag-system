@@ -1,5 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry } from "../http/fetch-with-retry";
+import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
 
 type FetchFeedOptions = {
   url: string;
@@ -53,11 +53,13 @@ const MAX_FAILURE_SUMMARY_ITEMS = 10;
 export class FeedSourceService {
   async fetchFeed(options: FetchFeedOptions) {
     let response: Response;
+    const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
       response = await fetchWithRetry({
         url: options.url,
-        timeoutMs: 10000,
+        timeoutMs: fetchConfig.timeoutMs,
+        attempts: fetchConfig.attempts,
         headers: {
           Accept: "application/rss+xml,application/atom+xml,application/xml,text/xml"
         }
@@ -68,7 +70,7 @@ export class FeedSourceService {
     }
 
     if (!response.ok) {
-      throw new BadGatewayException(`Failed to fetch feed: upstream responded with ${response.status}.`);
+      throw this.buildUpstreamFetchError("Failed to fetch feed", response.status);
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
@@ -237,6 +239,17 @@ export class FeedSourceService {
       contentType.startsWith("application/xml") ||
       contentType.startsWith("text/xml")
     );
+  }
+
+  private buildUpstreamFetchError(prefix: string, status: number) {
+    const message = `${prefix}: upstream responded with ${status}.`;
+    return this.isRetryableUpstreamStatus(status)
+      ? new BadGatewayException(message)
+      : new BadRequestException(message);
+  }
+
+  private isRetryableUpstreamStatus(status: number) {
+    return status === 408 || status === 429 || status >= 500;
   }
 
   private extractBlock(value: string, tagName: string) {

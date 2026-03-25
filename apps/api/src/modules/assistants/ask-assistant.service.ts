@@ -365,7 +365,11 @@ export class AskAssistantService {
                 rawAnswer: streamResult.rawAnswer,
                 modelName: streamResult.modelName,
                 promptId: streamResult.promptId,
-                usedFallback: streamResult.usedFallback
+                usedFallback: streamResult.usedFallback,
+                answerStatus: streamResult.answerStatus,
+                missingInformation: streamResult.missingInformation,
+                citedChunkNumbers: streamResult.citedChunkNumbers,
+                citationEvidence: streamResult.citationEvidence
               });
             })();
 

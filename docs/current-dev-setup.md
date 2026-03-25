@@ -88,6 +88,26 @@ Notes:
 - The current API startup path now loads `.env` from the repo root and `apps/api/.env`.
 - In the current local environment, `qwen2.5:7b` has been verified to respond to both `/api/generate` and `/api/embed`.
 - If you later switch to a dedicated embedding model, only `OLLAMA_EMBEDDING_MODEL` needs to change.
+- external source fetch runtime now also supports:
+
+```text
+SOURCE_FETCH_TIMEOUT_MS=10000
+SOURCE_FETCH_RETRY_ATTEMPTS=2
+```
+
+- current defaults preserve the existing behavior: `10s` timeout and `2` total fetch attempts for `web page` / `feed` / `sitemap` source HTTP requests
+- LLM runtime now also supports a small set of explicit operational overrides:
+
+```text
+OPENAI_BASE_URL=https://api.openai.com/v1
+LLM_ANSWER_TEMPERATURE=0.2
+LLM_REWRITE_TEMPERATURE=0
+```
+
+- `OPENAI_CHAT_MODEL` still defaults to `gpt-4.1-mini`
+- `OPENAI_BASE_URL` applies to the current OpenAI chat/rewrite path and makes proxy or compatible endpoint testing explicit without changing the default hosted OpenAI path
+- `LLM_ANSWER_TEMPERATURE` currently applies to both Ollama and OpenAI answer generation
+- `LLM_REWRITE_TEMPERATURE` currently applies to both Ollama and OpenAI query-rewrite calls
 - `PATCH /assistants/:id` now accepts `answerPolicyJson` with:
   - `responseStyle`: `concise`, `balanced`, or `detailed`
   - `tone`: `neutral`, `friendly`, or `direct`
@@ -219,6 +239,18 @@ Current client focus for this stage:
 - mobile adaptation is intentionally deferred until the core feature surface and validation coverage are more mature
 - current local execution preference is to keep heavy validation tasks serial
 - small focused tests and static checks may run in parallel when they do not start the full API, worker, or real integration stack
+- for browser-based verification or smoke checks, prefer the host-installed Edge/Chrome on this machine first; both are already available locally
+- browser download or install steps are fallback-only, not the default first action for local browser testing
+
+### Preflight for longer runs
+
+Before long validation or browser-heavy work, do a quick readiness pass:
+
+- confirm PostgreSQL and Redis are up and reachable
+- sanity-check API startup and the health endpoint before deeper validation
+- confirm a usable browser is already available locally; prefer host-installed Edge/Chrome first
+- watch for contamination from older API workers, queue jobs, or stale services left over from previous runs
+- prefer a fresh build when the change touches startup, persistence, or any path that could be affected by stale `dist` output
 
 Language behavior in the current web app:
 

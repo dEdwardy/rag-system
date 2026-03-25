@@ -127,4 +127,6 @@ test("LlmService fallback stream aligns no-hit deltas with say_insufficient_cont
   );
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.promptId, "answer.v2");
+  assert.equal(result.answerStatus, "insufficient_context");
+  assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
 });

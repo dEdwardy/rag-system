@@ -972,19 +972,20 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
             citations: [],
             retrievedChunks: [],
             contextGroups: [],
-          answeringMetadata: {
-            promptId: "answer.v2",
-            usedFallback: false,
-            answerPolicy: input.answerPolicy,
-            contextMode: "chunks",
-              inputChunkCount: 0,
-              contextGroupCount: 0,
-              citationCount: 0,
-              answerTextSource: "model",
-              insufficientContextReason: "no_retrieval_hits",
-              answerStatusSource: "model",
-              answerStatus: "insufficient_context"
-            },
+           answeringMetadata: {
+             promptId: "answer.v2",
+             usedFallback: false,
+             answerPolicy: input.answerPolicy,
+             contextMode: "chunks",
+               inputChunkCount: 0,
+               contextGroupCount: 0,
+               citationCount: 0,
+               missingInformationSource: "model",
+               answerTextSource: "model",
+               insufficientContextReason: "no_retrieval_hits",
+               answerStatusSource: "model",
+               answerStatus: "insufficient_context"
+             },
           modelName: "test-model",
           answerStatus: "insufficient_context",
           missingInformation: ["No relevant supporting sources were retrieved."],
@@ -1024,6 +1025,8 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
   assert.equal(result.answerStatus, "insufficient_context");
   assert.equal(result.answeringMetadata.answerTextSource, "model");
   assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(result.answeringMetadata.answerStatusSource, "model");
+  assert.equal(result.answeringMetadata.missingInformationSource, "model");
 });
 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {

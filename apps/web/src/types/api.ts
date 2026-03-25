@@ -1,3 +1,22 @@
+import type {
+  TraceAnswerStatus,
+  TraceAnswerStatusSource,
+  TraceAnswerTextSource,
+  TraceCitationAttribution,
+  TraceCitationSelectionSource,
+  TraceContextMode,
+  TraceFailedStage,
+  TraceFallbackReason,
+  TraceGenerationMode,
+  TraceInsufficientContextReason,
+  TracePrimaryIssue,
+  TraceQualityOverall,
+  TraceResolvedLanguage,
+  TraceRetrievalMode,
+  TraceRetrievalQuerySource,
+  TraceSummary
+} from "@rag-system/shared";
+
 export type StringIncludeExcludeFilter = {
   include?: string[];
   exclude?: string[];
@@ -446,48 +465,29 @@ export type TraceRecord = {
   citationsJson: Citation[] | null;
   modelName: string | null;
   latencyMs: number | null;
-  traceSummary: {
-    answerStatus: "grounded" | "insufficient_context" | null;
-    qualityOverall: "strong" | "partial" | "weak" | null;
-    primaryIssue:
-      | "none"
-      | "no_retrieval_hits"
-      | "insufficient_context"
-      | "missing_information"
-      | "low_retrieval_score"
-      | "fallback_generation"
-      | "other"
-      | null;
-    retrievalMode: "vector" | "hybrid" | "lexical" | null;
-    retrievalQuerySource: "rewritten" | "original_disabled" | "original_unchanged" | null;
-    generationMode: "generated" | "deterministic_bypass" | null;
-    contextMode: "chunks" | "context_groups" | null;
-    rewriteApplied: boolean;
-    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
-    resolvedLanguage: "zh" | "en" | null;
-    citationAttribution: "explicit" | "heuristic" | "none" | null;
-    citationSelectionSource: "structured" | "inline_markers" | "heuristic" | "none" | null;
-    missingInformationCount: number;
-    insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
-    answerTextSource: "model" | "deterministic_policy" | null;
-    answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy" | null;
-    failedStage: "retrieval" | "answering" | null;
-    failureMessage: string | null;
-    candidateLimit: number;
-    vectorCandidateCount: number;
-    lexicalCandidateCount: number;
-    mergedCandidateCount: number;
-    rankedCandidateCount: number;
-    vectorCandidateLimitHit: boolean;
-    lexicalCandidateLimitHit: boolean;
-    rankingTopKHit: boolean;
-    retrievedChunkCount: number;
-    citationCount: number;
-    usedFallback: boolean;
-  };
+  traceSummary: TraceSummary;
   status: "success" | "failed";
   errorMessage: string | null;
   createdAt: string;
+};
+
+export type {
+  TraceAnswerStatus,
+  TraceAnswerStatusSource,
+  TraceAnswerTextSource,
+  TraceCitationAttribution,
+  TraceCitationSelectionSource,
+  TraceContextMode,
+  TraceFailedStage,
+  TraceFallbackReason,
+  TraceGenerationMode,
+  TraceInsufficientContextReason,
+  TracePrimaryIssue,
+  TraceQualityOverall,
+  TraceResolvedLanguage,
+  TraceRetrievalMode,
+  TraceRetrievalQuerySource,
+  TraceSummary
 };
 
 export type JsonValue =

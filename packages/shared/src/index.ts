@@ -1,1 +1,1 @@
-export const sharedPackagePlaceholder = "rag-system-shared";
+export * from "./trace-contracts.js";

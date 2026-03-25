@@ -1,9 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { EmbeddingService } from "../../infra/embedding/embedding.service";
-import { VectorStoreService } from "../../infra/vector-store/vector-store.service";
+import { VECTOR_STORE, VectorStore } from "../../infra/vector-store/vector-store.types";
 import {
+  resolveRetrievalStrategy,
   ResolvedRetrievalStrategy,
   RetrievalProfileFilters,
   retrievalProfileFiltersSchema
@@ -69,7 +70,7 @@ export class RetrievalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
-    private readonly vectorStoreService: VectorStoreService
+    @Inject(VECTOR_STORE) private readonly vectorStoreService: VectorStore
   ) {}
 
   async retrieve(input: {
@@ -84,12 +85,18 @@ export class RetrievalService {
     strategy?: ResolvedRetrievalStrategy;
   }) {
     const normalizedFilters = retrievalProfileFiltersSchema.optional().parse(input.filters);
-    const strategy = input.strategy;
-    const candidateSelectionMode = strategy?.candidateSelection.mode ?? (input.enableHybrid ? "hybrid" : "vector");
-    const resolvedEnableRerank = strategy?.rerank.enabled ?? input.enableRerank ?? false;
+    const strategy =
+      input.strategy ??
+      resolveRetrievalStrategy({
+        topK: input.topK,
+        enableHybrid: input.enableHybrid,
+        enableRerank: input.enableRerank
+      });
+    const candidateSelectionMode = strategy.candidateSelection.mode;
+    const resolvedEnableRerank = strategy.rerank.enabled;
     const candidateLimit = Math.max(
-      input.topK * (strategy?.candidateSelection.candidateMultiplier ?? 3),
-      strategy?.candidateSelection.minCandidates ?? input.topK,
+      input.topK * strategy.candidateSelection.candidateMultiplier,
+      strategy.candidateSelection.minCandidates,
       input.topK
     );
 

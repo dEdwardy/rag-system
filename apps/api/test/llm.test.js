@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { createLlmService, withEnv, withFetchMock } = require("./support/llm-test-helpers.js");
+const { resolveLlmRuntimeConfig } = require("../src/infra/llm/llm-runtime-config.ts");
 
 const conciseAnswerPolicy = {
   responseStyle: "concise",
@@ -17,6 +18,97 @@ const localizedAnswerPolicy = {
   noAnswerBehavior: "say_insufficient_context",
   includeMissingInformation: true
 };
+
+test("resolveLlmRuntimeConfig preserves current defaults", () => {
+  const config = resolveLlmRuntimeConfig({});
+
+  assert.equal(config.ollamaBaseUrl, null);
+  assert.equal(config.ollamaModel, null);
+  assert.equal(config.openAiApiKey, null);
+  assert.equal(config.openAiBaseUrl, "https://api.openai.com/v1");
+  assert.equal(config.openAiChatModel, "gpt-4.1-mini");
+  assert.equal(config.answerTemperature, 0.2);
+  assert.equal(config.rewriteTemperature, 0);
+});
+
+test("resolveLlmRuntimeConfig accepts bounded runtime overrides", () => {
+  const config = resolveLlmRuntimeConfig({
+    OLLAMA_BASE_URL: "http://ollama.local:11434/",
+    OLLAMA_MODEL: "qwen-test",
+    OPENAI_API_KEY: "key",
+    OPENAI_BASE_URL: "https://openai.example/v1/",
+    OPENAI_CHAT_MODEL: "gpt-test",
+    LLM_ANSWER_TEMPERATURE: "0.45",
+    LLM_REWRITE_TEMPERATURE: "0.05"
+  });
+
+  assert.equal(config.ollamaBaseUrl, "http://ollama.local:11434/");
+  assert.equal(config.ollamaModel, "qwen-test");
+  assert.equal(config.openAiApiKey, "key");
+  assert.equal(config.openAiBaseUrl, "https://openai.example/v1");
+  assert.equal(config.openAiChatModel, "gpt-test");
+  assert.equal(config.answerTemperature, 0.45);
+  assert.equal(config.rewriteTemperature, 0.05);
+});
+
+test("LlmService uses OpenAI runtime overrides for URL, model, and temperatures", async () => {
+  const service = createLlmService();
+  const seenCalls = [];
+
+  await withEnv(
+    {
+      OLLAMA_BASE_URL: undefined,
+      OLLAMA_MODEL: undefined,
+      OPENAI_API_KEY: "test-key",
+      OPENAI_BASE_URL: "https://openai.example/v1/",
+      OPENAI_CHAT_MODEL: "gpt-custom",
+      LLM_ANSWER_TEMPERATURE: "0.35",
+      LLM_REWRITE_TEMPERATURE: "0.15"
+    },
+    async () => {
+      await withFetchMock(async (url, options) => {
+        seenCalls.push({ url, body: JSON.parse(options.body) });
+
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  content:
+                    seenCalls.length === 1
+                      ? '{"answer":"Managed answer","status":"grounded","citations":[1],"missingInformation":[]}'
+                      : "managed rewritten query"
+                }
+              }
+            ]
+          })
+        };
+      }, async () => {
+        const answer = await service.generateAnswer({
+          question: "Where is the answer?",
+          systemPrompt: "ignored direct system prompt",
+          answerPolicy: conciseAnswerPolicy,
+          chunks: []
+        });
+        const rewrite = await service.rewriteQuery({
+          question: "Please tell me about product ABC in short"
+        });
+
+        assert.equal(answer.modelName, "gpt-custom");
+        assert.equal(rewrite.modelName, "gpt-custom");
+      });
+    }
+  );
+
+  assert.equal(seenCalls.length, 2);
+  assert.equal(seenCalls[0].url, "https://openai.example/v1/chat/completions");
+  assert.equal(seenCalls[0].body.model, "gpt-custom");
+  assert.equal(seenCalls[0].body.temperature, 0.35);
+  assert.equal(seenCalls[1].url, "https://openai.example/v1/chat/completions");
+  assert.equal(seenCalls[1].body.model, "gpt-custom");
+  assert.equal(seenCalls[1].body.temperature, 0.15);
+});
 
 test("LlmService uses prompt manager output for Ollama answer generation", async () => {
   const originalFetch = global.fetch;

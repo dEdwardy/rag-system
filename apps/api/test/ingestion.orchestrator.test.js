@@ -1,8 +1,9 @@
 const assert = require("node:assert/strict");
 const { Prisma } = require("@prisma/client");
+const { DocumentIngestionProcessor } = require("../src/modules/ingestion/document-ingestion.processor.ts");
 const { IngestionService } = require("../src/modules/ingestion/ingestion.service.ts");
 
-test("IngestionService processes a document through parsing, chunking, indexing, and ready status", async () => {
+test("DocumentIngestionProcessor processes a document through parsing, chunking, indexing, and ready status", async () => {
   const documentUpdates = [];
   const deletedChunks = [];
   const createdChunkBatches = [];
@@ -37,7 +38,7 @@ test("IngestionService processes a document through parsing, chunking, indexing,
     }
   };
 
-  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
     prisma,
     storageService: {
       readFileByStorageKey: async storageKey => {
@@ -76,7 +77,7 @@ test("IngestionService processes a document through parsing, chunking, indexing,
     }
   });
 
-  await IngestionService.prototype.processDocument.call(fakeService, {
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
     data: {
       documentId: "document-1"
     }
@@ -151,7 +152,7 @@ test("IngestionService processes a document through parsing, chunking, indexing,
   ]);
 });
 
-test("IngestionService marks the document as failed when indexing throws", async () => {
+test("DocumentIngestionProcessor marks the document as failed when indexing throws", async () => {
   const documentUpdates = [];
 
   const prisma = {
@@ -175,7 +176,7 @@ test("IngestionService marks the document as failed when indexing throws", async
     }
   };
 
-  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
     prisma,
     storageService: {
       readFileByStorageKey: async () => Buffer.from("# Guide\n\nAlpha")
@@ -198,7 +199,7 @@ test("IngestionService marks the document as failed when indexing throws", async
   });
 
   await assert.rejects(
-    IngestionService.prototype.processDocument.call(fakeService, {
+    DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
       data: {
         documentId: "document-2"
       }
@@ -234,7 +235,7 @@ test("IngestionService marks the document as failed when indexing throws", async
   ]);
 });
 
-test("IngestionService processes a DOCX document through parsing, chunking, indexing, and ready status", async () => {
+test("DocumentIngestionProcessor processes a DOCX document through parsing, chunking, indexing, and ready status", async () => {
   const documentUpdates = [];
   const deletedChunks = [];
   const createdChunkBatches = [];
@@ -266,7 +267,7 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
     }
   };
 
-  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
     prisma,
     storageService: {
       readFileByStorageKey: async storageKey => {
@@ -304,7 +305,7 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
     }
   });
 
-  await IngestionService.prototype.processDocument.call(fakeService, {
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
     data: {
       documentId: "document-docx-1"
     }
@@ -367,10 +368,10 @@ test("IngestionService processes a DOCX document through parsing, chunking, inde
   ]);
 });
 
-test("IngestionService records parsing diagnostics for unsupported file types", async () => {
+test("DocumentIngestionProcessor records parsing diagnostics for unsupported file types", async () => {
   const documentUpdates = [];
 
-  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
     logger: {
       warn: () => {}
     },
@@ -415,7 +416,7 @@ test("IngestionService records parsing diagnostics for unsupported file types", 
   });
 
   await assert.rejects(
-    IngestionService.prototype.processDocument.call(fakeService, {
+    DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
       data: {
         documentId: "document-unsupported-1",
         documentVersion: 4
@@ -446,7 +447,7 @@ test("IngestionService records parsing diagnostics for unsupported file types", 
   ]);
 });
 
-test("IngestionService skips a stale ingestion job when the document version has moved on", async () => {
+test("DocumentIngestionProcessor skips a stale ingestion job when the document version has moved on", async () => {
   const documentUpdates = [];
   const deletedChunks = [];
   const createdChunkBatches = [];
@@ -455,7 +456,7 @@ test("IngestionService skips a stale ingestion job when the document version has
   const storageReads = [];
   const skippedRuns = [];
 
-  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
     logger: {
       warn: () => {}
     },
@@ -512,7 +513,7 @@ test("IngestionService skips a stale ingestion job when the document version has
     }
   });
 
-  await IngestionService.prototype.processDocument.call(fakeService, {
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
     data: {
       documentId: "document-stale-1",
       documentVersion: 2
@@ -540,4 +541,48 @@ test("IngestionService skips a stale ingestion job when the document version has
       }
     }
   ]);
+});
+
+test("IngestionService can disable worker startup while preserving queue producer behavior", async () => {
+  const queuedJobs = [];
+  let connectionQuitCalls = 0;
+
+  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+    logger: {
+      log: () => {}
+    },
+    queueService: {
+      addDocumentIngestionJob: async (documentId, documentVersion) => {
+        queuedJobs.push({ documentId, documentVersion });
+      }
+    },
+    queueRuntimeConfigService: {
+      getConfig: () => ({
+        enableDocumentIngestionWorker: false
+      })
+    },
+    connection: {
+      quit: async () => {
+        connectionQuitCalls += 1;
+      }
+    },
+    documentIngestionProcessor: {
+      processDocument: async () => {
+        throw new Error("worker should not process jobs when disabled");
+      }
+    }
+  });
+
+  await IngestionService.prototype.enqueueDocument.call(fakeService, "document-disabled-1", 7);
+  IngestionService.prototype.onModuleInit.call(fakeService);
+  await IngestionService.prototype.onModuleDestroy.call(fakeService);
+
+  assert.deepEqual(queuedJobs, [
+    {
+      documentId: "document-disabled-1",
+      documentVersion: 7
+    }
+  ]);
+  assert.equal(fakeService.worker, undefined);
+  assert.equal(connectionQuitCalls, 1);
 });

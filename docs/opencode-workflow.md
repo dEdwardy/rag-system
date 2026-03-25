@@ -52,6 +52,17 @@ Do not delegate these decisions to broad OMO orchestration:
 - final verification conclusion
 - final integration and closeout
 
+### Delegation Checks
+
+When route or model confidence is low, start with one minimal probe before wider delegation:
+
+- use a small startup sanity check, tiny request, or one-file smoke before long subagent work
+- if the probe fails, triage the failure before expanding delegation
+- report background progress when the task changes state, and do not leave long waits silent
+- for waiting background work, expect a short status update after roughly 90 seconds, then roughly every 5 minutes during long validations
+- classify failures quickly as route/config issues, environment blocks, or logic/test failures
+- for review-style work, prefer already-validated agent/category routes instead of inventing a new delegation path
+
 ## Fixed Prompt
 
 Use the following prompt as the default OpenCode session prompt for this repository:
@@ -70,6 +81,10 @@ Decision rules:
 - Only allow limited OMO when there are clearly isolated, low-coupling helper tasks that can be closed independently
 - OMO helper agents may only be used for: explaining current code paths, identifying focused validation, drafting docs updates, reviewing diffs, adding isolated focused tests, and frontend adaptation that does not affect backend contracts
 - Final verification, final integration, and final conclusions must be completed serially by the main agent
+- If route confidence is low, run one minimal probe before broader delegation
+- While work is backgrounded, provide useful progress updates instead of waiting for completion in silence
+- Treat roughly 90 seconds as the first soft status-update point for a waiting background task, then roughly 5 minutes for longer-running validations
+- If a probe or delegated task fails, triage it first as route/config, environment, or logic/test failure before changing the plan
 
 Execution requirements:
 - Only do one increment at a time

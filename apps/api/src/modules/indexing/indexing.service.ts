@@ -1,14 +1,14 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { EmbeddingService } from "../../infra/embedding/embedding.service";
-import { VectorStoreService } from "../../infra/vector-store/vector-store.service";
+import { VECTOR_STORE, VectorStore } from "../../infra/vector-store/vector-store.types";
 
 @Injectable()
 export class IndexingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
-    private readonly vectorStoreService: VectorStoreService
+    @Inject(VECTOR_STORE) private readonly vectorStoreService: VectorStore
   ) {}
 
   async indexDocument(documentId: string) {

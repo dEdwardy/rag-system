@@ -11,6 +11,27 @@
 
 补充进展（2026-03-25）：
 
+- current source-family backend hardening 现已补一个最后的 bounded follow-up，继续只收在既有 `web page` / `feed` / `sitemap` / `sitemap index` family：
+  - `sitemap` partial-ready diagnostics 不再把所有 partial case 一律记成 `retryable: true`
+  - 当前会按实际 child-sitemap / page failure 结果收口 top-level retryable 语义，避免 run summary 的 `latestRetryableFailure` 被非可重试 partial case 误锚定
+  - `sitemap` partial run message 现在也会区分：
+    - partial page fetch failures
+    - partial child sitemap fetch failures
+    - mixed child sitemap + page fetch failures
+  - 上述 source hardening follow-up 现已补齐 focused coverage：
+    - `apps/api/test/external-source-sync.test.js`
+    - `apps/api/test/sitemap-source-e2e.test.js`
+  - 本地验证已按要求尝试：
+  - `pnpm test:api:focus:sources`
+  - `pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js`
+  - 当前工作区存在现成环境阻塞：缺少本地 `node_modules` / `vitest`，两条命令均在测试执行前失败；本次先保留该验证阻塞说明，不虚报通过
+
+- `packages/shared` 现已开始承载真实跨包 contract，首个收口 family 为 `traceSummary`：
+  - `packages/shared/src/trace-contracts.ts` 现定义 trace read-model 的共享联合类型与 `TraceSummary`
+  - backend `TracesService` 现直接以该共享 contract 约束返回形状
+  - web `TraceRecord.traceSummary` 现改为直接复用共享类型，而不再在 `apps/web/src/types/api.ts` 内联重复声明整段 payload
+  - `apps/web/test/trace-summary-contract.test.js` 现也改为断言 web 类型从 `@rag-system/shared` 导入并跟随共享源文件
+
 - web ask-response contract 现也已对齐 backend 已稳定返回的 `qualityEvaluation` 最小结构：
   - `overall`
   - `grounding`
@@ -149,6 +170,15 @@
 - 当前改动保持为 read-model 收口，不改 trace 持久化写路径，也不改 ask / stream 行为
 - 上述 trace-summary provenance 提升现已补齐最小 source-level 回归覆盖：
   - `apps/api/test/traces.service.test.js`
+
+- streamed answering finalization 现已和 one-shot fallback 结果进一步收口：
+  - 当 native stream 走 `fallback-local` 且结构化解析缺少 `answerStatus` / `missingInformation` / citation 选择时，backend 会在 `AnsweringService.finalizeStreamedAnswer()` 内先补齐与 one-shot 相同的 fallback 归一化结果
+  - 这样 grounded fallback stream 不再把 `answerStatusSource` 错记为纯 retrieval 推断，也不再把 one-shot 已稳定暴露的 fallback citation provenance 丢成 inline-marker / inferred 语义
+  - no-hit `best_effort` fallback stream 现在也会和 one-shot 一样保留稳定的 insufficient-context provenance，而不是让 final payload / trace 退回到二次推断的 `missingInformationSource`
+  - 上述 stream/one-shot convergence 现已补齐 focused 回归覆盖：
+    - `apps/api/test/answering.test.js`
+    - `pnpm test:api:focus:ask`
+    - `pnpm --filter @rag-system/api test:file -- test/llm-answer-stream.test.js`
 
 - knowledge-base scoped recent run list 现已支持最小 `issueOnly` 过滤，可直接聚焦真正“需要关注”的 completed issue runs
 - 该过滤会对齐现有 run summary 的 failureSummary 口径：

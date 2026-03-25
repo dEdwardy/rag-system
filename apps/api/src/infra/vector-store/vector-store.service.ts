@@ -2,35 +2,19 @@ import { Injectable } from "@nestjs/common";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { RetrievalProfileFilters } from "../../modules/retrieval-profiles/retrieval-profile.schemas";
-
-type VectorStoreRecord = {
-  id: string;
-  kbId: string;
-  documentId: string;
-  chunkId: string;
-  chunkIndex: number;
-  sectionTitle: string | null;
-  pageNo: number | null;
-  content: string;
-  modelName: string;
-  dimensions: number;
-  vector: number[];
-  metadata: Record<string, unknown>;
-  updatedAt: string;
-};
-
-type UpsertVectorInput = Omit<VectorStoreRecord, "updatedAt">;
+import {
+  ReplaceDocumentVectorsInput,
+  VectorSearchInput,
+  VectorStore,
+  VectorStoreRecord
+} from "./vector-store.types";
 
 @Injectable()
-export class VectorStoreService {
+export class VectorStoreService implements VectorStore {
   private readonly storageRoot = resolve(process.cwd(), process.env.STORAGE_ROOT ?? "storage");
   private readonly vectorRoot = join(this.storageRoot, "vectors");
 
-  async replaceDocumentVectors(input: {
-    kbId: string;
-    documentId: string;
-    records: UpsertVectorInput[];
-  }) {
+  async replaceDocumentVectors(input: ReplaceDocumentVectorsInput) {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
     const nextRecords = [
       ...records.filter(record => record.documentId !== input.documentId),
@@ -54,14 +38,7 @@ export class VectorStoreService {
     await this.writeKnowledgeBaseVectors(kbId, nextRecords);
   }
 
-  async search(input: {
-    kbId: string;
-    queryVector: number[];
-    topK: number;
-    scoreThreshold: number;
-    documentIds?: string[];
-    filters?: RetrievalProfileFilters;
-  }) {
+  async search(input: VectorSearchInput) {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
     const normalizedQueryVector = this.normalizeVector(input.queryVector);
     const documentIds = new Set(input.documentIds ?? []);

@@ -1,6 +1,44 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const { fetchWithRetry } = require("../src/infra/http/fetch-with-retry.ts");
+const {
+  DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS,
+  DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
+  fetchWithRetry,
+  resolveSourceFetchRuntimeConfig
+} = require("../src/infra/http/fetch-with-retry.ts");
+
+test("resolveSourceFetchRuntimeConfig preserves current defaults", () => {
+  const config = resolveSourceFetchRuntimeConfig({});
+
+  assert.deepEqual(config, {
+    timeoutMs: DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
+    attempts: DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS
+  });
+});
+
+test("resolveSourceFetchRuntimeConfig accepts explicit env overrides", () => {
+  const config = resolveSourceFetchRuntimeConfig({
+    SOURCE_FETCH_TIMEOUT_MS: "2500",
+    SOURCE_FETCH_RETRY_ATTEMPTS: "4"
+  });
+
+  assert.deepEqual(config, {
+    timeoutMs: 2500,
+    attempts: 4
+  });
+});
+
+test("resolveSourceFetchRuntimeConfig ignores invalid env overrides", () => {
+  const config = resolveSourceFetchRuntimeConfig({
+    SOURCE_FETCH_TIMEOUT_MS: "0",
+    SOURCE_FETCH_RETRY_ATTEMPTS: "not-a-number"
+  });
+
+  assert.deepEqual(config, {
+    timeoutMs: DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
+    attempts: DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS
+  });
+});
 
 test("fetchWithRetry retries once after a transient 5xx response", async () => {
   let requestCount = 0;

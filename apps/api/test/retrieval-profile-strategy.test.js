@@ -2,13 +2,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn, execFileSync } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
-const { mkdirSync, rmSync } = require("node:fs");
+const { existsSync, mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
+const apiDistEntry = resolveBuiltApiEntry();
 const prisma = new PrismaClient();
 
 test.before(() => {
@@ -23,7 +24,7 @@ test("Retrieval profile strategyJson can be cleared through PATCH", async () => 
   const queuePrefix = `test-clear-strategy-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -99,7 +100,7 @@ test("Retrieval profile strategyJson can disable query rewrite and force lexical
   const queuePrefix = `test-retrieval-strategy-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -195,6 +196,121 @@ test("Retrieval profile strategyJson can disable query rewrite and force lexical
   }
 });
 
+test("Retrieval profile strategyJson becomes the canonical default path when present", async () => {
+  await resetTestState();
+
+  const port = 3108;
+  const storageRoot = resolve(repoRoot, "storage", `test-retrieval-strategy-defaults-${randomUUID()}`);
+  const queuePrefix = `test-retrieval-strategy-defaults-${randomUUID()}`;
+  mkdirSync(storageRoot, { recursive: true });
+
+  const server = spawn(process.execPath, [apiDistEntry], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      STORAGE_ROOT: storageRoot,
+      QUEUE_PREFIX: queuePrefix
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const marker = `vector-default-marker-${randomUUID()}`;
+    const document = await uploadMarkdownDocument(
+      port,
+      "vector-default.md",
+      `# Product\n\n## Facts\n\nThis retrieval should stay on the vector default path. ${marker}`
+    );
+
+    await waitForDocumentReady(port, document.id, 20000);
+
+    const patchResponse = await fetch(
+      `http://localhost:${port}/retrieval-profiles/default-retrieval-profile`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          enableHybrid: true,
+          enableRerank: true,
+          strategyJson: {
+            queryRewrite: {
+              enabled: false
+            }
+          }
+        })
+      }
+    );
+    assert.equal(patchResponse.status, 200);
+
+    const updatedProfile = await patchResponse.json();
+    assert.equal(updatedProfile.enableHybrid, true);
+    assert.equal(updatedProfile.enableRerank, true);
+    assert.deepEqual(updatedProfile.strategyJson, {
+      queryRewrite: {
+        enabled: false
+      }
+    });
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: `Where is the vector default marker ${marker}?`
+      })
+    });
+    assert.equal(askResponse.status, 201);
+
+    const askResult = await askResponse.json();
+    assert.ok(askResult.retrievedChunks.some(chunk => chunk.content.includes(marker)));
+    assert.deepEqual(askResult.retrievalMetadata.strategy, {
+      queryRewrite: {
+        enabled: false
+      },
+      candidateSelection: {
+        mode: "vector",
+        candidateMultiplier: 3,
+        minCandidates: updatedProfile.topK
+      },
+      hybrid: {
+        vectorWeight: 0.7,
+        lexicalWeight: 0.3
+      },
+      rerank: {
+        enabled: false
+      }
+    });
+    assert.equal(askResult.retrievalMetadata.queryRewrite.finalQuerySource, "original_disabled");
+    assert.equal(askResult.retrievalMetadata.execution.actualMode, "vector");
+    assert.equal(askResult.retrievalMetadata.execution.lexicalSearchAttempted, false);
+
+    const traceResponse = await fetch(`http://localhost:${port}/traces/${askResult.traceId}`);
+    assert.equal(traceResponse.status, 200);
+    const trace = await traceResponse.json();
+    assert.equal(trace.rewrittenQuery, null);
+    assert.deepEqual(trace.retrievalMetadataJson.strategy, askResult.retrievalMetadata.strategy);
+  } finally {
+    server.kill("SIGTERM");
+    rmSync(storageRoot, { recursive: true, force: true });
+    await prisma.retrievalProfile.update({
+      where: {
+        id: "default-retrieval-profile"
+      },
+      data: {
+        strategyJson: null,
+        enableHybrid: false,
+        enableRerank: false
+      }
+    }).catch(() => {});
+  }
+});
+
 test.after(async () => {
   await prisma.$disconnect();
 });
@@ -207,7 +323,9 @@ async function resetTestState() {
   await prisma.document.deleteMany();
   await prisma.retrievalProfile.updateMany({
     data: {
-      strategyJson: null
+      strategyJson: null,
+      enableHybrid: false,
+      enableRerank: false
     }
   });
 }
@@ -268,4 +386,13 @@ function sleep(ms) {
   return new Promise(resolvePromise => {
     setTimeout(resolvePromise, ms);
   });
+}
+
+function resolveBuiltApiEntry() {
+  const preferredEntry = resolve(repoRoot, "apps/api/dist/apps/api/src/main.js");
+  if (existsSync(preferredEntry)) {
+    return preferredEntry;
+  }
+
+  return resolve(repoRoot, "apps/api/dist/main.js");
 }

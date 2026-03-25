@@ -391,6 +391,106 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
 });
 
+test("AskAssistantService forwards fallback-local no-hit best_effort metadata into stream finalization", async () => {
+  const events = [];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: createAnswerPolicy({
+        language: "en",
+        citationMode: "optional",
+        noAnswerBehavior: "best_effort"
+      })
+    }),
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    answering: {
+      buildStreamAnswerContext: ({ chunks }) => chunks,
+      generateAnswer: async () => {
+        throw new Error("one-shot generateAnswer should not be used by native streaming");
+      },
+      finalizeStreamedAnswer: async input => {
+        assert.equal(input.modelName, "fallback-local");
+        assert.equal(input.answerStatus, "insufficient_context");
+        assert.deepEqual(input.missingInformation, ["No relevant supporting sources were retrieved."]);
+        return {
+          answer: input.rawAnswer,
+          modelName: input.modelName,
+          citations: [],
+          retrievedChunks: input.chunks,
+          contextGroups: input.contextGroups,
+          answeringMetadata: {
+            promptId: input.promptId,
+            usedFallback: input.usedFallback,
+            answerPolicy: input.answerPolicy,
+            missingInformationSource: "model",
+            answerTextSource: "model",
+            insufficientContextReason: "no_retrieval_hits",
+            answerStatusSource: "model",
+            answerStatus: "insufficient_context"
+          },
+          answerStatus: "insufficient_context",
+          missingInformation: input.missingInformation,
+          qualityEvaluation: {
+            overall: "weak",
+            grounding: "ungrounded",
+            completeness: "insufficient",
+            primaryIssue: "no_retrieval_hits",
+            flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
+            summary: "Answer quality is weak because supporting context was insufficient."
+          }
+        };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async input => {
+        await input.onDelta("I couldn't find relevant information in the knowledge base.");
+        return {
+          rawAnswer: "I couldn't find relevant information in the knowledge base.",
+          modelName: "fallback-local",
+          promptId: "answer.v2",
+          usedFallback: true,
+          answerStatus: "insufficient_context",
+          missingInformation: ["No relevant supporting sources were retrieved."]
+        };
+      }
+    }
+  });
+
+  const finalResult = await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "What detail is missing?",
+    onEvent: event => {
+      events.push(event);
+    }
+  });
+
+  assert.deepEqual(
+    events.map(event => event.type === "status" ? `${event.type}:${event.phase}` : event.type),
+    ["status:started", "status:retrieving", "status:generating", "answer_delta", "final"]
+  );
+  assert.equal(finalResult.answeringMetadata.answerStatusSource, "model");
+  assert.equal(finalResult.answeringMetadata.missingInformationSource, "model");
+});
+
 test("AskAssistantService stream preserves fallback_generation as the primary quality issue in final payload and trace", async () => {
   const events = [];
   const updateTraceCalls = [];

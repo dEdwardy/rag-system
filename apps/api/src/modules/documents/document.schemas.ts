@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+const optionalBoundedListLimitSchema = z.coerce.number().int().min(1).max(100).optional();
+const boundedListLimitSchema = optionalBoundedListLimitSchema.default(20);
+
 export const createDocumentSchema = z.object({
   sourceType: z.string().min(1).max(50),
   sourceName: z.string().min(1).max(255),
@@ -51,6 +54,12 @@ export const createSitemapDocumentSchema = z.object({
 
 export type CreateSitemapDocumentInput = z.infer<typeof createSitemapDocumentSchema>;
 
+export const listKnowledgeBaseDocumentsSchema = z.object({
+  limit: optionalBoundedListLimitSchema
+});
+
+export type ListKnowledgeBaseDocumentsInput = z.infer<typeof listKnowledgeBaseDocumentsSchema>;
+
 export const listKnowledgeBaseDocumentRunsSchema = z.object({
   documentId: z.string().min(1).optional(),
   sourceType: z.string().min(1).max(50).optional(),
@@ -59,7 +68,19 @@ export const listKnowledgeBaseDocumentRunsSchema = z.object({
   issueOnly: z.coerce.boolean().optional().default(false),
   sinceHours: z.coerce.number().positive().max(24 * 30).optional(),
   includeDiagnostics: z.coerce.boolean().optional().default(false),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+  limit: boundedListLimitSchema
 });
 
 export type ListKnowledgeBaseDocumentRunsInput = z.infer<typeof listKnowledgeBaseDocumentRunsSchema>;
+
+export const listDocumentRunsSchema = z.object({
+  limit: optionalBoundedListLimitSchema
+});
+
+export type ListDocumentRunsInput = z.infer<typeof listDocumentRunsSchema>;
+
+export const listConversationTracesSchema = z.object({
+  limit: boundedListLimitSchema
+});
+
+export type ListConversationTracesInput = z.infer<typeof listConversationTracesSchema>;

@@ -1,23 +1,26 @@
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
 import { getDocumentIngestionQueueName } from "./queue.constants";
+import { QueueRuntimeConfigService } from "./queue-runtime-config";
 
 const { Queue } = require("bullmq");
-const IORedis = require("ioredis");
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
-  private readonly connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-    maxRetriesPerRequest: null
-  });
+  private readonly connection;
 
-  private readonly documentIngestionQueue = new Queue(getDocumentIngestionQueueName(), {
-    connection: this.connection,
-    defaultJobOptions: {
-      attempts: 3,
-      removeOnComplete: 100,
-      removeOnFail: 100
-    }
-  });
+  private readonly documentIngestionQueue;
+
+  constructor(private readonly queueRuntimeConfigService: QueueRuntimeConfigService) {
+    this.connection = this.queueRuntimeConfigService.createRedisConnection();
+    this.documentIngestionQueue = new Queue(getDocumentIngestionQueueName(), {
+      connection: this.connection,
+      defaultJobOptions: {
+        attempts: 3,
+        removeOnComplete: 100,
+        removeOnFail: 100
+      }
+    });
+  }
 
   addDocumentIngestionJob(documentId: string, documentVersion?: number) {
     return this.documentIngestionQueue.add("ingest-document", {

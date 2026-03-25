@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, TraceStatus } from "@prisma/client";
+import type { TraceSummary } from "@rag-system/shared";
 import { PrismaService } from "../../infra/database/prisma.service";
+import { ListConversationTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
 
@@ -20,13 +22,33 @@ export class TracesService {
     });
   }
 
-  listConversationTraces(conversationId: string) {
+  listConversationTraces(conversationId: string, input: ListConversationTracesInput) {
     return this.prisma.answerTrace.findMany({
       where: { conversationId },
+      take: input.limit,
+      select: {
+        id: true,
+        conversationId: true,
+        assistantId: true,
+        userMessageId: true,
+        assistantMessageId: true,
+        userQuery: true,
+        rewrittenQuery: true,
+        retrievedChunkIdsJson: true,
+        retrievalMetadataJson: true,
+        citationsJson: true,
+        answeringMetadataJson: true,
+        qualityEvaluationJson: true,
+        modelName: true,
+        latencyMs: true,
+        status: true,
+        errorMessage: true,
+        createdAt: true
+      },
       orderBy: {
         createdAt: "desc"
       }
-    }).then(traces => traces.map(trace => this.attachTraceSummary(trace)));
+    }).then(traces => traces.map(trace => this.attachTraceListSummary(trace)));
   }
 
   createTrace(input: {
@@ -73,6 +95,58 @@ export class TracesService {
   }
 
   private attachTraceSummary(trace: NonNullable<PersistedTrace>) {
+    return {
+      ...trace,
+      traceSummary: this.buildTraceSummary(trace)
+    };
+  }
+
+  private attachTraceListSummary(trace: {
+    id: string;
+    conversationId: string;
+    assistantId: string;
+    userMessageId: string | null;
+    assistantMessageId: string | null;
+    userQuery: string;
+    rewrittenQuery: string | null;
+    retrievedChunkIdsJson: Prisma.JsonValue | null;
+    retrievalMetadataJson: Prisma.JsonValue | null;
+    citationsJson: Prisma.JsonValue | null;
+    answeringMetadataJson: Prisma.JsonValue | null;
+    qualityEvaluationJson: Prisma.JsonValue | null;
+    modelName: string | null;
+    latencyMs: number | null;
+    status: TraceStatus;
+    errorMessage: string | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: trace.id,
+      conversationId: trace.conversationId,
+      assistantId: trace.assistantId,
+      userMessageId: trace.userMessageId,
+      assistantMessageId: trace.assistantMessageId,
+      userQuery: trace.userQuery,
+      rewrittenQuery: trace.rewrittenQuery,
+      citationsJson: trace.citationsJson,
+      modelName: trace.modelName,
+      latencyMs: trace.latencyMs,
+      status: trace.status,
+      errorMessage: trace.errorMessage,
+      createdAt: trace.createdAt,
+      traceSummary: this.buildTraceSummary(trace)
+    };
+  }
+
+  private buildTraceSummary(trace: {
+    rewrittenQuery: string | null;
+    retrievedChunkIdsJson: Prisma.JsonValue | null;
+    retrievalMetadataJson: Prisma.JsonValue | null;
+    citationsJson: Prisma.JsonValue | null;
+    answeringMetadataJson: Prisma.JsonValue | null;
+    qualityEvaluationJson: Prisma.JsonValue | null;
+    errorMessage: string | null;
+  }): TraceSummary {
     const retrievedChunkCount = this.readRetrievedChunkCount(trace);
     const citationCount = Array.isArray(trace.citationsJson) ? trace.citationsJson.length : 0;
     const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
@@ -83,42 +157,42 @@ export class TracesService {
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
 
     return {
-      ...trace,
-      traceSummary: {
-        answerStatus: this.readString(answeringMetadata?.answerStatus),
-        qualityOverall: this.readString(qualityEvaluation?.overall),
-        primaryIssue: this.readString(qualityEvaluation?.primaryIssue),
-        retrievalMode: this.readString(retrievalExecution?.actualMode),
-        retrievalQuerySource: this.readString(queryRewriteMetadata?.finalQuerySource),
-        generationMode: this.readString(answeringMetadata?.generationMode),
-        contextMode: this.readString(answeringMetadata?.contextMode),
-        rewriteApplied: trace.rewrittenQuery != null,
-        fallbackReason: this.readString(retrievalExecution?.fallbackReason),
-        resolvedLanguage: this.readString(answeringMetadata?.resolvedLanguage),
-        citationAttribution: this.readString(answeringMetadata?.citationAttribution),
-        citationSelectionSource: this.readString(answeringMetadata?.citationSelectionSource),
-        missingInformationCount: this.readNumber(answeringMetadata?.missingInformationCount) ?? 0,
-        insufficientContextReason: this.readString(answeringMetadata?.insufficientContextReason),
-        answerTextSource: this.readString(answeringMetadata?.answerTextSource),
-        answerStatusSource: this.readString(answeringMetadata?.answerStatusSource),
-        failedStage: this.readString(retrievalFailure?.stage),
-        failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
-        candidateLimit: this.readNumber(retrievalExecution?.candidateLimit) ?? 0,
-        vectorCandidateCount: this.readNumber(retrievalExecution?.vectorCandidateCount) ?? 0,
-        lexicalCandidateCount: this.readNumber(retrievalExecution?.lexicalCandidateCount) ?? 0,
-        mergedCandidateCount: this.readNumber(retrievalExecution?.mergedCandidateCount) ?? 0,
-        rankedCandidateCount: this.readNumber(retrievalExecution?.rankedCandidateCount) ?? 0,
-        vectorCandidateLimitHit: this.readBoolean(retrievalExecution?.vectorCandidateLimitHit),
-        lexicalCandidateLimitHit: this.readBoolean(retrievalExecution?.lexicalCandidateLimitHit),
-        rankingTopKHit: this.readBoolean(retrievalExecution?.rankingTopKHit),
-        retrievedChunkCount,
-        citationCount,
-        usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
-      }
-    };
+      answerStatus: this.readStringAs<NonNullable<TraceSummary["answerStatus"]>>(answeringMetadata?.answerStatus),
+      qualityOverall: this.readStringAs<NonNullable<TraceSummary["qualityOverall"]>>(qualityEvaluation?.overall),
+      primaryIssue: this.readStringAs<NonNullable<TraceSummary["primaryIssue"]>>(qualityEvaluation?.primaryIssue),
+      retrievalMode: this.readStringAs<NonNullable<TraceSummary["retrievalMode"]>>(retrievalExecution?.actualMode),
+      retrievalQuerySource: this.readStringAs<NonNullable<TraceSummary["retrievalQuerySource"]>>(queryRewriteMetadata?.finalQuerySource),
+      generationMode: this.readStringAs<NonNullable<TraceSummary["generationMode"]>>(answeringMetadata?.generationMode),
+      contextMode: this.readStringAs<NonNullable<TraceSummary["contextMode"]>>(answeringMetadata?.contextMode),
+      rewriteApplied: trace.rewrittenQuery != null,
+      fallbackReason: this.readStringAs<NonNullable<TraceSummary["fallbackReason"]>>(retrievalExecution?.fallbackReason),
+      resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
+      citationAttribution: this.readStringAs<NonNullable<TraceSummary["citationAttribution"]>>(answeringMetadata?.citationAttribution),
+      citationSelectionSource: this.readStringAs<NonNullable<TraceSummary["citationSelectionSource"]>>(answeringMetadata?.citationSelectionSource),
+      missingInformationCount: this.readNumber(answeringMetadata?.missingInformationCount) ?? 0,
+      insufficientContextReason: this.readStringAs<NonNullable<TraceSummary["insufficientContextReason"]>>(answeringMetadata?.insufficientContextReason),
+      answerTextSource: this.readStringAs<NonNullable<TraceSummary["answerTextSource"]>>(answeringMetadata?.answerTextSource),
+      answerStatusSource: this.readStringAs<NonNullable<TraceSummary["answerStatusSource"]>>(answeringMetadata?.answerStatusSource),
+      failedStage: this.readStringAs<NonNullable<TraceSummary["failedStage"]>>(retrievalFailure?.stage),
+      failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
+      candidateLimit: this.readNumber(retrievalExecution?.candidateLimit) ?? 0,
+      vectorCandidateCount: this.readNumber(retrievalExecution?.vectorCandidateCount) ?? 0,
+      lexicalCandidateCount: this.readNumber(retrievalExecution?.lexicalCandidateCount) ?? 0,
+      mergedCandidateCount: this.readNumber(retrievalExecution?.mergedCandidateCount) ?? 0,
+      rankedCandidateCount: this.readNumber(retrievalExecution?.rankedCandidateCount) ?? 0,
+      vectorCandidateLimitHit: this.readBoolean(retrievalExecution?.vectorCandidateLimitHit),
+      lexicalCandidateLimitHit: this.readBoolean(retrievalExecution?.lexicalCandidateLimitHit),
+      rankingTopKHit: this.readBoolean(retrievalExecution?.rankingTopKHit),
+      retrievedChunkCount,
+      citationCount,
+      usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
+    } satisfies TraceSummary;
   }
 
-  private readRetrievedChunkCount(trace: NonNullable<PersistedTrace>) {
+  private readRetrievedChunkCount(trace: {
+    retrievedChunkIdsJson: Prisma.JsonValue | null;
+    retrievalMetadataJson: Prisma.JsonValue | null;
+  }) {
     const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
     const execution = this.readObject(retrievalMetadata?.execution);
     const executionCount = this.readNumber(execution?.retrievedChunkCount);
@@ -137,6 +211,10 @@ export class TracesService {
 
   private readString(value: unknown) {
     return typeof value === "string" ? value : null;
+  }
+
+  private readStringAs<T extends string>(value: unknown): T | null {
+    return typeof value === "string" ? (value as T) : null;
   }
 
   private readBoolean(value: unknown) {

@@ -1,5 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry } from "../http/fetch-with-retry";
+import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
 
 type FetchedWebPage = {
   title: string | null;
@@ -10,11 +10,13 @@ type FetchedWebPage = {
 export class WebPageService {
   async fetchWebPage(url: string) {
     let response: Response;
+    const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
       response = await fetchWithRetry({
         url,
-        timeoutMs: 10000,
+        timeoutMs: fetchConfig.timeoutMs,
+        attempts: fetchConfig.attempts,
         headers: {
           Accept: "text/html,application/xhtml+xml"
         }
@@ -25,7 +27,7 @@ export class WebPageService {
     }
 
     if (!response.ok) {
-      throw new BadGatewayException(`Failed to fetch web page: upstream responded with ${response.status}.`);
+      throw this.buildUpstreamFetchError("Failed to fetch web page", response.status);
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
@@ -59,6 +61,17 @@ export class WebPageService {
 
   private isHtmlContentType(contentType: string) {
     return contentType.startsWith("text/html") || contentType.startsWith("application/xhtml+xml");
+  }
+
+  private buildUpstreamFetchError(prefix: string, status: number) {
+    const message = `${prefix}: upstream responded with ${status}.`;
+    return this.isRetryableUpstreamStatus(status)
+      ? new BadGatewayException(message)
+      : new BadRequestException(message);
+  }
+
+  private isRetryableUpstreamStatus(status: number) {
+    return status === 408 || status === 429 || status >= 500;
   }
 
   private normalizeInlineText(value: string) {

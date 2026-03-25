@@ -234,7 +234,7 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
     assert.deepEqual(readyDocument.diagnosticsJson, {
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
-      retryable: true,
+      retryable: false,
       documentVersion: readyDocument.version,
       message: "Sitemap source completed with partial page fetch failures.",
       attemptedPageCount: 3,
@@ -267,6 +267,29 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
     const runs = await runsResponse.json();
     assert.equal(runs[0].status, "ready");
     assert.deepEqual(runs[0].diagnosticsJson, readyDocument.diagnosticsJson);
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.retryableFailures, 0);
+    assert.equal(summary.nonRetryableFailures, 1);
+    assert.equal(summary.latestRetryableFailure, null);
+    assert.deepEqual(summary.latestFailure, {
+      documentId: createdDocument.id,
+      version: readyDocument.version,
+      trigger: "external_resync",
+      failedStage: "source_fetch",
+      sourceType: "sitemap",
+      sourceName: `${sitemapServer.origin}/sitemap.xml`,
+      message: "Sitemap source completed with partial page fetch failures.",
+      finishedAt: summary.latestFailure.finishedAt,
+      failureSummary: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Sitemap source completed with partial page fetch failures."
+      }
+    });
 
     const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
       method: "POST",
@@ -333,7 +356,7 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
       failedStage: "source_fetch",
       retryable: true,
       documentVersion: readyDocument.version,
-      message: "Sitemap source completed with partial page fetch failures.",
+      message: "Sitemap source completed with partial child sitemap fetch failures.",
       attemptedPageCount: 2,
       succeededPageCount: 2,
       failedPageCount: 0,
@@ -365,6 +388,29 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
     const runs = await runsResponse.json();
     assert.equal(runs[0].status, "ready");
     assert.deepEqual(runs[0].diagnosticsJson, readyDocument.diagnosticsJson);
+
+    const summaryResponse = await fetch(`http://localhost:${port}/knowledge-bases/default-kb/document-runs/summary`);
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.equal(summary.retryableFailures, 1);
+    assert.equal(summary.nonRetryableFailures, 0);
+    assert.deepEqual(summary.latestRetryableFailure, {
+      documentId: createdDocument.id,
+      version: readyDocument.version,
+      trigger: "external_resync",
+      failedStage: "source_fetch",
+      sourceType: "sitemap",
+      sourceName: `${sitemapServer.origin}/sitemap-index.xml`,
+      message: "Sitemap source completed with partial child sitemap fetch failures.",
+      finishedAt: summary.latestRetryableFailure.finishedAt,
+      failureSummary: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "Sitemap source completed with partial child sitemap fetch failures."
+      }
+    });
+    assert.deepEqual(summary.latestFailure, summary.latestRetryableFailure);
 
     const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
       method: "POST",
@@ -508,7 +554,7 @@ test("Sitemap source E2E: partial page diagnostics clear after a later clean res
           failureSummary: {
             code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
             failedStage: "source_fetch",
-            retryable: true,
+            retryable: false,
             message: "Sitemap source completed with partial page fetch failures."
           }
         }
@@ -660,7 +706,7 @@ test("Sitemap source E2E: partial child sitemap diagnostics clear after a later 
             code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
             failedStage: "source_fetch",
             retryable: true,
-            message: "Sitemap source completed with partial page fetch failures."
+            message: "Sitemap source completed with partial child sitemap fetch failures."
           }
         }
       ]
@@ -800,7 +846,7 @@ test("Sitemap source E2E: same-URL reuse clears partial page diagnostics after a
           failureSummary: {
             code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
             failedStage: "source_fetch",
-            retryable: true,
+            retryable: false,
             message: "Sitemap source completed with partial page fetch failures."
           }
         }

@@ -7,6 +7,7 @@ import {
   RewriteQueryInput,
   RewriteQueryOutput
 } from "./llm.types";
+import { resolveLlmRuntimeConfig } from "./llm-runtime-config";
 import { PromptManagerService } from "./prompt-manager.service";
 import { structuredAnswerSchema } from "./structured-answer.schema";
 
@@ -17,26 +18,23 @@ export class LlmService {
   constructor(private readonly promptManager: PromptManagerService) {}
 
   async generateAnswer(input: GenerateAnswerInput): Promise<GenerateAnswerOutput> {
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    const ollamaModel = process.env.OLLAMA_MODEL;
+    const runtimeConfig = resolveLlmRuntimeConfig();
 
-    if (ollamaBaseUrl && ollamaModel) {
+    if (runtimeConfig.ollamaBaseUrl && runtimeConfig.ollamaModel) {
       try {
-        return await this.generateOllamaAnswer(ollamaBaseUrl, ollamaModel, input);
+        return await this.generateOllamaAnswer(runtimeConfig, input);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown Ollama error.";
         this.logger.warn(`Falling back after Ollama error: ${message}`);
       }
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
+    if (!runtimeConfig.openAiApiKey) {
       return this.generateFallbackAnswer(input);
     }
 
     try {
-      return await this.generateOpenAIAnswer(apiKey, input);
+      return await this.generateOpenAIAnswer(runtimeConfig, input);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown LLM error.";
       this.logger.warn(`Falling back to local answer generation: ${message}`);
@@ -45,23 +43,20 @@ export class LlmService {
   }
 
   async generateAnswerStream(input: GenerateAnswerStreamInput): Promise<GenerateAnswerStreamOutput> {
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    const ollamaModel = process.env.OLLAMA_MODEL;
+    const runtimeConfig = resolveLlmRuntimeConfig();
 
-    if (ollamaBaseUrl && ollamaModel) {
+    if (runtimeConfig.ollamaBaseUrl && runtimeConfig.ollamaModel) {
       try {
-        return await this.generateOllamaAnswerStream(ollamaBaseUrl, ollamaModel, input);
+        return await this.generateOllamaAnswerStream(runtimeConfig, input);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown Ollama error.";
         this.logger.warn(`Falling back after Ollama stream error: ${message}`);
       }
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (apiKey) {
+    if (runtimeConfig.openAiApiKey) {
       try {
-        return await this.generateOpenAIAnswerStream(apiKey, input);
+        return await this.generateOpenAIAnswerStream(runtimeConfig, input);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown LLM error.";
         this.logger.warn(`Falling back after OpenAI stream error: ${message}`);
@@ -72,22 +67,20 @@ export class LlmService {
   }
 
   async rewriteQuery(input: RewriteQueryInput): Promise<RewriteQueryOutput> {
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    const ollamaModel = process.env.OLLAMA_MODEL;
+    const runtimeConfig = resolveLlmRuntimeConfig();
 
-    if (ollamaBaseUrl && ollamaModel) {
+    if (runtimeConfig.ollamaBaseUrl && runtimeConfig.ollamaModel) {
       try {
-        return await this.rewriteQueryWithOllama(ollamaBaseUrl, ollamaModel, input);
+        return await this.rewriteQueryWithOllama(runtimeConfig, input);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown Ollama error.";
         this.logger.warn(`Falling back after Ollama rewrite error: ${message}`);
       }
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
+    if (runtimeConfig.openAiApiKey) {
       try {
-        return await this.rewriteQueryWithOpenAI(apiKey, input);
+        return await this.rewriteQueryWithOpenAI(runtimeConfig, input);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown LLM error.";
         this.logger.warn(`Falling back to local query rewrite: ${message}`);
@@ -97,24 +90,20 @@ export class LlmService {
     return this.rewriteQueryFallback(input);
   }
 
-  private async generateOllamaAnswer(
-    baseUrl: string,
-    model: string,
-    input: GenerateAnswerInput
-  ): Promise<GenerateAnswerOutput> {
+  private async generateOllamaAnswer(runtimeConfig: ReturnType<typeof resolveLlmRuntimeConfig>, input: GenerateAnswerInput) {
     const prompt = this.promptManager.buildAnswerPrompt(input);
 
-    const response = await fetch(`${baseUrl}/api/generate`, {
+    const response = await fetch(`${runtimeConfig.ollamaBaseUrl}/api/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model,
+        model: runtimeConfig.ollamaModel,
         prompt: prompt.fullPrompt,
         stream: false,
         options: {
-          temperature: 0.2
+          temperature: runtimeConfig.answerTemperature
         }
       })
     });
@@ -132,29 +121,25 @@ export class LlmService {
     }
 
     return {
-      modelName: `ollama:${model}`,
+      modelName: `ollama:${runtimeConfig.ollamaModel}`,
       promptId: prompt.promptId,
       usedFallback: false,
       ...this.parseAnswerOutput(answer)
     };
   }
 
-  private async generateOpenAIAnswer(
-    apiKey: string,
-    input: GenerateAnswerInput
-  ): Promise<GenerateAnswerOutput> {
-    const model = process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini";
+  private async generateOpenAIAnswer(runtimeConfig: ReturnType<typeof resolveLlmRuntimeConfig>, input: GenerateAnswerInput) {
     const prompt = this.promptManager.buildAnswerPrompt(input);
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(`${runtimeConfig.openAiBaseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${runtimeConfig.openAiApiKey}`
       },
       body: JSON.stringify({
-        model,
-        temperature: 0.2,
+        model: runtimeConfig.openAiChatModel,
+        temperature: runtimeConfig.answerTemperature,
         messages: [
           {
             role: "system",
@@ -183,7 +168,7 @@ export class LlmService {
     }
 
     return {
-      modelName: model,
+      modelName: runtimeConfig.openAiChatModel,
       promptId: prompt.promptId,
       usedFallback: false,
       ...this.parseAnswerOutput(answer)
@@ -205,23 +190,22 @@ export class LlmService {
   }
 
   private async generateOllamaAnswerStream(
-    baseUrl: string,
-    model: string,
+    runtimeConfig: ReturnType<typeof resolveLlmRuntimeConfig>,
     input: GenerateAnswerStreamInput
   ): Promise<GenerateAnswerStreamOutput> {
     const prompt = this.promptManager.buildAnswerPrompt(input);
 
-    const response = await fetch(`${baseUrl}/api/generate`, {
+    const response = await fetch(`${runtimeConfig.ollamaBaseUrl}/api/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model,
+        model: runtimeConfig.ollamaModel,
         prompt: prompt.fullPrompt,
         stream: true,
         options: {
-          temperature: 0.2
+          temperature: runtimeConfig.answerTemperature
         }
       })
     });
@@ -253,28 +237,27 @@ export class LlmService {
 
     return {
       rawAnswer: rawAnswer.trim(),
-      modelName: `ollama:${model}`,
+      modelName: `ollama:${runtimeConfig.ollamaModel}`,
       promptId: prompt.promptId,
       usedFallback: false
     };
   }
 
   private async generateOpenAIAnswerStream(
-    apiKey: string,
+    runtimeConfig: ReturnType<typeof resolveLlmRuntimeConfig>,
     input: GenerateAnswerStreamInput
   ): Promise<GenerateAnswerStreamOutput> {
-    const model = process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini";
     const prompt = this.promptManager.buildAnswerPrompt(input);
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(`${runtimeConfig.openAiBaseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${runtimeConfig.openAiApiKey}`
       },
       body: JSON.stringify({
-        model,
-        temperature: 0.2,
+        model: runtimeConfig.openAiChatModel,
+        temperature: runtimeConfig.answerTemperature,
         stream: true,
         messages: [
           {
@@ -352,29 +335,28 @@ export class LlmService {
 
     return {
       rawAnswer: rawAnswer.trim(),
-      modelName: model,
+      modelName: runtimeConfig.openAiChatModel,
       promptId: prompt.promptId,
       usedFallback: false
     };
   }
 
   private async rewriteQueryWithOllama(
-    baseUrl: string,
-    model: string,
+    runtimeConfig: ReturnType<typeof resolveLlmRuntimeConfig>,
     input: RewriteQueryInput
   ): Promise<RewriteQueryOutput> {
     const prompt = this.promptManager.buildRewritePrompt(input);
-    const response = await fetch(`${baseUrl}/api/generate`, {
+    const response = await fetch(`${runtimeConfig.ollamaBaseUrl}/api/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model,
+        model: runtimeConfig.ollamaModel,
         prompt: prompt.fullPrompt,
         stream: false,
         options: {
-          temperature: 0
+          temperature: runtimeConfig.rewriteTemperature
         }
       })
     });
@@ -393,25 +375,27 @@ export class LlmService {
 
     return {
       rewrittenQuery,
-      modelName: `ollama:${model}`,
+      modelName: `ollama:${runtimeConfig.ollamaModel}`,
       usedFallback: false,
       promptId: prompt.promptId
     };
   }
 
-  private async rewriteQueryWithOpenAI(apiKey: string, input: RewriteQueryInput): Promise<RewriteQueryOutput> {
-    const model = process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini";
+  private async rewriteQueryWithOpenAI(
+    runtimeConfig: ReturnType<typeof resolveLlmRuntimeConfig>,
+    input: RewriteQueryInput
+  ): Promise<RewriteQueryOutput> {
     const prompt = this.promptManager.buildRewritePrompt(input);
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(`${runtimeConfig.openAiBaseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${runtimeConfig.openAiApiKey}`
       },
       body: JSON.stringify({
-        model,
-        temperature: 0,
+        model: runtimeConfig.openAiChatModel,
+        temperature: runtimeConfig.rewriteTemperature,
         messages: [
           {
             role: "system",
@@ -441,7 +425,7 @@ export class LlmService {
 
     return {
       rewrittenQuery,
-      modelName: model,
+      modelName: runtimeConfig.openAiChatModel,
       usedFallback: false,
       promptId: prompt.promptId
     };
@@ -537,7 +521,11 @@ export class LlmService {
       rawAnswer: streamAnswer,
       modelName: result.modelName,
       promptId: result.promptId,
-      usedFallback: result.usedFallback
+      usedFallback: result.usedFallback,
+      answerStatus: result.answerStatus,
+      missingInformation: result.missingInformation,
+      citedChunkNumbers: result.citedChunkNumbers,
+      citationEvidence: result.citationEvidence
     };
   }
 

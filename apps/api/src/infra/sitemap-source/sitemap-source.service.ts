@@ -1,5 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry } from "../http/fetch-with-retry";
+import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
 import { WebPageService } from "../web-page/web-page.service";
 
 type FetchSitemapOptions = {
@@ -18,6 +18,7 @@ type FetchedSitemap = {
 };
 
 type SitemapFetchDiagnostics = {
+  retryable: boolean;
   attemptedPageCount: number;
   succeededPageCount: number;
   failedPageCount: number;
@@ -64,6 +65,7 @@ type ResolvedSitemapPages = {
     | "failedChildSitemapCount"
     | "failedChildSitemapUrls"
     | "failedChildSitemaps"
+    | "retryable"
     | "partial"
   > | null;
 };
@@ -78,11 +80,13 @@ export class SitemapSourceService {
 
   async fetchSitemap(options: FetchSitemapOptions): Promise<FetchedSitemap> {
     let response: Response;
+    const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
       response = await fetchWithRetry({
         url: options.url,
-        timeoutMs: 10000,
+        timeoutMs: fetchConfig.timeoutMs,
+        attempts: fetchConfig.attempts,
         headers: {
           Accept: "application/xml,text/xml"
         }
@@ -93,7 +97,7 @@ export class SitemapSourceService {
     }
 
     if (!response.ok) {
-      throw new BadGatewayException(`Failed to fetch sitemap: upstream responded with ${response.status}.`);
+      throw this.buildUpstreamFetchError("Failed to fetch sitemap", response.status);
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
@@ -239,12 +243,13 @@ export class SitemapSourceService {
                   retryable: this.isRetryableFetchError(failure.error)
                 })
               ),
-              attemptedChildSitemapCount: childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS).length,
-              succeededChildSitemapCount,
-              failedChildSitemapCount: failedChildSitemapUrls.length,
-              failedChildSitemapUrls: failedChildSitemapUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
-              partial: true
-            }
+               attemptedChildSitemapCount: childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS).length,
+               succeededChildSitemapCount,
+               failedChildSitemapCount: failedChildSitemapUrls.length,
+               failedChildSitemapUrls: failedChildSitemapUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
+               retryable: childSitemapFailures.some(failure => this.isRetryableFetchError(failure.error)),
+               partial: true
+             }
           : null
     };
   }
@@ -312,6 +317,9 @@ export class SitemapSourceService {
             succeededPageCount,
             failedPageCount: failedPageUrls.length,
             failedPageUrls: failedPageUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
+            retryable:
+              pageFailures.some(failure => this.isRetryableFetchError(failure.error)) ||
+              existingDiagnostics?.retryable === true,
             partial: true,
             ...(existingDiagnostics ?? {})
           }
@@ -360,11 +368,13 @@ export class SitemapSourceService {
 
   private async fetchSitemapXml(url: string) {
     let response: Response;
+    const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
       response = await fetchWithRetry({
         url,
-        timeoutMs: 10000,
+        timeoutMs: fetchConfig.timeoutMs,
+        attempts: fetchConfig.attempts,
         headers: {
           Accept: "application/xml,text/xml"
         }
@@ -375,7 +385,7 @@ export class SitemapSourceService {
     }
 
     if (!response.ok) {
-      throw new BadGatewayException(`Failed to fetch sitemap: upstream responded with ${response.status}.`);
+      throw this.buildUpstreamFetchError("Failed to fetch sitemap", response.status);
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
@@ -402,6 +412,17 @@ export class SitemapSourceService {
 
     const message = error instanceof Error ? error.message : "Unknown fetch error.";
     return new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+  }
+
+  private buildUpstreamFetchError(prefix: string, status: number) {
+    const message = `${prefix}: upstream responded with ${status}.`;
+    return this.isRetryableUpstreamStatus(status)
+      ? new BadGatewayException(message)
+      : new BadRequestException(message);
+  }
+
+  private isRetryableUpstreamStatus(status: number) {
+    return status === 408 || status === 429 || status >= 500;
   }
 
   private buildAllPagesFailedError(pageFailures: PageFetchFailure[]) {

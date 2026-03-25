@@ -11,6 +11,7 @@
     "test:smoke": "node --test test/pc-web-smoke.test.js"
   },
   "dependencies": {
+    "@rag-system/shared": "workspace:*",
     "@mantine/core": "^8.1.2",
     "@mantine/form": "^8.1.2",
     "@mantine/hooks": "^8.1.2",

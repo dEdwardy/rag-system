@@ -10,6 +10,11 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      "@rag-system/shared": [
+        "../../packages/shared/src/index.ts"
+      ]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,

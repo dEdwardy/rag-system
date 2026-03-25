@@ -1,5 +1,64 @@
 const assert = require("node:assert/strict");
 const { DocumentRunsService } = require("../src/modules/document-runs/document-runs.service.ts");
+const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
+const {
+  listConversationTracesSchema,
+  listDocumentRunsSchema,
+  listKnowledgeBaseDocumentRunsSchema,
+  listKnowledgeBaseDocumentsSchema
+} = require("../src/modules/documents/document.schemas.ts");
+
+test("operational list schemas keep explicit limit support while only bounded endpoints default to 20", () => {
+  assert.deepEqual(listKnowledgeBaseDocumentsSchema.parse({}), {});
+  assert.deepEqual(listKnowledgeBaseDocumentsSchema.parse({ limit: "100" }), {
+    limit: 100
+  });
+  assert.deepEqual(listDocumentRunsSchema.parse({}), {});
+  assert.deepEqual(listDocumentRunsSchema.parse({ limit: "100" }), {
+    limit: 100
+  });
+  assert.equal(listKnowledgeBaseDocumentRunsSchema.parse({}).limit, 20);
+  assert.deepEqual(listConversationTracesSchema.parse({}), {
+    limit: 20
+  });
+  assert.throws(() => listKnowledgeBaseDocumentsSchema.parse({ limit: "101" }));
+  assert.throws(() => listDocumentRunsSchema.parse({ limit: "0" }));
+  assert.throws(() => listConversationTracesSchema.parse({ limit: "101" }));
+});
+
+test("DocumentsService listKnowledgeBaseDocuments applies bounded limit semantics", async () => {
+  const queryArgs = [];
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    knowledgeBasesService: {
+      getKnowledgeBase: async () => ({ id: "default-kb" })
+    },
+    prisma: {
+      document: {
+        findMany: async args => {
+          queryArgs.push(args);
+          return [];
+        }
+      }
+    }
+  });
+
+  const documents = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "default-kb", {
+    limit: 20
+  });
+
+  assert.deepEqual(documents, []);
+  assert.deepEqual(queryArgs, [
+    {
+      where: {
+        kbId: "default-kb"
+      },
+      take: 20,
+      orderBy: {
+        updatedAt: "desc"
+      }
+    }
+  ]);
+});
 
 test("DocumentRunsService summary exposes latest retryable failure and latest skipped run", async () => {
   const startedAt = new Date("2026-03-22T10:00:00.000Z");
@@ -1220,9 +1279,38 @@ test("DocumentRunsService listDocumentRuns orders a document run history by star
     }
   });
 
-  const runs = await DocumentRunsService.prototype.listDocumentRuns.call(fakeService, "doc-1");
+  const runs = await DocumentRunsService.prototype.listDocumentRuns.call(fakeService, "doc-1", {
+    limit: 20
+  });
 
   assert.equal(runs.length, 1);
+  assert.deepEqual(queryArgs, [
+    {
+      where: {
+        documentId: "doc-1"
+      },
+      take: 20,
+      orderBy: [{ startedAt: "desc" }, { version: "desc" }]
+    }
+  ]);
+});
+
+test("DocumentRunsService listDocumentRuns leaves history unbounded when limit is omitted", async () => {
+  const queryArgs = [];
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async args => {
+          queryArgs.push(args);
+          return [];
+        }
+      }
+    }
+  });
+
+  const runs = await DocumentRunsService.prototype.listDocumentRuns.call(fakeService, "doc-1", {});
+
+  assert.deepEqual(runs, []);
   assert.deepEqual(queryArgs, [
     {
       where: {

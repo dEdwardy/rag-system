@@ -5,11 +5,12 @@ import { QueueModule } from "../../infra/queue/queue.module";
 import { StorageModule } from "../../infra/storage/storage.module";
 import { DocumentRunsModule } from "../document-runs/document-runs.module";
 import { IndexingModule } from "../indexing/indexing.module";
+import { DocumentIngestionProcessor } from "./document-ingestion.processor";
 import { IngestionService } from "./ingestion.service";
 
 @Module({
   imports: [DatabaseModule, StorageModule, QueueModule, IndexingModule, ParsingModule, DocumentRunsModule],
-  providers: [IngestionService],
+  providers: [DocumentIngestionProcessor, IngestionService],
   exports: [IngestionService]
 })
 export class IngestionModule {}

@@ -14,6 +14,8 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import {
   createDocumentSchema,
   createFeedDocumentSchema,
+  listDocumentRunsSchema,
+  listKnowledgeBaseDocumentsSchema,
   listKnowledgeBaseDocumentRunsSchema,
   createSitemapDocumentSchema,
   createWebPageDocumentSchema
@@ -25,8 +27,9 @@ export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @Get("knowledge-bases/:id/documents")
-  listKnowledgeBaseDocuments(@Param("id") knowledgeBaseId: string) {
-    return this.documentsService.listKnowledgeBaseDocuments(knowledgeBaseId);
+  listKnowledgeBaseDocuments(@Param("id") knowledgeBaseId: string, @Query() query: unknown) {
+    const input = listKnowledgeBaseDocumentsSchema.parse(query);
+    return this.documentsService.listKnowledgeBaseDocuments(knowledgeBaseId, input);
   }
 
   @Get("knowledge-bases/:id/document-runs")
@@ -90,8 +93,9 @@ export class DocumentsController {
   }
 
   @Get("documents/:id/runs")
-  listDocumentRuns(@Param("id") id: string) {
-    return this.documentsService.listDocumentRuns(id);
+  listDocumentRuns(@Param("id") id: string, @Query() query: unknown) {
+    const input = listDocumentRunsSchema.parse(query);
+    return this.documentsService.listDocumentRuns(id, input);
   }
 
   @Get("documents/:id/chunks")

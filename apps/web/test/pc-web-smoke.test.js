@@ -1,13 +1,32 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn } = require("node:child_process");
-const { resolve } = require("node:path");
+const { existsSync } = require("node:fs");
+const { mkdtemp, readFile, rm } = require("node:fs/promises");
+const { createServer } = require("node:http");
+const { join, resolve } = require("node:path");
+const { tmpdir } = require("node:os");
 const { setTimeout: delay } = require("node:timers/promises");
 const { chromium } = require("playwright");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiBaseUrl = "http://127.0.0.1:3000";
 const webBaseUrl = "http://127.0.0.1:3001";
+const webDistRoot = resolve(repoRoot, "apps/web/dist");
+const smokeBrowserExecutablePaths = [
+  "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"
+];
+const smokeBrowserDebugPort = 9222;
+const mimeTypes = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2"
+};
 
 function createAbortSignal(timeoutMs) {
   return AbortSignal.timeout(timeoutMs);
@@ -36,6 +55,31 @@ async function waitForHttp(url, label, timeoutMs = 30000) {
   }
 
   throw new Error(`${label} did not become ready at ${url} within ${timeoutMs}ms.`);
+}
+
+async function waitForCdpReady(port, timeoutMs = 30000) {
+  const startedAt = Date.now();
+  const endpointUrl = `http://127.0.0.1:${port}/json/version`;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await fetch(endpointUrl, {
+        signal: createAbortSignal(1000)
+      });
+
+      if (response.ok) {
+        const payload = await response.json();
+        if (typeof payload.webSocketDebuggerUrl === "string") {
+          return payload.webSocketDebuggerUrl;
+        }
+      }
+    } catch {
+    }
+
+    await delay(500);
+  }
+
+  throw new Error(`Browser CDP endpoint did not become ready at ${endpointUrl} within ${timeoutMs}ms.`);
 }
 
 function startProcess(command, args, label, cwd = repoRoot) {
@@ -68,24 +112,47 @@ async function ensureWebRunning() {
     return null;
   }
 
-  const child = startProcess(
-    "python",
-    [
-      "-m",
-      "http.server",
-      "3001",
-      "--bind",
-      "127.0.0.1",
-    ],
-    "web-smoke",
-    resolve(repoRoot, "apps/web/dist")
-  );
+  const server = createServer(async (request, response) => {
+    try {
+      const requestPath = decodeURIComponent((request.url || "/").split("?")[0]);
+      const relativePath = requestPath === "/" ? "index.html" : requestPath.replace(/^\//, "");
+      const filePath = resolve(webDistRoot, relativePath);
+
+      if (!filePath.startsWith(webDistRoot)) {
+        response.statusCode = 403;
+        response.end("forbidden");
+        return;
+      }
+
+      const content = await readFile(filePath);
+      const extension = filePath.slice(filePath.lastIndexOf("."));
+      response.setHeader("Content-Type", mimeTypes[extension] || "application/octet-stream");
+      response.end(content);
+    } catch {
+      response.statusCode = 404;
+      response.end("not found");
+    }
+  });
+
+  await new Promise((resolveReady, rejectReady) => {
+    server.once("error", rejectReady);
+    server.listen(3001, "127.0.0.1", () => {
+      server.off("error", rejectReady);
+      resolveReady();
+    });
+  });
+
   await waitForHttp(webBaseUrl, "Web preview");
-  return child;
+  return server;
 }
 
 async function stopProcess(child) {
   if (!child) {
+    return;
+  }
+
+  if (typeof child.close === "function") {
+    await new Promise(resolveClose => child.close(resolveClose));
     return;
   }
 
@@ -98,6 +165,61 @@ async function stopProcess(child) {
 
   if (!child.killed) {
     child.kill("SIGKILL");
+  }
+}
+
+async function launchSmokeBrowser() {
+  try {
+    return {
+      browser: await chromium.launch({
+        channel: "msedge"
+      }),
+      cleanup: async () => {}
+    };
+  } catch {
+    for (const executablePath of smokeBrowserExecutablePaths) {
+      if (!existsSync(executablePath)) {
+        continue;
+      }
+
+      const userDataDir = await mkdtemp(join(tmpdir(), "rag-smoke-browser-"));
+      const child = spawn(
+        executablePath,
+        [
+          `--remote-debugging-port=${smokeBrowserDebugPort}`,
+          `--user-data-dir=${userDataDir}`,
+          "--headless=new",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "about:blank"
+        ],
+        {
+          stdio: "ignore"
+        }
+      );
+
+      try {
+        const wsEndpoint = await waitForCdpReady(smokeBrowserDebugPort);
+        const browser = await chromium.connectOverCDP(wsEndpoint);
+
+        return {
+          browser,
+          cleanup: async () => {
+            await browser.close();
+            await stopProcess(child);
+            await rm(userDataDir, { recursive: true, force: true });
+          }
+        };
+      } catch {
+        await stopProcess(child);
+        await rm(userDataDir, { recursive: true, force: true });
+      }
+    }
+
+    return {
+      browser: await chromium.launch(),
+      cleanup: async () => {}
+    };
   }
 }
 
@@ -158,9 +280,7 @@ test("PC Web smoke: knowledge base overview loads real data and navigates to ass
       assistant => assistant.kbId === activeKnowledgeBase.id
     ).length;
 
-    const browser = await chromium.launch({
-      channel: "msedge"
-    });
+    const { browser, cleanup } = await launchSmokeBrowser();
     const page = await browser.newPage();
 
     try {
@@ -227,7 +347,7 @@ test("PC Web smoke: knowledge base overview loads real data and navigates to ass
         new RegExp(activeRetrievalProfile.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
       );
     } finally {
-      await browser.close();
+      await cleanup();
     }
   } finally {
     await stopProcess(startedWeb);

@@ -1,9 +1,12 @@
 const assert = require("node:assert/strict");
-const { BadRequestException } = require("@nestjs/common");
+const { BadGatewayException, BadRequestException } = require("@nestjs/common");
 const { Prisma } = require("@prisma/client");
+const { FeedSourceService } = require("../src/infra/feed-source/feed-source.service.ts");
+const { SitemapSourceService } = require("../src/infra/sitemap-source/sitemap-source.service.ts");
+const { WebPageService } = require("../src/infra/web-page/web-page.service.ts");
 const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
 
-test("DocumentsService lists knowledge-base documents by latest update activity", async () => {
+test("DocumentsService lists knowledge-base documents by latest update activity without a default limit", async () => {
   const findManyCalls = [];
   const fakeDocuments = [{ id: "document-2" }, { id: "document-1" }];
 
@@ -24,7 +27,7 @@ test("DocumentsService lists knowledge-base documents by latest update activity"
     }
   });
 
-  const result = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "default-kb");
+  const result = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "default-kb", {});
 
   assert.deepEqual(result, fakeDocuments);
   assert.deepEqual(findManyCalls, [
@@ -297,6 +300,7 @@ test("DocumentsService persists normalized partial diagnostics when a reused sit
             ],
             failedPagesTruncated: false,
             failedPagesOmittedCount: 0,
+            retryable: false,
             partial: true
           }
         };
@@ -335,7 +339,7 @@ test("DocumentsService persists normalized partial diagnostics when a reused sit
       diagnosticsJson: {
         code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
         failedStage: "source_fetch",
-        retryable: true,
+        retryable: false,
         documentVersion: existingDocument.version + 1,
         message: "Sitemap source completed with partial page fetch failures.",
         attemptedPageCount: 3,
@@ -352,6 +356,157 @@ test("DocumentsService persists normalized partial diagnostics when a reused sit
         ],
         failedPagesTruncated: false,
         failedPagesOmittedCount: 0,
+        partial: true
+      }
+    }
+  });
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
+test("DocumentsService clarifies child-sitemap partial diagnostics and preserves retryable summary when a reused sitemap source returns child fetch failures", async () => {
+  const enqueuedDocumentIds = [];
+  const documentUpdates = [];
+
+  const existingDocument = {
+    id: "existing-sitemap-child-partial-document",
+    kbId: "default-kb",
+    sourceType: "sitemap",
+    sourceName: "https://example.com/sitemap-index.xml",
+    title: "Existing sitemap index",
+    mimeType: "text/plain",
+    storageKey: "generated/sitemap-index.txt",
+    status: "ready",
+    processingStage: "completed",
+    version: 3,
+    chunkCount: 4,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findFirst: async () => existingDocument,
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async knowledgeBaseId => {
+        assert.equal(knowledgeBaseId, "default-kb");
+        return { id: knowledgeBaseId };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Sitemap child partial content");
+        return {
+          storageKey: "generated/sitemap-child-partial.txt"
+        };
+      }
+    },
+    sitemapSourceService: {
+      fetchSitemap: async options => {
+        assert.deepEqual(options, {
+          url: "https://example.com/sitemap-index.xml",
+          maxPages: 10
+        });
+        return {
+          content: "Sitemap child partial content",
+          diagnostics: {
+            attemptedPageCount: 2,
+            succeededPageCount: 2,
+            failedPageCount: 0,
+            failedPageUrls: [],
+            failedPages: [],
+            failedPagesTruncated: false,
+            failedPagesOmittedCount: 0,
+            attemptedChildSitemapCount: 2,
+            succeededChildSitemapCount: 1,
+            failedChildSitemapCount: 1,
+            failedChildSitemapUrls: ["https://example.com/sitemaps/failing.xml"],
+            failedChildSitemaps: [
+              {
+                url: "https://example.com/sitemaps/failing.xml",
+                code: "UPSTREAM_FETCH_FAILED",
+                message: "Failed to fetch sitemap: upstream responded with 502.",
+                retryable: true
+              }
+            ],
+            failedChildSitemapsTruncated: false,
+            failedChildSitemapsOmittedCount: 0,
+            retryable: true,
+            partial: true
+          }
+        };
+      }
+    },
+    documentRunsService: {
+      createRun: async () => {}
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.createSitemapDocument.call(fakeService, "default-kb", {
+    url: "https://Example.com/sitemap-index.xml#root",
+    maxPages: 10
+  });
+
+  assert.equal(result.id, existingDocument.id);
+  assert.equal(documentUpdates.length, 2);
+  assert.deepEqual(documentUpdates[1], {
+    where: {
+      id: existingDocument.id
+    },
+    data: {
+      title: "Existing sitemap index",
+      mimeType: "text/plain",
+      storageKey: "generated/sitemap-child-partial.txt",
+      status: "pending",
+      processingStage: "uploaded",
+      errorMessage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: true,
+        documentVersion: existingDocument.version + 1,
+        message: "Sitemap source completed with partial child sitemap fetch failures.",
+        attemptedPageCount: 2,
+        succeededPageCount: 2,
+        failedPageCount: 0,
+        failedPageUrls: [],
+        failedPages: [],
+        failedPagesTruncated: false,
+        failedPagesOmittedCount: 0,
+        attemptedChildSitemapCount: 2,
+        succeededChildSitemapCount: 1,
+        failedChildSitemapCount: 1,
+        failedChildSitemapUrls: ["https://example.com/sitemaps/failing.xml"],
+        failedChildSitemaps: [
+          {
+            url: "https://example.com/sitemaps/failing.xml",
+            code: "UPSTREAM_FETCH_FAILED",
+            message: "Failed to fetch sitemap: upstream responded with 502.",
+            retryable: true
+          }
+        ],
+        failedChildSitemapsTruncated: false,
+        failedChildSitemapsOmittedCount: 0,
         partial: true
       }
     }
@@ -539,6 +694,163 @@ test("DocumentsService records non-retryable diagnostics for invalid external so
         retryable: false,
         documentVersion: reservedDocument.version,
         message: "Unsupported web page content type: application/pdf."
+      }
+    }
+  ]);
+});
+
+test("WebPageService classifies upstream 404 responses as non-retryable", async () => {
+  await withMockedFetch(
+    [new Response("missing", { status: 404, headers: { "content-type": "text/html" } })],
+    async () => {
+      const service = new WebPageService();
+
+      await assert.rejects(service.fetchWebPage("https://example.com/missing"), error => {
+        assert.equal(error instanceof BadRequestException, true);
+        assert.equal(error.message, "Failed to fetch web page: upstream responded with 404.");
+        return true;
+      });
+    }
+  );
+});
+
+test("FeedSourceService classifies upstream 404 responses as non-retryable", async () => {
+  await withMockedFetch(
+    [new Response("missing", { status: 404, headers: { "content-type": "application/rss+xml" } })],
+    async () => {
+      const service = new FeedSourceService();
+
+      await assert.rejects(
+        service.fetchFeed({
+          url: "https://example.com/feed.xml",
+          maxItems: 5
+        }),
+        error => {
+          assert.equal(error instanceof BadRequestException, true);
+          assert.equal(error.message, "Failed to fetch feed: upstream responded with 404.");
+          return true;
+        }
+      );
+    }
+  );
+});
+
+test("SitemapSourceService keeps child sitemap 404 failures non-retryable in partial diagnostics", async () => {
+  await withMockedFetch(
+    [
+      new Response(
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          "<sitemapindex>",
+          "  <sitemap><loc>https://example.com/sitemaps/first.xml</loc></sitemap>",
+          "  <sitemap><loc>https://example.com/sitemaps/missing.xml</loc></sitemap>",
+          "</sitemapindex>"
+        ].join("\n"),
+        { status: 200, headers: { "content-type": "application/xml" } }
+      ),
+      new Response(
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          "<urlset>",
+          "  <url><loc>https://example.com/pages/one</loc></url>",
+          "</urlset>"
+        ].join("\n"),
+        { status: 200, headers: { "content-type": "application/xml" } }
+      ),
+      new Response("missing", { status: 404, headers: { "content-type": "application/xml" } })
+    ],
+    async () => {
+      const service = new SitemapSourceService({
+        fetchWebPage: async url => ({
+          title: url,
+          content: `Content for ${url}`
+        })
+      });
+
+      const result = await service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 5
+      });
+
+      assert.equal(result.diagnostics?.retryable, false);
+      assert.equal(result.diagnostics?.partial, true);
+      assert.deepEqual(result.diagnostics?.failedChildSitemaps, [
+        {
+          url: "https://example.com/sitemaps/missing.xml",
+          code: "UPSTREAM_FETCH_FAILED",
+          message: "Failed to fetch sitemap: upstream responded with 404.",
+          retryable: false
+        }
+      ]);
+    }
+  );
+});
+
+test("DocumentsService records non-retryable diagnostics for upstream 404 source failures", async () => {
+  const documentUpdates = [];
+  const failedRuns = [];
+
+  const reservedDocument = {
+    id: "reserved-missing-web-page-document",
+    version: 5
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...reservedDocument,
+            ...args.data
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.fetchExternalSourceOrRecordFailure.call(fakeService, reservedDocument, async () => {
+      throw new BadRequestException("Failed to fetch web page: upstream responded with 404.");
+    }),
+    /upstream responded with 404/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      where: {
+        id: reservedDocument.id
+      },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "Failed to fetch web page: upstream responded with 404.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: false,
+          documentVersion: reservedDocument.version,
+          message: "Failed to fetch web page: upstream responded with 404."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: reservedDocument.version,
+        message: "Failed to fetch web page: upstream responded with 404."
       }
     }
   ]);
@@ -1077,4 +1389,30 @@ function buildRemoteSourceFallbackTitle(url) {
   const parsed = new URL(url);
   const path = `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
   return path.slice(0, 255);
+}
+
+async function withMockedFetch(handlers, callback) {
+  const originalFetch = global.fetch;
+  let index = 0;
+
+  global.fetch = async (...args) => {
+    const handler = handlers[index];
+    index += 1;
+
+    if (handler === undefined) {
+      throw new Error(`Unexpected fetch call ${index} for ${args[0]}`);
+    }
+
+    if (typeof handler === "function") {
+      return handler(...args);
+    }
+
+    return handler;
+  };
+
+  try {
+    return await callback();
+  } finally {
+    global.fetch = originalFetch;
+  }
 }

@@ -384,7 +384,8 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
       ],
       failedPagesTruncated: false,
       failedPagesOmittedCount: 0,
-      partial: true
+      partial: true,
+      retryable: false
     });
   } finally {
     global.fetch = originalFetch;
@@ -520,6 +521,7 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
       failedPagesTruncated: false,
       failedPagesOmittedCount: 0,
       partial: true,
+      retryable: true,
       attemptedChildSitemapCount: 2,
       succeededChildSitemapCount: 1,
       failedChildSitemapCount: 1,

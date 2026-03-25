@@ -238,6 +238,7 @@ export function resolveRetrievalStrategy(input: {
   strategyJson?: RetrievalStrategy | null;
 }): ResolvedRetrievalStrategy {
   const normalizedStrategy = retrievalStrategySchema.optional().parse(input.strategyJson ?? undefined);
+  const hasStrategyOverride = normalizedStrategy !== undefined;
 
   return {
     queryRewrite: {
@@ -246,7 +247,7 @@ export function resolveRetrievalStrategy(input: {
     candidateSelection: {
       mode:
         normalizedStrategy?.candidateSelection?.mode ??
-        (input.enableHybrid ? "hybrid" : "vector"),
+        (hasStrategyOverride ? "vector" : input.enableHybrid ? "hybrid" : "vector"),
       candidateMultiplier: normalizedStrategy?.candidateSelection?.candidateMultiplier ?? 3,
       minCandidates: normalizedStrategy?.candidateSelection?.minCandidates ?? input.topK
     },
@@ -255,7 +256,7 @@ export function resolveRetrievalStrategy(input: {
       lexicalWeight: normalizedStrategy?.hybrid?.lexicalWeight ?? 0.3
     },
     rerank: {
-      enabled: normalizedStrategy?.rerank?.enabled ?? Boolean(input.enableRerank)
+      enabled: normalizedStrategy?.rerank?.enabled ?? (hasStrategyOverride ? false : Boolean(input.enableRerank))
     }
   };
 }

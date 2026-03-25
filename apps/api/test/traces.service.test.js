@@ -41,10 +41,14 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     createdAt: new Date("2026-03-24T00:00:00.000Z")
   };
 
+  const queryArgs = [];
   const prisma = {
     answerTrace: {
       findUnique: async () => persistedTrace,
-      findMany: async () => [persistedTrace]
+      findMany: async args => {
+        queryArgs.push(args);
+        return [persistedTrace];
+      }
     }
   };
 
@@ -83,9 +87,42 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     usedFallback: false
   });
 
-  const listed = await service.listConversationTraces("conversation-1");
+  const listed = await service.listConversationTraces("conversation-1", { limit: 20 });
+  assert.deepEqual(queryArgs, [
+    {
+      where: { conversationId: "conversation-1" },
+      take: 20,
+      select: {
+        id: true,
+        conversationId: true,
+        assistantId: true,
+        userMessageId: true,
+        assistantMessageId: true,
+        userQuery: true,
+        rewrittenQuery: true,
+        retrievedChunkIdsJson: true,
+        retrievalMetadataJson: true,
+        citationsJson: true,
+        answeringMetadataJson: true,
+        qualityEvaluationJson: true,
+        modelName: true,
+        latencyMs: true,
+        status: true,
+        errorMessage: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    }
+  ]);
   assert.equal(listed[0].traceSummary.failedStage, "answering");
   assert.equal(listed[0].traceSummary.failureMessage, "synthetic answer failure");
+  assert.equal("retrievalMetadataJson" in listed[0], false);
+  assert.equal("answeringMetadataJson" in listed[0], false);
+  assert.equal("qualityEvaluationJson" in listed[0], false);
+  assert.equal("retrievedChunkIdsJson" in listed[0], false);
+  assert.deepEqual(listed[0].citationsJson, []);
 });
 
 test("TracesService exposes additive execution provenance in traceSummary for successful traces", async () => {
@@ -183,4 +220,13 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     citationCount: 1,
     usedFallback: true
   });
+
+  const listed = await service.listConversationTraces("conversation-2", { limit: 5 });
+  assert.equal(listed.length, 1);
+  assert.deepEqual(listed[0].traceSummary, trace.traceSummary);
+  assert.equal("retrievalMetadataJson" in listed[0], false);
+  assert.equal("answeringMetadataJson" in listed[0], false);
+  assert.equal("qualityEvaluationJson" in listed[0], false);
+  assert.equal("retrievedChunkIdsJson" in listed[0], false);
+  assert.deepEqual(listed[0].citationsJson, [{ chunkId: "chunk-1" }]);
 });

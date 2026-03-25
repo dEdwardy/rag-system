@@ -6,7 +6,7 @@ import {
 } from "@prisma/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
-import { ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schemas";
+import { ListDocumentRunsInput, ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schemas";
 
 @Injectable()
 export class DocumentRunsService {
@@ -211,11 +211,12 @@ export class DocumentRunsService {
     });
   }
 
-  async listDocumentRuns(documentId: string) {
+  async listDocumentRuns(documentId: string, input: ListDocumentRunsInput) {
     const runs = await this.prisma.documentRun.findMany({
       where: {
         documentId
       },
+      ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: [{ startedAt: "desc" }, { version: "desc" }]
     });
 

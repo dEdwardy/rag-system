@@ -14,6 +14,8 @@ import {
   CreateFeedDocumentInput,
   CreateSitemapDocumentInput,
   CreateWebPageDocumentInput,
+  ListDocumentRunsInput,
+  ListKnowledgeBaseDocumentsInput,
   ListKnowledgeBaseDocumentRunsInput
 } from "./document.schemas";
 
@@ -46,13 +48,14 @@ export class DocumentsService {
     private readonly indexingService: IndexingService
   ) {}
 
-  async listKnowledgeBaseDocuments(knowledgeBaseId: string) {
+  async listKnowledgeBaseDocuments(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentsInput) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
 
     return this.prisma.document.findMany({
       where: {
         kbId: knowledgeBaseId
       },
+      ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: {
         updatedAt: "desc"
       }
@@ -103,9 +106,9 @@ export class DocumentsService {
     });
   }
 
-  async listDocumentRuns(id: string) {
+  async listDocumentRuns(id: string, input: ListDocumentRunsInput) {
     await this.getDocument(id);
-    return this.documentRunsService.listDocumentRuns(id);
+    return this.documentRunsService.listDocumentRuns(id, input);
   }
 
   async createDocument(knowledgeBaseId: string, input: CreateDocumentInput) {
@@ -274,7 +277,7 @@ export class DocumentsService {
       diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
         reservedDocument.version,
         fetchedSitemap.diagnostics,
-        "Sitemap source completed with partial page fetch failures.",
+        this.buildSitemapPartialDiagnosticsMessage(fetchedSitemap.diagnostics),
         true
       )
     });
@@ -495,13 +498,13 @@ export class DocumentsService {
         errorMessage: null,
         diagnosticsJson:
           sourceConfig.kind === "sitemap"
-            ? (this.buildExternalSourcePartialDiagnostics(
-                queuedDocument.version,
-                fetchedSource.diagnostics ?? null,
-                "Sitemap source completed with partial page fetch failures.",
-                true
-              ) ??
-              Prisma.JsonNull)
+              ? (this.buildExternalSourcePartialDiagnostics(
+                  queuedDocument.version,
+                  fetchedSource.diagnostics ?? null,
+                  this.buildSitemapPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
+                  true
+                ) ??
+               Prisma.JsonNull)
             : sourceConfig.kind === "feed"
               ? (this.buildExternalSourcePartialDiagnostics(
                   queuedDocument.version,
@@ -629,14 +632,39 @@ export class DocumentsService {
       return null;
     }
 
+    const resolvedRetryable = typeof diagnostics.retryable === "boolean" ? diagnostics.retryable : retryable;
+
     return {
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
-      retryable,
+      retryable: resolvedRetryable,
       documentVersion,
       message,
       ...diagnostics,
       partial: true
     } satisfies Prisma.InputJsonValue;
+  }
+
+  private buildSitemapPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
+    const failedPageCount = this.getNumericDiagnosticField(diagnostics, "failedPageCount");
+    const failedChildSitemapCount = this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount");
+
+    if (failedPageCount > 0 && failedChildSitemapCount > 0) {
+      return "Sitemap source completed with partial child sitemap and page fetch failures.";
+    }
+
+    if (failedChildSitemapCount > 0) {
+      return "Sitemap source completed with partial child sitemap fetch failures.";
+    }
+
+    return "Sitemap source completed with partial page fetch failures.";
+  }
+
+  private getNumericDiagnosticField(
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
+    key: string
+  ) {
+    const value = diagnostics?.[key];
+    return typeof value === "number" ? value : 0;
   }
 }

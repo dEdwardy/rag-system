@@ -1559,6 +1559,126 @@ test("AnsweringService localizes weak insufficient-context quality summaries for
   });
 });
 
+test("AnsweringService aligns grounded local fallback semantics between one-shot and streamed answers", async () => {
+  const fallbackAnswer = "Based on the retrieved sources [1], the most relevant information is:\n\nfirst chunk with answer";
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: fallbackAnswer,
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "grounded",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    }),
+    parseStructuredAnswer: ({ rawAnswer, modelName, promptId, usedFallback }) => ({
+      answer: rawAnswer,
+      modelName,
+      promptId,
+      usedFallback
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const input = {
+    question: "where?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        chunkIndex: 0,
+        content: "first chunk with answer",
+        score: 0.9,
+        pageNo: null,
+        sectionTitle: "A"
+      }
+    ]
+  };
+
+  const oneShotResult = await service.generateAnswer(input);
+  const streamedResult = await service.finalizeStreamedAnswer({
+    question: input.question,
+    answerPolicy: input.answerPolicy,
+    chunks: input.chunks,
+    contextGroups: [],
+    rawAnswer: fallbackAnswer,
+    modelName: "fallback-local",
+    promptId: "answer.v2",
+    usedFallback: true,
+    answerStatus: "grounded",
+    missingInformation: [],
+    citedChunkNumbers: [1]
+  });
+
+  assert.deepEqual(streamedResult, oneShotResult);
+});
+
+test("AnsweringService aligns no-hit best_effort local fallback semantics between one-shot and streamed answers", async () => {
+  const fallbackAnswer = "I couldn't find relevant information in the knowledge base.";
+  const fallbackMissingInformation = ["No relevant supporting sources were retrieved."];
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: fallbackAnswer,
+      modelName: "fallback-local",
+      promptId: "answer.v2",
+      usedFallback: true,
+      answerStatus: "insufficient_context",
+      missingInformation: fallbackMissingInformation
+    }),
+    parseStructuredAnswer: ({ rawAnswer, modelName, promptId, usedFallback }) => ({
+      answer: rawAnswer,
+      modelName,
+      promptId,
+      usedFallback
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const input = {
+    question: "What detail is missing?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "direct",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "optional",
+      maxCitations: 3,
+      noAnswerBehavior: "best_effort",
+      includeMissingInformation: true
+    },
+    chunks: []
+  };
+
+  const oneShotResult = await service.generateAnswer(input);
+  const streamedResult = await service.finalizeStreamedAnswer({
+    question: input.question,
+    answerPolicy: input.answerPolicy,
+    chunks: [],
+    contextGroups: [],
+    rawAnswer: fallbackAnswer,
+    modelName: "fallback-local",
+    promptId: "answer.v2",
+    usedFallback: true,
+    answerStatus: "insufficient_context",
+    missingInformation: fallbackMissingInformation
+  });
+
+  assert.deepEqual(streamedResult, oneShotResult);
+});
+
 test("AnsweringService preserves localized no-hit weak quality metadata for Chinese questions", async () => {
   const llmService = {
     generateAnswer: async () => ({

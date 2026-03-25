@@ -5,17 +5,18 @@ const { resolve } = require("node:path");
 
 test("web trace summary type covers current backend query-source and failure-stage variants", async () => {
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
+  const sharedSource = await readFile(resolve(__dirname, "../../../packages/shared/src/trace-contracts.ts"), "utf8");
 
-  assert.match(source, /retrievalQuerySource:[\s\S]*"rewritten"/);
-  assert.match(source, /retrievalQuerySource:[\s\S]*"original_disabled"/);
-  assert.match(source, /retrievalQuerySource:[\s\S]*"original_unchanged"/);
-  assert.match(source, /failedStage:\s*"retrieval"\s*\|\s*"answering"\s*\|\s*null/);
-  assert.match(source, /candidateLimit:\s*number/);
-  assert.match(source, /vectorCandidateCount:\s*number/);
-  assert.match(source, /lexicalCandidateCount:\s*number/);
-  assert.match(source, /mergedCandidateCount:\s*number/);
-  assert.match(source, /rankedCandidateCount:\s*number/);
-  assert.match(source, /vectorCandidateLimitHit:\s*boolean/);
-  assert.match(source, /lexicalCandidateLimitHit:\s*boolean/);
-  assert.match(source, /rankingTopKHit:\s*boolean/);
+  assert.match(source, /from\s+"@rag-system\/shared"/);
+  assert.match(source, /traceSummary:\s*TraceSummary;/);
+  assert.match(sharedSource, /export type TraceRetrievalQuerySource = "rewritten" \| "original_disabled" \| "original_unchanged";/);
+  assert.match(sharedSource, /export type TraceFailedStage = "retrieval" \| "answering";/);
+  assert.match(sharedSource, /candidateLimit:\s*number;/);
+  assert.match(sharedSource, /vectorCandidateCount:\s*number;/);
+  assert.match(sharedSource, /lexicalCandidateCount:\s*number;/);
+  assert.match(sharedSource, /mergedCandidateCount:\s*number;/);
+  assert.match(sharedSource, /rankedCandidateCount:\s*number;/);
+  assert.match(sharedSource, /vectorCandidateLimitHit:\s*boolean;/);
+  assert.match(sharedSource, /lexicalCandidateLimitHit:\s*boolean;/);
+  assert.match(sharedSource, /rankingTopKHit:\s*boolean;/);
 });

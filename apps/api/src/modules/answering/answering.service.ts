@@ -123,6 +123,10 @@ export class AnsweringService {
     modelName: string;
     promptId: string;
     usedFallback: boolean;
+    answerStatus?: "grounded" | "insufficient_context";
+    missingInformation?: string[];
+    citedChunkNumbers?: number[];
+    citationEvidence?: CitationEvidence[];
   }) {
     const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
     const llmResult = this.llmService.parseStructuredAnswer({
@@ -131,13 +135,34 @@ export class AnsweringService {
       promptId: input.promptId,
       usedFallback: input.usedFallback
     });
+    const normalizedResult = this.normalizeFallbackStreamResult({
+      question: input.question,
+      answerPolicy,
+      chunks: input.chunks,
+      result: {
+        ...llmResult,
+        answerStatus: llmResult.answerStatus ?? input.answerStatus,
+        missingInformation:
+          llmResult.missingInformation && llmResult.missingInformation.length > 0
+            ? llmResult.missingInformation
+            : input.missingInformation,
+        citedChunkNumbers:
+          llmResult.citedChunkNumbers && llmResult.citedChunkNumbers.length > 0
+            ? llmResult.citedChunkNumbers
+            : input.citedChunkNumbers,
+        citationEvidence:
+          llmResult.citationEvidence && llmResult.citationEvidence.length > 0
+            ? llmResult.citationEvidence
+            : input.citationEvidence
+      }
+    });
 
     return this.finalizeResolvedAnswer({
       question: input.question,
       answerPolicy,
       chunks: input.chunks,
       contextGroups: input.contextGroups,
-      result: llmResult
+      result: normalizedResult
     });
   }
 
@@ -374,6 +399,48 @@ export class AnsweringService {
       citations,
       retrievedChunks: input.chunks,
       contextGroups: input.contextGroups ?? []
+    };
+  }
+
+  private normalizeFallbackStreamResult(input: {
+    question: string;
+    answerPolicy: AnswerPolicy;
+    chunks: RetrievedChunk[];
+    result: {
+      answer: string;
+      modelName: string;
+      promptId: string;
+      usedFallback?: boolean;
+      answerStatus?: "grounded" | "insufficient_context";
+      missingInformation?: string[];
+      citedChunkNumbers?: number[];
+      citationEvidence?: CitationEvidence[];
+    };
+  }) {
+    if (!input.result.usedFallback || input.result.modelName !== "fallback-local") {
+      return input.result;
+    }
+
+    if (input.chunks.length === 0) {
+      return {
+        ...input.result,
+        answerStatus: input.result.answerStatus ?? "insufficient_context",
+        missingInformation:
+          input.result.missingInformation && input.result.missingInformation.length > 0
+            ? input.result.missingInformation
+            : [this.buildInsufficientContextMissingInformation(input.question, input.answerPolicy.language)],
+        citedChunkNumbers: input.result.citedChunkNumbers ?? []
+      };
+    }
+
+    return {
+      ...input.result,
+      answerStatus: input.result.answerStatus ?? "grounded",
+      missingInformation: input.result.missingInformation ?? [],
+      citedChunkNumbers:
+        input.result.citedChunkNumbers && input.result.citedChunkNumbers.length > 0
+          ? input.result.citedChunkNumbers
+          : [1]
     };
   }
 
