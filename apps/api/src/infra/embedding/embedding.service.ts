@@ -1,60 +1,78 @@
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
-
-type EmbeddingVector = {
-  vector: number[];
-  modelName: string;
-  dimensions: number;
-  provider: "ollama" | "openai" | "fallback";
-};
+import {
+  createResolvedEmbeddingConfigFromProviderResponse,
+  EmbeddingRuntimeConfigError,
+  EmbeddingVector,
+  FallbackEmbeddingRuntimeConfig,
+  OllamaEmbeddingRuntimeConfig,
+  OpenAiEmbeddingRuntimeConfig,
+  resolveEmbeddingRuntimeConfig,
+  resolveProviderResponseDimensions
+} from "./embedding-runtime-config";
 
 @Injectable()
 export class EmbeddingService {
-  async embedTexts(texts: string[]) {
+  async embedTexts(texts: string[]): Promise<EmbeddingVector[]> {
     const normalizedTexts = texts.map(text => text.trim());
 
     if (normalizedTexts.length === 0) {
       return [];
     }
 
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    const ollamaModel = process.env.OLLAMA_EMBEDDING_MODEL ?? process.env.OLLAMA_MODEL;
+    const runtimeConfig = resolveEmbeddingRuntimeConfig();
 
-    if (ollamaBaseUrl && ollamaModel) {
-      try {
-        return await this.embedWithOllama(ollamaBaseUrl, ollamaModel, normalizedTexts);
-      } catch {
-        // Keep ingestion and retrieval available when local model is not ready.
+    for (const providerConfig of runtimeConfig.providers) {
+      if (providerConfig.provider === "ollama") {
+        try {
+          return await this.embedWithOllama(providerConfig, normalizedTexts);
+        } catch (error) {
+          if (error instanceof EmbeddingRuntimeConfigError) {
+            throw error;
+          }
+
+          // Keep ingestion and retrieval available when local model is not ready.
+          continue;
+        }
       }
+
+      if (providerConfig.provider === "openai") {
+        try {
+          return await this.embedWithOpenAI(providerConfig, normalizedTexts);
+        } catch (error) {
+          if (error instanceof EmbeddingRuntimeConfigError) {
+            throw error;
+          }
+
+          // Fall through to deterministic local embedding.
+          continue;
+        }
+      }
+
+      return normalizedTexts.map(text => this.buildFallbackEmbedding(text, providerConfig));
     }
 
-    const openAiApiKey = process.env.OPENAI_API_KEY;
-    const openAiModel = process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
-
-    if (openAiApiKey) {
-      try {
-        return await this.embedWithOpenAI(openAiApiKey, openAiModel, normalizedTexts);
-      } catch {
-        // Fall through to deterministic local embedding.
-      }
-    }
-
-    return normalizedTexts.map(text => this.buildFallbackEmbedding(text));
+    throw new Error("Embedding runtime resolution returned no embedding provider.");
   }
 
-  async embedQuery(text: string) {
+  async embedQuery(text: string): Promise<EmbeddingVector> {
     const [embedding] = await this.embedTexts([text]);
+
+    if (!embedding) {
+      throw new Error("Embedding query resolution returned no embedding.");
+    }
+
     return embedding;
   }
 
-  private async embedWithOllama(baseUrl: string, model: string, inputs: string[]): Promise<EmbeddingVector[]> {
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/embed`, {
+  private async embedWithOllama(providerConfig: OllamaEmbeddingRuntimeConfig, inputs: string[]): Promise<EmbeddingVector[]> {
+    const response = await fetch(`${providerConfig.baseUrl}/api/embed`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model,
+        model: providerConfig.model,
         input: inputs
       })
     });
@@ -78,23 +96,23 @@ export class EmbeddingService {
       throw new Error("Ollama embedding response shape is invalid.");
     }
 
+    const dimensions = resolveProviderResponseDimensions(providerConfig, embeddings);
+
     return embeddings.map(vector => ({
       vector,
-      modelName: `ollama:${model}`,
-      dimensions: vector.length,
-      provider: "ollama"
+      ...createResolvedEmbeddingConfigFromProviderResponse(providerConfig, dimensions)
     }));
   }
 
-  private async embedWithOpenAI(apiKey: string, model: string, input: string[]): Promise<EmbeddingVector[]> {
-    const response = await fetch("https://api.openai.com/v1/embeddings", {
+  private async embedWithOpenAI(providerConfig: OpenAiEmbeddingRuntimeConfig, input: string[]): Promise<EmbeddingVector[]> {
+    const response = await fetch(providerConfig.apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${providerConfig.apiKey}`
       },
       body: JSON.stringify({
-        model,
+        model: providerConfig.model,
         input
       })
     });
@@ -112,25 +130,26 @@ export class EmbeddingService {
       throw new Error("OpenAI embedding response shape is invalid.");
     }
 
+    const dimensions = resolveProviderResponseDimensions(
+      providerConfig,
+      sortedItems.map(item => item.embedding)
+    );
+
     return sortedItems.map(item => ({
       vector: item.embedding,
-      modelName: `openai:${model}`,
-      dimensions: item.embedding.length,
-      provider: "openai"
+      ...createResolvedEmbeddingConfigFromProviderResponse(providerConfig, dimensions)
     }));
   }
 
-  private buildFallbackEmbedding(text: string): EmbeddingVector {
-    const dimensions = 256;
+  private buildFallbackEmbedding(text: string, fallbackConfig: FallbackEmbeddingRuntimeConfig): EmbeddingVector {
+    const dimensions = fallbackConfig.config.dimensions;
     const vector = new Array<number>(dimensions).fill(0);
     const terms = this.tokenize(text);
 
     if (terms.length === 0) {
       return {
         vector,
-        modelName: "fallback:hash-v1",
-        dimensions,
-        provider: "fallback"
+        ...fallbackConfig.config
       };
     }
 
@@ -143,9 +162,7 @@ export class EmbeddingService {
 
     return {
       vector: this.normalizeVector(vector),
-      modelName: "fallback:hash-v1",
-      dimensions,
-      provider: "fallback"
+      ...fallbackConfig.config
     };
   }
 
