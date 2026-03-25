@@ -50,6 +50,26 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       snippet: "retrieved content marker"
     }
   ];
+  const embeddingDiagnostics = {
+    active: {
+      provider: "openai",
+      model: "text-embedding-3-small",
+      modelName: "openai:text-embedding-3-small",
+      dimensions: 1536,
+      modelSource: "env:OPENAI_EMBEDDING_MODEL",
+      dimensionsSource: "provider_response",
+      fallbackState: "none"
+    },
+    indexed: {
+      provider: "openai",
+      model: "text-embedding-3-small",
+      modelName: "openai:text-embedding-3-small",
+      dimensions: 1536,
+      fallbackState: "none",
+      recordCount: 6,
+      documentCount: 1
+    }
+  };
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
@@ -110,6 +130,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         return {
           retrievedChunks,
           contextGroups,
+          embedding: embeddingDiagnostics,
           execution: {
             actualMode: "hybrid",
             usedFallback: false,
@@ -323,6 +344,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       usedFallback: true,
       promptId: "rewrite-query.v1"
     },
+    embedding: embeddingDiagnostics,
     execution: {
       retrievalQuery: "where is the marker? rewritten",
       topK: 4,
@@ -684,6 +706,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       usedFallback: null,
       promptId: null
     },
+    embedding: null,
     execution: {
       retrievalQuery: "original question",
       topK: 4,

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
+import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
@@ -117,6 +118,7 @@ export class AskAssistantService {
       chunkWindow: retrievalProfile.chunkWindow,
       retrievedChunks,
       contextGroups,
+      embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
     });
 
@@ -304,6 +306,7 @@ export class AskAssistantService {
       chunkWindow: retrievalProfile.chunkWindow,
       retrievedChunks,
       contextGroups,
+      embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
     });
 
@@ -496,19 +499,20 @@ export class AskAssistantService {
     chunkWindow: number;
     retrievedChunks: AskResultChunk[];
     contextGroups: Array<{ primaryChunkIds: string[] }>;
-      execution: {
-        actualMode: "vector" | "hybrid" | "lexical";
-        usedFallback: boolean;
-        fallbackReason: "vector_error" | "no_ranked_candidates" | null;
-        rerankApplied: boolean;
-        chunkWindowApplied: boolean;
-        vectorSearchAttempted: boolean;
-        lexicalSearchAttempted: boolean;
-        vectorCandidateLimitHit: boolean;
-        lexicalCandidateLimitHit: boolean;
-        rankingTopKHit: boolean;
-        candidateLimit: number;
-        vectorCandidateCount: number;
+    embedding: VectorStoreEmbeddingDiagnostics | null;
+    execution: {
+      actualMode: "vector" | "hybrid" | "lexical";
+      usedFallback: boolean;
+      fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+      rerankApplied: boolean;
+      chunkWindowApplied: boolean;
+      vectorSearchAttempted: boolean;
+      lexicalSearchAttempted: boolean;
+      vectorCandidateLimitHit: boolean;
+      lexicalCandidateLimitHit: boolean;
+      rankingTopKHit: boolean;
+      candidateLimit: number;
+      vectorCandidateCount: number;
       lexicalCandidateCount: number;
       mergedCandidateCount: number;
       rankedCandidateCount: number;
@@ -528,6 +532,7 @@ export class AskAssistantService {
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
       },
+      embedding: input.embedding ?? null,
       execution: {
         retrievalQuery: input.rewrittenQuery || input.originalQuestion,
         topK: input.topK,
@@ -593,6 +598,7 @@ export class AskAssistantService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown retrieval pipeline error.";
+      const embeddingDiagnostics = error instanceof VectorStoreCompatibilityError ? error.embeddingDiagnostics : null;
       const failedTrace = await this.tracesService.createTrace({
         conversationId: input.conversationId,
         assistantId: input.assistantId,
@@ -609,6 +615,7 @@ export class AskAssistantService {
           topK: input.retrievalProfile.topK,
           scoreThreshold: input.retrievalProfile.scoreThreshold,
           chunkWindow: input.retrievalProfile.chunkWindow,
+          embedding: embeddingDiagnostics,
           failure: {
             stage: "retrieval",
             message
@@ -638,6 +645,7 @@ export class AskAssistantService {
     topK: number;
     scoreThreshold: number;
     chunkWindow: number;
+    embedding?: VectorStoreEmbeddingDiagnostics | null;
     failure: {
       stage: "retrieval";
       message: string;
@@ -657,6 +665,7 @@ export class AskAssistantService {
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
       },
+      embedding: input.embedding ?? null,
       execution: {
         retrievalQuery: input.rewrittenQuery || input.originalQuestion,
         topK: input.topK,

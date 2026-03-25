@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
+const { VectorStoreCompatibilityError } = require("../src/infra/vector-store/vector-store.types.ts");
 const {
   createAskAssistantService,
   createAssistantRecord
@@ -147,5 +148,88 @@ test("AskAssistantService creates a failed trace when retrieval throws before tr
   assert.deepEqual(createdTraces[0].retrievalMetadataJson.failure, {
     stage: "retrieval",
     message: "synthetic retrieval failure"
+  });
+});
+
+test("AskAssistantService persists embedding diagnostics when retrieval fails on index compatibility", async () => {
+  const createdTraces = [];
+  const embeddingDiagnostics = {
+    active: {
+      provider: "fallback",
+      model: "hash-v1",
+      modelName: "fallback:hash-v1",
+      dimensions: 256,
+      modelSource: "builtin:fallback",
+      dimensionsSource: "builtin:fallback",
+      fallbackState: "local_deterministic"
+    },
+    indexed: {
+      provider: "openai",
+      model: "text-embedding-3-small",
+      modelName: "openai:text-embedding-3-small",
+      dimensions: 1536,
+      fallbackState: "none",
+      recordCount: 42,
+      documentCount: 3
+    }
+  };
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      retrievalProfile: {
+        topK: 3
+      }
+    }),
+    retrieval: {
+      retrieve: async () => {
+        throw new VectorStoreCompatibilityError(
+          "Embedding index compatibility error for knowledge base \"kb-1\": Active retrieval embedding config fallback:hash-v1 (256d) (fallback=local_deterministic) is incompatible with indexed vectors openai:text-embedding-3-small (1536d) across 3 document(s). Reindex this knowledge base with one embedding config before continuing.",
+          embeddingDiagnostics
+        );
+      }
+    },
+    traces: {
+      createTrace: async input => {
+        createdTraces.push(input);
+        return { id: "trace-retrieval-compat-1", ...input };
+      },
+      updateTrace: async () => {
+        throw new Error("updateTrace should not be used when retrieval fails before trace creation");
+      }
+    },
+    llm: {
+      rewriteQuery: async ({ question }) => ({
+        rewrittenQuery: question,
+        modelName: "fallback-rewrite-local",
+        usedFallback: true,
+        promptId: "rewrite.v1"
+      })
+    }
+  });
+
+  await assert.rejects(
+    service.askAssistant({
+      assistantId: "assistant-1",
+      question: "why did retrieval fail on compatibility?"
+    }),
+    error => {
+      assert.equal(error.getStatus(), 502);
+      const response = error.getResponse();
+      assert.equal(response.code, "ASK_PIPELINE_FAILED");
+      assert.equal(response.traceId, "trace-retrieval-compat-1");
+      assert.deepEqual(response.details, {
+        stage: "retrieval",
+        cause:
+          'Embedding index compatibility error for knowledge base "kb-1": Active retrieval embedding config fallback:hash-v1 (256d) (fallback=local_deterministic) is incompatible with indexed vectors openai:text-embedding-3-small (1536d) across 3 document(s). Reindex this knowledge base with one embedding config before continuing.'
+      });
+      return true;
+    }
+  );
+
+  assert.equal(createdTraces.length, 1);
+  assert.deepEqual(createdTraces[0].retrievalMetadataJson.embedding, embeddingDiagnostics);
+  assert.deepEqual(createdTraces[0].retrievalMetadataJson.failure, {
+    stage: "retrieval",
+    message:
+      'Embedding index compatibility error for knowledge base "kb-1": Active retrieval embedding config fallback:hash-v1 (256d) (fallback=local_deterministic) is incompatible with indexed vectors openai:text-embedding-3-small (1536d) across 3 document(s). Reindex this knowledge base with one embedding config before continuing.'
   });
 });
