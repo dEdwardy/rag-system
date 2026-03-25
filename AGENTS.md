@@ -90,6 +90,20 @@ Only consider limited parallel agent usage when all of the following are true:
 
 When in doubt, stay single-agent.
 
+中文说明：默认由主控代理直接完成实现；子代理优先只承担窄范围搜索、审计、资料检索、提交草稿等辅助工作，不默认整包接管一个功能波次。
+
+## Main-Control Execution Bias
+
+Prefer a main-control execution bias for this repository:
+
+- the primary agent should directly handle implementation, focused validation, and closeout for most backend tasks
+- for complex but familiar backend work, prefer direct main-control execution rather than delegating by default
+- use subagents mainly for narrow supporting work such as codebase search, external reference lookup, audit mapping, or commit drafting
+- do not delegate an entire feature wave by default when the primary agent can complete it directly with lower coordination cost
+- reserve full implementation delegation for genuinely hard, unfamiliar, or cross-cutting tasks where the delegation benefit clearly outweighs verification overhead
+
+中文说明：本仓库默认“主控直做、子代理窄辅助”，目标是在保持验证质量的前提下减少委派成本、重复确认和回合损耗。
+
 ## Default Execution Mode
 
 Unless the user explicitly asks to pause or review before the next step, continue automatically through:
@@ -116,6 +130,18 @@ Do not stop for confirmation between normal development steps unless:
 Treat autonomous end-to-end execution as the repository default working mode.
 
 中文说明：本仓库默认工作模式是端到端自动推进，而不是每一步等待人工确认。
+
+## Turbo Mode Guardrails
+
+Apply Turbo execution defaults with explicit safety limits:
+
+- if a subagent task or long-running validation exceeds 90 seconds without a result, post a brief progress update
+- if a subagent wait exceeds 12 minutes, stop waiting, split the scope into smaller units, and redelegate
+- run minimal targeted validation per task, then run one full-wave closeout validation at the end of the broader delivery wave
+- for retrieval, embedding, persistence, or schema changes, include at least one real runtime or API verification path
+- allow at most one retry per task; after that, narrow scope before continuing
+
+中文说明：Turbo 模式以快速推进为默认，但必须遵守 90 秒无结果主动汇报、超时拆分、每任务最小验证、高风险真实运行验证、单次重试后收敛范围这五项护栏。
 
 ## High-Risk Areas
 
