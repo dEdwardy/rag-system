@@ -11,6 +11,18 @@
 
 补充进展（2026-03-26）：
 
+- ✅ removed the stray empty Prisma migration artifact
+  - 已删除本地未跟踪的空 migration stub：`apps/api/prisma/migrations/20260325201719_ensure_latest_embedding_config_normalization/migration.sql`
+  - 审计结论确认这不是实际待收口 schema 变更：
+    - `migration.sql` 原本为空
+    - `apps/api/prisma/schema.prisma` 没有对应未提交 schema 变更
+    - embedding config normalization 已落在 runtime / vector-store 代码中，而不是 Prisma schema
+  - 这一轮保持为最小 cleanup 增量：不改数据库 schema、不生成新 migration、不改 runtime 行为，只移除误留的本地 artifact
+  - 新增 / 更新验证：
+    - `git status --short --branch`
+    - glob 校对 `apps/api/prisma/migrations/20260325201719_ensure_latest_embedding_config_normalization/**` 已无文件
+  - 实测结果：该 migration 不再出现在工作区未跟踪列表中，当前只剩 `.sisyphus/*` 本地规划文件未跟踪
+
 - ✅ current dev setup doc now matches the current traceSummary field surface
   - `docs/current-dev-setup.md` 的 `current trace read semantics` 段已补齐剩余的 `traceSummary` 字段列表漂移，并和 `docs/retrieval-trace.md` / `packages/shared/src/trace-contracts.ts` 对齐
   - 补齐字段覆盖：
