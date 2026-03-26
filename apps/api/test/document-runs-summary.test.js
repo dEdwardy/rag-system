@@ -914,6 +914,106 @@ test("DocumentRunsService summary applies narrow run filters before aggregating 
   });
 });
 
+test("DocumentRunsService issueOnly summary still exposes latest skipped run", async () => {
+  const runs = [
+    {
+      documentId: "doc-ready-partial",
+      version: 5,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Feed source completed with partial entry validation failures.",
+        partial: true
+      },
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "feed",
+        sourceName: "https://example.com/feed.xml"
+      }
+    },
+    {
+      documentId: "doc-failed",
+      version: 4,
+      trigger: "external_resync",
+      status: "failed",
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        message: "temporary upstream failure"
+      },
+      startedAt: new Date("2026-03-22T10:03:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/down"
+      }
+    },
+    {
+      documentId: "doc-skipped",
+      version: 3,
+      trigger: "reindex",
+      status: "skipped",
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        message: "superseded by a newer run"
+      },
+      startedAt: new Date("2026-03-22T10:01:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:01:30.000Z"),
+      document: {
+        sourceType: "upload",
+        sourceName: "guide.md"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb", {
+    issueOnly: true
+  });
+
+  assert.equal(summary.totalRuns, 2);
+  assert.deepEqual(summary.byStatus, {
+    pending: 0,
+    processing: 0,
+    ready: 1,
+    failed: 1,
+    skipped: 0
+  });
+  assert.deepEqual(summary.latestSkipped, {
+    documentId: "doc-skipped",
+    version: 3,
+    trigger: "reindex",
+    failedStage: "stale_guard",
+    sourceType: "upload",
+    sourceName: "guide.md",
+    message: "superseded by a newer run",
+    finishedAt: new Date("2026-03-22T10:01:30.000Z"),
+    failureSummary: {
+      code: "INGESTION_RUN_SUPERSEDED",
+      failedStage: "stale_guard",
+      retryable: false,
+      message: "superseded by a newer run"
+    }
+  });
+});
+
 test("DocumentRunsService summary anchors prefer the latest finished matching run over the latest started run", async () => {
   const runs = [
     {

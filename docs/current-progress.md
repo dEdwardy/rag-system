@@ -11,6 +11,13 @@
 
 补充进展（2026-03-26）：
 
+- ✅ issueOnly run summary now keeps `latestSkipped` visible
+  - `DocumentRunsService.getKnowledgeBaseRunSummary()` 现在在 `issueOnly=true` 时，仍然会从完整已取 runs 集合里计算 `latestSkipped`，不再因为 issue filter 先行生效而把 skip anchor 一起过滤掉
+  - 这一轮保持为最小 backend diagnostics 增量：不改 issueOnly 的 counters / failure aggregates，只修 `latestSkipped` 这个 summary anchor 的可见性
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+  - 实测结果：focused document-runs summary tests 15/15 通过；`issueOnly=true` 时仍能返回 `latestSkipped`，同时 issue counters 继续只统计 ready/failed issue runs
+
 - ✅ feed source E2E tests now use the current built-entry fallback and tolerate fast in-flight completion
   - `apps/api/test/feed-source-e2e.test.js` 已把 9 处硬编码 `apps/api/dist/main.js` 统一切到 `resolveBuiltApiEntry()` fallback 模式
   - 同文件里一条稳定复现的竞态断言也已收紧：`in-flight reindex from a partial-ready source...` 现在允许 version 2 run 在轮询时已经从 `processing` 快速推进到 `ready`
