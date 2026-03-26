@@ -23,10 +23,17 @@ export class QueueService implements OnModuleDestroy {
   }
 
   addDocumentIngestionJob(documentId: string, documentVersion?: number) {
+    const jobId =
+      documentVersion === undefined ? undefined : this.buildDocumentIngestionJobId(documentId, documentVersion);
+
     return this.documentIngestionQueue.add("ingest-document", {
       documentId,
       documentVersion
-    });
+    }, jobId ? { jobId } : undefined);
+  }
+
+  private buildDocumentIngestionJobId(documentId: string, documentVersion: number) {
+    return `ingest-document-${documentId}-${documentVersion}`;
   }
 
   async onModuleDestroy() {
