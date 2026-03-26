@@ -85,6 +85,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     lexicalCandidateLimitHit: false,
     rankingTopKHit: true,
     primaryChunkCount: 1,
+    neighborChunkCount: 0,
     retrievedChunkCount: 1,
     inputChunkCount: 1,
     promptContextCount: 0,
@@ -160,6 +161,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
         lexicalCandidateLimitHit: false,
         rankingTopKHit: false,
         primaryChunkCount: 1,
+        neighborChunkCount: 1,
         retrievedChunkCount: 2
       }
     },
@@ -235,6 +237,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     lexicalCandidateLimitHit: false,
     rankingTopKHit: false,
     primaryChunkCount: 1,
+    neighborChunkCount: 1,
     retrievedChunkCount: 2,
     inputChunkCount: 2,
     promptContextCount: 1,

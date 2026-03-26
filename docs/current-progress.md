@@ -11,6 +11,19 @@
 
 补充进展（2026-03-26）：
 
+- ✅ traceSummary now exposes neighborChunkCount
+  - `TraceSummary` 现在会把持久化在 `retrievalMetadataJson.execution` 里的 `neighborChunkCount` 提升到轻量 summary 读模型，便于直接看见最终进入回答上下文的检索块里，有多少来自 chunk-window / neighbor 扩展，而不必回读整块 retrieval metadata
+  - 这一轮和刚落地的 `primaryChunkCount` 一样，属于 retrieval-composition 的纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
+  - 最小契约对齐：`packages/shared/src/trace-contracts.ts` 已同步加入 `TraceSummary.neighborChunkCount`
+  - 新增 / 更新验证：
+    - `apps/api/test/traces.service.test.js`
+      - focused 断言 trace summary detail/list 都暴露 `neighborChunkCount`
+    - `apps/api/test/api-flow.test.js`
+      - integration 断言真实 `/conversations/:id/traces` 与 `/traces/:id` 返回的 `traceSummary` 包含 `neighborChunkCount`
+    - `pnpm --filter @rag-system/shared build`
+    - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rag_system pnpm --filter @rag-system/api test:file -- test/api-flow.test.js`
+  - 实测结果：focused traces test、shared build、真实 API flow integration 均通过，summary 字段已和 `retrievalMetadataJson.execution.neighborChunkCount` 对齐；缺失时默认回退为 `0`
+
 - ✅ traceSummary now exposes primaryChunkCount
   - `TraceSummary` 现在会把持久化在 `retrievalMetadataJson.execution` 里的 `primaryChunkCount` 提升到轻量 summary 读模型，便于直接看见最终进入回答上下文的检索块里，有多少是 primary 命中而不是 window/neighbor 扩展块
   - 这一轮标志着此前 answering-side traceSummary 小字段链已经收口，并转入相邻的 retrieval-composition 读模型增量；仍然不改 ask 写路径、不改 schema、不改 retrieval / answering 行为

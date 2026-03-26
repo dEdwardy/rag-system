@@ -186,6 +186,7 @@ export class TracesService {
       lexicalCandidateLimitHit: this.readBoolean(retrievalExecution?.lexicalCandidateLimitHit),
       rankingTopKHit: this.readBoolean(retrievalExecution?.rankingTopKHit),
       primaryChunkCount: this.readNumber(retrievalExecution?.primaryChunkCount) ?? retrievedChunkCount,
+      neighborChunkCount: this.readNumber(retrievalExecution?.neighborChunkCount) ?? 0,
       retrievedChunkCount,
       inputChunkCount: this.readNumber(answeringMetadata?.inputChunkCount) ?? retrievedChunkCount,
       promptContextCount: this.readNumber(answeringMetadata?.promptContextCount) ?? 0,
