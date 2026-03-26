@@ -201,6 +201,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof listedTrace?.traceSummary?.rankingTopKHit, "boolean");
     assert.equal(typeof listedTrace?.traceSummary?.retrievedChunkCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.citationCount, "number");
+    assert.equal(typeof listedTrace?.traceSummary?.citationCountBeforeLimit, "number");
     assert.equal(typeof listedTrace?.traceSummary?.citationLimitHit, "boolean");
     assert.equal(typeof listedTrace?.traceSummary?.usedFallback, "boolean");
 
@@ -252,6 +253,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       rankingTopKHit: trace.retrievalMetadataJson.execution.rankingTopKHit,
       retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
       citationCount: trace.citationsJson.length,
+      citationCountBeforeLimit: trace.answeringMetadataJson.citationCountBeforeLimit,
       citationLimitHit: trace.answeringMetadataJson.citationLimitHit,
       usedFallback: trace.answeringMetadataJson.usedFallback
     });

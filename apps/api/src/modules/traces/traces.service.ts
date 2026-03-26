@@ -186,6 +186,7 @@ export class TracesService {
       rankingTopKHit: this.readBoolean(retrievalExecution?.rankingTopKHit),
       retrievedChunkCount,
       citationCount,
+      citationCountBeforeLimit: this.readNumber(answeringMetadata?.citationCountBeforeLimit) ?? citationCount,
       citationLimitHit: this.readBoolean(answeringMetadata?.citationLimitHit),
       usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
     } satisfies TraceSummary;
