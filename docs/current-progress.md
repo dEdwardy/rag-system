@@ -11,6 +11,22 @@
 
 补充进展（2026-03-26）：
 
+- ✅ web traceSummary contract guard now covers the latest shared fields
+  - `apps/web/test/trace-summary-contract.test.js` 现在不再只守旧的 query-source / failed-stage / candidate-flow 子集，也同步守住共享 `TraceSummary` 里最近补齐的字段：
+    - `promptId`
+    - `missingInformationSource`
+    - `primaryChunkCount`
+    - `neighborChunkCount`
+    - `inputChunkCount`
+    - `promptContextCount`
+    - `contextGroupCount`
+    - `citationCountBeforeLimit`
+    - `citationLimitHit`
+  - 这一轮继续保持为最小 contract-guard 增量：不改 web runtime 行为、不改 backend read model、不改共享类型定义，只补 source-level drift 防护
+  - 新增 / 更新验证：
+    - `node --test apps/web/test/trace-summary-contract.test.js`
+  - 实测结果：contract test 通过，当前 web 侧对共享 `TraceSummary` 的 source guard 已和最新 shared contract 对齐
+
 - ✅ traceSummary now preserves legacy promptContextCount semantics
   - `TracesService` 现在在读取旧 trace 时，不再把缺失的 `traceSummary.promptContextCount` 一律回退成 `0`
   - 当前会按已有 answering metadata 语义回推：`contextMode=context_groups` 时回退到 `contextGroupCount`，否则回退到 `inputChunkCount`
