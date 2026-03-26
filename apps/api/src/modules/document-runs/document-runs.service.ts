@@ -544,11 +544,11 @@ export class DocumentRunsService {
       return failedStage;
     }
 
-    if (status === DocumentRunStatus.ready) {
-      return failureSummary?.failedStage ?? null;
+    if (status === DocumentRunStatus.pending || status === DocumentRunStatus.processing) {
+      return null;
     }
 
-    return null;
+    return failureSummary?.failedStage ?? null;
   }
 
   private findLatestRunAnchor<T extends { finishedAt: Date | null; startedAt: Date; version: number }>(

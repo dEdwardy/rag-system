@@ -1508,3 +1508,45 @@ test("DocumentRunsService listDocumentRuns leaves history unbounded when limit i
     }
   ]);
 });
+
+test("DocumentRunsService listDocumentRuns backfills failedStage from diagnostics for failed runs when column is null", async () => {
+  const fakeRun = {
+    id: "run-failed-null-stage",
+    documentId: "doc-1",
+    version: 7,
+    trigger: "external_resync",
+    status: "failed",
+    failedStage: null,
+    diagnosticsJson: {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: true,
+      message: "temporary upstream failure"
+    },
+    startedAt: new Date("2026-03-22T11:00:00.000Z"),
+    finishedAt: new Date("2026-03-22T11:01:00.000Z"),
+    createdAt: new Date("2026-03-22T11:00:00.000Z"),
+    updatedAt: new Date("2026-03-22T11:01:00.000Z")
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => [fakeRun]
+      }
+    }
+  });
+
+  const runs = await DocumentRunsService.prototype.listDocumentRuns.call(fakeService, "doc-1", {
+    limit: 20
+  });
+
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].failedStage, "source_fetch");
+  assert.deepEqual(runs[0].failureSummary, {
+    code: "EXTERNAL_SOURCE_FETCH_FAILED",
+    failedStage: "source_fetch",
+    retryable: true,
+    message: "temporary upstream failure"
+  });
+});

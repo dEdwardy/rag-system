@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ listDocumentRuns now backfills failedStage from diagnostics for terminal runs with null stage columns
+  - `DocumentRunsService.resolveOutputFailedStage()` 现在在 `failed/skipped/ready` 的 terminal run 上都支持从 diagnostics 回填 `failedStage`（仅 `pending/processing` 继续固定返回 `null`）
+  - 这修复了历史或异常数据中“run.status=failed 但 failedStage 列为空”时 API 输出阶段信息丢失的问题
+  - 这一轮保持为最小 backend diagnostics 增量：不改 run 状态机和聚合语义，只补输出层阶段回填一致性
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+  - 实测结果：focused document-runs summary tests 17/17 通过；`listDocumentRuns` 对 failed run 的 `failedStage` 输出与 diagnostics 对齐
+
 - ✅ issueOnly document-run list/summary behavior no longer drops older issue anchors
   - `DocumentRunsService.listKnowledgeBaseRuns()` 在 `issueOnly=true` 时不再固定“先取前 100 条再过滤后截断”，而是按批次向后扫描，直到收集到请求 `limit` 的 issue runs 或没有更多数据
   - `DocumentRunsService.getKnowledgeBaseRunSummary()` 在 `issueOnly=true` 时仍然保留 `latestSkipped` 锚点，不会因为 issue filter 先行而把 skip anchor 一起过滤掉
