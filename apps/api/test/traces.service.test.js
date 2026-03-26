@@ -87,6 +87,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     retrievedChunkCount: 1,
     inputChunkCount: 1,
     promptContextCount: 0,
+    contextGroupCount: 0,
     citationCount: 0,
     citationCountBeforeLimit: 0,
     citationLimitHit: false,
@@ -176,6 +177,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       answerStatus: "insufficient_context",
       inputChunkCount: 2,
       promptContextCount: 1,
+      contextGroupCount: 1,
       citationCountBeforeLimit: 3,
       citationLimitHit: true,
       usedFallback: true
@@ -233,6 +235,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     retrievedChunkCount: 2,
     inputChunkCount: 2,
     promptContextCount: 1,
+    contextGroupCount: 1,
     citationCount: 1,
     citationCountBeforeLimit: 3,
     citationLimitHit: true,

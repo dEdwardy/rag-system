@@ -69,6 +69,7 @@ export type TraceSummary = {
   retrievedChunkCount: number;
   inputChunkCount: number;
   promptContextCount: number;
+  contextGroupCount: number;
   citationCount: number;
   citationCountBeforeLimit: number;
   citationLimitHit: boolean;

@@ -188,6 +188,7 @@ export class TracesService {
       retrievedChunkCount,
       inputChunkCount: this.readNumber(answeringMetadata?.inputChunkCount) ?? retrievedChunkCount,
       promptContextCount: this.readNumber(answeringMetadata?.promptContextCount) ?? 0,
+      contextGroupCount: this.readNumber(answeringMetadata?.contextGroupCount) ?? 0,
       citationCount,
       citationCountBeforeLimit: this.readNumber(answeringMetadata?.citationCountBeforeLimit) ?? citationCount,
       citationLimitHit: this.readBoolean(answeringMetadata?.citationLimitHit),
