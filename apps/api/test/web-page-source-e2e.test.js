@@ -3,13 +3,14 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const { spawn, execFileSync } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
-const { mkdirSync, rmSync } = require("node:fs");
+const { existsSync, mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
+const apiDistEntry = resolveBuiltApiEntry();
 const prisma = new PrismaClient();
 
 test.before(() => {
@@ -27,7 +28,7 @@ test("Web page source E2E: url -> ready -> chunks -> ask -> reindex", async () =
   let pageMarker = `web-page-source-marker-${randomUUID()}`;
   const pageServer = await startWebPageServer(() => pageMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -129,7 +130,7 @@ test("Web page source E2E: ingesting the same URL again reuses the document and 
   let pageMarker = `web-page-source-marker-${randomUUID()}`;
   const pageServer = await startWebPageServer(() => pageMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -201,7 +202,7 @@ test("Web page source E2E: failed fetch leaves a failed document with diagnostic
 
   const pageServer = await startFailingWebPageServer();
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -407,7 +408,7 @@ test("Web page source E2E: a failed source no longer remains in summary after a 
   const recoveredMarker = `web-page-recovered-marker-${randomUUID()}`;
   const pageServer = await startRecoverableWebPageServer(recoveredMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -607,7 +608,7 @@ test("Web page source E2E: same-URL reuse clears failed diagnostics after a late
   const recoveredMarker = `web-page-reuse-recovered-marker-${randomUUID()}`;
   const pageServer = await startRecoverableWebPageServer(recoveredMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -740,7 +741,7 @@ test("Web page source E2E: unsupported content type leaves a failed document wit
 
   const pageServer = await startUnsupportedWebPageServer();
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -870,7 +871,7 @@ test("Web page source E2E: unsupported-content failure clears current diagnostic
   const recoveredMarker = `web-page-unsupported-recovered-marker-${randomUUID()}`;
   const pageServer = await startRecoverableUnsupportedWebPageServer(recoveredMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -1295,4 +1296,13 @@ function sleep(ms) {
   return new Promise(resolvePromise => {
     setTimeout(resolvePromise, ms);
   });
+}
+
+function resolveBuiltApiEntry() {
+  const preferredEntry = resolve(repoRoot, "apps/api/dist/apps/api/src/main.js");
+  if (existsSync(preferredEntry)) {
+    return preferredEntry;
+  }
+
+  return resolve(repoRoot, "apps/api/dist/main.js");
 }

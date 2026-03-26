@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ web-page source E2E tests now use the current built-entry fallback
+  - `apps/api/test/web-page-source-e2e.test.js` 已把 7 处硬编码 `apps/api/dist/main.js` 统一切到 `resolveBuiltApiEntry()` fallback 模式
+  - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
+  - 这一轮保持为最小单文件 source-E2E baseline 增量：只修 web-page source 这一个文件的 built-entry drift，不扩成 feed/sitemap 批量清理
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/web-page-source-e2e.test.js`
+  - 实测结果：focused web-page source E2E tests 7/7 通过，当前构建产物布局变化不会再让这组 web source 流程测试因入口路径硬编码而误失败
+
 - ✅ api-flow integration test now uses the current built-entry fallback
   - `apps/api/test/api-flow.test.js` 已从硬编码 `apps/api/dist/apps/api/src/main.js` 切到统一的 `resolveBuiltApiEntry()` fallback 模式
   - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
