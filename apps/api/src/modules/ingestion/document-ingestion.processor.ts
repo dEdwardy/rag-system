@@ -99,15 +99,7 @@ export class DocumentIngestionProcessor {
     }
 
     try {
-      await this.prisma.document.update({
-        where: { id: document.id },
-        data: {
-          status: DocumentStatus.processing,
-          processingStage: DocumentProcessingStage.parsing,
-          errorMessage: null,
-          diagnosticsJson: preservedDiagnostics ?? Prisma.JsonNull
-        }
-      });
+      await this.markDocumentProcessing(document.id, document.version, preservedDiagnostics);
 
       const fileBuffer = await this.readDocumentFile(document);
       const content = await this.parseDocumentContent(document, fileBuffer);
@@ -285,6 +277,32 @@ export class DocumentIngestionProcessor {
       throw new IngestionProcessError(
         this.buildGenericIngestionDiagnostics("indexing", document.version, error)
       );
+    }
+  }
+
+  private async markDocumentProcessing(
+    documentId: string,
+    documentVersion: number,
+    preservedDiagnostics: Prisma.JsonValue | null
+  ) {
+    try {
+      await this.prisma.document.update({
+        where: { id: documentId },
+        data: {
+          status: DocumentStatus.processing,
+          processingStage: DocumentProcessingStage.parsing,
+          errorMessage: null,
+          diagnosticsJson: preservedDiagnostics ?? Prisma.JsonNull
+        }
+      });
+    } catch (error) {
+      throw new IngestionProcessError({
+        code: "INGESTION_STATE_WRITE_FAILED",
+        failedStage: "parsing",
+        retryable: true,
+        documentVersion,
+        message: error instanceof Error ? error.message : "Unknown document state update error."
+      });
     }
   }
 

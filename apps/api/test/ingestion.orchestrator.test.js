@@ -324,8 +324,8 @@ test("DocumentIngestionProcessor records failure when the initial processing sta
       processingStage: "failed",
       errorMessage: "synthetic initial state update failure",
       diagnosticsJson: {
-        code: "INGESTION_INDEXING_FAILED",
-        failedStage: "indexing",
+        code: "INGESTION_STATE_WRITE_FAILED",
+        failedStage: "parsing",
         retryable: true,
         documentVersion: 1,
         message: "synthetic initial state update failure"
@@ -336,10 +336,10 @@ test("DocumentIngestionProcessor records failure when the initial processing sta
     {
       documentId: "document-initial-update-failure-1",
       version: 1,
-      failedStage: "indexing",
+      failedStage: "parsing",
       diagnosticsJson: {
-        code: "INGESTION_INDEXING_FAILED",
-        failedStage: "indexing",
+        code: "INGESTION_STATE_WRITE_FAILED",
+        failedStage: "parsing",
         retryable: true,
         documentVersion: 1,
         message: "synthetic initial state update failure"

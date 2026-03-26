@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ initial ingestion state-write failures now preserve the correct failed-stage classification
+  - `DocumentIngestionProcessor` 不再把“初始 processing/parsing 状态写入失败”错误归类成 `INGESTION_INDEXING_FAILED`
+  - 当前这类失败会记录为 `INGESTION_STATE_WRITE_FAILED`，并保持 `failedStage: "parsing"`，避免把最初状态写入问题误报成 indexing 阶段故障
+  - 这一轮保持为最小 backend correctness / diagnostics 增量：只修正初始状态写入失败的诊断归类，不改其他 ingestion 阶段语义
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ingestion.orchestrator.test.js`
+  - 实测结果：focused ingestion orchestrator tests 13/13 通过，初始状态写入失败路径已改为记录 `INGESTION_STATE_WRITE_FAILED` + `failedStage: "parsing"`
+
 - ✅ retrieval-profile filters focused test now uses the current built-entry fallback
   - `apps/api/test/retrieval-profile-filters.test.js` 已从 3 处硬编码 `apps/api/dist/main.js` 切到与同族 `retrieval-profile-strategy.test.js` 一致的 `resolveBuiltApiEntry()` fallback 模式
   - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
