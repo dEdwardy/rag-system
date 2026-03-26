@@ -3,13 +3,14 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const { spawn, execFileSync } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
-const { mkdirSync, rmSync } = require("node:fs");
+const { existsSync, mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
+const apiDistEntry = resolveBuiltApiEntry();
 const prisma = new PrismaClient();
 
 test.before(() => {
@@ -27,7 +28,7 @@ test("Sitemap source E2E: sitemap -> ready -> chunks -> ask -> reindex", async (
   let sitemapMarker = `sitemap-source-marker-${randomUUID()}`;
   const sitemapServer = await startSitemapServer(() => sitemapMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -130,7 +131,7 @@ test("Sitemap source E2E: sitemap index -> ready -> chunks -> ask", async () => 
   const sitemapMarker = `sitemap-index-marker-${randomUUID()}`;
   const sitemapServer = await startSitemapIndexServer(sitemapMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -202,7 +203,7 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
   const sitemapMarker = `sitemap-partial-marker-${randomUUID()}`;
   const sitemapServer = await startPartialFailureSitemapServer(sitemapMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -322,7 +323,7 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
   const sitemapMarker = `sitemap-index-partial-marker-${randomUUID()}`;
   const sitemapServer = await startPartialChildFailureSitemapIndexServer(sitemapMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -444,7 +445,7 @@ test("Sitemap source E2E: partial page diagnostics clear after a later clean res
   const cleanMarker = `sitemap-partial-then-clean-clean-${randomUUID()}`;
   const sitemapServer = await startRecoverablePartialSitemapServer(initialMarker, cleanMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -594,7 +595,7 @@ test("Sitemap source E2E: partial child sitemap diagnostics clear after a later 
   const cleanMarker = `sitemap-index-partial-then-clean-clean-${randomUUID()}`;
   const sitemapServer = await startRecoverablePartialChildSitemapIndexServer(initialMarker, cleanMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -745,7 +746,7 @@ test("Sitemap source E2E: same-URL reuse clears partial page diagnostics after a
   const cleanMarker = `sitemap-partial-reuse-clean-${randomUUID()}`;
   const sitemapServer = await startRecoverablePartialSitemapServer(initialMarker, cleanMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -885,7 +886,7 @@ test("Sitemap source E2E: same-URL reuse clears failed page diagnostics after a 
   const recoveredMarker = `sitemap-reuse-recovered-marker-${randomUUID()}`;
   const sitemapServer = await startRecoverableFailedSitemapServer(recoveredMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -1053,7 +1054,7 @@ test("Sitemap source E2E: same-URL reuse clears failed child sitemap diagnostics
   const recoveredMarker = `sitemap-index-reuse-recovered-marker-${randomUUID()}`;
   const sitemapServer = await startRecoverableFailedChildSitemapIndexServer(recoveredMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -1220,7 +1221,7 @@ test("Sitemap source E2E: failed child sitemap fetch leaves a failed document wi
 
   const sitemapServer = await startRecoverableFailedChildSitemapIndexServer(`unused-marker-${randomUUID()}`);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -1355,7 +1356,7 @@ test("Sitemap source E2E: all-unsupported-page failure clears current diagnostic
   const recoveredMarker = `sitemap-unsupported-recovered-marker-${randomUUID()}`;
   const sitemapServer = await startRecoverableUnsupportedSitemapServer(recoveredMarker);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -1532,7 +1533,7 @@ test("Sitemap source E2E: all unsupported pages leave a failed document with non
 
   const sitemapServer = await startRecoverableUnsupportedSitemapServer(`unused-marker-${randomUUID()}`);
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -2540,4 +2541,13 @@ function sleep(ms) {
   return new Promise(resolvePromise => {
     setTimeout(resolvePromise, ms);
   });
+}
+
+function resolveBuiltApiEntry() {
+  const preferredEntry = resolve(repoRoot, "apps/api/dist/apps/api/src/main.js");
+  if (existsSync(preferredEntry)) {
+    return preferredEntry;
+  }
+
+  return resolve(repoRoot, "apps/api/dist/main.js");
 }
