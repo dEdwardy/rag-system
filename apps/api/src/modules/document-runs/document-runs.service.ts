@@ -265,12 +265,7 @@ export class DocumentRunsService {
   }
 
   markRunProcessing(documentId: string, version: number, diagnosticsJson: Prisma.InputJsonValue | null = null) {
-    return this.updateRun(documentId, version, {
-      status: DocumentRunStatus.processing,
-      failedStage: null,
-      diagnosticsJson: diagnosticsJson ?? Prisma.JsonNull,
-      finishedAt: null
-    });
+    return this.reopenRunIfEligible(documentId, version, diagnosticsJson);
   }
 
   markRunCompleted(documentId: string, version: number, diagnosticsJson: Prisma.InputJsonValue | null = null) {
@@ -325,6 +320,50 @@ export class DocumentRunsService {
         version
       },
       data
+    });
+  }
+
+  private async reopenRunIfEligible(
+    documentId: string,
+    version: number,
+    diagnosticsJson: Prisma.InputJsonValue | null
+  ) {
+    const run = await this.prisma.documentRun.findUnique({
+      where: {
+        documentId_version: {
+          documentId,
+          version
+        }
+      },
+      select: {
+        status: true,
+        diagnosticsJson: true
+      }
+    });
+
+    if (!run) {
+      return { count: 0 };
+    }
+
+    const canReopen =
+      run.status === DocumentRunStatus.pending ||
+      (run.status === DocumentRunStatus.failed && this.isRetryableDiagnostics(run.diagnosticsJson));
+
+    if (!canReopen) {
+      return { count: 0 };
+    }
+
+    return this.prisma.documentRun.updateMany({
+      where: {
+        documentId,
+        version
+      },
+      data: {
+        status: DocumentRunStatus.processing,
+        failedStage: null,
+        diagnosticsJson: diagnosticsJson ?? Prisma.JsonNull,
+        finishedAt: null
+      }
     });
   }
 

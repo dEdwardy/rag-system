@@ -11,6 +11,23 @@
 
 补充进展（2026-03-26）：
 
+- ✅ retryable-only same-version run reopen semantics
+  - `DocumentRunsService.markRunProcessing()` 现在不再把所有 `failed` run 一律重新拉回 `processing`；当前只允许 `pending`，以及 `diagnosticsJson.retryable === true` 的 `failed` run 重新激活
+  - 这样 run-level 语义和前面补上的 processor 入口 guard 现在对齐：non-retryable failed run 仍保持 terminal，而 retryable failed run 继续保留自动重试路径
+  - 这一轮只收 run-level reopen 规则，不改 BullMQ `attempts` 配置，也不扩成更大的 retry-policy 重构
+  - 新增 focused coverage：
+    - `apps/api/test/document-runs.service.test.js`
+      - retryable failed run reopens, non-retryable failed run stays blocked
+    - `apps/api/test/ingestion.orchestrator.test.js`
+      - processor-level non-retryable same-version retry still short-circuits
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/document-runs.service.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/ingestion.orchestrator.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用真实 Prisma 写入一条 `retryable failed` run 和一条 `non-retryable failed` run，再实际调用 `markRunProcessing()`
+    - 实测结果：`retryableResult.count=1` 且 run 进入 `processing`；`nonRetryableResult.count=0` 且 run 保持 `failed`，`onlyRetryableReopened=true`
+
 - ✅ external-source post-fetch persistence failure recording
   - `DocumentsService` 现在会把 external source 在 fetch 成功后的持久化阶段异常也收口为失败：包括 `saveGeneratedTextFile()` 和 finalize/update 链路抛错
   - 这样 external source run 在已创建、fetch 已成功后，如果落盘或 finalize 失败，不会再把 document/run 留在 `pending/uploaded` 的未决状态
