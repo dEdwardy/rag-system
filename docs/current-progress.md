@@ -11,6 +11,19 @@
 
 补充进展（2026-03-26）：
 
+- ✅ retrieval trace reference doc now matches the current traceSummary field surface
+  - `docs/retrieval-trace.md` 的 `Trace read summary` 段已补齐当前共享 `TraceSummary` contract 中此前遗漏的字段，包括：
+    - `promptId`
+    - `missingInformationSource`
+    - retrieval candidate-flow counts / limit-hit flags
+    - `primaryChunkCount` / `neighborChunkCount`
+    - `inputChunkCount` / `promptContextCount` / `contextGroupCount`
+    - `citationCountBeforeLimit` / `citationLimitHit`
+  - 这一轮保持为最小 doc-only 同步：只更新 trace 主参考文档里的字段列表，不改 `current-dev-setup.md`，不改运行时代码或测试
+  - 新增 / 更新验证：
+    - read-back 校对 `docs/retrieval-trace.md` 中 `Current traceSummary shape includes:` 列表，确认已和 `packages/shared/src/trace-contracts.ts` 对齐
+  - 实测结果：`retrieval-trace.md` 当前已完整列出 38 个 `traceSummary` 字段，可直接作为本轮 trace read-model / contract 对齐后的主参考
+
 - ✅ ask-chain E2E traceSummary baseline now matches the current shared contract
   - `apps/api/test/ask-chain-e2e.test.js` 现在已补齐 conversation trace list 与 trace detail 对 `traceSummary` 的新字段断言，包括：
     - `promptId`

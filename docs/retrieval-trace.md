@@ -138,6 +138,7 @@ Trace read endpoints now also expose additive `traceSummary` on top of the raw p
 
 Current `traceSummary` shape includes:
 
+- `promptId`
 - `answerStatus`
 - `qualityOverall`
 - `primaryIssue`
@@ -151,13 +152,29 @@ Current `traceSummary` shape includes:
 - `citationAttribution`
 - `citationSelectionSource`
 - `missingInformationCount`
+- `missingInformationSource`
 - `insufficientContextReason`
 - `answerTextSource`
 - `answerStatusSource`
 - `failedStage`
 - `failureMessage`
+- `candidateLimit`
+- `vectorCandidateCount`
+- `lexicalCandidateCount`
+- `mergedCandidateCount`
+- `rankedCandidateCount`
+- `vectorCandidateLimitHit`
+- `lexicalCandidateLimitHit`
+- `rankingTopKHit`
+- `primaryChunkCount`
+- `neighborChunkCount`
 - `retrievedChunkCount`
+- `inputChunkCount`
+- `promptContextCount`
+- `contextGroupCount`
 - `citationCount`
+- `citationCountBeforeLimit`
+- `citationLimitHit`
 - `usedFallback`
 
 This summary is derived from the persisted trace JSON, so callers can read the main execution outcome directly without reconstructing it from `retrievalMetadataJson`, `answeringMetadataJson`, and `qualityEvaluationJson`.
