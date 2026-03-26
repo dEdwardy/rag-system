@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn, execFileSync } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
-const { mkdirSync, rmSync } = require("node:fs");
+const { existsSync, mkdirSync, rmSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 const { seedDefaultRecords } = require("./support/seed-default-records.js");
@@ -23,7 +23,7 @@ test("Ask chain E2E: upload -> grounded ask -> conversation reuse -> trace growt
   const queuePrefix = `test-ask-chain-${randomUUID()}`;
   mkdirSync(storageRoot, { recursive: true });
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [resolveBuiltApiEntry()], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -202,6 +202,9 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
 
   const traces = await tracesResponse.json();
   assert.equal(traces.length, expectedTraceIds.length);
+  assert.ok(
+    traces.every(trace => trace.traceSummary?.promptId === null || typeof trace.traceSummary?.promptId === "string")
+  );
   assert.ok(traces.every(trace => typeof trace.traceSummary?.answerStatus === "string"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.qualityOverall === "string"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.primaryIssue === "string"));
@@ -243,6 +246,13 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
   assert.ok(
     traces.every(
       trace =>
+        trace.traceSummary?.missingInformationSource === null ||
+        typeof trace.traceSummary?.missingInformationSource === "string"
+    )
+  );
+  assert.ok(
+    traces.every(
+      trace =>
         trace.traceSummary?.insufficientContextReason === null ||
         typeof trace.traceSummary?.insufficientContextReason === "string"
     )
@@ -260,8 +270,23 @@ async function assertConversationTraces(port, conversationId, expectedTraceIds) 
         typeof trace.traceSummary?.answerStatusSource === "string"
     )
   );
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.candidateLimit === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.vectorCandidateCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.lexicalCandidateCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.mergedCandidateCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.rankedCandidateCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.vectorCandidateLimitHit === "boolean"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.lexicalCandidateLimitHit === "boolean"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.rankingTopKHit === "boolean"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.primaryChunkCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.neighborChunkCount === "number"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.retrievedChunkCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.inputChunkCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.promptContextCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.contextGroupCount === "number"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.citationCount === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.citationCountBeforeLimit === "number"));
+  assert.ok(traces.every(trace => typeof trace.traceSummary?.citationLimitHit === "boolean"));
   assert.ok(traces.every(trace => typeof trace.traceSummary?.usedFallback === "boolean"));
   assert.deepEqual(
     traces.map(trace => trace.id).sort(),
@@ -290,6 +315,7 @@ async function assertTraceState(port, traceId) {
   assert.equal(typeof trace.qualityEvaluationJson?.overall, "string");
   assert.equal(typeof trace.qualityEvaluationJson?.summary, "string");
   assert.deepEqual(trace.traceSummary, {
+    promptId: trace.answeringMetadataJson.promptId,
     answerStatus: trace.answeringMetadataJson.answerStatus,
     qualityOverall: trace.qualityEvaluationJson.overall,
     primaryIssue: trace.qualityEvaluationJson.primaryIssue,
@@ -303,13 +329,29 @@ async function assertTraceState(port, traceId) {
     citationAttribution: trace.answeringMetadataJson.citationAttribution,
     citationSelectionSource: trace.answeringMetadataJson.citationSelectionSource,
     missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
+    missingInformationSource: trace.answeringMetadataJson.missingInformationSource,
     insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
     answerTextSource: trace.answeringMetadataJson.answerTextSource,
     answerStatusSource: trace.answeringMetadataJson.answerStatusSource,
     failedStage: null,
     failureMessage: null,
+    candidateLimit: trace.retrievalMetadataJson.execution.candidateLimit,
+    vectorCandidateCount: trace.retrievalMetadataJson.execution.vectorCandidateCount,
+    lexicalCandidateCount: trace.retrievalMetadataJson.execution.lexicalCandidateCount,
+    mergedCandidateCount: trace.retrievalMetadataJson.execution.mergedCandidateCount,
+    rankedCandidateCount: trace.retrievalMetadataJson.execution.rankedCandidateCount,
+    vectorCandidateLimitHit: trace.retrievalMetadataJson.execution.vectorCandidateLimitHit,
+    lexicalCandidateLimitHit: trace.retrievalMetadataJson.execution.lexicalCandidateLimitHit,
+    rankingTopKHit: trace.retrievalMetadataJson.execution.rankingTopKHit,
+    primaryChunkCount: trace.retrievalMetadataJson.execution.primaryChunkCount,
+    neighborChunkCount: trace.retrievalMetadataJson.execution.neighborChunkCount,
     retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
+    inputChunkCount: trace.answeringMetadataJson.inputChunkCount,
+    promptContextCount: trace.answeringMetadataJson.promptContextCount,
+    contextGroupCount: trace.answeringMetadataJson.contextGroupCount,
     citationCount: trace.citationsJson.length,
+    citationCountBeforeLimit: trace.answeringMetadataJson.citationCountBeforeLimit,
+    citationLimitHit: trace.answeringMetadataJson.citationLimitHit,
     usedFallback: trace.answeringMetadataJson.usedFallback
   });
   assert.equal(typeof trace.rewrittenQuery === "string" || trace.rewrittenQuery === null, true);
@@ -367,4 +409,13 @@ function sleep(ms) {
   return new Promise(resolvePromise => {
     setTimeout(resolvePromise, ms);
   });
+}
+
+function resolveBuiltApiEntry() {
+  const preferredEntry = resolve(repoRoot, "apps/api/dist/apps/api/src/main.js");
+  if (existsSync(preferredEntry)) {
+    return preferredEntry;
+  }
+
+  return resolve(repoRoot, "apps/api/dist/main.js");
 }

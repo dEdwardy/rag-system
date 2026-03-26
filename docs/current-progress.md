@@ -11,6 +11,20 @@
 
 补充进展（2026-03-26）：
 
+- ✅ ask-chain E2E traceSummary baseline now matches the current shared contract
+  - `apps/api/test/ask-chain-e2e.test.js` 现在已补齐 conversation trace list 与 trace detail 对 `traceSummary` 的新字段断言，包括：
+    - `promptId`
+    - `missingInformationSource`
+    - retrieval candidate-flow counts / limit-hit flags
+    - `primaryChunkCount` / `neighborChunkCount`
+    - `inputChunkCount` / `promptContextCount` / `contextGroupCount`
+    - `citationCountBeforeLimit` / `citationLimitHit`
+  - 同文件也顺手修正了过期的 built API entry 路径：优先使用 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
+  - 这一轮仍然保持为最小测试基线增量：不改 backend runtime 行为、不改 shared contract、不改 API payload，只补 ask-chain E2E 对现状的验证覆盖
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-chain-e2e.test.js`
+  - 实测结果：在最小本地 fallback embedding 环境下，ask-chain E2E 已通过，traceSummary 断言与当前共享 contract 对齐
+
 - ✅ web traceSummary contract guard now covers the latest shared fields
   - `apps/web/test/trace-summary-contract.test.js` 现在不再只守旧的 query-source / failed-stage / candidate-flow 子集，也同步守住共享 `TraceSummary` 里最近补齐的字段：
     - `promptId`
