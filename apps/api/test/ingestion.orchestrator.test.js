@@ -63,8 +63,8 @@ test("DocumentIngestionProcessor processes a document through parsing, chunking,
       }
     },
     indexingService: {
-      indexDocument: async documentId => {
-        indexingCalls.push(documentId);
+      indexDocument: async (documentId, expectedVersion) => {
+        indexingCalls.push({ documentId, expectedVersion });
       }
     },
     documentRunsService: {
@@ -116,7 +116,12 @@ test("DocumentIngestionProcessor processes a document through parsing, chunking,
       }
     ]
   );
-  assert.deepEqual(indexingCalls, ["document-1"]);
+  assert.deepEqual(indexingCalls, [
+    {
+      documentId: "document-1",
+      expectedVersion: 1
+    }
+  ]);
   assert.deepEqual(processingRuns, [
     {
       documentId: "document-1",
@@ -248,7 +253,8 @@ test("DocumentIngestionProcessor processes a DOCX document through parsing, chun
         kbId: "kb-1",
         sourceName: "guide.docx",
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        storageKey: "documents/document-docx-1.docx"
+        storageKey: "documents/document-docx-1.docx",
+        version: 1
       }),
       update: async ({ data }) => {
         documentUpdates.push(data);
@@ -295,8 +301,8 @@ test("DocumentIngestionProcessor processes a DOCX document through parsing, chun
       }
     },
     indexingService: {
-      indexDocument: async documentId => {
-        indexingCalls.push(documentId);
+      indexDocument: async (documentId, expectedVersion) => {
+        indexingCalls.push({ documentId, expectedVersion });
       }
     },
     documentRunsService: {
@@ -344,7 +350,12 @@ test("DocumentIngestionProcessor processes a DOCX document through parsing, chun
       }
     ]
   );
-  assert.deepEqual(indexingCalls, ["document-docx-1"]);
+  assert.deepEqual(indexingCalls, [
+    {
+      documentId: "document-docx-1",
+      expectedVersion: 1
+    }
+  ]);
   assert.deepEqual(documentUpdates, [
     {
       status: "processing",

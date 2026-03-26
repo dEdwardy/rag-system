@@ -11,7 +11,7 @@ export class IndexingService {
     @Inject(VECTOR_STORE) private readonly vectorStoreService: VectorStore
   ) {}
 
-  async indexDocument(documentId: string) {
+  async indexDocument(documentId: string, expectedVersion?: number) {
     const document = await this.prisma.document.findUnique({
       where: {
         id: documentId
@@ -30,6 +30,10 @@ export class IndexingService {
     }
 
     if (document.chunks.length === 0) {
+      if (!(await this.matchesExpectedVersion(document.id, expectedVersion))) {
+        return;
+      }
+
       await this.vectorStoreService.deleteDocumentVectors(document.kbId, document.id);
       return;
     }
@@ -37,6 +41,10 @@ export class IndexingService {
     const embeddings = await this.embeddingService.embedTexts(
       document.chunks.map(chunk => this.buildChunkEmbeddingInput(chunk.sectionTitle, chunk.content))
     );
+
+    if (!(await this.matchesExpectedVersion(document.id, expectedVersion))) {
+      return;
+    }
 
     await this.vectorStoreService.replaceDocumentVectors({
       kbId: document.kbId,
@@ -97,5 +105,26 @@ export class IndexingService {
     }
 
     return `${sectionTitle}\n\n${content}`;
+  }
+
+  private async matchesExpectedVersion(documentId: string, expectedVersion?: number) {
+    if (expectedVersion === undefined) {
+      return true;
+    }
+
+    const currentDocument = await this.prisma.document.findUnique({
+      where: {
+        id: documentId
+      },
+      select: {
+        version: true
+      }
+    });
+
+    if (!currentDocument) {
+      return false;
+    }
+
+    return currentDocument.version === expectedVersion;
   }
 }

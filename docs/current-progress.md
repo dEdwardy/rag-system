@@ -11,6 +11,24 @@
 
 补充进展（2026-03-26）：
 
+- ✅ indexing expected-version guard for stale mid-index vector writes
+  - `IndexingService.indexDocument()` 现在支持可选 `expectedVersion`，并且会在真正执行 vector delete / replace 之前再次确认当前 `document.version` 仍匹配本次运行版本
+  - 这样旧 ingestion job 即使已经进入 indexing，并在 embedding 计算期间被新版本覆盖，也不会在稍后恢复时继续删除或覆盖当前 vectors
+  - `DocumentIngestionProcessor` 现会把当前 `document.version` 传入 indexing，使这道 guard 只收在既有 ingestion → indexing 链路内，不扩到 queue / schema / retrieval
+  - 新增 focused coverage：
+    - `apps/api/test/indexing.test.js`
+      - stale expected version blocks vector replace
+      - stale expected version blocks vector delete
+    - `apps/api/test/ingestion.orchestrator.test.js`
+      - indexing call now threads `expectedVersion`
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/indexing.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/ingestion.orchestrator.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用真实 Prisma + 本地 file-backed vector store 跑一个隔离 proof：先启动被阻塞的 `indexDocument(documentId, 1)`，在 embedding 阶段把 document 提升到 `version=2` 并写入 `NEW_TOKEN` chunks/vectors，再释放旧 indexing
+    - 实测结果：最终 vector 文件只保留 `NEW_TOKEN`，`preservedNewVectors=true`、`staleOldVectorsAbsent=true`，旧 indexing 未发生 stale overwrite
+
 - ✅ ingestion stale mid-flight chunk/vector side-effect guard
   - `DocumentIngestionProcessor` 现在不只在 terminal write 前检查 supersede；在进入 `chunking` 写路径前，以及进入 `indexing` 写路径前，也会再次确认当前 `document.version` 仍匹配运行中的 job
   - 这样旧 ingestion job 如果在 parsing 完成后、chunk rebuild 前，或在 chunk rebuild 完成后、vector replacement 前被新版本覆盖，会直接收口为 `skipped / stale_guard`，不再继续改写当前 document 的 chunks / vectors

@@ -273,7 +273,7 @@ export class DocumentIngestionProcessor {
 
   private async indexDocument(document: { id: string; version: number }) {
     try {
-      await this.indexingService.indexDocument(document.id);
+      await this.indexingService.indexDocument(document.id, document.version);
     } catch (error) {
       throw new IngestionProcessError(
         this.buildGenericIngestionDiagnostics("indexing", document.version, error)
