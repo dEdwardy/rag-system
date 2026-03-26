@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ api-flow integration test now uses the current built-entry fallback
+  - `apps/api/test/api-flow.test.js` 已从硬编码 `apps/api/dist/apps/api/src/main.js` 切到统一的 `resolveBuiltApiEntry()` fallback 模式
+  - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
+  - 这一轮保持为最小单文件 integration baseline 增量：只修一处 built-entry drift，不改 API flow 断言逻辑
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/api-flow.test.js`
+  - 实测结果：focused API flow integration test 已通过，当前构建产物布局变化不会再让这条核心链路测试因入口路径硬编码而误失败
+
 - ✅ stale local enqueue-failure supersede handling now has focused regression coverage
   - `DocumentsService` 里已存在的 stale enqueue-failure guard 现在有了 focused test：当旧版本 document 的本地 ingestion enqueue 失败，但数据库里已经有更新版本激活时，不再把旧版本标记为 failed，而是记录 `stale_guard` skip
   - 新增覆盖位于 `apps/api/test/documents.enqueue-failure.test.js`，断言这条路径会写入：
