@@ -1086,6 +1086,92 @@ test("DocumentIngestionProcessor does not reopen a terminal same-version run", a
   assert.deepEqual(skippedRuns, []);
 });
 
+test("DocumentIngestionProcessor does not reopen a non-retryable failed same-version run on queue retry", async () => {
+  const documentUpdates = [];
+  const processingRuns = [];
+  const failedRuns = [];
+  const storageReads = [];
+  const parsingCalls = [];
+  const indexingCalls = [];
+
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => ({
+          id: "document-non-retryable-retry-1",
+          kbId: "kb-1",
+          sourceName: "guide.unsupported",
+          mimeType: "application/octet-stream",
+          storageKey: "documents/document-non-retryable-retry-1.bin",
+          version: 5,
+          status: "failed",
+          diagnosticsJson: {
+            code: "INGESTION_PARSING_UNSUPPORTED_TYPE",
+            failedStage: "parsing",
+            retryable: false,
+            documentVersion: 5,
+            message: "Unsupported file type for ingestion: guide.unsupported (application/octet-stream)."
+          }
+        }),
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async args => ({ count: args.data.length })
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async storageKey => {
+        storageReads.push(storageKey);
+        return Buffer.from("ignored");
+      }
+    },
+    parsingService: {
+      parseDocument: async input => {
+        parsingCalls.push(input);
+        return "ignored";
+      }
+    },
+    chunkingService: {
+      buildChunks: () => [{ content: "ignored", sectionTitle: null }]
+    },
+    indexingService: {
+      indexDocument: async documentId => {
+        indexingCalls.push(documentId);
+      }
+    },
+    documentRunsService: {
+      markRunProcessing: async (documentId, version) => {
+        processingRuns.push({ documentId, version });
+        return { count: 1 };
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
+    data: {
+      documentId: "document-non-retryable-retry-1",
+      documentVersion: 5
+    }
+  });
+
+  assert.deepEqual(processingRuns, []);
+  assert.deepEqual(failedRuns, []);
+  assert.deepEqual(documentUpdates, []);
+  assert.deepEqual(storageReads, []);
+  assert.deepEqual(parsingCalls, []);
+  assert.deepEqual(indexingCalls, []);
+});
+
 test("IngestionService can disable worker startup while preserving queue producer behavior", async () => {
   const queuedJobs = [];
   let connectionQuitCalls = 0;

@@ -11,6 +11,20 @@
 
 补充进展（2026-03-26）：
 
+- ✅ non-retryable same-version ingestion retry guard
+  - `DocumentIngestionProcessor` 现在会在处理开始前识别“当前 document 已处于 `failed` 且 `diagnosticsJson.retryable === false`”的情况，并直接跳过同版本 queue retry
+  - 这样对 unsupported file type / empty content 之类的 terminal parsing failure，BullMQ 的自动重试不会再把同一 document version 重新拉回 `processing`
+  - 这一轮刻意只收 processor 入口 guard，不改 queue `attempts` 配置，也不扩成更大的 run-state / retry-policy 重构
+  - 新增 focused coverage：
+    - `apps/api/test/ingestion.orchestrator.test.js`
+      - non-retryable failed same-version run does not reopen on queue retry
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/ingestion.orchestrator.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用真实 Prisma 跑一个隔离 proof：先写入 `status=failed`、`retryable=false` 的 document + run，再手动调用同版本 `processDocument`
+    - 实测结果：日志显示直接跳过 non-retryable retry，最终 document 与 run 均保持 `failed/parsing`，`stayedFailed=true`、`remainedNonRetryable=true`
+
 - ✅ indexing expected-version guard for stale mid-index vector writes
   - `IndexingService.indexDocument()` 现在支持可选 `expectedVersion`，并且会在真正执行 vector delete / replace 之前再次确认当前 `document.version` 仍匹配本次运行版本
   - 这样旧 ingestion job 即使已经进入 indexing，并在 embedding 计算期间被新版本覆盖，也不会在稍后恢复时继续删除或覆盖当前 vectors

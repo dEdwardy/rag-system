@@ -58,6 +58,13 @@ export class DocumentIngestionProcessor {
       return;
     }
 
+    if (this.isNonRetryableFailedDocument(document)) {
+      this.logger.warn(
+        `Skipping non-retryable ingestion retry for document ${document.id} version ${document.version} because the current failure is terminal.`
+      );
+      return;
+    }
+
     if (typeof job.data.documentVersion === "number" && document.version !== job.data.documentVersion) {
       await this.documentRunsService.markRunSkipped(document.id, job.data.documentVersion, {
         failedStage: DocumentRunFailedStage.stale_guard,
@@ -320,6 +327,18 @@ export class DocumentIngestionProcessor {
     }
 
     return diagnosticsJson.partial === true ? diagnosticsJson : null;
+  }
+
+  private isNonRetryableFailedDocument(document: { status?: DocumentStatus; diagnosticsJson?: Prisma.JsonValue | null }) {
+    if (document.status !== DocumentStatus.failed) {
+      return false;
+    }
+
+    if (!document.diagnosticsJson || typeof document.diagnosticsJson !== "object" || Array.isArray(document.diagnosticsJson)) {
+      return false;
+    }
+
+    return document.diagnosticsJson.retryable === false;
   }
 
   private wasRunTransitionApplied(result: unknown) {
