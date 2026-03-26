@@ -38,6 +38,7 @@ export type TraceMissingInformationSource = "none" | "model" | "deterministic_de
 export type TraceFailedStage = "retrieval" | "answering";
 
 export type TraceSummary = {
+  promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
   qualityOverall: TraceQualityOverall | null;
   primaryIssue: TracePrimaryIssue | null;

@@ -157,6 +157,7 @@ export class TracesService {
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
 
     return {
+      promptId: this.readString(answeringMetadata?.promptId),
       answerStatus: this.readStringAs<NonNullable<TraceSummary["answerStatus"]>>(answeringMetadata?.answerStatus),
       qualityOverall: this.readStringAs<NonNullable<TraceSummary["qualityOverall"]>>(qualityEvaluation?.overall),
       primaryIssue: this.readStringAs<NonNullable<TraceSummary["primaryIssue"]>>(qualityEvaluation?.primaryIssue),

@@ -141,6 +141,10 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.ok(conversationTraces.some(trace => trace.id === askResult.traceId));
     const listedTrace = conversationTraces.find(trace => trace.id === askResult.traceId);
     assert.equal(typeof listedTrace?.traceSummary?.answerStatus, "string");
+    assert.equal(
+      listedTrace?.traceSummary?.promptId === null || typeof listedTrace?.traceSummary?.promptId === "string",
+      true
+    );
     assert.equal(typeof listedTrace?.traceSummary?.qualityOverall, "string");
     assert.equal(typeof listedTrace?.traceSummary?.primaryIssue, "string");
     assert.equal(typeof listedTrace?.traceSummary?.retrievalMode, "string");
@@ -226,6 +230,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof trace.answeringMetadataJson?.promptId, "string");
     assert.equal(typeof trace.answeringMetadataJson?.answerStatus, "string");
     assert.deepEqual(trace.traceSummary, {
+      promptId: trace.answeringMetadataJson.promptId,
       answerStatus: trace.answeringMetadataJson.answerStatus,
       qualityOverall: trace.qualityEvaluationJson.overall,
       primaryIssue: trace.qualityEvaluationJson.primaryIssue,

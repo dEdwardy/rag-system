@@ -56,6 +56,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
 
   const trace = await service.getTrace("trace-1");
   assert.deepEqual(trace.traceSummary, {
+    promptId: null,
     answerStatus: null,
     qualityOverall: null,
     primaryIssue: null,
@@ -161,6 +162,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     },
     citationsJson: [{ chunkId: "chunk-1" }],
     answeringMetadataJson: {
+      promptId: "answer.v2",
       resolvedLanguage: "zh",
       generationMode: "generated",
       contextMode: "context_groups",
@@ -200,6 +202,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
   const trace = await service.getTrace("trace-2");
 
   assert.deepEqual(trace.traceSummary, {
+    promptId: "answer.v2",
     answerStatus: "insufficient_context",
     qualityOverall: "partial",
     primaryIssue: "fallback_generation",
