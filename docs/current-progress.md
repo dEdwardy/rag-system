@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ ask-stream E2E focused test now uses the current built-entry fallback
+  - `apps/api/test/ask-stream-e2e.test.js` 已从硬编码 `apps/api/dist/main.js` 切到与现有已修测试一致的 `resolveBuiltApiEntry()` fallback 模式
+  - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
+  - 这一轮保持为最小单文件 stream E2E 基线增量：只修一处 built-entry drift，不扩成多文件批量清理
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-stream-e2e.test.js`
+  - 实测结果：focused ask-stream E2E 已通过，当前构建产物路径变化不会再让这条 stream 路径测试因启动入口硬编码而误失败
+
 - ✅ assistants API focused test now uses the current built-entry fallback
   - `apps/api/test/assistants-api.test.js` 已从硬编码 `apps/api/dist/main.js` 切到与现有已修测试一致的 `resolveBuiltApiEntry()` fallback 模式
   - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
