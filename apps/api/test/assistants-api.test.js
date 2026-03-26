@@ -2,12 +2,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn, execFileSync } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
+const { existsSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 const { seedDefaultRecords } = require("./support/seed-default-records.js");
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiRoot = resolve(repoRoot, "apps/api");
+const apiDistEntry = resolveBuiltApiEntry();
 const prisma = new PrismaClient();
 
 test.before(() => {
@@ -20,7 +22,7 @@ test("Assistant API accepts valid answerPolicyJson and rejects invalid policy va
   const port = 3103;
   const queuePrefix = `test-assistants-${randomUUID()}`;
 
-  const server = spawn(process.execPath, ["apps/api/dist/main.js"], {
+  const server = spawn(process.execPath, [apiDistEntry], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -122,4 +124,13 @@ function sleep(ms) {
   return new Promise(resolvePromise => {
     setTimeout(resolvePromise, ms);
   });
+}
+
+function resolveBuiltApiEntry() {
+  const preferredEntry = resolve(repoRoot, "apps/api/dist/apps/api/src/main.js");
+  if (existsSync(preferredEntry)) {
+    return preferredEntry;
+  }
+
+  return resolve(repoRoot, "apps/api/dist/main.js");
 }

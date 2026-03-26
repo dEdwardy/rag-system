@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ assistants API focused test now uses the current built-entry fallback
+  - `apps/api/test/assistants-api.test.js` 已从硬编码 `apps/api/dist/main.js` 切到与现有已修测试一致的 `resolveBuiltApiEntry()` fallback 模式
+  - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
+  - 这一轮保持为最小单文件测试基线增量：只修一处 API integration test 的 built-entry drift，不扩成多文件批量清理
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/assistants-api.test.js`
+  - 实测结果：focused assistants API test 已通过，当前构建产物路径变化不会再让这条测试因启动入口硬编码而误失败
+
 - ✅ removed the stray empty Prisma migration artifact
   - 已删除本地未跟踪的空 migration stub：`apps/api/prisma/migrations/20260325201719_ensure_latest_embedding_config_normalization/migration.sql`
   - 审计结论确认这不是实际待收口 schema 变更：
