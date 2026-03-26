@@ -11,6 +11,19 @@
 
 补充进展（2026-03-26）：
 
+- ✅ traceSummary now exposes missingInformationSource
+  - `TraceSummary` 现在会把持久化在 `answeringMetadataJson` 里的 `missingInformationSource` 提升到轻量 summary 读模型，便于在 trace detail 与 conversation trace list 中直接看见缺失信息来源，而不必回读整块 answering metadata
+  - 这一轮是纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
+  - 最小契约对齐：`packages/shared/src/trace-contracts.ts` 已同步加入 `TraceSummary.missingInformationSource`
+  - 新增 / 更新验证：
+    - `apps/api/test/traces.service.test.js`
+      - focused 断言 trace summary detail/list 都暴露 `missingInformationSource`
+    - `apps/api/test/api-flow.test.js`
+      - integration 断言真实 `/conversations/:id/traces` 与 `/traces/:id` 返回的 `traceSummary` 包含 `missingInformationSource`
+    - `pnpm --filter @rag-system/shared build`
+    - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rag_system pnpm --filter @rag-system/api test:file -- test/api-flow.test.js`
+  - 实测结果：focused traces test、shared build、真实 API flow integration 均通过，summary 字段已和 `answeringMetadataJson.missingInformationSource` 对齐
+
 - ✅ initial ingestion state-write failure recording after run activation
   - `DocumentIngestionProcessor` 现在会把第一条 `document.status=processing / processingStage=parsing` 的状态写入也纳入统一的失败收口路径；不再存在“run 已激活，但第一次 document 状态写入抛错后直接逃出 `try/catch`”的窗口
   - 这样同版本 job 在 run activation 成功后，如果最早的 document 状态更新失败，也会正确把 document/run 收口为 failed，而不会把 run 卡在 `processing` 并让后续同版本 retry 无法继续

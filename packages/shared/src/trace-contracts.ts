@@ -33,6 +33,8 @@ export type TraceAnswerTextSource = "model" | "deterministic_policy";
 
 export type TraceAnswerStatusSource = "model" | "inferred_from_retrieval" | "deterministic_policy";
 
+export type TraceMissingInformationSource = "none" | "model" | "deterministic_default" | "suppressed_by_policy";
+
 export type TraceFailedStage = "retrieval" | "answering";
 
 export type TraceSummary = {
@@ -49,6 +51,7 @@ export type TraceSummary = {
   citationAttribution: TraceCitationAttribution | null;
   citationSelectionSource: TraceCitationSelectionSource | null;
   missingInformationCount: number;
+  missingInformationSource: TraceMissingInformationSource | null;
   insufficientContextReason: TraceInsufficientContextReason | null;
   answerTextSource: TraceAnswerTextSource | null;
   answerStatusSource: TraceAnswerStatusSource | null;

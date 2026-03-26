@@ -170,6 +170,7 @@ export class TracesService {
       citationAttribution: this.readStringAs<NonNullable<TraceSummary["citationAttribution"]>>(answeringMetadata?.citationAttribution),
       citationSelectionSource: this.readStringAs<NonNullable<TraceSummary["citationSelectionSource"]>>(answeringMetadata?.citationSelectionSource),
       missingInformationCount: this.readNumber(answeringMetadata?.missingInformationCount) ?? 0,
+      missingInformationSource: this.readStringAs<NonNullable<TraceSummary["missingInformationSource"]>>(answeringMetadata?.missingInformationSource),
       insufficientContextReason: this.readStringAs<NonNullable<TraceSummary["insufficientContextReason"]>>(answeringMetadata?.insufficientContextReason),
       answerTextSource: this.readStringAs<NonNullable<TraceSummary["answerTextSource"]>>(answeringMetadata?.answerTextSource),
       answerStatusSource: this.readStringAs<NonNullable<TraceSummary["answerStatusSource"]>>(answeringMetadata?.answerStatusSource),

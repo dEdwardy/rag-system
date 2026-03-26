@@ -172,6 +172,11 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     );
     assert.equal(typeof listedTrace?.traceSummary?.missingInformationCount, "number");
     assert.equal(
+      listedTrace?.traceSummary?.missingInformationSource === null ||
+        typeof listedTrace?.traceSummary?.missingInformationSource === "string",
+      true
+    );
+    assert.equal(
       listedTrace?.traceSummary?.insufficientContextReason === null ||
         typeof listedTrace?.traceSummary?.insufficientContextReason === "string",
       true
@@ -230,6 +235,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       citationAttribution: trace.answeringMetadataJson.citationAttribution,
       citationSelectionSource: trace.answeringMetadataJson.citationSelectionSource,
       missingInformationCount: trace.answeringMetadataJson.missingInformationCount,
+      missingInformationSource: trace.answeringMetadataJson.missingInformationSource,
       insufficientContextReason: trace.answeringMetadataJson.insufficientContextReason,
       answerTextSource: trace.answeringMetadataJson.answerTextSource,
       answerStatusSource: trace.answeringMetadataJson.answerStatusSource,
