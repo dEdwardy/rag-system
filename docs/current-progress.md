@@ -11,6 +11,17 @@
 
 补充进展（2026-03-26）：
 
+- ✅ stale local enqueue-failure supersede handling now has focused regression coverage
+  - `DocumentsService` 里已存在的 stale enqueue-failure guard 现在有了 focused test：当旧版本 document 的本地 ingestion enqueue 失败，但数据库里已经有更新版本激活时，不再把旧版本标记为 failed，而是记录 `stale_guard` skip
+  - 新增覆盖位于 `apps/api/test/documents.enqueue-failure.test.js`，断言这条路径会写入：
+    - `failedStage: "stale_guard"`
+    - `code: "INGESTION_RUN_SUPERSEDED"`
+    - message: `Skipped stale ingestion enqueue failure handling because a newer document version is already active.`
+  - 这一轮保持为最小 observability/test 增量：不改 runtime 行为，只补已存在 stale supersede 保护的回归覆盖
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/documents.enqueue-failure.test.js`
+  - 实测结果：focused documents enqueue-failure tests 2/2 通过，stale enqueue-failure supersede path 已被锁定
+
 - ✅ initial ingestion state-write failures now preserve the correct failed-stage classification
   - `DocumentIngestionProcessor` 不再把“初始 processing/parsing 状态写入失败”错误归类成 `INGESTION_INDEXING_FAILED`
   - 当前这类失败会记录为 `INGESTION_STATE_WRITE_FAILED`，并保持 `failedStage: "parsing"`，避免把最初状态写入问题误报成 indexing 阶段故障
