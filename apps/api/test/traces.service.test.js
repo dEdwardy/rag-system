@@ -88,7 +88,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     neighborChunkCount: 0,
     retrievedChunkCount: 1,
     inputChunkCount: 1,
-    promptContextCount: 0,
+    promptContextCount: 1,
     contextGroupCount: 0,
     citationCount: 0,
     citationCountBeforeLimit: 0,
@@ -132,6 +132,52 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
   assert.equal("qualityEvaluationJson" in listed[0], false);
   assert.equal("retrievedChunkIdsJson" in listed[0], false);
   assert.deepEqual(listed[0].citationsJson, []);
+});
+
+test("TracesService falls back promptContextCount from legacy context mode metadata", async () => {
+  const persistedTrace = {
+    id: "trace-legacy-context-groups",
+    conversationId: "conversation-legacy-context-groups",
+    assistantId: "assistant-legacy-context-groups",
+    userMessageId: "user-message-legacy-context-groups",
+    assistantMessageId: "assistant-message-legacy-context-groups",
+    userQuery: "summarize grouped context",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: ["chunk-1", "chunk-2", "chunk-3"],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      execution: {
+        actualMode: "hybrid",
+        retrievedChunkCount: 3
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      contextMode: "context_groups",
+      inputChunkCount: 3,
+      contextGroupCount: 2
+    },
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 8,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-26T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const trace = await service.getTrace("trace-legacy-context-groups");
+
+  assert.equal(trace.traceSummary.inputChunkCount, 3);
+  assert.equal(trace.traceSummary.contextGroupCount, 2);
+  assert.equal(trace.traceSummary.promptContextCount, 2);
 });
 
 test("TracesService exposes additive execution provenance in traceSummary for successful traces", async () => {

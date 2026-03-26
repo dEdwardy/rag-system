@@ -155,6 +155,11 @@ export class TracesService {
     const retrievalFailure = this.readObject(retrievalMetadata?.failure);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
+    const inputChunkCount = this.readNumber(answeringMetadata?.inputChunkCount) ?? retrievedChunkCount;
+    const contextGroupCount = this.readNumber(answeringMetadata?.contextGroupCount) ?? 0;
+    const contextMode = this.readStringAs<NonNullable<TraceSummary["contextMode"]>>(answeringMetadata?.contextMode);
+    const promptContextCount = this.readNumber(answeringMetadata?.promptContextCount)
+      ?? (contextMode === "context_groups" ? contextGroupCount : inputChunkCount);
 
     return {
       promptId: this.readString(answeringMetadata?.promptId),
@@ -164,7 +169,7 @@ export class TracesService {
       retrievalMode: this.readStringAs<NonNullable<TraceSummary["retrievalMode"]>>(retrievalExecution?.actualMode),
       retrievalQuerySource: this.readStringAs<NonNullable<TraceSummary["retrievalQuerySource"]>>(queryRewriteMetadata?.finalQuerySource),
       generationMode: this.readStringAs<NonNullable<TraceSummary["generationMode"]>>(answeringMetadata?.generationMode),
-      contextMode: this.readStringAs<NonNullable<TraceSummary["contextMode"]>>(answeringMetadata?.contextMode),
+      contextMode,
       rewriteApplied: trace.rewrittenQuery != null,
       fallbackReason: this.readStringAs<NonNullable<TraceSummary["fallbackReason"]>>(retrievalExecution?.fallbackReason),
       resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
@@ -188,9 +193,9 @@ export class TracesService {
       primaryChunkCount: this.readNumber(retrievalExecution?.primaryChunkCount) ?? retrievedChunkCount,
       neighborChunkCount: this.readNumber(retrievalExecution?.neighborChunkCount) ?? 0,
       retrievedChunkCount,
-      inputChunkCount: this.readNumber(answeringMetadata?.inputChunkCount) ?? retrievedChunkCount,
-      promptContextCount: this.readNumber(answeringMetadata?.promptContextCount) ?? 0,
-      contextGroupCount: this.readNumber(answeringMetadata?.contextGroupCount) ?? 0,
+      inputChunkCount,
+      promptContextCount,
+      contextGroupCount,
       citationCount,
       citationCountBeforeLimit: this.readNumber(answeringMetadata?.citationCountBeforeLimit) ?? citationCount,
       citationLimitHit: this.readBoolean(answeringMetadata?.citationLimitHit),

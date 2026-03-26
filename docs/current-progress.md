@@ -11,6 +11,17 @@
 
 补充进展（2026-03-26）：
 
+- ✅ traceSummary now preserves legacy promptContextCount semantics
+  - `TracesService` 现在在读取旧 trace 时，不再把缺失的 `traceSummary.promptContextCount` 一律回退成 `0`
+  - 当前会按已有 answering metadata 语义回推：`contextMode=context_groups` 时回退到 `contextGroupCount`，否则回退到 `inputChunkCount`
+  - 这一轮继续保持为纯 read-model / traceability correctness 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
+  - 新增 / 更新验证：
+    - `apps/api/test/traces.service.test.js`
+      - focused 断言 legacy trace 在缺失 `promptContextCount` 时仍能按 `contextMode` 回推出正确值
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `pnpm --filter @rag-system/api build`
+  - 实测结果：focused traces test 通过；手动构造 legacy `context_groups` trace 时，`traceSummary.promptContextCount=2`、`inputChunkCount=3`、`contextGroupCount=2`，不再错误回退为 `0`
+
 - ✅ traceSummary now exposes neighborChunkCount
   - `TraceSummary` 现在会把持久化在 `retrievalMetadataJson.execution` 里的 `neighborChunkCount` 提升到轻量 summary 读模型，便于直接看见最终进入回答上下文的检索块里，有多少来自 chunk-window / neighbor 扩展，而不必回读整块 retrieval metadata
   - 这一轮和刚落地的 `primaryChunkCount` 一样，属于 retrieval-composition 的纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
