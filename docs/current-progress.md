@@ -11,6 +11,19 @@
 
 补充进展（2026-03-26）：
 
+- ✅ traceSummary now exposes promptContextCount
+  - `TraceSummary` 现在会把持久化在 `answeringMetadataJson` 里的 `promptContextCount` 提升到轻量 summary 读模型，便于直接看见真正进入回答阶段 prompt 的上下文单元数量，而不必回读整块 answering metadata
+  - 这一轮和前几条 traceSummary 增量一样，属于纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
+  - 最小契约对齐：`packages/shared/src/trace-contracts.ts` 已同步加入 `TraceSummary.promptContextCount`
+  - 新增 / 更新验证：
+    - `apps/api/test/traces.service.test.js`
+      - focused 断言 trace summary detail/list 都暴露 `promptContextCount`
+    - `apps/api/test/api-flow.test.js`
+      - integration 断言真实 `/conversations/:id/traces` 与 `/traces/:id` 返回的 `traceSummary` 包含 `promptContextCount`
+    - `pnpm --filter @rag-system/shared build`
+    - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rag_system pnpm --filter @rag-system/api test:file -- test/api-flow.test.js`
+  - 实测结果：focused traces test、shared build、真实 API flow integration 均通过，summary 字段已和 `answeringMetadataJson.promptContextCount` 对齐
+
 - ✅ traceSummary now exposes citationCountBeforeLimit
   - `TraceSummary` 现在会把持久化在 `answeringMetadataJson` 里的 `citationCountBeforeLimit` 提升到轻量 summary 读模型，便于直接看见 citation 在应用上限前的原始数量，而不必回读整块 answering metadata
   - 这一轮和前两条 `missingInformationSource` / `citationLimitHit` 一样，属于纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为

@@ -84,6 +84,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     lexicalCandidateLimitHit: false,
     rankingTopKHit: true,
     retrievedChunkCount: 1,
+    promptContextCount: 0,
     citationCount: 0,
     citationCountBeforeLimit: 0,
     citationLimitHit: false,
@@ -170,6 +171,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       answerTextSource: "deterministic_policy",
       answerStatusSource: "inferred_from_retrieval",
       answerStatus: "insufficient_context",
+      promptContextCount: 1,
       citationCountBeforeLimit: 3,
       citationLimitHit: true,
       usedFallback: true
@@ -224,6 +226,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     lexicalCandidateLimitHit: false,
     rankingTopKHit: false,
     retrievedChunkCount: 2,
+    promptContextCount: 1,
     citationCount: 1,
     citationCountBeforeLimit: 3,
     citationLimitHit: true,
