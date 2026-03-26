@@ -214,14 +214,45 @@ export class DocumentRunsService {
     });
   }
 
-  private async listIssueOnlyRuns(
+  private async listIssueOnlyRuns<
+    S extends Prisma.DocumentRunSelect & {
+      id: true;
+      documentId: true;
+      version: true;
+      trigger: true;
+      status: true;
+      failedStage: true;
+      diagnosticsJson: true;
+      startedAt: true;
+      finishedAt: true;
+      createdAt: true;
+      updatedAt: true;
+      document: {
+        select: {
+          sourceType: true;
+          sourceName: true;
+        };
+      };
+    }
+  >(
     where: Prisma.DocumentRunWhereInput,
-    select: Prisma.DocumentRunSelect,
+    select: S,
     limit: number,
-    toListedEntry: (
-      run: Prisma.DocumentRunGetPayload<{ select: Prisma.DocumentRunSelect }>
-    ) => {
-      run: Prisma.DocumentRunGetPayload<{ select: Prisma.DocumentRunSelect }>;
+    toListedEntry: (run: Prisma.DocumentRunGetPayload<{ select: S }>) => {
+      run: Prisma.DocumentRunGetPayload<{ select: S }> & {
+        status: DocumentRunStatus;
+        trigger: DocumentRunTrigger;
+        failedStage: DocumentRunFailedStage | null;
+        diagnosticsJson: Prisma.JsonValue | null;
+        startedAt: Date;
+        finishedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        document: {
+          sourceType: string;
+          sourceName: string;
+        };
+      };
       failureSummary: ReturnType<DocumentRunsService["buildFailureSummary"]>;
       result: {
         id: string;
