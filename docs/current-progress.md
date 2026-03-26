@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ document-run output now rejects invalid diagnostics `failedStage` values
+  - `DocumentRunsService.buildFailureSummary()` 现在只接受属于 `DocumentRunFailedStage` 枚举的 diagnostics `failedStage`，非法字符串不再进入 API 输出
+  - 这修复了历史/异常 diagnostics 输入可能把非枚举阶段值透传到 `listDocumentRuns` 输出的问题
+  - 这一轮保持为最小 backend diagnostics 增量：不改 run 状态机和失败聚合策略，只补输出层 failedStage 归一化
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+  - 实测结果：focused document-runs summary tests 18/18 通过；当 diagnostics 里出现非法 failedStage 时，输出会安全回落为 `null`
+
 - ✅ listDocumentRuns now backfills failedStage from diagnostics for terminal runs with null stage columns
   - `DocumentRunsService.resolveOutputFailedStage()` 现在在 `failed/skipped/ready` 的 terminal run 上都支持从 diagnostics 回填 `failedStage`（仅 `pending/processing` 继续固定返回 `null`）
   - 这修复了历史或异常数据中“run.status=failed 但 failedStage 列为空”时 API 输出阶段信息丢失的问题

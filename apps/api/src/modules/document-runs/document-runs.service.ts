@@ -471,7 +471,11 @@ export class DocumentRunsService {
     const code = this.getDiagnosticsCode(value);
     const message = this.getDiagnosticsMessage(value);
     const diagnosticsFailedStage =
-      value && typeof value === "object" && !Array.isArray(value) && typeof value.failedStage === "string"
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      typeof value.failedStage === "string" &&
+      this.isDocumentRunFailedStage(value.failedStage)
         ? value.failedStage
         : null;
     const normalizedFailedStage = failedStage ?? diagnosticsFailedStage;
@@ -487,6 +491,10 @@ export class DocumentRunsService {
       retryable,
       message
     };
+  }
+
+  private isDocumentRunFailedStage(value: string): value is DocumentRunFailedStage {
+    return Object.values(DocumentRunFailedStage).includes(value as DocumentRunFailedStage);
   }
 
   private buildRunSummaryAnchor(run: {

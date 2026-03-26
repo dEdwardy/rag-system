@@ -1550,3 +1550,45 @@ test("DocumentRunsService listDocumentRuns backfills failedStage from diagnostic
     message: "temporary upstream failure"
   });
 });
+
+test("DocumentRunsService listDocumentRuns ignores invalid diagnostics failedStage values", async () => {
+  const fakeRun = {
+    id: "run-failed-invalid-stage",
+    documentId: "doc-1",
+    version: 8,
+    trigger: "external_resync",
+    status: "failed",
+    failedStage: null,
+    diagnosticsJson: {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "not_a_real_stage",
+      retryable: true,
+      message: "temporary upstream failure"
+    },
+    startedAt: new Date("2026-03-22T11:10:00.000Z"),
+    finishedAt: new Date("2026-03-22T11:11:00.000Z"),
+    createdAt: new Date("2026-03-22T11:10:00.000Z"),
+    updatedAt: new Date("2026-03-22T11:11:00.000Z")
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => [fakeRun]
+      }
+    }
+  });
+
+  const runs = await DocumentRunsService.prototype.listDocumentRuns.call(fakeService, "doc-1", {
+    limit: 20
+  });
+
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].failedStage, null);
+  assert.deepEqual(runs[0].failureSummary, {
+    code: "EXTERNAL_SOURCE_FETCH_FAILED",
+    failedStage: null,
+    retryable: true,
+    message: "temporary upstream failure"
+  });
+});
