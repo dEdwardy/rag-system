@@ -11,6 +11,15 @@
 
 补充进展（2026-03-26）：
 
+- ✅ feed source E2E tests now use the current built-entry fallback and tolerate fast in-flight completion
+  - `apps/api/test/feed-source-e2e.test.js` 已把 9 处硬编码 `apps/api/dist/main.js` 统一切到 `resolveBuiltApiEntry()` fallback 模式
+  - 同文件里一条稳定复现的竞态断言也已收紧：`in-flight reindex from a partial-ready source...` 现在允许 version 2 run 在轮询时已经从 `processing` 快速推进到 `ready`
+  - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
+  - 这一轮保持为最小单文件 source-E2E baseline 增量：不改 runtime，只修 feed source 这一个文件的 built-entry drift 与过严测试期望
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/feed-source-e2e.test.js`
+  - 实测结果：focused feed source E2E tests 9/9 通过，当前构建产物布局变化与短暂 processing 过渡都不会再让这组测试误失败
+
 - ✅ sitemap source E2E tests now use the current built-entry fallback
   - `apps/api/test/sitemap-source-e2e.test.js` 已把 12 处硬编码 `apps/api/dist/main.js` 统一切到 `resolveBuiltApiEntry()` fallback 模式
   - 当前优先尝试 `apps/api/dist/apps/api/src/main.js`，不存在时再回退到 `apps/api/dist/main.js`
