@@ -1,11 +1,11 @@
 # OpenCode RAG 代理路由建议（草案）
 
-状态：仅记录方案，不落地、不生效。
+状态：方案记录；仓库现已按保守版本落地，本文保留为设计与取舍说明。
 
 ## 1. 标题与状态
 
 本文是面向本仓库的 OpenCode 路由配置建议稿，用于后续评审与渐进采纳。
-当前仅作为参考文档，不代表仓库已启用任何新配置。
+当前保留为参考与复盘文档；实际落地以 `opencode.jsonc`、`.opencode/agents/*.md` 与 `docs/opencode-workflow.md` 为准。
 
 ## 2. 目标 / 非目标
 
@@ -38,6 +38,8 @@
 - 委派边界：`rag-explore` 仅做检索/梳理/定位，不直接接管完整功能实现。
 - 构建触发：`rag-build` 在“已有明确计划或用户直接要求实现”时触发；简单查询、状态核对不强制走 build。
 - 审查触发：`rag-review` 仅用于高风险变更（检索、回答编排、摄入、流式、持久化/Schema、跨包契约）或合并前关键检查。
+- TDD 原则：不把重 TDD 作为所有任务默认流程；仅在行为语义、共享契约、source sync / recovery、retrieval / fallback / answering / citation 等高风险改动中触发更严格测试先行。
+- superpowers 兼容：若任务属于非 trivial 工作且仓库内尚无对应 `spec` / `plan`，仍应先补 `docs/superpowers/specs/` 与 `docs/superpowers/plans/`，本提案只优化 OpenCode 路由，不覆盖该规则。
 - 最终结论：最终验证结论与收口由主控代理串行完成。
 
 ### 开发分级规则（建议追加到 prompt）
@@ -53,46 +55,54 @@
 - **Level 3 — Plan, Build, Review**：fallback 语义、insufficient-context 行为、回答/引用策略、多模块行为定义变更。
   - 流程：`short plan -> build -> review -> targeted verify`
 
+### TDD 与验证触发建议
+
+- 默认不是全量 TDD 仪式；日常小改优先 `build -> fast verify`。
+- `Light TDD` 适用于：retrieval 行为、fallback / insufficient-context、answering / citation 语义、trace / metadata contract、shared contract、source sync / recovery semantics。
+- `Light TDD` 建议流程：先写一个最小失败测试，再做最小安全实现，优先跑 fast-lane focused tests。
+- `Targeted heavy verify` 只在触达集成边界时追加，例如 streaming、persistence、multi-module wiring、真实 API / `dist` 相关路径。
+- 小 UI polish、轻量字段暴露、文案改动、低风险 glue code 不建议套完整 TDD ceremony。
+
 说明：仓库文档默认是 `plan -> build`。以上分级可由 `rag-orchestrator` 执行为“显式 plan”或“隐式短计划后直入 build”，用于小改动提速，不改变主控串行收口原则。
 
 ## 5. 推荐 `opencode.jsonc` 示例
 
 > 说明：以下仅为建议样例，字段名需按你本地 OpenCode 版本校准。
+> 该样例刻意避免未确认的便捷字段，只保留更保守、已知已文档化的 key 形式。
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.schema.json",
   "model": "openai/gpt-5.3-codex",
+  "small_model": "openai/gpt-5.3-mini",
   "default_agent": "rag-orchestrator",
-  "agents_dir": ".opencode/agents",
 
-  "commands": {
+  "command": {
     "plan": {
       "agent": "rag-plan",
-      "description": "产出下一个最小可执行增量"
+      "description": "产出下一个最小可执行增量",
+      "template": "请先阅读仓库工作流文档，给出当前任务的最小计划。默认按 plan -> build 工作，不默认升级为 review；若缺少对应 superpowers spec/plan，先指出需要补齐。"
     },
     "build": {
       "agent": "rag-build",
-      "description": "按已确定计划实施并完成最小验证"
+      "description": "按已确定计划实施并完成最小验证",
+      "template": "基于已确认的最小计划执行实现；优先小步后端改动与快验证，不做无关重构。TDD 不是默认流程，仅在行为语义或共享契约类改动时启用 light TDD。"
     },
     "explore": {
       "agent": "rag-explore",
-      "description": "窄范围代码/文档检索与证据整理"
+      "description": "窄范围代码/文档检索与证据整理",
+      "model": "openai/gpt-5.3-mini"
     },
     "review-risk": {
       "agent": "rag-review",
-      "description": "仅用于高风险或合并前关键审查"
+      "description": "仅用于高风险或合并前关键审查",
+      "template": "只审查高风险变更，如 retrieval、fallback、answering、citation、shared contract；不要把 review 作为默认步骤。"
     }
-  },
-
-  "routing": {
-    "default_flow": "plan_then_build",
-    "enable_broad_multi_agent_by_default": false,
-    "helper_delegation_requires_explicit_scope": true,
-    "review_for_every_change": false
   }
 }
 ```
+
+配套理解：配置层面只定义保守命令入口；真正的正常路径仍应是先 `plan`、后 `build`，而 `explore` / `review-risk` 仅在边界明确时按需触发。
 
 ## 6. 推荐 agent 文件示例（5 个）
 
@@ -120,6 +130,10 @@
 - shared contracts
 - 明显不确定的多文件改动
 
+## 与 superpowers / TDD 的关系
+- 不把重 TDD 设为默认；仅对行为语义类改动触发 light TDD。
+- 若仓库尚无对应 spec / plan，先提醒补齐 superpowers 文档再进入实施。
+
 ## 禁止
 - 不默认开启广义多代理并行主流程。
 - 不把完整功能波次整体外包给辅助代理。
@@ -142,6 +156,7 @@
 ## 约束
 - 保持小步，不混入无关重构。
 - 与仓库主控偏好一致：可执行、可验证、可回退。
+- 若属于行为定义变更，应把最小失败测试与 focused verification 一并纳入计划。
 ```
 
 ### `rag-explore.md`
@@ -177,6 +192,7 @@
 - 不是所有会话都必须进入 build
 - 若当前只是信息查询/方案讨论，可不触发 build
 - 默认走快验证，不默认重验证
+- 仅在行为语义、共享契约、source recovery 等场景启用 light TDD
 - 不把 feature + refactor + optimization 混在一个任务
 - 不扩展到无关 UI 重构或平台化范围
 ```
@@ -191,6 +207,7 @@
 ## 重点场景
 - 检索、回答编排、摄入、流式、持久化/Schema、跨包共享契约
 - 合并前关键回归检查
+- 行为语义变更后的 targeted verify 建议
 
 ## 输出
 - 风险清单（按严重度）
@@ -217,12 +234,15 @@ opencode review-risk "审查 schema 变更对 API 与测试的影响"
 
 实践建议：默认优先 `build -> fast verify`；涉及 retrieval/fallback/answer/citation/shared contract 或明显多文件不确定时，再升级为 `short plan` 或 `review-risk`。
 
+与现有仓库文档的衔接建议：把 TDD 视为“风险触发器”，而不是所有任务的默认仪式；同时保留 `behavior changes` 需要测试先行、缺失 superpowers 文档需先补齐的现有约束。
+
 ## 8. 与原方案的差异
 
 - 从“多代理默认可开”调整为“主控默认直做，辅助按需启用”。
 - 从“所有改动都 build/review”调整为“按场景触发，避免流程过重”。
 - 从“并行推进优先”调整为“串行收口优先，确保最终验证责任明确”。
 - 新增分级触发：低风险直接 build，中风险短计划，高风险再 review。
+- 新增 TDD 分层：默认快验证，语义风险改动再启用 light TDD 与 targeted heavy verify。
 - 保留原方案的结构化路由思路，但强化与本仓库现有规则的一致性。
 
 ## 9. 采纳建议：先记录，后应用

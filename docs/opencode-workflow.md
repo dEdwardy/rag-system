@@ -20,15 +20,21 @@ Use OpenCode in two stages:
 1. `plan`
 2. `build`
 
-Default agent choice:
+Repository-adopted default agents:
 
-- `plan`: `Prometheus`
-- `build`: `Hephaestus`
+- default primary agent: `rag-orchestrator`
+- `plan`: `rag-plan`
+- `build`: `rag-build`
+- optional helper: `rag-explore`
+- risk-only review: `rag-review`
 
 Recommended interpretation:
 
-- `Prometheus` is the planning-first agent for identifying the next bounded increment
-- `Hephaestus` is the main implementation agent for executing the approved increment
+- `rag-orchestrator` keeps the main-control execution bias and decides whether helper delegation is warranted
+- `rag-plan` identifies the next bounded increment
+- `rag-build` executes the approved increment with the smallest relevant validation
+- `rag-explore` is a narrow helper for code-path and evidence lookup
+- `rag-review` is reserved for risky changes rather than every small edit
 
 ## OMO Policy
 
@@ -63,6 +69,21 @@ When route or model confidence is low, start with one minimal probe before wider
 - classify failures quickly as route/config issues, environment blocks, or logic/test failures
 - for review-style work, prefer already-validated agent/category routes instead of inventing a new delegation path
 
+## Practical Routing Rules
+
+Default execution bias:
+
+- normal path: `plan -> build`
+- low-risk work may go straight to `build -> fast verify`
+- only escalate to review for risky behavior or contract changes
+
+TDD and validation guidance:
+
+- TDD is not the default ceremony for every task
+- use light TDD for behavior semantics such as retrieval, fallback, answering, citation, trace / metadata contracts, shared contracts, and source recovery semantics
+- use targeted heavy verification only when the change touches integration boundaries such as streaming, persistence, multi-module wiring, or real API / `dist`-dependent paths
+- keep heavy validation serial; do not overlap it with AI review
+
 ## Fixed Prompt
 
 Use the following prompt as the default OpenCode session prompt for this repository:
@@ -74,10 +95,12 @@ Based on the current documented plan, project progress, existing implementation,
 
 First decide which execution mode should be used for this task:
 1. Single-agent plan -> build
-2. Build main agent + limited OMO helper agents
+2. Direct build -> fast verify for low-risk work
+3. Build main agent + limited OMO helper agents
 
 Decision rules:
 - If the task touches high-risk core logic such as retrieval, answering, ingestion, streaming, schema/persistence, or shared contracts, default to single-agent execution and do not enable broad OMO
+- If the task is a small low-risk change such as metadata exposure, trace field addition, small API follow-up, or low-risk bugfix, allow direct `build -> fast verify`
 - Only allow limited OMO when there are clearly isolated, low-coupling helper tasks that can be closed independently
 - OMO helper agents may only be used for: explaining current code paths, identifying focused validation, drafting docs updates, reviewing diffs, adding isolated focused tests, and frontend adaptation that does not affect backend contracts
 - Final verification, final integration, and final conclusions must be completed serially by the main agent
@@ -85,6 +108,8 @@ Decision rules:
 - While work is backgrounded, provide useful progress updates instead of waiting for completion in silence
 - Treat roughly 90 seconds as the first soft status-update point for a waiting background task, then roughly 5 minutes for longer-running validations
 - If a probe or delegated task fails, triage it first as route/config, environment, or logic/test failure before changing the plan
+- Do not treat heavy TDD as the default. Use light TDD only for behavior-semantic changes such as retrieval, fallback, answering, citation, trace / metadata contracts, shared contracts, and source sync / recovery semantics
+- If related superpowers spec / plan is missing for non-trivial work, create it before implementation
 
 Execution requirements:
 - Only do one increment at a time
@@ -119,5 +144,7 @@ In normal day-to-day repository work:
 
 - start with `plan`
 - switch to `build` after the increment is identified
+- for low-risk changes, direct `build -> fast verify` is acceptable
 - only use limited OMO help during `build` when the side task is clearly bounded
 - keep final validation and completion judgment with the main agent
+- do not default to `review` or heavy TDD for small edits

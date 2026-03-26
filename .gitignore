@@ -28,4 +28,6 @@ output/
 ui/suggestion.md
 ui/version-a-constrained.*
 ui/version-b-creative.*
-.opencode/
+.opencode/*
+!.opencode/agents/
+!.opencode/agents/*.md
