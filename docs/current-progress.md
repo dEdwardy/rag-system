@@ -11,6 +11,20 @@
 
 补充进展（2026-03-26）：
 
+- ✅ initial ingestion state-write failure recording after run activation
+  - `DocumentIngestionProcessor` 现在会把第一条 `document.status=processing / processingStage=parsing` 的状态写入也纳入统一的失败收口路径；不再存在“run 已激活，但第一次 document 状态写入抛错后直接逃出 `try/catch`”的窗口
+  - 这样同版本 job 在 run activation 成功后，如果最早的 document 状态更新失败，也会正确把 document/run 收口为 failed，而不会把 run 卡在 `processing` 并让后续同版本 retry 无法继续
+  - 这一轮只收这个入口窗口，不扩 generic diagnostics 分类策略；当前仍沿用既有 `buildIngestionDiagnostics()` 的默认 generic error 归类
+  - 新增 focused coverage：
+    - `apps/api/test/ingestion.orchestrator.test.js`
+      - initial document state update failure after run activation records failed document and run
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/ingestion.orchestrator.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用真实 Prisma + 真实 `DocumentRunsService` 跑一个隔离 proof，只在第一次 `document.update(processing/parsing)` 注入 `Synthetic initial document state update failure.`
+    - 实测结果：最终 document/run 都收口为 `failed`，`initialStateFailureRecorded=true`，且 `processingHangAvoided=true`
+
 - ✅ enqueue-failure recording after run/document state advances
   - `DocumentsService` 现在会在 document/run 已经推进到 `pending` 之后，如果 `enqueueDocument()` / BullMQ `Queue.add()` 失败，立刻把当前 version 的 document 和 run 收口为 failed，而不再留成“看起来已排队、实际无 job”的假 pending 状态
   - local ingestion 路径现在记为 `INGESTION_ENQUEUE_FAILED`；external source 路径现在记为 `EXTERNAL_SOURCE_ENQUEUE_FAILED`

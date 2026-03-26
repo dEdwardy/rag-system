@@ -240,6 +240,114 @@ test("DocumentIngestionProcessor marks the document as failed when indexing thro
   ]);
 });
 
+test("DocumentIngestionProcessor records failure when the initial processing state update throws after run activation", async () => {
+  const documentUpdates = [];
+  const failedRuns = [];
+  const processingRuns = [];
+
+  const prisma = {
+    document: {
+      findUnique: async () => ({
+        id: "document-initial-update-failure-1",
+        kbId: "kb-1",
+        sourceName: "guide.md",
+        mimeType: "text/markdown",
+        storageKey: "documents/document-initial-update-failure-1.md",
+        version: 1
+      }),
+      update: async ({ data }) => {
+        if (data.processingStage === "parsing") {
+          throw new Error("synthetic initial state update failure");
+        }
+
+        documentUpdates.push(data);
+        return data;
+      }
+    },
+    documentChunk: {
+      deleteMany: async () => ({ count: 0 }),
+      createMany: async () => ({ count: 1 })
+    }
+  };
+
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
+    prisma,
+    storageService: {
+      readFileByStorageKey: async () => {
+        throw new Error("readFileByStorageKey should not be called");
+      }
+    },
+    parsingService: {
+      parseDocument: async () => {
+        throw new Error("parseDocument should not be called");
+      }
+    },
+    chunkingService: {
+      buildChunks: () => {
+        throw new Error("buildChunks should not be called");
+      }
+    },
+    indexingService: {
+      indexDocument: async () => {
+        throw new Error("indexDocument should not be called");
+      }
+    },
+    documentRunsService: {
+      markRunProcessing: async (documentId, version) => {
+        processingRuns.push({ documentId, version });
+        return { count: 1 };
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
+      data: {
+        documentId: "document-initial-update-failure-1"
+      }
+    }),
+    /synthetic initial state update failure/
+  );
+
+  assert.deepEqual(processingRuns, [
+    {
+      documentId: "document-initial-update-failure-1",
+      version: 1
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      status: "failed",
+      processingStage: "failed",
+      errorMessage: "synthetic initial state update failure",
+      diagnosticsJson: {
+        code: "INGESTION_INDEXING_FAILED",
+        failedStage: "indexing",
+        retryable: true,
+        documentVersion: 1,
+        message: "synthetic initial state update failure"
+      }
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: "document-initial-update-failure-1",
+      version: 1,
+      failedStage: "indexing",
+      diagnosticsJson: {
+        code: "INGESTION_INDEXING_FAILED",
+        failedStage: "indexing",
+        retryable: true,
+        documentVersion: 1,
+        message: "synthetic initial state update failure"
+      }
+    }
+  ]);
+});
+
 test("DocumentIngestionProcessor processes a DOCX document through parsing, chunking, indexing, and ready status", async () => {
   const documentUpdates = [];
   const deletedChunks = [];

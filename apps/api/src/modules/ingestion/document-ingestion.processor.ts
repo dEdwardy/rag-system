@@ -98,17 +98,17 @@ export class DocumentIngestionProcessor {
       return;
     }
 
-    await this.prisma.document.update({
-      where: { id: document.id },
-      data: {
-        status: DocumentStatus.processing,
-        processingStage: DocumentProcessingStage.parsing,
-        errorMessage: null,
-        diagnosticsJson: preservedDiagnostics ?? Prisma.JsonNull
-      }
-    });
-
     try {
+      await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          status: DocumentStatus.processing,
+          processingStage: DocumentProcessingStage.parsing,
+          errorMessage: null,
+          diagnosticsJson: preservedDiagnostics ?? Prisma.JsonNull
+        }
+      });
+
       const fileBuffer = await this.readDocumentFile(document);
       const content = await this.parseDocumentContent(document, fileBuffer);
       const normalizedContent = content.trim();
