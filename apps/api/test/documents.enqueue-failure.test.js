@@ -1,0 +1,129 @@
+const assert = require("node:assert/strict");
+const test = require("node:test");
+const { Prisma } = require("@prisma/client");
+const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
+
+test("DocumentsService records a failed local reindex run when enqueueing ingestion fails", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const failedRuns = [];
+  const skippedRuns = [];
+
+  const existingDocument = {
+    id: "local-reindex-enqueue-failure-1",
+    kbId: "default-kb",
+    sourceType: "upload",
+    sourceName: "guide.md",
+    title: "guide.md",
+    mimeType: "text/markdown",
+    storageKey: "uploads/guide.md",
+    status: "ready",
+    processingStage: "completed",
+    version: 2,
+    chunkCount: 5,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: existingDocument.id });
+          return {
+            version: existingDocument.version + 1
+          };
+        },
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version + 1
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async () => {
+        throw new Error("Redis refused queue add.");
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
+    /Redis refused queue add/
+  );
+
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 3,
+      trigger: "reindex"
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "Redis refused queue add.",
+        diagnosticsJson: {
+          code: "INGESTION_ENQUEUE_FAILED",
+          failedStage: "parsing",
+          retryable: true,
+          documentVersion: 3,
+          message: "Redis refused queue add."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 3,
+      failedStage: "parsing",
+      diagnosticsJson: {
+        code: "INGESTION_ENQUEUE_FAILED",
+        failedStage: "parsing",
+        retryable: true,
+        documentVersion: 3,
+        message: "Redis refused queue add."
+      }
+    }
+  ]);
+  assert.deepEqual(skippedRuns, []);
+});

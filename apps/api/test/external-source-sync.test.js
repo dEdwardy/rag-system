@@ -1098,6 +1098,127 @@ test("DocumentsService records external source persistence failures after fetch 
   assert.deepEqual(enqueuedDocumentIds, []);
 });
 
+test("DocumentsService records external enqueue failures after finalize succeeds", async () => {
+  const createdRuns = [];
+  const documentUpdates = [];
+  const failedRuns = [];
+
+  const reservedDocument = {
+    id: "web-enqueue-failure-document",
+    version: 2,
+    title: "Reserved title"
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    reserveExternalDocument: async () => reservedDocument,
+    prisma: {
+      document: {
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: reservedDocument.id });
+          return {
+            version: reservedDocument.version
+          };
+        },
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            id: reservedDocument.id,
+            version: reservedDocument.version,
+            ...args.data
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    },
+    webPageService: {
+      fetchWebPage: async url => {
+        assert.equal(url, "https://example.com/enqueue-failing-page");
+        return {
+          title: "Fetched page",
+          content: "Fetched content"
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => ({
+        storageKey: "generated/enqueue-failing-page.txt"
+      })
+    },
+    ingestionService: {
+      enqueueDocument: async () => {
+        throw new Error("BullMQ add failed after finalize.");
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {}
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.createWebPageDocument.call(fakeService, "default-kb", {
+      url: "https://Example.com/enqueue-failing-page"
+    }),
+    /BullMQ add failed after finalize/
+  );
+
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: reservedDocument.id },
+      data: {
+        title: "Fetched page",
+        mimeType: "text/plain",
+        storageKey: "generated/enqueue-failing-page.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    },
+    {
+      where: { id: reservedDocument.id },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "BullMQ add failed after finalize.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_ENQUEUE_FAILED",
+          failedStage: "source_fetch",
+          retryable: true,
+          documentVersion: reservedDocument.version,
+          message: "BullMQ add failed after finalize."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_ENQUEUE_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        documentVersion: reservedDocument.version,
+        message: "BullMQ add failed after finalize."
+      }
+    }
+  ]);
+});
+
 test("DocumentsService records a failed external_resync run when stored source config is invalid", async () => {
   const documentUpdates = [];
   const createdRuns = [];

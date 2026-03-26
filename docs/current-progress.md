@@ -11,6 +11,23 @@
 
 补充进展（2026-03-26）：
 
+- ✅ enqueue-failure recording after run/document state advances
+  - `DocumentsService` 现在会在 document/run 已经推进到 `pending` 之后，如果 `enqueueDocument()` / BullMQ `Queue.add()` 失败，立刻把当前 version 的 document 和 run 收口为 failed，而不再留成“看起来已排队、实际无 job”的假 pending 状态
+  - local ingestion 路径现在记为 `INGESTION_ENQUEUE_FAILED`；external source 路径现在记为 `EXTERNAL_SOURCE_ENQUEUE_FAILED`
+  - 这一轮继续只收 producer enqueue failure 的状态收口，不改 queue 基础设施、Redis 配置或更大的 producer retry 设计
+  - 新增 focused coverage：
+    - `apps/api/test/documents.enqueue-failure.test.js`
+      - local reindex enqueue failure records failed document and run
+    - `apps/api/test/external-source-sync.test.js`
+      - external enqueue failure after finalize records failed document and run
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/documents.enqueue-failure.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用真实 Prisma 跑一个 local `reindexDocument` proof，并让 producer `enqueueDocument()` 抛出 `Synthetic queue add failure.`
+    - 实测结果：最终 `document(version=2)` 与对应 run 都收口为 `failed/parsing`，诊断码一致为 `INGESTION_ENQUEUE_FAILED`，`enqueueFailureRecorded=true`
+
 - ✅ retryable-only same-version run reopen semantics
   - `DocumentRunsService.markRunProcessing()` 现在不再把所有 `failed` run 一律重新拉回 `processing`；当前只允许 `pending`，以及 `diagnosticsJson.retryable === true` 的 `failed` run 重新激活
   - 这样 run-level 语义和前面补上的 processor 入口 guard 现在对齐：non-retryable failed run 仍保持 terminal，而 retryable failed run 继续保留自动重试路径

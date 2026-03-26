@@ -156,7 +156,7 @@ export class DocumentsService {
       version: document.version,
       trigger: DocumentRunTrigger.upload
     });
-    await this.ingestionService.enqueueDocument(document.id, document.version);
+    await this.enqueueIngestionDocumentOrRecordFailure(document);
 
     return document;
   }
@@ -195,7 +195,7 @@ export class DocumentsService {
     });
 
     if (finalizedDocument.applied) {
-      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
     }
 
     return finalizedDocument.document;
@@ -244,7 +244,7 @@ export class DocumentsService {
     });
 
     if (finalizedDocument.applied) {
-      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
     }
 
     return finalizedDocument.document;
@@ -293,7 +293,7 @@ export class DocumentsService {
     });
 
     if (finalizedDocument.applied) {
-      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
     }
 
     return finalizedDocument.document;
@@ -325,7 +325,7 @@ export class DocumentsService {
       version: updatedDocument.version,
       trigger: DocumentRunTrigger.reindex
     });
-    await this.ingestionService.enqueueDocument(document.id, updatedDocument.version);
+    await this.enqueueIngestionDocumentOrRecordFailure(updatedDocument);
 
     return this.getDocument(id);
   }
@@ -518,6 +518,44 @@ export class DocumentsService {
     }
   }
 
+  private async enqueueIngestionDocumentOrRecordFailure(document: { id: string; version: number }) {
+    try {
+      await this.ingestionService.enqueueDocument(document.id, document.version);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown ingestion enqueue error.";
+      const diagnostics = {
+        code: "INGESTION_ENQUEUE_FAILED",
+        failedStage: "parsing",
+        retryable: true,
+        documentVersion: document.version,
+        message
+      } satisfies Prisma.InputJsonValue;
+
+      await this.recordIngestionFailureIfCurrent(document, diagnostics, message);
+
+      throw error;
+    }
+  }
+
+  private async enqueueExternalDocumentOrRecordFailure(document: { id: string; version: number }) {
+    try {
+      await this.ingestionService.enqueueDocument(document.id, document.version);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown external enqueue error.";
+      const diagnostics = {
+        code: "EXTERNAL_SOURCE_ENQUEUE_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        documentVersion: document.version,
+        message
+      } satisfies Prisma.InputJsonValue;
+
+      await this.recordExternalFailureIfCurrent(document, diagnostics, message);
+
+      throw error;
+    }
+  }
+
   private normalizeRemoteSourceUrl(url: string) {
     const parsed = new URL(url);
     parsed.hash = "";
@@ -582,7 +620,7 @@ export class DocumentsService {
     });
 
     if (finalizedDocument.applied) {
-      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
     }
 
     return this.getDocument(document.id);
@@ -638,6 +676,66 @@ export class DocumentsService {
           documentVersion: document.version,
           message: "Skipped stale external source update because a newer document version is already active.",
           currentDocumentVersion: currentDocument.version
+      }
+    });
+
+    return false;
+  }
+
+  private async recordIngestionFailureIfCurrent(
+    document: {
+      id: string;
+      version: number;
+    },
+    diagnostics: Prisma.InputJsonValue,
+    message: string
+  ) {
+    if (!(await this.ensureCurrentIngestionDocumentVersion(document))) {
+      return false;
+    }
+
+    await this.prisma.document.update({
+      where: { id: document.id },
+      data: {
+        status: DocumentStatus.failed,
+        processingStage: DocumentProcessingStage.failed,
+        errorMessage: message,
+        diagnosticsJson: diagnostics
+      }
+    });
+    await this.documentRunsService.markRunFailed(document.id, document.version, {
+      failedStage: DocumentRunFailedStage.parsing,
+      diagnosticsJson: diagnostics
+    });
+
+    return true;
+  }
+
+  private async ensureCurrentIngestionDocumentVersion(document: { id: string; version: number }) {
+    if (typeof this.prisma.document.findUnique !== "function") {
+      return true;
+    }
+
+    const currentDocument = await this.prisma.document.findUnique({
+      where: { id: document.id },
+      select: {
+        version: true
+      }
+    });
+
+    if (!currentDocument || currentDocument.version === document.version) {
+      return true;
+    }
+
+    await this.documentRunsService.markRunSkipped(document.id, document.version, {
+      failedStage: DocumentRunFailedStage.stale_guard,
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: document.version,
+        message: "Skipped stale ingestion enqueue failure handling because a newer document version is already active.",
+        currentDocumentVersion: currentDocument.version
       }
     });
 
