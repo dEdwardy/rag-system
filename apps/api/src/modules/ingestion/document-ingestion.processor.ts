@@ -78,6 +78,19 @@ export class DocumentIngestionProcessor {
 
     const preservedDiagnostics = this.getPreservedReadyDiagnostics(document.diagnosticsJson);
 
+    const runActivation = await this.documentRunsService.markRunProcessing(
+      document.id,
+      document.version,
+      preservedDiagnostics
+    );
+
+    if (!this.wasRunTransitionApplied(runActivation)) {
+      this.logger.warn(
+        `Skipping duplicate ingestion activation for document ${document.id} version ${document.version} because the run is no longer pending or retryable failed.`
+      );
+      return;
+    }
+
     await this.prisma.document.update({
       where: { id: document.id },
       data: {
@@ -87,19 +100,11 @@ export class DocumentIngestionProcessor {
         diagnosticsJson: preservedDiagnostics ?? Prisma.JsonNull
       }
     });
-    await this.documentRunsService.markRunProcessing(document.id, document.version, preservedDiagnostics);
 
     try {
       const fileBuffer = await this.readDocumentFile(document);
       const content = await this.parseDocumentContent(document, fileBuffer);
       const normalizedContent = content.trim();
-
-      await this.prisma.document.update({
-        where: { id: document.id },
-        data: {
-          processingStage: DocumentProcessingStage.chunking
-        }
-      });
 
       if (!normalizedContent) {
         throw new IngestionProcessError({
@@ -111,7 +116,22 @@ export class DocumentIngestionProcessor {
         });
       }
 
+      if (!(await this.ensureCurrentDocumentVersion(document))) {
+        return;
+      }
+
+      await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          processingStage: DocumentProcessingStage.chunking
+        }
+      });
+
       const chunks = await this.rebuildDocumentChunks(document, normalizedContent);
+
+      if (!(await this.ensureCurrentDocumentVersion(document))) {
+        return;
+      }
 
       await this.prisma.document.update({
         where: { id: document.id },
@@ -121,6 +141,10 @@ export class DocumentIngestionProcessor {
       });
 
       await this.indexDocument(document);
+
+      if (!(await this.ensureCurrentDocumentVersion(document))) {
+        return;
+      }
 
       await this.prisma.document.update({
         where: { id: document.id },
@@ -135,6 +159,10 @@ export class DocumentIngestionProcessor {
       await this.documentRunsService.markRunCompleted(document.id, document.version, preservedDiagnostics);
     } catch (error) {
       const diagnostics = this.buildIngestionDiagnostics(document.version, error);
+
+      if (!(await this.ensureCurrentDocumentVersion(document))) {
+        return;
+      }
 
       await this.prisma.document.update({
         where: { id: document.id },
@@ -292,5 +320,49 @@ export class DocumentIngestionProcessor {
     }
 
     return diagnosticsJson.partial === true ? diagnosticsJson : null;
+  }
+
+  private wasRunTransitionApplied(result: unknown) {
+    if (typeof result === "number") {
+      return result === 1;
+    }
+
+    if (result && typeof result === "object" && "count" in result && typeof result.count === "number") {
+      return result.count === 1;
+    }
+
+    return true;
+  }
+
+  private async ensureCurrentDocumentVersion(document: { id: string; version: number }) {
+    const currentDocument = await this.prisma.document.findUnique({
+      where: {
+        id: document.id
+      },
+      select: {
+        version: true
+      }
+    });
+
+    if (!currentDocument || currentDocument.version === document.version) {
+      return true;
+    }
+
+    await this.documentRunsService.markRunSkipped(document.id, document.version, {
+      failedStage: DocumentRunFailedStage.stale_guard,
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: document.version,
+        message: "Skipped stale ingestion job because a newer document version became active during processing.",
+        currentDocumentVersion: currentDocument.version
+      }
+    });
+    this.logger.warn(
+      `Stopping stale ingestion job for document ${document.id}: job version ${document.version}, current version ${currentDocument.version}.`
+    );
+
+    return false;
   }
 }

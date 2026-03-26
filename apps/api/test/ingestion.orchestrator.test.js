@@ -543,6 +543,538 @@ test("DocumentIngestionProcessor skips a stale ingestion job when the document v
   ]);
 });
 
+test("DocumentIngestionProcessor does not overwrite ready state when the document version changes during processing", async () => {
+  const documentUpdates = [];
+  const deletedChunks = [];
+  const createdChunkBatches = [];
+  const indexingCalls = [];
+  const skippedRuns = [];
+  let findUniqueCalls = 0;
+
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => {
+          findUniqueCalls += 1;
+          if (findUniqueCalls === 1) {
+            return {
+              id: "document-midflight-ready-1",
+              kbId: "kb-1",
+              sourceName: "guide.md",
+              mimeType: "text/markdown",
+              storageKey: "documents/document-midflight-ready-1.md",
+              version: 1,
+              diagnosticsJson: Prisma.JsonNull
+            };
+          }
+
+          return {
+            version: 2
+          };
+        },
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async args => {
+          deletedChunks.push(args);
+          return { count: 0 };
+        },
+        createMany: async args => {
+          createdChunkBatches.push(args.data);
+          return { count: args.data.length };
+        }
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async () => Buffer.from("# Guide\n\nAlpha")
+    },
+    parsingService: {
+      parseDocument: async () => "# Guide\n\nAlpha"
+    },
+    chunkingService: {
+      buildChunks: () => [{ content: "Alpha", sectionTitle: "Guide" }]
+    },
+    indexingService: {
+      indexDocument: async documentId => {
+        indexingCalls.push(documentId);
+      }
+    },
+    documentRunsService: {
+      markRunProcessing: async () => {},
+      markRunCompleted: async () => {
+        throw new Error("markRunCompleted should not be called for a superseded job");
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
+    data: {
+      documentId: "document-midflight-ready-1",
+      documentVersion: 1
+    }
+  });
+
+  assert.deepEqual(deletedChunks, []);
+  assert.deepEqual(createdChunkBatches, []);
+  assert.deepEqual(indexingCalls, []);
+  assert.deepEqual(documentUpdates, [
+    {
+      status: "processing",
+      processingStage: "parsing",
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    }
+  ]);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: "document-midflight-ready-1",
+      version: 1,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 1,
+        message: "Skipped stale ingestion job because a newer document version became active during processing.",
+        currentDocumentVersion: 2
+      }
+    }
+  ]);
+});
+
+test("DocumentIngestionProcessor does not overwrite failure state when the document version changes during processing", async () => {
+  const documentUpdates = [];
+  const deletedChunks = [];
+  const createdChunkBatches = [];
+  const indexingCalls = [];
+  const skippedRuns = [];
+  let findUniqueCalls = 0;
+
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => {
+          findUniqueCalls += 1;
+          if (findUniqueCalls === 1) {
+            return {
+              id: "document-midflight-failure-1",
+              kbId: "kb-1",
+              sourceName: "guide.md",
+              mimeType: "text/markdown",
+              storageKey: "documents/document-midflight-failure-1.md",
+              version: 1,
+              diagnosticsJson: Prisma.JsonNull
+            };
+          }
+
+          return {
+            version: 2
+          };
+        },
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async args => {
+          deletedChunks.push(args);
+          return { count: 0 };
+        },
+        createMany: async args => {
+          createdChunkBatches.push(args.data);
+          return { count: 1 };
+        }
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async () => Buffer.from("# Guide\n\nAlpha")
+    },
+    parsingService: {
+      parseDocument: async () => "# Guide\n\nAlpha"
+    },
+    chunkingService: {
+      buildChunks: () => [{ content: "Alpha", sectionTitle: "Guide" }]
+    },
+    indexingService: {
+      indexDocument: async () => {
+        indexingCalls.push("document-midflight-failure-1");
+        throw new Error("synthetic indexing failure");
+      }
+    },
+    documentRunsService: {
+      markRunProcessing: async () => {},
+      markRunFailed: async () => {
+        throw new Error("markRunFailed should not be called for a superseded job");
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
+    data: {
+      documentId: "document-midflight-failure-1",
+      documentVersion: 1
+    }
+  });
+
+  assert.deepEqual(deletedChunks, []);
+  assert.deepEqual(createdChunkBatches, []);
+  assert.deepEqual(indexingCalls, []);
+  assert.deepEqual(documentUpdates, [
+    {
+      status: "processing",
+      processingStage: "parsing",
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    }
+  ]);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: "document-midflight-failure-1",
+      version: 1,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 1,
+        message: "Skipped stale ingestion job because a newer document version became active during processing.",
+        currentDocumentVersion: 2
+      }
+    }
+  ]);
+});
+
+test("DocumentIngestionProcessor does not rebuild chunks when the document version changes before chunk mutation begins", async () => {
+  const documentUpdates = [];
+  const deletedChunks = [];
+  const createdChunkBatches = [];
+  const indexingCalls = [];
+  const skippedRuns = [];
+  let findUniqueCalls = 0;
+
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => {
+          findUniqueCalls += 1;
+          if (findUniqueCalls === 1) {
+            return {
+              id: "document-pre-chunk-stale-1",
+              kbId: "kb-1",
+              sourceName: "guide.md",
+              mimeType: "text/markdown",
+              storageKey: "documents/document-pre-chunk-stale-1.md",
+              version: 1,
+              diagnosticsJson: Prisma.JsonNull
+            };
+          }
+
+          return {
+            version: 2
+          };
+        },
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async args => {
+          deletedChunks.push(args);
+          return { count: 0 };
+        },
+        createMany: async args => {
+          createdChunkBatches.push(args.data);
+          return { count: args.data.length };
+        }
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async () => Buffer.from("# Guide\n\nAlpha")
+    },
+    parsingService: {
+      parseDocument: async () => "# Guide\n\nAlpha"
+    },
+    chunkingService: {
+      buildChunks: () => [{ content: "Alpha", sectionTitle: "Guide" }]
+    },
+    indexingService: {
+      indexDocument: async documentId => {
+        indexingCalls.push(documentId);
+      }
+    },
+    documentRunsService: {
+      markRunProcessing: async () => {},
+      markRunCompleted: async () => {
+        throw new Error("markRunCompleted should not be called for a superseded job");
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
+    data: {
+      documentId: "document-pre-chunk-stale-1",
+      documentVersion: 1
+    }
+  });
+
+  assert.deepEqual(deletedChunks, []);
+  assert.deepEqual(createdChunkBatches, []);
+  assert.deepEqual(indexingCalls, []);
+  assert.deepEqual(documentUpdates, [
+    {
+      status: "processing",
+      processingStage: "parsing",
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    }
+  ]);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: "document-pre-chunk-stale-1",
+      version: 1,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 1,
+        message: "Skipped stale ingestion job because a newer document version became active during processing.",
+        currentDocumentVersion: 2
+      }
+    }
+  ]);
+});
+
+test("DocumentIngestionProcessor does not index stale chunks when the document version changes after chunk rebuild", async () => {
+  const documentUpdates = [];
+  const deletedChunks = [];
+  const createdChunkBatches = [];
+  const indexingCalls = [];
+  const skippedRuns = [];
+  let findUniqueCalls = 0;
+
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => {
+          findUniqueCalls += 1;
+          if (findUniqueCalls === 1) {
+            return {
+              id: "document-pre-index-stale-1",
+              kbId: "kb-1",
+              sourceName: "guide.md",
+              mimeType: "text/markdown",
+              storageKey: "documents/document-pre-index-stale-1.md",
+              version: 1,
+              diagnosticsJson: Prisma.JsonNull
+            };
+          }
+
+          if (findUniqueCalls === 2) {
+            return {
+              version: 1
+            };
+          }
+
+          return {
+            version: 2
+          };
+        },
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async args => {
+          deletedChunks.push(args);
+          return { count: 0 };
+        },
+        createMany: async args => {
+          createdChunkBatches.push(args.data);
+          return { count: args.data.length };
+        }
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async () => Buffer.from("# Guide\n\nAlpha")
+    },
+    parsingService: {
+      parseDocument: async () => "# Guide\n\nAlpha"
+    },
+    chunkingService: {
+      buildChunks: () => [{ content: "Alpha", sectionTitle: "Guide" }]
+    },
+    indexingService: {
+      indexDocument: async documentId => {
+        indexingCalls.push(documentId);
+      }
+    },
+    documentRunsService: {
+      markRunProcessing: async () => {},
+      markRunCompleted: async () => {
+        throw new Error("markRunCompleted should not be called for a superseded job");
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
+    data: {
+      documentId: "document-pre-index-stale-1",
+      documentVersion: 1
+    }
+  });
+
+  assert.deepEqual(deletedChunks, [
+    {
+      where: {
+        documentId: "document-pre-index-stale-1"
+      }
+    }
+  ]);
+  assert.equal(createdChunkBatches.length, 1);
+  assert.deepEqual(indexingCalls, []);
+  assert.deepEqual(documentUpdates, [
+    {
+      status: "processing",
+      processingStage: "parsing",
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    {
+      processingStage: "chunking"
+    }
+  ]);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: "document-pre-index-stale-1",
+      version: 1,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "INGESTION_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 1,
+        message: "Skipped stale ingestion job because a newer document version became active during processing.",
+        currentDocumentVersion: 2
+      }
+    }
+  ]);
+});
+
+test("DocumentIngestionProcessor does not reopen a terminal same-version run", async () => {
+  const documentUpdates = [];
+  const skippedRuns = [];
+  const processingRuns = [];
+  const storageReads = [];
+  const parsingCalls = [];
+  const indexingCalls = [];
+
+  const fakeProcessor = Object.assign(Object.create(DocumentIngestionProcessor.prototype), {
+    logger: {
+      warn: () => {}
+    },
+    prisma: {
+      document: {
+        findUnique: async () => ({
+          id: "document-duplicate-run-1",
+          kbId: "kb-1",
+          sourceName: "guide.md",
+          mimeType: "text/markdown",
+          storageKey: "documents/document-duplicate-run-1.md",
+          version: 4,
+          diagnosticsJson: Prisma.JsonNull
+        }),
+        update: async ({ data }) => {
+          documentUpdates.push(data);
+          return data;
+        }
+      },
+      documentChunk: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async args => ({ count: args.data.length })
+      }
+    },
+    storageService: {
+      readFileByStorageKey: async storageKey => {
+        storageReads.push(storageKey);
+        return Buffer.from("# Guide\n\nAlpha");
+      }
+    },
+    parsingService: {
+      parseDocument: async input => {
+        parsingCalls.push(input);
+        return "# Guide\n\nAlpha";
+      }
+    },
+    chunkingService: {
+      buildChunks: () => [{ content: "Alpha", sectionTitle: "Guide" }]
+    },
+    indexingService: {
+      indexDocument: async documentId => {
+        indexingCalls.push(documentId);
+      }
+    },
+    documentRunsService: {
+      markRunProcessing: async (documentId, version) => {
+        processingRuns.push({ documentId, version });
+        return { count: 0 };
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await DocumentIngestionProcessor.prototype.processDocument.call(fakeProcessor, {
+    data: {
+      documentId: "document-duplicate-run-1",
+      documentVersion: 4
+    }
+  });
+
+  assert.deepEqual(processingRuns, [
+    {
+      documentId: "document-duplicate-run-1",
+      version: 4
+    }
+  ]);
+  assert.deepEqual(documentUpdates, []);
+  assert.deepEqual(storageReads, []);
+  assert.deepEqual(parsingCalls, []);
+  assert.deepEqual(indexingCalls, []);
+  assert.deepEqual(skippedRuns, []);
+});
+
 test("IngestionService can disable worker startup while preserving queue producer behavior", async () => {
   const queuedJobs = [];
   let connectionQuitCalls = 0;

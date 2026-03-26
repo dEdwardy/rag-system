@@ -3,11 +3,86 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-25
+更新时间：2026-03-26
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
 > 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
+
+补充进展（2026-03-26）：
+
+- ✅ ingestion stale mid-flight chunk/vector side-effect guard
+  - `DocumentIngestionProcessor` 现在不只在 terminal write 前检查 supersede；在进入 `chunking` 写路径前，以及进入 `indexing` 写路径前，也会再次确认当前 `document.version` 仍匹配运行中的 job
+  - 这样旧 ingestion job 如果在 parsing 完成后、chunk rebuild 前，或在 chunk rebuild 完成后、vector replacement 前被新版本覆盖，会直接收口为 `skipped / stale_guard`，不再继续改写当前 document 的 chunks / vectors
+  - 这一轮继续只收 ingestion 内部的 stale side-effect 窗口，不改 queue 语义、schema，也不扩成更大的 indexing 架构调整
+  - 新增 focused coverage：
+    - `apps/api/test/ingestion.orchestrator.test.js`
+      - stale before chunk mutation leaves chunks and indexing untouched
+      - stale after chunk rebuild leaves indexing untouched
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/ingestion.orchestrator.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用真实 Prisma + 本地 storage/vector 文件跑一个隔离 proof：先为同一 document seed `ORIGINAL_TOKEN` 的 chunk 和 vector，再在 parsing 结束后把 document 抬到 `version=2`
+    - 实测结果：旧 `version=1` run 收口为 `skipped/stale_guard`，document 保持 `version=2 / pending / uploaded`，chunk 与 vector 内容都仍是 `ORIGINAL_TOKEN`，未被旧 job 改写
+
+- ✅ ingestion queue jobId dedupe for same document version
+  - `QueueService` 现在会为带 `documentVersion` 的 ingestion enqueue 生成稳定 `jobId`：同一 `documentId + version` 重复 enqueue 时不再创建第二个 BullMQ ingestion job
+  - 这一轮只收口 queue producer 去重，不改已有 run-level stale guard、same-version terminal-run guard 或更大的调度语义
+  - 新增 focused coverage：
+    - `apps/api/test/queue.service.test.js`
+      - duplicate enqueue for the same document version leaves exactly one queued ingestion job
+  - focused validation rerun：
+    - `pnpm test:api:file -- test/queue.service.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 直接用本地 Redis + BullMQ `QueueService` 在隔离 `QUEUE_PREFIX` 下连续 enqueue 两次同一 `documentId + version`
+    - 实测结果只保留 `1` 条 queued job，且两次返回的 `jobId` 相同：`ingest-document-document-runtime-proof-1-8`
+
+- ✅ external source expected-version guard for stale finalize/failure writes
+  - `DocumentsService` 现在会在 external source 的 finalize 与 failure 落库前确认当前 document `version` 仍等于本次预留版本
+  - 如果旧的 external fetch / resync 在较慢返回时发现自己已被新版本覆盖，当前请求不会再按 `id` 回写 `title` / `storageKey` / `failed` 状态，也不会错误 enqueue 新版本
+  - 被覆盖的旧 external run 现在会收口为 `skipped / stale_guard`，诊断码为 `EXTERNAL_SOURCE_RUN_SUPERSEDED`
+  - 新增 focused coverage：
+    - `apps/api/test/external-source-sync.test.js`
+      - stale external finalize does not overwrite a newer document version
+      - stale external fetch failure does not overwrite a newer document version
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js`
+    - `pnpm test:api:focus:documents`
+    - `pnpm --filter @rag-system/api build`
+  - real runtime verification：
+    - 用最新 build 的本地 API（port `3012`）配合一个慢速本地 web source，连续发起两次同 URL 的 `createWebPageDocument`
+    - 最终只保留 `version=2 / title="Second Title"` 的最新结果，旧 `version=1` 收口为 `skipped/stale_guard`，未发生 stale overwrite
+
+- ✅ ingestion duplicate same-version run activation guard
+  - `DocumentIngestionProcessor` 现在会先尝试把对应 run 从可激活状态切到 `processing`，只有激活成功后才会把 document 本身改到 `processing/parsing`
+  - `DocumentRunsService.markRunProcessing()` 现仅允许既有 run 处于 `pending` 或 `failed` 时重新进入 `processing`；已是 `ready` / `skipped` 的同版本重复 job 会直接退出，不再把 terminal run 重新打开
+  - 新增 focused coverage：
+    - `apps/api/test/ingestion.orchestrator.test.js`
+      - duplicate same-version job does not reopen a terminal run
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/ingestion.orchestrator.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用最新 build 的本地 API（port `3011`）先 upload 一个文档至 `ready`
+    - 再手动向 BullMQ 注入同一 `documentId + version` 的 duplicate ingestion job
+    - 结果保持：document 仍为 `ready/completed`，run 仍只有 1 条，未被重新打开
+
+- ✅ ingestion mid-flight supersede hardening minimum increment
+  - `DocumentIngestionProcessor` 现在不再只在 job 开头做一次 stale guard；在 terminal write 前会再确认当前 document `version` 仍与运行中的 job 一致
+  - 当旧 ingestion job 在处理中被新的 `reindex` / `external_resync` 版本覆盖时，旧 job 现在会收口为 `skipped / stale_guard`，而不是继续把 document 终态写成 `ready` 或 `failed`
+  - 这一轮刻意只修最危险的 terminal-state overwrite 风险，没有扩成更大的并发重构，也没有重开 source-family / retrieval 范围
+  - 新增 focused coverage：
+    - `apps/api/test/ingestion.orchestrator.test.js`
+      - mid-flight superseded success path does not overwrite ready state
+      - mid-flight superseded failure path does not overwrite failed state
+  - focused validation rerun:
+    - `pnpm --filter @rag-system/api test:file -- test/ingestion.orchestrator.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification:
+    - 本地 API 实跑 upload + 连续两次 `POST /documents/:id/reindex`
+    - 观察到 runs 收口为：最新 `v3=ready`，被覆盖的 `v2=skipped/stale_guard`，未出现旧版本覆盖新版本终态
 
 补充进展（2026-03-25）：
 
