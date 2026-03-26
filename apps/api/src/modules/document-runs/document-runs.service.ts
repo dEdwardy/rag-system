@@ -133,71 +133,74 @@ export class DocumentRunsService {
 
   async listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
     const startedAt = this.resolveStartedAtFilter(input.sinceHours);
-    const queryTake = input.issueOnly ? Math.min(Math.max(input.limit * 5, input.limit), 100) : input.limit;
-    const runs = await this.prisma.documentRun.findMany({
-      where: {
-        documentId: input.documentId,
-        startedAt,
-        status: input.status,
-        trigger: input.trigger,
-        document: {
-          kbId: knowledgeBaseId,
-          sourceType: input.sourceType
+    const queryWhere = {
+      documentId: input.documentId,
+      startedAt,
+      status: input.status,
+      trigger: input.trigger,
+      document: {
+        kbId: knowledgeBaseId,
+        sourceType: input.sourceType
+      }
+    } satisfies Prisma.DocumentRunWhereInput;
+    const querySelect = {
+      id: true,
+      documentId: true,
+      version: true,
+      trigger: true,
+      status: true,
+      failedStage: true,
+      diagnosticsJson: true,
+      startedAt: true,
+      finishedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      document: {
+        select: {
+          id: true,
+          kbId: true,
+          sourceType: true,
+          sourceName: true,
+          title: true,
+          status: true,
+          processingStage: true,
+          version: true
         }
-      },
-      select: {
-        id: true,
-        documentId: true,
-        version: true,
-        trigger: true,
-        status: true,
-        failedStage: true,
-        diagnosticsJson: true,
-        startedAt: true,
-        finishedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        document: {
-          select: {
-            id: true,
-            kbId: true,
-            sourceType: true,
-            sourceName: true,
-            title: true,
-            status: true,
-            processingStage: true,
-            version: true
-          }
-        }
-      },
-      take: queryTake,
-      orderBy: [{ startedAt: "desc" }, { version: "desc" }]
-    });
+      }
+    } satisfies Prisma.DocumentRunSelect;
 
-    const listedRuns = runs
-      .map(run => {
-        const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
-        return {
-          run,
+    const toListedEntry = (run: Prisma.DocumentRunGetPayload<{ select: typeof querySelect }>) => {
+      const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+      return {
+        run,
+        failureSummary,
+        result: {
+          id: run.id,
+          documentId: run.documentId,
+          version: run.version,
+          trigger: run.trigger,
+          status: run.status,
+          failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
           failureSummary,
-          result: {
-            id: run.id,
-            documentId: run.documentId,
-            version: run.version,
-            trigger: run.trigger,
-            status: run.status,
-            failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
-            failureSummary,
-            startedAt: run.startedAt,
-            finishedAt: run.finishedAt,
-            createdAt: run.createdAt,
-            updatedAt: run.updatedAt,
-            document: run.document
-          }
-        };
-      })
-      .filter(entry => !input.issueOnly || this.matchesIssueOnlyFilter(entry.run.status, entry.failureSummary))
-      .slice(0, input.limit);
+          startedAt: run.startedAt,
+          finishedAt: run.finishedAt,
+          createdAt: run.createdAt,
+          updatedAt: run.updatedAt,
+          document: run.document
+        }
+      };
+    };
+
+    const listedRuns = !input.issueOnly
+      ? (
+          await this.prisma.documentRun.findMany({
+            where: queryWhere,
+            select: querySelect,
+            take: input.limit,
+            orderBy: [{ startedAt: "desc" }, { version: "desc" }]
+          })
+        ).map(toListedEntry)
+      : await this.listIssueOnlyRuns(queryWhere, querySelect, input.limit, toListedEntry);
 
     return listedRuns.map(({ run, result }) => {
       if (input.includeDiagnostics) {
@@ -209,6 +212,79 @@ export class DocumentRunsService {
 
       return result;
     });
+  }
+
+  private async listIssueOnlyRuns(
+    where: Prisma.DocumentRunWhereInput,
+    select: Prisma.DocumentRunSelect,
+    limit: number,
+    toListedEntry: (
+      run: Prisma.DocumentRunGetPayload<{ select: Prisma.DocumentRunSelect }>
+    ) => {
+      run: Prisma.DocumentRunGetPayload<{ select: Prisma.DocumentRunSelect }>;
+      failureSummary: ReturnType<DocumentRunsService["buildFailureSummary"]>;
+      result: {
+        id: string;
+        documentId: string;
+        version: number;
+        trigger: DocumentRunTrigger;
+        status: DocumentRunStatus;
+        failedStage: DocumentRunFailedStage | null;
+        failureSummary: ReturnType<DocumentRunsService["buildFailureSummary"]>;
+        startedAt: Date;
+        finishedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        document: {
+          id: string;
+          kbId: string;
+          sourceType: string;
+          sourceName: string;
+          title: string;
+          status: string;
+          processingStage: string;
+          version: number;
+        };
+      };
+    }
+  ) {
+    const batchSize = 100;
+    let offset = 0;
+    const listedRuns: Array<ReturnType<typeof toListedEntry>> = [];
+
+    while (listedRuns.length < limit) {
+      const runs = await this.prisma.documentRun.findMany({
+        where,
+        select,
+        take: batchSize,
+        skip: offset,
+        orderBy: [{ startedAt: "desc" }, { version: "desc" }]
+      });
+
+      if (runs.length === 0) {
+        break;
+      }
+
+      for (const run of runs) {
+        const entry = toListedEntry(run);
+        if (!this.matchesIssueOnlyFilter(entry.run.status, entry.failureSummary)) {
+          continue;
+        }
+
+        listedRuns.push(entry);
+        if (listedRuns.length >= limit) {
+          break;
+        }
+      }
+
+      if (runs.length < batchSize) {
+        break;
+      }
+
+      offset += runs.length;
+    }
+
+    return listedRuns;
   }
 
   async listDocumentRuns(documentId: string, input: ListDocumentRunsInput) {

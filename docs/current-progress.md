@@ -11,6 +11,14 @@
 
 补充进展（2026-03-26）：
 
+- ✅ issueOnly document-run list/summary behavior no longer drops older issue anchors
+  - `DocumentRunsService.listKnowledgeBaseRuns()` 在 `issueOnly=true` 时不再固定“先取前 100 条再过滤后截断”，而是按批次向后扫描，直到收集到请求 `limit` 的 issue runs 或没有更多数据
+  - `DocumentRunsService.getKnowledgeBaseRunSummary()` 在 `issueOnly=true` 时仍然保留 `latestSkipped` 锚点，不会因为 issue filter 先行而把 skip anchor 一起过滤掉
+  - 这一轮保持为最小 backend diagnostics correctness 增量：不改 issue counters/failure 聚合语义，只修 issueOnly 结果可见性与截断遗漏
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+  - 实测结果：focused document-runs summary tests 16/16 通过，`issueOnly=true` 现在既能保留 `latestSkipped`，也能在前 100 条非 issue 的情况下返回更老的 issue run
+
 - ✅ issueOnly run summary now keeps `latestSkipped` visible
   - `DocumentRunsService.getKnowledgeBaseRunSummary()` 现在在 `issueOnly=true` 时，仍然会从完整已取 runs 集合里计算 `latestSkipped`，不再因为 issue filter 先行生效而把 skip anchor 一起过滤掉
   - 这一轮保持为最小 backend diagnostics 增量：不改 issueOnly 的 counters / failure aggregates，只修 `latestSkipped` 这个 summary anchor 的可见性

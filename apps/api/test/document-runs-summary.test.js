@@ -739,6 +739,7 @@ test("DocumentRunsService issueOnly run list includes completed issue runs and e
           }
         }
       },
+      skip: 0,
       take: 100,
       orderBy: [{ startedAt: "desc" }, { version: "desc" }]
     }
@@ -775,6 +776,93 @@ test("DocumentRunsService issueOnly run list includes completed issue runs and e
       }
     ]
   );
+});
+
+test("DocumentRunsService issueOnly run list can include older issue runs beyond the first 100 rows", async () => {
+  const queryArgs = [];
+  const baseStartedAt = new Date("2026-03-22T10:10:00.000Z");
+  const nonIssueRuns = Array.from({ length: 120 }, (_, index) => {
+    const startedAt = new Date(baseStartedAt.getTime() - index * 1000);
+    return {
+      id: `run-non-issue-${index}`,
+      documentId: `doc-non-issue-${index}`,
+      version: 1,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      startedAt,
+      finishedAt: new Date(startedAt.getTime() + 500),
+      createdAt: startedAt,
+      updatedAt: new Date(startedAt.getTime() + 500),
+      diagnosticsJson: null,
+      document: {
+        id: `doc-non-issue-${index}`,
+        kbId: "default-kb",
+        sourceType: "feed",
+        sourceName: `https://example.com/non-issue-${index}.xml`,
+        title: `Non issue ${index}`,
+        status: "ready",
+        processingStage: "completed",
+        version: 1
+      }
+    };
+  });
+  const olderIssueRun = {
+    id: "run-older-issue",
+    documentId: "doc-older-issue",
+    version: 1,
+    trigger: "external_resync",
+    status: "failed",
+    failedStage: "source_fetch",
+    startedAt: new Date(baseStartedAt.getTime() - 121000),
+    finishedAt: new Date(baseStartedAt.getTime() - 120500),
+    createdAt: new Date(baseStartedAt.getTime() - 121000),
+    updatedAt: new Date(baseStartedAt.getTime() - 120500),
+    diagnosticsJson: {
+      code: "EXTERNAL_SOURCE_FETCH_FAILED",
+      failedStage: "source_fetch",
+      retryable: true,
+      message: "temporary upstream failure"
+    },
+    document: {
+      id: "doc-older-issue",
+      kbId: "default-kb",
+      sourceType: "feed",
+      sourceName: "https://example.com/older-issue.xml",
+      title: "Older issue",
+      status: "failed",
+      processingStage: "failed",
+      version: 1
+    }
+  };
+  const runs = [...nonIssueRuns, olderIssueRun];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async args => {
+          queryArgs.push(args);
+          const start = args.skip ?? 0;
+          const end = start + (args.take ?? runs.length);
+          return runs.slice(start, end);
+        }
+      }
+    }
+  });
+
+  const list = await DocumentRunsService.prototype.listKnowledgeBaseRuns.call(fakeService, "default-kb", {
+    includeDiagnostics: false,
+    issueOnly: true,
+    limit: 1
+  });
+
+  assert.equal(list.length, 1);
+  assert.equal(list[0].id, "run-older-issue");
+  assert.equal(queryArgs.length, 2);
+  assert.equal(queryArgs[0].skip, 0);
+  assert.equal(queryArgs[0].take, 100);
+  assert.equal(queryArgs[1].skip, 100);
+  assert.equal(queryArgs[1].take, 100);
 });
 
 test("DocumentRunsService summary applies narrow run filters before aggregating anchors and counters", async () => {
