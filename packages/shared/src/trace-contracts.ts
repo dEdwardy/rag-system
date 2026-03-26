@@ -67,5 +67,6 @@ export type TraceSummary = {
   rankingTopKHit: boolean;
   retrievedChunkCount: number;
   citationCount: number;
+  citationLimitHit: boolean;
   usedFallback: boolean;
 };

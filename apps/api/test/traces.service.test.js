@@ -85,6 +85,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     rankingTopKHit: true,
     retrievedChunkCount: 1,
     citationCount: 0,
+    citationLimitHit: false,
     usedFallback: false
   });
 
@@ -168,6 +169,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       answerTextSource: "deterministic_policy",
       answerStatusSource: "inferred_from_retrieval",
       answerStatus: "insufficient_context",
+      citationLimitHit: true,
       usedFallback: true
     },
     qualityEvaluationJson: {
@@ -221,6 +223,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     rankingTopKHit: false,
     retrievedChunkCount: 2,
     citationCount: 1,
+    citationLimitHit: true,
     usedFallback: true
   });
 

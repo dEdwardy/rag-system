@@ -11,6 +11,19 @@
 
 补充进展（2026-03-26）：
 
+- ✅ traceSummary now exposes citationLimitHit
+  - `TraceSummary` 现在会把持久化在 `answeringMetadataJson` 里的 `citationLimitHit` 提升到轻量 summary 读模型，便于直接区分“最终 citation 数量本来就少”和“citation 被策略上限截断”
+  - 这一轮和上一条 `missingInformationSource` 一样，属于纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
+  - 最小契约对齐：`packages/shared/src/trace-contracts.ts` 已同步加入 `TraceSummary.citationLimitHit`
+  - 新增 / 更新验证：
+    - `apps/api/test/traces.service.test.js`
+      - focused 断言 trace summary detail/list 都暴露 `citationLimitHit`
+    - `apps/api/test/api-flow.test.js`
+      - integration 断言真实 `/conversations/:id/traces` 与 `/traces/:id` 返回的 `traceSummary` 包含 `citationLimitHit`
+    - `pnpm --filter @rag-system/shared build`
+    - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rag_system pnpm --filter @rag-system/api test:file -- test/api-flow.test.js`
+  - 实测结果：focused traces test、shared build、真实 API flow integration 均通过，summary 字段已和 `answeringMetadataJson.citationLimitHit` 对齐
+
 - ✅ traceSummary now exposes missingInformationSource
   - `TraceSummary` 现在会把持久化在 `answeringMetadataJson` 里的 `missingInformationSource` 提升到轻量 summary 读模型，便于在 trace detail 与 conversation trace list 中直接看见缺失信息来源，而不必回读整块 answering metadata
   - 这一轮是纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
