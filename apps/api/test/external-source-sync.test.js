@@ -856,6 +856,248 @@ test("DocumentsService records non-retryable diagnostics for upstream 404 source
   ]);
 });
 
+test("DocumentsService stale external finalize does not overwrite a newer document version", async () => {
+  const documentUpdates = [];
+  const skippedRuns = [];
+
+  const currentDocument = {
+    id: "stale-finalize-document",
+    version: 4,
+    status: "pending",
+    processingStage: "uploaded"
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: currentDocument.id });
+          return {
+            version: currentDocument.version
+          };
+        },
+        update: async args => {
+          documentUpdates.push(args);
+          return args.data;
+        }
+      }
+    },
+    documentRunsService: {
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    },
+    getDocument: async documentId => {
+      assert.equal(documentId, currentDocument.id);
+      return currentDocument;
+    }
+  });
+
+  const result = await DocumentsService.prototype.finalizeExternalDocument.call(
+    fakeService,
+    {
+      id: currentDocument.id,
+      version: 3
+    },
+    {
+      title: "Fetched title",
+      mimeType: "text/plain",
+      storageKey: "generated/stale.txt"
+    }
+  );
+
+  assert.deepEqual(result, {
+    document: currentDocument,
+    applied: false
+  });
+  assert.deepEqual(documentUpdates, []);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: currentDocument.id,
+      version: 3,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 3,
+        message: "Skipped stale external source update because a newer document version is already active.",
+        currentDocumentVersion: 4
+      }
+    }
+  ]);
+});
+
+test("DocumentsService stale external fetch failure does not overwrite a newer document version", async () => {
+  const documentUpdates = [];
+  const failedRuns = [];
+  const skippedRuns = [];
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: "stale-failure-document" });
+          return {
+            version: 6
+          };
+        },
+        update: async args => {
+          documentUpdates.push(args);
+          return args.data;
+        }
+      }
+    },
+    documentRunsService: {
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.fetchExternalSourceOrRecordFailure.call(
+      fakeService,
+      {
+        id: "stale-failure-document",
+        version: 5
+      },
+      async () => {
+        throw new Error("Failed to fetch feed: upstream responded with 502.");
+      }
+    ),
+    /upstream responded with 502/
+  );
+
+  assert.deepEqual(documentUpdates, []);
+  assert.deepEqual(failedRuns, []);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: "stale-failure-document",
+      version: 5,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 5,
+        message: "Skipped stale external source update because a newer document version is already active.",
+        currentDocumentVersion: 6
+      }
+    }
+  ]);
+});
+
+test("DocumentsService records external source persistence failures after fetch succeeds", async () => {
+  const createdRuns = [];
+  const documentUpdates = [];
+  const failedRuns = [];
+  const enqueuedDocumentIds = [];
+
+  const reservedDocument = {
+    id: "web-persist-failure-document",
+    version: 2,
+    title: "Reserved title"
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    reserveExternalDocument: async () => reservedDocument,
+    prisma: {
+      document: {
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: reservedDocument.id });
+          return {
+            version: reservedDocument.version
+          };
+        },
+        update: async args => {
+          documentUpdates.push(args);
+          return args.data;
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    },
+    webPageService: {
+      fetchWebPage: async url => {
+        assert.equal(url, "https://example.com/failing-page");
+        return {
+          title: "Fetched page",
+          content: "Fetched content"
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("Failed to persist fetched external source content.");
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {}
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.createWebPageDocument.call(fakeService, "default-kb", {
+      url: "https://Example.com/failing-page"
+    }),
+    /Failed to persist fetched external source content/
+  );
+
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: reservedDocument.id },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "Failed to persist fetched external source content.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_PERSIST_FAILED",
+          failedStage: "source_fetch",
+          retryable: true,
+          documentVersion: reservedDocument.version,
+          message: "Failed to persist fetched external source content."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PERSIST_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        documentVersion: reservedDocument.version,
+        message: "Failed to persist fetched external source content."
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, []);
+});
+
 test("DocumentsService records a failed external_resync run when stored source config is invalid", async () => {
   const documentUpdates = [];
   const createdRuns = [];

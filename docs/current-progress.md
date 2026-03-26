@@ -11,6 +11,20 @@
 
 补充进展（2026-03-26）：
 
+- ✅ external-source post-fetch persistence failure recording
+  - `DocumentsService` 现在会把 external source 在 fetch 成功后的持久化阶段异常也收口为失败：包括 `saveGeneratedTextFile()` 和 finalize/update 链路抛错
+  - 这样 external source run 在已创建、fetch 已成功后，如果落盘或 finalize 失败，不会再把 document/run 留在 `pending/uploaded` 的未决状态
+  - 这一轮继续只收在 external-source 后处理的 failure-recording 缺口，沿用既有 `source_fetch` failedStage，不扩 enum 或更大的 source workflow 重构
+  - 新增 focused coverage：
+    - `apps/api/test/external-source-sync.test.js`
+      - external source persistence failure after fetch records failed document and run
+  - focused validation rerun：
+    - `pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js`
+    - `pnpm test:api:focus:documents`
+  - real runtime verification：
+    - 用真实 Prisma 跑一个 external `reindexDocument` proof：fetch 成功后让 `saveGeneratedTextFile()` 抛出 `Synthetic external persistence failure.`
+    - 实测结果：最终 `document(version=2)` 与对应 run 都收口为 `failed/source_fetch`，诊断码一致为 `EXTERNAL_SOURCE_PERSIST_FAILED`，`failedStateRecorded=true`
+
 - ✅ non-retryable same-version ingestion retry guard
   - `DocumentIngestionProcessor` 现在会在处理开始前识别“当前 document 已处于 `failed` 且 `diagnosticsJson.retryable === false`”的情况，并直接跳过同版本 queue retry
   - 这样对 unsupported file type / empty content 之类的 terminal parsing failure，BullMQ 的自动重试不会再把同一 document version 重新拉回 `processing`

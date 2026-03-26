@@ -182,19 +182,23 @@ export class DocumentsService {
       reservedDocument,
       () => this.webPageService.fetchWebPage(normalizedUrl)
     );
-    const storedFile = await this.storageService.saveGeneratedTextFile({
-      content: fetchedPage.content
+    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(reservedDocument, async () => {
+      const storedFile = await this.storageService.saveGeneratedTextFile({
+        content: fetchedPage.content
+      });
+
+      return this.finalizeExternalDocument(reservedDocument, {
+        title: input.title ?? fetchedPage.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+        mimeType: "text/plain",
+        storageKey: storedFile.storageKey
+      });
     });
 
-    const document = await this.finalizeExternalDocument(reservedDocument.id, {
-      title: input.title ?? fetchedPage.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
-      mimeType: "text/plain",
-      storageKey: storedFile.storageKey
-    });
+    if (finalizedDocument.applied) {
+      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+    }
 
-    await this.ingestionService.enqueueDocument(document.id, document.version);
-
-    return document;
+    return finalizedDocument.document;
   }
 
   async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput) {
@@ -221,25 +225,29 @@ export class DocumentsService {
         maxItems: input.maxItems
       })
     );
-    const storedFile = await this.storageService.saveGeneratedTextFile({
-      content: fetchedFeed.content
+    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(reservedDocument, async () => {
+      const storedFile = await this.storageService.saveGeneratedTextFile({
+        content: fetchedFeed.content
+      });
+
+      return this.finalizeExternalDocument(reservedDocument, {
+        title: input.title ?? fetchedFeed.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+        mimeType: "text/plain",
+        storageKey: storedFile.storageKey,
+        diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+          reservedDocument.version,
+          fetchedFeed.diagnostics,
+          "Feed source completed with partial entry validation failures.",
+          false
+        )
+      });
     });
 
-    const document = await this.finalizeExternalDocument(reservedDocument.id, {
-      title: input.title ?? fetchedFeed.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
-      mimeType: "text/plain",
-      storageKey: storedFile.storageKey,
-      diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
-        reservedDocument.version,
-        fetchedFeed.diagnostics,
-        "Feed source completed with partial entry validation failures.",
-        false
-      )
-    });
+    if (finalizedDocument.applied) {
+      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+    }
 
-    await this.ingestionService.enqueueDocument(document.id, document.version);
-
-    return document;
+    return finalizedDocument.document;
   }
 
   async createSitemapDocument(knowledgeBaseId: string, input: CreateSitemapDocumentInput) {
@@ -266,25 +274,29 @@ export class DocumentsService {
         maxPages: input.maxPages
       })
     );
-    const storedFile = await this.storageService.saveGeneratedTextFile({
-      content: fetchedSitemap.content
+    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(reservedDocument, async () => {
+      const storedFile = await this.storageService.saveGeneratedTextFile({
+        content: fetchedSitemap.content
+      });
+
+      return this.finalizeExternalDocument(reservedDocument, {
+        title: input.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
+        mimeType: "text/plain",
+        storageKey: storedFile.storageKey,
+        diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+          reservedDocument.version,
+          fetchedSitemap.diagnostics,
+          this.buildSitemapPartialDiagnosticsMessage(fetchedSitemap.diagnostics),
+          true
+        )
+      });
     });
 
-    const document = await this.finalizeExternalDocument(reservedDocument.id, {
-      title: input.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
-      mimeType: "text/plain",
-      storageKey: storedFile.storageKey,
-      diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
-        reservedDocument.version,
-        fetchedSitemap.diagnostics,
-        this.buildSitemapPartialDiagnosticsMessage(fetchedSitemap.diagnostics),
-        true
-      )
-    });
+    if (finalizedDocument.applied) {
+      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+    }
 
-    await this.ingestionService.enqueueDocument(document.id, document.version);
-
-    return document;
+    return finalizedDocument.document;
   }
 
   async reindexDocument(id: string) {
@@ -392,24 +404,66 @@ export class DocumentsService {
     });
   }
 
-  private finalizeExternalDocument(
-    id: string,
+  private async finalizeExternalDocument(
+    document: {
+      id: string;
+      version: number;
+    },
     input: Pick<CreateDocumentInput, "title" | "mimeType" | "storageKey"> & {
       diagnosticsJson?: Prisma.InputJsonValue | null;
     }
   ) {
-    return this.prisma.document.update({
-      where: { id },
+    if (!(await this.ensureCurrentExternalDocumentVersion(document))) {
+      return {
+        document: await this.getDocument(document.id),
+        applied: false
+      };
+    }
+
+    return {
+      document: await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          title: input.title,
+          mimeType: input.mimeType,
+          storageKey: input.storageKey,
+          status: DocumentStatus.pending,
+          processingStage: DocumentProcessingStage.uploaded,
+          errorMessage: null,
+          diagnosticsJson: input.diagnosticsJson ?? Prisma.JsonNull
+        }
+      }),
+      applied: true
+    };
+  }
+
+  private async recordExternalFailureIfCurrent(
+    document: {
+      id: string;
+      version: number;
+    },
+    diagnostics: Prisma.InputJsonValue,
+    message: string
+  ) {
+    if (!(await this.ensureCurrentExternalDocumentVersion(document))) {
+      return false;
+    }
+
+    await this.prisma.document.update({
+      where: { id: document.id },
       data: {
-        title: input.title,
-        mimeType: input.mimeType,
-        storageKey: input.storageKey,
-        status: DocumentStatus.pending,
-        processingStage: DocumentProcessingStage.uploaded,
-        errorMessage: null,
-        diagnosticsJson: input.diagnosticsJson ?? Prisma.JsonNull
+        status: DocumentStatus.failed,
+        processingStage: DocumentProcessingStage.failed,
+        errorMessage: message,
+        diagnosticsJson: diagnostics
       }
     });
+    await this.documentRunsService.markRunFailed(document.id, document.version, {
+      failedStage: DocumentRunFailedStage.source_fetch,
+      diagnosticsJson: diagnostics
+    });
+
+    return true;
   }
 
   private async fetchExternalSourceOrRecordFailure<T>(
@@ -432,19 +486,33 @@ export class DocumentsService {
         message
       } satisfies Prisma.InputJsonValue;
 
-      await this.prisma.document.update({
-        where: { id: document.id },
-        data: {
-          status: DocumentStatus.failed,
-          processingStage: DocumentProcessingStage.failed,
-          errorMessage: message,
-          diagnosticsJson: diagnostics
-        }
-      });
-      await this.documentRunsService.markRunFailed(document.id, document.version, {
-        failedStage: DocumentRunFailedStage.source_fetch,
-        diagnosticsJson: diagnostics
-      });
+      await this.recordExternalFailureIfCurrent(document, diagnostics, message);
+
+      throw error;
+    }
+  }
+
+  private async persistExternalSourceResultOrRecordFailure<T>(
+    document: {
+      id: string;
+      version: number;
+    },
+    operation: () => Promise<T>
+  ) {
+    try {
+      return await operation();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown external source persistence error.";
+      const retryable = this.isRetryableExternalSourceError(error);
+      const diagnostics = {
+        code: "EXTERNAL_SOURCE_PERSIST_FAILED",
+        failedStage: "source_fetch",
+        retryable,
+        documentVersion: document.version,
+        message
+      } satisfies Prisma.InputJsonValue;
+
+      await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
       throw error;
     }
@@ -483,19 +551,15 @@ export class DocumentsService {
     const fetchedSource = await this.fetchExternalSourceOrRecordFailure(queuedDocument, () =>
       this.fetchExternalSourceFromConfig(sourceConfig)
     );
-    const storedFile = await this.storageService.saveGeneratedTextFile({
-      content: fetchedSource.content
-    });
+    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(queuedDocument, async () => {
+      const storedFile = await this.storageService.saveGeneratedTextFile({
+        content: fetchedSource.content
+      });
 
-    const updatedDocument = await this.prisma.document.update({
-      where: { id: document.id },
-      data: {
+      return this.finalizeExternalDocument(queuedDocument, {
         title: fetchedSource.title ?? document.title ?? this.buildRemoteSourceFallbackTitle(document.sourceName),
         mimeType: "text/plain",
         storageKey: storedFile.storageKey,
-        status: DocumentStatus.pending,
-        processingStage: DocumentProcessingStage.uploaded,
-        errorMessage: null,
         diagnosticsJson:
           sourceConfig.kind === "sitemap"
               ? (this.buildExternalSourcePartialDiagnostics(
@@ -504,7 +568,7 @@ export class DocumentsService {
                   this.buildSitemapPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
                   true
                 ) ??
-               Prisma.JsonNull)
+               null)
             : sourceConfig.kind === "feed"
               ? (this.buildExternalSourcePartialDiagnostics(
                   queuedDocument.version,
@@ -512,12 +576,14 @@ export class DocumentsService {
                   "Feed source completed with partial entry validation failures.",
                   false
                 ) ??
-              Prisma.JsonNull)
-            : Prisma.JsonNull
-      }
+              null)
+            : null
+      });
     });
 
-    await this.ingestionService.enqueueDocument(updatedDocument.id, updatedDocument.version);
+    if (finalizedDocument.applied) {
+      await this.ingestionService.enqueueDocument(finalizedDocument.document.id, finalizedDocument.document.version);
+    }
 
     return this.getDocument(document.id);
   }
@@ -541,22 +607,41 @@ export class DocumentsService {
         message
       } satisfies Prisma.InputJsonValue;
 
-      await this.prisma.document.update({
-        where: { id: document.id },
-        data: {
-          status: DocumentStatus.failed,
-          processingStage: DocumentProcessingStage.failed,
-          errorMessage: message,
-          diagnosticsJson: diagnostics
-        }
-      });
-      await this.documentRunsService.markRunFailed(document.id, document.version, {
-        failedStage: DocumentRunFailedStage.source_fetch,
-        diagnosticsJson: diagnostics
-      });
+      await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
       throw error;
     }
+  }
+
+  private async ensureCurrentExternalDocumentVersion(document: { id: string; version: number }) {
+    if (typeof this.prisma.document.findUnique !== "function") {
+      return true;
+    }
+
+    const currentDocument = await this.prisma.document.findUnique({
+      where: { id: document.id },
+      select: {
+        version: true
+      }
+    });
+
+    if (!currentDocument || currentDocument.version === document.version) {
+      return true;
+    }
+
+    await this.documentRunsService.markRunSkipped(document.id, document.version, {
+      failedStage: DocumentRunFailedStage.stale_guard,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_RUN_SUPERSEDED",
+          failedStage: "stale_guard",
+          retryable: false,
+          documentVersion: document.version,
+          message: "Skipped stale external source update because a newer document version is already active.",
+          currentDocumentVersion: currentDocument.version
+      }
+    });
+
+    return false;
   }
 
   private parseExternalSourceConfig(value: Prisma.JsonValue | null): ExternalSourceConfig {
