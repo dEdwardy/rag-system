@@ -203,6 +203,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     assert.equal(typeof listedTrace?.traceSummary?.vectorCandidateLimitHit, "boolean");
     assert.equal(typeof listedTrace?.traceSummary?.lexicalCandidateLimitHit, "boolean");
     assert.equal(typeof listedTrace?.traceSummary?.rankingTopKHit, "boolean");
+    assert.equal(typeof listedTrace?.traceSummary?.primaryChunkCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.retrievedChunkCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.inputChunkCount, "number");
     assert.equal(typeof listedTrace?.traceSummary?.promptContextCount, "number");
@@ -259,6 +260,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       vectorCandidateLimitHit: trace.retrievalMetadataJson.execution.vectorCandidateLimitHit,
       lexicalCandidateLimitHit: trace.retrievalMetadataJson.execution.lexicalCandidateLimitHit,
       rankingTopKHit: trace.retrievalMetadataJson.execution.rankingTopKHit,
+      primaryChunkCount: trace.retrievalMetadataJson.execution.primaryChunkCount,
       retrievedChunkCount: trace.retrievalMetadataJson.execution.retrievedChunkCount,
       inputChunkCount: trace.answeringMetadataJson.inputChunkCount,
       promptContextCount: trace.answeringMetadataJson.promptContextCount,

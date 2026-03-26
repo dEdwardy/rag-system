@@ -66,6 +66,7 @@ export type TraceSummary = {
   vectorCandidateLimitHit: boolean;
   lexicalCandidateLimitHit: boolean;
   rankingTopKHit: boolean;
+  primaryChunkCount: number;
   retrievedChunkCount: number;
   inputChunkCount: number;
   promptContextCount: number;

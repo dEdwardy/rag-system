@@ -11,6 +11,19 @@
 
 补充进展（2026-03-26）：
 
+- ✅ traceSummary now exposes primaryChunkCount
+  - `TraceSummary` 现在会把持久化在 `retrievalMetadataJson.execution` 里的 `primaryChunkCount` 提升到轻量 summary 读模型，便于直接看见最终进入回答上下文的检索块里，有多少是 primary 命中而不是 window/neighbor 扩展块
+  - 这一轮标志着此前 answering-side traceSummary 小字段链已经收口，并转入相邻的 retrieval-composition 读模型增量；仍然不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
+  - 最小契约对齐：`packages/shared/src/trace-contracts.ts` 已同步加入 `TraceSummary.primaryChunkCount`
+  - 新增 / 更新验证：
+    - `apps/api/test/traces.service.test.js`
+      - focused 断言 trace summary detail/list 都暴露 `primaryChunkCount`
+    - `apps/api/test/api-flow.test.js`
+      - integration 断言真实 `/conversations/:id/traces` 与 `/traces/:id` 返回的 `traceSummary` 包含 `primaryChunkCount`
+    - `pnpm --filter @rag-system/shared build`
+    - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rag_system pnpm --filter @rag-system/api test:file -- test/api-flow.test.js`
+  - 实测结果：focused traces test、shared build、真实 API flow integration 均通过，summary 字段已和 `retrievalMetadataJson.execution.primaryChunkCount` 对齐
+
 - ✅ traceSummary now exposes contextGroupCount
   - `TraceSummary` 现在会把持久化在 `answeringMetadataJson` 里的 `contextGroupCount` 提升到轻量 summary 读模型，便于直接看见回答阶段经过上下文分组后的 group 数量，而不必回读整块 answering metadata
   - 这一轮和前几条 traceSummary 增量一样，属于纯 read-model / traceability 增量：不改 ask 写路径、不改 schema、不改 retrieval / answering 行为
