@@ -238,7 +238,8 @@ export class DocumentsService {
           reservedDocument.version,
           fetchedFeed.diagnostics,
           "Feed source completed with partial entry validation failures.",
-          false
+          false,
+          "feed"
         )
       });
     });
@@ -287,7 +288,8 @@ export class DocumentsService {
           reservedDocument.version,
           fetchedSitemap.diagnostics,
           this.buildSitemapPartialDiagnosticsMessage(fetchedSitemap.diagnostics),
-          true
+          true,
+          "sitemap"
         )
       });
     });
@@ -600,22 +602,24 @@ export class DocumentsService {
         storageKey: storedFile.storageKey,
         diagnosticsJson:
           sourceConfig.kind === "sitemap"
-              ? (this.buildExternalSourcePartialDiagnostics(
-                  queuedDocument.version,
-                  fetchedSource.diagnostics ?? null,
-                  this.buildSitemapPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
-                  true
-                ) ??
+               ? (this.buildExternalSourcePartialDiagnostics(
+                   queuedDocument.version,
+                   fetchedSource.diagnostics ?? null,
+                   this.buildSitemapPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
+                   true,
+                   "sitemap"
+                 ) ??
+                null)
+             : sourceConfig.kind === "feed"
+               ? (this.buildExternalSourcePartialDiagnostics(
+                   queuedDocument.version,
+                   fetchedSource.diagnostics ?? null,
+                   "Feed source completed with partial entry validation failures.",
+                   false,
+                   "feed"
+                 ) ??
                null)
-            : sourceConfig.kind === "feed"
-              ? (this.buildExternalSourcePartialDiagnostics(
-                  queuedDocument.version,
-                  fetchedSource.diagnostics ?? null,
-                  "Feed source completed with partial entry validation failures.",
-                  false
-                ) ??
-              null)
-            : null
+             : null
       });
     });
 
@@ -809,19 +813,44 @@ export class DocumentsService {
     documentVersion: number,
     diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
     message: string,
-    retryable: boolean
+    retryable: boolean,
+    sourceKind: "feed" | "sitemap"
   ) {
     if (!diagnostics?.partial) {
       return null;
     }
 
-    const resolvedRetryable = typeof diagnostics.retryable === "boolean" ? diagnostics.retryable : retryable;
+    const retryableFailureCount = this.getNumericDiagnosticField(diagnostics, "retryableFailureCount");
+    const nonRetryableFailureCount = this.getNumericDiagnosticField(diagnostics, "nonRetryableFailureCount");
+    const partialFailureCount =
+      this.getNumericDiagnosticField(diagnostics, "failedEntryCount") +
+      this.getNumericDiagnosticField(diagnostics, "failedPageCount") +
+      this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount") +
+      this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
+    const boundaryHit = diagnostics.boundaryHit === true;
+    const boundaryReasons = Array.isArray(diagnostics.boundaryReasons)
+      ? diagnostics.boundaryReasons.filter((reason): reason is string => typeof reason === "string")
+      : [];
+    const resolvedRetryable =
+      typeof diagnostics.retryable === "boolean"
+        ? diagnostics.retryable
+        : retryableFailureCount > 0
+          ? true
+          : retryable;
 
     return {
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
       retryable: resolvedRetryable,
       documentVersion,
+      sourceKind,
+      schemaVersion: 2,
+      category: "external_source_partial",
+      partialFailureCount,
+      retryableFailureCount,
+      nonRetryableFailureCount,
+      boundaryHit,
+      boundaryReasons,
       message,
       ...diagnostics,
       partial: true

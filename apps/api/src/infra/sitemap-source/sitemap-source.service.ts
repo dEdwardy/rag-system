@@ -18,10 +18,14 @@ type FetchedSitemap = {
 };
 
 type SitemapFetchDiagnostics = {
+  sourceKind?: "sitemap";
+  schemaVersion?: 2;
   retryable: boolean;
   attemptedPageCount: number;
   succeededPageCount: number;
   failedPageCount: number;
+  retryableFailureCount?: number;
+  nonRetryableFailureCount?: number;
   failedPageUrls: string[];
   failedPages?: Array<{
     url: string;
@@ -44,6 +48,14 @@ type SitemapFetchDiagnostics = {
   }>;
   failedChildSitemapsTruncated?: boolean;
   failedChildSitemapsOmittedCount?: number;
+  boundaryHit?: boolean;
+  boundaryReasons?: string[];
+  boundary?: {
+    maxPages: number;
+    maxChildSitemaps: number;
+    selectedChildSitemapCount: number;
+    droppedChildSitemapCount: number;
+  };
 };
 
 type PageFetchFailure = {
@@ -67,6 +79,11 @@ type ResolvedSitemapPages = {
     | "failedChildSitemaps"
     | "retryable"
     | "partial"
+    | "retryableFailureCount"
+    | "nonRetryableFailureCount"
+    | "boundaryHit"
+    | "boundaryReasons"
+    | "boundary"
   > | null;
 };
 
@@ -165,6 +182,8 @@ export class SitemapSourceService {
     if (!childSitemapUrls.length) {
       throw new BadRequestException("Extracted sitemap child URLs are empty.");
     }
+    const selectedChildSitemapUrls = childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS);
+    const droppedChildSitemapCount = Math.max(0, childSitemapUrls.length - selectedChildSitemapUrls.length);
 
     const collectedPageUrls: string[] = [];
     const seenPageUrls = new Set<string>();
@@ -172,7 +191,7 @@ export class SitemapSourceService {
     const childSitemapFailures: ChildSitemapFailure[] = [];
     let succeededChildSitemapCount = 0;
 
-    for (const childSitemapUrl of childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS)) {
+    for (const childSitemapUrl of selectedChildSitemapUrls) {
       if (collectedPageUrls.length >= options.maxPages) {
         break;
       }
@@ -226,10 +245,21 @@ export class SitemapSourceService {
       throw new BadRequestException("Extracted sitemap page URLs are empty.");
     }
 
+    const retryableFailureCount = childSitemapFailures.reduce(
+      (count, failure) => count + (this.isRetryableFetchError(failure.error) ? 1 : 0),
+      0
+    );
+    const nonRetryableFailureCount = childSitemapFailures.length - retryableFailureCount;
+    const boundaryHit = droppedChildSitemapCount > 0 || collectedPageUrls.length >= options.maxPages;
+    const boundaryReasons = [
+      ...(collectedPageUrls.length >= options.maxPages ? ["MAX_PAGES_REACHED"] : []),
+      ...(droppedChildSitemapCount > 0 ? ["MAX_CHILD_SITEMAPS_REACHED"] : [])
+    ];
+
     return {
       pageUrls: collectedPageUrls,
       diagnostics:
-        failedChildSitemapUrls.length > 0
+        failedChildSitemapUrls.length > 0 || boundaryHit
           ? {
               ...this.buildFailureSummary(
                 childSitemapFailures,
@@ -243,13 +273,23 @@ export class SitemapSourceService {
                   retryable: this.isRetryableFetchError(failure.error)
                 })
               ),
-               attemptedChildSitemapCount: childSitemapUrls.slice(0, MAX_CHILD_SITEMAPS).length,
-               succeededChildSitemapCount,
-               failedChildSitemapCount: failedChildSitemapUrls.length,
-               failedChildSitemapUrls: failedChildSitemapUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
-               retryable: childSitemapFailures.some(failure => this.isRetryableFetchError(failure.error)),
-               partial: true
-             }
+                attemptedChildSitemapCount: selectedChildSitemapUrls.length,
+                succeededChildSitemapCount,
+                failedChildSitemapCount: failedChildSitemapUrls.length,
+                failedChildSitemapUrls: failedChildSitemapUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
+                retryableFailureCount,
+                nonRetryableFailureCount,
+                retryable: retryableFailureCount > 0,
+                boundaryHit,
+                boundaryReasons,
+                boundary: {
+                  maxPages: options.maxPages,
+                  maxChildSitemaps: MAX_CHILD_SITEMAPS,
+                  selectedChildSitemapCount: selectedChildSitemapUrls.length,
+                  droppedChildSitemapCount
+                },
+                partial: true
+              }
           : null
     };
   }
@@ -298,9 +338,16 @@ export class SitemapSourceService {
       throw new BadRequestException("Extracted sitemap content is empty.");
     }
 
+    const pageRetryableFailureCount = pageFailures.reduce(
+      (count, failure) => count + (this.isRetryableFetchError(failure.error) ? 1 : 0),
+      0
+    );
+    const pageNonRetryableFailureCount = pageFailures.length - pageRetryableFailureCount;
+
     const diagnostics =
       failedPageUrls.length > 0 || existingDiagnostics?.partial
         ? {
+            ...(existingDiagnostics ?? {}),
             ...this.buildFailureSummary(
               pageFailures,
               "failedPages",
@@ -317,17 +364,34 @@ export class SitemapSourceService {
             succeededPageCount,
             failedPageCount: failedPageUrls.length,
             failedPageUrls: failedPageUrls.slice(0, MAX_FAILURE_SUMMARY_ITEMS),
+            retryableFailureCount: pageRetryableFailureCount + (existingDiagnostics?.retryableFailureCount ?? 0),
+            nonRetryableFailureCount:
+              pageNonRetryableFailureCount + (existingDiagnostics?.nonRetryableFailureCount ?? 0),
             retryable:
               pageFailures.some(failure => this.isRetryableFetchError(failure.error)) ||
               existingDiagnostics?.retryable === true,
-            partial: true,
-            ...(existingDiagnostics ?? {})
+            partial: true
           }
         : null;
 
     return {
       content,
-      diagnostics
+      diagnostics: diagnostics
+        ? {
+            ...diagnostics,
+            sourceKind: "sitemap" as const,
+            schemaVersion: 2 as const,
+            boundaryHit: diagnostics.boundaryHit ?? false,
+            boundaryReasons: diagnostics.boundaryReasons ?? [],
+            boundary:
+              diagnostics.boundary ?? {
+                maxPages: pageUrls.length,
+                maxChildSitemaps: MAX_CHILD_SITEMAPS,
+                selectedChildSitemapCount: diagnostics.attemptedChildSitemapCount ?? 0,
+                droppedChildSitemapCount: 0
+              }
+          }
+        : null
     };
   }
 

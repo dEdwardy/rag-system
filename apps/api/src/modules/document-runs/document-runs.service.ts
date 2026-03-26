@@ -103,6 +103,11 @@ export class DocumentRunsService {
       const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
       return this.shouldCountFailureSummary(run.status, failureSummary) && failureSummary?.retryable === true;
     });
+    const latestPartialSourceFailure = this.findLatestRunAnchor(
+      latestCompletedRuns,
+      run => this.getDiagnosticsCode(run.diagnosticsJson) === "EXTERNAL_SOURCE_PARTIAL_SUCCESS"
+    );
+    const latestBoundaryHit = this.findLatestRunAnchor(latestCompletedRuns, run => this.isBoundaryHitDiagnostics(run.diagnosticsJson));
     const latestSkipped = this.findLatestRunAnchor(runs, run => run.status === DocumentRunStatus.skipped);
     return {
       totalRuns: filteredRuns.length,
@@ -126,6 +131,8 @@ export class DocumentRunsService {
       nonRetryableFailures,
       failureByStage,
       latestRetryableFailure: latestRetryableFailure ? this.buildRunSummaryAnchor(latestRetryableFailure) : null,
+      latestPartialSourceFailure: latestPartialSourceFailure ? this.buildRunSummaryAnchor(latestPartialSourceFailure) : null,
+      latestBoundaryHit: latestBoundaryHit ? this.buildRunSummaryAnchor(latestBoundaryHit) : null,
       latestSkipped: latestSkipped ? this.buildRunSummaryAnchor(latestSkipped) : null,
       latestFailure: latestFailure ? this.buildRunSummaryAnchor(latestFailure) : null
     };
@@ -487,7 +494,23 @@ export class DocumentRunsService {
       return false;
     }
 
-    return value.retryable === true;
+    if (value.retryable === true) {
+      return true;
+    }
+
+    if (value.retryable === false) {
+      return false;
+    }
+
+    return typeof value.retryableFailureCount === "number" && value.retryableFailureCount > 0;
+  }
+
+  private isBoundaryHitDiagnostics(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return false;
+    }
+
+    return value.boundaryHit === true;
   }
 
   private getDiagnosticsCode(value: Prisma.JsonValue | null) {

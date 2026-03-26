@@ -25,9 +25,13 @@ type FeedEntry = {
 };
 
 type FeedFetchDiagnostics = {
+  sourceKind: "feed";
+  schemaVersion: 2;
   attemptedEntryCount: number;
   succeededEntryCount: number;
   failedEntryCount: number;
+  retryableFailureCount: number;
+  nonRetryableFailureCount: number;
   failedEntryRefs: string[];
   failedEntries: Array<{
     ref: string;
@@ -35,6 +39,18 @@ type FeedFetchDiagnostics = {
     message: string;
     retryable: boolean;
   }>;
+  skippedDuplicateEntryCount: number;
+  skippedDuplicateEntryRefs: string[];
+  skippedDuplicatesTruncated: boolean;
+  skippedDuplicatesOmittedCount: number;
+  boundaryHit: boolean;
+  boundaryReasons: string[];
+  boundary: {
+    maxItems: number;
+    totalExtractedEntryCount: number;
+    selectedEntryCount: number;
+    droppedByLimitCount: number;
+  };
   failedEntriesTruncated: boolean;
   failedEntriesOmittedCount: number;
   partial: boolean;
@@ -45,6 +61,13 @@ type FeedEntryFailure = {
   code: string;
   message: string;
   retryable: boolean;
+};
+
+type FeedEntryBoundary = {
+  maxItems: number;
+  totalExtractedEntryCount: number;
+  selectedEntryCount: number;
+  droppedByLimitCount: number;
 };
 
 const MAX_FAILURE_SUMMARY_ITEMS = 10;
@@ -103,7 +126,8 @@ export class FeedSourceService {
     const channelBlock = this.extractBlock(xml, "channel");
     const title = this.extractTextValue(channelBlock ?? xml, "title");
     const description = this.extractTextByPattern(channelBlock ?? xml, /<description\b[^>]*>([\s\S]*?)<\/description>/i);
-    const itemBlocks = this.extractBlocks(channelBlock ?? xml, "item").slice(0, options.maxItems);
+    const allItemBlocks = this.extractBlocks(channelBlock ?? xml, "item");
+    const itemBlocks = allItemBlocks.slice(0, options.maxItems);
     const entries = itemBlocks.map(block => ({
       title: this.extractTextValue(block, "title"),
       summary: this.extractTextByPattern(block, /<(?:description|content:encoded)\b[^>]*>([\s\S]*?)<\/(?:description|content:encoded)>/i),
@@ -115,14 +139,21 @@ export class FeedSourceService {
       title,
       description,
       entries,
-      sourceUrl: options.url
+      sourceUrl: options.url,
+      boundary: {
+        maxItems: options.maxItems,
+        totalExtractedEntryCount: allItemBlocks.length,
+        selectedEntryCount: itemBlocks.length,
+        droppedByLimitCount: Math.max(0, allItemBlocks.length - itemBlocks.length)
+      }
     });
   }
 
   private extractFromAtom(xml: string, options: ExtractFeedOptions): FetchedFeed {
     const title = this.extractTextValue(xml, "title");
     const description = this.extractTextValue(xml, "subtitle");
-    const entryBlocks = this.extractBlocks(xml, "entry").slice(0, options.maxItems);
+    const allEntryBlocks = this.extractBlocks(xml, "entry");
+    const entryBlocks = allEntryBlocks.slice(0, options.maxItems);
     const entries = entryBlocks.map(block => ({
       title: this.extractTextValue(block, "title"),
       summary: this.extractTextByPattern(block, /<(?:summary|content)\b[^>]*>([\s\S]*?)<\/(?:summary|content)>/i),
@@ -134,7 +165,13 @@ export class FeedSourceService {
       title,
       description,
       entries,
-      sourceUrl: options.url
+      sourceUrl: options.url,
+      boundary: {
+        maxItems: options.maxItems,
+        totalExtractedEntryCount: allEntryBlocks.length,
+        selectedEntryCount: entryBlocks.length,
+        droppedByLimitCount: Math.max(0, allEntryBlocks.length - entryBlocks.length)
+      }
     });
   }
 
@@ -143,9 +180,12 @@ export class FeedSourceService {
     description: string | null;
     entries: FeedEntry[];
     sourceUrl: string;
+    boundary: FeedEntryBoundary;
   }): FetchedFeed {
     const lines: string[] = [];
     const failedEntries: FeedEntryFailure[] = [];
+    const skippedDuplicateEntryRefs: string[] = [];
+    const seenEntryKeys = new Set<string>();
 
     if (input.title) {
       lines.push(`Feed: ${input.title}`);
@@ -163,6 +203,14 @@ export class FeedSourceService {
         failedEntries.push(failure);
         return;
       }
+
+      const dedupKey = this.buildEntryDedupKey(entry);
+      if (seenEntryKeys.has(dedupKey)) {
+        skippedDuplicateEntryRefs.push(entry.link ?? entry.title ?? "Untitled");
+        return;
+      }
+
+      seenEntryKeys.add(dedupKey);
 
       const index = lines.filter(line => line.startsWith("Entry ")).length;
       const entryLines = [`Entry ${index + 1}: ${entry.title ?? "Untitled"}`];
@@ -196,24 +244,48 @@ export class FeedSourceService {
     }
 
     const summarizedFailedEntries = failedEntries.slice(0, MAX_FAILURE_SUMMARY_ITEMS);
+    const summarizedSkippedDuplicateRefs = skippedDuplicateEntryRefs.slice(0, MAX_FAILURE_SUMMARY_ITEMS);
+    const boundaryHit = input.boundary.droppedByLimitCount > 0;
+    const boundaryReasons = boundaryHit ? ["MAX_ITEMS_LIMIT_REACHED"] : [];
+    const retryableFailureCount = failedEntries.reduce((count, entry) => count + (entry.retryable ? 1 : 0), 0);
+    const nonRetryableFailureCount = failedEntries.length - retryableFailureCount;
+    const partial = failedEntries.length > 0 || skippedDuplicateEntryRefs.length > 0 || boundaryHit;
 
     return {
       title: input.title ?? null,
       content,
-      diagnostics:
-        failedEntries.length > 0
-          ? {
-              attemptedEntryCount: input.entries.length,
-              succeededEntryCount: input.entries.length - failedEntries.length,
-              failedEntryCount: failedEntries.length,
-              failedEntryRefs: failedEntries.slice(0, MAX_FAILURE_SUMMARY_ITEMS).map(entry => entry.ref),
-              failedEntries: summarizedFailedEntries,
-              failedEntriesTruncated: failedEntries.length > summarizedFailedEntries.length,
-              failedEntriesOmittedCount: Math.max(0, failedEntries.length - summarizedFailedEntries.length),
-              partial: true
-            }
-          : null
+      diagnostics: partial
+        ? {
+            sourceKind: "feed",
+            schemaVersion: 2,
+            attemptedEntryCount: input.entries.length,
+            succeededEntryCount: Math.max(0, input.entries.length - failedEntries.length - skippedDuplicateEntryRefs.length),
+            failedEntryCount: failedEntries.length,
+            retryableFailureCount,
+            nonRetryableFailureCount,
+            failedEntryRefs: failedEntries.slice(0, MAX_FAILURE_SUMMARY_ITEMS).map(entry => entry.ref),
+            failedEntries: summarizedFailedEntries,
+            skippedDuplicateEntryCount: skippedDuplicateEntryRefs.length,
+            skippedDuplicateEntryRefs: summarizedSkippedDuplicateRefs,
+            skippedDuplicatesTruncated: skippedDuplicateEntryRefs.length > summarizedSkippedDuplicateRefs.length,
+            skippedDuplicatesOmittedCount: Math.max(0, skippedDuplicateEntryRefs.length - summarizedSkippedDuplicateRefs.length),
+            boundaryHit,
+            boundaryReasons,
+            boundary: input.boundary,
+            failedEntriesTruncated: failedEntries.length > summarizedFailedEntries.length,
+            failedEntriesOmittedCount: Math.max(0, failedEntries.length - summarizedFailedEntries.length),
+            partial: true
+          }
+        : null
     };
+  }
+
+  private buildEntryDedupKey(entry: FeedEntry) {
+    const normalizedTitle = entry.title?.trim().toLowerCase() ?? "";
+    const normalizedLink = entry.link?.trim().toLowerCase() ?? "";
+    const normalizedPublishedAt = entry.publishedAt?.trim().toLowerCase() ?? "";
+    const normalizedSummary = entry.summary?.trim().toLowerCase() ?? "";
+    return [normalizedLink, normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
   }
 
   private validateEntry(entry: FeedEntry): FeedEntryFailure | null {

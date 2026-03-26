@@ -142,9 +142,13 @@ test("FeedSourceService skips invalid entries and returns partial diagnostics", 
   assert.match(extracted.content, /Release A/);
   assert.doesNotMatch(extracted.content, /Broken Entry/);
   assert.deepEqual(extracted.diagnostics, {
+    sourceKind: "feed",
+    schemaVersion: 2,
     attemptedEntryCount: 2,
     succeededEntryCount: 1,
     failedEntryCount: 1,
+    retryableFailureCount: 0,
+    nonRetryableFailureCount: 1,
     failedEntryRefs: ["Broken Entry"],
     failedEntries: [
       {
@@ -154,6 +158,18 @@ test("FeedSourceService skips invalid entries and returns partial diagnostics", 
         retryable: false
       }
     ],
+    skippedDuplicateEntryCount: 0,
+    skippedDuplicateEntryRefs: [],
+    skippedDuplicatesTruncated: false,
+    skippedDuplicatesOmittedCount: 0,
+    boundaryHit: false,
+    boundaryReasons: [],
+    boundary: {
+      maxItems: 2,
+      totalExtractedEntryCount: 2,
+      selectedEntryCount: 2,
+      droppedByLimitCount: 0
+    },
     failedEntriesTruncated: false,
     failedEntriesOmittedCount: 0,
     partial: true
@@ -182,6 +198,56 @@ test("FeedSourceService still fails when all feed entries are invalid", async ()
       ),
     /all feed entries were invalid/i
   );
+});
+
+test("FeedSourceService reports execution boundary when maxItems truncates entries", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item><title>Entry A</title><link>https://example.com/a</link></item>
+        <item><title>Entry B</title><link>https://example.com/b</link></item>
+        <item><title>Entry C</title><link>https://example.com/c</link></item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 2
+    }
+  );
+
+  assert.equal(extracted.diagnostics?.boundaryHit, true);
+  assert.deepEqual(extracted.diagnostics?.boundaryReasons, ["MAX_ITEMS_LIMIT_REACHED"]);
+  assert.deepEqual(extracted.diagnostics?.boundary, {
+    maxItems: 2,
+    totalExtractedEntryCount: 3,
+    selectedEntryCount: 2,
+    droppedByLimitCount: 1
+  });
+});
+
+test("FeedSourceService skips duplicate entries and records dedup diagnostics", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item><title>Entry A</title><link>https://example.com/a</link></item>
+        <item><title>Entry A</title><link>https://example.com/a</link></item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 10
+    }
+  );
+
+  assert.equal(extracted.diagnostics?.skippedDuplicateEntryCount, 1);
+  assert.deepEqual(extracted.diagnostics?.skippedDuplicateEntryRefs, ["https://example.com/a"]);
+  assert.equal(extracted.diagnostics?.partial, true);
 });
 
 test("SitemapSourceService extracts ordered unique page URLs from sitemap XML", () => {
@@ -370,9 +436,13 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
     assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/pages\/bad/);
     assert.deepEqual(extracted.diagnostics, {
+      sourceKind: "sitemap",
+      schemaVersion: 2,
       attemptedPageCount: 2,
       succeededPageCount: 1,
       failedPageCount: 1,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 1,
       failedPageUrls: ["https://example.com/pages/bad"],
       failedPages: [
         {
@@ -385,7 +455,15 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
       failedPagesTruncated: false,
       failedPagesOmittedCount: 0,
       partial: true,
-      retryable: false
+      retryable: false,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxPages: 2,
+        maxChildSitemaps: 20,
+        selectedChildSitemapCount: 0,
+        droppedChildSitemapCount: 0
+      }
     });
   } finally {
     global.fetch = originalFetch;
@@ -513,9 +591,13 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
 
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
     assert.deepEqual(extracted.diagnostics, {
+      sourceKind: "sitemap",
+      schemaVersion: 2,
       attemptedPageCount: 1,
       succeededPageCount: 1,
       failedPageCount: 0,
+      retryableFailureCount: 1,
+      nonRetryableFailureCount: 0,
       failedPageUrls: [],
       failedPages: [],
       failedPagesTruncated: false,
@@ -535,8 +617,107 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
         }
       ],
       failedChildSitemapsTruncated: false,
-      failedChildSitemapsOmittedCount: 0
+      failedChildSitemapsOmittedCount: 0,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxPages: 5,
+        maxChildSitemaps: 20,
+        selectedChildSitemapCount: 2,
+        droppedChildSitemapCount: 0
+      }
     });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService preserves merged retryable counts when child and page failures coexist", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/good.xml</loc></sitemap>
+          <sitemap><loc>https://example.com/sitemaps/bad.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/good.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/good</loc></url>
+          <url><loc>https://example.com/pages/retryable-fail</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/bad.xml") {
+      return new Response("upstream exploded", {
+        status: 502,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    if (normalizedUrl === "https://example.com/pages/good") {
+      return new Response(
+        "<html><head><title>Good Page</title></head><body><main><p>Merged diagnostics marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/retryable-fail") {
+      return new Response("upstream exploded", {
+        status: 502,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 5
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
+    assert.equal(extracted.diagnostics?.retryable, true);
+    assert.equal(extracted.diagnostics?.attemptedChildSitemapCount, 2);
+    assert.equal(extracted.diagnostics?.failedChildSitemapCount, 1);
+    assert.equal(extracted.diagnostics?.attemptedPageCount, 2);
+    assert.equal(extracted.diagnostics?.failedPageCount, 1);
+    assert.equal(extracted.diagnostics?.retryableFailureCount, 2);
+    assert.equal(extracted.diagnostics?.nonRetryableFailureCount, 0);
   } finally {
     global.fetch = originalFetch;
   }

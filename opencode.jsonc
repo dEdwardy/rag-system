@@ -1,16 +1,18 @@
 {
   "$schema": "https://opencode.ai/config.schema.json",
-  "model": "openai/gpt-5.3-codex",
+  "model": "openai/gpt-5.3-mini",
   "small_model": "openai/gpt-5.3-mini",
   "default_agent": "rag-orchestrator",
   "command": {
     "plan": {
       "agent": "rag-plan",
+      "model": "openai/gpt-5.4",
       "description": "产出当前任务的最小可执行增量",
-      "template": "先阅读 AGENTS.md、docs/next_steps_rag_project_plan.md、docs/current-progress.md、docs/current-dev-setup.md、README.md。给出当前任务的最小计划。默认按 plan -> build 工作；若缺少对应 superpowers spec/plan，先明确指出需要补齐。"
+      "template": "先阅读 AGENTS.md、docs/next_steps_rag_project_plan.md、docs/current-progress.md、docs/current-dev-setup.md、README.md。给出当前任务的最小计划。默认按 plan -> build 工作；若缺少对应 superpowers spec/plan，先补齐，再进入 build/实施。"
     },
     "build": {
       "agent": "rag-build",
+      "model": "openai/gpt-5.3-codex",
       "description": "按已确认计划实施并完成最小验证",
       "template": "基于已确认的最小计划执行实现。优先 backend-first、小步增量、快验证；不做无关重构。TDD 不是默认流程，仅在行为语义、共享契约、source recovery 等改动时启用 light TDD。"
     },
@@ -22,8 +24,9 @@
     },
     "review-risk": {
       "agent": "rag-review",
+      "model": "openai/gpt-5.4",
       "description": "仅用于高风险或合并前关键审查",
-      "template": "只审查高风险变更，如 retrieval、fallback、answering、citation、shared contract、streaming、persistence；不要把 review 作为默认步骤。"
+      "template": "只审查高风险变更，如 retrieval、fallback、answering、citation、ingestion、source sync/recovery、schema、orchestrator、shared contract、streaming、persistence；不要把 review 作为默认步骤；config/docs/style 小改不默认触发 review。"
     }
   }
 }

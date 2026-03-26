@@ -11,6 +11,34 @@
 
 补充进展（2026-03-26）：
 
+- ✅ external source stabilization phase 2 (backend-first) now adds boundary-aware diagnostics, dedup signals, and new run-summary anchors
+  - `FeedSourceService` 现在在 partial diagnostics 中补充了统一的边界与去重信号：
+    - `sourceKind` / `schemaVersion`
+    - `retryableFailureCount` / `nonRetryableFailureCount`
+    - `skippedDuplicateEntryCount` / `skippedDuplicateEntryRefs`
+    - `boundaryHit` / `boundaryReasons` / `boundary`
+  - `SitemapSourceService` 现在在 sitemap-index 扩展过程中显式暴露执行边界信息：
+    - child sitemap 扩展上限命中（`MAX_CHILD_SITEMAPS_REACHED`）
+    - page 收集上限命中（`MAX_PAGES_REACHED`）
+    - 对应 `boundaryHit` / `boundaryReasons` / `boundary` 结构
+  - `DocumentsService.buildExternalSourcePartialDiagnostics()` 现在会输出更统一的 partial envelope：
+    - `category: "external_source_partial"`
+    - `partialFailureCount`
+    - `retryableFailureCount` / `nonRetryableFailureCount`
+    - `boundaryHit` / `boundaryReasons`
+  - `DocumentRunsService` summary 现在新增两个轻量 anchor：
+    - `latestPartialSourceFailure`
+    - `latestBoundaryHit`
+  - `DocumentRunsService` 对 `retryable` 的读取也补了兜底：当顶层 `retryable` 缺失时，会回退读取 `retryableFailureCount > 0`
+  - 这一轮保持为最小 backend diagnostics / observability 增量：不改外部 source family 范围，不引入 connector 平台化改造
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/parsing.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/document-runs-summary.test.js`
+    - `pnpm build`
+    - `pnpm typecheck`
+  - 实测结果：上述 focused tests 与 build/typecheck 均通过，当前 P0 第二阶段的边界诊断、partial 结构标准化和 summary anchor 能力已落地
+
 - ✅ document-run output now rejects invalid diagnostics `failedStage` values
   - `DocumentRunsService.buildFailureSummary()` 现在只接受属于 `DocumentRunFailedStage` 枚举的 diagnostics `failedStage`，非法字符串不再进入 API 输出
   - 这修复了历史/异常 diagnostics 输入可能把非枚举阶段值透传到 `listDocumentRuns` 输出的问题

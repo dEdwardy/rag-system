@@ -173,6 +173,8 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
         code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
         failedStage: "source_fetch",
         retryable: false,
+        boundaryHit: true,
+        boundaryReasons: ["MAX_ITEMS_LIMIT_REACHED"],
         message: "Feed source completed with partial entry validation failures.",
         partial: true
       },
@@ -331,6 +333,38 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
     }
   });
   assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-partial",
+    version: 3,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    message: "Feed source completed with partial entry validation failures.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Feed source completed with partial entry validation failures."
+    }
+  });
+  assert.deepEqual(summary.latestPartialSourceFailure, {
+    documentId: "doc-partial",
+    version: 3,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    message: "Feed source completed with partial entry validation failures.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Feed source completed with partial entry validation failures."
+    }
+  });
+  assert.deepEqual(summary.latestBoundaryHit, {
     documentId: "doc-partial",
     version: 3,
     trigger: "external_resync",
