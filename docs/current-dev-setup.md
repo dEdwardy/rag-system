@@ -154,6 +154,7 @@ LLM_REWRITE_TEMPERATURE=0
   - `GET /traces/:id` and `GET /conversations/:id/traces` now also return additive `traceSummary`
   - `traceSummary` is derived from persisted trace JSON rather than stored separately
   - current `traceSummary` fields are:
+    - `promptId`
     - `answerStatus`
     - `qualityOverall`
     - `primaryIssue`
@@ -167,13 +168,29 @@ LLM_REWRITE_TEMPERATURE=0
     - `citationAttribution`
     - `citationSelectionSource`
     - `missingInformationCount`
+    - `missingInformationSource`
     - `insufficientContextReason`
     - `answerTextSource`
     - `answerStatusSource`
     - `failedStage`
     - `failureMessage`
+    - `candidateLimit`
+    - `vectorCandidateCount`
+    - `lexicalCandidateCount`
+    - `mergedCandidateCount`
+    - `rankedCandidateCount`
+    - `vectorCandidateLimitHit`
+    - `lexicalCandidateLimitHit`
+    - `rankingTopKHit`
+    - `primaryChunkCount`
+    - `neighborChunkCount`
     - `retrievedChunkCount`
+    - `inputChunkCount`
+    - `promptContextCount`
+    - `contextGroupCount`
     - `citationCount`
+    - `citationCountBeforeLimit`
+    - `citationLimitHit`
     - `usedFallback`
   - current `traceSummary.retrievalQuerySource` values are:
     - `rewritten`

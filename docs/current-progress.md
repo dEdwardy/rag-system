@@ -11,6 +11,20 @@
 
 补充进展（2026-03-26）：
 
+- ✅ current dev setup doc now matches the current traceSummary field surface
+  - `docs/current-dev-setup.md` 的 `current trace read semantics` 段已补齐剩余的 `traceSummary` 字段列表漂移，并和 `docs/retrieval-trace.md` / `packages/shared/src/trace-contracts.ts` 对齐
+  - 补齐字段覆盖：
+    - `promptId`
+    - `missingInformationSource`
+    - retrieval candidate-flow counts / limit-hit flags
+    - `primaryChunkCount` / `neighborChunkCount`
+    - `inputChunkCount` / `promptContextCount` / `contextGroupCount`
+    - `citationCountBeforeLimit` / `citationLimitHit`
+  - 这一轮保持为最小 doc-only 跟进：只同步 setup 文档中的 traceSummary 列表，不改 runtime、测试或其他文档结构
+  - 新增 / 更新验证：
+    - read-back 校对 `docs/current-dev-setup.md` 的 `current traceSummary fields are:` 列表，并与 `docs/retrieval-trace.md` 对照一致
+  - 实测结果：`current-dev-setup.md` 当前已完整列出 38 个 `traceSummary` 字段，setup 文档与主参考文档已收口一致
+
 - ✅ retrieval trace reference doc now matches the current traceSummary field surface
   - `docs/retrieval-trace.md` 的 `Trace read summary` 段已补齐当前共享 `TraceSummary` contract 中此前遗漏的字段，包括：
     - `promptId`
