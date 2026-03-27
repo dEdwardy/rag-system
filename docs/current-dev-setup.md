@@ -87,6 +87,7 @@ The API will use Ollama automatically when these environment values are present:
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_EMBEDDING_MODEL=qwen2.5:7b
+OLLAMA_EMBEDDING_DIMENSIONS=1536
 ```
 
 Notes:
@@ -94,6 +95,7 @@ Notes:
 - The current API startup path now loads `.env` from the repo root and `apps/api/.env`.
 - In the current local environment, `qwen2.5:7b` has been verified to respond to both `/api/generate` and `/api/embed`.
 - If you later switch to a dedicated embedding model, only `OLLAMA_EMBEDDING_MODEL` needs to change.
+- `OLLAMA_EMBEDDING_DIMENSIONS` is optional and acts as a strict guardrail: when set, the backend rejects Ollama embedding responses whose vector length does not match the configured dimension.
 - external source fetch runtime now also supports:
 
 ```text
@@ -156,6 +158,9 @@ LLM_REWRITE_TEMPERATURE=0
 - current answering metadata semantics:
   - `answeringMetadata.usedFallback` now explicitly records whether answer generation resolved through local fallback behavior instead of a provider-backed model path
   - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
+- current ask response metadata semantics:
+  - `AskResponse.strategySummary` now exposes the same additive resolved retrieval strategy summary used by trace/read-model surfaces
+  - the ask response still keeps `retrievalMetadata` and `answeringMetadata` for lower-level inspection, but the top-level summary makes the resolved retrieval provenance easier to read
 - current trace read semantics:
   - `GET /traces/:id` and `GET /conversations/:id/traces` now also return additive `traceSummary`
   - `traceSummary` is derived from persisted trace JSON rather than stored separately
@@ -166,6 +171,14 @@ LLM_REWRITE_TEMPERATURE=0
     - `primaryIssue`
     - `retrievalMode`
     - `retrievalQuerySource`
+     - `strategySummary`
+       - `retrievalMode`
+       - `strategyMode`
+      - `retrievalQuerySource`
+      - `rewriteApplied`
+      - `rewriteUsedFallback`
+      - `fallbackReason`
+      - `usedFallback`
     - `generationMode`
     - `contextMode`
     - `rewriteApplied`
@@ -526,6 +539,7 @@ Notes:
 - small focused tests and static checks may run in parallel when they stay within a light local feedback loop
 - do not run multiple heavy builds or node test processes at the same time
 - do not overlap heavy validation with AI review
+- `pnpm opencode:loop` now runs the narrow queue harness described in `scripts/opencode-loop.md`; `node scripts/opencode-loop.mjs --self-test` validates queue draining plus interrupted-session resume recovery.
 - this smoke test is currently scoped to `PC Web`
 - it validates `Knowledge Base -> Assistant` browser rendering against the real local API
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks

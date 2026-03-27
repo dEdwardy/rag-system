@@ -3,13 +3,90 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-27
+更新时间：2026-03-28
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
 > 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
 
 补充进展（2026-03-27）：
+
+补充进展（2026-03-28）：
+
+- ✅ Ollama embedding runtime now enforces an optional expected-dimension guardrail
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now reads `OLLAMA_EMBEDDING_DIMENSIONS` as a positive integer when configured
+  - `EmbeddingService` now rejects Ollama responses whose vector length does not match the configured dimension, so local embedding config drift fails fast instead of silently propagating
+  - this remains a minimal backend config/correctness increment: no provider ranking changes, no retrieval behavior changes, no schema migration
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:fast:llm`
+  - 实测结果：focused embedding runtime tests passed; configured Ollama vector dimensions now act as a strict runtime guardrail
+
+- ✅ OpenCode loop harness now provides a narrow queue-driven local execution entrypoint
+  - `pnpm opencode:loop` now launches `scripts/opencode-loop.mjs`
+  - the harness drains `.opencode/loop/queue.json` one item at a time, manages resume/recovery, writes handoff markdown, and keeps a lock to avoid concurrent consumption
+  - `node scripts/opencode-loop.mjs --self-test` now covers fresh queue draining plus interrupted-session resume recovery against a local mock server
+  - this is a workflow/supporting-tooling increment only: no core API/retrieval behavior changes
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test passed; queue processing, handoff generation, and resume recovery all behave as expected
+
+- ✅ sitemap all-failure diagnostics now include a concrete failed URL anchor
+  - `SitemapSourceService` now appends the first failed URL when throwing terminal aggregate failures:
+    - all sitemap pages failed: message now includes `First failed page URL`
+    - all child sitemap fetches failed: message now includes `First failed child sitemap URL`
+  - this is a minimal backend diagnostics clarity increment for existing `sitemap` / `sitemap index` flows only: no source-family expansion, no retry policy rewrite, no state-machine/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests 18/18 通过；当 sitemap 或 sitemap-index 进入全量失败时，错误信息现在直接带出可定位的首个失败 URL，减少排查时的上下文丢失
+
+- ✅ `strategySummary` now carries additive `rewriteUsedFallback` for query-rewrite provenance readability
+  - `packages/shared/src/trace-contracts.ts` updates `RetrievalStrategySummary` with `rewriteUsedFallback: boolean | null`
+  - `AskAssistantService` now writes `strategySummary.rewriteUsedFallback` from `queryRewrite.usedFallback` on success/failure metadata paths
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.rewriteUsedFallback` from `queryRewrite.usedFallback` first, then falls back to persisted `strategySummary.rewriteUsedFallback`
+  - compatibility preserved: no retrieval behavior/default/ranking changes, no persistence/schema migration changes, additive read-model/contract clarity only
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed; trace summary 的策略摘要现在可直接读出 query rewrite 是否走了 fallback
+
+- ✅ `strategySummary` now carries additive `usedFallback` for ask/trace/shared convergence
+  - `packages/shared/src/trace-contracts.ts` updates `RetrievalStrategySummary` with `usedFallback: boolean | null`
+  - `AskAssistantService` now writes `strategySummary.usedFallback` on both success (`execution.usedFallback`) and retrieval-failure (`null`) paths
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.usedFallback` from execution metadata first, then falls back to persisted `strategySummary.usedFallback`
+  - `AskResponse` now also exposes a top-level additive `strategySummary` so the ask response, trace summary, and shared contract stay aligned on resolved retrieval provenance
+  - compatibility preserved: no retrieval behavior/default/ranking changes, no persistence/schema migration changes, additive read-model/contract clarity only
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/ask-success.test.js`
+    - `node --test apps/web/test/trace-summary-contract.test.js apps/web/test/ask-retrieval-metadata-contract.test.js`
+  - 实测结果：all focused API/Web contract tests passed; `ask response`、`trace summary` 与 shared contract 的 fallback 使用标记已完成 additive 对齐
+
+- ✅ traceSummary strategy readability now falls back to persisted `retrievalMetadata.strategySummary`
+  - `TracesService.buildTraceSummary()` now reads `retrievalMetadata.strategySummary` as a fallback source for additive strategy fields when detailed execution/query-rewrite subfields are missing:
+    - `retrievalMode`
+    - `retrievalQuerySource`
+    - `rewriteApplied`
+    - `fallbackReason`
+  - this is a minimal backend read-model clarity increment: no retrieval execution changes, no ask-path orchestration changes, no schema/persistence changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 5/5 通过；当 trace 仅保留 `strategySummary` 而缺失 execution/query-rewrite 细节时，`traceSummary` 仍可输出可读的最终策略摘要
+
+- ✅ ask response / trace summary / shared contract now share additive `strategySummary` metadata
+  - `packages/shared/src/trace-contracts.ts` adds `RetrievalStrategySummary` and includes `traceSummary.strategySummary`
+  - `AskAssistantService` now writes `retrievalMetadata.strategySummary` for both success and retrieval-failure trace metadata paths
+  - `TracesService.buildTraceSummary()` now exposes additive `traceSummary.strategySummary` while preserving existing flattened strategy fields (`retrievalMode` / `retrievalQuerySource` / `rewriteApplied` / `fallbackReason`) for compatibility
+  - `apps/web/src/types/api.ts` now references shared strategy enums and includes optional `AskRetrievalMetadata.strategySummary`
+  - this increment is metadata/read-model convergence only: no retrieval execution behavior changes, no strategy default rewrites, no schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+    - `node --test apps/web/test/trace-summary-contract.test.js apps/web/test/ask-retrieval-metadata-contract.test.js`
+  - 实测结果：focused traces service tests 和 web contract tests 通过；ask retrieval metadata、trace summary、shared contract 的策略摘要表达已完成 additive 对齐
+
+- ✅ trace strategy summary now carries explicit requested strategy mode provenance
+  - `RetrievalStrategySummary.strategyMode` now records the resolved config mode from `retrievalMetadata.strategy.candidateSelection.mode`
+  - `AskAssistantService` persists the field in both success and failed retrieval metadata, and `TracesService.buildTraceSummary()` reads it back for trace detail/list views
+  - current trace summary can now distinguish the resolved strategy config mode from the runtime `retrievalMode` that actually executed
+  - this is still additive read-model / metadata clarity only: no retrieval behavior changes, no schema migration
 
 - ✅ traceSummary failed-stage output now rejects invalid retrieval failure stage values
   - `TracesService.buildTraceSummary()` no longer forwards arbitrary `retrievalMetadataJson.failure.stage` strings into `traceSummary.failedStage`
