@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.5.2",
   "scripts": {
+    "opencode:loop": "node scripts/opencode-loop.mjs",
     "dev:web": "pnpm --filter @rag-system/web dev",
     "dev:api": "pnpm --filter @rag-system/api start:dev",
     "build": "pnpm -r build",
