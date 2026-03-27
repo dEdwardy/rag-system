@@ -11,6 +11,16 @@
 
 补充进展（2026-03-27）：
 
+- ✅ CI validate now generates Prisma client before API build/typecheck
+  - 根因是仓库此前只提供了 `apps/api` 的手动脚本 `prisma:generate`，但 CI `validate` 流程没有显式执行它
+  - `apps/api/package.json` 的 `build` 现已改为先执行 `pnpm run prisma:generate` 再 `nest build`
+  - `.github/workflows/ci.yml` 现已在 `pnpm install --frozen-lockfile` 后显式执行：
+    - `pnpm --filter @rag-system/api prisma:generate`
+  - 这样可避免 CI 因隐式 postinstall 未可靠触发而出现 `@prisma/client` 导出缺失，进而导致 API build/typecheck 大面积失败
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api prisma:generate && pnpm build && pnpm typecheck`
+  - 实测结果：本地按 CI 等价路径复验通过；API build/typecheck 已可稳定拿到生成后的 Prisma client
+
 - ✅ source diagnostics / run-summary follow-up now keeps boundary drop counts accurate and web summary typing aligned
   - `SitemapSourceService` 在 `sitemapindex` 场景下不再把跨 child sitemap 的重复 page URL 误计入 `boundary.droppedPageUrlCount`
   - 当前仅在**唯一 page URL** 因命中 `maxPages` 被跳过时才累计 dropped page count，因此 `boundaryStats` 与 `latestBoundaryHit.boundarySummary` 不再把去重误报成边界丢弃

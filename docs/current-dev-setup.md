@@ -22,6 +22,12 @@ This brings up:
 pnpm install
 ```
 
+For clean-checkout or CI-like validation, explicitly generate the Prisma client before API build/typecheck:
+
+```bash
+pnpm --filter @rag-system/api prisma:generate
+```
+
 ## Database
 
 Current local PostgreSQL connection values:

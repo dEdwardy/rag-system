@@ -5,7 +5,7 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "build": "nest build",
+    "build": "pnpm run prisma:generate && nest build",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run test:all",
     "test:all": "pnpm run test:fast && pnpm run test:integration && pnpm run test:e2e",
