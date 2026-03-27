@@ -18,6 +18,10 @@ api-server.log
 api-server.err.log
 .codex/
 .worktrees/
+.sisyphus/boulder.json
+.sisyphus/notepads/
+.sisyphus/plans/current-stage-development-roadmap.md
+.sisyphus/plans/next-stage-ingestion-reliability-hardening.md
 .playwright-cli/
 output/
 ui/suggestion.md
