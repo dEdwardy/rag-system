@@ -24,9 +24,9 @@
 
 ## 2. 当前优先级
 
-### P0：external knowledge source expansion
+### P0：read-model / metadata convergence
 
-`PC Web chat experience polish` 这一轮收口现在可以视为完成，接下来主线正式切回 `external knowledge source expansion`。
+`PC Web chat experience polish` 这一轮收口现在可以视为完成；当前 external knowledge source 的第一轮最小 source family 也已在现有范围内完成 backend / API 收口。接下来更合适的下一最小增量，不是继续把主线写成 external source expansion，也不是直接改 retrieval 行为语义，而是先做一轮 **read-model / metadata convergence**。
 
 当前已完成的最小 source family：
 
@@ -35,33 +35,34 @@
 - one direct sitemap `urlset` source
 - one root sitemap `sitemapindex` source that expands child direct sitemaps
 
-这一轮建议优先关注：
+当前这一轮建议优先关注：
 
 - 保持 `backend / API first`
-- 在现有 source family 上继续做最小而连续的增量
-- 强化 source 级别的可诊断性、失败原因表达和运行边界
-- 优先补 source stabilization，而不是继续横向堆更多 source 类型
-- 继续复用既有 document creation / ingestion / indexing 主链路
+- 保持 additive、behavior-preserving 的收口方式
+- 统一 ask response、trace summary、shared contract 的策略摘要表达
+- 提升 trace 与执行 metadata 的可读性，而不是继续堆新的策略开关
+- 让最终生效策略、fallback 原因、回答归因更直接可读
 
 这一轮明确不做：
 
-- 前端大改版
-- 移动端适配
-- 通用 connector / source 平台化重构
-- 调度系统、定时同步、鉴权、多租户能力
-- 再开一轮 retrieval / answering 功能扩张
+- retrieval 行为语义调整
+- 默认 `topK` / `scoreThreshold` / `rerank` 等策略改写
+- 新的 retrieval mode 扩展
+- 新一轮 external source family expansion
+- schema / persistence 大改
+- 前端大改版或新的 UI 主主题
 
 建议的切入顺序：
 
-1. 从现有 source family 中选一个继续推进
-2. 一次只补一个稳定性增强点
+1. 先收 ask response / trace summary / shared contract 的策略摘要表达
+2. 一次只补一个 read-model / metadata clarity 缺口
 3. 优先考虑：
-   - diagnostics
-   - retry / re-sync
-   - dedup guards
-   - execution boundaries
+   - resolved strategy summary
+   - trace readability
+   - contract alignment
+   - focused validation
 
-当前这一轮已经完成的高优先级最小增量：
+当前这一轮已经提供了足够基础，可直接支持这一收口方向：
 
 - source run history / execution observability minimum increment: done
   - document ingestion / external source run 已具备 run-level persistence
@@ -76,21 +77,22 @@
   - source-fetch diagnostics 的 `retryable` 判定已按错误边界收口，不再把明显的 invalid payload / content-type 错误误记成可重试
   - stale ingestion job 也会在 run history 中显式标记为 `skipped`
 
-### P1：retrieval / answering 收敛
+### P1：external knowledge source follow-up（后续新波次）
 
-retrieval / answering 目前已经具备较多能力，后续更适合做系统化收敛，而不是继续快速堆功能。
+如果后续继续推进 external knowledge source，应视为新的后续增量，而不是当前波次未完成残项。
 
-建议方向：
+后续如重开该方向，仍优先保持：
 
-- 固定更清晰的默认策略
-- 降低配置理解成本
-- 提升 trace 与执行 metadata 的可读性
-- 让调参与策略选择更可解释
+- `backend / API first`
+- source stabilization 优先于 source 类型横向扩张
+- diagnostics / retry / re-sync / dedup guards / execution boundaries 优先
+- 继续复用既有 document creation / ingestion / indexing 主链路
 
-当前不建议优先做：
+当前不建议把它重新拉回当前主线的原因：
 
-- 再继续堆更多 retrieval 策略开关
-- 再继续扩很多高级回答模式
+- 当前 source family 已在现有范围内完成 backend / API 收口
+- 当前更高价值的最小增量，是把已落地的 retrieval / answering / trace metadata 进一步整理成稳定读模型
+- 这样后续无论是否重开 external source，都能在更稳定的 traceability / contract 基础上继续推进
 
 ### P2：PC Web 后续局部收口
 
@@ -151,4 +153,4 @@ retrieval / answering 目前已经具备较多能力，后续更适合做系统�
 
 ## 5. 一句话结论
 
-**`PC Web` 这轮 UI 收口已完成；接下来主线正式切回 `external knowledge source expansion`，并继续按 backend-first、小步增量、优先稳定化的方式推进。**
+**`PC Web` 这轮 UI 收口已完成；当前更合适的下一最小增量是 read-model / metadata convergence：先收口 ask response、trace summary、shared contract 的策略摘要表达，并保持 behavior-preserving，不直接改 retrieval 行为语义。**

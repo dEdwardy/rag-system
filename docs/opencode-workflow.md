@@ -94,12 +94,12 @@ First read AGENTS.md, docs/next_steps_rag_project_plan.md, docs/current-progress
 Based on the current documented plan, project progress, existing implementation, and repository rules, identify the next most appropriate minimal increment pointed to by the docs.
 
 First decide which execution mode should be used for this task:
-1. Single-agent plan -> build
+1. Main-control plan -> build
 2. Direct build -> fast verify for low-risk work
-3. Build main agent + limited OMO helper agents
+3. Main-control build + limited OMO helper agents
 
 Decision rules:
-- If the task touches high-risk core logic such as retrieval, answering, ingestion, streaming, schema/persistence, or shared contracts, default to single-agent execution and do not enable broad OMO
+- If the task touches high-risk core logic such as retrieval, answering, ingestion, streaming, schema/persistence, or shared contracts, default to main-control execution and do not enable broad OMO
 - If the task is a small low-risk change such as metadata exposure, trace field addition, small API follow-up, or low-risk bugfix, allow direct `build -> fast verify`
 - Only allow limited OMO when there are clearly isolated, low-coupling helper tasks that can be closed independently
 - OMO helper agents may only be used for: explaining current code paths, identifying focused validation, drafting docs updates, reviewing diffs, adding isolated focused tests, and frontend adaptation that does not affect backend contracts
