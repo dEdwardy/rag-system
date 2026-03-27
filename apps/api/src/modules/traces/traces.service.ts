@@ -6,6 +6,11 @@ import { ListConversationTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
 
+const TRACE_FAILED_STAGE_VALUES = new Set<NonNullable<TraceSummary["failedStage"]>>([
+  "retrieval",
+  "answering"
+]);
+
 @Injectable()
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -180,7 +185,7 @@ export class TracesService {
       insufficientContextReason: this.readStringAs<NonNullable<TraceSummary["insufficientContextReason"]>>(answeringMetadata?.insufficientContextReason),
       answerTextSource: this.readStringAs<NonNullable<TraceSummary["answerTextSource"]>>(answeringMetadata?.answerTextSource),
       answerStatusSource: this.readStringAs<NonNullable<TraceSummary["answerStatusSource"]>>(answeringMetadata?.answerStatusSource),
-      failedStage: this.readStringAs<NonNullable<TraceSummary["failedStage"]>>(retrievalFailure?.stage),
+      failedStage: this.readTraceFailedStage(retrievalFailure?.stage),
       failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
       candidateLimit: this.readNumber(retrievalExecution?.candidateLimit) ?? 0,
       vectorCandidateCount: this.readNumber(retrievalExecution?.vectorCandidateCount) ?? 0,
@@ -229,6 +234,12 @@ export class TracesService {
 
   private readStringAs<T extends string>(value: unknown): T | null {
     return typeof value === "string" ? (value as T) : null;
+  }
+
+  private readTraceFailedStage(value: unknown): NonNullable<TraceSummary["failedStage"]> | null {
+    return typeof value === "string" && TRACE_FAILED_STAGE_VALUES.has(value as NonNullable<TraceSummary["failedStage"]>)
+      ? (value as NonNullable<TraceSummary["failedStage"]>)
+      : null;
   }
 
   private readBoolean(value: unknown) {

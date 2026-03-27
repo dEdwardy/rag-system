@@ -11,6 +11,14 @@
 
 补充进展（2026-03-27）：
 
+- ✅ traceSummary failed-stage output now rejects invalid retrieval failure stage values
+  - `TracesService.buildTraceSummary()` no longer forwards arbitrary `retrievalMetadataJson.failure.stage` strings into `traceSummary.failedStage`
+  - current output only keeps the shared-contract enum values (`retrieval` / `answering`); invalid or legacy stage strings now safely fall back to `null`
+  - this is a minimal backend trace read-model correctness increment: no trace persistence write-path changes, no retrieval/answering behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 4/4 通过；当 `failure.stage` 为非法字符串（例如 `source_fetch`）时，trace detail/list 的 `traceSummary.failedStage` 都会回落为 `null`
+
 - ✅ CI validate now generates Prisma client before API build/typecheck
   - 根因是仓库此前只提供了 `apps/api` 的手动脚本 `prisma:generate`，但 CI `validate` 流程没有显式执行它
   - `apps/api/package.json` 的 `build` 现已改为先执行 `pnpm run prisma:generate` 再 `nest build`
@@ -2133,3 +2141,21 @@
 - [docs/phase-1-rag-blueprint.md](/D:/FeProjects/rag-system/docs/phase-1-rag-blueprint.md)
 - [docs/retrieval-trace.md](/D:/FeProjects/rag-system/docs/retrieval-trace.md)
 - [docs/web-i18n.md](/D:/FeProjects/rag-system/docs/web-i18n.md)
+
+### 12. Ingestion reliability hardening（2026-03-27）
+
+- ✅ BullMQ worker final-failure reconciliation now closes the last retry-exhausted ingestion gap
+  - `IngestionService` 现在会在 worker `failed` 事件里只对“重试已耗尽”的 job 做兜底收口：如果当前文档版本仍是本次 job 对应版本，且文档还停留在 `pending` / `processing`，就补写 `failed` 文档态与 `document_run` 失败记录
+  - 文档失败回写现在使用 version+status guard 的 `updateMany`，避免在极窄并发窗口里把已 supersede 的新版本误写回 `failed`
+  - 失败阶段会从当前 `processingStage` 反推：`parsing` / `chunking` / `indexing`
+  - 这一轮保持为最小 ingestion reliability 收口：不改队列拓扑、不改 ingest 主链路，只补 worker 最终失败时的状态一致性兜底
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ingestion.service.test.js`
+    - `pnpm test:api:focus:documents`
+    - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rag_system pnpm test:api:file -- test/document-chain-e2e.test.js`
+    - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rag_system pnpm test:api:integration`
+  - 实测结果：
+    - focused ingestion service tests 3/3 通过，可覆盖“重试耗尽后补写 failed”“重试未耗尽时不提前收口”以及“guard update 命中 0 行时不写 run failed”三条路径
+    - focused document/ingestion 快速套件通过（`71 + 9` tests）
+    - real document-chain E2E 在补齐 `DATABASE_URL` 后 2/2 通过
+    - API integration suite 在补齐 `DATABASE_URL` 后 7/7 通过

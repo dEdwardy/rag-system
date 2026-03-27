@@ -134,6 +134,63 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
   assert.deepEqual(listed[0].citationsJson, []);
 });
 
+test("TracesService drops invalid diagnostics failedStage values from traceSummary", async () => {
+  const persistedTrace = {
+    id: "trace-invalid-failed-stage",
+    conversationId: "conversation-invalid-failed-stage",
+    assistantId: "assistant-invalid-failed-stage",
+    userMessageId: "user-message-invalid-failed-stage",
+    assistantMessageId: null,
+    userQuery: "why did this fail?",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: ["chunk-1"],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      execution: {
+        actualMode: "vector",
+        candidateLimit: 8,
+        vectorCandidateCount: 1,
+        lexicalCandidateCount: 0,
+        mergedCandidateCount: 1,
+        rankedCandidateCount: 1,
+        vectorCandidateLimitHit: false,
+        lexicalCandidateLimitHit: false,
+        rankingTopKHit: true,
+        retrievedChunkCount: 1
+      },
+      failure: {
+        stage: "source_fetch",
+        message: "synthetic failure"
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: null,
+    qualityEvaluationJson: null,
+    modelName: "fallback-rewrite-local",
+    latencyMs: 42,
+    status: "failed",
+    errorMessage: "synthetic failure",
+    createdAt: new Date("2026-03-27T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+
+  const detail = await service.getTrace("trace-invalid-failed-stage");
+  assert.equal(detail.traceSummary.failedStage, null);
+  assert.equal(detail.traceSummary.failureMessage, "synthetic failure");
+
+  const listed = await service.listConversationTraces("conversation-invalid-failed-stage", { limit: 1 });
+  assert.equal(listed[0].traceSummary.failedStage, null);
+  assert.equal(listed[0].traceSummary.failureMessage, "synthetic failure");
+});
+
 test("TracesService falls back promptContextCount from legacy context mode metadata", async () => {
   const persistedTrace = {
     id: "trace-legacy-context-groups",
