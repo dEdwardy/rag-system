@@ -80,7 +80,7 @@ Queue items may also provide an optional `model` override; otherwise the harness
 - If an item already has `status: in_progress` and `sessionId`, the next run resumes that session instead of creating a second one.
 - A runtime lock prevents two `opencode-loop` processes from consuming the same queue at the same time.
 - The recommended unattended setup is `systemd --user` plus the thin `night-run.sh` wrapper, so crash restarts stay separate from normal queue-empty exits.
-- `pnpm loop:start|stop|status` is the quickest day-to-day entrypoint for starting, stopping, or checking the user service and timer together.
+- `pnpm loop:start|stop|status` is the quickest day-to-day entrypoint for starting, stopping, or checking the user service and timer together, and it auto-links the user units if needed.
 - Prompt delivery is execution-oriented: the harness prepends a small execution directive and the repository `command.build.template` before the task-specific prompt, so the session is biased toward implementation instead of search-only output.
 - Terminal output now prints concise Chinese status lines with the key fields first, so item/session/result information is easy to scan at a glance.
 - If the immediate `POST /session/:id/message` response is empty or is not an assistant message yet, it falls back to `GET /session/:id/message` and waits for the assistant reply before marking the item complete.

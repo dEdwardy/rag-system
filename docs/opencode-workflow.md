@@ -157,9 +157,7 @@ In normal day-to-day repository work:
 
 For unattended `opencode-loop` runs, prefer `systemd --user` over `pm2`:
 
-- copy `scripts/opencode-loop/systemd/opencode-loop.service` to `~/.config/systemd/user/opencode-loop.service`
-- copy `scripts/opencode-loop/systemd/opencode-loop.timer` to `~/.config/systemd/user/opencode-loop.timer`
+- `pnpm loop:start|stop|status` now auto-links the user units from `scripts/opencode-loop/systemd/`
 - keep `scripts/opencode-loop/night-run.sh` executable and in the repo
 - use `pnpm loop:start|stop|status` for day-to-day management
-- enable the timer with `systemctl --user daemon-reload && systemctl --user enable --now opencode-loop.timer`
-- the timer now kicks the service off immediately after activation, and the service restarts on failure while a normal empty-queue exit stays a normal exit
+- the timer kicks the service off immediately after activation, and the service restarts on failure while a normal empty-queue exit stays a normal exit

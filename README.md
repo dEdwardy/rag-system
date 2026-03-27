@@ -74,7 +74,7 @@ pnpm loop:status
 pnpm loop:stop
 ```
 
-These commands wrap `scripts/opencode-loop/control.sh` and manage the `systemd --user` loop setup for unattended night runs.
+These commands wrap `scripts/opencode-loop/control.sh`, auto-link the `systemd --user` units, and manage the loop setup for unattended night runs.
 
 ## Common Commands
 

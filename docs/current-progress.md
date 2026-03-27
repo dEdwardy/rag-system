@@ -13,6 +13,10 @@
 
 补充进展（2026-03-28）：
 
+- ✅ OpenCode loop start helper now auto-links systemd user units
+  - `pnpm loop:start|stop|status` now link the service/timer from `scripts/opencode-loop/systemd/` before managing them, so there is no separate manual copy step
+  - this removes the unit-install error seen when the timer was not yet present in the user systemd search path; queue semantics and execution flow stay unchanged
+
 - ✅ OpenCode loop now has pnpm aliases for control commands
   - `pnpm loop:start|status|stop` now wrap `scripts/opencode-loop/control.sh`
   - `README.md` now shows the short pnpm commands for day-to-day unattended loop management
