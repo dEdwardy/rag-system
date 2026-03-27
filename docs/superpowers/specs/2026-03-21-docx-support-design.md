@@ -21,7 +21,7 @@ Add backend DOCX ingestion support so uploaded `.docx` files can flow through pa
 
 ## Current State
 
-The current backend supports Markdown, TXT, and text-based PDF parsing in [`apps/api/src/infra/parsing/parsing.service.ts`](/D:/FeProjects/rag-system/apps/api/src/infra/parsing/parsing.service.ts). Uploaded files are persisted, then the ingestion worker parses content, builds chunks, indexes them, and marks the document ready in [`apps/api/src/modules/ingestion/ingestion.service.ts`](/D:/FeProjects/rag-system/apps/api/src/modules/ingestion/ingestion.service.ts).
+The current backend supports Markdown, TXT, and text-based PDF parsing in [`apps/api/src/infra/parsing/parsing.service.ts`](../../../apps/api/src/infra/parsing/parsing.service.ts). Uploaded files are persisted, then the ingestion worker parses content, builds chunks, indexes them, and marks the document ready in [`apps/api/src/modules/ingestion/ingestion.service.ts`](../../../apps/api/src/modules/ingestion/ingestion.service.ts).
 
 There is no existing DOCX-specific spec or plan in `docs/superpowers/specs/` or `docs/superpowers/plans/`.
 
@@ -57,13 +57,13 @@ This is enough to prove backend support without expanding into new end-to-end sc
 
 ## Files Expected To Change
 
-- Modify: [`apps/api/package.json`](/D:/FeProjects/rag-system/apps/api/package.json)
-- Modify: [`apps/api/src/infra/parsing/parsing.service.ts`](/D:/FeProjects/rag-system/apps/api/src/infra/parsing/parsing.service.ts)
-- Modify: [`apps/api/test/parsing.test.js`](/D:/FeProjects/rag-system/apps/api/test/parsing.test.js)
-- Modify: [`apps/api/test/ingestion.orchestrator.test.js`](/D:/FeProjects/rag-system/apps/api/test/ingestion.orchestrator.test.js)
-- Modify: [`README.md`](/D:/FeProjects/rag-system/README.md)
-- Modify: [`docs/current-dev-setup.md`](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
-- Modify: [`docs/current-progress.md`](/D:/FeProjects/rag-system/docs/current-progress.md)
+- Modify: [`apps/api/package.json`](../../../apps/api/package.json)
+- Modify: [`apps/api/src/infra/parsing/parsing.service.ts`](../../../apps/api/src/infra/parsing/parsing.service.ts)
+- Modify: [`apps/api/test/parsing.test.js`](../../../apps/api/test/parsing.test.js)
+- Modify: [`apps/api/test/ingestion.orchestrator.test.js`](../../../apps/api/test/ingestion.orchestrator.test.js)
+- Modify: [`README.md`](../../../README.md)
+- Modify: [`docs/current-dev-setup.md`](../../current-dev-setup.md)
+- Modify: [`docs/current-progress.md`](../../current-progress.md)
 - Modify: test helper logic inside `apps/api/test/parsing.test.js` to generate a deterministic DOCX buffer
 
 ## Risks

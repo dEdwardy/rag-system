@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Keep OMO frontend-only by loading it from apps/web.
+  // Root and apps/api sessions should continue using the lean global config.
+  "plugin": [
+    "oh-my-opencode"
+  ]
+}

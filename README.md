@@ -25,7 +25,7 @@ This starts:
 - PostgreSQL on `localhost:5432`
 - Redis on `localhost:6379`
 
-More detail: [docs/local-dev-infra.md](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
+More detail: [docs/local-dev-infra.md](docs/local-dev-infra.md)
 
 ### 2. Install dependencies
 
@@ -66,6 +66,16 @@ pnpm --filter @rag-system/web dev
 
 Default local web URL: `http://localhost:5173`
 
+### 7. Nightly loop helper
+
+```bash
+pnpm loop:start
+pnpm loop:status
+pnpm loop:stop
+```
+
+These commands wrap `scripts/opencode-loop/control.sh` and manage the `systemd --user` loop setup for unattended night runs.
+
 ## Common Commands
 
 ```bash
@@ -76,18 +86,18 @@ pnpm test:api:fast
 pnpm test:api
 ```
 
-For day-to-day backend work, prefer focused API test entrypoints such as `pnpm test:api:fast`, `pnpm test:api:file -- test/<name>.test.js`, or the themed commands documented in [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md). Reserve full `pnpm test:api` runs for broader closeout verification.
+For day-to-day backend work, prefer focused API test entrypoints such as `pnpm test:api:fast`, `pnpm test:api:file -- test/<name>.test.js`, or the themed commands documented in [docs/current-dev-setup.md](docs/current-dev-setup.md). Reserve full `pnpm test:api` runs for broader closeout verification.
 
 ## Key Docs
 
-- [Docs guide](/D:/FeProjects/rag-system/docs/README.md)
-- [Next steps plan](/D:/FeProjects/rag-system/docs/next_steps_rag_project_plan.md)
-- [Current dev setup](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
-- [Current progress](/D:/FeProjects/rag-system/docs/current-progress.md)
-- [Local dev infra](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
-- [Phase 1 RAG blueprint](/D:/FeProjects/rag-system/docs/phase-1-rag-blueprint.md)
-- [Retrieval trace notes](/D:/FeProjects/rag-system/docs/retrieval-trace.md)
-- [Web i18n notes](/D:/FeProjects/rag-system/docs/web-i18n.md)
+- [Docs guide](docs/README.md)
+- [Next steps plan](docs/next_steps_rag_project_plan.md)
+- [Current dev setup](docs/current-dev-setup.md)
+- [Current progress](docs/current-progress.md)
+- [Local dev infra](docs/local-dev-infra.md)
+- [Phase 1 RAG blueprint](docs/phase-1-rag-blueprint.md)
+- [Retrieval trace notes](docs/retrieval-trace.md)
+- [Web i18n notes](docs/web-i18n.md)
 
 ## Current Scope
 
@@ -103,5 +113,5 @@ The current codebase supports:
 ## Notes
 
 - The project is still in active development.
-- The most accurate local run and validation notes are in [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md).
-- The broader implementation snapshot is in [docs/current-progress.md](/D:/FeProjects/rag-system/docs/current-progress.md).
+- The most accurate local run and validation notes are in [docs/current-dev-setup.md](docs/current-dev-setup.md).
+- The broader implementation snapshot is in [docs/current-progress.md](docs/current-progress.md).

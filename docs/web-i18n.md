@@ -9,8 +9,8 @@ The current web app uses a lightweight in-repo i18n layer instead of an external
 
 Current implementation files:
 
-- [apps/web/src/i18n/I18nProvider.tsx](/D:/FeProjects/rag-system/apps/web/src/i18n/I18nProvider.tsx)
-- [apps/web/src/i18n/messages.ts](/D:/FeProjects/rag-system/apps/web/src/i18n/messages.ts)
+- [apps/web/src/i18n/I18nProvider.tsx](../apps/web/src/i18n/I18nProvider.tsx)
+- [apps/web/src/i18n/messages.ts](../apps/web/src/i18n/messages.ts)
 
 Recent maintenance note:
 
@@ -41,7 +41,7 @@ Additional behavior:
 
 When adding new visible UI text:
 
-1. Add the message key in both `en` and `zh` inside [apps/web/src/i18n/messages.ts](/D:/FeProjects/rag-system/apps/web/src/i18n/messages.ts)
+1. Add the message key in both `en` and `zh` inside [apps/web/src/i18n/messages.ts](../apps/web/src/i18n/messages.ts)
 2. Read it through `useI18n()`
 3. Avoid introducing new hard-coded visible strings in page components
 

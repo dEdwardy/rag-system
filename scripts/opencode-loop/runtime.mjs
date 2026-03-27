@@ -2,7 +2,17 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { relative, resolve } from "node:path";
 
-export const LOOP_SCHEMA_VERSION = 1;
+import {
+  DEFAULT_QUEUE_ITEM,
+  LOOP_SCHEMA_VERSION,
+  completeQueueItem,
+  formatDisplayTime,
+  pickNextItem,
+  readQueue,
+  updateQueueItem,
+  writeQueue
+} from "./queue.mjs";
+
 export const DEFAULT_PROMPT_PATH = "prompts/build.md";
 export const DEFAULT_PROMPT_FILE_NAME = "build.md";
 export const DEFAULT_LOCK_DIR_NAME = "loop.lock";
@@ -11,13 +21,6 @@ export const DEFAULT_EXECUTION_DIRECTIVE = [
   "Do not stop at search-only or analysis-only output.",
   "First inspect the relevant code path, then make the smallest concrete change, run one focused validation, and report exact files and commands."
 ].join("\n");
-export const DEFAULT_QUEUE_ITEM = {
-  id: "build-001",
-  title: "Run rag-build on default prompt",
-  agent: "rag-build",
-  promptFile: DEFAULT_PROMPT_PATH,
-  status: "pending"
-};
 
 export async function runLoop(options) {
   const opencodeRoot = resolve(options.repoRoot, ".opencode");
@@ -239,31 +242,20 @@ function ensureDefaultFiles(paths) {
     ].join("\n")
   );
 
-  ensureJsonFile(
-    paths.queuePath,
-    JSON.stringify(
-      {
-        version: LOOP_SCHEMA_VERSION,
-        cursor: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        items: [DEFAULT_QUEUE_ITEM]
-      },
-      null,
-      2
-    )
-  );
-}
-
-function ensureTextFile(filePath, contents) {
   try {
-    readFileSync(filePath, "utf8");
+    readFileSync(paths.queuePath, "utf8");
   } catch {
-    writeFileSync(filePath, `${contents}\n`, "utf8");
+    writeQueue(paths.queuePath, {
+      version: LOOP_SCHEMA_VERSION,
+      cursor: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      items: [DEFAULT_QUEUE_ITEM]
+    });
   }
 }
 
-function ensureJsonFile(filePath, contents) {
+function ensureTextFile(filePath, contents) {
   try {
     readFileSync(filePath, "utf8");
   } catch {
@@ -302,77 +294,6 @@ function normalizeCommandConfig(commandConfig) {
   };
 }
 
-export function readQueue(queuePath) {
-  const queueRaw = readFileSync(queuePath, "utf8");
-  const queue = JSON.parse(queueRaw);
-
-  if (!queue || typeof queue !== "object" || Array.isArray(queue)) {
-    throw new Error(`Invalid queue payload in ${queuePath}.`);
-  }
-
-  if (queue.version !== LOOP_SCHEMA_VERSION || !Array.isArray(queue.items)) {
-    throw new Error(`Unsupported queue format in ${queuePath}.`);
-  }
-
-  return queue;
-}
-
-function writeQueue(queuePath, queue) {
-  writeFileSync(queuePath, `${JSON.stringify(decorateQueueForWrite(queue), null, 2)}\n`, "utf8");
-}
-
-function pickNextItem(queue) {
-  const recoveryIndex = findItemIndexByStatus(queue.items, "in_progress");
-  if (recoveryIndex !== -1) {
-    return { index: recoveryIndex, item: queue.items[recoveryIndex] };
-  }
-
-  const startIndex = Number.isInteger(queue.cursor) && queue.cursor >= 0 ? queue.cursor : 0;
-  const forwardIndex = findPendingIndex(queue.items, startIndex);
-  const fallbackIndex = forwardIndex === -1 ? findPendingIndex(queue.items, 0) : -1;
-  const index = forwardIndex !== -1 ? forwardIndex : fallbackIndex;
-
-  if (index === -1) {
-    return null;
-  }
-
-  return { index, item: queue.items[index] };
-}
-
-function findPendingIndex(items, start) {
-  for (let index = start; index < items.length; index += 1) {
-    if (items[index]?.status === "pending") {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function findItemIndexByStatus(items, status) {
-  for (let index = 0; index < items.length; index += 1) {
-    if (items[index]?.status === status) {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function computeNextCursor(items, start) {
-  const nextIndex = findPendingIndex(items, start);
-  if (nextIndex !== -1) {
-    return nextIndex;
-  }
-
-  const wrappedIndex = findPendingIndex(items, 0);
-  if (wrappedIndex !== -1) {
-    return wrappedIndex;
-  }
-
-  return items.length;
-}
-
 function loadPrompt({ repoRoot, loopRoot, item, buildTemplate }) {
   const relativePromptPath = item.promptFile ?? DEFAULT_PROMPT_PATH;
   const absolutePromptPath = resolve(loopRoot, relativePromptPath);
@@ -408,12 +329,12 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
   let resumeBaselineMessageId = null;
 
   if (next.item.status !== "in_progress") {
-    workingQueue = updateQueueItem(workingQueue, next.index, currentItem => ({
-      ...currentItem,
-      status: "in_progress",
-      startedAt: runStartedAt,
-      runId: randomUUID()
-    }));
+      workingQueue = updateQueueItem(workingQueue, next.index, currentItem => ({
+        ...currentItem,
+        status: "in_progress",
+        startedAt: runStartedAt,
+        runId: randomUUID()
+      }));
     writeQueue(queuePath, workingQueue);
   }
 
@@ -450,7 +371,7 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
       model: model ?? "server-default"
     });
     session = await api.createSession({
-      title: `opencode-loop:${next.item.id}:${runStartedAt}`
+      title: `loop ${next.item.id} ${formatSessionTitleTime(runStartedAt)}`
     });
 
     workingQueue = updateQueueItem(workingQueue, next.index, currentItem => ({
@@ -493,46 +414,6 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
     queue: workingQueue,
     session,
     message
-  };
-}
-
-function updateQueueItem(queue, index, updater) {
-  const updatedItems = queue.items.map((queueItem, queueIndex) => {
-    if (queueIndex !== index) {
-      return queueItem;
-    }
-
-    return updater(queueItem);
-  });
-
-  return {
-    ...queue,
-    items: updatedItems,
-    updatedAt: new Date().toISOString()
-  };
-}
-
-function completeQueueItem({ queue, index, sessionId, messageId, handoffPath, completedAt }) {
-  const updatedItems = queue.items.map((queueItem, queueIndex) => {
-    if (queueIndex !== index) {
-      return queueItem;
-    }
-
-    return {
-      ...queueItem,
-      status: "completed",
-      sessionId,
-      messageId,
-      handoffPath,
-      completedAt
-    };
-  });
-
-  return {
-    ...queue,
-    items: updatedItems,
-    cursor: computeNextCursor(updatedItems, index + 1),
-    updatedAt: completedAt
   };
 }
 
@@ -769,32 +650,29 @@ function extractAssistantText(parts) {
 }
 
 function renderHandoff({ item, session, message, promptText, assistantText, caveats, completedAt }) {
+  const resultText = assistantText.trim() ? assistantText.trim() : "(空)";
   const lines = [
-    "# OpenCode Loop Handoff",
+    `# ${item.id}`,
     "",
-    "## Run Metadata",
-    `- Queue item: ${item.id}`,
-    `- Session ID: ${session.id}`,
-    `- Message ID: ${message.info?.id ?? "unknown"}`,
-    `- Agent: ${item.agent ?? "default"}`,
-    ...(item.startedAt ? [`- Started at: ${formatDisplayTime(item.startedAt)} (${item.startedAt})`] : []),
-    ...(item.resumedAt ? [`- Resumed at: ${formatDisplayTime(item.resumedAt)} (${item.resumedAt})`] : []),
-    ...(item.messageReceivedAt
-      ? [`- Assistant received at: ${formatDisplayTime(item.messageReceivedAt)} (${item.messageReceivedAt})`]
-      : []),
-    `- Completed at: ${formatDisplayTime(completedAt)} (${completedAt})`,
+    `- 标题: ${item.title ?? item.id}`,
+    `- 状态: completed`,
+    `- 代理: ${item.agent ?? "default"}`,
+    `- 会话: ${session.id}`,
+    `- 消息: ${message.info?.id ?? "unknown"}`,
+    ...(item.startedAt ? [`- 开始: ${formatDisplayTime(item.startedAt)}`] : []),
+    ...(item.resumedAt ? [`- 恢复: ${formatDisplayTime(item.resumedAt)}`] : []),
+    ...(item.messageReceivedAt ? [`- 收到: ${formatDisplayTime(item.messageReceivedAt)}`] : []),
+    `- 完成: ${formatDisplayTime(completedAt)}`,
     "",
-    "## Prompt",
+    "## 结果",
+    resultText,
+    "",
+    "## 提示词",
     "```text",
     promptText,
     "```",
     "",
-    "## Assistant Result",
-    assistantText.trim() ? assistantText : "(empty assistant text)",
-    "",
-    "## API Compatibility Caveats",
-    ...caveats.map(caveat => `- ${caveat}`),
-    ""
+    ...(caveats.length > 0 ? ["## 备注", ...caveats.map(caveat => `- ${caveat}`), ""] : [""])
   ];
 
   return `${lines.join("\n")}\n`;
@@ -806,66 +684,6 @@ function sanitizeFileToken(value) {
 
 function toTimestampSlug(date) {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-}
-
-function decorateQueueForWrite(queue) {
-  const items = Array.isArray(queue.items) ? queue.items.map(decorateQueueItemForWrite) : queue.items;
-
-  return decorateTimestampFields(
-    {
-      ...queue,
-      items
-    },
-    ["createdAt", "updatedAt"]
-  );
-}
-
-function decorateQueueItemForWrite(item) {
-  return decorateTimestampFields(item, [
-    "startedAt",
-    "resumedAt",
-    "messageReceivedAt",
-    "completedAt"
-  ]);
-}
-
-function decorateTimestampFields(record, keys) {
-  if (!record || typeof record !== "object" || Array.isArray(record)) {
-    return record;
-  }
-
-  const nextRecord = { ...record };
-
-  for (const key of keys) {
-    const displayKey = `${key}Display`;
-    const value = nextRecord[key];
-
-    if (typeof value === "string" && value.trim()) {
-      nextRecord[displayKey] = formatDisplayTime(value);
-      continue;
-    }
-
-    delete nextRecord[displayKey];
-  }
-
-  return nextRecord;
-}
-
-function formatDisplayTime(value) {
-  const date = value instanceof Date ? value : new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "invalid-date";
-  }
-
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  const second = String(date.getSeconds()).padStart(2, "0");
-
-  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
 function sleep(ms) {
@@ -934,19 +752,54 @@ function isFetchFailedError(error) {
 function logStatus(event, fields) {
   const labelMap = {
     start: "启动",
-    pick: "选取任务",
-    resume: "恢复会话",
-    "session:create": "新建会话",
-    "message:send": "发送消息",
-    complete: "任务完成",
+    pick: "取任务",
+    resume: "恢复",
+    "session:create": "建会话",
+    "message:send": "发消息",
+    complete: "完成",
     idle: "空闲"
   };
 
   const label = labelMap[event] ?? event;
-  const suffix = Object.entries({ at: formatDisplayTime(new Date()), ...fields })
-    .filter(([, value]) => value !== undefined && value !== null && value !== "")
-    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-    .join(" ");
+  const orderedKeys = [
+    "itemId",
+    "status",
+    "sessionId",
+    "messageId",
+    "agent",
+    "model",
+    "promptFile",
+    "handoffPath",
+    "processedCount",
+    "queuePath",
+    "repoRoot",
+    "baseUrl",
+    "defaultAgent",
+    "defaultModel"
+  ];
+  const orderedEntries = [];
 
-  console.log(suffix ? `[opencode-loop] ${label} (${event}) ${suffix}` : `[opencode-loop] ${label} (${event})`);
+  for (const key of orderedKeys) {
+    const value = fields[key];
+    if (value !== undefined && value !== null && value !== "") {
+      orderedEntries.push(`${key}=${JSON.stringify(value)}`);
+    }
+  }
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (orderedKeys.includes(key)) {
+      continue;
+    }
+    if (value !== undefined && value !== null && value !== "") {
+      orderedEntries.push(`${key}=${JSON.stringify(value)}`);
+    }
+  }
+
+  const suffix = orderedEntries.join(" ");
+  const prefix = `[opencode-loop] ${formatDisplayTime(new Date())} ${label}`;
+  console.log(suffix ? `${prefix} ${suffix}` : prefix);
+}
+
+function formatSessionTitleTime(value) {
+  return formatDisplayTime(value);
 }

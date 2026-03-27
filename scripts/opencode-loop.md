@@ -22,6 +22,11 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `.opencode/loop/prompts/*.md` - prompt templates
 - `.opencode/loop/handoffs/*.md` - generated run handoffs
 - `.opencode/loop.lock/` - runtime lock directory that prevents concurrent runs
+- `scripts/opencode-loop/queue.mjs` - queue schema, read/write, selection, and completion helpers
+- `pnpm loop:start|stop|status` - short control commands for the systemd user units
+- `scripts/opencode-loop/night-run.sh` - thin wrapper for `systemd --user` or manual night runs
+- `scripts/opencode-loop/systemd/opencode-loop.service` - user service template with crash restart behavior
+- `scripts/opencode-loop/systemd/opencode-loop.timer` - nightly timer template
 - `scripts/opencode-loop/runtime.mjs` - queue, lock, and OpenCode API logic
 - `scripts/opencode-loop/self-test.mjs` - self-test harness and mock server
 
@@ -38,6 +43,9 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 ```bash
 pnpm opencode:loop
 node scripts/opencode-loop.mjs --self-test
+pnpm loop:start
+pnpm loop:stop
+pnpm loop:status
 ```
 
 ## Queue Shape
@@ -71,8 +79,10 @@ Queue items may also provide an optional `model` override; otherwise the harness
 - Fresh pending items create a new session; interrupted items with `sessionId` resume the existing one.
 - If an item already has `status: in_progress` and `sessionId`, the next run resumes that session instead of creating a second one.
 - A runtime lock prevents two `opencode-loop` processes from consuming the same queue at the same time.
+- The recommended unattended setup is `systemd --user` plus the thin `night-run.sh` wrapper, so crash restarts stay separate from normal queue-empty exits.
+- `pnpm loop:start|stop|status` is the quickest day-to-day entrypoint for starting, stopping, or checking the user service and timer together.
 - Prompt delivery is execution-oriented: the harness prepends a small execution directive and the repository `command.build.template` before the task-specific prompt, so the session is biased toward implementation instead of search-only output.
-- Terminal output now prints small status lines for start, picked item, session creation/resume, message send, completion, and idle exit, each with a human-readable local timestamp and Chinese-friendly label.
+- Terminal output now prints concise Chinese status lines with the key fields first, so item/session/result information is easy to scan at a glance.
 - If the immediate `POST /session/:id/message` response is empty or is not an assistant message yet, it falls back to `GET /session/:id/message` and waits for the assistant reply before marking the item complete.
 - Transient `fetch failed` network errors during message send or assistant polling now retry through the same wait path instead of aborting the whole loop immediately.
 - Resume recovery is conservative: if an `in_progress` item does not already carry a tracked assistant `messageId`, the harness snapshots the latest preexisting assistant message, resends the queued prompt, and only accepts a newer assistant reply for completion.

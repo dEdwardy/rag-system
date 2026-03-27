@@ -1,4 +1,4 @@
-﻿# Current Progress
+# Current Progress
 
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -12,6 +12,66 @@
 补充进展（2026-03-27）：
 
 补充进展（2026-03-28）：
+
+- ✅ OpenCode loop now has pnpm aliases for control commands
+  - `pnpm loop:start|status|stop` now wrap `scripts/opencode-loop/control.sh`
+  - `README.md` now shows the short pnpm commands for day-to-day unattended loop management
+  - this is an operations-only convenience increment; queue semantics and execution flow stay unchanged
+
+- ✅ OpenCode loop now has a one-command start/stop/status helper for the systemd setup
+  - added `scripts/opencode-loop/control.sh` so the loop can be started, stopped, or inspected without remembering separate `systemctl` invocations
+  - this wraps the existing `systemd --user` setup and keeps the same crash-only restart behavior; it does not change queue semantics or execution flow
+  - 新增 / 更新验证：
+    - `bash -n scripts/opencode-loop/control.sh`
+  - 实测结果：helper syntax is valid and the commands map cleanly to the expected user-unit operations
+
+- ✅ OpenCode loop unattended startup now triggers immediately instead of waiting for a fixed clock time
+  - `scripts/opencode-loop/systemd/opencode-loop.timer` now starts the service right after activation rather than only at 23:00
+  - this keeps the crash-restart behavior from `systemd --user` while removing the time gate, so the loop will run whenever you start the user unit
+  - this is an operations-only increment: no queue semantics change, no prompt change, no execution-flow change
+  - 新增 / 更新验证：
+    - `bash -n scripts/opencode-loop/night-run.sh`
+    - `systemd-analyze verify scripts/opencode-loop/systemd/opencode-loop.service scripts/opencode-loop/systemd/opencode-loop.timer`
+  - 实测结果：the unit templates still verify cleanly after removing the 23:00 restriction
+
+- ✅ OpenCode loop now has a systemd --user night-run option with crash-only restarts
+  - added `scripts/opencode-loop/night-run.sh` plus `scripts/opencode-loop/systemd/opencode-loop.service` and `scripts/opencode-loop/systemd/opencode-loop.timer`
+  - the recommended unattended setup is now `systemd --user` rather than `pm2`, so the loop can restart on failure without turning a normal empty-queue exit into noise
+  - this is an operations-only increment: no queue semantics change, no prompt change, no execution-flow change
+  - 新增 / 更新验证：
+    - `bash -n scripts/opencode-loop/night-run.sh`
+    - `systemd-analyze verify scripts/opencode-loop/systemd/opencode-loop.service scripts/opencode-loop/systemd/opencode-loop.timer`
+  - 实测结果：service/timer templates are ready for user installation; crash-restart behavior is expressed in the unit file instead of the loop core
+
+- ✅ OpenCode loop handoff and terminal logs are now more scan-friendly
+  - handoff markdown now puts the shortest key metadata first and uses concise Chinese section labels so status, session, and timing are easier to spot quickly
+  - terminal status lines now keep a fixed short shape with concise Chinese labels and the most important fields front-loaded
+  - this is a readability/operations increment only: no queue semantics change, no resume behavior change, no execution flow change
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test passed after the handoff/log simplification update
+
+- ✅ OpenCode loop session titles are now shorter and more readable
+  - new OpenCode sessions now use a readable title shape like `loop <item-id> YYYY-MM-DD HH:MM:SS` instead of embedding a raw ISO timestamp
+  - this is a UX/readability increment only: no queue semantics change, no resume behavior change, no execution flow change
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test still passed after the session title formatting change
+
+- ✅ OpenCode loop queue helpers are now centralized in a dedicated module
+  - queue schema/read/write/pick/complete logic now lives in `scripts/opencode-loop/queue.mjs` instead of being spread across `runtime.mjs` and the self-test harness
+  - `scripts/opencode-loop/runtime.mjs` now focuses on orchestration, lock handling, prompt composition, and API interaction
+  - this is a structure/maintainability increment only: queue semantics, resume behavior, and unattended execution flow stay the same
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test still passed after the queue-module extraction; queue draining and resume recovery remain intact
+
+- ✅ OpenCode loop queue writes now use atomic temp-file replacement
+  - `scripts/opencode-loop/runtime.mjs` now writes queue state through a same-directory temp file plus rename, so a crash or interruption is much less likely to leave `.opencode/loop/queue.json` truncated
+  - this is a safety hardening increment for unattended night execution only: no queue semantics change, no task-order change, no retrieval / answer behavior change
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test still passed after the queue-write hardening; resume recovery and completion flow remain intact
 
 - ✅ Ollama embedding runtime now enforces an optional expected-dimension guardrail
   - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now reads `OLLAMA_EMBEDDING_DIMENSIONS` as a positive integer when configured
@@ -899,9 +959,9 @@
 - ✅ Redis 已接入
 - ✅ Docker 本地开发基础设施已提供
 - ✅ 本地开发文档已提供：
-  - [README.md](/D:/FeProjects/rag-system/README.md)
-  - [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
-  - [docs/local-dev-infra.md](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
+  - [README.md](../README.md)
+  - [docs/current-dev-setup.md](current-dev-setup.md)
+  - [docs/local-dev-infra.md](local-dev-infra.md)
 
 ### 2.2 后端骨架
 
@@ -2099,39 +2159,39 @@
 
 关键文件：
 
-- [apps/api/src/modules/assistants/ask-assistant.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/ask-assistant.service.ts)
-- [apps/api/src/modules/answering/answering.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/answering/answering.service.ts)
-- [apps/api/src/modules/retrieval/retrieval.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval/retrieval.service.ts)
-- [apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts)
-- [apps/api/src/modules/traces/traces.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/traces/traces.service.ts)
-- [apps/api/src/infra/llm/prompt-manager.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/prompt-manager.service.ts)
-- [apps/api/src/infra/llm/llm.types.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/llm.types.ts)
-- [apps/api/prisma/schema.prisma](/D:/FeProjects/rag-system/apps/api/prisma/schema.prisma)
-- [apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql](/D:/FeProjects/rag-system/apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql)
-- [apps/api/test/document-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/document-chain-e2e.test.js)
-- [apps/api/test/ask-chain-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-chain-e2e.test.js)
-- [apps/api/test/web-page-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/web-page-source-e2e.test.js)
-- [apps/api/test/feed-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/feed-source-e2e.test.js)
-- [apps/api/test/sitemap-source-e2e.test.js](/D:/FeProjects/rag-system/apps/api/test/sitemap-source-e2e.test.js)
-- [apps/api/test/ask-success.test.js](/D:/FeProjects/rag-system/apps/api/test/ask-success.test.js)
-- [apps/api/test/answering.test.js](/D:/FeProjects/rag-system/apps/api/test/answering.test.js)
-- [apps/web/src/pages/assistant/AssistantPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/assistant/AssistantPage.tsx)
-- [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
-- [apps/web/src/pages/chat/chat-page-helpers.ts](/D:/FeProjects/rag-system/apps/web/src/pages/chat/chat-page-helpers.ts)
-- [apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx)
-- [apps/web/test/chat-page-helpers.test.js](/D:/FeProjects/rag-system/apps/web/test/chat-page-helpers.test.js)
-- [docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md)
-- [docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md)
-- [docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md)
-- [docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md)
-- [docs/superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md)
-- [docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md)
-- [docs/superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md)
-- [docs/superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md)
-- [docs/superpowers/specs/2026-03-21-pc-web-chat-experience-polish-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-pc-web-chat-experience-polish-design.md)
-- [docs/superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md)
-- [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](/D:/FeProjects/rag-system/docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
-- [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](/D:/FeProjects/rag-system/docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
+- [apps/api/src/modules/assistants/ask-assistant.service.ts](../apps/api/src/modules/assistants/ask-assistant.service.ts)
+- [apps/api/src/modules/answering/answering.service.ts](../apps/api/src/modules/answering/answering.service.ts)
+- [apps/api/src/modules/retrieval/retrieval.service.ts](../apps/api/src/modules/retrieval/retrieval.service.ts)
+- [apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts](../apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts)
+- [apps/api/src/modules/traces/traces.service.ts](../apps/api/src/modules/traces/traces.service.ts)
+- [apps/api/src/infra/llm/prompt-manager.service.ts](../apps/api/src/infra/llm/prompt-manager.service.ts)
+- [apps/api/src/infra/llm/llm.types.ts](../apps/api/src/infra/llm/llm.types.ts)
+- [apps/api/prisma/schema.prisma](../apps/api/prisma/schema.prisma)
+- [apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql](../apps/api/prisma/migrations/20260321193000_add_answer_trace_execution_metadata/migration.sql)
+- [apps/api/test/document-chain-e2e.test.js](../apps/api/test/document-chain-e2e.test.js)
+- [apps/api/test/ask-chain-e2e.test.js](../apps/api/test/ask-chain-e2e.test.js)
+- [apps/api/test/web-page-source-e2e.test.js](../apps/api/test/web-page-source-e2e.test.js)
+- [apps/api/test/feed-source-e2e.test.js](../apps/api/test/feed-source-e2e.test.js)
+- [apps/api/test/sitemap-source-e2e.test.js](../apps/api/test/sitemap-source-e2e.test.js)
+- [apps/api/test/ask-success.test.js](../apps/api/test/ask-success.test.js)
+- [apps/api/test/answering.test.js](../apps/api/test/answering.test.js)
+- [apps/web/src/pages/assistant/AssistantPage.tsx](../apps/web/src/pages/assistant/AssistantPage.tsx)
+- [apps/web/src/pages/chat/ChatPage.tsx](../apps/web/src/pages/chat/ChatPage.tsx)
+- [apps/web/src/pages/chat/chat-page-helpers.ts](../apps/web/src/pages/chat/chat-page-helpers.ts)
+- [apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx](../apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx)
+- [apps/web/test/chat-page-helpers.test.js](../apps/web/test/chat-page-helpers.test.js)
+- [docs/superpowers/specs/2026-03-21-web-page-source-ingestion-design.md](superpowers/specs/2026-03-21-web-page-source-ingestion-design.md)
+- [docs/superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md](superpowers/plans/2026-03-21-web-page-source-ingestion-plan.md)
+- [docs/superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md](superpowers/specs/2026-03-21-external-feed-source-ingestion-design.md)
+- [docs/superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md](superpowers/plans/2026-03-21-external-feed-source-ingestion-plan.md)
+- [docs/superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md](superpowers/specs/2026-03-21-sitemap-source-ingestion-design.md)
+- [docs/superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md](superpowers/plans/2026-03-21-sitemap-source-ingestion-plan.md)
+- [docs/superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md](superpowers/specs/2026-03-21-external-knowledge-source-expansion-design.md)
+- [docs/superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md](superpowers/plans/2026-03-21-external-knowledge-source-expansion-plan.md)
+- [docs/superpowers/specs/2026-03-21-pc-web-chat-experience-polish-design.md](superpowers/specs/2026-03-21-pc-web-chat-experience-polish-design.md)
+- [docs/superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md](superpowers/plans/2026-03-21-pc-web-chat-experience-polish-plan.md)
+- [docs/superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md](superpowers/specs/2026-03-21-retrieval-answering-execution-metadata-design.md)
+- [docs/superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md](superpowers/plans/2026-03-21-retrieval-answering-execution-metadata-plan.md)
 
 ---
 
@@ -2139,7 +2199,7 @@
 
 - 已继续收口 `creative-dark + workspace-app` 的 B 主题工作台壳层，当前 `Chat / Documents / Document Detail / Knowledge Base / Assistant / Traces / Trace Detail / AppShell / StatePanel` 都已统一到同一套深色 panel 语言、hero 骨架和输入控件风格。
 - 本轮重点清理了前端页面遗留的中文乱码文案，未改动接口、路由、字段和页面功能逻辑。
-- 基于 [ui/审查报告.md](/D:/FeProjects/rag-system/ui/审查报告.md) 的剩余项已完成第二轮收口：
+- 基于 [ui/审查报告.md](../ui/审查报告.md) 的剩余项已完成第二轮收口：
   - `Documents` 首屏补成工作台摘要区，新增紧凑指标网格和操作提示侧栏，弱化“空首屏”观感。
   - `Trace List` 改为先展示问题、结果状态和时间，再进入 trace 详情，降低过强的诊断台账感。
   - `Document Detail` 将存储键和错误信息明确下沉为次级诊断区，并统一详情页文案层级。
@@ -2150,19 +2210,20 @@
   - `Trace Detail` 增加 `Execution summary` 摘要层，先看结果、命中规模、引用数量和耗时，再进入评分与原始载荷。
   - `StatePanel + i18n` 统一了 loading / empty / error 的状态骨架与相关中文产品文案。
 - 本轮新增/补齐的主要文件：
-  - [apps/web/src/app/AppShell.tsx](/D:/FeProjects/rag-system/apps/web/src/app/AppShell.tsx)
-  - [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
-  - [apps/web/src/pages/documents/DocumentsPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentsPage.tsx)
-  - [apps/web/src/pages/chat/ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
-  - [apps/web/src/pages/documents/DocumentDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/documents/DocumentDetailPage.tsx)
-  - [apps/web/src/pages/traces/TraceListPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/traces/TraceListPage.tsx)
-  - [apps/web/src/pages/traces/TraceDetailPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/traces/TraceDetailPage.tsx)
-  - [apps/web/src/components/StatePanel.tsx](/D:/FeProjects/rag-system/apps/web/src/components/StatePanel.tsx)
-  - [apps/web/src/i18n/messages.ts](/D:/FeProjects/rag-system/apps/web/src/i18n/messages.ts)
-  - [apps/web/src/styles/global.css](/D:/FeProjects/rag-system/apps/web/src/styles/global.css)
-  - [apps/web/test/ui-review-regressions.test.js](/D:/FeProjects/rag-system/apps/web/test/ui-review-regressions.test.js)
+  - [apps/web/src/app/AppShell.tsx](../apps/web/src/app/AppShell.tsx)
+  - [apps/web/src/pages/chat/ChatPage.tsx](../apps/web/src/pages/chat/ChatPage.tsx)
+  - [apps/web/src/pages/documents/DocumentsPage.tsx](../apps/web/src/pages/documents/DocumentsPage.tsx)
+  - [apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx](../apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx)
+  - [apps/web/src/pages/assistant/AssistantPage.tsx](../apps/web/src/pages/assistant/AssistantPage.tsx)
+  - [apps/web/src/pages/documents/DocumentDetailPage.tsx](../apps/web/src/pages/documents/DocumentDetailPage.tsx)
+  - [apps/web/src/pages/traces/TraceListPage.tsx](../apps/web/src/pages/traces/TraceListPage.tsx)
+  - [apps/web/src/pages/traces/TraceDetailPage.tsx](../apps/web/src/pages/traces/TraceDetailPage.tsx)
+  - [apps/web/src/components/StatePanel.tsx](../apps/web/src/components/StatePanel.tsx)
+  - [apps/web/src/i18n/messages.ts](../apps/web/src/i18n/messages.ts)
+  - [apps/web/src/styles/global.css](../apps/web/src/styles/global.css)
+  - [apps/web/test/ui-review-regressions.test.js](../apps/web/test/ui-review-regressions.test.js)
 - 本轮 Playwright 巡检截图目录：
-  - [output/playwright/ui-audit-pass-9](/D:/FeProjects/rag-system/output/playwright/ui-audit-pass-9)
+  - 历史本地输出目录：`output/playwright/ui-audit-pass-9`（当前仓库未保留该目录）
 - 本轮最小验证：
   - `node --test apps/web/test/ui-review-regressions.test.js`
   - `pnpm --filter @rag-system/web build`
@@ -2212,12 +2273,12 @@
 
 ## 11. 关键文档入口
 
-- [README.md](/D:/FeProjects/rag-system/README.md)
-- [docs/current-dev-setup.md](/D:/FeProjects/rag-system/docs/current-dev-setup.md)
-- [docs/local-dev-infra.md](/D:/FeProjects/rag-system/docs/local-dev-infra.md)
-- [docs/phase-1-rag-blueprint.md](/D:/FeProjects/rag-system/docs/phase-1-rag-blueprint.md)
-- [docs/retrieval-trace.md](/D:/FeProjects/rag-system/docs/retrieval-trace.md)
-- [docs/web-i18n.md](/D:/FeProjects/rag-system/docs/web-i18n.md)
+- [README.md](../README.md)
+- [docs/current-dev-setup.md](current-dev-setup.md)
+- [docs/local-dev-infra.md](local-dev-infra.md)
+- [docs/phase-1-rag-blueprint.md](phase-1-rag-blueprint.md)
+- [docs/retrieval-trace.md](retrieval-trace.md)
+- [docs/web-i18n.md](web-i18n.md)
 
 ### 12. Ingestion reliability hardening（2026-03-27）
 

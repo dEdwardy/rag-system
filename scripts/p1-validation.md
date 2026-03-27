@@ -1,4 +1,4 @@
-﻿# RAG Validation Doc
+# RAG Validation Doc
 
 ## Product Facts
 

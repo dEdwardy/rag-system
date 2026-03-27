@@ -5,12 +5,10 @@ import { join, resolve } from "node:path";
 
 import {
   DEFAULT_QUEUE_ITEM,
-  DEFAULT_PROMPT_FILE_NAME,
-  DEFAULT_PROMPT_PATH,
   LOOP_SCHEMA_VERSION,
   readQueue,
-  runLoop
-} from "./runtime.mjs";
+} from "./queue.mjs";
+import { DEFAULT_PROMPT_FILE_NAME, DEFAULT_PROMPT_PATH, runLoop } from "./runtime.mjs";
 
 export async function runSelfTest() {
   const root = mkdtempSync(join(tmpdir(), "opencode-loop-"));
@@ -196,11 +194,11 @@ export async function runSelfTest() {
     const handoffAbsolute = resolve(root, queue.items[0].handoffPath);
     const handoff = readFileSync(handoffAbsolute, "utf8");
 
-    if (!handoff.includes("# OpenCode Loop Handoff")) {
+    if (!handoff.includes("# build-001")) {
       throw new Error("Self-test handoff file was not generated correctly.");
     }
 
-    if (!handoff.includes("Started at:") || !handoff.includes("Assistant received at:") || !handoff.includes("Completed at:")) {
+    if (!handoff.includes("- 开始:") || !handoff.includes("- 收到:") || !handoff.includes("- 完成:")) {
       throw new Error("Self-test handoff timestamps were not rendered correctly.");
     }
 

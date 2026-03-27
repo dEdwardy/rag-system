@@ -4,6 +4,9 @@
   "packageManager": "pnpm@10.5.2",
   "scripts": {
     "opencode:loop": "node scripts/opencode-loop.mjs",
+    "loop:start": "bash scripts/opencode-loop/control.sh start",
+    "loop:stop": "bash scripts/opencode-loop/control.sh stop",
+    "loop:status": "bash scripts/opencode-loop/control.sh status",
     "dev:web": "pnpm --filter @rag-system/web dev",
     "dev:api": "pnpm --filter @rag-system/api start:dev",
     "build": "pnpm -r build",

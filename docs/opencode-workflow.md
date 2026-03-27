@@ -7,7 +7,7 @@
 
 Use this document as the default OpenCode operating guide for this repository.
 
-It complements [AGENTS.md](/D:/FeProjects/rag-system/AGENTS.md) and [Auto Dev Workflow](/D:/FeProjects/rag-system/docs/auto-dev-workflow.md):
+It complements [AGENTS.md](../AGENTS.md) and [Auto Dev Workflow](auto-dev-workflow.md):
 
 - `AGENTS.md` defines repository-level execution rules
 - `docs/auto-dev-workflow.md` defines the broader agent-driven repository workflow
@@ -38,7 +38,7 @@ Recommended interpretation:
 
 ## OMO Policy
 
-Do not treat OMO as the default main workflow.
+Treat OMO here as a policy guardrail for broad multi-agent delegation, not as the default main workflow.
 
 Use OMO only as a build-stage accelerator when the main increment is already chosen and the auxiliary work is clearly isolated.
 
@@ -49,12 +49,13 @@ Allowed OMO side tasks:
 - draft docs update
 - review diff for bugs or regressions
 - add isolated focused tests
-- perform frontend adaptation that does not alter backend contracts
+- perform isolated frontend adaptation that does not alter backend contracts
 
 Do not delegate these decisions to broad OMO orchestration:
 
 - choosing the next main increment
 - changing high-risk backend core logic through multiple parallel agents
+- expanding ordinary frontend work into broad parallel fan-out by default
 - final verification conclusion
 - final integration and closeout
 
@@ -75,6 +76,7 @@ Default execution bias:
 
 - normal path: `plan -> build`
 - low-risk work may go straight to `build -> fast verify`
+- frontend work should still default to main-control execution; only isolated low-risk adaptation should use helper delegation
 - only escalate to review for risky behavior or contract changes
 
 TDD and validation guidance:
@@ -101,6 +103,7 @@ First decide which execution mode should be used for this task:
 Decision rules:
 - If the task touches high-risk core logic such as retrieval, answering, ingestion, streaming, schema/persistence, or shared contracts, default to main-control execution and do not enable broad OMO
 - If the task is a small low-risk change such as metadata exposure, trace field addition, small API follow-up, or low-risk bugfix, allow direct `build -> fast verify`
+- If the task is frontend-only, keep the same main-control default; only use helper delegation for isolated low-risk adaptation that does not affect backend contracts
 - Only allow limited OMO when there are clearly isolated, low-coupling helper tasks that can be closed independently
 - OMO helper agents may only be used for: explaining current code paths, identifying focused validation, drafting docs updates, reviewing diffs, adding isolated focused tests, and frontend adaptation that does not affect backend contracts
 - Final verification, final integration, and final conclusions must be completed serially by the main agent
@@ -145,6 +148,18 @@ In normal day-to-day repository work:
 - start with `plan`
 - switch to `build` after the increment is identified
 - for low-risk changes, direct `build -> fast verify` is acceptable
+- frontend work still follows the same single-main-control-first default, with bounded helper use only for isolated low-risk adaptation
 - only use limited OMO help during `build` when the side task is clearly bounded
 - keep final validation and completion judgment with the main agent
 - do not default to `review` or heavy TDD for small edits
+
+## Unattended Execution
+
+For unattended `opencode-loop` runs, prefer `systemd --user` over `pm2`:
+
+- copy `scripts/opencode-loop/systemd/opencode-loop.service` to `~/.config/systemd/user/opencode-loop.service`
+- copy `scripts/opencode-loop/systemd/opencode-loop.timer` to `~/.config/systemd/user/opencode-loop.timer`
+- keep `scripts/opencode-loop/night-run.sh` executable and in the repo
+- use `pnpm loop:start|stop|status` for day-to-day management
+- enable the timer with `systemctl --user daemon-reload && systemctl --user enable --now opencode-loop.timer`
+- the timer now kicks the service off immediately after activation, and the service restarts on failure while a normal empty-queue exit stays a normal exit

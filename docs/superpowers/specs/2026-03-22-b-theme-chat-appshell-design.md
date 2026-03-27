@@ -1,11 +1,11 @@
 # B 主题 Chat + AppShell 设计稿
 
 > 文档角色：`task-spec`
-> 当前使用方式：用于记录以 [version-b-creative.html](/D:/FeProjects/rag-system/ui/version-b-creative.html) 为母版的第一阶段前端改造设计，范围限定为 `Chat + AppShell + 主题切换基础`。
+> 当前使用方式：用于记录以历史概念稿 `ui/version-b-creative.html` 为母版的第一阶段前端改造设计，范围限定为 `Chat + AppShell + 主题切换基础`。
 
 ## 任务识别
 
-当前仓库的 `PC Web` 已经具备基础可用的聊天体验，但整体视觉仍停留在 MVP 阶段。用户明确希望将 [version-b-creative.html](/D:/FeProjects/rag-system/ui/version-b-creative.html) 作为新的主视觉方向，并逐步推广到其他页面。
+当前仓库的 `PC Web` 已经具备基础可用的聊天体验，但整体视觉仍停留在 MVP 阶段。用户明确希望将历史概念稿 `ui/version-b-creative.html` 作为新的主视觉方向，并逐步推广到其他页面。
 
 第一阶段不做全站重画，而是先完成：
 
@@ -37,10 +37,10 @@
 
 当前前端的壳层和聊天页存在几个约束：
 
-- [AppShell.tsx](/D:/FeProjects/rag-system/apps/web/src/app/AppShell.tsx) 仍是轻量浅色壳层
-- [theme.ts](/D:/FeProjects/rag-system/apps/web/src/styles/theme.ts) 只有非常基础的 Mantine 主题配置
-- [global.css](/D:/FeProjects/rag-system/apps/web/src/styles/global.css) 仅有全局背景和链接样式
-- [ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx) 已经具备聊天主链路，但视觉仍是当前浅色方向
+- [AppShell.tsx](../../../apps/web/src/app/AppShell.tsx) 仍是轻量浅色壳层
+- [theme.ts](../../../apps/web/src/styles/theme.ts) 只有非常基础的 Mantine 主题配置
+- [global.css](../../../apps/web/src/styles/global.css) 仅有全局背景和链接样式
+- [ChatPage.tsx](../../../apps/web/src/pages/chat/ChatPage.tsx) 已经具备聊天主链路，但视觉仍是当前浅色方向
 
 这意味着如果只改 `Chat`，页面和壳层会明显割裂；如果直接全站同步重画，范围又过大。
 
@@ -177,10 +177,10 @@ Mantine 主题只负责基础 token 和组件默认值；更具体的布局视�
 
 第一阶段主要修改：
 
-- [AppShell.tsx](/D:/FeProjects/rag-system/apps/web/src/app/AppShell.tsx)
-- [ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx)
-- [theme.ts](/D:/FeProjects/rag-system/apps/web/src/styles/theme.ts)
-- [global.css](/D:/FeProjects/rag-system/apps/web/src/styles/global.css)
+- [AppShell.tsx](../../../apps/web/src/app/AppShell.tsx)
+- [ChatPage.tsx](../../../apps/web/src/pages/chat/ChatPage.tsx)
+- [theme.ts](../../../apps/web/src/styles/theme.ts)
+- [global.css](../../../apps/web/src/styles/global.css)
 
 如果需要，可以新增一个专门管理主题状态的小文件，但不应扩散成大范围重构。
 

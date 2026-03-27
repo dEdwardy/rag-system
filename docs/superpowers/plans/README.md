@@ -23,8 +23,8 @@ Do not use this folder as the only source for:
 
 Those are currently defined by:
 
-- [docs/next_steps_rag_project_plan.md](/D:/FeProjects/rag-system/docs/next_steps_rag_project_plan.md)
-- [docs/current-progress.md](/D:/FeProjects/rag-system/docs/current-progress.md)
+- [docs/next_steps_rag_project_plan.md](../../next_steps_rag_project_plan.md)
+- [docs/current-progress.md](../../current-progress.md)
 
 ## Practical Rule
 

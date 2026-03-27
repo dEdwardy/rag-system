@@ -36,7 +36,7 @@
 
 ## Current State
 
-当前 [ChatPage.tsx](/D:/FeProjects/rag-system/apps/web/src/pages/chat/ChatPage.tsx) 已经具备：
+当前 [ChatPage.tsx](../../../apps/web/src/pages/chat/ChatPage.tsx) 已经具备：
 
 - 左侧会话列表
 - 中间消息流与输入区

@@ -1,0 +1,17 @@
+[Unit]
+Description=OpenCode loop runner
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/rag-system
+ExecStart=%h/projects/rag-system/scripts/opencode-loop/night-run.sh
+Restart=on-failure
+RestartSec=60
+RestartPreventExitStatus=126 127
+
+[Install]
+WantedBy=default.target

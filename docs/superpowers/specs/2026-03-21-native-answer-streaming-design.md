@@ -32,7 +32,7 @@ Deliver true text streaming for `POST /assistants/:id/ask/stream` so the user st
 
 ## Current State
 
-The current streamed ask path in `[assistants.controller.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/assistants.controller.ts)` behaves like this:
+The current streamed ask path in `[assistants.controller.ts](../../../apps/api/src/modules/assistants/assistants.controller.ts)` behaves like this:
 
 1. validate request
 2. execute the full `askAssistant()` flow
@@ -49,9 +49,9 @@ That means:
 
 The current backend answering stack also assumes completed output:
 
-- `[llm.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/llm.service.ts)` only exposes one-shot generation
-- `[answering.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/answering/answering.service.ts)` parses structured output after the full answer is available
-- `[ask-assistant.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/ask-assistant.service.ts)` persists the assistant message and final trace only after the full answer is ready
+- `[llm.service.ts](../../../apps/api/src/infra/llm/llm.service.ts)` only exposes one-shot generation
+- `[answering.service.ts](../../../apps/api/src/modules/answering/answering.service.ts)` parses structured output after the full answer is available
+- `[ask-assistant.service.ts](../../../apps/api/src/modules/assistants/ask-assistant.service.ts)` persists the assistant message and final trace only after the full answer is ready
 
 ## Chosen Approach
 
@@ -218,7 +218,7 @@ The current web stack already understands:
 - `final`
 - `error`
 
-So the main frontend requirement is to tolerate more realistic phase timing and possibly an earlier `generating` state with a longer live-stream period. The optimistic message model in `[chat-stream-state.ts](/D:/FeProjects/rag-system/apps/web/src/pages/chat/chat-stream-state.ts)` can remain.
+So the main frontend requirement is to tolerate more realistic phase timing and possibly an earlier `generating` state with a longer live-stream period. The optimistic message model in `[chat-stream-state.ts](../../../apps/web/src/pages/chat/chat-stream-state.ts)` can remain.
 
 ### Error handling
 
