@@ -37,6 +37,16 @@ export type TraceMissingInformationSource = "none" | "model" | "deterministic_de
 
 export type TraceFailedStage = "retrieval" | "answering";
 
+export type RetrievalStrategySummary = {
+  retrievalMode: TraceRetrievalMode | null;
+  strategyMode: TraceRetrievalMode | null;
+  retrievalQuerySource: TraceRetrievalQuerySource | null;
+  rewriteApplied: boolean;
+  rewriteUsedFallback: boolean | null;
+  fallbackReason: TraceFallbackReason | null;
+  usedFallback: boolean | null;
+};
+
 export type TraceSummary = {
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
@@ -44,6 +54,7 @@ export type TraceSummary = {
   primaryIssue: TracePrimaryIssue | null;
   retrievalMode: TraceRetrievalMode | null;
   retrievalQuerySource: TraceRetrievalQuerySource | null;
+  strategySummary: RetrievalStrategySummary;
   generationMode: TraceGenerationMode | null;
   contextMode: TraceContextMode | null;
   rewriteApplied: boolean;

@@ -155,6 +155,8 @@ export class TracesService {
     const retrievedChunkCount = this.readRetrievedChunkCount(trace);
     const citationCount = Array.isArray(trace.citationsJson) ? trace.citationsJson.length : 0;
     const retrievalMetadata = this.readObject(trace.retrievalMetadataJson);
+    const retrievalStrategy = this.readObject(retrievalMetadata?.strategy);
+    const strategySummary = this.readObject(retrievalMetadata?.strategySummary);
     const queryRewriteMetadata = this.readObject(retrievalMetadata?.queryRewrite);
     const retrievalExecution = this.readObject(retrievalMetadata?.execution);
     const retrievalFailure = this.readObject(retrievalMetadata?.failure);
@@ -165,18 +167,42 @@ export class TracesService {
     const contextMode = this.readStringAs<NonNullable<TraceSummary["contextMode"]>>(answeringMetadata?.contextMode);
     const promptContextCount = this.readNumber(answeringMetadata?.promptContextCount)
       ?? (contextMode === "context_groups" ? contextGroupCount : inputChunkCount);
+    const retrievalMode = this.readStringAs<NonNullable<TraceSummary["retrievalMode"]>>(retrievalExecution?.actualMode)
+      ?? this.readStringAs<NonNullable<TraceSummary["retrievalMode"]>>(strategySummary?.retrievalMode);
+    const strategyMode = this.readStringAs<NonNullable<TraceSummary["strategySummary"]["strategyMode"]>>(this.readObject(retrievalStrategy?.candidateSelection)?.mode)
+      ?? this.readStringAs<NonNullable<TraceSummary["strategySummary"]["strategyMode"]>>(strategySummary?.strategyMode);
+    const retrievalQuerySource = this.readStringAs<NonNullable<TraceSummary["retrievalQuerySource"]>>(queryRewriteMetadata?.finalQuerySource)
+      ?? this.readStringAs<NonNullable<TraceSummary["retrievalQuerySource"]>>(strategySummary?.retrievalQuerySource);
+    const rewriteApplied = trace.rewrittenQuery != null
+      ? true
+      : this.readBoolean(strategySummary?.rewriteApplied);
+    const rewriteUsedFallback = this.readNullableBoolean(queryRewriteMetadata?.usedFallback)
+      ?? this.readNullableBoolean(strategySummary?.rewriteUsedFallback);
+    const fallbackReason = this.readStringAs<NonNullable<TraceSummary["fallbackReason"]>>(retrievalExecution?.fallbackReason)
+      ?? this.readStringAs<NonNullable<TraceSummary["fallbackReason"]>>(strategySummary?.fallbackReason);
+    const strategyUsedFallback = this.readNullableBoolean(retrievalExecution?.usedFallback)
+      ?? this.readNullableBoolean(strategySummary?.usedFallback);
 
     return {
       promptId: this.readString(answeringMetadata?.promptId),
       answerStatus: this.readStringAs<NonNullable<TraceSummary["answerStatus"]>>(answeringMetadata?.answerStatus),
       qualityOverall: this.readStringAs<NonNullable<TraceSummary["qualityOverall"]>>(qualityEvaluation?.overall),
       primaryIssue: this.readStringAs<NonNullable<TraceSummary["primaryIssue"]>>(qualityEvaluation?.primaryIssue),
-      retrievalMode: this.readStringAs<NonNullable<TraceSummary["retrievalMode"]>>(retrievalExecution?.actualMode),
-      retrievalQuerySource: this.readStringAs<NonNullable<TraceSummary["retrievalQuerySource"]>>(queryRewriteMetadata?.finalQuerySource),
+      retrievalMode,
+      retrievalQuerySource,
+      strategySummary: {
+        retrievalMode,
+        strategyMode,
+        retrievalQuerySource,
+        rewriteApplied,
+        rewriteUsedFallback,
+        fallbackReason,
+        usedFallback: strategyUsedFallback
+      },
       generationMode: this.readStringAs<NonNullable<TraceSummary["generationMode"]>>(answeringMetadata?.generationMode),
       contextMode,
-      rewriteApplied: trace.rewrittenQuery != null,
-      fallbackReason: this.readStringAs<NonNullable<TraceSummary["fallbackReason"]>>(retrievalExecution?.fallbackReason),
+      rewriteApplied,
+      fallbackReason,
       resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
       citationAttribution: this.readStringAs<NonNullable<TraceSummary["citationAttribution"]>>(answeringMetadata?.citationAttribution),
       citationSelectionSource: this.readStringAs<NonNullable<TraceSummary["citationSelectionSource"]>>(answeringMetadata?.citationSelectionSource),
@@ -244,6 +270,10 @@ export class TracesService {
 
   private readBoolean(value: unknown) {
     return typeof value === "boolean" ? value : false;
+  }
+
+  private readNullableBoolean(value: unknown) {
+    return typeof value === "boolean" ? value : null;
   }
 
   private readNumber(value: unknown) {

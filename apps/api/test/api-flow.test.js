@@ -240,6 +240,14 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       primaryIssue: trace.qualityEvaluationJson.primaryIssue,
       retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
       retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
+      strategySummary: {
+        retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+        retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
+        rewriteApplied: trace.rewrittenQuery !== null,
+        rewriteUsedFallback: trace.retrievalMetadataJson.queryRewrite.usedFallback,
+        fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+        usedFallback: trace.retrievalMetadataJson.execution.usedFallback
+      },
       generationMode: trace.answeringMetadataJson.generationMode,
       contextMode: trace.answeringMetadataJson.contextMode,
       rewriteApplied: trace.rewrittenQuery !== null,

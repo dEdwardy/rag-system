@@ -76,6 +76,14 @@ Current shape includes:
   - `finalQuerySource`
   - `usedFallback`
   - `promptId`
+- `strategySummary`
+  - `retrievalMode`
+  - `strategyMode`
+  - `retrievalQuerySource`
+  - `rewriteApplied`
+  - `rewriteUsedFallback`
+  - `fallbackReason`
+  - `usedFallback`
 - `execution`
   - `retrievalQuery`
   - `topK`
@@ -144,6 +152,14 @@ Current `traceSummary` shape includes:
 - `primaryIssue`
 - `retrievalMode`
 - `retrievalQuerySource`
+- `strategySummary`
+  - `retrievalMode`
+  - `strategyMode`
+  - `retrievalQuerySource`
+  - `rewriteApplied`
+  - `rewriteUsedFallback`
+  - `fallbackReason`
+  - `usedFallback`
 - `generationMode`
 - `contextMode`
 - `rewriteApplied`

@@ -344,6 +344,15 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       usedFallback: true,
       promptId: "rewrite-query.v1"
     },
+    strategySummary: {
+      retrievalMode: "hybrid",
+      strategyMode: "hybrid",
+      retrievalQuerySource: "rewritten",
+      rewriteApplied: true,
+      rewriteUsedFallback: true,
+      fallbackReason: null,
+      usedFallback: false
+    },
     embedding: embeddingDiagnostics,
     execution: {
       retrievalQuery: "where is the marker? rewritten",
@@ -430,6 +439,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.deepEqual(result.citations, citations);
   assert.deepEqual(result.retrievedChunks, retrievedChunks);
   assert.deepEqual(result.contextGroups, contextGroups);
+  assert.deepEqual(result.strategySummary, createTraceCalls[0].retrievalMetadataJson.strategySummary);
   assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
@@ -465,6 +475,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answerStatus, "grounded");
   assert.deepEqual(result.missingInformation, []);
+  assert.equal(result.retrievalMetadata.strategySummary?.strategyMode, "hybrid");
   assert.deepEqual(result.qualityEvaluation, {
     overall: "strong",
     grounding: "grounded",
@@ -705,6 +716,15 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       finalQuerySource: "original_disabled",
       usedFallback: null,
       promptId: null
+    },
+    strategySummary: {
+      retrievalMode: "lexical",
+      strategyMode: "lexical",
+      retrievalQuerySource: "original_disabled",
+      rewriteApplied: false,
+      rewriteUsedFallback: null,
+      fallbackReason: null,
+      usedFallback: false
     },
     embedding: null,
     execution: {

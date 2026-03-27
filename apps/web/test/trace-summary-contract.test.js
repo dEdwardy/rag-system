@@ -11,6 +11,11 @@ test("web trace summary type covers current backend query-source and failure-sta
   assert.match(source, /traceSummary:\s*TraceSummary;/);
   assert.match(sharedSource, /export type TraceRetrievalQuerySource = "rewritten" \| "original_disabled" \| "original_unchanged";/);
   assert.match(sharedSource, /export type TraceFailedStage = "retrieval" \| "answering";/);
+  assert.match(sharedSource, /export type RetrievalStrategySummary = \{/);
+  assert.match(sharedSource, /usedFallback:\s*boolean \| null;/);
+  assert.match(sharedSource, /rewriteUsedFallback:\s*boolean \| null;/);
+  assert.match(sharedSource, /strategyMode:\s*TraceRetrievalMode \| null;/);
+  assert.match(sharedSource, /strategySummary:\s*RetrievalStrategySummary;/);
   assert.match(sharedSource, /promptId:\s*string \| null;/);
   assert.match(sharedSource, /missingInformationSource:\s*TraceMissingInformationSource \| null;/);
   assert.match(sharedSource, /candidateLimit:\s*number;/);

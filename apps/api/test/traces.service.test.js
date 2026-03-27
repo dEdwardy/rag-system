@@ -62,6 +62,15 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     primaryIssue: null,
     retrievalMode: "vector",
     retrievalQuerySource: null,
+    strategySummary: {
+      retrievalMode: "vector",
+      strategyMode: null,
+      retrievalQuerySource: null,
+      rewriteApplied: false,
+      rewriteUsedFallback: null,
+      fallbackReason: null,
+      usedFallback: null
+    },
     generationMode: null,
     contextMode: null,
     rewriteApplied: false,
@@ -254,6 +263,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       },
       execution: {
         actualMode: "hybrid",
+        usedFallback: true,
         fallbackReason: "no_ranked_candidates",
         candidateLimit: 12,
         vectorCandidateCount: 4,
@@ -317,6 +327,15 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     primaryIssue: "fallback_generation",
     retrievalMode: "hybrid",
     retrievalQuerySource: "rewritten",
+    strategySummary: {
+      retrievalMode: "hybrid",
+      strategyMode: null,
+      retrievalQuerySource: "rewritten",
+      rewriteApplied: true,
+      rewriteUsedFallback: null,
+      fallbackReason: "no_ranked_candidates",
+      usedFallback: true
+    },
     generationMode: "generated",
     contextMode: "context_groups",
     rewriteApplied: true,
@@ -359,4 +378,68 @@ test("TracesService exposes additive execution provenance in traceSummary for su
   assert.equal("qualityEvaluationJson" in listed[0], false);
   assert.equal("retrievedChunkIdsJson" in listed[0], false);
   assert.deepEqual(listed[0].citationsJson, [{ chunkId: "chunk-1" }]);
+});
+
+test("TracesService falls back strategy summary fields when execution/query-rewrite metadata is missing", async () => {
+  const persistedTrace = {
+    id: "trace-strategy-summary-fallback",
+    conversationId: "conversation-strategy-summary-fallback",
+    assistantId: "assistant-strategy-summary-fallback",
+    userMessageId: "user-message-strategy-summary-fallback",
+    assistantMessageId: null,
+    userQuery: "summarize strategy",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      strategySummary: {
+        retrievalMode: "lexical",
+        strategyMode: "vector",
+        retrievalQuerySource: "original_disabled",
+        rewriteApplied: true,
+        rewriteUsedFallback: true,
+        fallbackReason: "vector_error",
+        usedFallback: true
+      },
+      queryRewrite: {
+        usedFallback: true
+      },
+      execution: {
+        topK: 5
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: null,
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 6,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-28T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace("trace-strategy-summary-fallback");
+
+  assert.equal(detail.traceSummary.retrievalMode, "lexical");
+  assert.equal(detail.traceSummary.retrievalQuerySource, "original_disabled");
+  assert.equal(detail.traceSummary.rewriteApplied, true);
+  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
+
+  assert.deepEqual(detail.traceSummary.strategySummary, {
+    retrievalMode: "lexical",
+    strategyMode: "vector",
+    retrievalQuerySource: "original_disabled",
+    rewriteApplied: true,
+    rewriteUsedFallback: true,
+    fallbackReason: "vector_error",
+    usedFallback: true
+  });
 });

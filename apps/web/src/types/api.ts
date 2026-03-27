@@ -11,6 +11,7 @@ import type {
   TraceInsufficientContextReason,
   TracePrimaryIssue,
   TraceQualityOverall,
+  RetrievalStrategySummary,
   TraceResolvedLanguage,
   TraceRetrievalMode,
   TraceRetrievalQuerySource,
@@ -295,10 +296,11 @@ export type ContextGroup = {
 export type AskRetrievalMetadata = {
   strategy: RetrievalStrategy;
   filters: RetrievalProfileFilters | null;
+  strategySummary?: RetrievalStrategySummary;
   queryRewrite: {
     enabled: boolean;
     applied: boolean;
-    finalQuerySource: "rewritten" | "original_disabled" | "original_unchanged";
+    finalQuerySource: TraceRetrievalQuerySource;
     usedFallback: boolean | null;
     promptId: string | null;
   };
@@ -307,9 +309,9 @@ export type AskRetrievalMetadata = {
     topK: number;
     scoreThreshold: number;
     chunkWindow: number;
-    actualMode: "vector" | "hybrid" | "lexical";
+    actualMode: TraceRetrievalMode;
     usedFallback: boolean;
-    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+    fallbackReason: TraceFallbackReason | null;
     rerankApplied: boolean;
     chunkWindowApplied: boolean;
     vectorSearchAttempted: boolean;
@@ -378,6 +380,7 @@ export type AskResponse = {
   citations: Citation[];
   retrievedChunks: RetrievedChunk[];
   contextGroups?: ContextGroup[];
+  strategySummary?: RetrievalStrategySummary;
   retrievalMetadata?: AskRetrievalMetadata;
   answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: "grounded" | "insufficient_context";
@@ -466,6 +469,7 @@ export type TraceRecord = {
 };
 
 export type {
+  RetrievalStrategySummary,
   TraceAnswerStatus,
   TraceAnswerStatusSource,
   TraceAnswerTextSource,

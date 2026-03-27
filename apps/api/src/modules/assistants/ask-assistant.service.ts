@@ -17,6 +17,7 @@ import { TracesService } from "../traces/traces.service";
 import { answerPolicySchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantError } from "./ask-assistant.error";
+import type { RetrievalStrategySummary } from "@rag-system/shared";
 
 type AskResultChunk = {
   chunkId: string;
@@ -32,6 +33,10 @@ type AskResultChunk = {
   lexicalScore?: number;
   hybridScore?: number;
   rerankScore?: number;
+};
+
+type AskRetrievalMetadataJson = Prisma.InputJsonObject & {
+  strategySummary?: RetrievalStrategySummary;
 };
 
 @Injectable()
@@ -120,7 +125,7 @@ export class AskAssistantService {
       contextGroups,
       embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
-    });
+    }) as AskRetrievalMetadataJson;
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -181,6 +186,7 @@ export class AskAssistantService {
         citations: resolvedAnswerResult.citations,
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
         contextGroups: resolvedAnswerResult.contextGroups,
+        strategySummary: retrievalMetadata.strategySummary,
         retrievalMetadata,
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
@@ -308,7 +314,7 @@ export class AskAssistantService {
       contextGroups,
       embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
-    });
+    }) as AskRetrievalMetadataJson;
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -408,6 +414,7 @@ export class AskAssistantService {
         citations: resolvedAnswerResult.citations,
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
         contextGroups: resolvedAnswerResult.contextGroups,
+        strategySummary: retrievalMetadata.strategySummary,
         retrievalMetadata,
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
@@ -518,19 +525,31 @@ export class AskAssistantService {
       rankedCandidateCount: number;
     };
   }): Prisma.InputJsonValue {
+    const rewriteApplied = Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion);
+    const retrievalQuerySource = !input.strategy.queryRewrite.enabled
+      ? "original_disabled"
+      : rewriteApplied
+        ? "rewritten"
+        : "original_unchanged";
+
     return {
       strategy: input.strategy,
       filters: input.filters ?? null,
       queryRewrite: {
         enabled: input.strategy.queryRewrite.enabled,
-        applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
-        finalQuerySource: !input.strategy.queryRewrite.enabled
-          ? "original_disabled"
-          : input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
-            ? "rewritten"
-            : "original_unchanged",
+        applied: rewriteApplied,
+        finalQuerySource: retrievalQuerySource,
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+      },
+      strategySummary: {
+        retrievalMode: input.execution.actualMode,
+        strategyMode: input.strategy.candidateSelection.mode,
+        retrievalQuerySource,
+        rewriteApplied,
+        rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        fallbackReason: input.execution.fallbackReason,
+        usedFallback: input.execution.usedFallback
       },
       embedding: input.embedding ?? null,
       execution: {
@@ -651,19 +670,31 @@ export class AskAssistantService {
       message: string;
     };
   }): Prisma.InputJsonValue {
+    const rewriteApplied = Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion);
+    const retrievalQuerySource = !input.strategy.queryRewrite.enabled
+      ? "original_disabled"
+      : rewriteApplied
+        ? "rewritten"
+        : "original_unchanged";
+
     return {
       strategy: input.strategy,
       filters: input.filters ?? null,
       queryRewrite: {
         enabled: input.strategy.queryRewrite.enabled,
-        applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
-        finalQuerySource: !input.strategy.queryRewrite.enabled
-          ? "original_disabled"
-          : input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
-            ? "rewritten"
-            : "original_unchanged",
+        applied: rewriteApplied,
+        finalQuerySource: retrievalQuerySource,
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+      },
+      strategySummary: {
+        retrievalMode: null,
+        strategyMode: input.strategy.candidateSelection.mode,
+        retrievalQuerySource,
+        rewriteApplied,
+        rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        fallbackReason: null,
+        usedFallback: null
       },
       embedding: input.embedding ?? null,
       execution: {
@@ -680,15 +711,15 @@ export class AskAssistantService {
   }
 
   private withFailureMetadata(
-    retrievalMetadata: Prisma.InputJsonValue,
+    retrievalMetadata: AskRetrievalMetadataJson,
     failure: { stage: "answering"; message: string }
-  ): Prisma.InputJsonValue {
+  ): AskRetrievalMetadataJson {
     return {
       ...(retrievalMetadata as Record<string, unknown>),
       failure: {
         stage: failure.stage,
         message: failure.message
       }
-    } as Prisma.InputJsonValue;
+    } as AskRetrievalMetadataJson;
   }
 }
