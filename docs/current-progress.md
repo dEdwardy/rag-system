@@ -13,6 +13,10 @@
 
 补充进展（2026-03-28）：
 
+- ✅ OpenCode loop night-run wrapper now prefers corepack for pnpm resolution
+  - `scripts/opencode-loop/night-run.sh` now launches `pnpm` through `corepack` first, with Volta/local shim fallbacks if needed
+  - this fixes the systemd startup failure caused by the user service lacking the interactive shell PATH; queue semantics and execution flow stay unchanged
+
 - ✅ OpenCode loop start helper now auto-links systemd user units
   - `pnpm loop:start|stop|status` now link the service/timer from `scripts/opencode-loop/systemd/` before managing them, so there is no separate manual copy step
   - this removes the unit-install error seen when the timer was not yet present in the user systemd search path; queue semantics and execution flow stay unchanged

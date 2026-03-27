@@ -24,7 +24,7 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `.opencode/loop.lock/` - runtime lock directory that prevents concurrent runs
 - `scripts/opencode-loop/queue.mjs` - queue schema, read/write, selection, and completion helpers
 - `pnpm loop:start|stop|status` - short control commands for the systemd user units
-- `scripts/opencode-loop/night-run.sh` - thin wrapper for `systemd --user` or manual night runs
+- `scripts/opencode-loop/night-run.sh` - thin wrapper for `systemd --user` or manual night runs; resolves pnpm via corepack/Volta/local shims
 - `scripts/opencode-loop/systemd/opencode-loop.service` - user service template with crash restart behavior
 - `scripts/opencode-loop/systemd/opencode-loop.timer` - nightly timer template
 - `scripts/opencode-loop/runtime.mjs` - queue, lock, and OpenCode API logic
@@ -81,6 +81,7 @@ Queue items may also provide an optional `model` override; otherwise the harness
 - A runtime lock prevents two `opencode-loop` processes from consuming the same queue at the same time.
 - The recommended unattended setup is `systemd --user` plus the thin `night-run.sh` wrapper, so crash restarts stay separate from normal queue-empty exits.
 - `pnpm loop:start|stop|status` is the quickest day-to-day entrypoint for starting, stopping, or checking the user service and timer together, and it auto-links the user units if needed.
+- After each completed queue item, commit the resulting changes before the loop moves on to the next item, so the checkout does not accumulate unfinished work.
 - Prompt delivery is execution-oriented: the harness prepends a small execution directive and the repository `command.build.template` before the task-specific prompt, so the session is biased toward implementation instead of search-only output.
 - Terminal output now prints concise Chinese status lines with the key fields first, so item/session/result information is easy to scan at a glance.
 - If the immediate `POST /session/:id/message` response is empty or is not an assistant message yet, it falls back to `GET /session/:id/message` and waits for the assistant reply before marking the item complete.

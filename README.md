@@ -76,6 +76,8 @@ pnpm loop:stop
 
 These commands wrap `scripts/opencode-loop/control.sh`, auto-link the `systemd --user` units, and manage the loop setup for unattended night runs.
 
+If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config.
+
 ## Common Commands
 
 ```bash

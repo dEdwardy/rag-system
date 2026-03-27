@@ -158,6 +158,22 @@ In normal day-to-day repository work:
 For unattended `opencode-loop` runs, prefer `systemd --user` over `pm2`:
 
 - `pnpm loop:start|stop|status` now auto-links the user units from `scripts/opencode-loop/systemd/`
-- keep `scripts/opencode-loop/night-run.sh` executable and in the repo
+- `scripts/opencode-loop/night-run.sh` now resolves `pnpm` via `corepack`, Volta, or local pnpm shims before launching the loop
 - use `pnpm loop:start|stop|status` for day-to-day management
 - the timer kicks the service off immediately after activation, and the service restarts on failure while a normal empty-queue exit stays a normal exit
+- after each completed loop increment, commit the change before moving to the next item so work does not pile up in the checkout
+
+## Parallel Worktrees
+
+When frontend and backend work need to proceed at the same time, prefer separate Git worktrees so each OpenCode session has its own checkout:
+
+- keep the main repository checkout for the backend or monorepo-wide session
+- create a second worktree for `apps/web` work
+- start each OpenCode session from the matching worktree so it loads the local `opencode.jsonc` and `AGENTS.md`
+- use worktrees when two sessions may modify files in parallel; do not rely on directory-only separation for concurrent edits
+
+Typical layout:
+
+```bash
+git worktree add ../rag-system-web -b dev/web
+```
