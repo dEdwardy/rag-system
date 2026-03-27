@@ -839,6 +839,7 @@ export class DocumentsService {
           : retryable;
 
     return {
+      ...diagnostics,
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
       retryable: resolvedRetryable,
@@ -852,7 +853,6 @@ export class DocumentsService {
       boundaryHit,
       boundaryReasons,
       message,
-      ...diagnostics,
       partial: true
     } satisfies Prisma.InputJsonValue;
   }

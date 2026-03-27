@@ -67,6 +67,13 @@ export class DocumentRunsService {
     };
     const bySourceType: Record<string, number> = {};
     const failureByStage: Record<string, number> = {};
+    const boundaryStats = {
+      runsWithBoundaryHit: 0,
+      byReason: {} as Record<string, number>,
+      droppedPageUrlCount: 0,
+      droppedChildSitemapCount: 0,
+      droppedFeedEntryCount: 0
+    };
     let retryableFailures = 0;
     let nonRetryableFailures = 0;
     const latestCompletedRuns = this.getLatestCompletedRunsByDocument(filteredRuns);
@@ -92,6 +99,18 @@ export class DocumentRunsService {
         retryableFailures += 1;
       } else {
         nonRetryableFailures += 1;
+      }
+
+      const boundarySummary = this.extractBoundarySummary(run.diagnosticsJson);
+      if (boundarySummary) {
+        boundaryStats.runsWithBoundaryHit += 1;
+        boundaryStats.droppedPageUrlCount += boundarySummary.droppedPageUrlCount;
+        boundaryStats.droppedChildSitemapCount += boundarySummary.droppedChildSitemapCount;
+        boundaryStats.droppedFeedEntryCount += boundarySummary.droppedFeedEntryCount;
+
+        for (const reason of boundarySummary.reasons) {
+          boundaryStats.byReason[reason] = (boundaryStats.byReason[reason] ?? 0) + 1;
+        }
       }
     }
 
@@ -130,9 +149,10 @@ export class DocumentRunsService {
       retryableFailures,
       nonRetryableFailures,
       failureByStage,
+      boundaryStats,
       latestRetryableFailure: latestRetryableFailure ? this.buildRunSummaryAnchor(latestRetryableFailure) : null,
       latestPartialSourceFailure: latestPartialSourceFailure ? this.buildRunSummaryAnchor(latestPartialSourceFailure) : null,
-      latestBoundaryHit: latestBoundaryHit ? this.buildRunSummaryAnchor(latestBoundaryHit) : null,
+      latestBoundaryHit: latestBoundaryHit ? this.buildBoundaryRunSummaryAnchor(latestBoundaryHit) : null,
       latestSkipped: latestSkipped ? this.buildRunSummaryAnchor(latestSkipped) : null,
       latestFailure: latestFailure ? this.buildRunSummaryAnchor(latestFailure) : null
     };
@@ -513,6 +533,28 @@ export class DocumentRunsService {
     return value.boundaryHit === true;
   }
 
+  private extractBoundarySummary(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== "object" || Array.isArray(value) || value.boundaryHit !== true) {
+      return null;
+    }
+
+    const boundary =
+      value.boundary && typeof value.boundary === "object" && !Array.isArray(value.boundary) ? value.boundary : null;
+    const reasons = Array.isArray(value.boundaryReasons)
+      ? value.boundaryReasons.filter((reason): reason is string => typeof reason === "string")
+      : [];
+
+    return {
+      reasons,
+      droppedPageUrlCount:
+        boundary && typeof boundary.droppedPageUrlCount === "number" ? boundary.droppedPageUrlCount : 0,
+      droppedChildSitemapCount:
+        boundary && typeof boundary.droppedChildSitemapCount === "number" ? boundary.droppedChildSitemapCount : 0,
+      droppedFeedEntryCount:
+        boundary && typeof boundary.droppedByLimitCount === "number" ? boundary.droppedByLimitCount : 0
+    };
+  }
+
   private getDiagnosticsCode(value: Prisma.JsonValue | null) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return null;
@@ -576,6 +618,35 @@ export class DocumentRunsService {
       message: failureSummary?.message ?? null,
       finishedAt: run.finishedAt,
       failureSummary
+    };
+  }
+
+  private buildBoundaryRunSummaryAnchor(run: {
+    documentId: string;
+    version: number;
+    trigger: DocumentRunTrigger;
+    status: DocumentRunStatus;
+    failedStage: DocumentRunFailedStage | null;
+    diagnosticsJson: Prisma.JsonValue | null;
+    finishedAt: Date | null;
+    document: {
+      sourceType: string;
+      sourceName: string;
+    };
+  }) {
+    const anchor = this.buildRunSummaryAnchor(run);
+    const boundarySummary = this.extractBoundarySummary(run.diagnosticsJson);
+
+    return {
+      ...anchor,
+      boundarySummary: boundarySummary
+        ? {
+            reasons: boundarySummary.reasons,
+            droppedPageUrlCount: boundarySummary.droppedPageUrlCount,
+            droppedChildSitemapCount: boundarySummary.droppedChildSitemapCount,
+            droppedFeedEntryCount: boundarySummary.droppedFeedEntryCount
+          }
+        : null
     };
   }
 

@@ -53,6 +53,10 @@ type SitemapFetchDiagnostics = {
   boundary?: {
     maxPages: number;
     maxChildSitemaps: number;
+    totalExtractedPageUrlCount: number;
+    selectedPageUrlCount: number;
+    droppedPageUrlCount: number;
+    totalExtractedChildSitemapCount: number;
     selectedChildSitemapCount: number;
     droppedChildSitemapCount: number;
   };
@@ -68,23 +72,36 @@ type ChildSitemapFailure = {
   error: unknown;
 };
 
+type ExtractPageUrlsResult = {
+  urls: string[];
+  totalExtractedCount: number;
+};
+
 type ResolvedSitemapPages = {
   pageUrls: string[];
-  diagnostics: Pick<
-    SitemapFetchDiagnostics,
-    | "attemptedChildSitemapCount"
-    | "succeededChildSitemapCount"
-    | "failedChildSitemapCount"
-    | "failedChildSitemapUrls"
-    | "failedChildSitemaps"
-    | "retryable"
-    | "partial"
-    | "retryableFailureCount"
-    | "nonRetryableFailureCount"
-    | "boundaryHit"
-    | "boundaryReasons"
-    | "boundary"
-  > | null;
+  diagnostics:
+    | Partial<
+        Pick<
+          SitemapFetchDiagnostics,
+          | "attemptedPageCount"
+          | "succeededPageCount"
+          | "failedPageCount"
+          | "failedPageUrls"
+          | "attemptedChildSitemapCount"
+          | "succeededChildSitemapCount"
+          | "failedChildSitemapCount"
+          | "failedChildSitemapUrls"
+          | "failedChildSitemaps"
+          | "retryable"
+          | "partial"
+          | "retryableFailureCount"
+          | "nonRetryableFailureCount"
+          | "boundaryHit"
+          | "boundaryReasons"
+          | "boundary"
+        >
+      >
+    | null;
 };
 
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
@@ -137,6 +154,10 @@ export class SitemapSourceService {
   }
 
   extractPageUrls(xml: string, options: ExtractSitemapOptions) {
+    return this.extractPageUrlsWithStats(xml, options).urls;
+  }
+
+  private extractPageUrlsWithStats(xml: string, options: ExtractSitemapOptions): ExtractPageUrlsResult {
     const normalizedXml = xml.trim();
     if (!normalizedXml) {
       throw new BadRequestException("Sitemap payload is empty.");
@@ -150,13 +171,17 @@ export class SitemapSourceService {
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
       .filter(url => this.isHttpUrl(url));
 
-    const uniqueUrls = [...new Set(extractedUrls)].slice(0, options.maxPages);
+    const allUniqueUrls = [...new Set(extractedUrls)];
+    const selectedUrls = allUniqueUrls.slice(0, options.maxPages);
 
-    if (!uniqueUrls.length) {
+    if (!selectedUrls.length) {
       throw new BadRequestException("Extracted sitemap page URLs are empty.");
     }
 
-    return uniqueUrls;
+    return {
+      urls: selectedUrls,
+      totalExtractedCount: allUniqueUrls.length
+    };
   }
 
   private async resolvePageUrls(xml: string, options: ExtractSitemapOptions): Promise<ResolvedSitemapPages> {
@@ -166,9 +191,35 @@ export class SitemapSourceService {
     }
 
     if (/<urlset\b/i.test(normalizedXml)) {
+      const extracted = this.extractPageUrlsWithStats(normalizedXml, options);
+      const droppedPageUrlCount = Math.max(0, extracted.totalExtractedCount - extracted.urls.length);
+      const boundaryHit = droppedPageUrlCount > 0;
       return {
-        pageUrls: this.extractPageUrls(normalizedXml, options),
-        diagnostics: null
+        pageUrls: extracted.urls,
+        diagnostics: boundaryHit
+          ? {
+              retryable: false,
+              partial: true,
+              attemptedPageCount: extracted.urls.length,
+              succeededPageCount: extracted.urls.length,
+              failedPageCount: 0,
+              failedPageUrls: [],
+              retryableFailureCount: 0,
+              nonRetryableFailureCount: 0,
+              boundaryHit: true,
+              boundaryReasons: ["MAX_PAGES_REACHED"],
+              boundary: {
+                maxPages: options.maxPages,
+                maxChildSitemaps: MAX_CHILD_SITEMAPS,
+                totalExtractedPageUrlCount: extracted.totalExtractedCount,
+                selectedPageUrlCount: extracted.urls.length,
+                droppedPageUrlCount,
+                totalExtractedChildSitemapCount: 0,
+                selectedChildSitemapCount: 0,
+                droppedChildSitemapCount: 0
+              }
+            }
+          : null
       };
     }
 
@@ -190,9 +241,13 @@ export class SitemapSourceService {
     const failedChildSitemapUrls: string[] = [];
     const childSitemapFailures: ChildSitemapFailure[] = [];
     let succeededChildSitemapCount = 0;
+    let maxPagesLimitReached = false;
+    let totalExtractedPageUrlCount = 0;
+    let droppedPageUrlCount = 0;
 
     for (const childSitemapUrl of selectedChildSitemapUrls) {
       if (collectedPageUrls.length >= options.maxPages) {
+        maxPagesLimitReached = true;
         break;
       }
 
@@ -215,23 +270,26 @@ export class SitemapSourceService {
         throw new BadRequestException("Nested sitemap indexes are not supported.");
       }
 
-      const childPageUrls = this.extractPageUrls(normalizedChildXml, {
+      const extractedChildPageUrls = this.extractPageUrlsWithStats(normalizedChildXml, {
         ...options,
         url: childSitemapUrl,
         maxPages: options.maxPages
       });
+      totalExtractedPageUrlCount += extractedChildPageUrls.totalExtractedCount;
 
-      for (const pageUrl of childPageUrls) {
+      for (const pageUrl of extractedChildPageUrls.urls) {
         if (seenPageUrls.has(pageUrl)) {
           continue;
         }
 
-        seenPageUrls.add(pageUrl);
-        collectedPageUrls.push(pageUrl);
-
         if (collectedPageUrls.length >= options.maxPages) {
+          maxPagesLimitReached = true;
+          droppedPageUrlCount += 1;
           break;
         }
+
+        seenPageUrls.add(pageUrl);
+        collectedPageUrls.push(pageUrl);
       }
 
       succeededChildSitemapCount += 1;
@@ -250,9 +308,9 @@ export class SitemapSourceService {
       0
     );
     const nonRetryableFailureCount = childSitemapFailures.length - retryableFailureCount;
-    const boundaryHit = droppedChildSitemapCount > 0 || collectedPageUrls.length >= options.maxPages;
+    const boundaryHit = droppedChildSitemapCount > 0 || maxPagesLimitReached;
     const boundaryReasons = [
-      ...(collectedPageUrls.length >= options.maxPages ? ["MAX_PAGES_REACHED"] : []),
+      ...(maxPagesLimitReached ? ["MAX_PAGES_REACHED"] : []),
       ...(droppedChildSitemapCount > 0 ? ["MAX_CHILD_SITEMAPS_REACHED"] : [])
     ];
 
@@ -285,6 +343,10 @@ export class SitemapSourceService {
                 boundary: {
                   maxPages: options.maxPages,
                   maxChildSitemaps: MAX_CHILD_SITEMAPS,
+                  totalExtractedPageUrlCount,
+                  selectedPageUrlCount: collectedPageUrls.length,
+                  droppedPageUrlCount,
+                  totalExtractedChildSitemapCount: childSitemapUrls.length,
                   selectedChildSitemapCount: selectedChildSitemapUrls.length,
                   droppedChildSitemapCount
                 },
@@ -387,6 +449,10 @@ export class SitemapSourceService {
               diagnostics.boundary ?? {
                 maxPages: pageUrls.length,
                 maxChildSitemaps: MAX_CHILD_SITEMAPS,
+                totalExtractedPageUrlCount: pageUrls.length,
+                selectedPageUrlCount: pageUrls.length,
+                droppedPageUrlCount: 0,
+                totalExtractedChildSitemapCount: diagnostics.attemptedChildSitemapCount ?? 0,
                 selectedChildSitemapCount: diagnostics.attemptedChildSitemapCount ?? 0,
                 droppedChildSitemapCount: 0
               }

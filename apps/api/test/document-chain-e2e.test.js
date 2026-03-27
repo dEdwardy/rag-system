@@ -280,7 +280,16 @@ test("Document chain E2E: knowledge base -> upload -> ready -> chunks -> reindex
       retryableFailures: 0,
       nonRetryableFailures: 0,
       failureByStage: {},
+      boundaryStats: {
+        runsWithBoundaryHit: 0,
+        byReason: {},
+        droppedPageUrlCount: 0,
+        droppedChildSitemapCount: 0,
+        droppedFeedEntryCount: 0
+      },
       latestRetryableFailure: null,
+      latestPartialSourceFailure: null,
+      latestBoundaryHit: null,
       latestSkipped: null,
       latestFailure: null
     });

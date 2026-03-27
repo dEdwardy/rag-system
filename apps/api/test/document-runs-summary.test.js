@@ -175,6 +175,12 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
         retryable: false,
         boundaryHit: true,
         boundaryReasons: ["MAX_ITEMS_LIMIT_REACHED"],
+        boundary: {
+          maxItems: 5,
+          totalExtractedEntryCount: 7,
+          selectedEntryCount: 5,
+          droppedByLimitCount: 2
+        },
         message: "Feed source completed with partial entry validation failures.",
         partial: true
       },
@@ -378,7 +384,22 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
       failedStage: "source_fetch",
       retryable: false,
       message: "Feed source completed with partial entry validation failures."
+    },
+    boundarySummary: {
+      reasons: ["MAX_ITEMS_LIMIT_REACHED"],
+      droppedPageUrlCount: 0,
+      droppedChildSitemapCount: 0,
+      droppedFeedEntryCount: 2
     }
+  });
+  assert.deepEqual(summary.boundaryStats, {
+    runsWithBoundaryHit: 1,
+    byReason: {
+      MAX_ITEMS_LIMIT_REACHED: 1
+    },
+    droppedPageUrlCount: 0,
+    droppedChildSitemapCount: 0,
+    droppedFeedEntryCount: 2
   });
 });
 
@@ -470,6 +491,13 @@ test("DocumentRunsService summary counts partial ready runs as failure summaries
       retryable: false,
       message: "Feed source completed with partial entry validation failures."
     }
+  });
+  assert.deepEqual(summary.boundaryStats, {
+    runsWithBoundaryHit: 0,
+    byReason: {},
+    droppedPageUrlCount: 0,
+    droppedChildSitemapCount: 0,
+    droppedFeedEntryCount: 0
   });
 });
 

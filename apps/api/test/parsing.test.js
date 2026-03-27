@@ -461,6 +461,10 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
       boundary: {
         maxPages: 2,
         maxChildSitemaps: 20,
+        totalExtractedPageUrlCount: 2,
+        selectedPageUrlCount: 2,
+        droppedPageUrlCount: 0,
+        totalExtractedChildSitemapCount: 0,
         selectedChildSitemapCount: 0,
         droppedChildSitemapCount: 0
       }
@@ -623,6 +627,10 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
       boundary: {
         maxPages: 5,
         maxChildSitemaps: 20,
+        totalExtractedPageUrlCount: 1,
+        selectedPageUrlCount: 1,
+        droppedPageUrlCount: 0,
+        totalExtractedChildSitemapCount: 2,
         selectedChildSitemapCount: 2,
         droppedChildSitemapCount: 0
       }
@@ -718,6 +726,167 @@ test("SitemapSourceService preserves merged retryable counts when child and page
     assert.equal(extracted.diagnostics?.failedPageCount, 1);
     assert.equal(extracted.diagnostics?.retryableFailureCount, 2);
     assert.equal(extracted.diagnostics?.nonRetryableFailureCount, 0);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService emits boundary diagnostics when urlset is truncated by maxPages", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/one</loc></url>
+          <url><loc>https://example.com/pages/two</loc></url>
+          <url><loc>https://example.com/pages/three</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/one" || normalizedUrl === "https://example.com/pages/two") {
+      return new Response(
+        `<html><head><title>${normalizedUrl}</title></head><body><main><p>Boundary marker.</p></main></body></html>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap.xml",
+      maxPages: 2
+    });
+
+    assert.equal(extracted.diagnostics?.boundaryHit, true);
+    assert.deepEqual(extracted.diagnostics?.boundaryReasons, ["MAX_PAGES_REACHED"]);
+    assert.deepEqual(extracted.diagnostics?.boundary, {
+      maxPages: 2,
+      maxChildSitemaps: 20,
+      totalExtractedPageUrlCount: 3,
+      selectedPageUrlCount: 2,
+      droppedPageUrlCount: 1,
+      totalExtractedChildSitemapCount: 0,
+      selectedChildSitemapCount: 0,
+      droppedChildSitemapCount: 0
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService does not count duplicate child sitemap URLs as dropped boundary pages", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/one.xml</loc></sitemap>
+          <sitemap><loc>https://example.com/sitemaps/two.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/one.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/shared</loc></url>
+          <url><loc>https://example.com/pages/only-one</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/two.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/shared</loc></url>
+          <url><loc>https://example.com/pages/only-two</loc></url>
+          <url><loc>https://example.com/pages/only-three</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (
+      normalizedUrl === "https://example.com/pages/shared" ||
+      normalizedUrl === "https://example.com/pages/only-one" ||
+      normalizedUrl === "https://example.com/pages/only-two" ||
+      normalizedUrl === "https://example.com/pages/only-three"
+    ) {
+      return new Response(
+        `<html><head><title>${normalizedUrl}</title></head><body><main><p>Boundary marker.</p></main></body></html>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 3
+    });
+
+    assert.equal(extracted.diagnostics?.boundaryHit, true);
+    assert.deepEqual(extracted.diagnostics?.boundaryReasons, ["MAX_PAGES_REACHED"]);
+    assert.deepEqual(extracted.diagnostics?.boundary, {
+      maxPages: 3,
+      maxChildSitemaps: 20,
+      totalExtractedPageUrlCount: 5,
+      selectedPageUrlCount: 3,
+      droppedPageUrlCount: 1,
+      totalExtractedChildSitemapCount: 2,
+      selectedChildSitemapCount: 2,
+      droppedChildSitemapCount: 0
+    });
   } finally {
     global.fetch = originalFetch;
   }

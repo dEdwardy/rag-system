@@ -3,13 +3,42 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-26
+更新时间：2026-03-27
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
 > 本文档主要用于记录当前实现进度、已完成增量、未完成方向和验证快照。
 
-补充进展（2026-03-26）：
+补充进展（2026-03-27）：
+
+- ✅ source diagnostics / run-summary follow-up now keeps boundary drop counts accurate and web summary typing aligned
+  - `SitemapSourceService` 在 `sitemapindex` 场景下不再把跨 child sitemap 的重复 page URL 误计入 `boundary.droppedPageUrlCount`
+  - 当前仅在**唯一 page URL** 因命中 `maxPages` 被跳过时才累计 dropped page count，因此 `boundaryStats` 与 `latestBoundaryHit.boundarySummary` 不再把去重误报成边界丢弃
+  - `apps/web/src/types/api.ts` 现已同步 knowledge-base run summary 的新增响应结构：
+    - `boundaryStats`
+    - `latestPartialSourceFailure`
+    - `latestBoundaryHit.boundarySummary`
+  - 这一轮继续保持为单主题 source diagnostics / run-summary 收口：不包含 reopen guard / ingestion reliability 变更
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+    - `pnpm typecheck`
+  - 实测结果：focused sitemap parsing tests 与 typecheck 通过；边界 dropped-page 统计现在只反映真实的 limit drop，web 类型定义也已与后端 summary 响应对齐
+
+- ✅ source boundary diagnostics now expose dropped-item counts in run summary anchors
+  - `SitemapSourceService` now records explicit boundary counters when `maxPages`/`maxChildSitemaps` bounds are hit:
+    - `totalExtractedPageUrlCount` / `selectedPageUrlCount` / `droppedPageUrlCount`
+    - `totalExtractedChildSitemapCount` / `selectedChildSitemapCount` / `droppedChildSitemapCount`
+  - `DocumentsService.buildExternalSourcePartialDiagnostics()` now preserves canonical partial-envelope fields (`code` / `failedStage` / `sourceKind` / `schemaVersion` / `category` / `message`) even when raw source diagnostics carry overlapping keys
+  - `DocumentRunsService` summary now adds bounded boundary aggregation and anchor details:
+    - `boundaryStats` (`runsWithBoundaryHit`, `byReason`, and dropped page/child/feed counters)
+    - `latestBoundaryHit.boundarySummary` (`reasons` and dropped counters)
+  - this remains a minimal backend observability increment: no source-family expansion, no run-state-machine rewrite, no retrieval/answering scope growth
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+    - `pnpm test:api:file -- test/sitemap-source-e2e.test.js`（当前环境缺少 `DATABASE_URL`，seed 阶段失败）
+  - 实测结果：3 组 focused fast tests 全部通过；sitemap source E2E 在本地环境前置配置缺失（`DATABASE_URL`）时于 seed 阶段失败，本轮未虚报通过
 
 - ✅ external source stabilization phase 2 (backend-first) now adds boundary-aware diagnostics, dedup signals, and new run-summary anchors
   - `FeedSourceService` 现在在 partial diagnostics 中补充了统一的边界与去重信号：

@@ -235,11 +235,29 @@ test("Feed source E2E: partial invalid entries still reach ready and persist dia
     const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
     assert.equal(readyDocument.status, "ready");
     assert.deepEqual(readyDocument.diagnosticsJson, {
+      sourceKind: "feed",
+      schemaVersion: 2,
+      category: "external_source_partial",
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
       retryable: false,
       documentVersion: readyDocument.version,
       message: "Feed source completed with partial entry validation failures.",
+      partialFailureCount: 1,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 1,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxItems: 2,
+        totalExtractedEntryCount: 2,
+        selectedEntryCount: 2,
+        droppedByLimitCount: 0
+      },
+      skippedDuplicateEntryCount: 0,
+      skippedDuplicateEntryRefs: [],
+      skippedDuplicatesTruncated: false,
+      skippedDuplicatesOmittedCount: 0,
       attemptedEntryCount: 2,
       succeededEntryCount: 1,
       failedEntryCount: 1,

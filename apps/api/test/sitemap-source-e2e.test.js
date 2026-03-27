@@ -233,11 +233,29 @@ test("Sitemap source E2E: partial page failure still reaches ready and persists 
     const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
     assert.equal(readyDocument.status, "ready");
     assert.deepEqual(readyDocument.diagnosticsJson, {
+      sourceKind: "sitemap",
+      schemaVersion: 2,
+      category: "external_source_partial",
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
       retryable: false,
       documentVersion: readyDocument.version,
       message: "Sitemap source completed with partial page fetch failures.",
+      partialFailureCount: 1,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 1,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxPages: 3,
+        maxChildSitemaps: 20,
+        totalExtractedPageUrlCount: 3,
+        selectedPageUrlCount: 3,
+        droppedPageUrlCount: 0,
+        totalExtractedChildSitemapCount: 0,
+        selectedChildSitemapCount: 0,
+        droppedChildSitemapCount: 0
+      },
       attemptedPageCount: 3,
       succeededPageCount: 2,
       failedPageCount: 1,
@@ -353,11 +371,29 @@ test("Sitemap source E2E: partial child sitemap failure still reaches ready and 
     const readyDocument = await waitForDocumentReady(port, createdDocument.id, 20000);
     assert.equal(readyDocument.status, "ready");
     assert.deepEqual(readyDocument.diagnosticsJson, {
+      sourceKind: "sitemap",
+      schemaVersion: 2,
+      category: "external_source_partial",
       code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
       failedStage: "source_fetch",
       retryable: true,
       documentVersion: readyDocument.version,
       message: "Sitemap source completed with partial child sitemap fetch failures.",
+      partialFailureCount: 1,
+      retryableFailureCount: 1,
+      nonRetryableFailureCount: 0,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxPages: 3,
+        maxChildSitemaps: 20,
+        totalExtractedPageUrlCount: 2,
+        selectedPageUrlCount: 2,
+        droppedPageUrlCount: 0,
+        totalExtractedChildSitemapCount: 2,
+        selectedChildSitemapCount: 2,
+        droppedChildSitemapCount: 0
+      },
       attemptedPageCount: 2,
       succeededPageCount: 2,
       failedPageCount: 0,

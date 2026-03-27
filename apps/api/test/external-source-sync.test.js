@@ -723,6 +723,52 @@ test("DocumentsService records non-retryable diagnostics for invalid external so
   ]);
 });
 
+test("DocumentsService keeps canonical external partial envelope fields over raw source diagnostics", () => {
+  const fakeService = Object.create(DocumentsService.prototype);
+
+  const diagnostics = DocumentsService.prototype.buildExternalSourcePartialDiagnostics.call(
+    fakeService,
+    7,
+    {
+      partial: true,
+      code: "SOURCE_CODE_SHOULD_NOT_WIN",
+      failedStage: "indexing",
+      retryable: false,
+      documentVersion: 999,
+      sourceKind: "raw-source",
+      schemaVersion: 999,
+      category: "raw",
+      message: "raw-message",
+      retryableFailureCount: 2,
+      nonRetryableFailureCount: 0,
+      failedEntryCount: 1,
+      boundaryHit: false,
+      boundaryReasons: ["RAW_REASON"]
+    },
+    "canonical-message",
+    false,
+    "feed"
+  );
+
+  assert.deepEqual(diagnostics, {
+    partial: true,
+    code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+    failedStage: "source_fetch",
+    retryable: false,
+    documentVersion: 7,
+    sourceKind: "feed",
+    schemaVersion: 2,
+    category: "external_source_partial",
+    message: "canonical-message",
+    retryableFailureCount: 2,
+    nonRetryableFailureCount: 0,
+    partialFailureCount: 1,
+    boundaryHit: false,
+    boundaryReasons: ["RAW_REASON"],
+    failedEntryCount: 1
+  });
+});
+
 test("WebPageService classifies upstream 404 responses as non-retryable", async () => {
   await withMockedFetch(
     [new Response("missing", { status: 404, headers: { "content-type": "text/html" } })],

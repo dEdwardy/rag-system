@@ -190,6 +190,40 @@ export type KnowledgeBaseDocumentRunRecord = {
   };
 };
 
+export type KnowledgeBaseDocumentRunFailureSummary = {
+  code: string | null;
+  failedStage: DocumentRunFailedStage;
+  retryable: boolean;
+  message: string | null;
+};
+
+export type KnowledgeBaseDocumentRunSummaryAnchor = {
+  documentId: string;
+  version: number;
+  trigger: DocumentRunTrigger;
+  failedStage: DocumentRunFailedStage;
+  sourceType: string;
+  sourceName: string;
+  message: string | null;
+  finishedAt: string | null;
+  failureSummary: KnowledgeBaseDocumentRunFailureSummary | null;
+};
+
+export type KnowledgeBaseDocumentRunBoundarySummary = {
+  reasons: string[];
+  droppedPageUrlCount: number;
+  droppedChildSitemapCount: number;
+  droppedFeedEntryCount: number;
+};
+
+export type KnowledgeBaseDocumentRunBoundaryStats = {
+  runsWithBoundaryHit: number;
+  byReason: Record<string, number>;
+  droppedPageUrlCount: number;
+  droppedChildSitemapCount: number;
+  droppedFeedEntryCount: number;
+};
+
 export type KnowledgeBaseDocumentRunSummary = {
   totalRuns: number;
   latestRunAt: string | null;
@@ -200,54 +234,14 @@ export type KnowledgeBaseDocumentRunSummary = {
   retryableFailures: number;
   nonRetryableFailures: number;
   failureByStage: Record<string, number>;
-  latestRetryableFailure: {
-    documentId: string;
-    version: number;
-    trigger: DocumentRunTrigger;
-    failedStage: DocumentRunFailedStage;
-    sourceType: string;
-    sourceName: string;
-    message: string | null;
-    finishedAt: string | null;
-    failureSummary: {
-      code: string | null;
-      failedStage: DocumentRunFailedStage;
-      retryable: boolean;
-      message: string | null;
-    } | null;
-  } | null;
-  latestSkipped: {
-    documentId: string;
-    version: number;
-    trigger: DocumentRunTrigger;
-    failedStage: DocumentRunFailedStage;
-    sourceType: string;
-    sourceName: string;
-    message: string | null;
-    finishedAt: string | null;
-    failureSummary: {
-      code: string | null;
-      failedStage: DocumentRunFailedStage;
-      retryable: boolean;
-      message: string | null;
-    } | null;
-  } | null;
-  latestFailure: {
-    documentId: string;
-    version: number;
-    trigger: DocumentRunTrigger;
-    failedStage: DocumentRunFailedStage;
-    sourceType: string;
-    sourceName: string;
-    message: string | null;
-    finishedAt: string | null;
-    failureSummary: {
-      code: string | null;
-      failedStage: DocumentRunFailedStage;
-      retryable: boolean;
-      message: string | null;
-    } | null;
-  } | null;
+  boundaryStats: KnowledgeBaseDocumentRunBoundaryStats;
+  latestRetryableFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
+  latestPartialSourceFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
+  latestBoundaryHit: (KnowledgeBaseDocumentRunSummaryAnchor & {
+    boundarySummary: KnowledgeBaseDocumentRunBoundarySummary | null;
+  }) | null;
+  latestSkipped: KnowledgeBaseDocumentRunSummaryAnchor | null;
+  latestFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
 };
 
 export type DocumentChunk = {
