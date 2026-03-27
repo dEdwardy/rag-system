@@ -557,7 +557,8 @@ export class SitemapSourceService {
 
   private buildAllPagesFailedError(pageFailures: PageFetchFailure[]) {
     const firstFailure = pageFailures[0]?.error;
-    const message = "Failed to fetch sitemap pages: all sitemap pages failed.";
+    const firstFailedUrl = pageFailures[0]?.url ?? "unknown";
+    const message = `Failed to fetch sitemap pages: all sitemap pages failed. First failed page URL: ${firstFailedUrl}.`;
 
     if (firstFailure instanceof BadRequestException) {
       return new BadRequestException(message);
@@ -572,7 +573,8 @@ export class SitemapSourceService {
 
   private buildAllChildSitemapsFailedError(childSitemapFailures: ChildSitemapFailure[]) {
     const firstFailure = childSitemapFailures[0]?.error;
-    const message = "Failed to fetch sitemap index children: all child sitemap fetches failed.";
+    const firstFailedUrl = childSitemapFailures[0]?.url ?? "unknown";
+    const message = `Failed to fetch sitemap index children: all child sitemap fetches failed. First failed child sitemap URL: ${firstFailedUrl}.`;
 
     if (firstFailure instanceof BadRequestException) {
       return new BadRequestException(message);

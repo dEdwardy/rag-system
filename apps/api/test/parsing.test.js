@@ -513,13 +513,14 @@ test("SitemapSourceService still fails when all sitemap pages fail", async () =>
   };
 
   try {
-    await assert.rejects(
-      service.fetchSitemap({
-        url: "https://example.com/sitemap.xml",
-        maxPages: 5
-      }),
-      /all sitemap pages failed/i
-    );
+    await assert.rejects(service.fetchSitemap({
+      url: "https://example.com/sitemap.xml",
+      maxPages: 5
+    }), error => {
+      assert.match(error.message, /all sitemap pages failed/i);
+      assert.match(error.message, /https:\/\/example\.com\/pages\/bad-a/);
+      return true;
+    });
   } finally {
     global.fetch = originalFetch;
   }
@@ -994,13 +995,14 @@ test("SitemapSourceService still fails when all child sitemaps fail", async () =
   };
 
   try {
-    await assert.rejects(
-      service.fetchSitemap({
-        url: "https://example.com/sitemap-index.xml",
-        maxPages: 5
-      }),
-      /all child sitemap fetches failed/i
-    );
+    await assert.rejects(service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 5
+    }), error => {
+      assert.match(error.message, /all child sitemap fetches failed/i);
+      assert.match(error.message, /https:\/\/example\.com\/sitemaps\/bad-a\.xml/);
+      return true;
+    });
   } finally {
     global.fetch = originalFetch;
   }
