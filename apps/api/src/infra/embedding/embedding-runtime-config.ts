@@ -46,6 +46,7 @@ export type OllamaEmbeddingRuntimeConfig = {
   baseUrl: string;
   model: string;
   modelSource: Extract<EmbeddingModelSource, "env:OLLAMA_EMBEDDING_MODEL" | "env:OLLAMA_MODEL">;
+  expectedDimensions: number | null;
 };
 
 export type OpenAiEmbeddingRuntimeConfig = {
@@ -169,6 +170,7 @@ function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbe
   const baseUrl = normalizeBaseUrl(readOptionalString(env.OLLAMA_BASE_URL));
   const embeddingModel = readOptionalString(env.OLLAMA_EMBEDDING_MODEL);
   const fallbackModel = readOptionalString(env.OLLAMA_MODEL);
+  const expectedDimensions = readOptionalPositiveInteger(env.OLLAMA_EMBEDDING_DIMENSIONS, "OLLAMA_EMBEDDING_DIMENSIONS");
   const model = embeddingModel ?? fallbackModel;
 
   if (!baseUrl && !model) {
@@ -191,7 +193,8 @@ function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbe
     provider: "ollama",
     baseUrl,
     model,
-    modelSource: embeddingModel ? "env:OLLAMA_EMBEDDING_MODEL" : "env:OLLAMA_MODEL"
+    modelSource: embeddingModel ? "env:OLLAMA_EMBEDDING_MODEL" : "env:OLLAMA_MODEL",
+    expectedDimensions
   };
 }
 
@@ -233,6 +236,12 @@ function validateResolvedEmbeddingDimensions(
   dimensions: number
 ) {
   if (providerConfig.provider !== "openai") {
+    if (providerConfig.expectedDimensions != null && dimensions !== providerConfig.expectedDimensions) {
+      throw new EmbeddingRuntimeConfigError(
+        `Invalid embedding config: OLLAMA_EMBEDDING_DIMENSIONS=${providerConfig.expectedDimensions} but Ollama model "${providerConfig.model}" returned ${dimensions} dimensions.`
+      );
+    }
+
     return dimensions;
   }
 
@@ -248,6 +257,24 @@ function validateResolvedEmbeddingDimensions(
 function readOptionalString(value: string | undefined) {
   const normalized = value?.trim();
   return normalized ? normalized : null;
+}
+
+function readOptionalPositiveInteger(value: string | undefined, envName: string) {
+  const normalized = readOptionalString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new EmbeddingRuntimeConfigError(
+      `Invalid embedding config: ${envName} must be a positive integer when configured.`
+    );
+  }
+
+  return parsed;
 }
 
 function normalizeBaseUrl(value: string | null) {

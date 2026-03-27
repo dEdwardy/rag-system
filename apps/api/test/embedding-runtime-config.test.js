@@ -39,7 +39,8 @@ test("resolveEmbeddingRuntimeConfig keeps Ollama first, OpenAI second, and fallb
     provider: "ollama",
     baseUrl: "http://localhost:11434",
     model: "nomic-embed-text",
-    modelSource: "env:OLLAMA_MODEL"
+    modelSource: "env:OLLAMA_MODEL",
+    expectedDimensions: null
   });
   assert.deepEqual(config.providers[1], {
     provider: "openai",
@@ -49,6 +50,38 @@ test("resolveEmbeddingRuntimeConfig keeps Ollama first, OpenAI second, and fallb
     modelSource: "default:OPENAI_EMBEDDING_MODEL",
     expectedDimensions: 1536
   });
+});
+
+test("resolveEmbeddingRuntimeConfig keeps explicit Ollama embedding dimensions when configured", () => {
+  const config = resolveEmbeddingRuntimeConfig({
+    OLLAMA_BASE_URL: "http://localhost:11434",
+    OLLAMA_EMBEDDING_MODEL: "nomic-embed-text",
+    OLLAMA_EMBEDDING_DIMENSIONS: "768"
+  });
+
+  assert.deepEqual(config.providers[0], {
+    provider: "ollama",
+    baseUrl: "http://localhost:11434",
+    model: "nomic-embed-text",
+    modelSource: "env:OLLAMA_EMBEDDING_MODEL",
+    expectedDimensions: 768
+  });
+});
+
+test("resolveEmbeddingRuntimeConfig rejects invalid OLLAMA_EMBEDDING_DIMENSIONS", () => {
+  assert.throws(
+    () =>
+      resolveEmbeddingRuntimeConfig({
+        OLLAMA_BASE_URL: "http://localhost:11434",
+        OLLAMA_EMBEDDING_MODEL: "nomic-embed-text",
+        OLLAMA_EMBEDDING_DIMENSIONS: "abc"
+      }),
+    error => {
+      assert.ok(error instanceof EmbeddingRuntimeConfigError);
+      assert.match(error.message, /OLLAMA_EMBEDDING_DIMENSIONS/);
+      return true;
+    }
+  );
 });
 
 test("resolveEmbeddingRuntimeConfig rejects incomplete Ollama config", () => {
@@ -159,6 +192,38 @@ test("EmbeddingService rejects inconsistent Ollama response dimensions with an e
           await assert.rejects(service.embedTexts(["one", "two"]), error => {
             assert.ok(error instanceof EmbeddingRuntimeConfigError);
             assert.match(error.message, /inconsistent embedding dimensions/);
+            return true;
+          });
+        }
+      );
+    }
+  );
+});
+
+test("EmbeddingService rejects Ollama responses that mismatch OLLAMA_EMBEDDING_DIMENSIONS", async () => {
+  const service = new EmbeddingService();
+
+  await withEnv(
+    {
+      OLLAMA_BASE_URL: "http://localhost:11434",
+      OLLAMA_MODEL: "nomic-embed-text",
+      OLLAMA_EMBEDDING_MODEL: undefined,
+      OLLAMA_EMBEDDING_DIMENSIONS: "1024",
+      OPENAI_API_KEY: undefined,
+      OPENAI_EMBEDDING_MODEL: undefined
+    },
+    async () => {
+      await withFetchMock(
+        async () => ({
+          ok: true,
+          json: async () => ({
+            embeddings: [[0.1, 0.2, 0.3]]
+          })
+        }),
+        async () => {
+          await assert.rejects(service.embedTexts(["dimension mismatch"]), error => {
+            assert.ok(error instanceof EmbeddingRuntimeConfigError);
+            assert.match(error.message, /OLLAMA_EMBEDDING_DIMENSIONS=1024/);
             return true;
           });
         }
