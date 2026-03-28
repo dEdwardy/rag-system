@@ -67,16 +67,13 @@ function withRetryAttemptContext(error: unknown, attempt: number) {
     return error;
   }
 
-  if (attempt <= 1) {
-    return error;
-  }
-
   const message = error.message.trim();
   if (!message.startsWith("Fetch request failed for") && !message.startsWith("Fetch request timed out for")) {
     return error;
   }
 
-  return new Error(`${message} (after ${attempt} attempts).`);
+  const attemptLabel = attempt === 1 ? "attempt" : "attempts";
+  return new Error(`${message} (after ${attempt} ${attemptLabel}).`);
 }
 
 function shouldRetryResponse(status: number) {
