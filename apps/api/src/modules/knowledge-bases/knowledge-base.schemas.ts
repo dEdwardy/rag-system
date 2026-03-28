@@ -1,8 +1,6 @@
 import { z } from "zod";
 
 export const createKnowledgeBaseSchema = z.object({
-  tenantId: z.string().min(1),
-  ownerId: z.string().min(1),
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional()
 });
@@ -15,4 +13,3 @@ export const updateKnowledgeBaseSchema = z.object({
 
 export type CreateKnowledgeBaseInput = z.infer<typeof createKnowledgeBaseSchema>;
 export type UpdateKnowledgeBaseInput = z.infer<typeof updateKnowledgeBaseSchema>;
-

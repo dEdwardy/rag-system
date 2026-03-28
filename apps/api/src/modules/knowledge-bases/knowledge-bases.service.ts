@@ -26,12 +26,16 @@ export class KnowledgeBasesService {
     return knowledgeBase;
   }
 
-  async createKnowledgeBase(input: CreateKnowledgeBaseInput) {
-    await this.ensureTenantExists(input.tenantId);
-    await this.ensureOwnerExists(input.ownerId);
+  async createKnowledgeBase(input: CreateKnowledgeBaseInput, identity: { tenantId: string; userId: string }) {
+    await this.ensureTenantExists(identity.tenantId);
+    await this.ensureOwnerExists(identity.userId);
 
     return this.prisma.knowledgeBase.create({
-      data: input
+      data: {
+        ...input,
+        tenantId: identity.tenantId,
+        ownerId: identity.userId
+      }
     });
   }
 
@@ -64,4 +68,3 @@ export class KnowledgeBasesService {
     }
   }
 }
-
