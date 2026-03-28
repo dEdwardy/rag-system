@@ -94,7 +94,7 @@ export class AssistantsService {
     await this.getAssistant(id, scope);
 
     if (input.retrievalProfileId) {
-      await this.retrievalProfilesService.getRetrievalProfile(input.retrievalProfileId);
+      await this.retrievalProfilesService.getRetrievalProfile(input.retrievalProfileId, scope);
     }
 
     const data: Prisma.AssistantUncheckedUpdateInput = {

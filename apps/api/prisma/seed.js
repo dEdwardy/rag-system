@@ -65,6 +65,8 @@ async function main() {
       id: "default-retrieval-profile"
     },
     update: {
+      tenantId: tenant.id,
+      ownerId: user.id,
       name: "Default Retrieval Profile",
       topK: 3,
       chunkWindow: 0,
@@ -75,6 +77,8 @@ async function main() {
     },
     create: {
       id: "default-retrieval-profile",
+      tenantId: tenant.id,
+      ownerId: user.id,
       name: "Default Retrieval Profile",
       topK: 3,
       chunkWindow: 0,

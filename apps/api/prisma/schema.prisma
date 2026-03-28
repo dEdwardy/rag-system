@@ -99,6 +99,7 @@ model Tenant {
   updatedAt DateTime       @updatedAt
   users     User[]
   knowledgeBases KnowledgeBase[]
+  retrievalProfiles RetrievalProfile[]
   assistants Assistant[]
   conversations Conversation[]
   evalQuestionSets EvalQuestionSet[]
@@ -116,6 +117,7 @@ model User {
   updatedAt      DateTime        @updatedAt
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   knowledgeBases KnowledgeBase[]
+  retrievalProfiles RetrievalProfile[]
   conversations  Conversation[]
   authSessions   AuthSession[]
   evalQuestionSets EvalQuestionSet[]
@@ -267,6 +269,8 @@ model DocumentChunk {
 
 model RetrievalProfile {
   id             String      @id @default(cuid())
+  tenantId       String
+  ownerId        String
   name           String
   topK           Int         @default(3)
   chunkWindow    Int         @default(0)
@@ -277,7 +281,12 @@ model RetrievalProfile {
   strategyJson   Json?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner          User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   assistants     Assistant[]
+
+  @@index([tenantId])
+  @@index([ownerId])
 }
 
 model Assistant {

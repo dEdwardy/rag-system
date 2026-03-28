@@ -15,6 +15,22 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 retrieval-profile reads/writes are now owner-scoped to current identity
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `apps/api/prisma/seed.js`
+    - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.controller.ts`
+    - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts`
+    - `apps/api/src/modules/assistants/assistants.service.ts`
+    - `apps/api/test/retrieval-profiles-auth-scope.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `RetrievalProfile` 持久化模型补齐 `tenantId` / `ownerId`，并在 seed 默认数据中按默认 owner 落库，确保 retrieval-profile 资源具备 owner 归属信息
+    - retrieval-profile controller 统一向 service 透传当前 request identity；service 的 list/get/update 路径按 `tenantId + ownerId` 约束访问，create 路径强制以当前 identity 写入 owner 归属
+    - assistant 更新时校验 `retrievalProfileId` 也改为 owner-scoped 查询，避免跨 owner 绑定 retrieval profile
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/retrieval-profiles-auth-scope.test.js`
+
 - ✅ auth v1 now exposes a minimal permission-check API for owner-only resource access decisions
   - 变更文件：
     - `apps/api/src/modules/auth/auth.controller.ts`
