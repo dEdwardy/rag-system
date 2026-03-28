@@ -358,8 +358,8 @@ Current client focus for this stage:
 - for browser-based verification or smoke checks, prefer the host-installed Edge/Chrome on this machine first; both are already available locally
 - browser download or install steps are fallback-only, not the default first action for local browser testing
 - current workspace split preference:
-  - main repository checkout: backend work + docs + orchestration
-  - `apps/web` worktree: frontend work
+  - main repository checkout: non-pure-frontend work (backend, frontend/backend integration, docs, orchestration)
+  - `apps/web` worktree: pure frontend development
   - `apps/api` worktree: currently optional / mostly unused
   - workspace-local OpenCode or plugin state is not shared automatically across these checkouts
 

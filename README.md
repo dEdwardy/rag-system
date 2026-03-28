@@ -84,7 +84,7 @@ pnpm loop:stop
 
 These commands wrap `scripts/opencode-loop/control.sh`, auto-link the `systemd --user` units, and manage a repo-local development harness for unattended runs. This is optional tooling, not product runtime.
 
-If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for backend/docs/orchestration, `apps/web` worktree for frontend, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
+If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for non-pure-frontend work (backend, frontend/backend integration, docs/orchestration), `apps/web` worktree for pure frontend development, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
 
 ## Common Commands
 
