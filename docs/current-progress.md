@@ -15,6 +15,85 @@
 
 补充进展（2026-03-29）：
 
+- ✅ route policy baseline now marks owner-scoped business controllers as authenticated while keeping auth/health public
+  - 变更文件：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.controller.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/src/modules/conversations/conversations.controller.ts`
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 同步内容（最小范围）：
+    - knowledge-base / document / assistant / conversation / trace controllers now carry class-level `authenticated` route policy metadata
+    - public auth/health exceptions remain unchanged, including `AuthController` class-level public policy and `GET /auth/me` authenticated policy
+    - `docs/current-dev-setup.md` now reflects the authenticated business-route baseline
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ ACL docs and focused regression baseline are now aligned to the implemented owner-only access rules
+  - 变更文件：
+    - `package.json`
+    - `apps/api/package.json`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - repo root now exposes `pnpm test:api:focus:acl`
+    - API package now exposes `pnpm test:focus:acl` with the current ACL-ready regression set:
+      - `test/auth-provider-boundary.test.js`
+      - `test/resource-access-policy.contract.test.js`
+      - `test/knowledge-bases-auth-write-path.test.js`
+      - `test/kb-document-access.test.js`
+    - `docs/current-dev-setup.md` now records both the current `owner_only_v1` deny-by-default stance and the narrow regression baseline coverage
+    - scope remains docs + validation-baseline sync only: no ACL policy expansion, no new resource access semantics
+  - focused validation：
+    - `pnpm test:api:focus:acl`
+
+- ✅ knowledge-base read/detail now applies owner-only ACL policy evaluation at the service read boundary (and kb-scoped document read entrypoints already reusing this codepath inherit it)
+  - 变更文件：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `KnowledgeBasesService.getKnowledgeBase` now reads by `id` then evaluates `evaluateOwnerResourceAccess` with `action: "read"` and `kind: "knowledge_base"`
+    - `DocumentsService.getDocument` now reuses `knowledgeBasesService.getKnowledgeBase(document.kbId, scope)` when scope is present, so `documents/:id` and related read entrypoints inherit the same owner-only read policy codepath
+    - deny decision keeps existing behavior-preserving `NotFound` response semantics
+    - no RBAC/share expansion, no route-policy redesign, no unrelated refactor
+  - focused validation：
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js`
+  - 实测结果：passed (`6/6`)
+
+- ✅ knowledge base / document read-write paths now enforce owner-based access checks via request identity (ACL baseline increment)
+  - 变更文件：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.controller.ts`
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `apps/api/test/kb-document-access.test.js`
+  - 完成内容（最小范围）：
+    - knowledge-base `list/get/update` 现在统一从 request identity 进入 owner scope，并在 service 层按 `tenantId + ownerId` 收口
+    - knowledge-base 绑定的 document read/write 入口（`knowledge-bases/:id/*` + `documents/:id/*`）现在统一传入 current identity 做 ownership 检查
+    - scope 仅收口 owner-based ACL baseline；未引入 RBAC/share 扩展，未改 schema/persistence
+  - focused validation：
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js test/kb-document-access.test.js`
+  - 实测结果：passed (`8/8`)
+
+- ✅ external source re-sync recovery boundary now covers legacy missing-config paths for feed/sitemap (in addition to web-page), with normalized URL fallback from source identity
+  - 变更文件：
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-dev-setup.md`
+  - 完成内容（最小范围）：
+    - `DocumentsService.resolveLegacyExternalSourceConfigFromDocumentIdentity` now recovers `feed` / `sitemap` from `sourceType + sourceName` when `sourceConfigJson` is missing, using the same default bound fallback (`maxItems/maxPages=20`) and URL normalization (hash stripped)
+    - unrecoverable legacy identities (for example invalid `sourceName` URL) still keep the existing `EXTERNAL_SOURCE_CONFIG_INVALID` failure path, preserving run-history failure visibility
+    - scope remains existing source families only (`web_page` / `feed` / `sitemap`); no new connector expansion, no retry-policy rewrite, no schema changes
+  - focused validation：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed (`27/27`)
+
 - ✅ direct trace read (`GET /traces/:id`) now follows the same current-identity ownership baseline as conversation-scoped trace reads (owner-only ACL baseline)
   - 变更文件：
     - `apps/api/src/modules/traces/traces.controller.ts`
@@ -40,20 +119,6 @@
   - 新增 / 更新验证：
     - `pnpm test:api:file -- test/assistants-api.test.js`
   - 实测结果：当前环境失败（`DATABASE_URL` 未设置，seed 阶段报 `Environment variable not found: DATABASE_URL`），需在具备 DB 环境变量后复跑同一命令
-
-- ✅ P3 `source follow-up docs` 文档与最小验证基线已同步到当前实现状态
-  - 变更文件：
-    - `docs/next_steps_rag_project_plan.md`
-    - `docs/current-dev-setup.md`
-  - 同步内容（最小范围）：
-    - `P3` source family 盘点表中的 `external re-sync` 行已对齐当前实现：`web_page` 的 config 丢失恢复与 `feed/sitemap` 的缺失 `maxItems/maxPages` 恢复均已记录为已收口范围
-    - `P3 task 5` 现已补入可复用的 source follow-up focused validation baseline（`external-source-sync` / `fetch-with-retry` / `parsing`）与回归确认口径
-    - `docs/current-dev-setup.md` 现已同步同一组 P3 最小复用验证命令，避免计划文档与 setup 文档口径漂移
-  - 新增 / 更新验证：
-    - `pnpm test:api:file -- test/external-source-sync.test.js`（当前基线存在 1 条失败用例：`DocumentsService records a failed external_resync run when stored source config is invalid`）
-    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
-    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
-  - 实测结果：`fetch-with-retry` focused tests passed (`13/13`)；docs diff check passed
 
 - ✅ P2 `resource access matrix` 已完成第一版 ACL 边界盘点（聚焦 knowledge base / assistant / conversation / trace）
   - 变更文件：`docs/next_steps_rag_project_plan.md`

@@ -93,22 +93,18 @@ export class DocumentsService {
   }
 
   async getDocument(id: string, scope?: DocumentAccessScope | null) {
-    const document = await this.prisma.document.findFirst({
+    const document = await this.prisma.document.findUnique({
       where: {
-        id,
-        ...(scope
-          ? {
-              knowledgeBase: {
-                tenantId: scope.tenantId,
-                ownerId: scope.userId
-              }
-            }
-          : {})
+        id
       }
     });
 
     if (!document) {
       throw new NotFoundException(`Document ${id} not found.`);
+    }
+
+    if (scope) {
+      await this.knowledgeBasesService.getKnowledgeBase(document.kbId, scope);
     }
 
     return document;

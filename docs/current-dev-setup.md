@@ -124,8 +124,9 @@ AUTH_SESSION_TTL_HOURS=168
   - cookie name default is `rag_session`
   - login session TTL default is `168` hours (`7` days)
   - route policy baseline now distinguishes public and authenticated API routes:
-    - `GET /health`, `POST /auth/login`, `POST /auth/logout` are public
-    - `GET /auth/me` currently requires an authenticated session cookie and returns `401` when unauthenticated
+    - public: `GET /health`, `POST /auth/login`, `POST /auth/logout`
+    - authenticated: `GET /auth/me` plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, and `traces`
+    - `GET /auth/me` and the owner-scoped business routes require an authenticated session cookie and return `401` when unauthenticated
   - backend now exposes minimal auth loop endpoints:
     - `POST /auth/login` (sets session cookie, returns identity)
     - `POST /auth/logout` (revokes current session when present, clears cookie)
@@ -134,6 +135,13 @@ AUTH_SESSION_TTL_HOURS=168
     - allow only when `tenantId` matches and `ownerId === userId`
     - deny when tenant mismatches, owner mismatches, or owner is unassigned
     - conservative fallback: unsupported access action or unsupported resource kind is denied explicitly (`unsupported_action` / `unsupported_resource_kind`)
+    - the current focused ACL/access-control regression baseline is:
+      - `pnpm test:api:focus:acl`
+      - coverage stays intentionally narrow to the implemented owner-scoped access rules:
+        - auth route-policy/session boundary guard
+        - owner-only access-policy contract decisions
+        - knowledge-base owner-scoped read/write paths
+        - document + knowledge-base scoped document access paths
   - web auth bootstrap now calls `GET /auth/me` at app-shell entry and redirects unauthenticated users to `/login`
   - web app shell now exposes a minimal `Logout` action that calls `POST /auth/logout`, clears auth-scoped cached query state, and returns to `/login`
   - web API requests now include credentials by default so the auth session cookie is sent for protected API routes
@@ -570,6 +578,8 @@ Recommended API test entrypoints by change type:
   - `pnpm test:api:file -- test/<name>.test.js`
 - assistant API patch / retrieval-profile API behavior:
   - `pnpm test:api:integration`
+- auth/ACL owner-scoped access-control baseline:
+  - `pnpm test:api:focus:acl`
 - assistant API config work plus ask-path regression coverage:
   - `pnpm test:api:focus:api-config`
 - document / ask main flow closeout:
@@ -771,7 +781,7 @@ Notes:
 - external source HTTP fetches now share a small retry guard: one automatic retry for transient `408` / `429` / `5xx` upstream responses before surfacing the failure
 - external source creation now reserves a `Document` record before remote fetch, so when `web page` / `feed` / `sitemap` source fetch fails the failure is still visible later through `GET /knowledge-bases/:id/documents` and `GET /documents/:id`
 - external source documents now persist `sourceConfigJson`, and `POST /documents/:id/reindex` for `web_page` / `feed` / `sitemap` performs a true remote re-sync using the stored source config instead of only re-parsing the previous generated text artifact
-- if an external source document later loses a valid `sourceConfigJson`, `POST /documents/:id/reindex` now still creates a new `external_resync` run/version and then records a structured non-retryable failure instead of failing before run history is written
+- if an external source document later loses a valid `sourceConfigJson`, `POST /documents/:id/reindex` now first attempts legacy recovery from document identity (`sourceType + sourceName`) for `web_page` / `feed` / `sitemap` (with default `maxItems/maxPages=20` for feed/sitemap); only unrecoverable cases still record a structured non-retryable config failure after writing the new run/version
 - when an external source re-sync does not yield a new source-level title, the backend now preserves the document's current `title` instead of overwriting it with the normalized URL fallback
 - the same title-preservation rule now also applies when posting the same external source URL again and the backend reuses the existing document record for a fresh sync
 - external source fetch diagnostics now distinguish retryability at the source-fetch boundary:
