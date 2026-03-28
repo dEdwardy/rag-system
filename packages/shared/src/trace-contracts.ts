@@ -125,6 +125,7 @@ export type TraceSummary = {
   contextReadabilitySentence: string;
   citationCount: number;
   citationCountReadabilityLabel: string;
+  citationCountReadabilitySentence: string;
   citationCountBeforeLimit: number;
   citationLimitHit: boolean;
   usedFallback: boolean;

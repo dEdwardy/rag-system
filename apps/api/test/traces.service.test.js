@@ -136,6 +136,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     contextReadabilitySentence: "Prompt context used 1 items via unknown mode (1 input chunks, 0 context groups, 1 retrieved chunks).",
     citationCount: 0,
     citationCountReadabilityLabel: "no citations",
+    citationCountReadabilitySentence: "Citation count summary: no citations.",
     citationCountBeforeLimit: 0,
     citationLimitHit: false,
     usedFallback: false
@@ -471,6 +472,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     contextReadabilitySentence: "Prompt context used 1 items via context_groups mode (2 input chunks, 1 context groups, 2 retrieved chunks).",
     citationCount: 1,
     citationCountReadabilityLabel: "1 citation shown (3 before limit)",
+    citationCountReadabilitySentence: "Citation count summary: 1 citation shown (3 before limit).",
     citationCountBeforeLimit: 3,
     citationLimitHit: true,
     usedFallback: true

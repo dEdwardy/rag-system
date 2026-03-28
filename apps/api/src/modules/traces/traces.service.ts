@@ -265,6 +265,9 @@ export class TracesService {
       citationCountBeforeLimit,
       citationLimitHit
     });
+    const citationCountReadabilitySentence = this.buildCitationCountReadabilitySentence(
+      citationCountReadabilityLabel
+    );
     const missingInformationProvenanceSentence = this.buildMissingInformationProvenanceSentence({
       missingInformationSource,
       insufficientContextReason,
@@ -418,6 +421,7 @@ export class TracesService {
       contextReadabilitySentence,
       citationCount,
       citationCountReadabilityLabel,
+      citationCountReadabilitySentence,
       citationCountBeforeLimit,
       citationLimitHit,
       usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
@@ -583,6 +587,12 @@ export class TracesService {
     }
 
     return `${input.citationCount} citations shown (${input.citationCountBeforeLimit} before limit)`;
+  }
+
+  private buildCitationCountReadabilitySentence(
+    citationCountReadabilityLabel: TraceSummary["citationCountReadabilityLabel"]
+  ): TraceSummary["citationCountReadabilitySentence"] {
+    return `Citation count summary: ${citationCountReadabilityLabel}.`;
   }
 
   private buildCandidateCountReadabilityLabel(input: {

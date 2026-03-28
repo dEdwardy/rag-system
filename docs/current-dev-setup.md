@@ -251,6 +251,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `contextReadabilitySentence` (one-line prompt-context composition sentence)
     - `citationCount`
     - `citationCountReadabilityLabel` (citation count readability label)
+    - `citationCountReadabilitySentence` (one-line citation count readability sentence)
     - `citationCountBeforeLimit`
     - `citationLimitHit`
     - `usedFallback`
