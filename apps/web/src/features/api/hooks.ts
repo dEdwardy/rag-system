@@ -13,6 +13,7 @@ import {
   KnowledgeBase,
   KnowledgeBaseDocumentRunRecord,
   KnowledgeBaseDocumentRunSummary,
+  EvalQuestionSetRunResult,
   Message,
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -371,6 +372,23 @@ export function useUpdateRetrievalProfile(retrievalProfileId: string) {
       queryClient.invalidateQueries({ queryKey: ["retrieval-profiles"] });
       queryClient.invalidateQueries({ queryKey: ["assistants"] });
     }
+  });
+}
+
+export function useRunEvalQuestionSet() {
+  return useMutation({
+    mutationFn: (payload: {
+      questionSetId: string;
+      assistantId: string;
+      baselineSnapshotId?: string;
+    }) =>
+      apiRequest<EvalQuestionSetRunResult>(`/eval/question-sets/${payload.questionSetId}/runs`, {
+        method: "POST",
+        body: {
+          assistantId: payload.assistantId,
+          ...(payload.baselineSnapshotId ? { baselineSnapshotId: payload.baselineSnapshotId } : {})
+        }
+      })
   });
 }
 

@@ -378,6 +378,38 @@ export type AskQualityEvaluation = {
   summary: string;
 };
 
+export type EvalQuestionSetRunItem = {
+  index: number;
+  question: string;
+  status: "succeeded" | "failed";
+  traceId: string | null;
+  conversationId: string | null;
+  answerStatus: string | null;
+  qualityOverall: string | null;
+  qualityPrimaryIssue: string | null;
+  citationCount: number;
+  usedFallback: boolean | null;
+  error: {
+    message: string;
+    code: string | null;
+  } | null;
+};
+
+export type EvalQuestionSetRunResult = {
+  questionSetId: string;
+  baselineSnapshotId: string;
+  baselineVersion: number;
+  assistantId: string;
+  startedAt: string;
+  finishedAt: string;
+  totals: {
+    total: number;
+    succeeded: number;
+    failed: number;
+  };
+  items: EvalQuestionSetRunItem[];
+};
+
 export type AskResponse = {
   conversationId: string;
   userMessageId: string;
