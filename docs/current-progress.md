@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 eval baseline comparison now includes a scan-first diff summary for quick regression review
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 的 `baselineComparison` 新增可选 `diffSummary`，汇总回归/改进/不变指标数量、回归指标明细、回归题目数和高频回归原因，便于快速扫描
+    - markdown/html report export 新增 `Diff summary` 区块，离线复盘时可直接查看 headline + metric/reason 聚合
+    - Report center 新增 `Run diff summary` 展示卡片，优先呈现 headline 和 top regression reasons，减少逐条查看 weakest items 的前置成本
+    - 范围保持在 P5 v1 结果可读性增强：不改 schema、不改 retrieval/answer 行为语义、不扩展新评测框架
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P5 v1 eval run now includes per-question failure drilldown so regression review can focus on weakest items first
   - 变更文件：
     - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`

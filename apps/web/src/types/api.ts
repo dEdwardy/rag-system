@@ -484,6 +484,24 @@ export type EvalQuestionSetRunResult = {
       regressedQuestionCount: number;
       weakestItems: EvalQuestionSetFailureDrilldownItem[];
     };
+    diffSummary?: {
+      headline: string;
+      regressedMetricCount: number;
+      improvedMetricCount: number;
+      unchangedMetricCount: number;
+      regressedQuestionCount: number;
+      regressedMetrics: EvalQuestionSetRunComparisonMetric[];
+      improvedMetrics: EvalQuestionSetRunComparisonMetric[];
+      topRegressionReasons: Array<{
+        reasonCode:
+          | "became_failed"
+          | "became_insufficient_context"
+          | "quality_degraded"
+          | "fallback_introduced"
+          | "citations_decreased";
+        count: number;
+      }>;
+    };
   };
   reportExports?: {
     markdown: {

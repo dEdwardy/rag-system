@@ -766,11 +766,60 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
           delta: -1
         }
       ]
+    },
+    diffSummary: {
+      headline: "metrics regressed: 6; improved: 0; unchanged: 1; regressed questions: 0",
+      regressedMetricCount: 6,
+      improvedMetricCount: 0,
+      unchangedMetricCount: 1,
+      regressedQuestionCount: 0,
+      regressedMetrics: [
+        {
+          metric: "succeeded",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "failed",
+          current: 1,
+          baseline: 0,
+          delta: 1
+        },
+        {
+          metric: "successRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "groundedRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "strongRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "averageCitationCount",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        }
+      ],
+      improvedMetrics: [],
+      topRegressionReasons: []
     }
   });
   assert.equal(result.reportExports.markdown.format, "markdown");
   assert.equal(result.reportExports.json.format, "json");
   assert.equal(result.reportExports.html.format, "html");
+  assert.match(result.reportExports.markdown.content, /## Diff summary/);
+  assert.match(result.reportExports.html.content, /<h2>Diff summary<\/h2>/);
 });
 
 test("EvalQuestionSetsService runQuestionSet returns per-question failure drilldown for regressions", async () => {
@@ -926,6 +975,76 @@ test("EvalQuestionSetsService runQuestionSet returns per-question failure drilld
           usedFallback: true,
           error: null
         }
+      }
+    ]
+  });
+  assert.deepEqual(result.baselineComparison?.diffSummary, {
+    headline: "metrics regressed: 7; improved: 0; unchanged: 0; regressed questions: 2",
+    regressedMetricCount: 7,
+    improvedMetricCount: 0,
+    unchangedMetricCount: 0,
+    regressedQuestionCount: 2,
+    regressedMetrics: [
+      {
+        metric: "succeeded",
+        current: 1,
+        baseline: 2,
+        delta: -1
+      },
+      {
+        metric: "failed",
+        current: 1,
+        baseline: 0,
+        delta: 1
+      },
+      {
+        metric: "successRate",
+        current: 0.5,
+        baseline: 1,
+        delta: -0.5
+      },
+      {
+        metric: "groundedRate",
+        current: 0.5,
+        baseline: 1,
+        delta: -0.5
+      },
+      {
+        metric: "strongRate",
+        current: 0,
+        baseline: 1,
+        delta: -1
+      },
+      {
+        metric: "fallbackRate",
+        current: 0.5,
+        baseline: 0,
+        delta: 0.5
+      },
+      {
+        metric: "averageCitationCount",
+        current: 0.5,
+        baseline: 2,
+        delta: -1.5
+      }
+    ],
+    improvedMetrics: [],
+    topRegressionReasons: [
+      {
+        reasonCode: "citations_decreased",
+        count: 2
+      },
+      {
+        reasonCode: "became_failed",
+        count: 1
+      },
+      {
+        reasonCode: "fallback_introduced",
+        count: 1
+      },
+      {
+        reasonCode: "quality_degraded",
+        count: 1
       }
     ]
   });

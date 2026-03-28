@@ -37,6 +37,24 @@ type EvalRunComparisonMetric = {
   delta: number;
 };
 
+type EvalRunDiffMetricDirection = "regressed" | "improved";
+
+type EvalRunDiffReasonCount = {
+  reasonCode: EvalRunRegressionReasonCode;
+  count: number;
+};
+
+type EvalRunDiffSummary = {
+  headline: string;
+  regressedMetricCount: number;
+  improvedMetricCount: number;
+  unchangedMetricCount: number;
+  regressedQuestionCount: number;
+  regressedMetrics: EvalRunComparisonMetric[];
+  improvedMetrics: EvalRunComparisonMetric[];
+  topRegressionReasons: EvalRunDiffReasonCount[];
+};
+
 type EvalRunRegressionReasonCode =
   | "became_failed"
   | "became_insufficient_context"
@@ -115,6 +133,7 @@ type EvalQuestionSetRunResultPayload = {
       regressedQuestionCount: number;
       weakestItems: EvalRunQuestionRegression[];
     };
+    diffSummary?: EvalRunDiffSummary;
   };
 };
 
@@ -402,6 +421,9 @@ export class EvalQuestionSetsService {
       pinnedBaselineSummary && comparisonMeaningful ? this.buildRunComparison(runSummary, pinnedBaselineSummary) : null;
     const failureDrilldown =
       pinnedBaselineItems && comparisonMeaningful ? this.buildFailureDrilldown(items, pinnedBaselineItems) : null;
+    const diffSummary = baselineComparison
+      ? this.buildRunDiffSummary(baselineComparison.metrics, failureDrilldown)
+      : null;
 
     await this.prisma.evalQuestionSet.update({
       where: { id },
@@ -441,7 +463,8 @@ export class EvalQuestionSetsService {
         comparisonMeaningful,
         questionSetDrift,
         ...(baselineComparison ? { deltas: baselineComparison } : {}),
-        ...(failureDrilldown ? { failureDrilldown } : {})
+        ...(failureDrilldown ? { failureDrilldown } : {}),
+        ...(diffSummary ? { diffSummary } : {})
       }
     };
 
@@ -881,6 +904,91 @@ export class EvalQuestionSetsService {
     };
   }
 
+  private buildRunDiffSummary(
+    metrics: EvalRunComparisonMetric[],
+    failureDrilldown: EvalQuestionSetRunResultPayload["baselineComparison"]["failureDrilldown"] | null
+  ): EvalRunDiffSummary {
+    const regressedMetrics = metrics.filter(metric => this.readMetricDiffDirection(metric) === "regressed");
+    const improvedMetrics = metrics.filter(metric => this.readMetricDiffDirection(metric) === "improved");
+    const unchangedMetricCount = metrics.length - regressedMetrics.length - improvedMetrics.length;
+    const regressedQuestionCount = failureDrilldown?.regressedQuestionCount ?? 0;
+    const topRegressionReasons = this.summarizeRegressionReasons(failureDrilldown);
+
+    return {
+      headline: this.buildRunDiffHeadline({
+        regressedMetricCount: regressedMetrics.length,
+        improvedMetricCount: improvedMetrics.length,
+        unchangedMetricCount,
+        regressedQuestionCount
+      }),
+      regressedMetricCount: regressedMetrics.length,
+      improvedMetricCount: improvedMetrics.length,
+      unchangedMetricCount,
+      regressedQuestionCount,
+      regressedMetrics,
+      improvedMetrics,
+      topRegressionReasons
+    };
+  }
+
+  private summarizeRegressionReasons(
+    failureDrilldown: EvalQuestionSetRunResultPayload["baselineComparison"]["failureDrilldown"] | null
+  ): EvalRunDiffReasonCount[] {
+    if (!failureDrilldown) {
+      return [];
+    }
+
+    const reasonCounts = new Map<EvalRunRegressionReasonCode, number>();
+    for (const item of failureDrilldown.weakestItems) {
+      for (const reasonCode of item.reasonCodes) {
+        reasonCounts.set(reasonCode, (reasonCounts.get(reasonCode) ?? 0) + 1);
+      }
+    }
+
+    return Array.from(reasonCounts.entries())
+      .map(([reasonCode, count]) => ({ reasonCode, count }))
+      .sort((left, right) => {
+        if (right.count !== left.count) {
+          return right.count - left.count;
+        }
+        return left.reasonCode.localeCompare(right.reasonCode);
+      })
+      .slice(0, 5);
+  }
+
+  private buildRunDiffHeadline(input: {
+    regressedMetricCount: number;
+    improvedMetricCount: number;
+    unchangedMetricCount: number;
+    regressedQuestionCount: number;
+  }): string {
+    return [
+      `metrics regressed: ${input.regressedMetricCount}`,
+      `improved: ${input.improvedMetricCount}`,
+      `unchanged: ${input.unchangedMetricCount}`,
+      `regressed questions: ${input.regressedQuestionCount}`
+    ].join("; ");
+  }
+
+  private readMetricDiffDirection(metric: EvalRunComparisonMetric): EvalRunDiffMetricDirection | null {
+    if (metric.delta === 0) {
+      return null;
+    }
+
+    const higherIsBetter =
+      metric.metric === "succeeded" ||
+      metric.metric === "successRate" ||
+      metric.metric === "groundedRate" ||
+      metric.metric === "strongRate" ||
+      metric.metric === "averageCitationCount";
+
+    if (higherIsBetter) {
+      return metric.delta < 0 ? "regressed" : "improved";
+    }
+
+    return metric.delta > 0 ? "regressed" : "improved";
+  }
+
   private buildQuestionRegression(
     current: EvalRunItem,
     baseline: EvalRunQuestionSnapshot
@@ -1092,6 +1200,26 @@ export class EvalQuestionSetsService {
       `- questionSetDrift.removedQuestionCount: ${report.baselineComparison.questionSetDrift.removedQuestionCount}`,
       `- questionSetDrift.unchangedQuestionCount: ${report.baselineComparison.questionSetDrift.unchangedQuestionCount}`,
       "",
+      "## Diff summary",
+      ...(report.baselineComparison.diffSummary
+        ? [
+            `- headline: ${report.baselineComparison.diffSummary.headline}`,
+            `- regressedMetricCount: ${report.baselineComparison.diffSummary.regressedMetricCount}`,
+            `- improvedMetricCount: ${report.baselineComparison.diffSummary.improvedMetricCount}`,
+            `- unchangedMetricCount: ${report.baselineComparison.diffSummary.unchangedMetricCount}`,
+            `- regressedQuestionCount: ${report.baselineComparison.diffSummary.regressedQuestionCount}`,
+            `- regressedMetrics: ${report.baselineComparison.diffSummary.regressedMetrics
+              .map(metric => `${metric.metric}(${metric.delta})`)
+              .join(", ") || "none"}`,
+            `- improvedMetrics: ${report.baselineComparison.diffSummary.improvedMetrics
+              .map(metric => `${metric.metric}(${metric.delta})`)
+              .join(", ") || "none"}`,
+            `- topRegressionReasons: ${report.baselineComparison.diffSummary.topRegressionReasons
+              .map(reason => `${reason.reasonCode}(${reason.count})`)
+              .join(", ") || "none"}`
+          ]
+        : ["- headline: not_available"]),
+      "",
       "## Failure drilldown",
       ...(report.baselineComparison.failureDrilldown
         ? [
@@ -1205,6 +1333,13 @@ export class EvalQuestionSetsService {
           .join("\n")
       : "";
 
+    const diffSummary = report.baselineComparison.diffSummary;
+    const diffSummaryReasonList = diffSummary
+      ? diffSummary.topRegressionReasons
+          .map(reason => `<li><code>${this.escapeHtml(reason.reasonCode)}</code>: <code>${reason.count}</code></li>`)
+          .join("")
+      : "";
+
     return `<!doctype html>
 <html lang="en">
   <head>
@@ -1265,6 +1400,25 @@ export class EvalQuestionSetsService {
       <li>questionSetDrift.removedQuestionCount: <code>${report.baselineComparison.questionSetDrift.removedQuestionCount}</code></li>
       <li>questionSetDrift.unchangedQuestionCount: <code>${report.baselineComparison.questionSetDrift.unchangedQuestionCount}</code></li>
     </ul>
+
+    <h2>Diff summary</h2>
+    <ul>
+      <li>headline: <code>${this.escapeHtml(diffSummary?.headline ?? "not_available")}</code></li>
+      <li>regressedMetricCount: <code>${diffSummary?.regressedMetricCount ?? "-"}</code></li>
+      <li>improvedMetricCount: <code>${diffSummary?.improvedMetricCount ?? "-"}</code></li>
+      <li>unchangedMetricCount: <code>${diffSummary?.unchangedMetricCount ?? "-"}</code></li>
+      <li>regressedQuestionCount: <code>${diffSummary?.regressedQuestionCount ?? "-"}</code></li>
+      <li>regressedMetrics: <code>${this.escapeHtml(
+        diffSummary?.regressedMetrics.map(metric => `${metric.metric}(${metric.delta})`).join(", ") || "none"
+      )}</code></li>
+      <li>improvedMetrics: <code>${this.escapeHtml(
+        diffSummary?.improvedMetrics.map(metric => `${metric.metric}(${metric.delta})`).join(", ") || "none"
+      )}</code></li>
+    </ul>
+    ${diffSummary ? `<div>
+      <div>topRegressionReasons</div>
+      <ul>${diffSummaryReasonList || "<li><code>none</code></li>"}</ul>
+    </div>` : ""}
 
     <h2>Failure drilldown</h2>
     <ul>

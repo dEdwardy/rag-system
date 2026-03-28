@@ -79,6 +79,7 @@ export function ReportCenterPage() {
   }, [locale, runEvalMutation.data]);
 
   const regressionDrilldownItems = runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [];
+  const runDiffSummary = runEvalMutation.data?.baselineComparison?.diffSummary;
 
   function getRegressionReasonLabel(reasonCode: string) {
     if (locale === "zh") {
@@ -264,6 +265,45 @@ export function ReportCenterPage() {
               ) : (
                 <Text c="var(--app-text-muted)" size="sm">
                   {locale === "zh" ? "暂无可汇总的质量结果。" : "No quality results available yet."}
+                </Text>
+              )}
+            </Stack>
+          </Paper>
+
+          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+            <Stack gap="sm">
+              <div className="workspace-section-heading">{locale === "zh" ? "Run 差异摘要" : "Run diff summary"}</div>
+              {runDiffSummary ? (
+                <>
+                  <Text c="var(--app-text-muted)" size="sm">
+                    {runDiffSummary.headline}
+                  </Text>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">regressedMetrics</span>
+                      <span className="workspace-meta-value">{runDiffSummary.regressedMetricCount}</span>
+                    </div>
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">improvedMetrics</span>
+                      <span className="workspace-meta-value">{runDiffSummary.improvedMetricCount}</span>
+                    </div>
+                  </div>
+                  {runDiffSummary.topRegressionReasons.length > 0 ? (
+                    <div className="grid gap-2">
+                      {runDiffSummary.topRegressionReasons.map(reason => (
+                        <div className="workspace-meta-row" key={reason.reasonCode}>
+                          <span className="workspace-meta-label">{getRegressionReasonLabel(reason.reasonCode)}</span>
+                          <span className="workspace-meta-value">{reason.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <Text c="var(--app-text-muted)" size="sm">
+                  {locale === "zh"
+                    ? "当前 run 缺少可用差异摘要（通常需 baseline 对照已就绪）。"
+                    : "Run diff summary is unavailable for this comparison (baseline delta not ready)."}
                 </Text>
               )}
             </Stack>
