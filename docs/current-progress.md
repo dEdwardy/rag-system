@@ -13,6 +13,13 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace detail execution summary now surfaces trace-summary provenance readability rows
+  - `apps/web/src/pages/traces/TraceDetailPage.tsx` now adds two additive execution-summary rows bound to existing trace-summary fields: `answerProvenanceSentence` and `missingInformationProvenanceSentence`
+  - `apps/web/test/ui-review-regressions.test.js` adds one focused UI regression guard to ensure these provenance rows remain visible in trace detail
+  - scope remains web read-model surfacing only: no backend contract changes, no trace-summary generation logic changes, no page redesign
+  - 新增 / 更新验证：
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+
 - ✅ trace summary `strategyReadabilityLabel` now avoids ambiguous `fallback: none` wording when fallback usage is known true
   - `apps/api/src/modules/traces/traces.service.ts` now renders `fallback: unspecified` (instead of `fallback: none`) when resolved strategy summary indicates `usedFallback=true` but `fallbackReason` is missing (legacy partial metadata path)
   - `apps/api/test/traces.service.test.js` updates the legacy top-level `usedFallback` regression expectation to guard the new wording

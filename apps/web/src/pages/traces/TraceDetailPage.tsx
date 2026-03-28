@@ -325,6 +325,16 @@ export function TraceDetailPage() {
                     <span className="workspace-meta-label">{locale === "zh" ? "引用摘要" : "Citation summary"}</span>
                     <span className="workspace-meta-value">{traceSummary.citationCountReadabilityLabel}</span>
                   </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">{locale === "zh" ? "回答溯源" : "Answer provenance"}</span>
+                    <span className="workspace-meta-value">{traceSummary.answerProvenanceSentence}</span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">
+                      {locale === "zh" ? "缺失信息溯源" : "Missing-information provenance"}
+                    </span>
+                    <span className="workspace-meta-value">{traceSummary.missingInformationProvenanceSentence}</span>
+                  </div>
                 </div>
               ) : null}
             </Stack>

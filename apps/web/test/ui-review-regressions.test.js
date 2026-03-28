@@ -73,6 +73,8 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   assert.match(chatSource, /Ready to ask|准备提问/);
   assert.match(traceSource, /Execution summary|执行摘要/);
   assert.match(traceSource, /workspace-metric-grid/);
+  assert.match(traceSource, /Answer provenance|回答溯源/);
+  assert.match(traceSource, /Missing-information provenance|缺失信息溯源/);
   assert.match(statePanelSource, /data-tone=/);
 });
 
