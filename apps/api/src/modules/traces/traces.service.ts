@@ -246,6 +246,11 @@ export class TracesService {
       ?? this.readNullableBoolean(strategySummary?.usedFallback)
       ?? this.readNullableBoolean(retrievalMetadata?.usedFallback)
       ?? (fallbackReason != null ? true : null);
+    const retrievalModeProvenanceSentence = this.buildRetrievalModeProvenanceSentence({
+      retrievalMode,
+      strategyUsedFallback,
+      fallbackReason
+    });
     const answerAttributionSummary = buildAnswerAttributionSummary({
       attribution: citationAttribution,
       source: citationSelectionSource
@@ -350,6 +355,7 @@ export class TracesService {
         fallbackReason,
         strategyUsedFallback
       }),
+      retrievalModeProvenanceSentence,
       rewriteReadabilityLabel: this.buildRewriteReadabilityLabel({
         rewriteEnabled,
         rewriteApplied,
@@ -703,5 +709,27 @@ export class TracesService {
         : "no";
     const rewritePromptLabel = input.rewritePromptId ?? "unknown";
     return `rewrite ${rewriteEnabledLabel}; rewrite applied: ${rewriteAppliedLabel}; rewrite fallback: ${rewriteFallbackLabel}; rewrite prompt: ${rewritePromptLabel}.`;
+  }
+
+  private buildRetrievalModeProvenanceSentence(input: {
+    retrievalMode: TraceSummary["retrievalMode"];
+    strategyUsedFallback: TraceSummary["strategySummary"]["usedFallback"];
+    fallbackReason: TraceSummary["fallbackReason"];
+  }): TraceSummary["retrievalModeProvenanceSentence"] {
+    const retrievalModeLabel = input.retrievalMode ?? "unknown";
+
+    if (input.strategyUsedFallback === true) {
+      if (input.fallbackReason == null) {
+        return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was used (reason unspecified).`;
+      }
+
+      return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was used due to ${input.fallbackReason}.`;
+    }
+
+    if (input.strategyUsedFallback === false) {
+      return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was not used.`;
+    }
+
+    return `Resolved retrieval mode is ${retrievalModeLabel}; fallback usage is unknown.`;
   }
 }

@@ -73,6 +73,7 @@ export type TraceSummary = {
   retrievalMode: TraceRetrievalMode | null;
   retrievalQuerySource: TraceRetrievalQuerySource | null;
   strategyReadabilityLabel: string;
+  retrievalModeProvenanceSentence: string;
   rewriteReadabilityLabel: string;
   strategySummary: RetrievalStrategySummary;
   generationMode: TraceGenerationMode | null;

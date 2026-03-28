@@ -63,6 +63,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     retrievalMode: "vector",
     retrievalQuerySource: "original_disabled",
     strategyReadabilityLabel: "vector retrieval via original_disabled; fallback: none; fallback used: unknown.",
+    retrievalModeProvenanceSentence: "Resolved retrieval mode is vector; fallback usage is unknown.",
     rewriteReadabilityLabel: "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown.",
     strategySummary: {
       retrievalMode: "vector",
@@ -399,6 +400,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     retrievalMode: "hybrid",
     retrievalQuerySource: "rewritten",
     strategyReadabilityLabel: "hybrid retrieval via rewritten; fallback: no_ranked_candidates; fallback used: yes.",
+    retrievalModeProvenanceSentence: "Resolved retrieval mode is hybrid; fallback was used due to no_ranked_candidates.",
     rewriteReadabilityLabel: "rewrite enabled; rewrite applied: yes; rewrite fallback: unknown; rewrite prompt: unknown.",
     strategySummary: {
       retrievalMode: "hybrid",
@@ -916,6 +918,10 @@ test("TracesService backfills strategySummary.usedFallback from legacy top-level
 
   assert.equal(detail.traceSummary.fallbackReason, null);
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
+  assert.equal(
+    detail.traceSummary.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is unknown; fallback was used (reason unspecified)."
+  );
   assert.equal(
     detail.traceSummary.strategyReadabilityLabel,
     "unknown mode retrieval via original_disabled; fallback: unspecified; fallback used: yes."

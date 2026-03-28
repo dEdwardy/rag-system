@@ -181,6 +181,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `retrievalMode`
     - `retrievalQuerySource`
     - `strategyReadabilityLabel` (one-line retrieval/fallback summary)
+    - `retrievalModeProvenanceSentence` (one-line resolved retrieval-mode + fallback-usage provenance)
     - `rewriteReadabilityLabel` (one-line rewrite execution summary)
     - `strategySummary`
       - `retrievalMode`
@@ -320,6 +321,8 @@ LLM_REWRITE_TEMPERATURE=0
   - current `traceSummary` readability field examples (derived from `apps/api/src/modules/traces/traces.service.ts`):
     - `strategyReadabilityLabel` example:
       - `hybrid retrieval via rewritten; fallback: none; fallback used: no.`
+    - `retrievalModeProvenanceSentence` example:
+      - `Resolved retrieval mode is hybrid; fallback was not used.`
     - `rewriteReadabilityLabel` example:
       - `rewrite enabled; rewrite applied: yes; rewrite fallback: no; rewrite prompt: rewrite-query.v1.`
     - `answerAttributionSummary.readability` example values:

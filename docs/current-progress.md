@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now exposes additive `retrievalModeProvenanceSentence` for clearer retrieval-mode fallback provenance scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `retrievalModeProvenanceSentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing resolved `retrievalMode`, `strategySummary.usedFallback`, and `fallbackReason`
+  - `apps/api/test/traces.service.test.js` updates baseline summary snapshots and adds one legacy regression assertion for the `usedFallback=true + fallbackReason missing` wording path
+  - `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field; `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
 - ✅ trace summary now exposes additive `citationCountReadabilitySentence` for faster citation-budget scanning
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `citationCountReadabilitySentence: string`
   - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing citation count readability label (`Citation count summary: <label>.`)
