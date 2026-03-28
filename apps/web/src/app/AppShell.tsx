@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { useConversations, useDocuments, useKnowledgeBases } from "../features/api/hooks";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useConversations, useDocuments, useKnowledgeBases, useLogout } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
 import { useThemePreferences } from "./theme-preferences";
 
@@ -172,8 +172,10 @@ function ActionButton({ children, label }: { children: React.ReactNode; label: s
 
 export function AppShell() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { locale, setLocale } = useI18n();
   const { themeColor, themeLayout, setThemeColor, setThemeLayout } = useThemePreferences();
+  const logoutMutation = useLogout();
   const [isHydrated, setIsHydrated] = useState(false);
   const knowledgeBasesQuery = useKnowledgeBases(isHydrated);
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
@@ -205,6 +207,14 @@ export function AppShell() {
   );
 
   const activeLabel = getActiveLabel(location.pathname, links, localeKey);
+
+  function onLogoutClick() {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        navigate("/login", { replace: true });
+      }
+    });
+  }
 
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--app-bg)] font-sans text-[var(--app-text)]">
@@ -358,6 +368,14 @@ export function AppShell() {
                   EN
                 </button>
               </div>
+              <button
+                className="rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition duration-300 hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={logoutMutation.isPending}
+                onClick={onLogoutClick}
+                type="button"
+              >
+                {logoutMutation.isPending ? (locale === "zh" ? "退出中..." : "Logging out...") : locale === "zh" ? "退出登录" : "Logout"}
+              </button>
             </div>
           </header>
 

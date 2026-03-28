@@ -55,7 +55,7 @@ export function useLogout() {
         method: "POST"
       }),
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey: AUTH_ME_QUERY_KEY });
+      queryClient.removeQueries();
     }
   });
 }
