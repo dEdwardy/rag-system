@@ -228,8 +228,10 @@ function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbe
   const expectedDimensions = OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL[model];
 
   if (!expectedDimensions) {
+    const endpointHint = ` Resolved OpenAI embedding endpoint: ${openAiBaseUrl}/embeddings.`;
+
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported. Supported values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.`
+      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported. Supported values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.${endpointHint}`
     );
   }
 

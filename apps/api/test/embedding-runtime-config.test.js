@@ -166,6 +166,7 @@ test("resolveEmbeddingRuntimeConfig rejects unsupported OpenAI embedding models"
       assert.ok(error instanceof EmbeddingRuntimeConfigError);
       assert.match(error.message, /OPENAI_EMBEDDING_MODEL/);
       assert.match(error.message, /text-embedding-3-small/);
+      assert.match(error.message, /Resolved OpenAI embedding endpoint: https:\/\/api\.openai\.com\/v1\/embeddings\./);
       return true;
     }
   );

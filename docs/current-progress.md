@@ -34,6 +34,7 @@
 - ✅ embedding runtime now fails fast on malformed/non-HTTP base URL config for Ollama/OpenAI embedding providers
   - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now validates configured `OLLAMA_BASE_URL` and `OPENAI_BASE_URL` with explicit `EmbeddingRuntimeConfigError` diagnostics when URL parsing fails or protocol is not `http(s)`
   - `apps/api/test/embedding-runtime-config.test.js` adds focused regressions for malformed `OPENAI_BASE_URL` and non-HTTP `OLLAMA_BASE_URL`
+  - unsupported OpenAI embedding model diagnostics now also include the resolved embedding endpoint so the error carries one more already-resolved context value on that path
   - 新增 superpowers scoped note:
     - `docs/superpowers/specs/2026-03-28-embedding-base-url-guardrail-design.md`
     - `docs/superpowers/plans/2026-03-28-embedding-base-url-guardrail-plan.md`
