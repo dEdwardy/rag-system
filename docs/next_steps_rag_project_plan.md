@@ -342,6 +342,21 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    - 重点对象：knowledge base、document、assistant、conversation、trace
    - 交付物：一份最小资源-权限矩阵草案
 
+   当前代码盘点快照（2026-03-29，P2 task 1 最小增量）：
+
+   | 资源面 | 现有入口（聚焦 ACL 相关） | 当前已收口边界 | 当前缺口（ACL 下一步） |
+   | --- | --- | --- | --- |
+   | knowledge base | `GET /knowledge-bases`、`GET /knowledge-bases/:id`、`POST /knowledge-bases`、`PATCH /knowledge-bases/:id`；以及 `DocumentsController` 下 `knowledge-bases/:id/*` 文档与 run 入口 | `POST /knowledge-bases` 已从 request identity 写入 `tenantId/ownerId` | list/get/update 仍是按 id 直接访问；`knowledge-bases/:id/*` 入口也未统一做 owner/member 校验 |
+   | assistant | `GET /assistants`、`GET /assistants/:id`、`PATCH /assistants/:id`、`POST /assistants/:id/ask`、`POST /assistants/:id/ask/stream` | ask/ask-stream 在会话读取与创建时已使用 current identity（conversation scope） | assistant 自身 list/get/update/ask 入口尚未校验“该 identity 是否可访问 assistant/kb” |
+   | conversation | `GET /conversations`、`GET /conversations/:id`、`GET /conversations/:id/messages`、`GET /conversations/:id/traces` | 已按 `tenantId + userId` 做 list/get scope；messages/traces 先校验 conversation ownership | 仍是 owner-based baseline；尚未扩展 share scope / role policy |
+   | trace | `GET /conversations/:id/traces`、`GET /traces/:id` | conversation 下 traces 已复用 conversation ownership 边界 | `GET /traces/:id` 仍是直接按 trace id 读取，未与 conversation/assistant ownership 绑定 |
+
+   配套约束快照（与上表一起作为 ACL 起点）：
+
+   - 认证中间件对所有路由注入 `authContext`，但当前 route policy 仅 `@AuthenticatedRoute()` 会被 guard 拦截。
+   - 目前仅 `GET /auth/me` 显式标记 `authenticated`；上述业务面入口默认仍可未登录访问（依赖 dev fallback identity 参与部分写入/读取路径）。
+   - P2 的最小收口目标应是：先把 knowledge base / assistant / trace 关键入口对齐到与 conversation 相同的 identity ownership baseline，再讨论 share/role 扩展。
+
 2. 定义 resource access policy contract
    - 目标：统一 service 层如何表达“可访问 / 不可访问 / 原因”
    - 要求：不要把权限判断散落在 controller 和页面里

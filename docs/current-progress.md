@@ -15,6 +15,24 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P2 `resource access matrix` 已完成第一版 ACL 边界盘点（聚焦 knowledge base / assistant / conversation / trace）
+  - 变更文件：`docs/next_steps_rag_project_plan.md`
+  - 盘点基于当前代码路径：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.controller.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`（knowledge-base 相关入口）
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/src/modules/assistants/ask-assistant.service.ts`
+    - `apps/api/src/modules/conversations/conversations.controller.ts`
+    - `apps/api/src/modules/conversations/conversations.service.ts`
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/src/modules/auth/auth-route-policy.guard.ts`
+  - 结论（最小范围）：
+    - conversation 面已具备 `tenantId + userId` owner-based baseline
+    - knowledge base / assistant / direct trace read 仍存在按 id 可读写入口，待后续 ACL 收口
+    - route policy 当前仅对显式 `authenticated` 路由生效，业务路由默认仍未统一收口
+  - 新增 / 更新验证：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ web auth state now bootstraps from `GET /auth/me` and protects app routes with a minimal login gate
   - `apps/web/src/lib/api.ts` now sends `credentials: "include"` for API and stream requests, and surfaces HTTP status on request errors so auth bootstrap can distinguish `401`
   - `apps/web/src/types/api.ts` adds minimal `AuthIdentity` / `AuthMeResponse` types aligned with the backend auth contract
