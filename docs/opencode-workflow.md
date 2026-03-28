@@ -151,6 +151,17 @@ In normal day-to-day repository work:
 - frontend work still follows the same single-main-control-first default, with bounded helper use only for isolated low-risk adaptation
 - only use limited OMO help during `build` when the side task is clearly bounded
 - keep final validation and completion judgment with the main agent
+
+## Commit / Push / PR Norms
+
+- commit only files that belong to the current task
+- check `git status --short` before staging so unrelated edits stay out
+- use a concise commit message that matches the change type (`feat:`, `fix:`, `perf:`, `docs:`, `refactor:`)
+- push only after the task's focused validation passes
+- prefer updating the existing branch / PR instead of rewriting history unless a rebase is explicitly needed
+- default PR target follows the current task direction; for web frontend work in this repo, use `dev` unless the task says otherwise
+- if a PR has conflicts, resolve them locally, rerun the smallest relevant validation, then update the same PR when possible
+- keep frontend-only work frontend-only unless the task explicitly requires backend changes
 - do not default to `review` or heavy TDD for small edits
 
 ## Unattended Execution

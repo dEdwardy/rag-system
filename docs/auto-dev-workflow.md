@@ -126,6 +126,15 @@ Commit message style:
 - `fix: ...`
 - `refactor: ...`
 
+## Push / PR Policy
+
+- push after the relevant validation passes
+- prefer a normal push to the current branch instead of force-pushing
+- open or update the PR against the branch required by the task flow; for current web-only work, that is usually `dev`
+- if a PR is already open, keep using the same PR when the same branch is updated
+- resolve conflicts locally before pushing, then rerun the smallest relevant validation
+- keep the PR scope limited to the current task; do not mix unrelated cleanup or backend changes into a frontend PR
+
 ## Parallel Work Policy
 
 Parallelize only when it reduces risk and does not blur ownership.
