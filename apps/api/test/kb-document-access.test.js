@@ -98,14 +98,23 @@ test("DocumentsController passes request identity to knowledge-base and document
 });
 
 test("DocumentsService scopes getDocument by owning knowledge-base identity", async () => {
-  const findCalls = [];
+  const calls = {
+    documentGet: [],
+    knowledgeBaseGet: []
+  };
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
     prisma: {
       document: {
-        findFirst: async args => {
-          findCalls.push(args);
-          return { id: "document-1" };
+        findUnique: async args => {
+          calls.documentGet.push(args);
+          return { id: "document-1", kbId: "kb-1" };
         }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async (knowledgeBaseId, scope) => {
+        calls.knowledgeBaseGet.push({ knowledgeBaseId, scope });
+        return { id: knowledgeBaseId };
       }
     }
   });
@@ -115,15 +124,20 @@ test("DocumentsService scopes getDocument by owning knowledge-base identity", as
     userId: "user-auth"
   });
 
-  assert.deepEqual(result, { id: "document-1" });
-  assert.deepEqual(findCalls, [
+  assert.deepEqual(result, { id: "document-1", kbId: "kb-1" });
+  assert.deepEqual(calls.documentGet, [
     {
       where: {
-        id: "document-1",
-        knowledgeBase: {
-          tenantId: "tenant-auth",
-          ownerId: "user-auth"
-        }
+        id: "document-1"
+      }
+    }
+  ]);
+  assert.deepEqual(calls.knowledgeBaseGet, [
+    {
+      knowledgeBaseId: "kb-1",
+      scope: {
+        tenantId: "tenant-auth",
+        userId: "user-auth"
       }
     }
   ]);

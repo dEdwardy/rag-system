@@ -26,6 +26,7 @@
     "test:api:focus:documents": "pnpm --filter @rag-system/api test:focus:documents",
     "test:api:focus:sources": "pnpm --filter @rag-system/api test:focus:sources",
     "test:api:focus:api-config": "pnpm --filter @rag-system/api test:focus:api-config",
+    "test:api:focus:acl": "pnpm --filter @rag-system/api test:focus:acl",
     "test:api:e2e:chains": "pnpm --filter @rag-system/api test:e2e:chains",
     "test:api:e2e:sources": "pnpm --filter @rag-system/api test:e2e:sources",
     "test:api:e2e": "pnpm --filter @rag-system/api test:e2e",

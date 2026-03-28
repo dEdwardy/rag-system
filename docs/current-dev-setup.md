@@ -142,6 +142,7 @@ AUTH_SESSION_TTL_HOURS=168
         - owner-only access-policy contract decisions
         - knowledge-base owner-scoped read/write paths
         - document + knowledge-base scoped document access paths
+      - the baseline currently avoids assistant/trace ACL expansion and stays tied to the rules already implemented in this wave
   - web auth bootstrap now calls `GET /auth/me` at app-shell entry and redirects unauthenticated users to `/login`
   - web app shell now exposes a minimal `Logout` action that calls `POST /auth/logout`, clears auth-scoped cached query state, and returns to `/login`
   - web API requests now include credentials by default so the auth session cookie is sent for protected API routes

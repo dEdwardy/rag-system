@@ -23,6 +23,7 @@
     "test:focus:documents": "pnpm run test:fast:documents && pnpm run test:fast:infra",
     "test:focus:sources": "pnpm run test:fast:documents && pnpm run test:e2e:sources",
     "test:focus:api-config": "pnpm run test:integration && pnpm run test:fast:assistants",
+    "test:focus:acl": "node scripts/run-test-file.mjs test/auth-provider-boundary.test.js test/resource-access-policy.contract.test.js test/knowledge-bases-auth-write-path.test.js test/kb-document-access.test.js",
     "test:e2e:chains": "node scripts/ensure-build.mjs && node --test --test-concurrency=1 test/api-flow.test.js test/document-chain-e2e.test.js test/ask-chain-e2e.test.js test/ask-stream-e2e.test.js",
     "test:e2e:sources": "node scripts/ensure-build.mjs && node --test --test-concurrency=1 test/web-page-source-e2e.test.js test/feed-source-e2e.test.js test/sitemap-source-e2e.test.js",
     "test:e2e": "node scripts/ensure-build.mjs && node --test --test-concurrency=1 test/api-flow.test.js test/ask-chain-e2e.test.js test/ask-stream-e2e.test.js test/document-chain-e2e.test.js test/feed-source-e2e.test.js test/sitemap-source-e2e.test.js test/web-page-source-e2e.test.js",

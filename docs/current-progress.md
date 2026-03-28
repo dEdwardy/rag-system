@@ -45,6 +45,7 @@
       - `test/resource-access-policy.contract.test.js`
       - `test/knowledge-bases-auth-write-path.test.js`
       - `test/kb-document-access.test.js`
+    - the baseline is intentionally limited to already-implemented owner-scoped rules and does not broaden into assistant/trace ACL expansion
     - `docs/current-dev-setup.md` now records both the current `owner_only_v1` deny-by-default stance and the narrow regression baseline coverage
     - scope remains docs + validation-baseline sync only: no ACL policy expansion, no new resource access semantics
   - focused validation：
