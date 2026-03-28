@@ -7,6 +7,14 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
+import {
+  buildAnswerProvenanceReadabilitySentence,
+  buildAnswerProvenanceSentence,
+  buildAnswerStatusSourceReadabilityLabel,
+  buildAnswerStatusSourceReadabilitySentence,
+  buildAnswerTextSourceReadabilityLabel,
+  buildAnswerTextSourceReadabilitySentence
+} from "../answering/answer-source-readability";
 import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
 import { AnsweringService } from "../answering/answering.service";
@@ -213,7 +221,7 @@ export class AskAssistantService {
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
           : null
       );
-      const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel({
+      const answerTextSourceReadabilityLabel = buildAnswerTextSourceReadabilityLabel({
         answerTextSource,
         rawAnswerTextSource
       });
@@ -223,7 +231,7 @@ export class AskAssistantService {
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
           : null
       );
-      const answerStatusSourceReadabilityLabel = this.buildAnswerStatusSourceReadabilityLabel({
+      const answerStatusSourceReadabilityLabel = buildAnswerStatusSourceReadabilityLabel({
         answerStatusSource,
         rawAnswerStatusSource
       });
@@ -262,18 +270,18 @@ export class AskAssistantService {
         ),
         answerTextSource,
         answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence: this.buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
+        answerTextSourceReadabilitySentence: buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
         answerStatusSource,
         answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence: this.buildAnswerStatusSourceReadabilitySentence(
+        answerStatusSourceReadabilitySentence: buildAnswerStatusSourceReadabilitySentence(
           answerStatusSourceReadabilityLabel
         ),
-        answerProvenanceSentence: this.buildAnswerProvenanceSentence({
+        answerProvenanceSentence: buildAnswerProvenanceSentence({
           answerTextSource,
           answerStatusSource,
           answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
         }),
-        answerProvenanceReadabilitySentence: this.buildAnswerProvenanceReadabilitySentence({
+        answerProvenanceReadabilitySentence: buildAnswerProvenanceReadabilitySentence({
           answerTextSourceReadabilityLabel,
           answerStatusSourceReadabilityLabel,
           answerAttributionReadabilitySentence
@@ -520,7 +528,7 @@ export class AskAssistantService {
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
           : null
       );
-      const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel({
+      const answerTextSourceReadabilityLabel = buildAnswerTextSourceReadabilityLabel({
         answerTextSource,
         rawAnswerTextSource
       });
@@ -530,7 +538,7 @@ export class AskAssistantService {
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
           : null
       );
-      const answerStatusSourceReadabilityLabel = this.buildAnswerStatusSourceReadabilityLabel({
+      const answerStatusSourceReadabilityLabel = buildAnswerStatusSourceReadabilityLabel({
         answerStatusSource,
         rawAnswerStatusSource
       });
@@ -569,18 +577,18 @@ export class AskAssistantService {
         ),
         answerTextSource,
         answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence: this.buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
+        answerTextSourceReadabilitySentence: buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
         answerStatusSource,
         answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence: this.buildAnswerStatusSourceReadabilitySentence(
+        answerStatusSourceReadabilitySentence: buildAnswerStatusSourceReadabilitySentence(
           answerStatusSourceReadabilityLabel
         ),
-        answerProvenanceSentence: this.buildAnswerProvenanceSentence({
+        answerProvenanceSentence: buildAnswerProvenanceSentence({
           answerTextSource,
           answerStatusSource,
           answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
         }),
-        answerProvenanceReadabilitySentence: this.buildAnswerProvenanceReadabilitySentence({
+        answerProvenanceReadabilitySentence: buildAnswerProvenanceReadabilitySentence({
           answerTextSourceReadabilityLabel,
           answerStatusSourceReadabilityLabel,
           answerAttributionReadabilitySentence
@@ -694,82 +702,10 @@ export class AskAssistantService {
     return typeof value === "string" ? value : null;
   }
 
-  private buildAnswerTextSourceReadabilityLabel(input: {
-    answerTextSource: TraceSummary["answerTextSource"];
-    rawAnswerTextSource: string | null;
-  }): TraceSummary["answerTextSourceReadabilityLabel"] {
-    if (input.answerTextSource === "model") {
-      return "model-generated answer text";
-    }
-
-    if (input.answerTextSource === "deterministic_policy") {
-      return "deterministic policy answer text";
-    }
-
-    if (input.rawAnswerTextSource != null) {
-      return `unknown answer text source (${input.rawAnswerTextSource})`;
-    }
-
-    return "unknown answer text source";
-  }
-
-  private buildAnswerStatusSourceReadabilityLabel(input: {
-    answerStatusSource: TraceSummary["answerStatusSource"];
-    rawAnswerStatusSource: string | null;
-  }): TraceSummary["answerStatusSourceReadabilityLabel"] {
-    if (input.answerStatusSource === "model") {
-      return "model-decided answer status";
-    }
-
-    if (input.answerStatusSource === "inferred_from_retrieval") {
-      return "retrieval-inferred answer status";
-    }
-
-    if (input.answerStatusSource === "deterministic_policy") {
-      return "deterministic policy answer status";
-    }
-
-    if (input.rawAnswerStatusSource != null) {
-      return `unknown answer status source (${input.rawAnswerStatusSource})`;
-    }
-
-    return "unknown answer status source";
-  }
-
-  private buildAnswerTextSourceReadabilitySentence(
-    answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"]
-  ): TraceSummary["answerTextSourceReadabilitySentence"] {
-    return `Answer text source is ${answerTextSourceReadabilityLabel}.`;
-  }
-
-  private buildAnswerStatusSourceReadabilitySentence(
-    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"]
-  ): TraceSummary["answerStatusSourceReadabilitySentence"] {
-    return `Answer status source is ${answerStatusSourceReadabilityLabel}.`;
-  }
-
   private buildAnswerEvidenceSourceReadabilitySentence(
     answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
   ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
     return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
-  }
-
-  private buildAnswerProvenanceSentence(input: {
-    answerTextSource: TraceSummary["answerTextSource"];
-    answerStatusSource: TraceSummary["answerStatusSource"];
-    answerAttributionReadabilityResolvedLabel: TraceSummary["answerAttributionSummary"]["readabilityResolvedLabel"];
-  }): TraceSummary["answerProvenanceSentence"] {
-    const textSourceValue = input.answerTextSource ?? "unknown";
-    const statusSourceValue = input.answerStatusSource ?? "unknown";
-    return `Answer text source is ${textSourceValue}; status source is ${statusSourceValue}; attribution summary is ${input.answerAttributionReadabilityResolvedLabel}.`;
-  }
-
-  private buildAnswerProvenanceReadabilitySentence(input: {
-    answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"];
-    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"];
-    answerAttributionReadabilitySentence: TraceSummary["answerAttributionReadabilitySentence"];
-  }): TraceSummary["answerProvenanceReadabilitySentence"] {
-    return `Answer text source is ${input.answerTextSourceReadabilityLabel}; answer status source is ${input.answerStatusSourceReadabilityLabel}; ${input.answerAttributionReadabilitySentence}`;
   }
 
   private resolveMissingInformationSource(answeringMetadata: unknown): TraceSummary["missingInformationSource"] {
