@@ -3,6 +3,10 @@
   // Keep OMO frontend-only by loading it from apps/web.
   // Root and apps/api sessions should continue using the lean global config.
   // This file also carries the frontend-local command templates.
+  // Model split rationale (kept as-is):
+  // - plan/review-risk keep gpt-5.4 for UI contract/planning quality on higher-risk decisions.
+  // - build keeps gpt-5.3-codex for fast, concrete implementation loops.
+  // - explore keeps gpt-5.3-mini for low-cost scoped code/doc retrieval.
   "command": {
     "plan": {
       "agent": "rag-plan",

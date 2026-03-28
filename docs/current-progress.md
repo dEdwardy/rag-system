@@ -42,6 +42,18 @@
   - 新增 / 更新验证：
     - `pnpm --filter @rag-system/web build`
   - 实测结果：web build passed after the route-splitting and SEO header update
+- ✅ current-progress closeout note appended for this increment
+  - changed files: `docs/current-progress.md`
+  - focused validation: `git diff --check -- "docs/current-progress.md"`
+
+- ✅ ask final payload and trace summary now share one backend helper for answer-attribution readability wording
+  - added `apps/api/src/modules/answering/answer-attribution-summary.ts` with `buildAnswerAttributionSummary(...)` to centralize attribution/source label and readability sentence/resolved-label mapping
+  - `apps/api/src/modules/traces/traces.service.ts` now uses the shared helper when composing `traceSummary.answerAttributionSummary`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses the same shared helper for ask final payload `answerAttributionSummary`
+  - scope kept additive/readability-only; no retrieval behavior changes, no schema/persistence changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 46/46 passed；ask final payload 与 trace summary 的 attribution readability wording now comes from the same helper path, reducing drift risk
 
 - ✅ trace summary now exposes additive `rewriteReadabilityLabel` for one-line rewrite provenance readability
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `rewriteReadabilityLabel: string`
