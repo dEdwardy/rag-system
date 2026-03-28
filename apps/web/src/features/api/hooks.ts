@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
+  AuthMeResponse,
   AskResponse,
   AskStreamEvent,
   AnswerPolicy,
@@ -18,6 +19,46 @@ import {
   RetrievalProfile,
   TraceRecord
 } from "../../types/api";
+
+const AUTH_ME_QUERY_KEY = ["auth", "me"] as const;
+
+export function useAuthMe(enabled = true) {
+  return useQuery({
+    queryKey: AUTH_ME_QUERY_KEY,
+    queryFn: () => apiRequest<AuthMeResponse>("/auth/me"),
+    enabled,
+    retry: false
+  });
+}
+
+export function useLogin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload?: { userId?: string }) =>
+      apiRequest<{ identity: AuthMeResponse["currentIdentity"]; expiresAt: string }>("/auth/login", {
+        method: "POST",
+        body: payload?.userId ? { userId: payload.userId } : {}
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
+    }
+  });
+}
+
+export function useLogout() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ ok: true }>("/auth/logout", {
+        method: "POST"
+      }),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: AUTH_ME_QUERY_KEY });
+    }
+  });
+}
 
 export function useAssistants() {
   return useQuery({

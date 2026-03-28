@@ -20,6 +20,18 @@ import type {
   TraceSummary
 } from "@rag-system/shared";
 
+export type AuthIdentity = {
+  userId: string;
+  tenantId: string;
+  sessionId: string | null;
+  authSource: string;
+};
+
+export type AuthMeResponse = {
+  identity: AuthIdentity | null;
+  currentIdentity: AuthIdentity;
+};
+
 export type StringIncludeExcludeFilter = {
   include?: string[];
   exclude?: string[];
