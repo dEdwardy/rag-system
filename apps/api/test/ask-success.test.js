@@ -244,7 +244,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
 
   assert.deepEqual(createConversationCalls, [
     {
-      tenantId: "tenant-1",
+      tenantId: "default-tenant",
       userId: "default-user",
       assistantId: "assistant-1",
       title: "where is the marker?"

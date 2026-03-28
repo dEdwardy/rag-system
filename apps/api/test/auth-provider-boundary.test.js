@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 
 const { AuthContextMiddleware } = require("../src/modules/auth/auth-context.middleware.ts");
+const { resolveRequestAuthContext } = require("../src/modules/auth/auth-identity.contract.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
 
 test("SessionCookieAuthProvider returns null when session cookie is missing", () => {
@@ -68,6 +69,25 @@ test("AuthContextMiddleware injects request authContext via provider boundary", 
       tenantId: "tenant-42",
       sessionId: "session-42",
       authSource: "session"
+    },
+    currentIdentity: {
+      userId: "user-42",
+      tenantId: "tenant-42",
+      sessionId: "session-42",
+      authSource: "session"
+    }
+  });
+});
+
+test("resolveRequestAuthContext returns stable default current identity when request is unauthenticated", () => {
+  const resolved = resolveRequestAuthContext({ authContext: undefined });
+
+  assert.deepEqual(resolved, {
+    identity: {
+      userId: "default-user",
+      tenantId: "default-tenant",
+      sessionId: null,
+      authSource: "dev_seed"
     }
   });
 });

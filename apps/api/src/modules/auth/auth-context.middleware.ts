@@ -1,6 +1,6 @@
 import { Inject, Injectable, type NestMiddleware } from "@nestjs/common";
 import type { IncomingHttpHeaders } from "node:http";
-import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
+import { resolveCurrentAuthIdentity, type ApiRequestWithAuthContext } from "./auth-identity.contract";
 import { AUTH_IDENTITY_PROVIDER, type AuthIdentityProvider } from "./auth-provider.contract";
 
 @Injectable()
@@ -20,9 +20,11 @@ export class AuthContextMiddleware implements NestMiddleware {
         headers: request.headers
       }
     });
+    const currentIdentity = resolveCurrentAuthIdentity({ identity });
 
     request.authContext = {
-      identity
+      identity,
+      currentIdentity
     };
 
     next();

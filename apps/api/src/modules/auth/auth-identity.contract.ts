@@ -9,6 +9,7 @@ export type AuthIdentity = {
 
 export type RequestAuthContext = {
   identity: AuthIdentity | null;
+  currentIdentity: AuthIdentity;
 };
 
 export type ApiRequestWithAuthContext = {
@@ -17,25 +18,39 @@ export type ApiRequestWithAuthContext = {
 
 const DEFAULT_DEV_AUTH_SOURCE: AuthSource = "dev_seed";
 const DEFAULT_DEV_USER_ID = "default-user";
+const DEFAULT_DEV_TENANT_ID = "default-tenant";
+
+export function resolveCurrentAuthIdentity(input: { identity?: AuthIdentity | null }): AuthIdentity {
+  const identity = input.identity;
+  if (isAuthIdentity(identity)) {
+    return identity;
+  }
+
+  return buildDefaultDevIdentity();
+}
 
 export function resolveRequestAuthContext(input: {
   authContext?: RequestAuthContext | null;
-  fallbackTenantId: string;
 }): { identity: AuthIdentity } {
-  const identity = input.authContext?.identity;
-  if (isAuthIdentity(identity)) {
+  const currentIdentity = input.authContext?.currentIdentity;
+  if (isAuthIdentity(currentIdentity)) {
     return {
-      identity
+      identity: currentIdentity
     };
   }
 
+  const identity = input.authContext?.identity;
   return {
-    identity: {
-      userId: DEFAULT_DEV_USER_ID,
-      tenantId: input.fallbackTenantId,
-      sessionId: null,
-      authSource: DEFAULT_DEV_AUTH_SOURCE
-    }
+    identity: resolveCurrentAuthIdentity({ identity })
+  };
+}
+
+function buildDefaultDevIdentity(): AuthIdentity {
+  return {
+    userId: DEFAULT_DEV_USER_ID,
+    tenantId: DEFAULT_DEV_TENANT_ID,
+    sessionId: null,
+    authSource: DEFAULT_DEV_AUTH_SOURCE
   };
 }
 

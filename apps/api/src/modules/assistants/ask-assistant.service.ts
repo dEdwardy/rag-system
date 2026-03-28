@@ -82,8 +82,7 @@ export class AskAssistantService {
   }) {
     const assistant = await this.assistantsService.getAssistant(input.assistantId);
     const authContext = resolveRequestAuthContext({
-      authContext: input.authContext,
-      fallbackTenantId: assistant.tenantId
+      authContext: input.authContext
     });
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
@@ -360,8 +359,7 @@ export class AskAssistantService {
 
     const assistant = await this.assistantsService.getAssistant(input.assistantId);
     const authContext = resolveRequestAuthContext({
-      authContext: input.authContext,
-      fallbackTenantId: assistant.tenantId
+      authContext: input.authContext
     });
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
