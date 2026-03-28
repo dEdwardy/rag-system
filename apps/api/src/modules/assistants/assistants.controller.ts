@@ -1,7 +1,8 @@
-import { Body, Controller, Get, HttpException, Param, Patch, Post, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Param, Patch, Post, Req, Res } from "@nestjs/common";
 import { askAssistantSchema, updateAssistantSchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantService } from "./ask-assistant.service";
+import type { ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 
 @Controller("assistants")
 export class AssistantsController {
@@ -27,17 +28,23 @@ export class AssistantsController {
   }
 
   @Post(":id/ask")
-  async askAssistant(@Param("id") id: string, @Body() body: unknown) {
+  async askAssistant(@Param("id") id: string, @Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
     const input = askAssistantSchema.parse(body);
     return this.askAssistantService.askAssistant({
       assistantId: id,
       question: input.question,
-      conversationId: input.conversationId
+      conversationId: input.conversationId,
+      authContext: request?.authContext
     });
   }
 
   @Post(":id/ask/stream")
-  async askAssistantStream(@Param("id") id: string, @Body() body: unknown, @Res() response: any) {
+  async askAssistantStream(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Res() response: any,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     const input = askAssistantSchema.parse(body);
 
     response.status(200);
@@ -54,6 +61,7 @@ export class AssistantsController {
         assistantId: id,
         question: input.question,
         conversationId: input.conversationId,
+        authContext: request?.authContext,
         onEvent: event => {
           writeEvent(event);
         }

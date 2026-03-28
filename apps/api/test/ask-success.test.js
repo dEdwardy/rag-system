@@ -539,6 +539,48 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   });
 });
 
+test("AskAssistantService uses request auth context identity when creating a new conversation", async () => {
+  const createConversationCalls = [];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      tenantId: "assistant-tenant"
+    }),
+    conversations: {
+      createConversation: async input => {
+        createConversationCalls.push(input);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "Who am I?",
+    authContext: {
+      identity: {
+        userId: "user-42",
+        tenantId: "tenant-42",
+        sessionId: "session-42",
+        authSource: "session"
+      }
+    }
+  });
+
+  assert.deepEqual(createConversationCalls, [
+    {
+      tenantId: "tenant-42",
+      userId: "user-42",
+      assistantId: "assistant-1",
+      title: "Who am I?"
+    }
+  ]);
+});
+
 test("AskAssistantService can disable query rewrite and forwards resolved retrieval strategy", async () => {
   const retrievalCalls = [];
   let rewriteCalls = 0;

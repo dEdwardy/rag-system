@@ -14,6 +14,7 @@ import {
 } from "../answering/answer-source-readability";
 import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
+import { resolveRequestAuthContext, type RequestAuthContext } from "../auth/auth-identity.contract";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
@@ -73,8 +74,17 @@ export class AskAssistantService {
     private readonly llmService: LlmService
   ) {}
 
-  async askAssistant(input: { assistantId: string; question: string; conversationId?: string }) {
+  async askAssistant(input: {
+    assistantId: string;
+    question: string;
+    conversationId?: string;
+    authContext?: RequestAuthContext | null;
+  }) {
     const assistant = await this.assistantsService.getAssistant(input.assistantId);
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext,
+      fallbackTenantId: assistant.tenantId
+    });
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
@@ -83,8 +93,8 @@ export class AskAssistantService {
       input.conversationId != null
         ? await this.conversationsService.getConversation(input.conversationId)
         : await this.conversationsService.createConversation({
-            tenantId: assistant.tenantId,
-            userId: "default-user",
+            tenantId: authContext.identity.tenantId,
+            userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
@@ -335,6 +345,7 @@ export class AskAssistantService {
     assistantId: string;
     question: string;
     conversationId?: string;
+    authContext?: RequestAuthContext | null;
     onEvent: (
       event:
         | { type: "status"; phase: "started" | "retrieving" | "generating" }
@@ -348,6 +359,10 @@ export class AskAssistantService {
     });
 
     const assistant = await this.assistantsService.getAssistant(input.assistantId);
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext,
+      fallbackTenantId: assistant.tenantId
+    });
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
@@ -356,8 +371,8 @@ export class AskAssistantService {
       input.conversationId != null
         ? await this.conversationsService.getConversation(input.conversationId)
         : await this.conversationsService.createConversation({
-            tenantId: assistant.tenantId,
-            userId: "default-user",
+            tenantId: authContext.identity.tenantId,
+            userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
