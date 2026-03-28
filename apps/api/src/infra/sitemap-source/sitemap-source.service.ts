@@ -107,6 +107,12 @@ type ResolvedSitemapPages = {
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
 const MAX_CHILD_SITEMAPS = 20;
 const MAX_FAILURE_SUMMARY_ITEMS = 10;
+const URLSET_TAG_PATTERN = /<(?:[a-z0-9_-]+:)?urlset\b/i;
+const SITEMAP_INDEX_TAG_PATTERN = /<(?:[a-z0-9_-]+:)?sitemapindex\b/i;
+const SITEMAP_URL_ENTRY_PATTERN =
+  /<(?:[a-z0-9_-]+:)?url\b[^>]*>[\s\S]*?<(?:[a-z0-9_-]+:)?loc\b[^>]*>([\s\S]*?)<\/(?:[a-z0-9_-]+:)?loc>[\s\S]*?<\/(?:[a-z0-9_-]+:)?url>/gi;
+const CHILD_SITEMAP_ENTRY_PATTERN =
+  /<(?:[a-z0-9_-]+:)?sitemap\b[^>]*>[\s\S]*?<(?:[a-z0-9_-]+:)?loc\b[^>]*>([\s\S]*?)<\/(?:[a-z0-9_-]+:)?loc>[\s\S]*?<\/(?:[a-z0-9_-]+:)?sitemap>/gi;
 
 @Injectable()
 export class SitemapSourceService {
@@ -163,11 +169,11 @@ export class SitemapSourceService {
       throw new BadRequestException("Sitemap payload is empty.");
     }
 
-    if (!/<urlset\b/i.test(normalizedXml)) {
+    if (!URLSET_TAG_PATTERN.test(normalizedXml)) {
       throw new BadRequestException("Unsupported sitemap format. Only direct urlset sitemaps are supported.");
     }
 
-    const extractedUrls = [...normalizedXml.matchAll(/<url\b[^>]*>[\s\S]*?<loc\b[^>]*>([\s\S]*?)<\/loc>[\s\S]*?<\/url>/gi)]
+    const extractedUrls = [...normalizedXml.matchAll(SITEMAP_URL_ENTRY_PATTERN)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
       .filter(url => this.isHttpUrl(url));
 
@@ -190,7 +196,7 @@ export class SitemapSourceService {
       throw new BadRequestException("Sitemap payload is empty.");
     }
 
-    if (/<urlset\b/i.test(normalizedXml)) {
+    if (URLSET_TAG_PATTERN.test(normalizedXml)) {
       const extracted = this.extractPageUrlsWithStats(normalizedXml, options);
       const droppedPageUrlCount = Math.max(0, extracted.totalExtractedCount - extracted.urls.length);
       const boundaryHit = droppedPageUrlCount > 0;
@@ -223,7 +229,7 @@ export class SitemapSourceService {
       };
     }
 
-    if (!/<sitemapindex\b/i.test(normalizedXml)) {
+    if (!SITEMAP_INDEX_TAG_PATTERN.test(normalizedXml)) {
       throw new BadRequestException(
         "Unsupported sitemap format. Only direct urlset and one-level sitemapindex payloads are supported."
       );
@@ -266,7 +272,7 @@ export class SitemapSourceService {
 
       const normalizedChildXml = childXml.trim();
 
-      if (/<sitemapindex\b/i.test(normalizedChildXml)) {
+      if (SITEMAP_INDEX_TAG_PATTERN.test(normalizedChildXml)) {
         throw new BadRequestException("Nested sitemap indexes are not supported.");
       }
 
@@ -467,7 +473,7 @@ export class SitemapSourceService {
   }
 
   private extractChildSitemapUrls(xml: string) {
-    const extractedChildSitemapUrls = [...xml.matchAll(/<sitemap\b[^>]*>[\s\S]*?<loc\b[^>]*>([\s\S]*?)<\/loc>[\s\S]*?<\/sitemap>/gi)]
+    const extractedChildSitemapUrls = [...xml.matchAll(CHILD_SITEMAP_ENTRY_PATTERN)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
       .filter(url => this.isHttpUrl(url));
 

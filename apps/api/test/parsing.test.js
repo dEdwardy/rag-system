@@ -571,6 +571,99 @@ test("SitemapSourceService expands one-level sitemap index into bounded unique p
   }
 });
 
+test("SitemapSourceService parses namespaced sitemap index and child urlset tags", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sm:sitemapindex xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sm:sitemap><sm:loc>https://example.com/sitemaps/docs.xml</sm:loc></sm:sitemap>
+          <sm:sitemap><sm:loc>https://example.com/sitemaps/blog.xml</sm:loc></sm:sitemap>
+        </sm:sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/docs.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sm:urlset xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sm:url><sm:loc>https://example.com/docs/start</sm:loc></sm:url>
+        </sm:urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/blog.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <ns:urlset xmlns:ns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <ns:url><ns:loc>https://example.com/blog/post-a</ns:loc></ns:url>
+        </ns:urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/docs/start") {
+      return new Response(
+        "<html><head><title>Docs Start</title></head><body><main><p>Namespaced marker alpha.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/blog/post-a") {
+      return new Response(
+        "<html><head><title>Blog Post A</title></head><body><main><p>Namespaced marker beta.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 5
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/docs\/start/);
+    assert.match(extracted.content, /https:\/\/example\.com\/blog\/post-a/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("SitemapSourceService tolerates partial sitemap page failures and returns structured diagnostics", async () => {
   const originalFetch = global.fetch;
   const service = new SitemapSourceService(new WebPageService());

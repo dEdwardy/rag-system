@@ -13,6 +13,14 @@
 
 补充进展（2026-03-28）：
 
+- ✅ sitemap-index parsing now accepts namespaced XML tags (`<sm:sitemapindex>`, `<sm:urlset>`) in one-level index expansion flow
+  - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now uses namespace-tolerant sitemap regex patterns for root format detection and `<url>/<loc>` / `<sitemap>/<loc>` extraction, so valid prefixed sitemap-index payloads no longer fail as unsupported format
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for namespaced sitemap-index + namespaced child urlset parsing
+  - scope remains one sitemap-index parsing edge case only: no new source family, no retry-policy rewrite, no ingestion/persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`26/26`)；带 XML namespace 前缀的 sitemap-index/child-urlset 现在可正常展开页面并继续抓取内容
+
 - ✅ feed freshness window selection now avoids timestamp-only reordering when feed entries have mixed date availability
   - `apps/api/src/infra/feed-source/feed-source.service.ts` now keeps the original feed polling order (`slice(0, maxItems)`) when `maxItems` truncation applies but extracted entries contain mixed timestamp availability (some entries dated, some undated)
   - this closes one narrow stale-feed refresh gap in existing `feed` source updates: undated entries (common in partial/legacy feeds) are no longer dropped purely because other entries include parseable dates
