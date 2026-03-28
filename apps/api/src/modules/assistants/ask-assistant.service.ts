@@ -7,6 +7,7 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
+import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
@@ -227,7 +228,7 @@ export class AskAssistantService {
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         missingInformationSource,
-        missingInformationSourceReadabilityLabel: this.buildMissingInformationSourceReadabilityLabel({
+        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
           missingInformationSource
         }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
@@ -483,7 +484,7 @@ export class AskAssistantService {
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         missingInformationSource,
-        missingInformationSourceReadabilityLabel: this.buildMissingInformationSourceReadabilityLabel({
+        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
           missingInformationSource
         }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
@@ -575,28 +576,6 @@ export class AskAssistantService {
     return source === "none" || source === "model" || source === "deterministic_default" || source === "suppressed_by_policy"
       ? source
       : null;
-  }
-
-  private buildMissingInformationSourceReadabilityLabel(input: {
-    missingInformationSource: TraceSummary["missingInformationSource"];
-  }): TraceSummary["missingInformationSourceReadabilityLabel"] {
-    if (input.missingInformationSource === "none") {
-      return "no missing-information items";
-    }
-
-    if (input.missingInformationSource === "model") {
-      return "model-reported missing-information items";
-    }
-
-    if (input.missingInformationSource === "deterministic_default") {
-      return "backend deterministic missing-information defaults";
-    }
-
-    if (input.missingInformationSource === "suppressed_by_policy") {
-      return "suppressed by includeMissingInformation policy";
-    }
-
-    return "unknown missing-information source";
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {

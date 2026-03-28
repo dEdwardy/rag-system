@@ -6,6 +6,7 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
+import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
 import {
   buildRetrievalModeProvenanceSentence,
   buildStrategyReadabilityLabel
@@ -282,7 +283,7 @@ export class TracesService {
       insufficientContextReason,
       missingInformationCount
     });
-    const missingInformationSourceReadabilityLabel = this.buildMissingInformationSourceReadabilityLabel({
+    const missingInformationSourceReadabilityLabel = buildMissingInformationSourceReadabilityLabel({
       missingInformationSource,
       rawMissingInformationSource
     });
@@ -564,33 +565,6 @@ export class TracesService {
     const sourceValue = input.missingInformationSource ?? "unknown";
     const insufficientReasonValue = input.insufficientContextReason ?? "none";
     return `Missing-information source is ${sourceValue}; insufficient-context reason is ${insufficientReasonValue}; missing-information count is ${input.missingInformationCount}.`;
-  }
-
-  private buildMissingInformationSourceReadabilityLabel(input: {
-    missingInformationSource: TraceSummary["missingInformationSource"];
-    rawMissingInformationSource: string | null;
-  }): TraceSummary["missingInformationSourceReadabilityLabel"] {
-    if (input.missingInformationSource === "none") {
-      return "no missing-information items";
-    }
-
-    if (input.missingInformationSource === "model") {
-      return "model-reported missing-information items";
-    }
-
-    if (input.missingInformationSource === "deterministic_default") {
-      return "backend deterministic missing-information defaults";
-    }
-
-    if (input.missingInformationSource === "suppressed_by_policy") {
-      return "suppressed by includeMissingInformation policy";
-    }
-
-    if (input.rawMissingInformationSource != null) {
-      return `unknown missing-information source (${input.rawMissingInformationSource})`;
-    }
-
-    return "unknown missing-information source";
   }
 
   private buildMissingInformationCountReadabilityLabel(

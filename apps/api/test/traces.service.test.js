@@ -1497,3 +1497,47 @@ test("TracesService keeps missingInformationProvenanceSentence legacy fallback w
   );
   assert.equal(detail.traceSummary.missingInformationSourceReadabilityLabel, "unknown missing-information source");
 });
+
+test("TracesService keeps raw missingInformationSource value in readability label for unknown legacy source", async () => {
+  const persistedTrace = {
+    id: "trace-missing-information-source-raw-value",
+    conversationId: "conversation-missing-information-source-raw-value",
+    assistantId: "assistant-missing-information-source-raw-value",
+    userMessageId: "user-message-missing-information-source-raw-value",
+    assistantMessageId: null,
+    userQuery: "show missing-information source readability",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      execution: {
+        actualMode: "vector"
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      missingInformationSource: "legacy_unknown_source"
+    },
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 5,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-28T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace("trace-missing-information-source-raw-value");
+
+  assert.equal(
+    detail.traceSummary.missingInformationSourceReadabilityLabel,
+    "unknown missing-information source (legacy_unknown_source)"
+  );
+});
