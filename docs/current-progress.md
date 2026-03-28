@@ -13,6 +13,10 @@
 
 补充进展（2026-03-28）：
 
+- ✅ ask/trace docs contract note is refreshed after ask top-level metadata surface expansion
+  - `docs/current-dev-setup.md` now explicitly notes that the `current ask response metadata semantics` top-level field list is kept aligned with `apps/web/test/ask-answering-metadata-contract.test.js`
+  - scope remains docs-only alignment: no backend/web runtime changes, no shared contract changes, no retrieval/answering semantics changes
+
 - ✅ ask/trace contract docs were tightened to match the currently shipped ask top-level metadata surface
   - `docs/current-dev-setup.md` `current ask response metadata semantics` now lists the already-shipped top-level ask provenance/readability fields for attribution/evidence/text-source/status-source/provenance sentences, so it stays aligned with the existing web ask metadata contract guard
   - scope is docs-only alignment: no backend/web runtime changes, no shared contract changes, no retrieval/answering semantics changes

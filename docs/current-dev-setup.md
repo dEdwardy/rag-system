@@ -182,6 +182,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `answerProvenanceSentence` / `answerProvenanceReadabilitySentence`
     - `missingInformationProvenanceSentence`
     - `missingInformationSource` / `missingInformationSourceReadabilityLabel`
+  - this top-level ask metadata list is intentionally kept aligned with the web contract guard in `apps/web/test/ask-answering-metadata-contract.test.js`
   - the ask response still keeps `retrievalMetadata` and `answeringMetadata` for lower-level inspection, but the top-level summary makes the resolved retrieval provenance easier to read
 - current trace read semantics:
   - `GET /traces/:id` and `GET /conversations/:id/traces` now also return additive `traceSummary`
