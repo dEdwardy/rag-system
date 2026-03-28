@@ -273,3 +273,39 @@ test("fetchWithRetry includes source URL in network failure error", async () => 
     global.fetch = originalFetch;
   }
 });
+
+test("fetchWithRetry retries once after a transient fetch exception", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+
+  global.fetch = async () => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      throw new TypeError("fetch failed");
+    }
+
+    return new Response("ok", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8"
+      }
+    });
+  };
+
+  try {
+    const response = await fetchWithRetry({
+      url: "https://example.com/source.xml",
+      headers: {
+        Accept: "application/xml"
+      },
+      timeoutMs: 10000,
+      attempts: 2
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "ok");
+    assert.equal(requestCount, 2);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

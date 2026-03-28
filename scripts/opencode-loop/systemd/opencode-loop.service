@@ -8,6 +8,8 @@ StartLimitBurst=3
 [Service]
 Type=simple
 WorkingDirectory=%h/projects/rag-system
+Environment=OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES=2
+Environment=OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS=2
 ExecStart=%h/projects/rag-system/scripts/opencode-loop/night-run.sh
 Restart=on-failure
 RestartSec=60

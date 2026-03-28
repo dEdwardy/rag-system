@@ -177,6 +177,7 @@ export function TraceDetailPage() {
   const citationsByChunkId = new Map(citations.map(citation => [citation.chunkId, citation]));
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
   const hasRewrite = Boolean(trace?.rewrittenQuery);
+  const traceSummary = trace?.traceSummary ?? null;
 
   return (
     <Stack gap="md">
@@ -305,6 +306,27 @@ export function TraceDetailPage() {
                   </Text>
                 </Paper>
               </div>
+
+              {traceSummary ? (
+                <div className="workspace-meta-list">
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">{locale === "zh" ? "检索策略摘要" : "Retrieval strategy"}</span>
+                    <span className="workspace-meta-value">{traceSummary.strategyReadabilityLabel}</span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">{locale === "zh" ? "改写摘要" : "Rewrite summary"}</span>
+                    <span className="workspace-meta-value">{traceSummary.rewriteReadabilityLabel}</span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">{locale === "zh" ? "候选规模" : "Candidate flow"}</span>
+                    <span className="workspace-meta-value">{traceSummary.candidateCountReadabilityLabel}</span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">{locale === "zh" ? "引用摘要" : "Citation summary"}</span>
+                    <span className="workspace-meta-value">{traceSummary.citationCountReadabilityLabel}</span>
+                  </div>
+                </div>
+              ) : null}
             </Stack>
           </Paper>
 

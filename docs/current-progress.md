@@ -13,6 +13,80 @@
 
 补充进展（2026-03-28）：
 
+- ✅ opencode loop harness cleanup is complete
+  - `scripts/opencode-loop/jsonc.mjs` now handles repo config comments, so `scripts/opencode-loop/runtime.mjs` stays focused on orchestration
+  - self-test passed after the split: `node scripts/opencode-loop.mjs --self-test`
+  - loop has been stopped cleanly; `p0-complete-010` is done and `007` / `009` remain `deferred`
+  - docs now keep commit cadence and push/PR timing separate from the harness itself
+
+- ✅ embedding runtime diagnostics now make partial OpenAI embedding env drift and model-source resolution easier to spot
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now adds one additive unusable-provider hint when `OPENAI_EMBEDDING_MODEL` is set without `OPENAI_API_KEY` (and includes configured `OPENAI_BASE_URL` when present)
+  - OpenAI embedding dimension-mismatch diagnostics now also include `Resolved OpenAI embedding model source: <env|default>` so it is explicit when the default model path won
+  - `apps/api/test/embedding-runtime-config.test.js` adds focused coverage for the new unusable-provider wording and model-source hint
+  - scope remains diagnostics-only: no provider-order changes, no retrieval behavior changes, no schema/persistence changes
+
+- ✅ P0 closeout queue `eval/regression baseline`：已补最小可复用回归基线清单
+  - 变更文件：`docs/next_steps_rag_project_plan.md`（在 queue item 8 下补充 closeout wave baseline）
+  - baseline 命令（可重复执行）：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `node --test apps/web/test/trace-summary-contract.test.js`
+  - 回归确认口径：三条命令全部通过即可判定本轮 ask/trace contract closeout 未回归；失败时先在对应路径修复后重跑同一组命令
+  - 未变更内容：未引入新测试框架、未改 backend/web 运行时语义、未改 retrieval 或持久化行为
+
+- ✅ P0 closeout queue `progress closeout note`：已补本轮简短收口记录
+  - 变更内容：仅追加 `docs/current-progress.md` 当前进展条目，记录本轮完成状态
+  - 未变更内容：未改 `apps/api` / `apps/web` / `packages/shared` 实现，未改 retrieval 语义、共享契约或持久化行为
+  - 验证：`git diff --check -- "docs/current-progress.md"` 通过
+
+- ✅ P0 closeout queue 已按计划完成，当前波次收口结束
+  - `docs/next_steps_rag_project_plan.md` 已补入详细 queue-ready tasks，并附上可直接作为 queue item title 使用的短标题版：`ask/trace contract align`、`web trace contract guard`、`legacy fallback regressions`、`unknown/fallback wording unify`、`trace-summary doc sync`、`progress closeout note`、`third-party boundary note`、`eval/regression baseline`、`opencode model split review`、`mark P0 complete`
+  - 完成结论：本轮仅做既定 closeout，不引入新方向；`P0: read-model / metadata convergence` 现已可标记完成
+
+- ✅ P0 closeout queue `mark P0 complete`：已完成 phase closeout 状态更新
+  - 变更文件：`docs/next_steps_rag_project_plan.md`、`docs/current-progress.md`
+  - 完成说明：仅更新 P0 状态与收口结论，不追加新实现任务
+
+- ✅ opencode loop now has a dedicated read-model/metadata build prompt template in the prompt path
+  - added `.opencode/loop/prompts/read-model-metadata-build.md` to avoid reusing generic `prompts/build.md` wording for read-model/metadata convergence queue work
+  - `scripts/opencode-loop/runtime.mjs` now ensures the dedicated prompt template exists under `.opencode/loop/prompts/` alongside existing default prompt bootstrap
+  - `scripts/opencode-loop.md` prompt-family guidance and queue example now point read-model/metadata items to `prompts/read-model-metadata-build.md`
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；loop prompt path 现在提供了专用 read-model/metadata build 模板，不再要求这类任务复用 generic build prompt wording
+
+- ✅ trace summary unknown/fallback readability wording now aligns for failed-stage and answer-source labels
+  - `apps/api/src/modules/traces/traces.service.ts` now keeps known labels unchanged, while aligning null-fallback wording to `failed stage unavailable` / `answer status source unavailable` / `answer text source unavailable`; raw unknown values still keep `unknown ... (<raw>)`
+  - `apps/api/test/traces.service.test.js` updates focused assertions for the aligned null-fallback wording
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；本轮仅收口可读文案，不改 retrieval 语义、契约、持久化或其他无关标签
+
+- ✅ trace summary legacy fallback coverage now includes execution-level `fallbackReason -> strategySummary.usedFallback` backfill path
+  - `apps/api/test/traces.service.test.js` adds one focused regression case to lock consistency when older retrieval metadata only has `retrievalMetadata.execution.fallbackReason` (missing explicit `usedFallback` fields)
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed (`24/24`)；legacy execution fallback-reason-only traces now have explicit regression guard that `traceSummary.strategySummary.usedFallback` resolves to `true` and aligns with strategy readability wording
+
+- ✅ opencode loop now correctly parses repo `opencode.jsonc` comments for command model split
+  - `scripts/opencode-loop/runtime.mjs` now strips JSONC line/block comments before parsing the repo command config, so `command.plan` / `command.build` can be loaded from `opencode.jsonc`
+  - this closes the earlier fallback-to-`server-default` path when the repo config contained comments
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；loop 现在可以正确读取带注释的 `opencode.jsonc`，不再因为 `JSON.parse` 直接失败而忽略模型分工配置
+
+- ✅ opencode loop can now auto-refill a small follow-up queue wave before exiting
+  - added `scripts/opencode-loop/planner.mjs` as a guarded planner path that uses the repo `command.plan` agent/model when available, asks for strict JSON follow-up tasks, writes planner audit handoffs, and materializes generated prompts under `.opencode/loop/prompts/generated/`
+  - `scripts/opencode-loop/runtime.mjs` now triggers one optional refill pass when the queue drains, appends generated items back into `.opencode/loop/queue.json`, then keeps processing them in the same run
+  - `scripts/opencode-loop/queue.mjs` now exposes `appendQueueItems(...)` for atomic append-style queue growth during refill; `scripts/opencode-loop.mjs` now supports `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` and `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS`
+  - tuned `.opencode/loop/prompts/plan-next.md` toward the current repository wave (single-line mainline, backend/API-first, additive read-model/diagnostics/contract closeout) and set the systemd loop service template to run with `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES=2`
+  - `scripts/opencode-loop/self-test.mjs` now covers three harness paths together: normal draining, interrupted-session resume, and one guarded auto-refill cycle
+  - `scripts/opencode-loop.md` now documents the planner/refill behavior and the new env knobs
+  - scope kept conservative on purpose: default refill budget is one planner pass and two generated items per loop invocation, so the runner can continue automatically without turning into an unbounded self-expanding queue
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；空队列时 loop 现在可先生成一小波后续任务并继续执行，同时保留 planner handoff 审计轨迹
+
 - ✅ current-progress closeout note appended for this increment
   - changed files: `docs/current-progress.md`
   - focused validation: `git diff --check -- "docs/current-progress.md"`

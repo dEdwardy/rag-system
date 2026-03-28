@@ -89,7 +89,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
       sourceLabel: null,
       readabilityLabel: null,
       readabilityHint: null,
-      readabilityResolvedLabel: "unknown attribution via unknown source",
+      readabilityResolvedLabel: "unknown attribution via unknown evidence source",
       readabilitySentence: "Answer attribution is unknown; source evidence is unknown."
     },
     answerAttribution: null,
@@ -107,7 +107,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     answerTextSourceReadabilityLabel: "unknown answer text source",
     answerStatusSource: null,
     answerStatusSourceReadabilityLabel: "unknown answer status source",
-    answerProvenanceSentence: "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown source.",
+    answerProvenanceSentence: "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source.",
     failedStage: "answering",
     failedStageReadabilityLabel: "answering stage failed",
     failureMessage: "synthetic answer failure",
@@ -393,10 +393,10 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       source: "heuristic",
       readability: "heuristic:heuristic",
       attributionLabel: "heuristic attribution",
-      sourceLabel: "heuristic source",
-      readabilityLabel: "heuristic attribution via heuristic source",
-      readabilityHint: "heuristic attribution via heuristic source",
-      readabilityResolvedLabel: "heuristic attribution via heuristic source",
+      sourceLabel: "heuristic evidence source",
+      readabilityLabel: "heuristic attribution via heuristic evidence source",
+      readabilityHint: "heuristic attribution via heuristic evidence source",
+      readabilityResolvedLabel: "heuristic attribution via heuristic evidence source",
       readabilitySentence: "Answer attribution is heuristic; source evidence is heuristic."
     },
     answerAttribution: "heuristic",
@@ -414,7 +414,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     answerTextSourceReadabilityLabel: "deterministic policy answer text",
     answerStatusSource: "inferred_from_retrieval",
     answerStatusSourceReadabilityLabel: "retrieval-inferred answer status",
-    answerProvenanceSentence: "Answer text source is deterministic_policy; status source is inferred_from_retrieval; attribution summary is heuristic attribution via heuristic source.",
+    answerProvenanceSentence: "Answer text source is deterministic_policy; status source is inferred_from_retrieval; attribution summary is heuristic attribution via heuristic evidence source.",
     failedStage: null,
     failedStageReadabilityLabel: "unknown failed stage",
     failureMessage: null,
@@ -495,8 +495,8 @@ test("TracesService exposes attribution readability hint when source metadata is
     attributionLabel: "explicit attribution",
     sourceLabel: null,
     readabilityLabel: null,
-    readabilityHint: "explicit attribution via unknown source",
-    readabilityResolvedLabel: "explicit attribution via unknown source",
+    readabilityHint: "explicit attribution via unknown evidence source",
+    readabilityResolvedLabel: "explicit attribution via unknown evidence source",
     readabilitySentence: "Answer attribution is explicit; source evidence is unknown."
   });
 });
@@ -884,6 +884,146 @@ test("TracesService backfills strategySummary.usedFallback from legacy top-level
   );
 });
 
+test("TracesService backfills strategy summary from legacy top-level fallback clues only", async () => {
+  const persistedTrace = {
+    id: "trace-legacy-top-level-fallback-clues-only",
+    conversationId: "conversation-legacy-top-level-fallback-clues-only",
+    assistantId: "assistant-legacy-top-level-fallback-clues-only",
+    userMessageId: "user-message-legacy-top-level-fallback-clues-only",
+    assistantMessageId: null,
+    userQuery: "summarize legacy fallback clues",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      fallbackReason: "vector_error",
+      usedFallback: true
+    },
+    citationsJson: [],
+    answeringMetadataJson: null,
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 5,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-28T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace("trace-legacy-top-level-fallback-clues-only");
+
+  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.strategySummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
+  assert.equal(
+    detail.traceSummary.strategyReadabilityLabel,
+    "unknown mode retrieval via original_disabled; fallback: vector_error; fallback used: yes."
+  );
+});
+
+test("TracesService keeps legacy fallback traces readable when optional provenance fields are missing", async () => {
+  const persistedTrace = {
+    id: "trace-legacy-fallback-missing-readable-fields",
+    conversationId: "conversation-legacy-fallback-missing-readable-fields",
+    assistantId: "assistant-legacy-fallback-missing-readable-fields",
+    userMessageId: "user-message-legacy-fallback-missing-readable-fields",
+    assistantMessageId: null,
+    userQuery: "summarize readable fallback",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      fallbackReason: "vector_error"
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      missingInformationCount: 1
+    },
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 5,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-28T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace("trace-legacy-fallback-missing-readable-fields");
+
+  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
+  assert.equal(
+    detail.traceSummary.answerProvenanceSentence,
+    "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source."
+  );
+  assert.equal(
+    detail.traceSummary.missingInformationProvenanceSentence,
+    "Missing-information source is unknown; insufficient-context reason is none; missing-information count is 1."
+  );
+  assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source");
+  assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source");
+});
+
+test("TracesService backfills strategySummary.usedFallback from legacy execution fallbackReason when usedFallback is missing", async () => {
+  const persistedTrace = {
+    id: "trace-execution-fallback-reason-used-fallback-backfill",
+    conversationId: "conversation-execution-fallback-reason-used-fallback-backfill",
+    assistantId: "assistant-execution-fallback-reason-used-fallback-backfill",
+    userMessageId: "user-message-execution-fallback-reason-used-fallback-backfill",
+    assistantMessageId: null,
+    userQuery: "summarize fallback usage from execution fallback reason",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      execution: {
+        actualMode: "lexical",
+        fallbackReason: "vector_error"
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: null,
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 5,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-28T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace("trace-execution-fallback-reason-used-fallback-backfill");
+
+  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.strategySummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
+  assert.equal(
+    detail.traceSummary.strategyReadabilityLabel,
+    "lexical retrieval via original_disabled; fallback: vector_error; fallback used: yes."
+  );
+});
+
 test("TracesService backfills strategyMode from legacy retrievalMode when strategyMode is missing", async () => {
   const persistedTrace = {
     id: "trace-strategy-mode-backfill",
@@ -1257,7 +1397,7 @@ test("TracesService keeps answerProvenanceSentence legacy fallback wording when 
 
   assert.equal(
     detail.traceSummary.answerProvenanceSentence,
-    "Answer text source is unknown; status source is unknown; attribution summary is explicit attribution via unknown source."
+    "Answer text source is unknown; status source is unknown; attribution summary is explicit attribution via unknown evidence source."
   );
 });
 

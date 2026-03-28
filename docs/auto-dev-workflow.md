@@ -41,7 +41,7 @@ Interpretation:
 7. If the task has no related spec / plan in `docs/superpowers/specs/` or `docs/superpowers/plans/`, create them first using the superpowers workflow.
 8. Run the smallest sufficient validation first; run broader validation when the change touches shared or critical paths.
 9. Update docs incrementally when behavior, workflow, setup, or progress changes.
-10. Commit and push after validation passes.
+10. Commit after validation passes; push and open a PR when the current wave is stable, green, and unlikely to conflict.
 11. At the end of every session, output a copy-paste-ready handoff summary for the next new chat.
 
 ## Session Start Checklist
@@ -111,6 +111,7 @@ When a task needs superpowers design/planning docs:
 - add plan under `docs/superpowers/plans/`
 
 Update docs incrementally, not by rewriting unrelated sections.
+- New docs should follow the same layer split: one main mechanism doc, one workflow/practice doc, and one status/progress doc; avoid repeating the same mechanism in multiple places.
 
 ## Commit Policy
 
