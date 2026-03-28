@@ -295,6 +295,11 @@ export class TracesService {
     );
     const rawFailedStage = this.readString(retrievalFailure?.stage);
     const failedStage = this.readTraceFailedStage(rawFailedStage);
+    const failedStageReadabilityLabel = this.buildFailedStageReadabilityLabel({
+      failedStage,
+      rawFailedStage
+    });
+    const failureMessage = this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null;
     const candidateLimit = this.readNumber(retrievalExecution?.candidateLimit) ?? 0;
     const vectorCandidateCount = this.readNumber(retrievalExecution?.vectorCandidateCount) ?? 0;
     const lexicalCandidateCount = this.readNumber(retrievalExecution?.lexicalCandidateCount) ?? 0;
@@ -367,11 +372,12 @@ export class TracesService {
       answerStatusSourceReadabilitySentence,
       answerProvenanceSentence,
       failedStage,
-      failedStageReadabilityLabel: this.buildFailedStageReadabilityLabel({
-        failedStage,
-        rawFailedStage
+      failedStageReadabilityLabel,
+      failureMessage,
+      failureReadabilitySentence: this.buildFailureReadabilitySentence({
+        failedStageReadabilityLabel,
+        failureMessage
       }),
-      failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
       candidateLimit,
       vectorCandidateCount,
       lexicalCandidateCount,
@@ -598,6 +604,26 @@ export class TracesService {
     }
 
     return "unknown failed stage";
+  }
+
+  private buildFailureReadabilitySentence(input: {
+    failedStageReadabilityLabel: TraceSummary["failedStageReadabilityLabel"];
+    failureMessage: TraceSummary["failureMessage"];
+  }): TraceSummary["failureReadabilitySentence"] {
+    if (input.failureMessage == null) {
+      return `${input.failedStageReadabilityLabel}; message unavailable.`;
+    }
+
+    const trimmedFailureMessage = input.failureMessage.trim();
+    if (trimmedFailureMessage.length === 0) {
+      return `${input.failedStageReadabilityLabel}; message unavailable.`;
+    }
+
+    if (/[.!?]$/.test(trimmedFailureMessage)) {
+      return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}`;
+    }
+
+    return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}.`;
   }
 
   private buildRewriteReadabilityLabel(input: {

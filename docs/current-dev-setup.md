@@ -230,6 +230,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `failedStage`
     - `failedStageReadabilityLabel` (failed-stage readability label)
     - `failureMessage`
+    - `failureReadabilitySentence` (one-line failed-stage + message readability summary)
     - `candidateLimit`
     - `vectorCandidateCount`
     - `lexicalCandidateCount`

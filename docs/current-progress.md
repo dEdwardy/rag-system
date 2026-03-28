@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now exposes additive `failureReadabilitySentence` for easier failed-stage + message scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `failureReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits the sentence from existing `failedStageReadabilityLabel` + `failureMessage` (`<stage label>; message: <message>.`), with `message unavailable` fallback when no message exists
+  - `apps/api/test/traces.service.test.js` adds focused assertions for known-stage, unknown-stage(raw), and no-message paths; `apps/web/test/trace-summary-contract.test.js` guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
 - ✅ trace summary now exposes additive `answerTextSourceReadabilitySentence` for easier final-answer text-source scanning
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerTextSourceReadabilitySentence: string`
   - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence directly from existing text-source label (`Answer text source is <label>.`)

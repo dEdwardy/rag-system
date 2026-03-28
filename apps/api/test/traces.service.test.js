@@ -115,6 +115,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     failedStage: "answering",
     failedStageReadabilityLabel: "answering stage failed",
     failureMessage: "synthetic answer failure",
+    failureReadabilitySentence: "answering stage failed; message: synthetic answer failure.",
     candidateLimit: 8,
     vectorCandidateCount: 1,
     lexicalCandidateCount: 0,
@@ -169,6 +170,10 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
   assert.equal(listed[0].traceSummary.failedStage, "answering");
   assert.equal(listed[0].traceSummary.failedStageReadabilityLabel, "answering stage failed");
   assert.equal(listed[0].traceSummary.failureMessage, "synthetic answer failure");
+  assert.equal(
+    listed[0].traceSummary.failureReadabilitySentence,
+    "answering stage failed; message: synthetic answer failure."
+  );
   assert.equal("retrievalMetadataJson" in listed[0], false);
   assert.equal("answeringMetadataJson" in listed[0], false);
   assert.equal("qualityEvaluationJson" in listed[0], false);
@@ -239,6 +244,10 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
   );
   assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(detail.traceSummary.failureMessage, "synthetic failure");
+  assert.equal(
+    detail.traceSummary.failureReadabilitySentence,
+    "unknown failed stage (source_fetch); message: synthetic failure."
+  );
 
   const listed = await service.listConversationTraces("conversation-invalid-failed-stage", { limit: 1 });
   assert.equal(listed[0].traceSummary.failedStage, null);
@@ -252,6 +261,10 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
   );
   assert.equal(listed[0].traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(listed[0].traceSummary.failureMessage, "synthetic failure");
+  assert.equal(
+    listed[0].traceSummary.failureReadabilitySentence,
+    "unknown failed stage (source_fetch); message: synthetic failure."
+  );
 });
 
 test("TracesService falls back promptContextCount from legacy context mode metadata", async () => {
@@ -434,6 +447,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     failedStage: null,
     failedStageReadabilityLabel: "unknown failed stage",
     failureMessage: null,
+    failureReadabilitySentence: "unknown failed stage; message unavailable.",
     candidateLimit: 12,
     vectorCandidateCount: 4,
     lexicalCandidateCount: 2,

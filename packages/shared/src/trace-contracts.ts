@@ -104,6 +104,7 @@ export type TraceSummary = {
   failedStage: TraceFailedStage | null;
   failedStageReadabilityLabel: string;
   failureMessage: string | null;
+  failureReadabilitySentence: string;
   candidateLimit: number;
   vectorCandidateCount: number;
   lexicalCandidateCount: number;

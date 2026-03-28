@@ -67,6 +67,7 @@ test("web trace summary type guards current backend summary field set", async ()
   assert.match(sharedSource, /failedStage:\s*TraceFailedStage \| null;/);
   assert.match(sharedSource, /failedStageReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /failureMessage:\s*string \| null;/);
+  assert.match(sharedSource, /failureReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /candidateLimit:\s*number;/);
   assert.match(sharedSource, /vectorCandidateCount:\s*number;/);
   assert.match(sharedSource, /lexicalCandidateCount:\s*number;/);
