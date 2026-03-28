@@ -283,6 +283,9 @@ export class TracesService {
       answerStatusSource,
       rawAnswerStatusSource
     });
+    const answerStatusSourceReadabilitySentence = this.buildAnswerStatusSourceReadabilitySentence(
+      answerStatusSourceReadabilityLabel
+    );
     const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerEvidenceSource);
     const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
       answerEvidenceSourceReadabilityLabel
@@ -357,6 +360,7 @@ export class TracesService {
       answerTextSourceReadabilityLabel,
       answerStatusSource,
       answerStatusSourceReadabilityLabel,
+      answerStatusSourceReadabilitySentence,
       answerProvenanceSentence,
       failedStage,
       failedStageReadabilityLabel: this.buildFailedStageReadabilityLabel({
@@ -478,6 +482,12 @@ export class TracesService {
     answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
   ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
     return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
+  }
+
+  private buildAnswerStatusSourceReadabilitySentence(
+    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"]
+  ): TraceSummary["answerStatusSourceReadabilitySentence"] {
+    return `Answer status source is ${answerStatusSourceReadabilityLabel}.`;
   }
 
   private buildMissingInformationProvenanceSentence(input: {

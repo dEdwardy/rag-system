@@ -98,6 +98,7 @@ export type TraceSummary = {
   answerTextSourceReadabilityLabel: string;
   answerStatusSource: TraceAnswerStatusSource | null;
   answerStatusSourceReadabilityLabel: string;
+  answerStatusSourceReadabilitySentence: string;
   answerProvenanceSentence: string;
   failedStage: TraceFailedStage | null;
   failedStageReadabilityLabel: string;

@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now exposes additive `answerStatusSourceReadabilitySentence` for easier final-answer status-source scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerStatusSourceReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing status-source label (`Answer status source is <label>.`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary expectation snapshots for unknown and retrieval-inferred status-source paths
+  - `apps/web/test/trace-summary-contract.test.js` now guards the new shared trace-summary field; `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
 - ✅ trace summary now exposes additive `answerEvidenceSourceReadabilitySentence` for easier final-answer evidence-source scanning
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerEvidenceSourceReadabilitySentence: string`
   - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence directly from existing evidence-source label (`Answer evidence source is <label>.`)
