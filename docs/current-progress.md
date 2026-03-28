@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ P0 closeout queue `opencode model split review`：当前 root/api/web 分工保持不变（无需调整）
+  - 复核文件：`opencode.jsonc`、`apps/api/opencode.jsonc`、`apps/web/opencode.jsonc`
+  - 结论：继续保持 `plan/review-risk -> gpt-5.4`、`build -> gpt-5.3-codex`、`explore -> gpt-5.3-mini`
+  - 保持原因：
+    - root 与 app-local 配置当前语义一致，未出现分工漂移
+    - 当前进度未记录由模型分工导致的稳定质量回归或持续成本/时延压力
+    - 现有分工已匹配本阶段“plan/review 质量优先、build 快验证、explore 低成本检索”的执行策略
+  - 未变更内容：未改 loop harness、未改 command 模板语义、未改 plugin 边界
+
 - ✅ opencode loop harness cleanup is complete
   - `scripts/opencode-loop/jsonc.mjs` now handles repo config comments, so `scripts/opencode-loop/runtime.mjs` stays focused on orchestration
   - self-test passed after the split: `node scripts/opencode-loop.mjs --self-test`
