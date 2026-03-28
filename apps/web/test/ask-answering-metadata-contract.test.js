@@ -16,6 +16,7 @@ test("web ask response type covers current backend answeringMetadata shape", asy
   assert.match(source, /answerEvidenceSource\?:\s*TraceCitationSelectionSource \| null;/);
   assert.match(source, /answerEvidenceSourceReadabilityLabel\?:\s*string;/);
   assert.match(source, /missingInformationSource\?:\s*TraceSummary\["missingInformationSource"\];/);
+  assert.match(source, /missingInformationProvenanceSentence\?:\s*TraceSummary\["missingInformationProvenanceSentence"\];/);
   assert.match(source, /missingInformationSourceReadabilityLabel\?:\s*TraceSummary\["missingInformationSourceReadabilityLabel"\];/);
   assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*promptId: string;/);
   assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*usedFallback: boolean;/);

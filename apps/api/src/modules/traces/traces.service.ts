@@ -6,6 +6,7 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
+import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
 import {
   buildRetrievalModeProvenanceSentence,
@@ -278,7 +279,7 @@ export class TracesService {
     const citationCountReadabilitySentence = this.buildCitationCountReadabilitySentence(
       citationCountReadabilityLabel
     );
-    const missingInformationProvenanceSentence = this.buildMissingInformationProvenanceSentence({
+    const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
       missingInformationSource,
       insufficientContextReason,
       missingInformationCount
@@ -555,16 +556,6 @@ export class TracesService {
     answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"]
   ): TraceSummary["answerStatusSourceReadabilitySentence"] {
     return `Answer status source is ${answerStatusSourceReadabilityLabel}.`;
-  }
-
-  private buildMissingInformationProvenanceSentence(input: {
-    missingInformationSource: TraceSummary["missingInformationSource"];
-    insufficientContextReason: TraceSummary["insufficientContextReason"];
-    missingInformationCount: number;
-  }): TraceSummary["missingInformationProvenanceSentence"] {
-    const sourceValue = input.missingInformationSource ?? "unknown";
-    const insufficientReasonValue = input.insufficientContextReason ?? "none";
-    return `Missing-information source is ${sourceValue}; insufficient-context reason is ${insufficientReasonValue}; missing-information count is ${input.missingInformationCount}.`;
   }
 
   private buildMissingInformationCountReadabilityLabel(

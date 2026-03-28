@@ -470,6 +470,10 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(result.answerEvidenceSource, "structured");
   assert.equal(result.answerEvidenceSourceReadabilityLabel, "structured evidence source");
   assert.equal(result.missingInformationSource, "none");
+  assert.equal(
+    result.missingInformationProvenanceSentence,
+    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+  );
   assert.equal(result.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
@@ -1128,6 +1132,10 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
   assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.equal(result.answeringMetadata.missingInformationSource, "model");
   assert.equal(result.missingInformationSource, "model");
+  assert.equal(
+    result.missingInformationProvenanceSentence,
+    "Missing-information source is model; insufficient-context reason is no_retrieval_hits; missing-information count is 1."
+  );
   assert.equal(result.missingInformationSourceReadabilityLabel, "model-reported missing-information items");
 });
 

@@ -393,6 +393,7 @@ export type AskResponse = {
   answerEvidenceSource?: TraceCitationSelectionSource | null;
   answerEvidenceSourceReadabilityLabel?: string;
   missingInformationSource?: TraceSummary["missingInformationSource"];
+  missingInformationProvenanceSentence?: TraceSummary["missingInformationProvenanceSentence"];
   missingInformationSourceReadabilityLabel?: TraceSummary["missingInformationSourceReadabilityLabel"];
   answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: "grounded" | "insufficient_context";

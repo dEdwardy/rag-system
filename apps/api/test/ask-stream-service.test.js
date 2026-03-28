@@ -136,6 +136,10 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answerEvidenceSource, "none");
   assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
   assert.equal(finalResult.missingInformationSource, "none");
+  assert.equal(
+    finalResult.missingInformationProvenanceSentence,
+    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+  );
   assert.equal(finalResult.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.equal(
     finalResult.strategyReadabilityLabel,
@@ -149,6 +153,10 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
   assert.equal(events[5].data.missingInformationSource, "none");
+  assert.equal(
+    events[5].data.missingInformationProvenanceSentence,
+    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+  );
   assert.equal(events[5].data.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.equal(
     events[5].data.strategyReadabilityLabel,
@@ -516,6 +524,10 @@ test("AskAssistantService forwards fallback-local no-hit best_effort metadata in
   assert.equal(finalResult.answeringMetadata.answerStatusSource, "model");
   assert.equal(finalResult.answeringMetadata.missingInformationSource, "model");
   assert.equal(finalResult.missingInformationSource, "model");
+  assert.equal(
+    finalResult.missingInformationProvenanceSentence,
+    "Missing-information source is model; insufficient-context reason is no_retrieval_hits; missing-information count is 1."
+  );
   assert.equal(finalResult.missingInformationSourceReadabilityLabel, "model-reported missing-information items");
 });
 

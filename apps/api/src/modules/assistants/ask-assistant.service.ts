@@ -7,6 +7,7 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
+import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
@@ -207,6 +208,14 @@ export class AskAssistantService {
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
       const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
+        missingInformationSource,
+        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
+        missingInformationCount: this.resolveMissingInformationCount({
+          answeringMetadata: resolvedAnswerResult.answeringMetadata,
+          missingInformation: resolvedAnswerResult.missingInformation
+        })
+      });
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -228,6 +237,7 @@ export class AskAssistantService {
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         missingInformationSource,
+        missingInformationProvenanceSentence,
         missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
           missingInformationSource
         }),
@@ -463,6 +473,14 @@ export class AskAssistantService {
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
       const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
+        missingInformationSource,
+        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
+        missingInformationCount: this.resolveMissingInformationCount({
+          answeringMetadata: resolvedAnswerResult.answeringMetadata,
+          missingInformation: resolvedAnswerResult.missingInformation
+        })
+      });
       const finalResult = {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -484,6 +502,7 @@ export class AskAssistantService {
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         missingInformationSource,
+        missingInformationProvenanceSentence,
         missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
           missingInformationSource
         }),
@@ -576,6 +595,31 @@ export class AskAssistantService {
     return source === "none" || source === "model" || source === "deterministic_default" || source === "suppressed_by_policy"
       ? source
       : null;
+  }
+
+  private resolveInsufficientContextReason(answeringMetadata: unknown): TraceSummary["insufficientContextReason"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const reason = (answeringMetadata as Record<string, unknown>).insufficientContextReason;
+    return reason === "no_retrieval_hits" || reason === "retrieved_context_insufficient"
+      ? reason
+      : null;
+  }
+
+  private resolveMissingInformationCount(input: {
+    answeringMetadata: unknown;
+    missingInformation: unknown;
+  }) {
+    if (typeof input.answeringMetadata === "object" && input.answeringMetadata !== null) {
+      const count = (input.answeringMetadata as Record<string, unknown>).missingInformationCount;
+      if (typeof count === "number") {
+        return count;
+      }
+    }
+
+    return Array.isArray(input.missingInformation) ? input.missingInformation.length : 0;
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {

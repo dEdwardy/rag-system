@@ -13,6 +13,18 @@
 
 补充进展（2026-03-28）：
 
+- ✅ ask / ask-stream final payload now expose additive top-level `missingInformationProvenanceSentence` aligned with trace-summary wording
+  - `apps/api/src/modules/answering/missing-information-provenance.ts` now centralizes existing missing-information provenance sentence wording (`Missing-information source is <...>; insufficient-context reason is <...>; missing-information count is <...>.`)
+  - `apps/api/src/modules/traces/traces.service.ts` now reuses that helper so trace-summary wording path remains unchanged while shared with ask-path projection
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes top-level `missingInformationProvenanceSentence` in both one-shot ask and ask-stream final payloads using existing resolved missing-information source / insufficient-context reason / count metadata
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` add focused assertions for the new top-level field on representative `none` and `model` missing-information source paths
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `missingInformationProvenanceSentence`; `apps/web/test/ask-answering-metadata-contract.test.js` now guards the field in the existing web contract check
+  - `docs/current-dev-setup.md` ask response metadata semantics list is aligned
+  - scope remains additive contract/readability convergence only: no retrieval/answering behavior semantics changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused ask tests passed (`48/48`)
+
 - ✅ trace summary now exposes additive `missingInformationSourceReadabilityLabel` for easier missing-information provenance scanning
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `missingInformationSourceReadabilityLabel: string`
   - `apps/api/src/modules/traces/traces.service.ts` now emits this label from existing missing-information source metadata, with readable wording for `none` / `model` / `deterministic_default` / `suppressed_by_policy` and raw-value fallback for unknown legacy values

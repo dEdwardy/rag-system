@@ -174,6 +174,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `retrievalModeProvenanceSentence`
     - `answerAttributionReadabilitySentence`
     - `answerEvidenceSource` / `answerEvidenceSourceReadabilityLabel`
+    - `missingInformationProvenanceSentence`
     - `missingInformationSource` / `missingInformationSourceReadabilityLabel`
   - the ask response still keeps `retrievalMetadata` and `answeringMetadata` for lower-level inspection, but the top-level summary makes the resolved retrieval provenance easier to read
 - current trace read semantics:
