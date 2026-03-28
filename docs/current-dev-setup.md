@@ -180,60 +180,121 @@ LLM_REWRITE_TEMPERATURE=0
     - `primaryIssue`
     - `retrievalMode`
     - `retrievalQuerySource`
+    - `strategyReadabilityLabel`
     - `rewriteReadabilityLabel`
-     - `strategySummary`
-       - `retrievalMode`
-       - `strategyMode`
-       - `retrievalQuerySource`
-       - `rewriteApplied`
-       - `rewriteUsedFallback`
-       - `rewritePromptId`
-       - `fallbackReason`
-       - `usedFallback`
+    - `strategySummary`
+      - `retrievalMode`
+      - `strategyMode`
+      - `retrievalQuerySource`
+      - `rewriteEnabled`
+      - `rewriteApplied`
+      - `rewriteUsedFallback`
+      - `rewritePromptId`
+      - `rewriteModelName`
+      - `fallbackReason`
+      - `usedFallback`
     - `generationMode`
     - `contextMode`
     - `rewriteApplied`
     - `fallbackReason`
     - `resolvedLanguage`
+    - `answerAttributionSummary`
+      - `attribution`
+      - `source`
+      - `readability`
+      - `attributionLabel`
+      - `sourceLabel`
+      - `readabilityLabel`
+      - `readabilityHint`
+      - `readabilityResolvedLabel`
+      - `readabilitySentence`
+    - `answerAttribution`
+    - `answerAttributionSource`
+    - `answerEvidenceSource`
+    - `answerEvidenceSourceReadabilityLabel`
     - `citationAttribution`
-     - `citationSelectionSource`
-      - `answerEvidenceSource`
-      - `answerEvidenceSourceReadabilityLabel`
-      - `missingInformationCount`
-     - `missingInformationCountReadabilityLabel`
-     - `missingInformationSource`
-     - `insufficientContextReason`
-     - `answerTextSource`
-     - `answerTextSourceReadabilityLabel`
-     - `answerStatusSource`
-     - `answerStatusSourceReadabilityLabel`
-     - `failedStage`
-     - `failedStageReadabilityLabel`
+    - `citationSelectionSource`
+    - `missingInformationCount`
+    - `missingInformationCountReadabilityLabel`
+    - `missingInformationSource`
+    - `insufficientContextReason`
+    - `missingInformationProvenanceSentence`
+    - `answerTextSource`
+    - `answerTextSourceReadabilityLabel`
+    - `answerStatusSource`
+    - `answerStatusSourceReadabilityLabel`
+    - `answerProvenanceSentence`
+    - `failedStage`
+    - `failedStageReadabilityLabel`
     - `failureMessage`
     - `candidateLimit`
-     - `vectorCandidateCount`
-     - `lexicalCandidateCount`
-     - `mergedCandidateCount`
-     - `rankedCandidateCount`
-     - `candidateCountReadabilityLabel`
-     - `vectorCandidateLimitHit`
-     - `lexicalCandidateLimitHit`
-     - `rankingTopKHit`
+    - `vectorCandidateCount`
+    - `lexicalCandidateCount`
+    - `mergedCandidateCount`
+    - `rankedCandidateCount`
+    - `candidateCountReadabilityLabel`
+    - `vectorCandidateLimitHit`
+    - `lexicalCandidateLimitHit`
+    - `rankingTopKHit`
     - `primaryChunkCount`
     - `neighborChunkCount`
     - `retrievedChunkCount`
     - `inputChunkCount`
     - `promptContextCount`
-     - `contextGroupCount`
-     - `citationCount`
-     - `citationCountReadabilityLabel`
-     - `citationCountBeforeLimit`
-     - `citationLimitHit`
-     - `usedFallback`
+    - `contextGroupCount`
+    - `citationCount`
+    - `citationCountReadabilityLabel`
+    - `citationCountBeforeLimit`
+    - `citationLimitHit`
+    - `usedFallback`
   - current `traceSummary.retrievalQuerySource` values are:
     - `rewritten`
     - `original_disabled`
     - `original_unchanged`
+  - current `traceSummary.strategySummary.strategyMode` / `traceSummary.retrievalMode` values are:
+    - `vector`
+    - `hybrid`
+    - `lexical`
+  - current `traceSummary.fallbackReason` values are:
+    - `vector_error`
+    - `no_ranked_candidates`
+  - current `traceSummary.answerStatus` values are:
+    - `grounded`
+    - `insufficient_context`
+  - current `traceSummary.qualityOverall` values are:
+    - `strong`
+    - `partial`
+    - `weak`
+  - current `traceSummary.generationMode` values are:
+    - `generated`
+    - `deterministic_bypass`
+  - current `traceSummary.contextMode` values are:
+    - `chunks`
+    - `context_groups`
+  - current `traceSummary.citationAttribution` values are:
+    - `explicit`
+    - `heuristic`
+    - `none`
+  - current `traceSummary.citationSelectionSource` / `traceSummary.answerEvidenceSource` values are:
+    - `structured`
+    - `inline_markers`
+    - `heuristic`
+    - `none`
+  - current `traceSummary.answerTextSource` values are:
+    - `model`
+    - `deterministic_policy`
+  - current `traceSummary.answerStatusSource` values are:
+    - `model`
+    - `inferred_from_retrieval`
+    - `deterministic_policy`
+  - current `traceSummary.missingInformationSource` values are:
+    - `none`
+    - `model`
+    - `deterministic_default`
+    - `suppressed_by_policy`
+  - current `traceSummary.insufficientContextReason` values are:
+    - `no_retrieval_hits`
+    - `retrieved_context_insufficient`
   - current `traceSummary.failedStage` values are:
     - `retrieval`
     - `answering`

@@ -61,14 +61,24 @@ pnpm loop:status
   "items": [
     {
       "id": "build-001",
-      "title": "Run rag-build on default prompt",
+      "title": "Read-model metadata convergence increment",
       "agent": "rag-build",
-      "promptFile": "prompts/build.md",
+      "promptFile": "prompts/read-model-metadata.md",
       "status": "pending"
     }
   ]
 }
 ```
+
+## Prompt Family Guidance
+
+Keep queue prompts task-family specific so metadata work does not silently fall back to the generic build template:
+
+- `prompts/build.md`: generic small build increment
+- `prompts/build-small-increment.md`: harness/runtime maintenance increments under `scripts/opencode-loop*`
+- `prompts/read-model-metadata.md`: read-model / metadata convergence increments
+
+For read-model / metadata queue items, prefer `prompts/read-model-metadata.md` instead of `prompts/build.md`.
 
 Completed items are enriched with `sessionId`, `messageId`, `handoffPath`, and `completedAt`.
 Queue records also carry readable `*Display` timestamp companions such as `startedAtDisplay`, `messageReceivedAtDisplay`, and `completedAtDisplay`.
