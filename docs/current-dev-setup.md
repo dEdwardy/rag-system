@@ -130,6 +130,10 @@ AUTH_SESSION_TTL_HOURS=168
     - `POST /auth/login` (sets session cookie, returns identity)
     - `POST /auth/logout` (revokes current session when present, clears cookie)
     - `GET /auth/me` (returns `{ identity, currentIdentity }`)
+  - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
+    - allow only when `tenantId` matches and `ownerId === userId`
+    - deny when tenant mismatches, owner mismatches, or owner is unassigned
+    - conservative fallback: unsupported access action or unsupported resource kind is denied explicitly (`unsupported_action` / `unsupported_resource_kind`)
   - web auth bootstrap now calls `GET /auth/me` at app-shell entry and redirects unauthenticated users to `/login`
   - web app shell now exposes a minimal `Logout` action that calls `POST /auth/logout`, clears auth-scoped cached query state, and returns to `/login`
   - web API requests now include credentials by default so the auth session cookie is sent for protected API routes
