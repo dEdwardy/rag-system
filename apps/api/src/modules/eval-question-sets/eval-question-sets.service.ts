@@ -30,6 +30,44 @@ type EvalRunSummary = {
   averageCitationCount: number;
 };
 
+type EvalRunQualityGateMode = "warn" | "fail";
+
+type EvalRunQualityGateMetricKey =
+  | "successRate"
+  | "groundedRate"
+  | "strongRate"
+  | "fallbackRate"
+  | "averageCitationCount";
+
+type EvalRunQualityGateMetricLimit =
+  | {
+      metric: EvalRunQualityGateMetricKey;
+      limitType: "min";
+      limit: number;
+    }
+  | {
+      metric: EvalRunQualityGateMetricKey;
+      limitType: "max";
+      limit: number;
+    };
+
+type EvalRunQualityGateBreach = {
+  metric: EvalRunQualityGateMetricKey;
+  limitType: "min" | "max";
+  limit: number;
+  current: number;
+  delta: number;
+};
+
+type EvalRunQualityGate = {
+  mode: EvalRunQualityGateMode;
+  status: "passed" | "warning" | "failed";
+  limitVersion: string;
+  breachedMetricCount: number;
+  breachedMetrics: EvalRunQualityGateBreach[];
+  message: string;
+};
+
 type EvalRunComparisonMetric = {
   metric: EvalRunSummaryMetricKey;
   current: number;
@@ -119,6 +157,7 @@ type EvalQuestionSetRunResultPayload = {
   };
   items: EvalRunItem[];
   summary: EvalRunSummary;
+  qualityGate: EvalRunQualityGate;
   baselineComparison: {
     hasPinnedBaselineEvalResult: boolean;
     baselineCapturedAt: Date | null;
@@ -155,6 +194,14 @@ type EvalPinnedBaselineRunPayload = {
 
 const P5_V1_DEMO_REPLAY_NAME = "p5-v1-demo-replay";
 const P5_V1_DEMO_REPLAY_ASSISTANT_ID = "default-assistant";
+const P5_V1_QUALITY_GATE_LIMIT_VERSION = "p5_v1_core_quality_gate_v1";
+const P5_V1_QUALITY_GATE_LIMITS: EvalRunQualityGateMetricLimit[] = [
+  { metric: "successRate", limitType: "min", limit: 0.8 },
+  { metric: "groundedRate", limitType: "min", limit: 0.75 },
+  { metric: "strongRate", limitType: "min", limit: 0.6 },
+  { metric: "fallbackRate", limitType: "max", limit: 0.35 },
+  { metric: "averageCitationCount", limitType: "min", limit: 0.8 }
+];
 const P5_V1_DEMO_REPLAY_QUESTIONS = [
   "Summarize one key capability of this knowledge base and cite evidence.",
   "What source families are currently supported for external ingestion?",
@@ -341,6 +388,7 @@ export class EvalQuestionSetsService {
   async runQuestionSet(id: string, input: RunEvalQuestionSetInput, identity: AuthIdentity) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
     const baselineSnapshotId = input.baselineSnapshotId ?? questionSet.baselineSnapshotId;
+    const qualityGateMode: EvalRunQualityGateMode = input.qualityGateMode ?? "warn";
     if (!baselineSnapshotId) {
       throw new ConflictException(`Eval question set ${id} has no selected baseline snapshot.`);
     }
@@ -414,6 +462,7 @@ export class EvalQuestionSetsService {
     const finishedAt = new Date();
     const succeededCount = items.filter(item => item.status === "succeeded").length;
     const runSummary = this.buildRunSummary(items);
+    const qualityGate = this.evaluateQualityGate(runSummary, qualityGateMode);
     const pinnedBaselineSummary = this.readEvalRunSummary(questionSet.pinnedBaselineResultJson);
     const pinnedBaselineItems = this.readPinnedBaselineRunItems(questionSet.pinnedBaselineResultJson);
     const shouldCapturePinnedBaseline = snapshot.id === questionSet.baselineSnapshotId && pinnedBaselineSummary == null;
@@ -456,6 +505,7 @@ export class EvalQuestionSetsService {
       },
       items,
       summary: runSummary,
+      qualityGate,
       baselineComparison: {
         hasPinnedBaselineEvalResult: pinnedBaselineSummary != null,
         baselineCapturedAt: questionSet.pinnedBaselineCapturedAt ?? null,
@@ -468,10 +518,21 @@ export class EvalQuestionSetsService {
       }
     };
 
-    return {
+    const runResponse = {
       ...runResult,
       reportExports: this.buildRunReportExports(runResult)
     };
+
+    if (qualityGate.status === "failed") {
+      throw new ConflictException({
+        message: "Eval quality gate failed.",
+        code: "EVAL_QUALITY_GATE_FAILED",
+        qualityGate,
+        runResult: runResponse
+      });
+    }
+
+    return runResponse;
   }
 
   async runP5V1DemoReplay(identity: AuthIdentity) {
@@ -711,6 +772,56 @@ export class EvalQuestionSetsService {
       strongRate: this.toRate(strong, total),
       fallbackRate: this.toRate(fallbackUsed, total),
       averageCitationCount: this.roundMetric(total > 0 ? totalCitationCount / total : 0)
+    };
+  }
+
+  private evaluateQualityGate(summary: EvalRunSummary, mode: EvalRunQualityGateMode): EvalRunQualityGate {
+    const breachedMetrics: EvalRunQualityGateBreach[] = [];
+
+    for (const limit of P5_V1_QUALITY_GATE_LIMITS) {
+      const current = summary[limit.metric];
+      if (limit.limitType === "min") {
+        if (current < limit.limit) {
+          breachedMetrics.push({
+            metric: limit.metric,
+            limitType: "min",
+            limit: limit.limit,
+            current,
+            delta: this.roundMetric(current - limit.limit)
+          });
+        }
+        continue;
+      }
+
+      if (current > limit.limit) {
+        breachedMetrics.push({
+          metric: limit.metric,
+          limitType: "max",
+          limit: limit.limit,
+          current,
+          delta: this.roundMetric(current - limit.limit)
+        });
+      }
+    }
+
+    if (breachedMetrics.length === 0) {
+      return {
+        mode,
+        status: "passed",
+        limitVersion: P5_V1_QUALITY_GATE_LIMIT_VERSION,
+        breachedMetricCount: 0,
+        breachedMetrics,
+        message: "All core quality metrics are within P5 v1 limits."
+      };
+    }
+
+    return {
+      mode,
+      status: mode === "fail" ? "failed" : "warning",
+      limitVersion: P5_V1_QUALITY_GATE_LIMIT_VERSION,
+      breachedMetricCount: breachedMetrics.length,
+      breachedMetrics,
+      message: `${breachedMetrics.length} core quality metric(s) crossed P5 v1 limits.`
     };
   }
 
@@ -1111,6 +1222,7 @@ export class EvalQuestionSetsService {
       finishedAt: runResult.finishedAt,
       totals: runResult.totals,
       summary: runResult.summary,
+      qualityGate: runResult.qualityGate,
       baselineComparison: runResult.baselineComparison,
       items: runResult.items
     };
@@ -1160,6 +1272,7 @@ export class EvalQuestionSetsService {
       failed: number;
     };
     summary: EvalRunSummary;
+    qualityGate: EvalRunQualityGate;
     baselineComparison: EvalQuestionSetRunResultPayload["baselineComparison"];
     items: EvalRunItem[];
   }): string {
@@ -1187,6 +1300,16 @@ export class EvalQuestionSetsService {
       `- strongRate: ${report.summary.strongRate}`,
       `- fallbackRate: ${report.summary.fallbackRate}`,
       `- averageCitationCount: ${report.summary.averageCitationCount}`,
+      "",
+      "## Quality gate",
+      `- mode: ${report.qualityGate.mode}`,
+      `- status: ${report.qualityGate.status}`,
+      `- limitVersion: ${report.qualityGate.limitVersion}`,
+      `- breachedMetricCount: ${report.qualityGate.breachedMetricCount}`,
+      `- message: ${report.qualityGate.message}`,
+      `- breachedMetrics: ${report.qualityGate.breachedMetrics
+        .map(metric => `${metric.metric}(${metric.current} vs ${metric.limit} ${metric.limitType})`)
+        .join(", ") || "none"}`,
       "",
       "## Baseline comparison",
       `- hasPinnedBaselineEvalResult: ${report.baselineComparison.hasPinnedBaselineEvalResult}`,
@@ -1288,6 +1411,7 @@ export class EvalQuestionSetsService {
       failed: number;
     };
     summary: EvalRunSummary;
+    qualityGate: EvalRunQualityGate;
     baselineComparison: EvalQuestionSetRunResultPayload["baselineComparison"];
     items: EvalRunItem[];
   }): string {
@@ -1385,6 +1509,20 @@ export class EvalQuestionSetsService {
       <li>strongRate: <code>${report.summary.strongRate}</code></li>
       <li>fallbackRate: <code>${report.summary.fallbackRate}</code></li>
       <li>averageCitationCount: <code>${report.summary.averageCitationCount}</code></li>
+    </ul>
+
+    <h2>Quality gate</h2>
+    <ul>
+      <li>mode: <code>${this.escapeHtml(report.qualityGate.mode)}</code></li>
+      <li>status: <code>${this.escapeHtml(report.qualityGate.status)}</code></li>
+      <li>limitVersion: <code>${this.escapeHtml(report.qualityGate.limitVersion)}</code></li>
+      <li>breachedMetricCount: <code>${report.qualityGate.breachedMetricCount}</code></li>
+      <li>message: <code>${this.escapeHtml(report.qualityGate.message)}</code></li>
+      <li>breachedMetrics: <code>${this.escapeHtml(
+        report.qualityGate.breachedMetrics
+          .map(metric => `${metric.metric}(${metric.current} vs ${metric.limit} ${metric.limitType})`)
+          .join(", ") || "none"
+      )}</code></li>
     </ul>
 
     <h2>Baseline comparison</h2>

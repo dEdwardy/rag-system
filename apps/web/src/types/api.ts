@@ -420,6 +420,23 @@ export type EvalQuestionSetRunComparisonMetric = {
   delta: number;
 };
 
+export type EvalQuestionSetRunQualityGateMode = "warn" | "fail";
+
+export type EvalQuestionSetRunQualityGate = {
+  mode: EvalQuestionSetRunQualityGateMode;
+  status: "passed" | "warning" | "failed";
+  limitVersion: string;
+  breachedMetricCount: number;
+  breachedMetrics: Array<{
+    metric: "successRate" | "groundedRate" | "strongRate" | "fallbackRate" | "averageCitationCount";
+    limitType: "min" | "max";
+    limit: number;
+    current: number;
+    delta: number;
+  }>;
+  message: string;
+};
+
 export type EvalQuestionSetFailureDrilldownItem = {
   index: number;
   question: string;
@@ -463,6 +480,7 @@ export type EvalQuestionSetRunResult = {
   };
   items: EvalQuestionSetRunItem[];
   summary?: EvalQuestionSetRunSummary;
+  qualityGate?: EvalQuestionSetRunQualityGate;
   baselineComparison?: {
     hasPinnedBaselineEvalResult: boolean;
     baselineCapturedAt: string | null;

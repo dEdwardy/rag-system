@@ -15,6 +15,22 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 eval run now includes a core-quality threshold gate with warn/fail modes
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-set.schemas.ts`
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/features/api/hooks.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 请求新增可选 `qualityGateMode`（`warn` 默认 / `fail`）
+    - run 结果新增 `qualityGate`，对五个核心指标（`successRate` / `groundedRate` / `strongRate` / `fallbackRate` / `averageCitationCount`）按固定阈值评估并输出 breach 明细
+    - `fail` 模式下若阈值越界将返回 `409`（`EVAL_QUALITY_GATE_FAILED`），并携带当前 run 结果用于定位；`warn` 模式继续返回成功结果
+    - markdown/html/json report export 同步包含 quality gate 信息，便于离线复盘
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P5 v1 eval baseline comparison now includes a scan-first diff summary for quick regression review
   - 变更文件：
     - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`

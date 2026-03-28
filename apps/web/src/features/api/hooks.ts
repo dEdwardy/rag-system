@@ -14,6 +14,7 @@ import {
   KnowledgeBaseDocumentRunRecord,
   KnowledgeBaseDocumentRunSummary,
   EvalQuestionSetRunResult,
+  EvalQuestionSetRunQualityGateMode,
   Message,
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -381,12 +382,14 @@ export function useRunEvalQuestionSet() {
       questionSetId: string;
       assistantId: string;
       baselineSnapshotId?: string;
+      qualityGateMode?: EvalQuestionSetRunQualityGateMode;
     }) =>
       apiRequest<EvalQuestionSetRunResult>(`/eval/question-sets/${payload.questionSetId}/runs`, {
         method: "POST",
         body: {
           assistantId: payload.assistantId,
-          ...(payload.baselineSnapshotId ? { baselineSnapshotId: payload.baselineSnapshotId } : {})
+          ...(payload.baselineSnapshotId ? { baselineSnapshotId: payload.baselineSnapshotId } : {}),
+          ...(payload.qualityGateMode ? { qualityGateMode: payload.qualityGateMode } : {})
         }
       })
   });

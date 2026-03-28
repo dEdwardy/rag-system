@@ -25,7 +25,8 @@ export const chooseEvalQuestionSetBaselineSchema = z
 export const runEvalQuestionSetSchema = z
   .object({
     assistantId: z.string().trim().min(1).max(191),
-    baselineSnapshotId: z.string().trim().min(1).max(191).optional()
+    baselineSnapshotId: z.string().trim().min(1).max(191).optional(),
+    qualityGateMode: z.enum(["warn", "fail"]).optional()
   })
   .strict();
 

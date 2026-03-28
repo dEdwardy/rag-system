@@ -548,6 +548,14 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
     fallbackRate: 0,
     averageCitationCount: 1
   });
+  assert.deepEqual(result.qualityGate, {
+    mode: "warn",
+    status: "passed",
+    limitVersion: "p5_v1_core_quality_gate_v1",
+    breachedMetricCount: 0,
+    breachedMetrics: [],
+    message: "All core quality metrics are within P5 v1 limits."
+  });
   assert.deepEqual(result.baselineComparison, {
     hasPinnedBaselineEvalResult: false,
     baselineCapturedAt: null,
@@ -669,6 +677,43 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
     strongRate: 0,
     fallbackRate: 0,
     averageCitationCount: 0
+  });
+  assert.deepEqual(result.qualityGate, {
+    mode: "warn",
+    status: "warning",
+    limitVersion: "p5_v1_core_quality_gate_v1",
+    breachedMetricCount: 4,
+    breachedMetrics: [
+      {
+        metric: "successRate",
+        limitType: "min",
+        limit: 0.8,
+        current: 0,
+        delta: -0.8
+      },
+      {
+        metric: "groundedRate",
+        limitType: "min",
+        limit: 0.75,
+        current: 0,
+        delta: -0.75
+      },
+      {
+        metric: "strongRate",
+        limitType: "min",
+        limit: 0.6,
+        current: 0,
+        delta: -0.6
+      },
+      {
+        metric: "averageCitationCount",
+        limitType: "min",
+        limit: 0.8,
+        current: 0,
+        delta: -0.8
+      }
+    ],
+    message: "4 core quality metric(s) crossed P5 v1 limits."
   });
   assert.deepEqual(result.baselineComparison, {
     hasPinnedBaselineEvalResult: true,
@@ -820,6 +865,80 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
   assert.equal(result.reportExports.html.format, "html");
   assert.match(result.reportExports.markdown.content, /## Diff summary/);
   assert.match(result.reportExports.html.content, /<h2>Diff summary<\/h2>/);
+});
+
+test("EvalQuestionSetsService runQuestionSet fails in quality gate fail mode when limits are crossed", async () => {
+  const service = buildService(
+    {
+      evalQuestionSet: {
+        findFirst: async () => ({
+          id: "set-1",
+          tenantId: "tenant-auth",
+          ownerId: "user-auth",
+          baselineSnapshotId: "snapshot-selected",
+          questionsJson: ["Q1"],
+          pinnedBaselineResultJson: {
+            total: 1,
+            succeeded: 1,
+            failed: 0,
+            successRate: 1,
+            groundedRate: 1,
+            strongRate: 1,
+            fallbackRate: 0,
+            averageCitationCount: 1
+          },
+          pinnedBaselineCapturedAt: new Date("2026-03-29T00:00:00.000Z")
+        }),
+        update: async () => ({ id: "set-1" })
+      },
+      evalQuestionSetBaselineSnapshot: {
+        findFirst: async ({ where }) => ({
+          id: where.id,
+          version: 4,
+          questionsJson: ["Q1"]
+        })
+      }
+    },
+    {
+      askAssistant: async () => {
+        throw Object.assign(new Error("Ask pipeline failed."), {
+          getResponse() {
+            return {
+              message: "Ask pipeline failed.",
+              code: "ASK_PIPELINE_FAILED",
+              traceId: "trace-err"
+            };
+          }
+        });
+      }
+    }
+  );
+
+  await assert.rejects(
+    service.runQuestionSet(
+      "set-1",
+      {
+        assistantId: "assistant-1",
+        baselineSnapshotId: "snapshot-override",
+        qualityGateMode: "fail"
+      },
+      {
+        tenantId: "tenant-auth",
+        userId: "user-auth",
+        sessionId: "session-1",
+        authSource: "session"
+      }
+    ),
+    error => {
+      const response = typeof error?.getResponse === "function" ? error.getResponse() : null;
+      assert.equal(response?.code, "EVAL_QUALITY_GATE_FAILED");
+      assert.equal(response?.qualityGate?.mode, "fail");
+      assert.equal(response?.qualityGate?.status, "failed");
+      assert.equal(response?.qualityGate?.breachedMetricCount, 4);
+      assert.equal(response?.runResult?.qualityGate?.status, "failed");
+      return true;
+    }
+  );
 });
 
 test("EvalQuestionSetsService runQuestionSet returns per-question failure drilldown for regressions", async () => {
