@@ -6,6 +6,8 @@ import { join, resolve } from "node:path";
 import {
   DEFAULT_QUEUE_ITEM,
   LOOP_SCHEMA_VERSION,
+  deferQueueItem,
+  pickNextItem,
   normalizeQueueForExecution,
   readQueue,
   resolveQueueCursor
@@ -18,6 +20,7 @@ export async function runSelfTest() {
   let resumeRoot = null;
   let refillRoot = null;
   let deferredRoot = null;
+  let failureDeferRoot = null;
   let timeoutRetryRoot = null;
   let timeoutExhaustedRoot = null;
   let plannerDedupeRoot = null;
@@ -32,6 +35,8 @@ export async function runSelfTest() {
   const lastPostPayloadBySessionId = new Map();
   let nextMessageNumber = 1;
   let plannerResponsesRemaining = 1;
+  let failureDeferOnceTriggered = false;
+  let failureDeferTargetSessionId = null;
 
   const server = createServer(async (request, response) => {
     if (!request.url) {
@@ -51,6 +56,9 @@ export async function runSelfTest() {
       }
       if ((payload.title ?? "").includes("timeout-exhaust-001")) {
         timeoutAlwaysSessionIds.add(id);
+      }
+      if ((payload.title ?? "").includes("failure-defer-002") && !failureDeferTargetSessionId) {
+        failureDeferTargetSessionId = id;
       }
       if (id === "ses_2") {
         transientPostFailureBySessionId.add(id);
@@ -103,6 +111,14 @@ export async function runSelfTest() {
         transientPostFailureBySessionId.delete(sessionId);
         pendingAssistantBySessionId.set(sessionId, assistantText);
         request.socket.destroy(new Error("simulated fetch failed"));
+        return;
+      }
+
+      if (sessionId === failureDeferTargetSessionId && !failureDeferOnceTriggered) {
+        failureDeferOnceTriggered = true;
+        response.statusCode = 500;
+        response.setHeader("content-type", "text/plain");
+        response.end("simulated defer failure");
         return;
       }
 
@@ -206,6 +222,36 @@ export async function runSelfTest() {
       throw new Error(
         `Self-test cursor guardrail failed for past-pending cursor: ${JSON.stringify(pastPendingCursor)}`
       );
+    }
+
+    const filteredPick = pickNextItem(
+      {
+        cursor: 0,
+        items: [
+          { id: "filtered-001", status: "pending", wave: "p1" },
+          { id: "filtered-002", status: "pending", wave: "p2" }
+        ]
+      },
+      item => item.wave === "p2"
+    );
+
+    if (filteredPick?.index !== 1 || filteredPick?.item?.id !== "filtered-002") {
+      throw new Error(`Self-test predicate pick failed: ${JSON.stringify(filteredPick)}`);
+    }
+
+    const deferredQueue = deferQueueItem({
+      queue: {
+        cursor: 0,
+        items: [
+          { id: "defer-001", status: "in_progress", sessionId: "ses_defer" },
+          { id: "defer-002", status: "pending" }
+        ]
+      },
+      index: 0
+    });
+
+    if (deferredQueue.items[0]?.status !== "deferred" || deferredQueue.cursor !== 1) {
+      throw new Error(`Self-test deferred queue helper failed: ${JSON.stringify(deferredQueue)}`);
     }
 
     mkdirSync(resolve(root, ".opencode", "loop", "prompts"), { recursive: true });
@@ -593,18 +639,94 @@ export async function runSelfTest() {
       autoRefillMaxCycles: 0
     });
 
-    const deferredQueue = readQueue(resolve(deferredRoot, ".opencode", "loop", "queue.json"));
+    const recoveredDeferredQueue = readQueue(resolve(deferredRoot, ".opencode", "loop", "queue.json"));
 
     if (deferredResult.processedCount !== 1) {
       throw new Error(`Self-test deferred path expected one processed item, got ${deferredResult.processedCount}.`);
     }
 
-    if (deferredQueue.items[0]?.status !== "completed") {
+    if (recoveredDeferredQueue.items[0]?.status !== "completed") {
       throw new Error("Self-test deferred path did not complete the recovered item.");
     }
 
-    if (deferredQueue.items[0]?.sessionId === "ses_stale_deferred") {
+    if (recoveredDeferredQueue.items[0]?.sessionId === "ses_stale_deferred") {
       throw new Error("Self-test deferred path incorrectly reused the stale session.");
+    }
+
+    failureDeferRoot = mkdtempSync(join(tmpdir(), "opencode-loop-failure-defer-"));
+    mkdirSync(resolve(failureDeferRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(failureDeferRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(failureDeferRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Use inline promptText queue items.",
+        "Continue past a soft-failed item that requests defer handling."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(failureDeferRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "failure-defer-001",
+              title: "First inline prompt item",
+              agent: "rag-build",
+              promptText: "Process the first inline prompt item.",
+              status: "pending",
+              failureMode: "block"
+            },
+            {
+              id: "failure-defer-002",
+              title: "Soft-failed inline item",
+              agent: "rag-build",
+              promptText: "Trigger the transient failure path and defer this item.",
+              status: "pending",
+              failureMode: "defer"
+            },
+            {
+              id: "failure-defer-003",
+              title: "Item after deferred failure",
+              agent: "rag-build",
+              promptText: "Process the item after the deferred failure.",
+              status: "pending",
+              failureMode: "block"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const failureDeferResult = await runLoop({
+      repoRoot: failureDeferRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 0
+    });
+
+    const failureDeferQueue = readQueue(resolve(failureDeferRoot, ".opencode", "loop", "queue.json"));
+
+    if (failureDeferResult.processedCount !== 2) {
+      throw new Error(`Self-test failure-defer path expected two processed items, got ${failureDeferResult.processedCount}.`);
+    }
+
+    if (
+      failureDeferQueue.items[0]?.status !== "completed" ||
+      failureDeferQueue.items[1]?.status !== "deferred" ||
+      failureDeferQueue.items[2]?.status !== "completed"
+    ) {
+      throw new Error(`Self-test failure-defer path did not leave the deferred item in place: ${JSON.stringify(failureDeferQueue.items)}`);
     }
 
     timeoutRetryRoot = mkdtempSync(join(tmpdir(), "opencode-loop-timeout-retry-"));
@@ -898,6 +1020,9 @@ export async function runSelfTest() {
     }
     if (deferredRoot) {
       rmSync(deferredRoot, { recursive: true, force: true });
+    }
+    if (failureDeferRoot) {
+      rmSync(failureDeferRoot, { recursive: true, force: true });
     }
     if (timeoutRetryRoot) {
       rmSync(timeoutRetryRoot, { recursive: true, force: true });

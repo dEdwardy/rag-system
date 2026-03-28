@@ -209,6 +209,7 @@ function buildQueueSummary(queue) {
   let pending = 0;
   let completed = 0;
   let inProgress = 0;
+  let deferred = 0;
 
   for (const item of items) {
     if (item?.status === "pending") {
@@ -217,6 +218,8 @@ function buildQueueSummary(queue) {
       completed += 1;
     } else if (item?.status === "in_progress") {
       inProgress += 1;
+    } else if (item?.status === "deferred") {
+      deferred += 1;
     }
   }
 
@@ -225,6 +228,7 @@ function buildQueueSummary(queue) {
       total: items.length,
       pending,
       completed,
+      deferred,
       inProgress,
       cursor: Number.isInteger(queue?.cursor) ? queue.cursor : null
     },

@@ -6,6 +6,7 @@ import {
   DEFAULT_QUEUE_ITEM,
   LOOP_SCHEMA_VERSION,
   completeQueueItem,
+  deferQueueItem,
   formatDisplayTime,
   normalizeQueueForExecution,
   pickNextItem,
@@ -20,6 +21,7 @@ import {
   DEFAULT_PLANNER_PROMPT_FILE_NAME,
   maybeAutoRefillQueue
 } from "./planner.mjs";
+import { normalizeLoopStrategy } from "./strategy.mjs";
 import { parseJsonc } from "./jsonc.mjs";
 
 export const DEFAULT_PROMPT_PATH = "prompts/build.md";
@@ -39,6 +41,8 @@ export async function runLoop(options) {
   const opencodeRoot = resolve(options.repoRoot, ".opencode");
   mkdirSync(opencodeRoot, { recursive: true });
   const repoCommandConfig = readRepoCommandConfig(options.repoRoot);
+  const loopStrategy = normalizeLoopStrategy(options.strategy);
+  const preserveDeferredIds = new Set();
 
   const lock = acquireRunLock(resolve(opencodeRoot, DEFAULT_LOCK_DIR_NAME));
   logStatus("start", {
@@ -89,7 +93,7 @@ export async function runLoop(options) {
         });
       }
 
-      const queueNormalization = normalizeQueueForExecution(queue);
+      const queueNormalization = normalizeQueueForExecution(queue, undefined, { preserveDeferredIds });
       if (queueNormalization.normalizedCount > 0) {
         queue = queueNormalization.queue;
         writeQueue(queuePath, queue);
@@ -100,7 +104,11 @@ export async function runLoop(options) {
         });
       }
 
-      const next = pickNextItem(queue);
+      const next = loopStrategy.selectNextItem({
+        queue,
+        pickNextItem: () => pickNextItem(queue, loopStrategy.shouldRunItem),
+        shouldRunItem: loopStrategy.shouldRunItem
+      });
 
       if (!next) {
         const refillResult = await maybeAutoRefillQueue({
@@ -153,15 +161,43 @@ export async function runLoop(options) {
         ...buildQueueCursorVisibility(queue, next.index),
         ...buildQueueWorkVisibility(queue, next.index)
       });
-      const runState = await resolveQueueItemRun({
-        api,
-        queuePath,
-        queue,
-        next,
-        promptText,
-        agent: resolvedAgent,
-        model: resolvedModel
-      });
+      let runState;
+
+      try {
+        runState = await resolveQueueItemRun({
+          api,
+          queuePath,
+          queue,
+          next,
+          promptText,
+          agent: resolvedAgent,
+          model: resolvedModel
+        });
+      } catch (error) {
+        const failureAction = loopStrategy.onItemFailure({
+          error,
+          queue,
+          item: queue.items[next.index] ?? next.item,
+          next
+        });
+
+        if (failureAction === "defer") {
+          queue = deferQueueItem({ queue, index: next.index });
+          const deferredItemId = queue.items[next.index]?.id;
+          if (typeof deferredItemId === "string" && deferredItemId.trim()) {
+            preserveDeferredIds.add(deferredItemId.trim());
+          }
+          writeQueue(queuePath, queue);
+          logStatus("item:defer", {
+            itemId: next.item.id,
+            status: queue.items[next.index]?.status ?? "deferred",
+            failureReason: error instanceof Error ? error.message : String(error)
+          });
+          continue;
+        }
+
+        throw error;
+      }
 
       queue = runState.queue;
 
@@ -214,6 +250,14 @@ export async function runLoop(options) {
         itemId: next.item.id,
         sessionId: runState.session.id,
         messageId: runState.message.info?.id ?? "unknown",
+        handoffPath: relativeHandoffPath
+      });
+
+      loopStrategy.onItemComplete({
+        item: updatedQueue.items[next.index],
+        queue: updatedQueue,
+        session: runState.session,
+        message: runState.message,
         handoffPath: relativeHandoffPath
       });
 
@@ -433,11 +477,13 @@ function normalizeCommandConfig(commandConfig) {
 }
 
 function loadPrompt({ repoRoot, loopRoot, item, buildTemplate }) {
-  const relativePromptPath = item.promptFile ?? DEFAULT_PROMPT_PATH;
-  const absolutePromptPath = resolve(loopRoot, relativePromptPath);
-  const taskPromptText = readFileSync(absolutePromptPath, "utf8").trim();
+  const taskPromptText =
+    typeof item.promptText === "string" && item.promptText.trim()
+      ? item.promptText.trim()
+      : readFileSync(resolve(loopRoot, item.promptFile ?? DEFAULT_PROMPT_PATH), "utf8").trim();
 
   if (!taskPromptText) {
+    const absolutePromptPath = resolve(loopRoot, item.promptFile ?? DEFAULT_PROMPT_PATH);
     throw new Error(`Prompt file is empty: ${relative(repoRoot, absolutePromptPath)}`);
   }
 
@@ -969,7 +1015,7 @@ function isFetchFailedError(error) {
 }
 
 function buildQueueWorkVisibility(queue, pickedIndex) {
-  const { pendingCount, completedCount, inProgressCount, totalCount } = countQueueWork(queue);
+  const { pendingCount, completedCount, inProgressCount, deferredCount, totalCount } = countQueueWork(queue);
   const items = Array.isArray(queue?.items) ? queue.items : [];
   const pickedStatus = items[pickedIndex]?.status;
   const currentWorkReduction = pickedStatus === "pending" || pickedStatus === "in_progress" ? 1 : 0;
@@ -979,20 +1025,22 @@ function buildQueueWorkVisibility(queue, pickedIndex) {
     queuePending: pendingCount,
     queueCompleted: completedCount,
     queueInProgress: inProgressCount,
-    remainingAfterPick: Math.max(0, pendingCount + inProgressCount - currentWorkReduction),
+    queueDeferred: deferredCount,
+    remainingAfterPick: Math.max(0, pendingCount + inProgressCount + deferredCount - currentWorkReduction),
     ...buildQueueFamilyCountVisibility(queue)
   };
 }
 
 function buildIdleQueueWorkVisibility(queue) {
-  const { pendingCount, completedCount, inProgressCount, totalCount } = countQueueWork(queue);
+  const { pendingCount, completedCount, inProgressCount, deferredCount, totalCount } = countQueueWork(queue);
 
   return {
     queueTotal: totalCount,
     queuePending: pendingCount,
     queueCompleted: completedCount,
     queueInProgress: inProgressCount,
-    remainingQueueWork: pendingCount + inProgressCount,
+    queueDeferred: deferredCount,
+    remainingQueueWork: pendingCount + inProgressCount + deferredCount,
     ...buildQueueFamilyCountVisibility(queue)
   };
 }
@@ -1015,6 +1063,11 @@ function buildQueueFamilyCountVisibility(queue) {
 
     if (item?.status === "completed") {
       completedByFamily.set(family, (completedByFamily.get(family) ?? 0) + 1);
+      continue;
+    }
+
+    if (item?.status === "deferred") {
+      pendingByFamily.set(family, (pendingByFamily.get(family) ?? 0) + 1);
     }
   }
 
@@ -1047,6 +1100,7 @@ function countQueueWork(queue) {
   let pendingCount = 0;
   let completedCount = 0;
   let inProgressCount = 0;
+  let deferredCount = 0;
 
   for (const item of items) {
     if (item?.status === "pending") {
@@ -1061,6 +1115,11 @@ function countQueueWork(queue) {
 
     if (item?.status === "in_progress") {
       inProgressCount += 1;
+      continue;
+    }
+
+    if (item?.status === "deferred") {
+      deferredCount += 1;
     }
   }
 
@@ -1068,6 +1127,7 @@ function countQueueWork(queue) {
     pendingCount,
     completedCount,
     inProgressCount,
+    deferredCount,
     totalCount: items.length
   };
 }
@@ -1197,6 +1257,7 @@ function logStatus(event, fields) {
     "message:send": "发消息",
     "message:timeout-retry": "超时重试",
     "message:timeout-exhausted": "超时回退",
+    "item:defer": "失败降级",
     "cursor:recover": "游标恢复",
     refill: "补队列",
     "refill:skip": "补队列跳过",
@@ -1232,6 +1293,7 @@ function logStatus(event, fields) {
     "queueCompleted",
     "queueCompletedByFamily",
     "queueInProgress",
+    "queueDeferred",
     "queueTotal",
     "handoffPath",
     "processedCount",

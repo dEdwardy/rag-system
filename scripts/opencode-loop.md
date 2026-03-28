@@ -32,6 +32,7 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `scripts/opencode-loop/jsonc.mjs` - lightweight JSONC comment-stripping helper for repo config
 - `scripts/opencode-loop/runtime.mjs` - queue, lock, and OpenCode API logic
 - `scripts/opencode-loop/self-test.mjs` - self-test harness and mock server
+- `scripts/opencode-loop/strategy.mjs` - small strategy/callback normalization layer for selection and failure handling
 
 Session titles use the shape `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS` so the active queue item is easier to identify at a glance.
 
@@ -92,6 +93,8 @@ Interrupted items may stay in `in_progress` until the next run resumes them.
 The harness keeps running until the queue has no pending or recoverable items left.
 Generated refill items materialize their own execution prompt files under `.opencode/loop/prompts/generated/` before the loop continues.
 Queue items may also provide an optional `model` override; otherwise the harness falls back to `opencode.jsonc` `command.build.model` when present.
+Queue items may also provide inline `promptText` instead of `promptFile` when the task prompt is best stored directly in the queue.
+The runtime accepts an optional `strategy` object with small callbacks for item selection and failure handling; the default strategy keeps current behavior but can defer items whose queue metadata sets `failureMode: "defer"`.
 
 ## Notes
 
