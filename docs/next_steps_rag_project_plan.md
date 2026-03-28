@@ -421,7 +421,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    | web page | 单 URL 抓取、重试/超时、redirect 跟随与诊断、`text/plain/unknown + html sniff` 容错已具备 | 1) 仍是纯静态 HTML 提取（`WebPageService.extractFromHtml`），JS 渲染内容为空时会直接失败；2) 目前无页面级 partial diagnostics（只有整体成功/失败），排查“部分正文缺失”信息粒度不足 |
    | feed (RSS/Atom) | RSS/Atom 抓取、entry 级 partial failure/duplicate diagnostics、content-type fallback、重试与 dedup 已具备 | 1) 仅支持 RSS/Atom XML（`Unsupported feed format`），不支持其他 feed 表达；2) 当 entry 无 link 时，dedup 仍退化到 `title+publishedAt+summary`，metadata 漂移下仍可能重复入库 |
    | sitemap / sitemapindex | `urlset` + 一层 `sitemapindex`、子 sitemap 与 page 级 partial diagnostics、maxPages/maxChildSitemaps 边界与 dedup 已具备 | 1) 明确不支持 nested sitemapindex（子项再指向 index 会失败）；2) `MAX_CHILD_SITEMAPS=20` 当前是代码常量，不支持按 source 配置细粒度调节 |
-   | external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备 | 1) `sourceConfigJson` 丢失时的 legacy recovery 目前只覆盖 `web_page`，`feed/sitemap` 丢配置仍会直接 `EXTERNAL_SOURCE_CONFIG_INVALID`；2) source fetch diagnostics 已有 retryable 标记，但跨 family 的错误 code 映射口径仍不完全统一（后续可收敛） |
+| external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备；legacy config recovery 已覆盖 `web_page`（config 丢失）和 `feed/sitemap`（缺失 `maxItems/maxPages`） | 1) `feed/sitemap` 在 `sourceConfigJson` 完整缺失时仍会直接 `EXTERNAL_SOURCE_CONFIG_INVALID`；2) source fetch diagnostics 已有 retryable 标记，但跨 family 的错误 code 映射口径仍不完全统一（后续可收敛） |
 
    建议的 P3 follow-up 顺序（仍保持小步增量）：
 
@@ -446,6 +446,17 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 5. 同步 external source follow-up 文档与验证基线
    - 目标：把后续 source wave 的边界、验证方式、未做项写清楚
    - 交付物：文档同步 + 最小复用验证清单
+
+   最小复用验证基线（P3 follow-up）建议保持：
+
+   - `pnpm test:api:file -- test/external-source-sync.test.js`
+   - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+   - `pnpm test:api:file -- test/parsing.test.js`
+
+   回归确认口径（P3 follow-up）
+
+   - 三条命令全部通过，视为现有 source family 的 re-sync recovery、source fetch diagnostics、source parsing/dedup baseline 仍稳定。
+   - 若失败，先按失败文件回到对应 source follow-up 子路径修复，再重跑同一组命令，不直接升级到重型全量测试。
 
 建议直接用于 queue title 的短标题版：
 
