@@ -15,9 +15,10 @@
 
 补充进展（2026-03-29）：
 
-- ✅ auth v1 retrieval-profile reads/writes are now owner-scoped to current identity
+- ✅ auth v1 retrieval-profile ownership now uses explicit tenant assignment and owner-scoped access
   - 变更文件：
     - `apps/api/prisma/schema.prisma`
+    - `apps/api/prisma/migrations/20260329213000_add_retrieval_profile_ownership_scope/migration.sql`
     - `apps/api/prisma/seed.js`
     - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.controller.ts`
     - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts`
@@ -25,11 +26,12 @@
     - `apps/api/test/retrieval-profiles-auth-scope.test.js`
     - `docs/current-progress.md`
   - 完成内容（最小范围）：
-    - `RetrievalProfile` 持久化模型补齐 `tenantId` / `ownerId`，并在 seed 默认数据中按默认 owner 落库，确保 retrieval-profile 资源具备 owner 归属信息
+    - `RetrievalProfile` 持久化模型补齐并强制 `tenantId` / `ownerId`；migration 优先从 `assistant -> knowledgeBase` 回填，未关联记录回落到最早用户，确保 tenant ownership assignment 显式可追踪
+    - seed 默认 retrieval-profile 同步按默认 identity 写入 `tenantId/ownerId`，避免新环境出现无归属 profile
     - retrieval-profile controller 统一向 service 透传当前 request identity；service 的 list/get/update 路径按 `tenantId + ownerId` 约束访问，create 路径强制以当前 identity 写入 owner 归属
     - assistant 更新时校验 `retrievalProfileId` 也改为 owner-scoped 查询，避免跨 owner 绑定 retrieval profile
   - focused validation：
-    - `pnpm --filter @rag-system/api test:file -- test/retrieval-profiles-auth-scope.test.js`
+    - `pnpm test:api:file -- test/retrieval-profiles-auth-scope.test.js`
 
 - ✅ auth v1 now exposes a minimal permission-check API for owner-only resource access decisions
   - 变更文件：

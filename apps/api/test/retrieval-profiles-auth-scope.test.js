@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 
+const { AssistantsService } = require("../src/modules/assistants/assistants.service.ts");
 const { RetrievalProfilesController } = require("../src/modules/retrieval-profiles/retrieval-profiles.controller.ts");
 const { RetrievalProfilesService } = require("../src/modules/retrieval-profiles/retrieval-profiles.service.ts");
 
@@ -196,6 +197,45 @@ test("RetrievalProfilesService applies owner scope to list/get and stamps owner 
         enableRerank: false,
         scoreThreshold: 0
       }
+    }
+  ]);
+});
+
+test("AssistantsService validates retrievalProfileId within current identity scope", async () => {
+  const observedCalls = [];
+  const scope = {
+    tenantId: "tenant-auth",
+    userId: "user-auth"
+  };
+
+  const fakeService = Object.assign(Object.create(AssistantsService.prototype), {
+    getAssistant: async () => ({ id: "assistant-1" }),
+    retrievalProfilesService: {
+      getRetrievalProfile: async (id, receivedScope) => {
+        observedCalls.push({ id, scope: receivedScope });
+        return { id };
+      }
+    },
+    prisma: {
+      assistant: {
+        update: async () => ({ id: "assistant-1" })
+      }
+    }
+  });
+
+  await AssistantsService.prototype.updateAssistant.call(
+    fakeService,
+    "assistant-1",
+    {
+      retrievalProfileId: "profile-owned"
+    },
+    scope
+  );
+
+  assert.deepEqual(observedCalls, [
+    {
+      id: "profile-owned",
+      scope
     }
   ]);
 });
