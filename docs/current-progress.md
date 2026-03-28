@@ -15,6 +15,20 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 now supports default-user dev mode on the request-auth context path while preserving the auth identity contract
+  - 变更文件：
+    - `.env.example`
+    - `apps/api/src/modules/auth/auth.constants.ts`
+    - `apps/api/src/modules/auth/auth-context.middleware.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `AUTH_DEV_DEFAULT_USER_MODE` 开关（显式 true/false，未设置时默认在非 `production` 环境启用），用于控制未登录请求是否注入 seeded default identity
+    - `AuthContextMiddleware` 在 provider 未解析到 session identity 时，按上述开关决定是否回落到 `dev_seed` identity；`currentIdentity` 字段形状保持不变
+    - 该增量保持 auth v1 合约不扩展：`AuthIdentity` 字段与 `/auth/me` 返回结构不变，仅收口本地开发默认身份来源
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ auth v1 retrieval-profile ownership now uses explicit tenant assignment and owner-scoped access
   - 变更文件：
     - `apps/api/prisma/schema.prisma`

@@ -208,6 +208,84 @@ test("AuthContextMiddleware injects request authContext via provider boundary", 
   });
 });
 
+test("AuthContextMiddleware injects default dev identity when unauthenticated and dev mode is enabled", async () => {
+  const previous = process.env.AUTH_DEV_DEFAULT_USER_MODE;
+  process.env.AUTH_DEV_DEFAULT_USER_MODE = "true";
+
+  try {
+    const middleware = new AuthContextMiddleware({
+      resolveIdentity: () => null
+    });
+
+    const request = {
+      headers: {
+        cookie: "other=1"
+      }
+    };
+
+    await middleware.use(request, {}, () => {});
+
+    assert.deepEqual(request.authContext, {
+      identity: {
+        userId: "default-user",
+        tenantId: "default-tenant",
+        role: "owner",
+        sessionId: null,
+        authSource: "dev_seed"
+      },
+      currentIdentity: {
+        userId: "default-user",
+        tenantId: "default-tenant",
+        role: "owner",
+        sessionId: null,
+        authSource: "dev_seed"
+      }
+    });
+  } finally {
+    if (previous == null) {
+      delete process.env.AUTH_DEV_DEFAULT_USER_MODE;
+    } else {
+      process.env.AUTH_DEV_DEFAULT_USER_MODE = previous;
+    }
+  }
+});
+
+test("AuthContextMiddleware keeps identity null when unauthenticated and dev mode is disabled", async () => {
+  const previous = process.env.AUTH_DEV_DEFAULT_USER_MODE;
+  process.env.AUTH_DEV_DEFAULT_USER_MODE = "false";
+
+  try {
+    const middleware = new AuthContextMiddleware({
+      resolveIdentity: () => null
+    });
+
+    const request = {
+      headers: {
+        cookie: "other=1"
+      }
+    };
+
+    await middleware.use(request, {}, () => {});
+
+    assert.deepEqual(request.authContext, {
+      identity: null,
+      currentIdentity: {
+        userId: "default-user",
+        tenantId: "default-tenant",
+        role: "owner",
+        sessionId: null,
+        authSource: "dev_seed"
+      }
+    });
+  } finally {
+    if (previous == null) {
+      delete process.env.AUTH_DEV_DEFAULT_USER_MODE;
+    } else {
+      process.env.AUTH_DEV_DEFAULT_USER_MODE = previous;
+    }
+  }
+});
+
 test("resolveRequestAuthContext returns stable default current identity when request is unauthenticated", () => {
   const resolved = resolveRequestAuthContext({ authContext: undefined });
 
