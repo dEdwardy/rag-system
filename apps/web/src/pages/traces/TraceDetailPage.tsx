@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { Link, useParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { useTrace } from "../../features/api/hooks";
+import { useConversationMessages, useTrace } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { Citation, JsonValue } from "../../types/api";
 
@@ -170,6 +170,8 @@ export function TraceDetailPage() {
   const { traceId = null } = useParams();
   const traceQuery = useTrace(traceId);
   const trace = traceQuery.data;
+  const conversationMessagesQuery = useConversationMessages(trace?.conversationId ?? null);
+  const conversationMessages = conversationMessagesQuery.data ?? [];
   const retrievedChunkIds = normalizeChunkIds(trace?.retrievedChunkIdsJson);
   const scores = normalizeScores(trace?.retrievalScoresJson);
   const citations = normalizeCitations(trace?.citationsJson);
@@ -178,6 +180,18 @@ export function TraceDetailPage() {
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
   const hasRewrite = Boolean(trace?.rewrittenQuery);
   const traceSummary = trace?.traceSummary ?? null;
+  const userRequestText =
+    (trace?.userMessageId
+      ? conversationMessages.find(message => message.id === trace.userMessageId)?.content
+      : null) ??
+    trace?.userQuery ??
+    "";
+  const assistantResponseText =
+    (trace?.assistantMessageId
+      ? conversationMessages.find(message => message.id === trace.assistantMessageId)?.content
+      : null) ??
+    conversationMessages.find(message => message.role === "assistant" && message.traceId === trace?.id)?.content ??
+    null;
 
   return (
     <Stack gap="md">
@@ -232,6 +246,113 @@ export function TraceDetailPage() {
 
       {trace ? (
         <>
+          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+            <Stack gap="md">
+              <Group justify="space-between" wrap="nowrap">
+                <div>
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "请求 / 响应 / 步骤" : "Request / response / steps"}
+                  </Text>
+                  <Text className="workspace-section-copy">
+                    {locale === "zh"
+                      ? "在一个视图里先看用户请求、最终响应，再快速扫过本轮检索与回答步骤。"
+                      : "Start with the user request and final response, then scan retrieval/answering steps in one view."}
+                  </Text>
+                </div>
+                <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
+                  {trace.status === "success"
+                    ? locale === "zh"
+                      ? "完整链路"
+                      : "Full chain"
+                    : locale === "zh"
+                      ? "失败链路"
+                      : "Failed chain"}
+                </Badge>
+              </Group>
+
+              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">{locale === "zh" ? "请求" : "Request"}</Text>
+                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {userRequestText || (locale === "zh" ? "未记录用户请求。" : "No user request captured.")}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === "zh" ? "改写查询" : "Rewrite query"}
+                    </Text>
+                    <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {trace.rewrittenQuery ?? (locale === "zh" ? "与原问题一致" : "Same as original question")}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">{locale === "zh" ? "响应" : "Response"}</Text>
+                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {assistantResponseText
+                        ? assistantResponseText
+                        : conversationMessagesQuery.isLoading
+                          ? locale === "zh"
+                            ? "正在加载响应正文..."
+                            : "Loading response text..."
+                          : locale === "zh"
+                            ? "未记录响应正文（可继续查看下方溯源摘要与引用）。"
+                            : "No response text captured. Use provenance and citations below for diagnostics."}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === "zh" ? "回答状态" : "Answer status"}
+                    </Text>
+                    <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {traceSummary?.answerStatus ?? (trace.status === "success" ? "grounded" : "insufficient_context")}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">{locale === "zh" ? "步骤" : "Steps"}</Text>
+                    <div className="workspace-meta-list">
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 1：查询准备" : "Step 1: query prep"}</span>
+                        <span className="workspace-meta-value">
+                          {traceSummary?.rewriteReadabilityLabel ??
+                            (hasRewrite
+                              ? locale === "zh"
+                                ? "已执行 query rewrite"
+                                : "query rewrite applied"
+                              : locale === "zh"
+                                ? "未执行 query rewrite"
+                                : "query rewrite not applied")}
+                        </span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 2：检索" : "Step 2: retrieval"}</span>
+                        <span className="workspace-meta-value">
+                          {traceSummary?.strategyReadabilityLabel ??
+                            (locale === "zh" ? "暂无检索策略摘要。" : "No retrieval strategy summary.")}
+                        </span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 3：回答" : "Step 3: answer"}</span>
+                        <span className="workspace-meta-value">
+                          {traceSummary?.answerProvenanceSentence ??
+                            (locale === "zh" ? "暂无回答溯源摘要。" : "No answer provenance summary.")}
+                        </span>
+                      </div>
+                      {traceSummary?.failureReadabilitySentence ? (
+                        <div className="workspace-meta-row">
+                          <span className="workspace-meta-label">{locale === "zh" ? "失败诊断" : "Failure"}</span>
+                          <span className="workspace-meta-value">{traceSummary.failureReadabilitySentence}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </Stack>
+                </Paper>
+              </SimpleGrid>
+            </Stack>
+          </Paper>
+
           <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
             <Stack gap="md">
               <Group justify="space-between" wrap="nowrap">

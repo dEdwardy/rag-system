@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 trace detail page now surfaces essential request, response, and step-level execution context in one view
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - trace 详情页新增 `Request / response / steps` 组合面板，把请求文本、响应文本、以及三段式执行步骤摘要（query prep / retrieval / answer）放到同一视图顶部
+    - 响应文本通过现有会话消息接口按 `assistantMessageId`（含 `traceId` 回退）读取，避免新增后端契约
+    - 原有 trace 评分、引用、raw payload 诊断区保持不变，仅补齐 P6 v1 的“单页先看核心信息”阅读路径
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ P6 v1 trace workspace now supports scoped keyword search via the authenticated `/traces` list endpoint
   - 变更文件：
     - `apps/api/src/modules/documents/document.schemas.ts`
