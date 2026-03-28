@@ -97,7 +97,7 @@ async function fetchWithFollowRedirects(url: string, init: RequestInit) {
 
     const redirectLocation = response.headers.get("location");
     if (!redirectLocation) {
-      return response;
+      throw new Error(`Failed to follow redirect for ${currentUrl}: missing redirect location header.`);
     }
 
     const nextUrl = resolveRedirectUrl(currentUrl, redirectLocation);

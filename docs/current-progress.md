@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ external-source redirect diagnostics now fail clearly when upstream redirect response omits `Location`
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now treats `301/302/303/307/308` without `Location` as an explicit redirect-follow failure: `Failed to follow redirect for <url>: missing redirect location header.`
+  - this closes one narrow redirect edge case across existing `web page` / `feed` / `sitemap` fetches: malformed redirect responses no longer flow downstream as opaque non-2xx HTTP/content-type failures
+  - `apps/api/test/fetch-with-retry.test.js` adds focused coverage for the missing-`Location` redirect path
+  - scope remains redirect diagnostics-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused fetch-with-retry tests passed；当上游返回 `302` 但缺失 `Location` header 时，错误现在会直接提示 `missing redirect location header`，便于快速定位上游响应问题
+
 - ✅ feed source fetch now accepts RSS/Atom XML payload when upstream content-type is mis-labeled as `text/plain`
   - `apps/api/src/infra/feed-source/feed-source.service.ts` now adds one narrow fallback: when `content-type` is missing (`unknown`) or starts with `text/plain`, and payload clearly looks like feed XML (`<rss>` / `<feed>`), it proceeds with existing feed parsing instead of immediately failing with `Unsupported feed content type`
   - this closes one narrow HTTP response edge case for existing `feed` source ingestion where upstream serves valid RSS/Atom payload but labels response as plain text
