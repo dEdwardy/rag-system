@@ -601,6 +601,35 @@
   - 新增 / 更新验证：
     - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
   - 实测结果：focused traces service tests 5/5 通过；ask response、trace summary、shared contract 的 strategy summary 现在可一致携带 rewrite prompt 归因字段
+- ✅ 继续压缩 web 首屏负担，去掉了不必要的外链字体和首屏通知层
+  - `apps/web/src/styles/global.css` now uses a local/system font stack only, so the app no longer depends on Google Fonts at runtime
+  - `apps/web/index.html` no longer preconnects to Google Fonts origins
+  - `apps/web/src/app/App.tsx` removed the always-mounted Mantine notifications layer and its stylesheet import
+  - `apps/web/src/styles/theme.ts` now uses the same system font stack for Mantine theme text and headings
+  - `apps/web/src/app/AppShell.tsx` no longer hard-codes a missing display font family for the shell brand mark and title
+  - `apps/web/src/features/api/hooks.ts` now allows shell-level queries to be deferred until hydration, so the workspace badges do not compete with the first paint
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/web build`
+  - 实测结果：web build passed again, with the main initial JS chunk dropping from roughly 442.73 kB to 396.95 kB and HTML shrinking slightly as well
+
+- ✅ 5174 Lighthouse static test setup now avoids cross-origin API calls
+  - `apps/web/src/lib/api.ts` now uses a same-origin `/api` base when the app is served from port 5174
+  - `apps/web/serve-dist.mjs` now reverse-proxies `/api/*` to the local API server on `localhost:3000`
+  - this removes the browser-side CORS dependency for local Lighthouse testing while preserving the static dist serving path, brotli compression, and cache headers
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/web build`
+    - `node --check apps/web/serve-dist.mjs`
+    - `curl http://127.0.0.1:5174/api/health`
+  - 实测结果：`/api/health` now returns the proxied API response from 3000 through 5174 without cross-origin fetches
+
+- ✅ web entry now has better SEO and lower initial route weight
+  - `apps/web/src/app/router.tsx` now lazy-loads route pages instead of statically importing every page component up front, which should reduce initial JS pressure and unused bundle weight
+  - `apps/web/index.html` now includes a meta description plus font preconnect hints
+  - `apps/web/public/robots.txt` now exists with valid allow-all syntax so the app has a real robots file for crawler audits
+  - this is a frontend performance/SEO hardening increment only: no backend contract changes and no visual redesign
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/web build`
+  - 实测结果：web build passed after the route-splitting and SEO header update
 
 - ✅ OpenCode loop night-run wrapper now prefers corepack for pnpm resolution
   - `scripts/opencode-loop/night-run.sh` now launches `pnpm` through `corepack` first, with Volta/local shim fallbacks if needed

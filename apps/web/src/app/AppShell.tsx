@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useConversations, useDocuments, useKnowledgeBases } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
@@ -174,12 +174,17 @@ export function AppShell() {
   const location = useLocation();
   const { locale, setLocale } = useI18n();
   const { themeColor, themeLayout, setThemeColor, setThemeLayout } = useThemePreferences();
-  const knowledgeBasesQuery = useKnowledgeBases();
+  const [isHydrated, setIsHydrated] = useState(false);
+  const knowledgeBasesQuery = useKnowledgeBases(isHydrated);
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
-  const conversationsQuery = useConversations();
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb", isHydrated);
+  const conversationsQuery = useConversations(isHydrated);
   const isChatRoute = location.pathname === "/";
   const localeKey = locale === "zh" ? "zh" : "en";
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     if (themeColor !== APP_SHELL_THEME.color) {
@@ -216,11 +221,11 @@ export function AppShell() {
         <aside aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
           <div className="border-b border-[var(--app-border)] px-6 py-6">
             <div className="flex items-center gap-3.5">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] font-['Space_Grotesk'] text-lg font-bold text-white shadow-[0_4px_20px_var(--app-accent-glow)]">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-lg font-bold text-white shadow-[0_4px_20px_var(--app-accent-glow)]">
                 R
               </div>
               <div>
-                <h1 className="bg-[linear-gradient(135deg,var(--app-text)_0%,var(--app-text-secondary)_100%)] bg-clip-text font-['Space_Grotesk'] text-xl font-bold tracking-[-0.03em] text-transparent">
+                <h1 className="bg-[linear-gradient(135deg,var(--app-text)_0%,var(--app-text-secondary)_100%)] bg-clip-text text-xl font-bold tracking-[-0.03em] text-transparent">
                   RAG System
                 </h1>
                 <p className="mt-0.5 text-[11px] text-[var(--app-text-muted)]">
