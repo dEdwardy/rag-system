@@ -27,7 +27,7 @@ function buildService(prisma, askAssistantService = { askAssistant: async () => 
   return new EvalQuestionSetsService(prisma, askAssistantService);
 }
 
-test("EvalQuestionSetsController forwards request identity for create/update/lock/archive/baseline/run", async () => {
+test("EvalQuestionSetsController forwards request identity for create/update/lock/archive/baseline/run/demo-replay", async () => {
   const calls = [];
   const controller = new EvalQuestionSetsController({
     createQuestionSet: async (input, identity) => {
@@ -61,6 +61,10 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
     runQuestionSet: async (id, input, identity) => {
       calls.push({ type: "run", id, input, identity });
       return { id: "run-1" };
+    },
+    runP5V1DemoReplay: async identity => {
+      calls.push({ type: "run-demo-replay", identity });
+      return { id: "demo-run-1" };
     }
   });
 
@@ -73,6 +77,7 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
   await controller.chooseBaseline("set-1", { snapshotId: "snapshot-1" }, request);
   await controller.compareWithBaseline("set-1", request);
   await controller.runQuestionSet("set-1", { assistantId: "assistant-1" }, request);
+  await controller.runP5V1DemoReplay(request);
 
   assert.deepEqual(calls, [
     {
@@ -125,6 +130,10 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
       input: {
         assistantId: "assistant-1"
       },
+      identity: request.authContext.currentIdentity
+    },
+    {
+      type: "run-demo-replay",
       identity: request.authContext.currentIdentity
     }
   ]);
@@ -733,4 +742,137 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
       ]
     }
   });
+});
+
+test("EvalQuestionSetsService runP5V1DemoReplay uses fixed scenario and returns replay entry", async () => {
+  const askCalls = [];
+  const findFirstByNameCalls = [];
+  const updateCalls = [];
+  const createdQuestionSet = {
+    id: "set-demo",
+    tenantId: "tenant-auth",
+    ownerId: "user-auth",
+    status: "draft",
+    currentVersion: 1,
+    name: "p5-v1-demo-replay",
+    description: "Fixed P5 v1 demo replay scenario for stable end-to-end demonstration.",
+    questionsJson: ["Q1", "Q2", "Q3"]
+  };
+
+  const service = buildService(
+    {
+      tenant: {
+        findUnique: async () => ({ id: "tenant-auth" })
+      },
+      user: {
+        findUnique: async () => ({ id: "user-auth" })
+      },
+      evalQuestionSet: {
+        findFirst: async ({ where }) => {
+          if (where.id) {
+            return {
+              id: "set-demo",
+              tenantId: "tenant-auth",
+              ownerId: "user-auth",
+              baselineSnapshotId: "snapshot-demo",
+              pinnedBaselineResultJson: null,
+              pinnedBaselineCapturedAt: null,
+              status: "draft"
+            };
+          }
+
+          if (where.name) {
+            findFirstByNameCalls.push(where.name);
+            return null;
+          }
+
+          return null;
+        },
+        create: async () => createdQuestionSet,
+        update: async args => {
+          updateCalls.push(args);
+          return {
+            id: "set-demo",
+            baselineSnapshotId: args.data.baselineSnapshotId ?? "snapshot-demo",
+            baselineChosenAt: args.data.baselineChosenAt ?? null
+          };
+        }
+      },
+      evalQuestionSetBaselineSnapshot: {
+        findFirst: async ({ where }) => {
+          if (where.version) {
+            return null;
+          }
+
+          return {
+            id: where.id ?? "snapshot-demo",
+            version: 2,
+            questionsJson: [
+              "Summarize one key capability of this knowledge base and cite evidence.",
+              "What source families are currently supported for external ingestion?",
+              "Ask a likely no-hit question and explain why the answer may be insufficient."
+            ]
+          };
+        },
+        create: async () => ({
+          id: "snapshot-demo",
+          version: 2,
+          questionSetId: "set-demo"
+        })
+      }
+    },
+    {
+      askAssistant: async input => {
+        askCalls.push(input);
+        return {
+          traceId: `trace-${askCalls.length}`,
+          conversationId: `conv-${askCalls.length}`,
+          answerStatus: "grounded",
+          citations: [{ id: `citation-${askCalls.length}` }],
+          qualityEvaluation: {
+            overall: "strong",
+            primaryIssue: "none"
+          },
+          answeringMetadata: {
+            usedFallback: false
+          }
+        };
+      }
+    }
+  );
+
+  const result = await service.runP5V1DemoReplay({
+    tenantId: "tenant-auth",
+    userId: "user-auth",
+    sessionId: "session-1",
+    authSource: "session"
+  });
+
+  assert.deepEqual(findFirstByNameCalls, ["p5-v1-demo-replay"]);
+  assert.equal(result.replayEntry.id, "p5-v1");
+  assert.equal(result.replayEntry.assistantId, "default-assistant");
+  assert.equal(result.totals.total, 3);
+  assert.equal(askCalls.length, 3);
+  assert.deepEqual(
+    askCalls.map(call => ({ assistantId: call.assistantId, question: call.question })),
+    [
+      {
+        assistantId: "default-assistant",
+        question: "Summarize one key capability of this knowledge base and cite evidence."
+      },
+      {
+        assistantId: "default-assistant",
+        question: "What source families are currently supported for external ingestion?"
+      },
+      {
+        assistantId: "default-assistant",
+        question: "Ask a likely no-hit question and explain why the answer may be insufficient."
+      }
+    ]
+  );
+
+  assert.ok(
+    updateCalls.some(call => call.data && call.data.latestEvalResultSummaryJson),
+    "expected eval-question-set run summary to be persisted"
+  );
 });

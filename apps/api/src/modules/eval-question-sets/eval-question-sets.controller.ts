@@ -89,6 +89,15 @@ export class EvalQuestionSetsController {
     return this.evalQuestionSetsService.runQuestionSet(id, input, authContext.identity);
   }
 
+  @Post("demo-replays/p5-v1/run")
+  runP5V1DemoReplay(@Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.evalQuestionSetsService.runP5V1DemoReplay(authContext.identity);
+  }
+
   @Get(":id/baselines/compare")
   compareWithBaseline(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
     const authContext = resolveRequestAuthContext({

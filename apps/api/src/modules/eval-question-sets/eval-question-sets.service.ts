@@ -37,6 +37,14 @@ type EvalRunComparisonMetric = {
   delta: number;
 };
 
+const P5_V1_DEMO_REPLAY_NAME = "p5-v1-demo-replay";
+const P5_V1_DEMO_REPLAY_ASSISTANT_ID = "default-assistant";
+const P5_V1_DEMO_REPLAY_QUESTIONS = [
+  "Summarize one key capability of this knowledge base and cite evidence.",
+  "What source families are currently supported for external ingestion?",
+  "Ask a likely no-hit question and explain why the answer may be insufficient."
+];
+
 @Injectable()
 export class EvalQuestionSetsService {
   constructor(
@@ -344,6 +352,39 @@ export class EvalQuestionSetsService {
     };
   }
 
+  async runP5V1DemoReplay(identity: AuthIdentity) {
+    await this.ensureTenant(identity.tenantId);
+    await this.ensureOwner(identity.userId);
+
+    const questionSet = await this.ensureP5V1DemoQuestionSet(identity);
+    const snapshot = await this.snapshotBaseline(questionSet.id, identity);
+    const chosenQuestionSet = await this.chooseBaselineSnapshot(
+      questionSet.id,
+      {
+        snapshotId: snapshot.id
+      },
+      identity
+    );
+    const runResult = await this.runQuestionSet(
+      chosenQuestionSet.id,
+      {
+        assistantId: P5_V1_DEMO_REPLAY_ASSISTANT_ID,
+        baselineSnapshotId: snapshot.id
+      },
+      identity
+    );
+
+    return {
+      replayEntry: {
+        id: "p5-v1",
+        name: P5_V1_DEMO_REPLAY_NAME,
+        assistantId: P5_V1_DEMO_REPLAY_ASSISTANT_ID,
+        questionCount: P5_V1_DEMO_REPLAY_QUESTIONS.length
+      },
+      ...runResult
+    };
+  }
+
   async lockQuestionSet(id: string, identity: AuthIdentity) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
 
@@ -394,6 +435,41 @@ export class EvalQuestionSetsService {
     }
 
     return questionSet;
+  }
+
+  private async ensureP5V1DemoQuestionSet(identity: AuthIdentity) {
+    const existing = await this.prisma.evalQuestionSet.findFirst({
+      where: {
+        tenantId: identity.tenantId,
+        ownerId: identity.userId,
+        name: P5_V1_DEMO_REPLAY_NAME
+      }
+    });
+
+    if (!existing) {
+      return this.createQuestionSet(
+        {
+          name: P5_V1_DEMO_REPLAY_NAME,
+          description: "Fixed P5 v1 demo replay scenario for stable end-to-end demonstration.",
+          questions: P5_V1_DEMO_REPLAY_QUESTIONS
+        },
+        identity
+      );
+    }
+
+    return this.prisma.evalQuestionSet.update({
+      where: {
+        id: existing.id
+      },
+      data: {
+        description: "Fixed P5 v1 demo replay scenario for stable end-to-end demonstration.",
+        questionsJson: P5_V1_DEMO_REPLAY_QUESTIONS as Prisma.InputJsonValue,
+        currentVersion: {
+          increment: 1
+        },
+        status: "draft"
+      }
+    });
   }
 
   private async ensureTenant(id: string) {
