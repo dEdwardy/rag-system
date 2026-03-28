@@ -3,8 +3,8 @@ import { Prisma, TraceStatus } from "@prisma/client";
 import type { TraceSummary } from "@rag-system/shared";
 import { PrismaService } from "../../infra/database/prisma.service";
 import {
-  buildAnswerAttributionSummary,
-  buildCitationSelectionSourceReadabilityLabel
+  buildAnswerEvidenceSourceReadabilityLabel,
+  buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
 import { buildStrategyReadabilityLabel } from "../retrieval/strategy-readability";
 import { ListConversationTracesInput } from "../documents/document.schemas";
@@ -283,7 +283,7 @@ export class TracesService {
       answerStatusSource,
       rawAnswerStatusSource
     });
-    const answerEvidenceSourceReadabilityLabel = this.buildAnswerEvidenceSourceReadabilityLabel(answerEvidenceSource);
+    const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerEvidenceSource);
     const rawFailedStage = this.readString(retrievalFailure?.stage);
     const failedStage = this.readTraceFailedStage(rawFailedStage);
     const candidateLimit = this.readNumber(retrievalExecution?.candidateLimit) ?? 0;
@@ -466,14 +466,6 @@ export class TracesService {
     }
 
     return "unknown answer text source";
-  }
-
-  private buildAnswerEvidenceSourceReadabilityLabel(
-    answerEvidenceSource: TraceSummary["answerEvidenceSource"]
-  ): TraceSummary["answerEvidenceSourceReadabilityLabel"] {
-    return answerEvidenceSource == null
-      ? "unknown evidence source"
-      : buildCitationSelectionSourceReadabilityLabel(answerEvidenceSource);
   }
 
   private buildMissingInformationProvenanceSentence(input: {

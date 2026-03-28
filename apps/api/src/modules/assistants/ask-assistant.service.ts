@@ -4,8 +4,8 @@ import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
 import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
 import {
-  buildAnswerAttributionSummary,
-  buildCitationSelectionSourceReadabilityLabel
+  buildAnswerEvidenceSourceReadabilityLabel,
+  buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
@@ -211,7 +211,7 @@ export class AskAssistantService {
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel: this.resolveAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -453,7 +453,7 @@ export class AskAssistantService {
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel: this.resolveAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -532,10 +532,6 @@ export class AskAssistantService {
       attribution: this.resolveAnswerAttribution(answeringMetadata),
       source: this.resolveAnswerAttributionSource(answeringMetadata)
     });
-  }
-
-  private resolveAnswerEvidenceSourceReadabilityLabel(source: TraceCitationSelectionSource | null): string {
-    return source == null ? "unknown evidence source" : buildCitationSelectionSourceReadabilityLabel(source);
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {

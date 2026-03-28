@@ -22,6 +22,12 @@ export function buildCitationSelectionSourceReadabilityLabel(
   return "no evidence source";
 }
 
+export function buildAnswerEvidenceSourceReadabilityLabel(
+  source: TraceCitationSelectionSource | null
+): string {
+  return source == null ? "unknown evidence source" : buildCitationSelectionSourceReadabilityLabel(source);
+}
+
 export function buildAnswerAttributionSummary(input: {
   attribution: TraceCitationAttribution | null;
   source: TraceCitationSelectionSource | null;
