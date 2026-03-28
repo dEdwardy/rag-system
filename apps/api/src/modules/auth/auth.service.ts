@@ -23,6 +23,7 @@ export class AuthService {
       select: {
         id: true,
         tenantId: true,
+        role: true,
         status: true
       }
     });
@@ -48,6 +49,7 @@ export class AuthService {
       identity: {
         userId: user.id,
         tenantId: user.tenantId,
+        role: user.role,
         sessionId: session.id,
         authSource: "session"
       },

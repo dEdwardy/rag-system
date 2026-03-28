@@ -23,6 +23,7 @@ import type {
 export type AuthIdentity = {
   userId: string;
   tenantId: string;
+  role: string;
   sessionId: string | null;
   authSource: string;
 };

@@ -15,6 +15,25 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 now includes a minimal persisted user-role model (`owner`/`member`) and projects role into auth identity for future RBAC-ready contracts
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `apps/api/prisma/migrations/20260329193000_add_user_role_model/migration.sql`
+    - `apps/api/prisma/seed.js`
+    - `apps/api/src/modules/auth/auth-identity.contract.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/session-cookie-auth.provider.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `apps/web/src/types/api.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - Prisma 新增 `UserRole` 枚举（`owner` / `member`）并在 `User.role` 落地默认 `owner`，只提供最小角色基线，不扩展 ACL/RBAC 决策矩阵
+    - auth 登录与 session provider 现在统一读取并返回 `identity.role`，使 `/auth/login` 与 `/auth/me` 身份契约具备最小角色语义
+    - identity 解析对旧 shape 保持兼容：当请求上下文缺少 `role` 时回落到 `owner`，避免现有 auth v1 路径回归
+    - web 侧 `AuthIdentity` 类型同步对齐新增 `role` 字段
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ auth v1 route policy baseline now also protects retrieval-profile APIs under the authenticated surface split
   - 变更文件：
     - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.controller.ts`

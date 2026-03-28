@@ -23,6 +23,7 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
           select: {
             id: true,
             tenantId: true,
+            role: true,
             status: true
           }
         }
@@ -56,6 +57,7 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
     return {
       userId: session.user.id,
       tenantId: session.user.tenantId,
+      role: session.user.role,
       sessionId,
       authSource: "session"
     };

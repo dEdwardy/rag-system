@@ -26,6 +26,7 @@ async function main() {
       tenantId: tenant.id,
       name: "Default User",
       email: "default-user@example.com",
+      role: "owner",
       status: "active"
     },
     create: {
@@ -33,6 +34,7 @@ async function main() {
       tenantId: tenant.id,
       name: "Default User",
       email: "default-user@example.com",
+      role: "owner",
       status: "active"
     }
   });

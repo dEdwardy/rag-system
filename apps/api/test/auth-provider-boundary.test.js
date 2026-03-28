@@ -48,6 +48,7 @@ test("SessionCookieAuthProvider resolves identity from persisted session", async
         user: {
           id: "user-123",
           tenantId: "tenant-123",
+          role: "owner",
           status: "active"
         }
       }),
@@ -69,6 +70,7 @@ test("SessionCookieAuthProvider resolves identity from persisted session", async
   assert.deepEqual(identity, {
     userId: "user-123",
     tenantId: "tenant-123",
+    role: "owner",
     sessionId: "session-123",
     authSource: "session"
   });
@@ -94,6 +96,7 @@ test("SessionCookieAuthProvider decodes encoded session cookie value", async () 
           user: {
             id: "user-encoded",
             tenantId: "tenant-encoded",
+            role: "member",
             status: "active"
           }
         };
@@ -117,6 +120,7 @@ test("SessionCookieAuthProvider decodes encoded session cookie value", async () 
   assert.deepEqual(identity, {
     userId: "user-encoded",
     tenantId: "tenant-encoded",
+    role: "member",
     sessionId: "session/123",
     authSource: "session"
   });
@@ -135,6 +139,7 @@ test("SessionCookieAuthProvider revokes expired sessions and returns null", asyn
         user: {
           id: "user-expired",
           tenantId: "tenant-expired",
+          role: "owner",
           status: "active"
         }
       }),
@@ -167,6 +172,7 @@ test("AuthContextMiddleware injects request authContext via provider boundary", 
     resolveIdentity: () => ({
       userId: "user-42",
       tenantId: "tenant-42",
+      role: "owner",
       sessionId: "session-42",
       authSource: "session"
     })
@@ -188,12 +194,14 @@ test("AuthContextMiddleware injects request authContext via provider boundary", 
     identity: {
       userId: "user-42",
       tenantId: "tenant-42",
+      role: "owner",
       sessionId: "session-42",
       authSource: "session"
     },
     currentIdentity: {
       userId: "user-42",
       tenantId: "tenant-42",
+      role: "owner",
       sessionId: "session-42",
       authSource: "session"
     }
@@ -207,6 +215,7 @@ test("resolveRequestAuthContext returns stable default current identity when req
     identity: {
       userId: "default-user",
       tenantId: "default-tenant",
+      role: "owner",
       sessionId: null,
       authSource: "dev_seed"
     }
@@ -223,6 +232,7 @@ test("AuthService login creates session identity and logout revokes session", as
       findUnique: async ({ where }) => ({
         id: where.id,
         tenantId: "tenant-1",
+        role: "member",
         status: "active"
       })
     },
@@ -243,6 +253,7 @@ test("AuthService login creates session identity and logout revokes session", as
   assert.equal(login.identity.userId, "default-user");
   assert.equal(login.identity.tenantId, "tenant-1");
   assert.equal(login.identity.authSource, "session");
+  assert.equal(login.identity.role, "member");
   assert.ok(typeof login.expiresAt === "string");
   assert.equal(calls.created.userId, "default-user");
 
@@ -260,6 +271,7 @@ test("AuthController sets and clears session cookie around login and logout", as
       identity: {
         userId: "default-user",
         tenantId: "default-tenant",
+        role: "owner",
         sessionId: "session-xyz",
         authSource: "session"
       },
@@ -350,6 +362,7 @@ test("AuthRoutePolicyGuard allows authenticated routes with session identity", (
           identity: {
             userId: "user-1",
             tenantId: "tenant-1",
+            role: "owner",
             sessionId: "session-1",
             authSource: "session"
           }
