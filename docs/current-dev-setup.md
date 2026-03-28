@@ -123,6 +123,9 @@ AUTH_SESSION_TTL_HOURS=168
 - current auth cookie/session defaults:
   - cookie name default is `rag_session`
   - login session TTL default is `168` hours (`7` days)
+  - route policy baseline now distinguishes public and authenticated API routes:
+    - `GET /health`, `POST /auth/login`, `POST /auth/logout` are public
+    - `GET /auth/me` currently requires an authenticated session cookie and returns `401` when unauthenticated
   - backend now exposes minimal auth loop endpoints:
     - `POST /auth/login` (sets session cookie, returns identity)
     - `POST /auth/logout` (revokes current session when present, clears cookie)

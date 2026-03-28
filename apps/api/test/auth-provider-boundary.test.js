@@ -3,6 +3,7 @@ const { test } = require("node:test");
 
 const { AuthController } = require("../src/modules/auth/auth.controller.ts");
 const { AuthContextMiddleware } = require("../src/modules/auth/auth-context.middleware.ts");
+const { AuthRoutePolicyGuard } = require("../src/modules/auth/auth-route-policy.guard.ts");
 const { resolveRequestAuthContext } = require("../src/modules/auth/auth-identity.contract.ts");
 const { AuthService } = require("../src/modules/auth/auth.service.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
@@ -197,4 +198,63 @@ test("AuthController sets and clears session cookie around login and logout", as
   assert.deepEqual(logoutResult, { ok: true });
   assert.match(cookies[1], /rag_session=;/);
   assert.match(cookies[1], /Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+});
+
+test("AuthRoutePolicyGuard allows public routes without identity", () => {
+  const guard = new AuthRoutePolicyGuard({
+    getAllAndOverride: () => "public"
+  });
+
+  const allowed = guard.canActivate({
+    getHandler: () => "handler",
+    getClass: () => "controller",
+    switchToHttp: () => ({
+      getRequest: () => ({ authContext: { identity: null } })
+    })
+  });
+
+  assert.equal(allowed, true);
+});
+
+test("AuthRoutePolicyGuard rejects authenticated routes without session identity", () => {
+  const guard = new AuthRoutePolicyGuard({
+    getAllAndOverride: () => "authenticated"
+  });
+
+  assert.throws(
+    () =>
+      guard.canActivate({
+        getHandler: () => "handler",
+        getClass: () => "controller",
+        switchToHttp: () => ({
+          getRequest: () => ({ authContext: { identity: null } })
+        })
+      }),
+    /Authentication required/
+  );
+});
+
+test("AuthRoutePolicyGuard allows authenticated routes with session identity", () => {
+  const guard = new AuthRoutePolicyGuard({
+    getAllAndOverride: () => "authenticated"
+  });
+
+  const allowed = guard.canActivate({
+    getHandler: () => "handler",
+    getClass: () => "controller",
+    switchToHttp: () => ({
+      getRequest: () => ({
+        authContext: {
+          identity: {
+            userId: "user-1",
+            tenantId: "tenant-1",
+            sessionId: "session-1",
+            authSource: "session"
+          }
+        }
+      })
+    })
+  });
+
+  assert.equal(allowed, true);
 });

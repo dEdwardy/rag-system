@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Post, Req, Res } from "@nestjs/common";
 import { DEFAULT_AUTH_SESSION_COOKIE_NAME } from "./auth.constants";
 import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
+import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
 import { loginSchema } from "./auth.schemas";
 import { AuthService } from "./auth.service";
 
+@PublicRoute()
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -42,6 +44,7 @@ export class AuthController {
   }
 
   @Get("me")
+  @AuthenticatedRoute()
   me(@Req() request?: ApiRequestWithAuthContext) {
     return this.authService.getMe({
       authContext: request?.authContext
