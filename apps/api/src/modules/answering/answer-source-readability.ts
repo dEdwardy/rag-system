@@ -54,6 +54,34 @@ export function buildAnswerStatusSourceReadabilitySentence(
   return `Answer status source is ${answerStatusSourceReadabilityLabel}.`;
 }
 
+export function buildAnswerSourceReadability(input: {
+  answerTextSource: TraceSummary["answerTextSource"];
+  rawAnswerTextSource: string | null;
+  answerStatusSource: TraceSummary["answerStatusSource"];
+  rawAnswerStatusSource: string | null;
+}): {
+  answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"];
+  answerTextSourceReadabilitySentence: TraceSummary["answerTextSourceReadabilitySentence"];
+  answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"];
+  answerStatusSourceReadabilitySentence: TraceSummary["answerStatusSourceReadabilitySentence"];
+} {
+  const answerTextSourceReadabilityLabel = buildAnswerTextSourceReadabilityLabel({
+    answerTextSource: input.answerTextSource,
+    rawAnswerTextSource: input.rawAnswerTextSource
+  });
+  const answerStatusSourceReadabilityLabel = buildAnswerStatusSourceReadabilityLabel({
+    answerStatusSource: input.answerStatusSource,
+    rawAnswerStatusSource: input.rawAnswerStatusSource
+  });
+
+  return {
+    answerTextSourceReadabilityLabel,
+    answerTextSourceReadabilitySentence: buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
+    answerStatusSourceReadabilityLabel,
+    answerStatusSourceReadabilitySentence: buildAnswerStatusSourceReadabilitySentence(answerStatusSourceReadabilityLabel)
+  };
+}
+
 export function buildAnswerProvenanceSentence(input: {
   answerTextSource: TraceSummary["answerTextSource"];
   answerStatusSource: TraceSummary["answerStatusSource"];

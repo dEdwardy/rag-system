@@ -7,12 +7,9 @@ import {
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
 import {
+  buildAnswerSourceReadability,
   buildAnswerProvenanceReadabilitySentence,
-  buildAnswerProvenanceSentence,
-  buildAnswerStatusSourceReadabilityLabel,
-  buildAnswerStatusSourceReadabilitySentence,
-  buildAnswerTextSourceReadabilityLabel,
-  buildAnswerTextSourceReadabilitySentence
+  buildAnswerProvenanceSentence
 } from "../answering/answer-source-readability";
 import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
@@ -298,20 +295,17 @@ export class TracesService {
     });
     const answerAttributionReadabilitySentence = answerAttributionSummary.readabilitySentence
       ?? "Answer attribution is unknown; source evidence is unknown.";
-    const answerTextSourceReadabilityLabel = buildAnswerTextSourceReadabilityLabel({
+    const {
+      answerTextSourceReadabilityLabel,
+      answerTextSourceReadabilitySentence,
+      answerStatusSourceReadabilityLabel,
+      answerStatusSourceReadabilitySentence
+    } = buildAnswerSourceReadability({
       answerTextSource,
-      rawAnswerTextSource
-    });
-    const answerTextSourceReadabilitySentence = buildAnswerTextSourceReadabilitySentence(
-      answerTextSourceReadabilityLabel
-    );
-    const answerStatusSourceReadabilityLabel = buildAnswerStatusSourceReadabilityLabel({
+      rawAnswerTextSource,
       answerStatusSource,
       rawAnswerStatusSource
     });
-    const answerStatusSourceReadabilitySentence = buildAnswerStatusSourceReadabilitySentence(
-      answerStatusSourceReadabilityLabel
-    );
     const answerProvenanceSentence = buildAnswerProvenanceSentence({
       answerTextSource,
       answerStatusSource,

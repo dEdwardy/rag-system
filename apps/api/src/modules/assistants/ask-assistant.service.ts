@@ -8,12 +8,9 @@ import {
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
 import {
+  buildAnswerSourceReadability,
   buildAnswerProvenanceReadabilitySentence,
-  buildAnswerProvenanceSentence,
-  buildAnswerStatusSourceReadabilityLabel,
-  buildAnswerStatusSourceReadabilitySentence,
-  buildAnswerTextSourceReadabilityLabel,
-  buildAnswerTextSourceReadabilitySentence
+  buildAnswerProvenanceSentence
 } from "../answering/answer-source-readability";
 import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
@@ -221,20 +218,24 @@ export class AskAssistantService {
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
           : null
       );
-      const answerTextSourceReadabilityLabel = buildAnswerTextSourceReadabilityLabel({
-        answerTextSource,
-        rawAnswerTextSource
-      });
       const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
       const rawAnswerStatusSource = this.readString(
         typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
           : null
       );
-      const answerStatusSourceReadabilityLabel = buildAnswerStatusSourceReadabilityLabel({
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
         answerStatusSource,
         rawAnswerStatusSource
       });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
       const answerAttributionReadabilitySentence =
         answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
       const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
@@ -270,12 +271,10 @@ export class AskAssistantService {
         ),
         answerTextSource,
         answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence: buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
+        answerTextSourceReadabilitySentence,
         answerStatusSource,
         answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence: buildAnswerStatusSourceReadabilitySentence(
-          answerStatusSourceReadabilityLabel
-        ),
+        answerStatusSourceReadabilitySentence,
         answerProvenanceSentence: buildAnswerProvenanceSentence({
           answerTextSource,
           answerStatusSource,
@@ -528,20 +527,24 @@ export class AskAssistantService {
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
           : null
       );
-      const answerTextSourceReadabilityLabel = buildAnswerTextSourceReadabilityLabel({
-        answerTextSource,
-        rawAnswerTextSource
-      });
       const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
       const rawAnswerStatusSource = this.readString(
         typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
           ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
           : null
       );
-      const answerStatusSourceReadabilityLabel = buildAnswerStatusSourceReadabilityLabel({
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
         answerStatusSource,
         rawAnswerStatusSource
       });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
       const answerAttributionReadabilitySentence =
         answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
       const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
@@ -577,12 +580,10 @@ export class AskAssistantService {
         ),
         answerTextSource,
         answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence: buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
+        answerTextSourceReadabilitySentence,
         answerStatusSource,
         answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence: buildAnswerStatusSourceReadabilitySentence(
-          answerStatusSourceReadabilityLabel
-        ),
+        answerStatusSourceReadabilitySentence,
         answerProvenanceSentence: buildAnswerProvenanceSentence({
           answerTextSource,
           answerStatusSource,
