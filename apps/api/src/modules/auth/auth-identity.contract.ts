@@ -1,3 +1,5 @@
+import { DEFAULT_DEV_AUTH_SOURCE, DEFAULT_DEV_TENANT_ID, DEFAULT_DEV_USER_ID } from "./auth.constants";
+
 export type AuthSource = "session" | "dev_seed" | (string & {});
 
 export type AuthIdentity = {
@@ -16,9 +18,7 @@ export type ApiRequestWithAuthContext = {
   authContext?: RequestAuthContext;
 };
 
-const DEFAULT_DEV_AUTH_SOURCE: AuthSource = "dev_seed";
-const DEFAULT_DEV_USER_ID = "default-user";
-const DEFAULT_DEV_TENANT_ID = "default-tenant";
+const DEFAULT_AUTH_SOURCE: AuthSource = DEFAULT_DEV_AUTH_SOURCE;
 
 export function resolveCurrentAuthIdentity(input: { identity?: AuthIdentity | null }): AuthIdentity {
   const identity = input.identity;
@@ -50,7 +50,7 @@ function buildDefaultDevIdentity(): AuthIdentity {
     userId: DEFAULT_DEV_USER_ID,
     tenantId: DEFAULT_DEV_TENANT_ID,
     sessionId: null,
-    authSource: DEFAULT_DEV_AUTH_SOURCE
+    authSource: DEFAULT_AUTH_SOURCE
   };
 }
 

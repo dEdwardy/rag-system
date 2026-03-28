@@ -113,6 +113,20 @@ SOURCE_FETCH_RETRY_ATTEMPTS=2
 ```
 
 - current defaults preserve the existing behavior: `10s` timeout and `2` total fetch attempts for `web page` / `feed` / `sitemap` source HTTP requests
+- auth/session runtime now also supports:
+
+```text
+AUTH_SESSION_COOKIE_NAME=rag_session
+AUTH_SESSION_TTL_HOURS=168
+```
+
+- current auth cookie/session defaults:
+  - cookie name default is `rag_session`
+  - login session TTL default is `168` hours (`7` days)
+  - backend now exposes minimal auth loop endpoints:
+    - `POST /auth/login` (sets session cookie, returns identity)
+    - `POST /auth/logout` (revokes current session when present, clears cookie)
+    - `GET /auth/me` (returns `{ identity, currentIdentity }`)
 - LLM runtime now also supports a small set of explicit operational overrides:
 
 ```text
