@@ -447,6 +447,12 @@ test("EvalQuestionSetsService compare baseline returns diff summary", async () =
       added: 1,
       removed: 1,
       unchanged: 1
+    },
+    evalResultComparison: {
+      hasLatestEvalResult: false,
+      hasPinnedBaselineEvalResult: false,
+      latestEvalRanAt: null,
+      pinnedBaselineCapturedAt: null
     }
   });
 });
@@ -462,12 +468,15 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
               id: "set-1",
               tenantId: "tenant-auth",
               ownerId: "user-auth",
-              baselineSnapshotId: "snapshot-selected"
+              baselineSnapshotId: "snapshot-selected",
+              pinnedBaselineResultJson: null,
+              pinnedBaselineCapturedAt: null
             };
           }
 
           return null;
-        }
+        },
+        update: async () => ({ id: "set-1" })
       },
       evalQuestionSetBaselineSnapshot: {
         findFirst: async ({ where }) => ({
@@ -519,6 +528,21 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
   assert.equal(result.items[0].status, "succeeded");
   assert.equal(result.items[0].qualityOverall, "strong");
   assert.equal(result.items[0].citationCount, 1);
+  assert.deepEqual(result.summary, {
+    total: 2,
+    succeeded: 2,
+    failed: 0,
+    successRate: 1,
+    groundedRate: 1,
+    strongRate: 1,
+    fallbackRate: 0,
+    averageCitationCount: 1
+  });
+  assert.deepEqual(result.baselineComparison, {
+    hasPinnedBaselineEvalResult: false,
+    baselineCapturedAt: null,
+    baselineInitialized: true
+  });
   assert.deepEqual(
     askCalls.map(call => ({ assistantId: call.assistantId, question: call.question })),
     [
@@ -536,8 +560,20 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
           id: "set-1",
           tenantId: "tenant-auth",
           ownerId: "user-auth",
-          baselineSnapshotId: "snapshot-selected"
-        })
+          baselineSnapshotId: "snapshot-selected",
+          pinnedBaselineResultJson: {
+            total: 1,
+            succeeded: 1,
+            failed: 0,
+            successRate: 1,
+            groundedRate: 1,
+            strongRate: 1,
+            fallbackRate: 0,
+            averageCitationCount: 1
+          },
+          pinnedBaselineCapturedAt: new Date("2026-03-29T00:00:00.000Z")
+        }),
+        update: async () => ({ id: "set-1" })
       },
       evalQuestionSetBaselineSnapshot: {
         findFirst: async ({ where }) => ({
@@ -596,6 +632,105 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
     error: {
       message: "Ask pipeline failed.",
       code: "ASK_PIPELINE_FAILED"
+    }
+  });
+  assert.deepEqual(result.summary, {
+    total: 1,
+    succeeded: 0,
+    failed: 1,
+    successRate: 0,
+    groundedRate: 0,
+    strongRate: 0,
+    fallbackRate: 0,
+    averageCitationCount: 0
+  });
+  assert.deepEqual(result.baselineComparison, {
+    hasPinnedBaselineEvalResult: true,
+    baselineCapturedAt: new Date("2026-03-29T00:00:00.000Z"),
+    baselineInitialized: false,
+    deltas: {
+      metrics: [
+        {
+          metric: "succeeded",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "failed",
+          current: 1,
+          baseline: 0,
+          delta: 1
+        },
+        {
+          metric: "successRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "groundedRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "strongRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "fallbackRate",
+          current: 0,
+          baseline: 0,
+          delta: 0
+        },
+        {
+          metric: "averageCitationCount",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        }
+      ],
+      meaningfulDeltas: [
+        {
+          metric: "succeeded",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "failed",
+          current: 1,
+          baseline: 0,
+          delta: 1
+        },
+        {
+          metric: "successRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "groundedRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "strongRate",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        },
+        {
+          metric: "averageCitationCount",
+          current: 0,
+          baseline: 1,
+          delta: -1
+        }
+      ]
     }
   });
 });

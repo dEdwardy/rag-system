@@ -126,6 +126,10 @@ model EvalQuestionSet {
   currentVersion   Int                             @default(1)
   baselineSnapshotId String?
   baselineChosenAt DateTime?
+  pinnedBaselineResultJson Json?
+  pinnedBaselineCapturedAt DateTime?
+  latestEvalResultSummaryJson Json?
+  latestEvalRanAt DateTime?
   status           EvalQuestionSetStatus           @default(draft)
   lockedAt         DateTime?
   archivedAt       DateTime?

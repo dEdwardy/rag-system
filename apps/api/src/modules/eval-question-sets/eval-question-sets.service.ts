@@ -10,6 +10,33 @@ import {
   type UpdateEvalQuestionSetInput
 } from "./eval-question-set.schemas";
 
+type EvalRunSummaryMetricKey =
+  | "succeeded"
+  | "failed"
+  | "successRate"
+  | "groundedRate"
+  | "strongRate"
+  | "fallbackRate"
+  | "averageCitationCount";
+
+type EvalRunSummary = {
+  total: number;
+  succeeded: number;
+  failed: number;
+  successRate: number;
+  groundedRate: number;
+  strongRate: number;
+  fallbackRate: number;
+  averageCitationCount: number;
+};
+
+type EvalRunComparisonMetric = {
+  metric: EvalRunSummaryMetricKey;
+  current: number;
+  baseline: number;
+  delta: number;
+};
+
 @Injectable()
 export class EvalQuestionSetsService {
   constructor(
@@ -115,7 +142,11 @@ export class EvalQuestionSetsService {
       where: { id },
       data: {
         baselineSnapshotId: snapshot.id,
-        baselineChosenAt: new Date()
+        baselineChosenAt: new Date(),
+        pinnedBaselineResultJson: Prisma.JsonNull,
+        pinnedBaselineCapturedAt: null,
+        latestEvalResultSummaryJson: Prisma.JsonNull,
+        latestEvalRanAt: null
       }
     });
   }
@@ -154,6 +185,12 @@ export class EvalQuestionSetsService {
     const nameChanged = questionSet.name !== snapshot.name;
     const descriptionChanged = questionSet.description !== snapshot.description;
     const questionsChanged = addedQuestionCount > 0 || removedQuestionCount > 0;
+    const latestEvalSummary = this.readEvalRunSummary(questionSet.latestEvalResultSummaryJson);
+    const pinnedBaselineEvalSummary = this.readEvalRunSummary(questionSet.pinnedBaselineResultJson);
+    const baselineComparison =
+      latestEvalSummary && pinnedBaselineEvalSummary
+        ? this.buildRunComparison(latestEvalSummary, pinnedBaselineEvalSummary)
+        : null;
 
     return {
       hasBaseline: true,
@@ -170,6 +207,13 @@ export class EvalQuestionSetsService {
         added: addedQuestionCount,
         removed: removedQuestionCount,
         unchanged: unchangedQuestionCount
+      },
+      evalResultComparison: {
+        hasLatestEvalResult: latestEvalSummary != null,
+        hasPinnedBaselineEvalResult: pinnedBaselineEvalSummary != null,
+        latestEvalRanAt: questionSet.latestEvalRanAt ?? null,
+        pinnedBaselineCapturedAt: questionSet.pinnedBaselineCapturedAt ?? null,
+        ...(baselineComparison ? { deltas: baselineComparison } : {})
       }
     };
   }
@@ -258,6 +302,24 @@ export class EvalQuestionSetsService {
 
     const finishedAt = new Date();
     const succeededCount = items.filter(item => item.status === "succeeded").length;
+    const runSummary = this.buildRunSummary(items);
+    const pinnedBaselineSummary = this.readEvalRunSummary(questionSet.pinnedBaselineResultJson);
+    const shouldCapturePinnedBaseline = snapshot.id === questionSet.baselineSnapshotId && pinnedBaselineSummary == null;
+    const baselineComparison = pinnedBaselineSummary ? this.buildRunComparison(runSummary, pinnedBaselineSummary) : null;
+
+    await this.prisma.evalQuestionSet.update({
+      where: { id },
+      data: {
+        latestEvalResultSummaryJson: runSummary as Prisma.InputJsonValue,
+        latestEvalRanAt: finishedAt,
+        ...(shouldCapturePinnedBaseline
+          ? {
+              pinnedBaselineResultJson: runSummary as Prisma.InputJsonValue,
+              pinnedBaselineCapturedAt: finishedAt
+            }
+          : {})
+      }
+    });
 
     return {
       questionSetId: id,
@@ -271,7 +333,14 @@ export class EvalQuestionSetsService {
         succeeded: succeededCount,
         failed: items.length - succeededCount
       },
-      items
+      items,
+      summary: runSummary,
+      baselineComparison: {
+        hasPinnedBaselineEvalResult: pinnedBaselineSummary != null,
+        baselineCapturedAt: questionSet.pinnedBaselineCapturedAt ?? null,
+        baselineInitialized: shouldCapturePinnedBaseline,
+        ...(baselineComparison ? { deltas: baselineComparison } : {})
+      }
     };
   }
 
@@ -416,5 +485,141 @@ export class EvalQuestionSetsService {
   private readRunErrorTraceId(error: unknown): string | null {
     const response = this.readRunErrorResponse(error);
     return this.readString(response?.traceId);
+  }
+
+  private buildRunSummary(
+    items: Array<{
+      status: "succeeded" | "failed";
+      answerStatus: string | null;
+      qualityOverall: string | null;
+      citationCount: number;
+      usedFallback: boolean | null;
+    }>
+  ): EvalRunSummary {
+    const total = items.length;
+    const succeeded = items.filter(item => item.status === "succeeded").length;
+    const failed = total - succeeded;
+    const grounded = items.filter(item => item.answerStatus === "grounded").length;
+    const strong = items.filter(item => item.qualityOverall === "strong").length;
+    const fallbackUsed = items.filter(item => item.usedFallback === true).length;
+    const totalCitationCount = items.reduce((acc, item) => acc + item.citationCount, 0);
+
+    return {
+      total,
+      succeeded,
+      failed,
+      successRate: this.toRate(succeeded, total),
+      groundedRate: this.toRate(grounded, total),
+      strongRate: this.toRate(strong, total),
+      fallbackRate: this.toRate(fallbackUsed, total),
+      averageCitationCount: this.roundMetric(total > 0 ? totalCitationCount / total : 0)
+    };
+  }
+
+  private buildRunComparison(current: EvalRunSummary, baseline: EvalRunSummary) {
+    const metrics: EvalRunComparisonMetric[] = [
+      {
+        metric: "succeeded",
+        current: current.succeeded,
+        baseline: baseline.succeeded,
+        delta: current.succeeded - baseline.succeeded
+      },
+      {
+        metric: "failed",
+        current: current.failed,
+        baseline: baseline.failed,
+        delta: current.failed - baseline.failed
+      },
+      {
+        metric: "successRate",
+        current: current.successRate,
+        baseline: baseline.successRate,
+        delta: this.roundMetric(current.successRate - baseline.successRate)
+      },
+      {
+        metric: "groundedRate",
+        current: current.groundedRate,
+        baseline: baseline.groundedRate,
+        delta: this.roundMetric(current.groundedRate - baseline.groundedRate)
+      },
+      {
+        metric: "strongRate",
+        current: current.strongRate,
+        baseline: baseline.strongRate,
+        delta: this.roundMetric(current.strongRate - baseline.strongRate)
+      },
+      {
+        metric: "fallbackRate",
+        current: current.fallbackRate,
+        baseline: baseline.fallbackRate,
+        delta: this.roundMetric(current.fallbackRate - baseline.fallbackRate)
+      },
+      {
+        metric: "averageCitationCount",
+        current: current.averageCitationCount,
+        baseline: baseline.averageCitationCount,
+        delta: this.roundMetric(current.averageCitationCount - baseline.averageCitationCount)
+      }
+    ];
+
+    return {
+      metrics,
+      meaningfulDeltas: metrics.filter(metric => metric.delta !== 0)
+    };
+  }
+
+  private readEvalRunSummary(value: Prisma.JsonValue): EvalRunSummary | null {
+    const raw = this.readObject(value);
+    if (!raw) {
+      return null;
+    }
+
+    const total = this.readNumber(raw.total);
+    const succeeded = this.readNumber(raw.succeeded);
+    const failed = this.readNumber(raw.failed);
+    const successRate = this.readNumber(raw.successRate);
+    const groundedRate = this.readNumber(raw.groundedRate);
+    const strongRate = this.readNumber(raw.strongRate);
+    const fallbackRate = this.readNumber(raw.fallbackRate);
+    const averageCitationCount = this.readNumber(raw.averageCitationCount);
+
+    if (
+      total == null ||
+      succeeded == null ||
+      failed == null ||
+      successRate == null ||
+      groundedRate == null ||
+      strongRate == null ||
+      fallbackRate == null ||
+      averageCitationCount == null
+    ) {
+      return null;
+    }
+
+    return {
+      total,
+      succeeded,
+      failed,
+      successRate,
+      groundedRate,
+      strongRate,
+      fallbackRate,
+      averageCitationCount
+    };
+  }
+
+  private readNumber(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
+  private toRate(value: number, total: number): number {
+    if (total <= 0) {
+      return 0;
+    }
+    return this.roundMetric(value / total);
+  }
+
+  private roundMetric(value: number): number {
+    return Math.round(value * 1000) / 1000;
   }
 }

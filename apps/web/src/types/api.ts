@@ -395,6 +395,31 @@ export type EvalQuestionSetRunItem = {
   } | null;
 };
 
+export type EvalQuestionSetRunSummary = {
+  total: number;
+  succeeded: number;
+  failed: number;
+  successRate: number;
+  groundedRate: number;
+  strongRate: number;
+  fallbackRate: number;
+  averageCitationCount: number;
+};
+
+export type EvalQuestionSetRunComparisonMetric = {
+  metric:
+    | "succeeded"
+    | "failed"
+    | "successRate"
+    | "groundedRate"
+    | "strongRate"
+    | "fallbackRate"
+    | "averageCitationCount";
+  current: number;
+  baseline: number;
+  delta: number;
+};
+
 export type EvalQuestionSetRunResult = {
   questionSetId: string;
   baselineSnapshotId: string;
@@ -408,6 +433,16 @@ export type EvalQuestionSetRunResult = {
     failed: number;
   };
   items: EvalQuestionSetRunItem[];
+  summary?: EvalQuestionSetRunSummary;
+  baselineComparison?: {
+    hasPinnedBaselineEvalResult: boolean;
+    baselineCapturedAt: string | null;
+    baselineInitialized: boolean;
+    deltas?: {
+      metrics: EvalQuestionSetRunComparisonMetric[];
+      meaningfulDeltas: EvalQuestionSetRunComparisonMetric[];
+    };
+  };
 };
 
 export type AskResponse = {
