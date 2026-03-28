@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, TraceStatus } from "@prisma/client";
 import type { TraceSummary } from "@rag-system/shared";
 import { PrismaService } from "../../infra/database/prisma.service";
+import { buildAnswerAttributionSummary } from "../answering/answer-attribution-summary";
 import { ListConversationTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
@@ -230,26 +231,13 @@ export class TracesService {
       ?? this.readNullableBoolean(strategySummary?.usedFallback)
       ?? this.readNullableBoolean(retrievalMetadata?.usedFallback)
       ?? (fallbackReason != null ? true : null);
-    const answerAttributionReadability = this.buildAnswerAttributionReadability(citationAttribution, citationSelectionSource);
-    const answerAttributionLabel = this.buildAnswerAttributionLabel(citationAttribution);
-    const answerAttributionSourceLabel = this.buildAnswerAttributionSourceLabel(citationSelectionSource);
-    const answerAttributionReadabilityLabel = this.buildAnswerAttributionReadabilityLabel(
-      answerAttributionLabel,
-      answerAttributionSourceLabel
-    );
-    const answerAttributionReadabilityHint = this.buildAnswerAttributionReadabilityHint(
-      answerAttributionLabel,
-      answerAttributionSourceLabel
-    );
-    const answerAttributionReadabilityResolvedLabel = this.buildAnswerAttributionReadabilityResolvedLabel(
-      answerAttributionLabel,
-      answerAttributionSourceLabel
-    );
-    const answerAttributionReadabilitySentence = this.buildAnswerAttributionReadabilitySentence(
-      citationAttribution,
-      citationSelectionSource
-    );
+    const answerAttributionSummary = buildAnswerAttributionSummary({
+      attribution: citationAttribution,
+      source: citationSelectionSource
+    });
+    const rawAnswerTextSource = this.readString(answeringMetadata?.answerTextSource);
     const answerTextSource = this.readStringAs<NonNullable<TraceSummary["answerTextSource"]>>(answeringMetadata?.answerTextSource);
+    const rawAnswerStatusSource = this.readString(answeringMetadata?.answerStatusSource);
     const answerStatusSource = this.readStringAs<NonNullable<TraceSummary["answerStatusSource"]>>(answeringMetadata?.answerStatusSource);
     const missingInformationSource = this.readStringAs<NonNullable<TraceSummary["missingInformationSource"]>>(answeringMetadata?.missingInformationSource);
     const insufficientContextReason = this.readStringAs<NonNullable<TraceSummary["insufficientContextReason"]>>(answeringMetadata?.insufficientContextReason);
@@ -270,10 +258,16 @@ export class TracesService {
     const answerProvenanceSentence = this.buildAnswerProvenanceSentence({
       answerTextSource,
       answerStatusSource,
-      answerAttributionReadabilityResolvedLabel
+      answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
     });
-    const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel(answerTextSource);
-    const answerStatusSourceReadabilityLabel = this.buildAnswerStatusSourceReadabilityLabel(answerStatusSource);
+    const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel({
+      answerTextSource,
+      rawAnswerTextSource
+    });
+    const answerStatusSourceReadabilityLabel = this.buildAnswerStatusSourceReadabilityLabel({
+      answerStatusSource,
+      rawAnswerStatusSource
+    });
     const answerEvidenceSourceReadabilityLabel = this.buildAnswerEvidenceSourceReadabilityLabel(answerEvidenceSource);
     const rawFailedStage = this.readString(retrievalFailure?.stage);
     const failedStage = this.readTraceFailedStage(rawFailedStage);
@@ -326,17 +320,7 @@ export class TracesService {
       rewriteApplied,
       fallbackReason,
       resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
-      answerAttributionSummary: {
-        attribution: citationAttribution,
-        source: citationSelectionSource,
-        readability: answerAttributionReadability,
-        attributionLabel: answerAttributionLabel,
-        sourceLabel: answerAttributionSourceLabel,
-        readabilityLabel: answerAttributionReadabilityLabel,
-        readabilityHint: answerAttributionReadabilityHint,
-        readabilityResolvedLabel: answerAttributionReadabilityResolvedLabel,
-        readabilitySentence: answerAttributionReadabilitySentence
-      },
+      answerAttributionSummary,
       answerAttribution: citationAttribution,
       answerAttributionSource: citationSelectionSource,
       answerEvidenceSource,
@@ -428,89 +412,6 @@ export class TracesService {
     return typeof value === "number" ? value : null;
   }
 
-  private buildAnswerAttributionReadability(
-    attribution: TraceSummary["answerAttribution"],
-    source: TraceSummary["answerAttributionSource"]
-  ): TraceSummary["answerAttributionSummary"]["readability"] {
-    return attribution != null && source != null
-      ? `${attribution}:${source}`
-      : null;
-  }
-
-  private buildAnswerAttributionLabel(
-    attribution: TraceSummary["answerAttribution"]
-  ): TraceSummary["answerAttributionSummary"]["attributionLabel"] {
-    if (attribution == null) {
-      return null;
-    }
-
-    return attribution === "none"
-      ? "no attribution"
-      : `${attribution} attribution`;
-  }
-
-  private buildAnswerAttributionSourceLabel(
-    source: TraceSummary["answerAttributionSource"]
-  ): TraceSummary["answerAttributionSummary"]["sourceLabel"] {
-    if (source == null) {
-      return null;
-    }
-
-    return source === "none"
-      ? "no source evidence"
-      : source === "inline_markers"
-        ? "inline-marker source"
-        : `${source} source`;
-  }
-
-  private buildAnswerAttributionReadabilityLabel(
-    attributionLabel: TraceSummary["answerAttributionSummary"]["attributionLabel"],
-    sourceLabel: TraceSummary["answerAttributionSummary"]["sourceLabel"]
-  ): TraceSummary["answerAttributionSummary"]["readabilityLabel"] {
-    if (attributionLabel == null || sourceLabel == null) {
-      return null;
-    }
-
-    return `${attributionLabel} via ${sourceLabel}`;
-  }
-
-  private buildAnswerAttributionReadabilityHint(
-    attributionLabel: TraceSummary["answerAttributionSummary"]["attributionLabel"],
-    sourceLabel: TraceSummary["answerAttributionSummary"]["sourceLabel"]
-  ): TraceSummary["answerAttributionSummary"]["readabilityHint"] {
-    if (attributionLabel != null && sourceLabel != null) {
-      return `${attributionLabel} via ${sourceLabel}`;
-    }
-
-    if (attributionLabel != null) {
-      return `${attributionLabel} via unknown source`;
-    }
-
-    if (sourceLabel != null) {
-      return `unknown attribution via ${sourceLabel}`;
-    }
-
-    return null;
-  }
-
-  private buildAnswerAttributionReadabilityResolvedLabel(
-    attributionLabel: TraceSummary["answerAttributionSummary"]["attributionLabel"],
-    sourceLabel: TraceSummary["answerAttributionSummary"]["sourceLabel"]
-  ): TraceSummary["answerAttributionSummary"]["readabilityResolvedLabel"] {
-    const resolvedAttributionLabel = attributionLabel ?? "unknown attribution";
-    const resolvedSourceLabel = sourceLabel ?? "unknown source";
-    return `${resolvedAttributionLabel} via ${resolvedSourceLabel}`;
-  }
-
-  private buildAnswerAttributionReadabilitySentence(
-    attribution: TraceSummary["answerAttribution"],
-    source: TraceSummary["answerAttributionSource"]
-  ): TraceSummary["answerAttributionSummary"]["readabilitySentence"] {
-    const attributionValue = attribution ?? "unknown";
-    const sourceValue = source ?? "unknown";
-    return `Answer attribution is ${attributionValue}; source evidence is ${sourceValue}.`;
-  }
-
   private buildAnswerProvenanceSentence(input: {
     answerTextSource: TraceSummary["answerTextSource"];
     answerStatusSource: TraceSummary["answerStatusSource"];
@@ -521,15 +422,20 @@ export class TracesService {
     return `Answer text source is ${textSourceValue}; status source is ${statusSourceValue}; attribution summary is ${input.answerAttributionReadabilityResolvedLabel}.`;
   }
 
-  private buildAnswerTextSourceReadabilityLabel(
-    answerTextSource: TraceSummary["answerTextSource"]
-  ): TraceSummary["answerTextSourceReadabilityLabel"] {
-    if (answerTextSource === "model") {
+  private buildAnswerTextSourceReadabilityLabel(input: {
+    answerTextSource: TraceSummary["answerTextSource"];
+    rawAnswerTextSource: string | null;
+  }): TraceSummary["answerTextSourceReadabilityLabel"] {
+    if (input.answerTextSource === "model") {
       return "model-generated answer text";
     }
 
-    if (answerTextSource === "deterministic_policy") {
+    if (input.answerTextSource === "deterministic_policy") {
       return "deterministic policy answer text";
+    }
+
+    if (input.rawAnswerTextSource != null) {
+      return `unknown answer text source (${input.rawAnswerTextSource})`;
     }
 
     return "unknown answer text source";
@@ -615,19 +521,24 @@ export class TracesService {
     return `vector ${input.vectorCandidateCount}, lexical ${input.lexicalCandidateCount}, merged ${input.mergedCandidateCount}, ranked ${input.rankedCandidateCount} (candidate limit ${input.candidateLimit})`;
   }
 
-  private buildAnswerStatusSourceReadabilityLabel(
-    answerStatusSource: TraceSummary["answerStatusSource"]
-  ): TraceSummary["answerStatusSourceReadabilityLabel"] {
-    if (answerStatusSource === "model") {
+  private buildAnswerStatusSourceReadabilityLabel(input: {
+    answerStatusSource: TraceSummary["answerStatusSource"];
+    rawAnswerStatusSource: string | null;
+  }): TraceSummary["answerStatusSourceReadabilityLabel"] {
+    if (input.answerStatusSource === "model") {
       return "model-decided answer status";
     }
 
-    if (answerStatusSource === "inferred_from_retrieval") {
+    if (input.answerStatusSource === "inferred_from_retrieval") {
       return "retrieval-inferred answer status";
     }
 
-    if (answerStatusSource === "deterministic_policy") {
+    if (input.answerStatusSource === "deterministic_policy") {
       return "deterministic policy answer status";
+    }
+
+    if (input.rawAnswerStatusSource != null) {
+      return `unknown answer status source (${input.rawAnswerStatusSource})`;
     }
 
     return "unknown answer status source";

@@ -202,7 +202,10 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
       }
     },
     citationsJson: [],
-    answeringMetadataJson: null,
+    answeringMetadataJson: {
+      answerTextSource: "provider_fallback",
+      answerStatusSource: "legacy_inference"
+    },
     qualityEvaluationJson: null,
     modelName: "fallback-rewrite-local",
     latencyMs: 42,
@@ -223,11 +226,19 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
   const detail = await service.getTrace("trace-invalid-failed-stage");
   assert.equal(detail.traceSummary.failedStage, null);
   assert.equal(detail.traceSummary.failedStageReadabilityLabel, "unknown failed stage (source_fetch)");
+  assert.equal(detail.traceSummary.answerTextSource, "provider_fallback");
+  assert.equal(detail.traceSummary.answerStatusSource, "legacy_inference");
+  assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
+  assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(detail.traceSummary.failureMessage, "synthetic failure");
 
   const listed = await service.listConversationTraces("conversation-invalid-failed-stage", { limit: 1 });
   assert.equal(listed[0].traceSummary.failedStage, null);
   assert.equal(listed[0].traceSummary.failedStageReadabilityLabel, "unknown failed stage (source_fetch)");
+  assert.equal(listed[0].traceSummary.answerTextSource, "provider_fallback");
+  assert.equal(listed[0].traceSummary.answerStatusSource, "legacy_inference");
+  assert.equal(listed[0].traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
+  assert.equal(listed[0].traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(listed[0].traceSummary.failureMessage, "synthetic failure");
 });
 
@@ -1204,4 +1215,93 @@ test("TracesService backfills retrievalQuerySource from rewrite enabled metadata
   assert.equal(detail.traceSummary.strategySummary.retrievalQuerySource, "original_unchanged");
   assert.equal(detail.traceSummary.rewriteApplied, false);
   assert.equal(detail.traceSummary.strategySummary.rewriteEnabled, true);
+});
+
+test("TracesService keeps answerProvenanceSentence legacy fallback wording when attribution source metadata is missing", async () => {
+  const persistedTrace = {
+    id: "trace-answer-provenance-legacy-fallback",
+    conversationId: "conversation-answer-provenance-legacy-fallback",
+    assistantId: "assistant-answer-provenance-legacy-fallback",
+    userMessageId: "user-message-answer-provenance-legacy-fallback",
+    assistantMessageId: null,
+    userQuery: "summarize answer provenance",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      execution: {
+        actualMode: "vector"
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      citationAttribution: "explicit"
+    },
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 5,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-28T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace("trace-answer-provenance-legacy-fallback");
+
+  assert.equal(
+    detail.traceSummary.answerProvenanceSentence,
+    "Answer text source is unknown; status source is unknown; attribution summary is explicit attribution via unknown source."
+  );
+});
+
+test("TracesService keeps missingInformationProvenanceSentence legacy fallback wording when source metadata is missing", async () => {
+  const persistedTrace = {
+    id: "trace-missing-information-provenance-legacy-fallback",
+    conversationId: "conversation-missing-information-provenance-legacy-fallback",
+    assistantId: "assistant-missing-information-provenance-legacy-fallback",
+    userMessageId: "user-message-missing-information-provenance-legacy-fallback",
+    assistantMessageId: null,
+    userQuery: "summarize missing-information provenance",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      execution: {
+        actualMode: "vector"
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      insufficientContextReason: "retrieved_context_insufficient",
+      missingInformationCount: 2
+    },
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 5,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-28T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace("trace-missing-information-provenance-legacy-fallback");
+
+  assert.equal(
+    detail.traceSummary.missingInformationProvenanceSentence,
+    "Missing-information source is unknown; insufficient-context reason is retrieved_context_insufficient; missing-information count is 2."
+  );
 });
