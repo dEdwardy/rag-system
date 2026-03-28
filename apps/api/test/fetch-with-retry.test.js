@@ -403,7 +403,10 @@ test("fetchWithRetry includes source URL and timeout boundary for timeout failur
           attempts: 1
         }),
       error => {
-        assert.equal(error.message, "Fetch request timed out for https://example.com/timeout.xml after 2500ms.");
+        assert.equal(
+          error.message,
+          "Fetch request timed out for https://example.com/timeout.xml after 2500ms: The operation was aborted."
+        );
         return true;
       }
     );

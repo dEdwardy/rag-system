@@ -155,7 +155,10 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
   }
 
   if (error.name === "AbortError" || error.name === "TimeoutError") {
-    return new Error(`Fetch request timed out for ${sourceUrl} after ${timeoutMs}ms.`);
+    const timeoutMessage = error.message.trim().replace(/[.]+$/, "");
+    return new Error(
+      `Fetch request timed out for ${sourceUrl} after ${timeoutMs}ms${timeoutMessage ? `: ${timeoutMessage}` : ""}.`
+    );
   }
 
   const causeMessage =
