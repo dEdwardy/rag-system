@@ -3,6 +3,7 @@ import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
 import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
+import { buildAnswerAttributionSummary } from "../answering/answer-attribution-summary";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
@@ -19,7 +20,6 @@ import { AssistantsService } from "./assistants.service";
 import { AskAssistantError } from "./ask-assistant.error";
 import type {
   TraceAnswerAttributionSummary,
-  TraceAnswerAttributionReadability,
   RetrievalStrategySummary,
   TraceCitationAttribution,
   TraceCitationSelectionSource
@@ -504,107 +504,10 @@ export class AskAssistantService {
   }
 
   private resolveAnswerAttributionSummary(answeringMetadata: unknown): TraceAnswerAttributionSummary {
-    const attribution = this.resolveAnswerAttribution(answeringMetadata);
-    const source = this.resolveAnswerAttributionSource(answeringMetadata);
-    const attributionLabel = this.resolveAnswerAttributionLabel(attribution);
-    const sourceLabel = this.resolveAnswerAttributionSourceLabel(source);
-    const readabilityLabel = this.resolveAnswerAttributionReadabilityLabel(attributionLabel, sourceLabel);
-
-    return {
-      attribution,
-      source,
-      readability: this.resolveAnswerAttributionReadability(attribution, source),
-      attributionLabel,
-      sourceLabel,
-      readabilityLabel,
-      readabilityHint: this.resolveAnswerAttributionReadabilityHint(attributionLabel, sourceLabel, readabilityLabel),
-      readabilityResolvedLabel: this.resolveAnswerAttributionReadabilityResolvedLabel(attributionLabel, sourceLabel),
-      readabilitySentence: this.resolveAnswerAttributionReadabilitySentence(attribution, source)
-    };
-  }
-
-  private resolveAnswerAttributionReadability(
-    attribution: TraceCitationAttribution | null,
-    source: TraceCitationSelectionSource | null
-  ): TraceAnswerAttributionReadability | null {
-    return attribution != null && source != null
-      ? `${attribution}:${source}`
-      : null;
-  }
-
-  private resolveAnswerAttributionLabel(
-    attribution: TraceCitationAttribution | null
-  ): TraceAnswerAttributionSummary["attributionLabel"] {
-    if (attribution == null) {
-      return null;
-    }
-
-    return attribution === "none"
-      ? "no attribution"
-      : `${attribution} attribution`;
-  }
-
-  private resolveAnswerAttributionSourceLabel(
-    source: TraceCitationSelectionSource | null
-  ): TraceAnswerAttributionSummary["sourceLabel"] {
-    if (source == null) {
-      return null;
-    }
-
-    return source === "none"
-      ? "no source evidence"
-      : source === "inline_markers"
-        ? "inline-marker source"
-        : `${source} source`;
-  }
-
-  private resolveAnswerAttributionReadabilityLabel(
-    attributionLabel: TraceAnswerAttributionSummary["attributionLabel"],
-    sourceLabel: TraceAnswerAttributionSummary["sourceLabel"]
-  ): string | null {
-    if (attributionLabel == null || sourceLabel == null) {
-      return null;
-    }
-
-    return `${attributionLabel} via ${sourceLabel}`;
-  }
-
-  private resolveAnswerAttributionReadabilityHint(
-    attributionLabel: TraceAnswerAttributionSummary["attributionLabel"],
-    sourceLabel: TraceAnswerAttributionSummary["sourceLabel"],
-    readabilityLabel: TraceAnswerAttributionSummary["readabilityLabel"]
-  ): TraceAnswerAttributionSummary["readabilityHint"] {
-    if (readabilityLabel != null) {
-      return readabilityLabel;
-    }
-
-    if (attributionLabel != null) {
-      return `${attributionLabel} via unknown source`;
-    }
-
-    if (sourceLabel != null) {
-      return `unknown attribution via ${sourceLabel}`;
-    }
-
-    return null;
-  }
-
-  private resolveAnswerAttributionReadabilityResolvedLabel(
-    attributionLabel: TraceAnswerAttributionSummary["attributionLabel"],
-    sourceLabel: TraceAnswerAttributionSummary["sourceLabel"]
-  ): TraceAnswerAttributionSummary["readabilityResolvedLabel"] {
-    const resolvedAttributionLabel = attributionLabel ?? "unknown attribution";
-    const resolvedSourceLabel = sourceLabel ?? "unknown source";
-    return `${resolvedAttributionLabel} via ${resolvedSourceLabel}`;
-  }
-
-  private resolveAnswerAttributionReadabilitySentence(
-    attribution: TraceCitationAttribution | null,
-    source: TraceCitationSelectionSource | null
-  ): TraceAnswerAttributionSummary["readabilitySentence"] {
-    const attributionValue = attribution ?? "unknown";
-    const sourceValue = source ?? "unknown";
-    return `Answer attribution is ${attributionValue}; source evidence is ${sourceValue}.`;
+    return buildAnswerAttributionSummary({
+      attribution: this.resolveAnswerAttribution(answeringMetadata),
+      source: this.resolveAnswerAttributionSource(answeringMetadata)
+    });
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {

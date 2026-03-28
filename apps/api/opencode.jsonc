@@ -2,6 +2,10 @@
   "$schema": "https://opencode.ai/config.json",
   // Keep the backend OpenCode session focused on apps/api when started there.
   // Root sessions stay monorepo-wide; apps/web has its own frontend-local config.
+  // Model split rationale (kept as-is):
+  // - plan/review-risk keep gpt-5.4 for higher-stakes backend planning/risk checks.
+  // - build keeps gpt-5.3-codex for fast implementation + focused validation loops.
+  // - explore keeps gpt-5.3-mini for low-cost scoped lookup and evidence gathering.
   "command": {
     "plan": {
       "agent": "rag-plan",
