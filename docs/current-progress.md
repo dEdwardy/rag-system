@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now enforces contract-safe enum values for `answerTextSource` / `answerStatusSource`
+  - `apps/api/src/modules/traces/traces.service.ts` now normalizes these two fields through explicit trace-contract enum guards, so out-of-contract legacy/raw values no longer leak into `traceSummary` typed fields
+  - invalid/raw source values are still preserved in readability labels (`unknown ... (<raw>)`) for diagnostics readability
+  - `apps/api/test/traces.service.test.js` updates the invalid-stage regression path to assert contract-safe `null` values plus preserved raw readability labels
+  - scope remains trace read-model contract guard only: no retrieval/answering execution semantics, persistence schema, or API route changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed (`26/26`)
+
 - ✅ ask / ask-stream final payload now expose additive `answerEvidenceSource` + `answerEvidenceSourceReadabilityLabel` aligned with trace-summary evidence-source wording
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes the two fields in both one-shot ask and stream final payload using the existing attribution-source resolution path (`answerEvidenceSource` mirrors `answerAttributionSource`)
   - `apps/web/src/types/api.ts` `AskResponse` now includes optional `answerEvidenceSource` + `answerEvidenceSourceReadabilityLabel` to keep web-side contract typing aligned with backend payload

@@ -15,6 +15,17 @@ const TRACE_FAILED_STAGE_VALUES = new Set<NonNullable<TraceSummary["failedStage"
   "answering"
 ]);
 
+const TRACE_ANSWER_TEXT_SOURCE_VALUES = new Set<NonNullable<TraceSummary["answerTextSource"]>>([
+  "model",
+  "deterministic_policy"
+]);
+
+const TRACE_ANSWER_STATUS_SOURCE_VALUES = new Set<NonNullable<TraceSummary["answerStatusSource"]>>([
+  "model",
+  "inferred_from_retrieval",
+  "deterministic_policy"
+]);
+
 @Injectable()
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -239,9 +250,9 @@ export class TracesService {
       source: citationSelectionSource
     });
     const rawAnswerTextSource = this.readString(answeringMetadata?.answerTextSource);
-    const answerTextSource = this.readStringAs<NonNullable<TraceSummary["answerTextSource"]>>(answeringMetadata?.answerTextSource);
+    const answerTextSource = this.readTraceAnswerTextSource(answeringMetadata?.answerTextSource);
     const rawAnswerStatusSource = this.readString(answeringMetadata?.answerStatusSource);
-    const answerStatusSource = this.readStringAs<NonNullable<TraceSummary["answerStatusSource"]>>(answeringMetadata?.answerStatusSource);
+    const answerStatusSource = this.readTraceAnswerStatusSource(answeringMetadata?.answerStatusSource);
     const missingInformationSource = this.readStringAs<NonNullable<TraceSummary["missingInformationSource"]>>(answeringMetadata?.missingInformationSource);
     const insufficientContextReason = this.readStringAs<NonNullable<TraceSummary["insufficientContextReason"]>>(answeringMetadata?.insufficientContextReason);
     const missingInformationCount = this.readNumber(answeringMetadata?.missingInformationCount) ?? 0;
@@ -400,6 +411,18 @@ export class TracesService {
   private readTraceFailedStage(value: unknown): NonNullable<TraceSummary["failedStage"]> | null {
     return typeof value === "string" && TRACE_FAILED_STAGE_VALUES.has(value as NonNullable<TraceSummary["failedStage"]>)
       ? (value as NonNullable<TraceSummary["failedStage"]>)
+      : null;
+  }
+
+  private readTraceAnswerTextSource(value: unknown): NonNullable<TraceSummary["answerTextSource"]> | null {
+    return typeof value === "string" && TRACE_ANSWER_TEXT_SOURCE_VALUES.has(value as NonNullable<TraceSummary["answerTextSource"]>)
+      ? (value as NonNullable<TraceSummary["answerTextSource"]>)
+      : null;
+  }
+
+  private readTraceAnswerStatusSource(value: unknown): NonNullable<TraceSummary["answerStatusSource"]> | null {
+    return typeof value === "string" && TRACE_ANSWER_STATUS_SOURCE_VALUES.has(value as NonNullable<TraceSummary["answerStatusSource"]>)
+      ? (value as NonNullable<TraceSummary["answerStatusSource"]>)
       : null;
   }
 

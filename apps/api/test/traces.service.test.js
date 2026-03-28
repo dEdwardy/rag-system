@@ -226,8 +226,8 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
   const detail = await service.getTrace("trace-invalid-failed-stage");
   assert.equal(detail.traceSummary.failedStage, null);
   assert.equal(detail.traceSummary.failedStageReadabilityLabel, "unknown failed stage (source_fetch)");
-  assert.equal(detail.traceSummary.answerTextSource, "provider_fallback");
-  assert.equal(detail.traceSummary.answerStatusSource, "legacy_inference");
+  assert.equal(detail.traceSummary.answerTextSource, null);
+  assert.equal(detail.traceSummary.answerStatusSource, null);
   assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
   assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(detail.traceSummary.failureMessage, "synthetic failure");
@@ -235,8 +235,8 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
   const listed = await service.listConversationTraces("conversation-invalid-failed-stage", { limit: 1 });
   assert.equal(listed[0].traceSummary.failedStage, null);
   assert.equal(listed[0].traceSummary.failedStageReadabilityLabel, "unknown failed stage (source_fetch)");
-  assert.equal(listed[0].traceSummary.answerTextSource, "provider_fallback");
-  assert.equal(listed[0].traceSummary.answerStatusSource, "legacy_inference");
+  assert.equal(listed[0].traceSummary.answerTextSource, null);
+  assert.equal(listed[0].traceSummary.answerStatusSource, null);
   assert.equal(listed[0].traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
   assert.equal(listed[0].traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(listed[0].traceSummary.failureMessage, "synthetic failure");
