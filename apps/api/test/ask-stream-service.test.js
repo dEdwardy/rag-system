@@ -132,6 +132,10 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, null);
   assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
   assert.equal(finalResult.answeringMetadata.generationMode, "generated");
+  assert.equal(finalResult.answerEvidenceSource, "none");
+  assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(events[5].data.answerEvidenceSource, "none");
+  assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
 });
 
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {

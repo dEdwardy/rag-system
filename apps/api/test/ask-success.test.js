@@ -458,6 +458,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   });
   assert.equal(result.answerAttribution, "explicit");
   assert.equal(result.answerAttributionSource, "structured");
+  assert.equal(result.answerEvidenceSource, "structured");
+  assert.equal(result.answerEvidenceSourceReadabilityLabel, "structured evidence source");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,
@@ -788,6 +790,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   });
   assert.equal(result.answerAttribution, "none");
   assert.equal(result.answerAttributionSource, "none");
+  assert.equal(result.answerEvidenceSource, "none");
+  assert.equal(result.answerEvidenceSourceReadabilityLabel, "no evidence source");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,

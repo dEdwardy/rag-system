@@ -387,6 +387,8 @@ export type AskResponse = {
   answerAttributionSummary?: TraceAnswerAttributionSummary;
   answerAttribution?: TraceCitationAttribution | null;
   answerAttributionSource?: TraceCitationSelectionSource | null;
+  answerEvidenceSource?: TraceCitationSelectionSource | null;
+  answerEvidenceSourceReadabilityLabel?: string;
   answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];

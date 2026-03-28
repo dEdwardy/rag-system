@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ ask / ask-stream final payload now expose additive `answerEvidenceSource` + `answerEvidenceSourceReadabilityLabel` aligned with trace-summary evidence-source wording
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes the two fields in both one-shot ask and stream final payload using the existing attribution-source resolution path (`answerEvidenceSource` mirrors `answerAttributionSource`)
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `answerEvidenceSource` + `answerEvidenceSourceReadabilityLabel` to keep web-side contract typing aligned with backend payload
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` now assert the new fields on representative one-shot and stream final response paths
+  - scope remains additive/read-model contract alignment only: no retrieval execution semantics, ranking/defaults, or source-family behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused ask tests passed (`48/48`)
+
 - ✅ feed Atom canonical alternate-link extraction now accepts mixed-case multi-token `rel` values containing `alternate`
   - `apps/api/src/infra/feed-source/feed-source.service.ts` now treats Atom `<link rel>` as tokenized (case-insensitive) and continues preferring canonical alternate href when any `rel` token is `alternate`
   - `apps/api/test/parsing.test.js` adds one focused regression for `rel="Via ALTERNATE preview"` to guard canonical alternate-link preference over self link

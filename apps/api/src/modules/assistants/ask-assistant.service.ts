@@ -3,7 +3,10 @@ import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
 import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
-import { buildAnswerAttributionSummary } from "../answering/answer-attribution-summary";
+import {
+  buildAnswerAttributionSummary,
+  buildCitationSelectionSourceReadabilityLabel
+} from "../answering/answer-attribution-summary";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
@@ -184,6 +187,7 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -197,7 +201,9 @@ export class AskAssistantService {
         retrievalMetadata,
         answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
-        answerAttributionSource: this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSource,
+        answerEvidenceSource: answerAttributionSource,
+        answerEvidenceSourceReadabilityLabel: this.resolveAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -416,6 +422,7 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
       const finalResult = {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -429,7 +436,9 @@ export class AskAssistantService {
         retrievalMetadata,
         answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
-        answerAttributionSource: this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSource,
+        answerEvidenceSource: answerAttributionSource,
+        answerEvidenceSourceReadabilityLabel: this.resolveAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -508,6 +517,10 @@ export class AskAssistantService {
       attribution: this.resolveAnswerAttribution(answeringMetadata),
       source: this.resolveAnswerAttributionSource(answeringMetadata)
     });
+  }
+
+  private resolveAnswerEvidenceSourceReadabilityLabel(source: TraceCitationSelectionSource | null): string {
+    return source == null ? "unknown evidence source" : buildCitationSelectionSourceReadabilityLabel(source);
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {
