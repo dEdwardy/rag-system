@@ -21,6 +21,7 @@ import { QueueModule } from "./infra/queue/queue.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { AuthContextMiddleware } from "./modules/auth/auth-context.middleware";
 import { EvalQuestionSetsModule } from "./modules/eval-question-sets/eval-question-sets.module";
+import { AuditModule } from "./modules/audit/audit.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { EvalQuestionSetsModule } from "./modules/eval-question-sets/eval-questi
     QueueModule,
     AuthModule,
     EvalQuestionSetsModule,
+    AuditModule,
     KnowledgeBasesModule,
     DocumentsModule,
     AssistantsModule,

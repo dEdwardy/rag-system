@@ -16,6 +16,7 @@ const { AuthService } = require("../src/modules/auth/auth.service.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
 const { HealthController } = require("../src/common/health.controller.ts");
 const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
+const { AuditController } = require("../src/modules/audit/audit.controller.ts");
 const { ConversationsController } = require("../src/modules/conversations/conversations.controller.ts");
 const { DocumentsController } = require("../src/modules/documents/documents.controller.ts");
 const { KnowledgeBasesController } = require("../src/modules/knowledge-bases/knowledge-bases.controller.ts");
@@ -604,6 +605,7 @@ test("owner-scoped business controllers are marked authenticated while auth and 
   const businessControllers = [
     KnowledgeBasesController,
     DocumentsController,
+    AuditController,
     AssistantsController,
     ConversationsController,
     RetrievalProfilesController,

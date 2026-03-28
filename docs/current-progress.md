@@ -15,6 +15,24 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 now exposes a minimal authenticated audit-event query endpoint for quick notable-event inspection
+  - 变更文件：
+    - `apps/api/src/modules/audit/audit.schemas.ts`
+    - `apps/api/src/modules/audit/audit.service.ts`
+    - `apps/api/src/modules/audit/audit.controller.ts`
+    - `apps/api/src/modules/audit/audit.module.ts`
+    - `apps/api/src/app.module.ts`
+    - `apps/api/test/audit.service.test.js`
+    - `apps/api/test/auth-surface-route-policy.test.js`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `GET /audit/events`（authenticated），支持 `source`（`all|trace|document_run`）、`issueOnly`、`sinceHours`、`query`、`limit` 的轻量查询参数
+    - 后端基于已持久化的 `AnswerTrace` 与 `DocumentRun` 生成统一事件流，按时间倒序聚合返回，避免新增持久化表或 schema 迁移
+    - identity scope 沿用现有边界：trace 按 `conversation(tenantId,userId)` 约束，document run 按 `knowledgeBase.tenantId` 约束
+  - focused validation：
+    - `pnpm test:api:file -- test/audit.service.test.js test/auth-surface-route-policy.test.js test/auth-provider-boundary.test.js`
+
 - ✅ P6 v1 trace detail now includes a failure taxonomy view to quickly classify no-hit / fallback / slow-path / timeout / source-failure cases
   - 变更文件：
     - `apps/web/src/pages/traces/TraceDetailPage.tsx`
