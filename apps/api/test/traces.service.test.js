@@ -880,7 +880,7 @@ test("TracesService backfills strategySummary.usedFallback from legacy top-level
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
   assert.equal(
     detail.traceSummary.strategyReadabilityLabel,
-    "unknown mode retrieval via original_disabled; fallback: none; fallback used: yes."
+    "unknown mode retrieval via original_disabled; fallback: unspecified; fallback used: yes."
   );
 });
 

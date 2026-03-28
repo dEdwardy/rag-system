@@ -13,6 +13,14 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary `strategyReadabilityLabel` now avoids ambiguous `fallback: none` wording when fallback usage is known true
+  - `apps/api/src/modules/traces/traces.service.ts` now renders `fallback: unspecified` (instead of `fallback: none`) when resolved strategy summary indicates `usedFallback=true` but `fallbackReason` is missing (legacy partial metadata path)
+  - `apps/api/test/traces.service.test.js` updates the legacy top-level `usedFallback` regression expectation to guard the new wording
+  - scope remains readability-only for resolved strategy summary fallback traces: no retrieval execution semantics, mode resolution, persistence schema, or API route changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；legacy fallback traces with missing reason now read as `fallback: unspecified; fallback used: yes`
+
 - ✅ trace summary now enforces contract-safe enum values for `answerTextSource` / `answerStatusSource`
   - `apps/api/src/modules/traces/traces.service.ts` now normalizes these two fields through explicit trace-contract enum guards, so out-of-contract legacy/raw values no longer leak into `traceSummary` typed fields
   - invalid/raw source values are still preserved in readability labels (`unknown ... (<raw>)`) for diagnostics readability

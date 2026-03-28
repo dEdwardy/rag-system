@@ -583,7 +583,8 @@ export class TracesService {
   }) {
     const retrievalModeLabel = input.retrievalMode ?? "unknown mode";
     const querySourceLabel = input.retrievalQuerySource ?? "unknown query source";
-    const fallbackLabel = input.fallbackReason ?? "none";
+    const fallbackLabel = input.fallbackReason
+      ?? (input.strategyUsedFallback === true ? "unspecified" : "none");
     const fallbackUsageLabel = input.strategyUsedFallback == null
       ? "unknown"
       : input.strategyUsedFallback
