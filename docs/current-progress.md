@@ -13,6 +13,18 @@
 
 补充进展（2026-03-28）：
 
+- ✅ sitemap source URL dedup now ignores hash-only differences to avoid duplicate page fetches in urlset/sitemapindex flows
+  - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now normalizes sitemap URL dedup keys by stripping URL fragment (`#...`) before duplicate checks for:
+    - direct `urlset` page URL extraction
+    - merged page URL collection across `sitemapindex` child sitemaps
+    - child sitemap URL extraction from `sitemapindex`
+  - this closes one narrow external-source duplication failure mode: the same page/sitemap repeated with hash-only variants (for example `.../page#intro` vs `.../page#summary`) no longer consumes `maxPages` budget or causes redundant page fetch attempts
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for hash-only duplicate page URLs across sitemap-index children
+  - scope remains duplicate-suppression-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed
+
 - ✅ external-source fetch-failure diagnostics now include explicit source identity fields for run-level attribution
   - `apps/api/src/modules/documents/documents.service.ts` now appends additive `sourceType` + `sourceName` fields on `EXTERNAL_SOURCE_FETCH_FAILED` diagnostics when current document context is available
   - this closes one narrow source-execution visibility gap: failed runs can now be attributed to the exact source family and normalized source URL without relying only on free-form error message parsing

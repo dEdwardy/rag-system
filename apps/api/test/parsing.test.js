@@ -978,6 +978,102 @@ test("SitemapSourceService does not count duplicate child sitemap URLs as droppe
   }
 });
 
+test("SitemapSourceService treats hash-only page URL variants as duplicates across sitemap index children", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/one.xml</loc></sitemap>
+          <sitemap><loc>https://example.com/sitemaps/two.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/one.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/shared#intro</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/two.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/shared#summary</loc></url>
+          <url><loc>https://example.com/pages/unique</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/shared#intro") {
+      return new Response(
+        "<html><head><title>Shared Page</title></head><body><main><p>Shared marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/unique") {
+      return new Response(
+        "<html><head><title>Unique Page</title></head><body><main><p>Unique marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 2
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/shared#intro/);
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/unique/);
+    assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/pages\/shared#summary/);
+    assert.equal(extracted.diagnostics, null);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("SitemapSourceService caps partial failure summaries and reports omitted counts", async () => {
   const originalFetch = global.fetch;
   const service = new SitemapSourceService(new WebPageService());

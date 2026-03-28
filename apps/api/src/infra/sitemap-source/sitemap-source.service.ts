@@ -171,7 +171,7 @@ export class SitemapSourceService {
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
       .filter(url => this.isHttpUrl(url));
 
-    const allUniqueUrls = [...new Set(extractedUrls)];
+    const allUniqueUrls = this.deduplicateSitemapUrls(extractedUrls);
     const selectedUrls = allUniqueUrls.slice(0, options.maxPages);
 
     if (!selectedUrls.length) {
@@ -278,7 +278,8 @@ export class SitemapSourceService {
       totalExtractedPageUrlCount += extractedChildPageUrls.totalExtractedCount;
 
       for (const pageUrl of extractedChildPageUrls.urls) {
-        if (seenPageUrls.has(pageUrl)) {
+        const pageDedupKey = this.normalizeSitemapUrlForDedup(pageUrl);
+        if (seenPageUrls.has(pageDedupKey)) {
           continue;
         }
 
@@ -288,7 +289,7 @@ export class SitemapSourceService {
           break;
         }
 
-        seenPageUrls.add(pageUrl);
+        seenPageUrls.add(pageDedupKey);
         collectedPageUrls.push(pageUrl);
       }
 
@@ -466,10 +467,44 @@ export class SitemapSourceService {
   }
 
   private extractChildSitemapUrls(xml: string) {
-    return [...xml.matchAll(/<sitemap\b[^>]*>[\s\S]*?<loc\b[^>]*>([\s\S]*?)<\/loc>[\s\S]*?<\/sitemap>/gi)]
+    const extractedChildSitemapUrls = [...xml.matchAll(/<sitemap\b[^>]*>[\s\S]*?<loc\b[^>]*>([\s\S]*?)<\/loc>[\s\S]*?<\/sitemap>/gi)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
-      .filter(url => this.isHttpUrl(url))
-      .filter((url, index, urls) => urls.indexOf(url) === index);
+      .filter(url => this.isHttpUrl(url));
+
+    return this.deduplicateSitemapUrls(extractedChildSitemapUrls);
+  }
+
+  private deduplicateSitemapUrls(urls: string[]) {
+    const deduplicatedUrls: string[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const url of urls) {
+      const dedupKey = this.normalizeSitemapUrlForDedup(url);
+      if (seenKeys.has(dedupKey)) {
+        continue;
+      }
+
+      seenKeys.add(dedupKey);
+      deduplicatedUrls.push(url);
+    }
+
+    return deduplicatedUrls;
+  }
+
+  private normalizeSitemapUrlForDedup(url: string) {
+    const normalizedUrl = url.trim();
+
+    if (!normalizedUrl) {
+      return "";
+    }
+
+    try {
+      const parsed = new URL(normalizedUrl);
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return normalizedUrl;
+    }
   }
 
   private isHttpUrl(value: string) {
