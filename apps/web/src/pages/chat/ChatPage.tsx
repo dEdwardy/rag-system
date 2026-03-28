@@ -1,6 +1,6 @@
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -29,6 +29,86 @@ type ActiveStreamTurn = {
 };
 
 type DisplayedMessage = Message | ChatStreamUserMessage | ChatStreamAssistantMessage;
+
+function resolveStreamConversationId(activeStreamTurn: ActiveStreamTurn | null): string | null {
+  return activeStreamTurn?.latestResult?.conversationId ?? activeStreamTurn?.conversationId ?? null;
+}
+
+function shouldRenderActiveStreamTurn(
+  activeStreamTurn: ActiveStreamTurn | null,
+  activeConversationId: string | null
+): boolean {
+  const streamConversationId = resolveStreamConversationId(activeStreamTurn);
+  return (
+    activeStreamTurn != null &&
+    (activeConversationId == null || streamConversationId == null || streamConversationId === activeConversationId)
+  );
+}
+
+function buildDisplayedMessages(
+  persistedMessages: Message[] | undefined,
+  activeStreamTurn: ActiveStreamTurn | null,
+  shouldRenderStreamTurn: boolean
+): DisplayedMessage[] {
+  const items: DisplayedMessage[] = [...(persistedMessages ?? [])];
+
+  if (shouldRenderStreamTurn && activeStreamTurn) {
+    items.push(activeStreamTurn.userMessage, activeStreamTurn.assistantMessage);
+  }
+
+  return items;
+}
+
+function resolveStreamStatusLabel(
+  locale: string,
+  activeStreamTurn: ActiveStreamTurn | null
+): string | null {
+  if (activeStreamTurn == null) {
+    return null;
+  }
+
+  if (activeStreamTurn.assistantMessage.status === "error") {
+    return locale === "zh" ? "本轮回答失败" : "Answer failed";
+  }
+
+  if (activeStreamTurn.phase === "started") {
+    return locale === "zh" ? "正在准备回答" : "Preparing answer";
+  }
+
+  if (activeStreamTurn.phase === "retrieving") {
+    return locale === "zh" ? "正在检索上下文" : "Retrieving context";
+  }
+
+  return locale === "zh" ? "正在生成回答" : "Generating answer";
+}
+
+function resolveWorkspaceStatus(input: {
+  locale: string;
+  hasAssistant: boolean;
+  hasActiveStreamTurn: boolean;
+  streamStatusLabel: string | null;
+}): string {
+  const { locale, hasAssistant, hasActiveStreamTurn, streamStatusLabel } = input;
+
+  if (!hasAssistant) {
+    return locale === "zh" ? "助手不可用" : "Assistant unavailable";
+  }
+
+  if (hasActiveStreamTurn) {
+    return streamStatusLabel ?? (locale === "zh" ? "处理中" : "In progress");
+  }
+
+  return locale === "zh" ? "准备提问" : "Ready to ask";
+}
+
+function resolveCitationItems(
+  activeStreamTurn: ActiveStreamTurn | null,
+  latestTraceCitations: Citation[] | null | undefined
+): Citation[] {
+  return activeStreamTurn?.assistantMessage.citations.length
+    ? activeStreamTurn.assistantMessage.citations
+    : latestTraceCitations ?? [];
+}
 
 function IconButton({
   children,
@@ -115,10 +195,7 @@ export function ChatPage() {
   const latestTrace = tracesQuery.data?.[0] ?? null;
   const latestModelName = activeStreamTurn?.latestResult?.modelName ?? latestTrace?.modelName ?? null;
   const canAsk = activeAssistant != null && !askStreamMutation.isPending;
-  const streamConversationId = activeStreamTurn?.latestResult?.conversationId ?? activeStreamTurn?.conversationId ?? null;
-  const shouldRenderStreamTurn =
-    activeStreamTurn != null &&
-    (activeConversationId == null || streamConversationId == null || streamConversationId === activeConversationId);
+  const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(activeStreamTurn, activeConversationId);
 
   useEffect(() => {
     if (!didAutoSelectConversation && activeConversationId == null && conversationsQuery.data?.length) {
@@ -141,15 +218,10 @@ export function ChatPage() {
     }
   }, [activeStreamTurn, messagesQuery.data]);
 
-  const displayedMessages: DisplayedMessage[] = useMemo(() => {
-    const items: DisplayedMessage[] = [...(messagesQuery.data ?? [])];
-
-    if (shouldRenderStreamTurn && activeStreamTurn) {
-      items.push(activeStreamTurn.userMessage, activeStreamTurn.assistantMessage);
-    }
-
-    return items;
-  }, [activeStreamTurn, messagesQuery.data, shouldRenderStreamTurn]);
+  const displayedMessages: DisplayedMessage[] = useMemo(
+    () => buildDisplayedMessages(messagesQuery.data, activeStreamTurn, shouldRenderStreamTurn),
+    [activeStreamTurn, messagesQuery.data, shouldRenderStreamTurn]
+  );
 
   useEffect(() => {
     const target = transcriptRef.current;
@@ -160,43 +232,66 @@ export function ChatPage() {
     target.scrollTop = target.scrollHeight;
   }, [displayedMessages]);
 
-  const streamStatusLabel =
-    activeStreamTurn == null
-      ? null
-      : activeStreamTurn.assistantMessage.status === "error"
-        ? locale === "zh"
-          ? "本轮回答失败"
-          : "Answer failed"
-        : activeStreamTurn.phase === "started"
-          ? locale === "zh"
-            ? "正在准备回答"
-            : "Preparing answer"
-          : activeStreamTurn.phase === "retrieving"
-            ? locale === "zh"
-              ? "正在检索上下文"
-              : "Retrieving context"
-            : locale === "zh"
-              ? "正在生成回答"
-              : "Generating answer";
+  const streamStatusLabel = resolveStreamStatusLabel(locale, activeStreamTurn);
 
-  const citationItems: Citation[] =
-    activeStreamTurn?.assistantMessage.citations.length
-      ? activeStreamTurn.assistantMessage.citations
-      : latestTrace?.citationsJson ?? [];
+  const citationItems: Citation[] = resolveCitationItems(activeStreamTurn, latestTrace?.citationsJson);
   const activeTraceId = activeStreamTurn?.assistantMessage.traceId ?? latestTrace?.id ?? null;
   const activeConversation =
     conversationsQuery.data?.find(conversation => conversation.id === activeConversationId) ?? null;
   const conversationCount = conversationsQuery.data?.length ?? 0;
-  const workspaceStatus =
-    !activeAssistant
-      ? locale === "zh"
-        ? "助手不可用"
-        : "Assistant unavailable"
-      : activeStreamTurn
-        ? streamStatusLabel ?? (locale === "zh" ? "处理中" : "In progress")
-        : locale === "zh"
-          ? "准备提问"
-          : "Ready to ask";
+  const workspaceStatus = resolveWorkspaceStatus({
+    locale,
+    hasAssistant: activeAssistant != null,
+    hasActiveStreamTurn: activeStreamTurn != null,
+    streamStatusLabel
+  });
+
+  const handleFinalStreamEvent = useCallback(
+    (finalData: AskStreamFinalData) => {
+      startTransition(() => {
+        setActiveConversationId(finalData.conversationId);
+        setDidAutoSelectConversation(true);
+      });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-messages", finalData.conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-traces", finalData.conversationId] });
+    },
+    [queryClient]
+  );
+
+  const handleAskStreamEvent = useCallback(
+    (streamEvent: AskStreamEvent) => {
+      setActiveStreamTurn(current => {
+        if (!current) {
+          return current;
+        }
+
+        if (streamEvent.type === "status") {
+          return {
+            ...current,
+            phase: streamEvent.phase
+          };
+        }
+
+        if (streamEvent.type === "final") {
+          handleFinalStreamEvent(streamEvent.data);
+
+          return {
+            ...current,
+            conversationId: streamEvent.data.conversationId,
+            assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent),
+            latestResult: streamEvent.data
+          };
+        }
+
+        return {
+          ...current,
+          assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent)
+        };
+      });
+    },
+    [handleFinalStreamEvent]
+  );
 
   const submitQuestion = async () => {
     const question = composerValue.trim();
@@ -219,46 +314,7 @@ export function ChatPage() {
         question,
         conversationId: activeConversationId ?? undefined,
         onEvent: event => {
-          const streamEvent = event as AskStreamEvent;
-
-          setActiveStreamTurn(current => {
-            if (!current) {
-              return current;
-            }
-
-            if (streamEvent.type === "status") {
-              return {
-                ...current,
-                phase: streamEvent.phase
-              };
-            }
-
-            if (streamEvent.type === "final") {
-              startTransition(() => {
-                setActiveConversationId(streamEvent.data.conversationId);
-                setDidAutoSelectConversation(true);
-              });
-              queryClient.invalidateQueries({ queryKey: ["conversations"] });
-              queryClient.invalidateQueries({
-                queryKey: ["conversation-messages", streamEvent.data.conversationId]
-              });
-              queryClient.invalidateQueries({
-                queryKey: ["conversation-traces", streamEvent.data.conversationId]
-              });
-
-              return {
-                ...current,
-                conversationId: streamEvent.data.conversationId,
-                assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent),
-                latestResult: streamEvent.data
-              };
-            }
-
-            return {
-              ...current,
-              assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent)
-            };
-          });
+          handleAskStreamEvent(event as AskStreamEvent);
         }
       });
     } catch (error) {

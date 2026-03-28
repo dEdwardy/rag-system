@@ -9,6 +9,7 @@ import {
 } from "./document-run-observability";
 
 type RunRecord = DocumentRunRecord | KnowledgeBaseDocumentRunRecord;
+type TranslateFn = (key: string) => string;
 
 function getStatusColor(status: RunRecord["status"]) {
   switch (status) {
@@ -81,6 +82,215 @@ function getRunDocument(run: RunRecord) {
   return "document" in run ? run.document : null;
 }
 
+function getRunFinishedLabel(run: RunRecord, locale: string, formatDateTime: (value: string) => string) {
+  const meta = describeRunMeta(run);
+
+  if (meta.finishedAt) {
+    return `${locale === "zh" ? "完成" : "Finished"} ${formatDateTime(meta.finishedAt)}`;
+  }
+
+  return `${locale === "zh" ? "开始" : "Started"} ${formatDateTime(meta.startedAt)}`;
+}
+
+function RunStatusBadges({ run, locale, t }: { run: RunRecord; locale: string; t: TranslateFn }) {
+  const meta = describeRunMeta(run);
+
+  return (
+    <Group gap="xs">
+      <Badge color={getStatusColor(run.status)} variant="light">
+        {getStatusLabel(run.status, locale, t)}
+      </Badge>
+      <Badge color="gray" variant="light">
+        {meta.triggerLabel}
+      </Badge>
+      {meta.sourceTypeLabel ? (
+        <Badge color="blue" variant="light">
+          {meta.sourceTypeLabel}
+        </Badge>
+      ) : null}
+      <Badge color="gray" variant="outline">
+        v{run.version}
+      </Badge>
+    </Group>
+  );
+}
+
+function RunDocumentSummary({ run }: { run: RunRecord }) {
+  const document = getRunDocument(run);
+
+  if (!document) {
+    return null;
+  }
+
+  return (
+    <div>
+      <Title c="var(--app-text)" order={5}>
+        {document.title}
+      </Title>
+      <Text c="var(--app-text-muted)" size="sm">
+        {document.sourceName}
+      </Text>
+    </div>
+  );
+}
+
+function RunMetaSummary({ run, locale, formatDateTime }: { run: RunRecord; locale: string; formatDateTime: (value: string) => string }) {
+  const meta = describeRunMeta(run);
+
+  return (
+    <div className="workspace-meta-list">
+      <div className="workspace-meta-row">
+        <span className="workspace-meta-label">{locale === "zh" ? "开始时间" : "Started"}</span>
+        <span className="workspace-meta-value">{formatDateTime(meta.startedAt)}</span>
+      </div>
+      <div className="workspace-meta-row">
+        <span className="workspace-meta-label">{locale === "zh" ? "结束时间" : "Finished"}</span>
+        <span className="workspace-meta-value">
+          {meta.finishedAt ? formatDateTime(meta.finishedAt) : locale === "zh" ? "进行中" : "In progress"}
+        </span>
+      </div>
+      {meta.failedStageLabel ? (
+        <div className="workspace-meta-row">
+          <span className="workspace-meta-label">{locale === "zh" ? "失败阶段" : "Failed stage"}</span>
+          <span className="workspace-meta-value">{meta.failedStageLabel}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RunFailureSummary({ run }: { run: RunRecord }) {
+  const meta = describeRunMeta(run);
+
+  if (!meta.failureMessage) {
+    return null;
+  }
+
+  return (
+    <Text c="var(--app-text-secondary)" size="sm">
+      {meta.failureMessage}
+    </Text>
+  );
+}
+
+function RunDiagnosticsHighlights({ run, locale }: { run: RunRecord; locale: string }) {
+  const diagnosticsHighlights = buildRunDiagnosticsHighlights(run.diagnosticsJson);
+
+  if (diagnosticsHighlights.length === 0) {
+    return null;
+  }
+
+  return (
+    <Group gap="xs">
+      {diagnosticsHighlights.map(item => (
+        <Badge color="gray" key={item.key} variant="light">
+          {getDiagnosticsSummaryLabel(item.key, locale)}: {item.value}
+        </Badge>
+      ))}
+    </Group>
+  );
+}
+
+function RunActions({
+  run,
+  locale,
+  onReindexRun,
+  t
+}: {
+  run: RunRecord;
+  locale: string;
+  onReindexRun?: (run: RunRecord) => Promise<void> | void;
+  t: TranslateFn;
+}) {
+  const document = getRunDocument(run);
+
+  if (!document) {
+    return null;
+  }
+
+  return (
+    <Group gap="xs">
+      <Button
+        className="workspace-button"
+        color="indigo"
+        component={Link}
+        radius="xl"
+        size="xs"
+        to={`/documents/${run.documentId}`}
+        variant="light"
+      >
+        {locale === "zh" ? "查看文档" : "Open document"}
+      </Button>
+      {onReindexRun && (run.status === "failed" || run.status === "skipped") ? (
+        <Button
+          className="workspace-button"
+          color="indigo"
+          onClick={() => onReindexRun?.(run)}
+          radius="xl"
+          size="xs"
+          variant="light"
+        >
+          {t("common.actions.reindex")}
+        </Button>
+      ) : null}
+    </Group>
+  );
+}
+
+function RunDiagnosticsDetails({ run, locale }: { run: RunRecord; locale: string }) {
+  if (!run.diagnosticsJson) {
+    return null;
+  }
+
+  return (
+    <details>
+      <summary className="workspace-collapsible-summary">
+        {locale === "zh" ? "最小诊断详情" : "Minimal diagnostics"}
+      </summary>
+      <pre className="workspace-code-block workspace-code-block-scroll" style={{ marginTop: "0.9rem" }}>
+        {JSON.stringify(run.diagnosticsJson, null, 2)}
+      </pre>
+    </details>
+  );
+}
+
+function DocumentRunCard({
+  run,
+  locale,
+  formatDateTime,
+  onReindexRun,
+  t
+}: {
+  run: RunRecord;
+  locale: string;
+  formatDateTime: (value: string) => string;
+  onReindexRun?: (run: RunRecord) => Promise<void> | void;
+  t: TranslateFn;
+}) {
+  return (
+    <Paper className="workspace-subpanel" p="md" radius="xl">
+      <Stack gap="sm">
+        <Group align="flex-start" justify="space-between" wrap="nowrap">
+          <Stack gap={6} style={{ minWidth: 0, flex: 1 }}>
+            <RunStatusBadges locale={locale} run={run} t={t} />
+            <RunDocumentSummary run={run} />
+          </Stack>
+
+          <Text c="var(--app-text-muted)" size="xs" ta="right">
+            {getRunFinishedLabel(run, locale, formatDateTime)}
+          </Text>
+        </Group>
+
+        <RunMetaSummary formatDateTime={formatDateTime} locale={locale} run={run} />
+        <RunFailureSummary run={run} />
+        <RunDiagnosticsHighlights locale={locale} run={run} />
+        <RunActions locale={locale} onReindexRun={onReindexRun} run={run} t={t} />
+        <RunDiagnosticsDetails locale={locale} run={run} />
+      </Stack>
+    </Paper>
+  );
+}
+
 type Props = {
   title: string;
   description: string;
@@ -105,129 +315,16 @@ export function DocumentRunList(props: Props) {
           <StatePanel title={props.emptyTitle} description={props.emptyDescription} />
         ) : (
           <Stack gap="sm">
-            {props.runs.map(run => {
-              const meta = describeRunMeta(run);
-              const diagnosticsHighlights = buildRunDiagnosticsHighlights(run.diagnosticsJson);
-              const document = getRunDocument(run);
-
-              return (
-                <Paper className="workspace-subpanel" key={run.id} p="md" radius="xl">
-                  <Stack gap="sm">
-                    <Group align="flex-start" justify="space-between" wrap="nowrap">
-                      <Stack gap={6} style={{ minWidth: 0, flex: 1 }}>
-                        <Group gap="xs">
-                          <Badge color={getStatusColor(run.status)} variant="light">
-                            {getStatusLabel(run.status, locale, t)}
-                          </Badge>
-                          <Badge color="gray" variant="light">
-                            {meta.triggerLabel}
-                          </Badge>
-                          {meta.sourceTypeLabel ? (
-                            <Badge color="blue" variant="light">
-                              {meta.sourceTypeLabel}
-                            </Badge>
-                          ) : null}
-                          <Badge color="gray" variant="outline">
-                            v{run.version}
-                          </Badge>
-                        </Group>
-
-                        {document ? (
-                          <div>
-                            <Title c="var(--app-text)" order={5}>
-                              {document.title}
-                            </Title>
-                            <Text c="var(--app-text-muted)" size="sm">
-                              {document.sourceName}
-                            </Text>
-                          </div>
-                        ) : null}
-                      </Stack>
-
-                      <Text c="var(--app-text-muted)" size="xs" ta="right">
-                        {meta.finishedAt
-                          ? `${locale === "zh" ? "完成" : "Finished"} ${formatDateTime(meta.finishedAt)}`
-                          : `${locale === "zh" ? "开始" : "Started"} ${formatDateTime(meta.startedAt)}`}
-                      </Text>
-                    </Group>
-
-                    <div className="workspace-meta-list">
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "开始时间" : "Started"}</span>
-                        <span className="workspace-meta-value">{formatDateTime(meta.startedAt)}</span>
-                      </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "结束时间" : "Finished"}</span>
-                        <span className="workspace-meta-value">
-                          {meta.finishedAt ? formatDateTime(meta.finishedAt) : locale === "zh" ? "进行中" : "In progress"}
-                        </span>
-                      </div>
-                      {meta.failedStageLabel ? (
-                        <div className="workspace-meta-row">
-                          <span className="workspace-meta-label">{locale === "zh" ? "失败阶段" : "Failed stage"}</span>
-                          <span className="workspace-meta-value">{meta.failedStageLabel}</span>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {meta.failureMessage ? (
-                      <Text c="var(--app-text-secondary)" size="sm">
-                        {meta.failureMessage}
-                      </Text>
-                    ) : null}
-
-                    {diagnosticsHighlights.length > 0 ? (
-                      <Group gap="xs">
-                        {diagnosticsHighlights.map(item => (
-                          <Badge color="gray" key={item.key} variant="light">
-                            {getDiagnosticsSummaryLabel(item.key, locale)}: {item.value}
-                          </Badge>
-                        ))}
-                      </Group>
-                    ) : null}
-
-                    {document ? (
-                      <Group gap="xs">
-                        <Button
-                          className="workspace-button"
-                          color="indigo"
-                          component={Link}
-                          radius="xl"
-                          size="xs"
-                          to={`/documents/${run.documentId}`}
-                          variant="light"
-                        >
-                          {locale === "zh" ? "查看文档" : "Open document"}
-                        </Button>
-                        {props.onReindexRun && (run.status === "failed" || run.status === "skipped") ? (
-                          <Button
-                            className="workspace-button"
-                            color="indigo"
-                            onClick={() => props.onReindexRun?.(run)}
-                            radius="xl"
-                            size="xs"
-                            variant="light"
-                          >
-                            {t("common.actions.reindex")}
-                          </Button>
-                        ) : null}
-                      </Group>
-                    ) : null}
-
-                    {run.diagnosticsJson ? (
-                      <details>
-                        <summary className="workspace-collapsible-summary">
-                          {locale === "zh" ? "最小诊断详情" : "Minimal diagnostics"}
-                        </summary>
-                        <pre className="workspace-code-block workspace-code-block-scroll" style={{ marginTop: "0.9rem" }}>
-                          {JSON.stringify(run.diagnosticsJson, null, 2)}
-                        </pre>
-                      </details>
-                    ) : null}
-                  </Stack>
-                </Paper>
-              );
-            })}
+            {props.runs.map(run => (
+              <DocumentRunCard
+                formatDateTime={formatDateTime}
+                key={run.id}
+                locale={locale}
+                onReindexRun={props.onReindexRun}
+                run={run}
+                t={t}
+              />
+            ))}
           </Stack>
         )}
       </Stack>

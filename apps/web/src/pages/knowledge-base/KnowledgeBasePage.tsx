@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Grid, Group, Paper, SegmentedControl, Stack, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useState } from "react";
+import { type ComponentProps, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
 import {
@@ -19,70 +19,191 @@ import {
 import { useI18n } from "../../i18n/I18nProvider";
 import { buildKnowledgeBaseWorkspaceSummary } from "./knowledge-base-page-helpers";
 
+type RunFilter = "all" | "failed" | "processing";
+type RunRecord = Parameters<NonNullable<ComponentProps<typeof DocumentRunList>["onReindexRun"]>>[0];
+
 export function KnowledgeBasePage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
   const knowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(knowledgeBase?.id ?? "default-kb");
   const reindexMutation = useReindexDocument();
-  const [runFilter, setRunFilter] = useState<"all" | "failed" | "processing">("all");
+  const [runFilter, setRunFilter] = useState<RunFilter>("all");
+  const runStatusFilter = runFilter === "all" ? undefined : runFilter;
   const recentRunsQuery = useKnowledgeBaseDocumentRuns(knowledgeBase?.id ?? null, {
     limit: 6,
     sinceHours: 72,
     includeDiagnostics: true,
-    status: runFilter === "all" ? undefined : runFilter
+    status: runStatusFilter
   });
   const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(knowledgeBase?.id ?? null, {
     sinceHours: 72,
-    status: runFilter === "all" ? undefined : runFilter
+    status: runStatusFilter
   });
   const documents = documentsQuery.data ?? [];
   const assistants = assistantsQuery.data ?? [];
-  const assistantCount = assistants.filter(assistant => assistant.kbId === knowledgeBase?.id).length;
+  const assistantCount = useMemo(
+    () => assistants.filter(assistant => assistant.kbId === knowledgeBase?.id).length,
+    [assistants, knowledgeBase?.id]
+  );
   const { formatDateTime, t, locale } = useI18n();
-  const summary = buildKnowledgeBaseWorkspaceSummary({
-    documents,
-    assistantCount
-  });
+  const summary = useMemo(
+    () =>
+      buildKnowledgeBaseWorkspaceSummary({
+        documents,
+        assistantCount
+      }),
+    [documents, assistantCount]
+  );
 
-  const metricCards = [
-    {
-      key: "documents",
-      label: t("common.fields.documents"),
-      value: documents.length,
-      testId: "knowledge-base-document-count"
+  const metricCards = useMemo(
+    () => [
+      {
+        key: "documents",
+        label: t("common.fields.documents"),
+        value: documents.length,
+        testId: "knowledge-base-document-count"
+      },
+      {
+        key: "chunks",
+        label: t("common.fields.chunks"),
+        value: summary.chunkCount,
+        testId: "knowledge-base-chunk-count"
+      },
+      {
+        key: "ready",
+        label: t("knowledgeBase.metrics.readyDocuments"),
+        value: summary.readyCount,
+        testId: "knowledge-base-ready-count"
+      },
+      {
+        key: "processing",
+        label: t("knowledgeBase.metrics.processingDocuments"),
+        value: summary.processingCount,
+        testId: "knowledge-base-processing-count"
+      },
+      {
+        key: "failed",
+        label: t("knowledgeBase.metrics.failedDocuments"),
+        value: summary.failedCount,
+        testId: "knowledge-base-failed-count"
+      },
+      {
+        key: "assistants",
+        label: t("knowledgeBase.metrics.boundAssistants"),
+        value: assistantCount,
+        testId: "knowledge-base-assistant-count"
+      }
+    ],
+    [assistantCount, documents.length, summary.chunkCount, summary.failedCount, summary.processingCount, summary.readyCount, t]
+  );
+
+  const runFilterOptions = useMemo(
+    () => [
+      {
+        label: locale === "zh" ? "全部" : "All",
+        value: "all"
+      },
+      {
+        label: locale === "zh" ? "失败" : "Failed",
+        value: "failed"
+      },
+      {
+        label: locale === "zh" ? "处理中" : "Processing",
+        value: "processing"
+      }
+    ],
+    [locale]
+  );
+
+  const runSummaryMetrics = useMemo(
+    () =>
+      runSummaryQuery.data
+        ? [
+            {
+              key: "total-runs",
+              heading: locale === "zh" ? "最近运行总数" : "Recent runs",
+              value: runSummaryQuery.data.totalRuns
+            },
+            {
+              key: "retryable-failures",
+              heading: locale === "zh" ? "可重试失败" : "Retryable failures",
+              value: runSummaryQuery.data.retryableFailures
+            },
+            {
+              key: "latest-finished",
+              heading: locale === "zh" ? "最新完成时间" : "Latest finished",
+              value: runSummaryQuery.data.latestFinishedAt
+                ? formatDateTime(runSummaryQuery.data.latestFinishedAt)
+                : locale === "zh"
+                  ? "暂无"
+                  : "No finished runs yet",
+              valueSize: "sm" as const
+            }
+          ]
+        : [],
+    [formatDateTime, locale, runSummaryQuery.data]
+  );
+  const runSummaryData = runSummaryQuery.data;
+  const latestFailure = runSummaryData?.latestFailure ?? null;
+
+  const summaryDotStyle = useMemo(
+    () => ({
+      width: 10,
+      height: 10,
+      borderRadius: 999,
+      background:
+        summary.toneColor === "red"
+          ? "#ef4444"
+          : summary.toneColor === "yellow"
+            ? "#f59e0b"
+            : summary.toneColor === "indigo"
+              ? "var(--app-accent)"
+              : "rgba(255,255,255,0.35)",
+      boxShadow:
+        summary.toneColor === "gray"
+          ? "none"
+          : `0 0 0 6px ${summary.toneColor === "indigo" ? "rgba(99, 102, 241, 0.12)" : "rgba(255,255,255,0.06)"}`
+    }),
+    [summary.toneColor]
+  );
+
+  const handleRunFilterChange = useCallback((value: string) => {
+    setRunFilter(value as RunFilter);
+  }, []);
+
+  const handleReindexRun = useCallback(
+    async (run: RunRecord) => {
+      if (!("document" in run)) {
+        return;
+      }
+
+      try {
+        await reindexMutation.mutateAsync({
+          documentId: run.documentId,
+          knowledgeBaseId: run.document.kbId
+        });
+        notifications.show({
+          color: "indigo",
+          message:
+            locale === "zh"
+              ? `已请求重新索引：${run.document.title}`
+              : `Reindex requested for ${run.document.title}`
+        });
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message:
+            error instanceof Error
+              ? error.message
+              : locale === "zh"
+                ? "重新索引失败。"
+                : "Reindex failed."
+        });
+      }
     },
-    {
-      key: "chunks",
-      label: t("common.fields.chunks"),
-      value: summary.chunkCount,
-      testId: "knowledge-base-chunk-count"
-    },
-    {
-      key: "ready",
-      label: t("knowledgeBase.metrics.readyDocuments"),
-      value: summary.readyCount,
-      testId: "knowledge-base-ready-count"
-    },
-    {
-      key: "processing",
-      label: t("knowledgeBase.metrics.processingDocuments"),
-      value: summary.processingCount,
-      testId: "knowledge-base-processing-count"
-    },
-    {
-      key: "failed",
-      label: t("knowledgeBase.metrics.failedDocuments"),
-      value: summary.failedCount,
-      testId: "knowledge-base-failed-count"
-    },
-    {
-      key: "assistants",
-      label: t("knowledgeBase.metrics.boundAssistants"),
-      value: assistantCount,
-      testId: "knowledge-base-assistant-count"
-    }
-  ];
+    [locale, reindexMutation]
+  );
 
   return (
     <Stack data-testid="knowledge-base-page" gap="md">
@@ -264,25 +385,7 @@ export function KnowledgeBasePage() {
 
                   <Paper className="workspace-subpanel" p="md" radius="xl">
                     <Group gap="sm" wrap="nowrap">
-                      <Box
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 999,
-                          background:
-                            summary.toneColor === "red"
-                              ? "#ef4444"
-                              : summary.toneColor === "yellow"
-                                ? "#f59e0b"
-                                : summary.toneColor === "indigo"
-                                  ? "var(--app-accent)"
-                                  : "rgba(255,255,255,0.35)",
-                          boxShadow:
-                            summary.toneColor === "gray"
-                              ? "none"
-                              : `0 0 0 6px ${summary.toneColor === "indigo" ? "rgba(99, 102, 241, 0.12)" : "rgba(255,255,255,0.06)"}`
-                        }}
-                      />
+                      <Box style={summaryDotStyle} />
                       <Text c="var(--app-text-secondary)" size="sm">
                         {summary.processingCount > 0
                           ? t("knowledgeBase.summary.processingDescription", { count: summary.processingCount })
@@ -341,21 +444,8 @@ export function KnowledgeBasePage() {
                   </div>
 
                   <SegmentedControl
-                    data={[
-                      {
-                        label: locale === "zh" ? "全部" : "All",
-                        value: "all"
-                      },
-                      {
-                        label: locale === "zh" ? "失败" : "Failed",
-                        value: "failed"
-                      },
-                      {
-                        label: locale === "zh" ? "处理中" : "Processing",
-                        value: "processing"
-                      }
-                    ]}
-                    onChange={value => setRunFilter(value as "all" | "failed" | "processing")}
+                    data={runFilterOptions}
+                    onChange={handleRunFilterChange}
                     radius="xl"
                     size="sm"
                     value={runFilter}
@@ -373,34 +463,20 @@ export function KnowledgeBasePage() {
                     />
                   ) : null}
 
-                  {runSummaryQuery.data ? (
+                  {runSummaryMetrics.length > 0 ? (
                     <>
                       <div className="workspace-metric-grid">
-                        <Paper className="workspace-subpanel" p="md" radius="xl">
-                          <Text className="workspace-section-heading">{locale === "zh" ? "最近运行总数" : "Recent runs"}</Text>
-                          <Text c="var(--app-text)" fw={700} mt={6}>
-                            {runSummaryQuery.data.totalRuns}
-                          </Text>
-                        </Paper>
-                        <Paper className="workspace-subpanel" p="md" radius="xl">
-                          <Text className="workspace-section-heading">{locale === "zh" ? "可重试失败" : "Retryable failures"}</Text>
-                          <Text c="var(--app-text)" fw={700} mt={6}>
-                            {runSummaryQuery.data.retryableFailures}
-                          </Text>
-                        </Paper>
-                        <Paper className="workspace-subpanel" p="md" radius="xl">
-                          <Text className="workspace-section-heading">{locale === "zh" ? "最新完成时间" : "Latest finished"}</Text>
-                          <Text c="var(--app-text)" fw={700} mt={6} size="sm">
-                            {runSummaryQuery.data.latestFinishedAt
-                              ? formatDateTime(runSummaryQuery.data.latestFinishedAt)
-                              : locale === "zh"
-                                ? "暂无"
-                                : "No finished runs yet"}
-                          </Text>
-                        </Paper>
+                        {runSummaryMetrics.map(metric => (
+                          <Paper className="workspace-subpanel" key={metric.key} p="md" radius="xl">
+                            <Text className="workspace-section-heading">{metric.heading}</Text>
+                            <Text c="var(--app-text)" fw={700} mt={6} size={metric.valueSize}>
+                              {metric.value}
+                            </Text>
+                          </Paper>
+                        ))}
                       </div>
 
-                      {runSummaryQuery.data.latestFailure ? (
+                      {latestFailure ? (
                         <Paper className="workspace-focus-banner" p="md" radius="xl">
                           <Stack gap={6}>
                             <Text c="var(--app-text)" fw={700} size="sm">
@@ -408,14 +484,14 @@ export function KnowledgeBasePage() {
                             </Text>
                             <Group gap="xs">
                               <Badge color="red" variant="light">
-                                {formatRunSourceTypeLabel(runSummaryQuery.data.latestFailure.sourceType)}
+                                {formatRunSourceTypeLabel(latestFailure.sourceType)}
                               </Badge>
                               <Badge color="gray" variant="light">
-                                {formatRunTriggerLabel(runSummaryQuery.data.latestFailure.trigger)}
+                                {formatRunTriggerLabel(latestFailure.trigger)}
                               </Badge>
                             </Group>
                             <Text c="var(--app-text-secondary)" size="sm">
-                              {runSummaryQuery.data.latestFailure.message ??
+                              {latestFailure.message ??
                                 (locale === "zh" ? "暂无 message。" : "No failure message recorded.")}
                             </Text>
                             <Group gap="xs">
@@ -425,7 +501,7 @@ export function KnowledgeBasePage() {
                                 component={Link}
                                 radius="xl"
                                 size="xs"
-                                to={`/documents/${runSummaryQuery.data.latestFailure.documentId}`}
+                                to={`/documents/${latestFailure.documentId}`}
                                 variant="light"
                               >
                                 {locale === "zh" ? "查看文档" : "Open document"}
@@ -527,35 +603,7 @@ export function KnowledgeBasePage() {
                   ? "当前知识库还没有可展示的 source run 历史。"
                   : "This knowledge base does not have recent source run history yet."
               }
-              onReindexRun={async run => {
-                if (!("document" in run)) {
-                  return;
-                }
-
-                try {
-                  await reindexMutation.mutateAsync({
-                    documentId: run.documentId,
-                    knowledgeBaseId: run.document.kbId
-                  });
-                  notifications.show({
-                    color: "indigo",
-                    message:
-                      locale === "zh"
-                        ? `已请求重新索引：${run.document.title}`
-                        : `Reindex requested for ${run.document.title}`
-                  });
-                } catch (error) {
-                  notifications.show({
-                    color: "red",
-                    message:
-                      error instanceof Error
-                        ? error.message
-                        : locale === "zh"
-                          ? "重新索引失败。"
-                          : "Reindex failed."
-                  });
-                }
-              }}
+              onReindexRun={handleReindexRun}
             />
           )}
         </>

@@ -4,6 +4,11 @@ import { useConversations, useDocuments, useKnowledgeBases } from "../features/a
 import { useI18n } from "../i18n/I18nProvider";
 import { useThemePreferences } from "./theme-preferences";
 
+const APP_SHELL_THEME = {
+  color: "creative-dark",
+  layout: "workspace-app"
+} as const;
+
 type NavIconProps = {
   type: "chat" | "documents" | "knowledge" | "assistant" | "trace" | "usage";
 };
@@ -20,6 +25,86 @@ type NavGroup = {
   heading: string;
   items: NavItem[];
 };
+
+type Locale = "zh" | "en";
+
+const APP_SHELL_TEXT: Record<Locale, {
+  mainHeading: string;
+  tracingHeading: string;
+  chat: string;
+  documents: string;
+  knowledgeBase: string;
+  assistant: string;
+  traceLog: string;
+  usage: string;
+  fallbackActiveLabel: string;
+}> = {
+  zh: {
+    mainHeading: "主要功能",
+    tracingHeading: "追踪与分析",
+    chat: "对话",
+    documents: "文档",
+    knowledgeBase: "知识库",
+    assistant: "助手配置",
+    traceLog: "Trace 日志",
+    usage: "使用统计",
+    fallbackActiveLabel: "对话"
+  },
+  en: {
+    mainHeading: "Main",
+    tracingHeading: "Tracing",
+    chat: "Chat",
+    documents: "Documents",
+    knowledgeBase: "Knowledge Base",
+    assistant: "Assistant",
+    traceLog: "Trace log",
+    usage: "Usage",
+    fallbackActiveLabel: "Chat"
+  }
+};
+
+function buildNavGroups(locale: Locale, badges: { documentBadge: string | null; conversationBadge: string | null }): NavGroup[] {
+  const text = APP_SHELL_TEXT[locale];
+
+  return [
+    {
+      heading: text.mainHeading,
+      items: [
+        { to: "/", label: text.chat, badge: badges.conversationBadge, end: true, icon: "chat" },
+        { to: "/documents", label: text.documents, badge: badges.documentBadge, icon: "documents" },
+        { to: "/knowledge-base", label: text.knowledgeBase, icon: "knowledge" },
+        { to: "/assistant", label: text.assistant, icon: "assistant" }
+      ]
+    },
+    {
+      heading: text.tracingHeading,
+      items: [
+        { to: "/traces", label: text.traceLog, icon: "trace" },
+        { to: "/usage", label: text.usage, icon: "usage" }
+      ]
+    }
+  ];
+}
+
+function isLinkActivePath(pathname: string, link: NavItem) {
+  if (link.end) {
+    return pathname === link.to;
+  }
+
+  if (link.to === "/documents") {
+    return pathname === "/documents" || pathname.startsWith("/documents/");
+  }
+
+  if (link.to === "/traces") {
+    return pathname === "/traces" || pathname.startsWith("/traces/");
+  }
+
+  return pathname === link.to;
+}
+
+function getActiveLabel(pathname: string, links: NavGroup[], locale: Locale) {
+  return links.flatMap(group => group.items).find(link => isLinkActivePath(pathname, link))?.label ?? APP_SHELL_TEXT[locale].fallbackActiveLabel;
+}
 
 function NavIcon({ type }: NavIconProps) {
   const paths =
@@ -94,14 +179,15 @@ export function AppShell() {
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
   const conversationsQuery = useConversations();
   const isChatRoute = location.pathname === "/";
+  const localeKey = locale === "zh" ? "zh" : "en";
 
   useEffect(() => {
-    if (themeColor !== "creative-dark") {
-      setThemeColor("creative-dark");
+    if (themeColor !== APP_SHELL_THEME.color) {
+      setThemeColor(APP_SHELL_THEME.color);
     }
 
-    if (themeLayout !== "workspace-app") {
-      setThemeLayout("workspace-app");
+    if (themeLayout !== APP_SHELL_THEME.layout) {
+      setThemeLayout(APP_SHELL_THEME.layout);
     }
   }, [setThemeColor, setThemeLayout, themeColor, themeLayout]);
 
@@ -109,46 +195,11 @@ export function AppShell() {
   const conversationBadge = conversationsQuery.isSuccess ? String(conversationsQuery.data.length) : null;
 
   const links = useMemo<NavGroup[]>(
-    () => [
-      {
-        heading: locale === "zh" ? "主要功能" : "Main",
-        items: [
-          { to: "/", label: locale === "zh" ? "对话" : "Chat", badge: conversationBadge, end: true, icon: "chat" },
-          { to: "/documents", label: locale === "zh" ? "文档" : "Documents", badge: documentBadge, icon: "documents" },
-          { to: "/knowledge-base", label: locale === "zh" ? "知识库" : "Knowledge Base", icon: "knowledge" },
-          { to: "/assistant", label: locale === "zh" ? "助手配置" : "Assistant", icon: "assistant" }
-        ]
-      },
-      {
-        heading: locale === "zh" ? "追踪与分析" : "Tracing",
-        items: [
-          { to: "/traces", label: locale === "zh" ? "Trace 日志" : "Trace log", icon: "trace" },
-          { to: "/usage", label: locale === "zh" ? "使用统计" : "Usage", icon: "usage" }
-        ]
-      }
-    ],
-    [conversationBadge, documentBadge, locale]
+    () => buildNavGroups(localeKey, { documentBadge, conversationBadge }),
+    [conversationBadge, documentBadge, localeKey]
   );
 
-  const isLinkActive = (link: NavItem) => {
-    if (link.end) {
-      return location.pathname === link.to;
-    }
-
-    if (link.to === "/documents") {
-      return location.pathname === "/documents" || location.pathname.startsWith("/documents/");
-    }
-
-    if (link.to === "/traces") {
-      return location.pathname === "/traces" || location.pathname.startsWith("/traces/");
-    }
-
-    return location.pathname === link.to;
-  };
-
-  const activeLabel =
-    links.flatMap(group => group.items).find(link => isLinkActive(link))?.label ??
-    (locale === "zh" ? "对话" : "Chat");
+  const activeLabel = getActiveLabel(location.pathname, links, localeKey);
 
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--app-bg)] font-sans text-[var(--app-text)]">
@@ -186,7 +237,7 @@ export function AppShell() {
                   {group.heading}
                 </div>
                 {group.items.map(item => {
-                  const isActive = isLinkActive(item);
+                  const isActive = isLinkActivePath(location.pathname, item);
 
                   return (
                     <NavLink
