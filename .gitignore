@@ -31,3 +31,4 @@ ui/version-b-creative.*
 !.opencode/agents/
 !.opencode/agents/*.md
 .opencode/
+apps/web/.*
