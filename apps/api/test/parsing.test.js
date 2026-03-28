@@ -335,6 +335,39 @@ test("FeedSourceService treats hash-only feed-link variants as duplicates", () =
   assert.equal(extracted.diagnostics?.partial, true);
 });
 
+test("FeedSourceService deduplicates same-link entries even when metadata differs", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item>
+          <title>Entry A</title>
+          <link>https://example.com/a</link>
+          <description>Initial summary.</description>
+          <pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Entry A (updated headline)</title>
+          <link>https://example.com/a</link>
+          <description>Updated summary.</description>
+          <pubDate>Tue, 02 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 10
+    }
+  );
+
+  assert.match(extracted.content, /Entry A/);
+  assert.doesNotMatch(extracted.content, /updated headline/);
+  assert.equal(extracted.diagnostics?.skippedDuplicateEntryCount, 1);
+  assert.deepEqual(extracted.diagnostics?.skippedDuplicateEntryRefs, ["https://example.com/a"]);
+});
+
 test("SitemapSourceService extracts ordered unique page URLs from sitemap XML", () => {
   const service = new SitemapSourceService(new WebPageService());
   const extracted = service.extractPageUrls(

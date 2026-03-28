@@ -13,6 +13,17 @@
 
 补充进展（2026-03-28）：
 
+- ✅ feed-source dedup now prefers canonical entry link identity to avoid duplicate ingestion when metadata drifts
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now resolves feed-entry dedup key as:
+    - `link:<normalized-link>` when link exists (including relative-link resolution against feed URL and hash stripping)
+    - fallback to metadata-only key (`title + publishedAt + summary`) when link is missing
+  - this closes one narrow duplicate-ingest edge case in existing `feed` source flow: repeated entries with the same URL but changed title/summary/pubDate are now treated as duplicates and skipped
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for same-link feed entries with different metadata
+  - scope remains dedup-guard-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`23/23`)
+
 - ✅ external-source re-sync now recovers legacy web-page documents when stored `sourceConfigJson` is missing
   - `apps/api/src/modules/documents/documents.service.ts` now applies one narrow legacy fallback during `POST /documents/:id/reindex` parsing: when external config is missing but the document identity is still `sourceType=web_page` + `sourceName=<url>`, re-sync reconstructs `{ kind: "web_page", url: sourceName }` and continues re-fetch instead of failing early with `EXTERNAL_SOURCE_CONFIG_INVALID`
   - `apps/api/test/external-source-sync.test.js` adds focused regression coverage for this stale-state path (`sourceConfigJson: null` on a legacy web-page document) and asserts re-sync proceeds through fetch/finalize/enqueue

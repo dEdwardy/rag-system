@@ -208,7 +208,7 @@ export class FeedSourceService {
         return;
       }
 
-      const dedupKey = this.buildEntryDedupKey(entry);
+      const dedupKey = this.buildEntryDedupKey(entry, input.sourceUrl);
       if (seenEntryKeys.has(dedupKey)) {
         skippedDuplicateEntryRefs.push(entry.link ?? entry.title ?? "Untitled");
         return;
@@ -287,22 +287,27 @@ export class FeedSourceService {
     };
   }
 
-  private buildEntryDedupKey(entry: FeedEntry) {
+  private buildEntryDedupKey(entry: FeedEntry, sourceUrl: string) {
     const normalizedTitle = entry.title?.trim().toLowerCase() ?? "";
-    const normalizedLink = this.normalizeEntryLinkForDedup(entry.link);
+    const normalizedLink = this.normalizeEntryLinkForDedup(entry.link, sourceUrl);
     const normalizedPublishedAt = entry.publishedAt?.trim().toLowerCase() ?? "";
     const normalizedSummary = entry.summary?.trim().toLowerCase() ?? "";
-    return [normalizedLink, normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
+
+    if (normalizedLink) {
+      return `link:${normalizedLink}`;
+    }
+
+    return [normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
   }
 
-  private normalizeEntryLinkForDedup(link: string | null) {
+  private normalizeEntryLinkForDedup(link: string | null, sourceUrl: string) {
     const normalizedLink = link?.trim().toLowerCase() ?? "";
     if (!normalizedLink) {
       return "";
     }
 
     try {
-      const parsed = new URL(normalizedLink);
+      const parsed = new URL(normalizedLink, sourceUrl);
       parsed.hash = "";
       return parsed.toString();
     } catch {
