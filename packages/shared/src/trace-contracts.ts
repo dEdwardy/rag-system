@@ -122,6 +122,7 @@ export type TraceSummary = {
   inputChunkCount: number;
   promptContextCount: number;
   contextGroupCount: number;
+  contextReadabilitySentence: string;
   citationCount: number;
   citationCountReadabilityLabel: string;
   citationCountBeforeLimit: number;

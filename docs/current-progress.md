@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now exposes additive `contextReadabilitySentence` for easier prompt-context composition scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `contextReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing context metadata (`contextMode`, `promptContextCount`, `inputChunkCount`, `contextGroupCount`, `retrievedChunkCount`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary snapshots to guard the new field; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
 - ✅ 当前 queue 已重排
   - 本次只调整现有 queue 的执行顺序，本次整理不新增也不删除任务
   - 排序规则：先阻塞项，再收尾项，最后优化项

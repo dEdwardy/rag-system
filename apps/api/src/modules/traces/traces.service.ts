@@ -326,6 +326,13 @@ export class TracesService {
       mergedCandidateCount,
       rankedCandidateCount
     });
+    const contextReadabilitySentence = this.buildContextReadabilitySentence({
+      contextMode,
+      inputChunkCount,
+      promptContextCount,
+      contextGroupCount,
+      retrievedChunkCount
+    });
 
     return {
       promptId: this.readString(answeringMetadata?.promptId),
@@ -408,6 +415,7 @@ export class TracesService {
       inputChunkCount,
       promptContextCount,
       contextGroupCount,
+      contextReadabilitySentence,
       citationCount,
       citationCountReadabilityLabel,
       citationCountBeforeLimit,
@@ -595,6 +603,17 @@ export class TracesService {
     rankedCandidateCount: TraceSummary["rankedCandidateCount"];
   }): TraceSummary["candidateCountReadabilitySentence"] {
     return `Candidate flow produced ${input.rankedCandidateCount} ranked candidates from ${input.mergedCandidateCount} merged candidates (${input.vectorCandidateCount} vector, ${input.lexicalCandidateCount} lexical) with candidate limit ${input.candidateLimit}.`;
+  }
+
+  private buildContextReadabilitySentence(input: {
+    contextMode: TraceSummary["contextMode"];
+    inputChunkCount: TraceSummary["inputChunkCount"];
+    promptContextCount: TraceSummary["promptContextCount"];
+    contextGroupCount: TraceSummary["contextGroupCount"];
+    retrievedChunkCount: TraceSummary["retrievedChunkCount"];
+  }): TraceSummary["contextReadabilitySentence"] {
+    const contextModeLabel = input.contextMode ?? "unknown";
+    return `Prompt context used ${input.promptContextCount} items via ${contextModeLabel} mode (${input.inputChunkCount} input chunks, ${input.contextGroupCount} context groups, ${input.retrievedChunkCount} retrieved chunks).`;
   }
 
   private buildAnswerStatusSourceReadabilityLabel(input: {

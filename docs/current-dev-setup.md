@@ -248,6 +248,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `inputChunkCount`
     - `promptContextCount`
     - `contextGroupCount`
+    - `contextReadabilitySentence` (one-line prompt-context composition sentence)
     - `citationCount`
     - `citationCountReadabilityLabel` (citation count readability label)
     - `citationCountBeforeLimit`

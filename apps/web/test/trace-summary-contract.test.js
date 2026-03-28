@@ -85,6 +85,7 @@ test("web trace summary type guards current backend summary field set", async ()
   assert.match(sharedSource, /inputChunkCount:\s*number;/);
   assert.match(sharedSource, /promptContextCount:\s*number;/);
   assert.match(sharedSource, /contextGroupCount:\s*number;/);
+  assert.match(sharedSource, /contextReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /citationCount:\s*number;/);
   assert.match(sharedSource, /citationCountReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /citationCountBeforeLimit:\s*number;/);
