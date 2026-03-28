@@ -330,6 +330,40 @@ test("FeedSourceService prefers newest dated entries when maxItems truncates RSS
   });
 });
 
+test("FeedSourceService keeps feed order when mixed timestamp availability would make freshness sorting ambiguous", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item>
+          <title>Entry A</title>
+          <link>https://example.com/a</link>
+        </item>
+        <item>
+          <title>Entry B</title>
+          <link>https://example.com/b</link>
+          <pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Entry C</title>
+          <link>https://example.com/c</link>
+          <pubDate>Tue, 02 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 2
+    }
+  );
+
+  assert.match(extracted.content, /Entry A/);
+  assert.match(extracted.content, /Entry B/);
+  assert.doesNotMatch(extracted.content, /Entry C/);
+});
+
 test("FeedSourceService skips duplicate entries and records dedup diagnostics", () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(

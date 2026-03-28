@@ -13,6 +13,16 @@
 
 补充进展（2026-03-28）：
 
+- ✅ feed freshness window selection now avoids timestamp-only reordering when feed entries have mixed date availability
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now keeps the original feed polling order (`slice(0, maxItems)`) when `maxItems` truncation applies but extracted entries contain mixed timestamp availability (some entries dated, some undated)
+  - this closes one narrow stale-feed refresh gap in existing `feed` source updates: undated entries (common in partial/legacy feeds) are no longer dropped purely because other entries include parseable dates
+  - full freshness sort-by-date behavior is preserved when all candidate entries have timestamps
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for the mixed-timestamp truncation path
+  - scope remains feed refresh-window selection only: no new source family, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`25/25`)；feed 轮询窗口在“日期字段混合缺失”场景下现在优先保持源顺序，避免把顶部无日期的新条目误当成旧条目而被截断
+
 - ✅ external-source stale-run guard now short-circuits before remote fetch when a newer document version is already active
   - `apps/api/src/modules/documents/documents.service.ts` now applies a pre-fetch stale guard (`shouldContinueCurrentExternalRun`) immediately after reserving/queueing an external-source run (`createWebPageDocument` / `createFeedDocument` / `createSitemapDocument` / `resyncExternalDocument`), so superseded runs are skipped before calling remote source fetchers
   - this closes one narrow duplicate-fetch edge case in concurrent external resync/create paths: when version `N` is superseded by `N+1` before fetch starts, the stale `N` run no longer performs redundant upstream HTTP fetch + local generated-file persistence attempt

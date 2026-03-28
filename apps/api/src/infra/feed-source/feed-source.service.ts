@@ -333,8 +333,9 @@ export class FeedSourceService {
       timestamp: this.resolveFeedTimestamp(getPublishedAt(block))
     }));
     const hasAnyTimestamp = blocksWithPublishedAt.some(item => item.timestamp !== null);
+    const hasMissingTimestamp = blocksWithPublishedAt.some(item => item.timestamp === null);
 
-    if (!hasAnyTimestamp) {
+    if (!hasAnyTimestamp || hasMissingTimestamp) {
       return allBlocks.slice(0, maxItems);
     }
 
