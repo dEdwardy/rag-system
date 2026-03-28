@@ -868,6 +868,12 @@ The following path has been validated locally on `2026-03-21`:
 
 ## Current implementation scope
 
+Boundary note for contributors (implementation decision aid):
+
+- **Core:** orchestration pipeline semantics, ask/trace read-model contract outputs, fallback behavior, and regression assertions.
+- **Replaceable layers:** LLM/embedding providers, vector backend, chunking/parsing implementation, external source adapters, and eval/diagnostic tooling.
+- If a change only swaps a replaceable layer, keep it additive and behavior-preserving for core contracts (`ask` payload shape, `traceSummary` readability/semantics, fallback outcomes).
+
 - Local file storage
 - Redis-backed document ingestion queue
 - Basic parsing for `.md` / `.txt` / `.docx` / text-based `.pdf`

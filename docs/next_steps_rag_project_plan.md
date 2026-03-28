@@ -196,6 +196,12 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 不再开启新一轮大范围 UI 重构
 - 继续坚持 `PC Web` 优先、移动端后置
 
+### 边界说明：产品核心 vs 第三方集成
+
+- 当前产品核心不是“自研所有底层组件”，而是：稳定的 orchestration、可读可追踪的 trace/read-model、可预期的 fallback 语义、以及可复用的 regression 基线。
+- 第三方/可替换层包括：模型与 embedding 提供方、向量实现、chunking/parsing 适配、external source 接入、eval/diagnostics 工具。
+- 后续迭代原则：允许替换上述集成层，但默认保持 core contract 与行为语义不变，不把“换 provider”扩展成新架构改造任务。
+
 ## 3. 工作方式建议
 
 建议执行方式：

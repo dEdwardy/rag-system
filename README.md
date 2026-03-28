@@ -120,6 +120,12 @@ The current codebase supports:
 - ask flow with citations, conversations, messages, and traces
 - a web MVP for chat, documents, knowledge base, and assistant configuration
 
+## Product core vs replaceable integrations
+
+- **Product core (keep stable and regression-guarded):** orchestration across ingestion/retrieval/answering, traceability/read-model outputs, fallback behavior, and regression contracts/tests.
+- **Replaceable integration layers (can be swapped without redefining product value):** model provider runtime (Ollama/OpenAI-compatible), vector/embedding backend, chunking/parsing adapters, external source connectors (`web page`/`feed`/`sitemap`), and evaluation/diagnostic helpers.
+- Practical rule: when changing third-party integrations, preserve ask/trace contracts and fallback semantics first; do not treat provider replacement as a core-architecture rewrite.
+
 ## Notes
 
 - The project is still in active development.
