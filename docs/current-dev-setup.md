@@ -169,6 +169,12 @@ LLM_REWRITE_TEMPERATURE=0
   - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
 - current ask response metadata semantics:
   - `AskResponse.strategySummary` now exposes the same additive resolved retrieval strategy summary used by trace/read-model surfaces
+  - ask one-shot responses and ask-stream `final` payloads now also expose additive top-level readability/provenance fields derived from existing metadata:
+    - `strategyReadabilityLabel`
+    - `retrievalModeProvenanceSentence`
+    - `answerAttributionReadabilitySentence`
+    - `answerEvidenceSource` / `answerEvidenceSourceReadabilityLabel`
+    - `missingInformationSource` / `missingInformationSourceReadabilityLabel`
   - the ask response still keeps `retrievalMetadata` and `answeringMetadata` for lower-level inspection, but the top-level summary makes the resolved retrieval provenance easier to read
 - current trace read semantics:
   - `GET /traces/:id` and `GET /conversations/:id/traces` now also return additive `traceSummary`
