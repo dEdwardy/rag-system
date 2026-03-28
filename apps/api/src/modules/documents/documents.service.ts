@@ -34,6 +34,11 @@ type ExternalSourcePartialDiagnostics = Record<string, Prisma.InputJsonValue> & 
   partial: boolean;
 };
 
+type DocumentAccessScope = {
+  tenantId: string;
+  userId: string;
+};
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -48,8 +53,12 @@ export class DocumentsService {
     private readonly indexingService: IndexingService
   ) {}
 
-  async listKnowledgeBaseDocuments(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentsInput) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+  async listKnowledgeBaseDocuments(
+    knowledgeBaseId: string,
+    input: ListKnowledgeBaseDocumentsInput,
+    scope?: DocumentAccessScope | null
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
 
     return this.prisma.document.findMany({
       where: {
@@ -64,9 +73,10 @@ export class DocumentsService {
 
   async listKnowledgeBaseDocumentRuns(
     knowledgeBaseId: string,
-    input: ListKnowledgeBaseDocumentRunsInput
+    input: ListKnowledgeBaseDocumentRunsInput,
+    scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
     return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId, input);
   }
 
@@ -75,15 +85,26 @@ export class DocumentsService {
     input?: Pick<
       ListKnowledgeBaseDocumentRunsInput,
       "documentId" | "sourceType" | "status" | "trigger" | "issueOnly" | "sinceHours"
-    >
+    >,
+    scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
     return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId, input);
   }
 
-  async getDocument(id: string) {
-    const document = await this.prisma.document.findUnique({
-      where: { id }
+  async getDocument(id: string, scope?: DocumentAccessScope | null) {
+    const document = await this.prisma.document.findFirst({
+      where: {
+        id,
+        ...(scope
+          ? {
+              knowledgeBase: {
+                tenantId: scope.tenantId,
+                ownerId: scope.userId
+              }
+            }
+          : {})
+      }
     });
 
     if (!document) {
@@ -93,8 +114,8 @@ export class DocumentsService {
     return document;
   }
 
-  async listDocumentChunks(id: string) {
-    await this.getDocument(id);
+  async listDocumentChunks(id: string, scope?: DocumentAccessScope | null) {
+    await this.getDocument(id, scope);
 
     return this.prisma.documentChunk.findMany({
       where: {
@@ -106,13 +127,13 @@ export class DocumentsService {
     });
   }
 
-  async listDocumentRuns(id: string, input: ListDocumentRunsInput) {
-    await this.getDocument(id);
+  async listDocumentRuns(id: string, input: ListDocumentRunsInput, scope?: DocumentAccessScope | null) {
+    await this.getDocument(id, scope);
     return this.documentRunsService.listDocumentRuns(id, input);
   }
 
-  async createDocument(knowledgeBaseId: string, input: CreateDocumentInput) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+  async createDocument(knowledgeBaseId: string, input: CreateDocumentInput, scope?: DocumentAccessScope | null) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
 
     return this.prisma.document.create({
       data: {
@@ -136,20 +157,25 @@ export class DocumentsService {
       buffer: Buffer;
       originalname: string;
       mimetype: string;
-    }
+    },
+    scope?: DocumentAccessScope | null
   ) {
     const storedFile = await this.storageService.saveUploadedFile({
       buffer: file.buffer,
       originalName: file.originalname
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
+    const document = await this.createDocument(
+      knowledgeBaseId,
+      {
       sourceType: "upload",
       sourceName: file.originalname,
       title: file.originalname,
       mimeType: file.mimetype || "application/octet-stream",
       storageKey: storedFile.storageKey
-    });
+      },
+      scope
+    );
 
     await this.documentRunsService.createRun({
       documentId: document.id,
@@ -161,9 +187,15 @@ export class DocumentsService {
     return document;
   }
 
-  async createWebPageDocument(knowledgeBaseId: string, input: CreateWebPageDocumentInput) {
+  async createWebPageDocument(
+    knowledgeBaseId: string,
+    input: CreateWebPageDocumentInput,
+    scope?: DocumentAccessScope | null
+  ) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+    const reservedDocument = await this.reserveExternalDocument(
+      knowledgeBaseId,
+      {
       sourceType: "web_page",
       sourceName: normalizedUrl,
       title: input.title ?? null,
@@ -171,7 +203,9 @@ export class DocumentsService {
         kind: "web_page",
         url: normalizedUrl
       }
-    });
+      },
+      scope
+    );
     await this.documentRunsService.createRun({
       documentId: reservedDocument.id,
       version: reservedDocument.version,
@@ -205,9 +239,11 @@ export class DocumentsService {
     return finalizedDocument.document;
   }
 
-  async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput) {
+  async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput, scope?: DocumentAccessScope | null) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+    const reservedDocument = await this.reserveExternalDocument(
+      knowledgeBaseId,
+      {
       sourceType: "feed",
       sourceName: normalizedUrl,
       title: input.title ?? null,
@@ -216,7 +252,9 @@ export class DocumentsService {
         url: normalizedUrl,
         maxItems: input.maxItems
       }
-    });
+      },
+      scope
+    );
     await this.documentRunsService.createRun({
       documentId: reservedDocument.id,
       version: reservedDocument.version,
@@ -259,9 +297,15 @@ export class DocumentsService {
     return finalizedDocument.document;
   }
 
-  async createSitemapDocument(knowledgeBaseId: string, input: CreateSitemapDocumentInput) {
+  async createSitemapDocument(
+    knowledgeBaseId: string,
+    input: CreateSitemapDocumentInput,
+    scope?: DocumentAccessScope | null
+  ) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+    const reservedDocument = await this.reserveExternalDocument(
+      knowledgeBaseId,
+      {
       sourceType: "sitemap",
       sourceName: normalizedUrl,
       title: input.title ?? null,
@@ -270,7 +314,9 @@ export class DocumentsService {
         url: normalizedUrl,
         maxPages: input.maxPages
       }
-    });
+      },
+      scope
+    );
     await this.documentRunsService.createRun({
       documentId: reservedDocument.id,
       version: reservedDocument.version,
@@ -313,8 +359,8 @@ export class DocumentsService {
     return finalizedDocument.document;
   }
 
-  async reindexDocument(id: string) {
-    const document = await this.getDocument(id);
+  async reindexDocument(id: string, scope?: DocumentAccessScope | null) {
+    const document = await this.getDocument(id, scope);
 
     if (this.isExternalSourceType(document.sourceType)) {
       return this.resyncExternalDocument(document);
@@ -344,8 +390,8 @@ export class DocumentsService {
     return this.getDocument(id);
   }
 
-  async deleteDocument(id: string) {
-    const document = await this.getDocument(id);
+  async deleteDocument(id: string, scope?: DocumentAccessScope | null) {
+    const document = await this.getDocument(id, scope);
     await this.indexingService.deleteDocumentIndex(document.id);
     await this.prisma.document.delete({
       where: { id }
@@ -369,9 +415,10 @@ export class DocumentsService {
       sourceName: string;
       title: string | null;
       sourceConfig: ExternalSourceConfig;
-    }
+    },
+    scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
 
     const existingDocument = await this.prisma.document.findFirst({
       where: {

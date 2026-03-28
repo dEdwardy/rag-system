@@ -8,13 +8,21 @@ export class KnowledgeBasesController {
   constructor(private readonly knowledgeBasesService: KnowledgeBasesService) {}
 
   @Get()
-  listKnowledgeBases() {
-    return this.knowledgeBasesService.listKnowledgeBases();
+  listKnowledgeBases(@Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.knowledgeBasesService.listKnowledgeBases(authContext.identity);
   }
 
   @Get(":id")
-  getKnowledgeBase(@Param("id") id: string) {
-    return this.knowledgeBasesService.getKnowledgeBase(id);
+  getKnowledgeBase(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.knowledgeBasesService.getKnowledgeBase(id, authContext.identity);
   }
 
   @Post()
@@ -28,8 +36,12 @@ export class KnowledgeBasesController {
   }
 
   @Patch(":id")
-  updateKnowledgeBase(@Param("id") id: string, @Body() body: unknown) {
+  updateKnowledgeBase(@Param("id") id: string, @Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
     const input = updateKnowledgeBaseSchema.parse(body);
-    return this.knowledgeBasesService.updateKnowledgeBase(id, input);
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.knowledgeBasesService.updateKnowledgeBase(id, input, authContext.identity);
   }
 }

@@ -1,26 +1,59 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
+import { evaluateOwnerResourceAccess } from "../auth/resource-access-policy.contract";
 import { CreateKnowledgeBaseInput, UpdateKnowledgeBaseInput } from "./knowledge-base.schemas";
+
+type KnowledgeBaseAccessScope = {
+  tenantId: string;
+  userId: string;
+};
 
 @Injectable()
 export class KnowledgeBasesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listKnowledgeBases() {
+  listKnowledgeBases(scope?: KnowledgeBaseAccessScope | null) {
     return this.prisma.knowledgeBase.findMany({
+      ...(scope
+        ? {
+            where: {
+              tenantId: scope.tenantId,
+              ownerId: scope.userId
+            }
+          }
+        : {}),
       orderBy: {
         createdAt: "desc"
       }
     });
   }
 
-  async getKnowledgeBase(id: string) {
+  async getKnowledgeBase(id: string, scope?: KnowledgeBaseAccessScope | null) {
     const knowledgeBase = await this.prisma.knowledgeBase.findUnique({
-      where: { id }
+      where: {
+        id
+      }
     });
 
     if (!knowledgeBase) {
       throw new NotFoundException(`Knowledge base ${id} not found.`);
+    }
+
+    if (scope) {
+      const accessDecision = evaluateOwnerResourceAccess({
+        identity: scope,
+        action: "read",
+        resource: {
+          kind: "knowledge_base",
+          resourceId: knowledgeBase.id,
+          tenantId: knowledgeBase.tenantId,
+          ownerId: knowledgeBase.ownerId
+        }
+      });
+
+      if (!accessDecision.allowed) {
+        throw new NotFoundException(`Knowledge base ${id} not found.`);
+      }
     }
 
     return knowledgeBase;
@@ -39,8 +72,8 @@ export class KnowledgeBasesService {
     });
   }
 
-  async updateKnowledgeBase(id: string, input: UpdateKnowledgeBaseInput) {
-    await this.getKnowledgeBase(id);
+  async updateKnowledgeBase(id: string, input: UpdateKnowledgeBaseInput, scope?: KnowledgeBaseAccessScope | null) {
+    await this.getKnowledgeBase(id, scope);
 
     return this.prisma.knowledgeBase.update({
       where: { id },
