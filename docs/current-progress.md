@@ -15,6 +15,20 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 eval run now detects question-set drift and marks baseline deltas as meaningful/non-meaningful accordingly
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 的 `baselineComparison` 新增 `comparisonMeaningful` 与 `questionSetDrift`（`hasDrift` + 题集差异计数），用于显式识别当前 question set 与 baseline snapshot 是否漂移
+    - 当检测到题集漂移时，run 结果会抑制 `baselineComparison.deltas`，避免输出可能误导的 baseline 指标差异
+    - markdown/html 报告导出同步包含上述漂移与可比性字段，便于离线复盘时判断该次对比是否可直接解读
+    - 范围保持在 P5 v1 eval 可比性守卫，不改 persistence schema、不扩展新评测框架
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P5 v1 eval run output now includes reusable report exports in `markdown/json/html` for storage and sharing
   - 变更文件：
     - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`

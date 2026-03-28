@@ -37,6 +37,15 @@ type EvalRunComparisonMetric = {
   delta: number;
 };
 
+type EvalQuestionSetDriftSummary = {
+  hasDrift: boolean;
+  currentQuestionCount: number;
+  baselineQuestionCount: number;
+  addedQuestionCount: number;
+  removedQuestionCount: number;
+  unchangedQuestionCount: number;
+};
+
 type EvalRunItem = {
   index: number;
   question: string;
@@ -69,6 +78,8 @@ type EvalQuestionSetRunResultPayload = {
     hasPinnedBaselineEvalResult: boolean;
     baselineCapturedAt: Date | null;
     baselineInitialized: boolean;
+    comparisonMeaningful: boolean;
+    questionSetDrift: EvalQuestionSetDriftSummary;
     deltas?: {
       metrics: EvalRunComparisonMetric[];
       meaningfulDeltas: EvalRunComparisonMetric[];
@@ -234,15 +245,11 @@ export class EvalQuestionSetsService {
 
     const currentQuestions = this.readQuestions(questionSet.questionsJson);
     const baselineQuestions = this.readQuestions(snapshot.questionsJson);
-    const currentQuestionSet = new Set(currentQuestions);
-    const baselineQuestionSet = new Set(baselineQuestions);
-    const addedQuestionCount = currentQuestions.filter(question => !baselineQuestionSet.has(question)).length;
-    const removedQuestionCount = baselineQuestions.filter(question => !currentQuestionSet.has(question)).length;
-    const unchangedQuestionCount = baselineQuestions.filter(question => currentQuestionSet.has(question)).length;
+    const questionSetDrift = this.buildQuestionSetDrift(currentQuestions, baselineQuestions);
 
     const nameChanged = questionSet.name !== snapshot.name;
     const descriptionChanged = questionSet.description !== snapshot.description;
-    const questionsChanged = addedQuestionCount > 0 || removedQuestionCount > 0;
+    const questionsChanged = questionSetDrift.hasDrift;
     const latestEvalSummary = this.readEvalRunSummary(questionSet.latestEvalResultSummaryJson);
     const pinnedBaselineEvalSummary = this.readEvalRunSummary(questionSet.pinnedBaselineResultJson);
     const baselineComparison =
@@ -262,9 +269,9 @@ export class EvalQuestionSetsService {
         questions: questionsChanged
       },
       questionDiff: {
-        added: addedQuestionCount,
-        removed: removedQuestionCount,
-        unchanged: unchangedQuestionCount
+        added: questionSetDrift.addedQuestionCount,
+        removed: questionSetDrift.removedQuestionCount,
+        unchanged: questionSetDrift.unchangedQuestionCount
       },
       evalResultComparison: {
         hasLatestEvalResult: latestEvalSummary != null,
@@ -297,6 +304,9 @@ export class EvalQuestionSetsService {
     }
 
     const questions = this.readQuestions(snapshot.questionsJson);
+    const currentQuestions = this.readQuestions(questionSet.questionsJson);
+    const questionSetDrift = this.buildQuestionSetDrift(currentQuestions, questions);
+    const comparisonMeaningful = !questionSetDrift.hasDrift;
     const startedAt = new Date();
     const items: EvalRunItem[] = [];
 
@@ -351,7 +361,8 @@ export class EvalQuestionSetsService {
     const runSummary = this.buildRunSummary(items);
     const pinnedBaselineSummary = this.readEvalRunSummary(questionSet.pinnedBaselineResultJson);
     const shouldCapturePinnedBaseline = snapshot.id === questionSet.baselineSnapshotId && pinnedBaselineSummary == null;
-    const baselineComparison = pinnedBaselineSummary ? this.buildRunComparison(runSummary, pinnedBaselineSummary) : null;
+    const baselineComparison =
+      pinnedBaselineSummary && comparisonMeaningful ? this.buildRunComparison(runSummary, pinnedBaselineSummary) : null;
 
     await this.prisma.evalQuestionSet.update({
       where: { id },
@@ -385,6 +396,8 @@ export class EvalQuestionSetsService {
         hasPinnedBaselineEvalResult: pinnedBaselineSummary != null,
         baselineCapturedAt: questionSet.pinnedBaselineCapturedAt ?? null,
         baselineInitialized: shouldCapturePinnedBaseline,
+        comparisonMeaningful,
+        questionSetDrift,
         ...(baselineComparison ? { deltas: baselineComparison } : {})
       }
     };
@@ -742,6 +755,23 @@ export class EvalQuestionSetsService {
     return Math.round(value * 1000) / 1000;
   }
 
+  private buildQuestionSetDrift(currentQuestions: string[], baselineQuestions: string[]): EvalQuestionSetDriftSummary {
+    const currentQuestionSet = new Set(currentQuestions);
+    const baselineQuestionSet = new Set(baselineQuestions);
+    const addedQuestionCount = currentQuestions.filter(question => !baselineQuestionSet.has(question)).length;
+    const removedQuestionCount = baselineQuestions.filter(question => !currentQuestionSet.has(question)).length;
+    const unchangedQuestionCount = baselineQuestions.filter(question => currentQuestionSet.has(question)).length;
+
+    return {
+      hasDrift: addedQuestionCount > 0 || removedQuestionCount > 0,
+      currentQuestionCount: currentQuestions.length,
+      baselineQuestionCount: baselineQuestions.length,
+      addedQuestionCount,
+      removedQuestionCount,
+      unchangedQuestionCount
+    };
+  }
+
   private buildRunReportExports(runResult: EvalQuestionSetRunResultPayload): EvalRunReportExports {
     const reportPayload = {
       schemaVersion: "p5_v1_report_export_v1",
@@ -835,6 +865,13 @@ export class EvalQuestionSetsService {
       `- hasPinnedBaselineEvalResult: ${report.baselineComparison.hasPinnedBaselineEvalResult}`,
       `- baselineCapturedAt: ${report.baselineComparison.baselineCapturedAt?.toISOString() ?? "none"}`,
       `- baselineInitialized: ${report.baselineComparison.baselineInitialized}`,
+      `- comparisonMeaningful: ${report.baselineComparison.comparisonMeaningful}`,
+      `- questionSetDrift.hasDrift: ${report.baselineComparison.questionSetDrift.hasDrift}`,
+      `- questionSetDrift.currentQuestionCount: ${report.baselineComparison.questionSetDrift.currentQuestionCount}`,
+      `- questionSetDrift.baselineQuestionCount: ${report.baselineComparison.questionSetDrift.baselineQuestionCount}`,
+      `- questionSetDrift.addedQuestionCount: ${report.baselineComparison.questionSetDrift.addedQuestionCount}`,
+      `- questionSetDrift.removedQuestionCount: ${report.baselineComparison.questionSetDrift.removedQuestionCount}`,
+      `- questionSetDrift.unchangedQuestionCount: ${report.baselineComparison.questionSetDrift.unchangedQuestionCount}`,
       "",
       "## Items",
       "",
@@ -956,6 +993,13 @@ export class EvalQuestionSetsService {
       <li>hasPinnedBaselineEvalResult: <code>${report.baselineComparison.hasPinnedBaselineEvalResult}</code></li>
       <li>baselineCapturedAt: <code>${this.escapeHtml(report.baselineComparison.baselineCapturedAt?.toISOString() ?? "none")}</code></li>
       <li>baselineInitialized: <code>${report.baselineComparison.baselineInitialized}</code></li>
+      <li>comparisonMeaningful: <code>${report.baselineComparison.comparisonMeaningful}</code></li>
+      <li>questionSetDrift.hasDrift: <code>${report.baselineComparison.questionSetDrift.hasDrift}</code></li>
+      <li>questionSetDrift.currentQuestionCount: <code>${report.baselineComparison.questionSetDrift.currentQuestionCount}</code></li>
+      <li>questionSetDrift.baselineQuestionCount: <code>${report.baselineComparison.questionSetDrift.baselineQuestionCount}</code></li>
+      <li>questionSetDrift.addedQuestionCount: <code>${report.baselineComparison.questionSetDrift.addedQuestionCount}</code></li>
+      <li>questionSetDrift.removedQuestionCount: <code>${report.baselineComparison.questionSetDrift.removedQuestionCount}</code></li>
+      <li>questionSetDrift.unchangedQuestionCount: <code>${report.baselineComparison.questionSetDrift.unchangedQuestionCount}</code></li>
     </ul>
 
     <h2>Items</h2>

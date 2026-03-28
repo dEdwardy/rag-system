@@ -478,6 +478,7 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
               tenantId: "tenant-auth",
               ownerId: "user-auth",
               baselineSnapshotId: "snapshot-selected",
+              questionsJson: ["Q1", "Q2"],
               pinnedBaselineResultJson: null,
               pinnedBaselineCapturedAt: null
             };
@@ -550,7 +551,16 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
   assert.deepEqual(result.baselineComparison, {
     hasPinnedBaselineEvalResult: false,
     baselineCapturedAt: null,
-    baselineInitialized: true
+    baselineInitialized: true,
+    comparisonMeaningful: true,
+    questionSetDrift: {
+      hasDrift: false,
+      currentQuestionCount: 2,
+      baselineQuestionCount: 2,
+      addedQuestionCount: 0,
+      removedQuestionCount: 0,
+      unchangedQuestionCount: 2
+    }
   });
   assert.equal(result.reportExports.markdown.format, "markdown");
   assert.equal(result.reportExports.json.format, "json");
@@ -576,6 +586,7 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
           tenantId: "tenant-auth",
           ownerId: "user-auth",
           baselineSnapshotId: "snapshot-selected",
+          questionsJson: ["Q1"],
           pinnedBaselineResultJson: {
             total: 1,
             succeeded: 1,
@@ -663,6 +674,15 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
     hasPinnedBaselineEvalResult: true,
     baselineCapturedAt: new Date("2026-03-29T00:00:00.000Z"),
     baselineInitialized: false,
+    comparisonMeaningful: true,
+    questionSetDrift: {
+      hasDrift: false,
+      currentQuestionCount: 1,
+      baselineQuestionCount: 1,
+      addedQuestionCount: 0,
+      removedQuestionCount: 0,
+      unchangedQuestionCount: 1
+    },
     deltas: {
       metrics: [
         {
@@ -751,6 +771,80 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
   assert.equal(result.reportExports.markdown.format, "markdown");
   assert.equal(result.reportExports.json.format, "json");
   assert.equal(result.reportExports.html.format, "html");
+});
+
+test("EvalQuestionSetsService runQuestionSet marks baseline comparison as non-meaningful when question set drift is detected", async () => {
+  const service = buildService(
+    {
+      evalQuestionSet: {
+        findFirst: async () => ({
+          id: "set-1",
+          tenantId: "tenant-auth",
+          ownerId: "user-auth",
+          baselineSnapshotId: "snapshot-selected",
+          questionsJson: ["Q1", "Q2"],
+          pinnedBaselineResultJson: {
+            total: 1,
+            succeeded: 1,
+            failed: 0,
+            successRate: 1,
+            groundedRate: 1,
+            strongRate: 1,
+            fallbackRate: 0,
+            averageCitationCount: 1
+          },
+          pinnedBaselineCapturedAt: new Date("2026-03-29T00:00:00.000Z")
+        }),
+        update: async () => ({ id: "set-1" })
+      },
+      evalQuestionSetBaselineSnapshot: {
+        findFirst: async ({ where }) => ({
+          id: where.id,
+          version: 4,
+          questionsJson: ["Q1"]
+        })
+      }
+    },
+    {
+      askAssistant: async () => ({
+        traceId: "trace-1",
+        conversationId: "conv-1",
+        answerStatus: "grounded",
+        citations: [{ id: "citation-1" }],
+        qualityEvaluation: {
+          overall: "strong",
+          primaryIssue: "none"
+        },
+        answeringMetadata: {
+          usedFallback: false
+        }
+      })
+    }
+  );
+
+  const result = await service.runQuestionSet(
+    "set-1",
+    {
+      assistantId: "assistant-1"
+    },
+    {
+      tenantId: "tenant-auth",
+      userId: "user-auth",
+      sessionId: "session-1",
+      authSource: "session"
+    }
+  );
+
+  assert.equal(result.baselineComparison.comparisonMeaningful, false);
+  assert.deepEqual(result.baselineComparison.questionSetDrift, {
+    hasDrift: true,
+    currentQuestionCount: 2,
+    baselineQuestionCount: 1,
+    addedQuestionCount: 1,
+    removedQuestionCount: 0,
+    unchangedQuestionCount: 1
+  });
+  assert.equal("deltas" in result.baselineComparison, false);
 });
 
 test("EvalQuestionSetsService runP5V1DemoReplay uses fixed scenario and returns replay entry", async () => {

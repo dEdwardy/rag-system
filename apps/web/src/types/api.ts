@@ -438,6 +438,15 @@ export type EvalQuestionSetRunResult = {
     hasPinnedBaselineEvalResult: boolean;
     baselineCapturedAt: string | null;
     baselineInitialized: boolean;
+    comparisonMeaningful: boolean;
+    questionSetDrift: {
+      hasDrift: boolean;
+      currentQuestionCount: number;
+      baselineQuestionCount: number;
+      addedQuestionCount: number;
+      removedQuestionCount: number;
+      unchangedQuestionCount: number;
+    };
     deltas?: {
       metrics: EvalQuestionSetRunComparisonMetric[];
       meaningfulDeltas: EvalQuestionSetRunComparisonMetric[];
