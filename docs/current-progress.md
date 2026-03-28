@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now exposes additive `missingInformationSourceReadabilityLabel` for easier missing-information provenance scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `missingInformationSourceReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this label from existing missing-information source metadata, with readable wording for `none` / `model` / `deterministic_default` / `suppressed_by_policy` and raw-value fallback for unknown legacy values
+  - `apps/api/test/traces.service.test.js` updates baseline trace-summary snapshots and adds one legacy fallback assertion for missing source metadata; `apps/web/test/trace-summary-contract.test.js` now also guards the new shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
 - ✅ trace summary now exposes additive `retrievalModeProvenanceSentence` for clearer retrieval-mode fallback provenance scanning
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `retrievalModeProvenanceSentence: string`
   - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing resolved `retrievalMode`, `strategySummary.usedFallback`, and `fallbackReason`

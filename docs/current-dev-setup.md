@@ -219,6 +219,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `missingInformationCount`
     - `missingInformationCountReadabilityLabel` (count readability label)
     - `missingInformationSource`
+    - `missingInformationSourceReadabilityLabel` (missing-information source readability label)
     - `insufficientContextReason`
     - `missingInformationProvenanceSentence` (one-line missing-information provenance)
     - `answerTextSource`

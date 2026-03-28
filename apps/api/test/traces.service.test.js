@@ -104,6 +104,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     missingInformationCount: 0,
     missingInformationCountReadabilityLabel: "no missing-information items",
     missingInformationSource: null,
+    missingInformationSourceReadabilityLabel: "unknown missing-information source",
     insufficientContextReason: null,
     missingInformationProvenanceSentence: "Missing-information source is unknown; insufficient-context reason is none; missing-information count is 0.",
     answerTextSource: null,
@@ -441,6 +442,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     missingInformationCount: 1,
     missingInformationCountReadabilityLabel: "1 missing-information item",
     missingInformationSource: "model",
+    missingInformationSourceReadabilityLabel: "model-reported missing-information items",
     insufficientContextReason: "retrieved_context_insufficient",
     missingInformationProvenanceSentence: "Missing-information source is model; insufficient-context reason is retrieved_context_insufficient; missing-information count is 1.",
     answerTextSource: "deterministic_policy",
@@ -1493,4 +1495,5 @@ test("TracesService keeps missingInformationProvenanceSentence legacy fallback w
     detail.traceSummary.missingInformationProvenanceSentence,
     "Missing-information source is unknown; insufficient-context reason is retrieved_context_insufficient; missing-information count is 2."
   );
+  assert.equal(detail.traceSummary.missingInformationSourceReadabilityLabel, "unknown missing-information source");
 });

@@ -259,6 +259,7 @@ export class TracesService {
     const answerTextSource = this.readTraceAnswerTextSource(answeringMetadata?.answerTextSource);
     const rawAnswerStatusSource = this.readString(answeringMetadata?.answerStatusSource);
     const answerStatusSource = this.readTraceAnswerStatusSource(answeringMetadata?.answerStatusSource);
+    const rawMissingInformationSource = this.readString(answeringMetadata?.missingInformationSource);
     const missingInformationSource = this.readStringAs<NonNullable<TraceSummary["missingInformationSource"]>>(answeringMetadata?.missingInformationSource);
     const insufficientContextReason = this.readStringAs<NonNullable<TraceSummary["insufficientContextReason"]>>(answeringMetadata?.insufficientContextReason);
     const missingInformationCount = this.readNumber(answeringMetadata?.missingInformationCount) ?? 0;
@@ -277,6 +278,10 @@ export class TracesService {
       missingInformationSource,
       insufficientContextReason,
       missingInformationCount
+    });
+    const missingInformationSourceReadabilityLabel = this.buildMissingInformationSourceReadabilityLabel({
+      missingInformationSource,
+      rawMissingInformationSource
     });
     const answerAttributionReadabilitySentence = answerAttributionSummary.readabilitySentence
       ?? "Answer attribution is unknown; source evidence is unknown.";
@@ -391,6 +396,7 @@ export class TracesService {
       missingInformationCount,
       missingInformationCountReadabilityLabel,
       missingInformationSource,
+      missingInformationSourceReadabilityLabel,
       insufficientContextReason,
       missingInformationProvenanceSentence,
       answerTextSource,
@@ -555,6 +561,33 @@ export class TracesService {
     const sourceValue = input.missingInformationSource ?? "unknown";
     const insufficientReasonValue = input.insufficientContextReason ?? "none";
     return `Missing-information source is ${sourceValue}; insufficient-context reason is ${insufficientReasonValue}; missing-information count is ${input.missingInformationCount}.`;
+  }
+
+  private buildMissingInformationSourceReadabilityLabel(input: {
+    missingInformationSource: TraceSummary["missingInformationSource"];
+    rawMissingInformationSource: string | null;
+  }): TraceSummary["missingInformationSourceReadabilityLabel"] {
+    if (input.missingInformationSource === "none") {
+      return "no missing-information items";
+    }
+
+    if (input.missingInformationSource === "model") {
+      return "model-reported missing-information items";
+    }
+
+    if (input.missingInformationSource === "deterministic_default") {
+      return "backend deterministic missing-information defaults";
+    }
+
+    if (input.missingInformationSource === "suppressed_by_policy") {
+      return "suppressed by includeMissingInformation policy";
+    }
+
+    if (input.rawMissingInformationSource != null) {
+      return `unknown missing-information source (${input.rawMissingInformationSource})`;
+    }
+
+    return "unknown missing-information source";
   }
 
   private buildMissingInformationCountReadabilityLabel(

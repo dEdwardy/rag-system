@@ -93,6 +93,7 @@ export type TraceSummary = {
   missingInformationCount: number;
   missingInformationCountReadabilityLabel: string;
   missingInformationSource: TraceMissingInformationSource | null;
+  missingInformationSourceReadabilityLabel: string;
   insufficientContextReason: TraceInsufficientContextReason | null;
   missingInformationProvenanceSentence: string;
   answerTextSource: TraceAnswerTextSource | null;
