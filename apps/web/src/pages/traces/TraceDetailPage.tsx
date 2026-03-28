@@ -31,6 +31,8 @@ type RetrievalScoreRecord = {
   rerankScore: number | null;
 };
 
+type RankedEntry = RetrievalScoreRecord;
+
 function formatJson(value: JsonValue | unknown) {
   if (value == null) {
     return "null";
@@ -84,6 +86,48 @@ function normalizeCitations(value: unknown): Citation[] {
   return Array.isArray(value) ? (value as Citation[]) : [];
 }
 
+function createUnscoredRankedEntry(chunkId: string): RankedEntry {
+  return {
+    chunkId,
+    documentId: null,
+    documentTitle: null,
+    chunkIndex: null,
+    contentPreview: null,
+    isPrimary: null,
+    pageNo: null,
+    sectionTitle: null,
+    score: 0,
+    vectorScore: null,
+    lexicalScore: null,
+    hybridScore: null,
+    rerankScore: null
+  };
+}
+
+function buildRankedEntries(scores: RetrievalScoreRecord[], retrievedChunkIds: string[]): RankedEntry[] {
+  const scoreChunkIds = new Set(scores.map(item => item.chunkId));
+  const scoredEntries = scores
+    .slice()
+    .sort((left, right) => right.score - left.score || left.chunkId.localeCompare(right.chunkId));
+  const unscoredEntries = retrievedChunkIds
+    .filter(chunkId => !scoreChunkIds.has(chunkId))
+    .map(chunkId => createUnscoredRankedEntry(chunkId));
+
+  return [...scoredEntries, ...unscoredEntries];
+}
+
+function buildRawPayload(trace: {
+  retrievedChunkIdsJson: unknown;
+  retrievalScoresJson: unknown;
+  citationsJson: unknown;
+}): Record<string, unknown> {
+  return {
+    retrievedChunkIdsJson: trace.retrievedChunkIdsJson,
+    retrievalScoresJson: trace.retrievalScoresJson,
+    citationsJson: trace.citationsJson
+  };
+}
+
 function buildDocumentChunkLink(
   documentId: string,
   chunkId: string,
@@ -131,29 +175,7 @@ export function TraceDetailPage() {
   const citations = normalizeCitations(trace?.citationsJson);
   const { formatDateTime, t, locale } = useI18n();
   const citationsByChunkId = new Map(citations.map(citation => [citation.chunkId, citation]));
-  const scoreChunkIds = new Set(scores.map(item => item.chunkId));
-  const rankedEntries = [
-    ...scores
-      .slice()
-      .sort((left, right) => right.score - left.score || left.chunkId.localeCompare(right.chunkId)),
-    ...retrievedChunkIds
-      .filter(chunkId => !scoreChunkIds.has(chunkId))
-      .map(chunkId => ({
-        chunkId,
-        documentId: null,
-        documentTitle: null,
-        chunkIndex: null,
-        contentPreview: null,
-        isPrimary: null,
-        pageNo: null,
-        sectionTitle: null,
-        score: 0,
-        vectorScore: null,
-        lexicalScore: null,
-        hybridScore: null,
-        rerankScore: null
-      }))
-  ];
+  const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
   const hasRewrite = Boolean(trace?.rewrittenQuery);
 
   return (
@@ -554,11 +576,7 @@ export function TraceDetailPage() {
                         : "Expand only when you need to inspect the captured trace payload directly."}
                     </Text>
                     <pre className="workspace-code-block workspace-code-block-scroll" style={{ marginTop: "0.9rem" }}>
-                      {formatJson({
-                        retrievedChunkIdsJson: trace.retrievedChunkIdsJson,
-                        retrievalScoresJson: trace.retrievalScoresJson,
-                        citationsJson: trace.citationsJson
-                      })}
+                      {formatJson(buildRawPayload(trace))}
                     </pre>
                   </details>
                 </Paper>

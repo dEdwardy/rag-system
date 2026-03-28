@@ -1,4 +1,5 @@
 import { Badge, Button, Paper } from "@mantine/core";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useConversations, useDocuments, useKnowledgeBases } from "../../features/api/hooks";
@@ -15,33 +16,60 @@ export function UsagePage() {
   const documents = documentsQuery.data ?? [];
   const assistants = assistantsQuery.data ?? [];
   const conversations = conversationsQuery.data ?? [];
-  const readyDocuments = documents.filter(document => document.status === "ready").length;
-  const processingDocuments = documents.filter(
-    document => document.status === "pending" || document.status === "processing"
-  ).length;
-  const failedDocuments = documents.filter(document => document.status === "failed").length;
-  const totalChunks = documents.reduce((sum, document) => sum + document.chunkCount, 0);
+  const { readyDocuments, processingDocuments, failedDocuments, totalChunks } = useMemo(
+    () =>
+      documents.reduce(
+        (acc, document) => {
+          acc.totalChunks += document.chunkCount;
+          if (document.status === "ready") {
+            acc.readyDocuments += 1;
+          } else if (document.status === "pending" || document.status === "processing") {
+            acc.processingDocuments += 1;
+          } else if (document.status === "failed") {
+            acc.failedDocuments += 1;
+          }
 
-  const metrics = [
-    { label: locale === "zh" ? "知识库" : "Knowledge bases", value: knowledgeBasesQuery.data?.length ?? 0 },
-    { label: locale === "zh" ? "文档" : "Documents", value: documents.length },
-    { label: locale === "zh" ? "Chunk" : "Chunks", value: totalChunks },
-    { label: locale === "zh" ? "助手" : "Assistants", value: assistants.length },
-    { label: locale === "zh" ? "会话" : "Conversations", value: conversations.length },
-    { label: locale === "zh" ? "就绪文档" : "Ready docs", value: readyDocuments }
-  ];
+          return acc;
+        },
+        {
+          readyDocuments: 0,
+          processingDocuments: 0,
+          failedDocuments: 0,
+          totalChunks: 0
+        }
+      ),
+    [documents]
+  );
 
-  const hasError =
-    knowledgeBasesQuery.isError ||
-    assistantsQuery.isError ||
-    conversationsQuery.isError ||
-    documentsQuery.isError;
-  const isUsageLoading =
-    !hasError &&
-    (knowledgeBasesQuery.isLoading ||
-      assistantsQuery.isLoading ||
-      conversationsQuery.isLoading ||
-      documentsQuery.isLoading);
+  const metrics = useMemo(
+    () => [
+      { label: locale === "zh" ? "知识库" : "Knowledge bases", value: knowledgeBasesQuery.data?.length ?? 0 },
+      { label: locale === "zh" ? "文档" : "Documents", value: documents.length },
+      { label: locale === "zh" ? "Chunk" : "Chunks", value: totalChunks },
+      { label: locale === "zh" ? "助手" : "Assistants", value: assistants.length },
+      { label: locale === "zh" ? "会话" : "Conversations", value: conversations.length },
+      { label: locale === "zh" ? "就绪文档" : "Ready docs", value: readyDocuments }
+    ],
+    [assistants.length, conversations.length, documents.length, knowledgeBasesQuery.data?.length, locale, readyDocuments, totalChunks]
+  );
+
+  const hasError = useMemo(
+    () =>
+      knowledgeBasesQuery.isError ||
+      assistantsQuery.isError ||
+      conversationsQuery.isError ||
+      documentsQuery.isError,
+    [assistantsQuery.isError, conversationsQuery.isError, documentsQuery.isError, knowledgeBasesQuery.isError]
+  );
+  const isUsageLoading = useMemo(
+    () =>
+      !hasError &&
+      (knowledgeBasesQuery.isLoading ||
+        assistantsQuery.isLoading ||
+        conversationsQuery.isLoading ||
+        documentsQuery.isLoading),
+    [assistantsQuery.isLoading, conversationsQuery.isLoading, documentsQuery.isLoading, hasError, knowledgeBasesQuery.isLoading]
+  );
 
   return (
     <div className="flex flex-col gap-4">
