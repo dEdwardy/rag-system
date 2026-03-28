@@ -78,6 +78,26 @@ export function ReportCenterPage() {
       .sort((a, b) => b.count - a.count);
   }, [locale, runEvalMutation.data]);
 
+  const regressionDrilldownItems = runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [];
+
+  function getRegressionReasonLabel(reasonCode: string) {
+    if (locale === "zh") {
+      if (reasonCode === "became_failed") return "由成功变为失败";
+      if (reasonCode === "became_insufficient_context") return "由 grounded 变为 insufficient_context";
+      if (reasonCode === "quality_degraded") return "质量等级下降";
+      if (reasonCode === "fallback_introduced") return "新增 fallback 依赖";
+      if (reasonCode === "citations_decreased") return "引用数量下降";
+      return reasonCode;
+    }
+
+    if (reasonCode === "became_failed") return "Succeeded -> failed";
+    if (reasonCode === "became_insufficient_context") return "Grounded -> insufficient_context";
+    if (reasonCode === "quality_degraded") return "Quality degraded";
+    if (reasonCode === "fallback_introduced") return "Fallback introduced";
+    if (reasonCode === "citations_decreased") return "Citation count decreased";
+    return reasonCode;
+  }
+
   async function onRunEvalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!questionSetId.trim() || !assistantId.trim()) {
@@ -244,6 +264,49 @@ export function ReportCenterPage() {
               ) : (
                 <Text c="var(--app-text-muted)" size="sm">
                   {locale === "zh" ? "暂无可汇总的质量结果。" : "No quality results available yet."}
+                </Text>
+              )}
+            </Stack>
+          </Paper>
+
+          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+            <Stack gap="sm">
+              <div className="workspace-section-heading">{locale === "zh" ? "回归弱项聚焦" : "Regression weakest items"}</div>
+              <Text c="var(--app-text-muted)" size="sm">
+                {locale === "zh"
+                  ? "按严重程度列出最需要优先复盘的问题。"
+                  : "Prioritized per-question regressions so review can focus on weakest items first."}
+              </Text>
+              {runEvalMutation.data.baselineComparison?.failureDrilldown ? (
+                <>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">regressedQuestionCount</span>
+                    <span className="workspace-meta-value">{runEvalMutation.data.baselineComparison.failureDrilldown.regressedQuestionCount}</span>
+                  </div>
+                  {regressionDrilldownItems.length > 0 ? (
+                    <div className="grid gap-2">
+                      {regressionDrilldownItems.map(item => (
+                        <div className="workspace-meta-row" key={`${item.index}-${item.question}`}>
+                          <span className="workspace-meta-label">
+                            #{item.index} · {item.severity}
+                          </span>
+                          <span className="workspace-meta-value text-right">
+                            {item.reasonCodes.map(getRegressionReasonLabel).join("; ")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Text c="var(--app-text-muted)" size="sm">
+                      {locale === "zh" ? "当前 run 未检测到题目级回归。" : "No per-question regressions detected in this run."}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <Text c="var(--app-text-muted)" size="sm">
+                  {locale === "zh"
+                    ? "当前 baseline 缺少题目级对照数据（通常需在最新格式 baseline 初始化后可用）。"
+                    : "Per-question drilldown is unavailable for this baseline (initialize baseline with latest run format)."}
                 </Text>
               )}
             </Stack>

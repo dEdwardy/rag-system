@@ -773,6 +773,164 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
   assert.equal(result.reportExports.html.format, "html");
 });
 
+test("EvalQuestionSetsService runQuestionSet returns per-question failure drilldown for regressions", async () => {
+  const callCount = {
+    ask: 0
+  };
+
+  const service = buildService(
+    {
+      evalQuestionSet: {
+        findFirst: async () => ({
+          id: "set-1",
+          tenantId: "tenant-auth",
+          ownerId: "user-auth",
+          baselineSnapshotId: "snapshot-selected",
+          questionsJson: ["Q1", "Q2"],
+          pinnedBaselineResultJson: {
+            summary: {
+              total: 2,
+              succeeded: 2,
+              failed: 0,
+              successRate: 1,
+              groundedRate: 1,
+              strongRate: 1,
+              fallbackRate: 0,
+              averageCitationCount: 2
+            },
+            items: [
+              {
+                status: "succeeded",
+                answerStatus: "grounded",
+                qualityOverall: "strong",
+                qualityPrimaryIssue: "none",
+                citationCount: 2,
+                usedFallback: false
+              },
+              {
+                status: "succeeded",
+                answerStatus: "grounded",
+                qualityOverall: "strong",
+                qualityPrimaryIssue: "none",
+                citationCount: 2,
+                usedFallback: false
+              }
+            ]
+          },
+          pinnedBaselineCapturedAt: new Date("2026-03-29T00:00:00.000Z")
+        }),
+        update: async () => ({ id: "set-1" })
+      },
+      evalQuestionSetBaselineSnapshot: {
+        findFirst: async ({ where }) => ({
+          id: where.id,
+          version: 5,
+          questionsJson: ["Q1", "Q2"]
+        })
+      }
+    },
+    {
+      askAssistant: async () => {
+        callCount.ask += 1;
+        if (callCount.ask === 1) {
+          throw Object.assign(new Error("Ask pipeline failed."), {
+            getResponse() {
+              return {
+                message: "Ask pipeline failed.",
+                code: "ASK_PIPELINE_FAILED",
+                traceId: "trace-err"
+              };
+            }
+          });
+        }
+
+        return {
+          traceId: "trace-2",
+          conversationId: "conv-2",
+          answerStatus: "grounded",
+          citations: [{ id: "citation-1" }],
+          qualityEvaluation: {
+            overall: "partial",
+            primaryIssue: "low_retrieval_score"
+          },
+          answeringMetadata: {
+            usedFallback: true
+          }
+        };
+      }
+    }
+  );
+
+  const result = await service.runQuestionSet(
+    "set-1",
+    {
+      assistantId: "assistant-1",
+      baselineSnapshotId: "snapshot-selected"
+    },
+    {
+      tenantId: "tenant-auth",
+      userId: "user-auth",
+      sessionId: "session-1",
+      authSource: "session"
+    }
+  );
+
+  assert.deepEqual(result.baselineComparison?.failureDrilldown, {
+    regressedQuestionCount: 2,
+    weakestItems: [
+      {
+        index: 1,
+        question: "Q1",
+        severity: "critical",
+        reasonCodes: ["became_failed", "citations_decreased"],
+        baseline: {
+          status: "succeeded",
+          answerStatus: "grounded",
+          qualityOverall: "strong",
+          qualityPrimaryIssue: "none",
+          citationCount: 2,
+          usedFallback: false
+        },
+        current: {
+          status: "failed",
+          answerStatus: null,
+          qualityOverall: null,
+          qualityPrimaryIssue: null,
+          citationCount: 0,
+          usedFallback: null,
+          error: {
+            message: "Ask pipeline failed.",
+            code: "ASK_PIPELINE_FAILED"
+          }
+        }
+      },
+      {
+        index: 2,
+        question: "Q2",
+        severity: "high",
+        reasonCodes: ["quality_degraded", "fallback_introduced", "citations_decreased"],
+        baseline: {
+          status: "succeeded",
+          answerStatus: "grounded",
+          qualityOverall: "strong",
+          qualityPrimaryIssue: "none",
+          citationCount: 2,
+          usedFallback: false
+        },
+        current: {
+          status: "succeeded",
+          answerStatus: "grounded",
+          qualityOverall: "partial",
+          qualityPrimaryIssue: "low_retrieval_score",
+          citationCount: 1,
+          usedFallback: true,
+          error: null
+        }
+      }
+    ]
+  });
+});
+
 test("EvalQuestionSetsService runQuestionSet marks baseline comparison as non-meaningful when question set drift is detected", async () => {
   const service = buildService(
     {

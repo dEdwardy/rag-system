@@ -420,6 +420,35 @@ export type EvalQuestionSetRunComparisonMetric = {
   delta: number;
 };
 
+export type EvalQuestionSetFailureDrilldownItem = {
+  index: number;
+  question: string;
+  severity: "critical" | "high" | "medium";
+  reasonCodes: Array<
+    "became_failed" | "became_insufficient_context" | "quality_degraded" | "fallback_introduced" | "citations_decreased"
+  >;
+  baseline: {
+    status: "succeeded" | "failed";
+    answerStatus: string | null;
+    qualityOverall: string | null;
+    qualityPrimaryIssue: string | null;
+    citationCount: number;
+    usedFallback: boolean | null;
+  };
+  current: {
+    status: "succeeded" | "failed";
+    answerStatus: string | null;
+    qualityOverall: string | null;
+    qualityPrimaryIssue: string | null;
+    citationCount: number;
+    usedFallback: boolean | null;
+    error: {
+      message: string;
+      code: string | null;
+    } | null;
+  };
+};
+
 export type EvalQuestionSetRunResult = {
   questionSetId: string;
   baselineSnapshotId: string;
@@ -450,6 +479,10 @@ export type EvalQuestionSetRunResult = {
     deltas?: {
       metrics: EvalQuestionSetRunComparisonMetric[];
       meaningfulDeltas: EvalQuestionSetRunComparisonMetric[];
+    };
+    failureDrilldown?: {
+      regressedQuestionCount: number;
+      weakestItems: EvalQuestionSetFailureDrilldownItem[];
     };
   };
   reportExports?: {

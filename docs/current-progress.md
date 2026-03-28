@@ -15,6 +15,22 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 eval run now includes per-question failure drilldown so regression review can focus on weakest items first
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 在 `baselineComparison` 下新增可选 `failureDrilldown`，按题目给出回归原因码（如 `became_failed` / `quality_degraded` / `fallback_introduced`），并输出按严重程度排序的 `weakestItems`
+    - pinned baseline 结果在首次初始化时改为持久化 `summary + items`，用于后续 run 的题目级回归对照；旧版仅 summary 的 baseline 仍兼容（仅不返回 drilldown）
+    - markdown/html 报告导出新增 `Failure drilldown` 区块，便于离线 review 时直接聚焦最弱题目
+    - Report center 新增 `Regression weakest items` 展示区，优先呈现题目级回归原因，帮助人工复盘快速定位
+    - 范围保持在 P5 v1 评测诊断增强：不改 schema、不改 ask/retrieval 行为语义、不扩展新评测框架
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P5 v1 eval run now detects question-set drift and marks baseline deltas as meaningful/non-meaningful accordingly
   - 变更文件：
     - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
