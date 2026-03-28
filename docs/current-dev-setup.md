@@ -222,6 +222,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `missingInformationProvenanceSentence` (one-line missing-information provenance)
     - `answerTextSource`
     - `answerTextSourceReadabilityLabel` (answer text source readability label)
+    - `answerTextSourceReadabilitySentence` (one-line answer text source provenance)
     - `answerStatusSource`
     - `answerStatusSourceReadabilityLabel` (answer status source readability label)
     - `answerStatusSourceReadabilitySentence` (one-line answer status source provenance)

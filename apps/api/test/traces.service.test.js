@@ -107,6 +107,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     missingInformationProvenanceSentence: "Missing-information source is unknown; insufficient-context reason is none; missing-information count is 0.",
     answerTextSource: null,
     answerTextSourceReadabilityLabel: "unknown answer text source",
+    answerTextSourceReadabilitySentence: "Answer text source is unknown answer text source.",
     answerStatusSource: null,
     answerStatusSourceReadabilityLabel: "unknown answer status source",
     answerStatusSourceReadabilitySentence: "Answer status source is unknown answer status source.",
@@ -232,6 +233,10 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
   assert.equal(detail.traceSummary.answerTextSource, null);
   assert.equal(detail.traceSummary.answerStatusSource, null);
   assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
+  assert.equal(
+    detail.traceSummary.answerTextSourceReadabilitySentence,
+    "Answer text source is unknown answer text source (provider_fallback)."
+  );
   assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(detail.traceSummary.failureMessage, "synthetic failure");
 
@@ -241,6 +246,10 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
   assert.equal(listed[0].traceSummary.answerTextSource, null);
   assert.equal(listed[0].traceSummary.answerStatusSource, null);
   assert.equal(listed[0].traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
+  assert.equal(
+    listed[0].traceSummary.answerTextSourceReadabilitySentence,
+    "Answer text source is unknown answer text source (provider_fallback)."
+  );
   assert.equal(listed[0].traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
   assert.equal(listed[0].traceSummary.failureMessage, "synthetic failure");
 });
@@ -417,6 +426,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     missingInformationProvenanceSentence: "Missing-information source is model; insufficient-context reason is retrieved_context_insufficient; missing-information count is 1.",
     answerTextSource: "deterministic_policy",
     answerTextSourceReadabilityLabel: "deterministic policy answer text",
+    answerTextSourceReadabilitySentence: "Answer text source is deterministic policy answer text.",
     answerStatusSource: "inferred_from_retrieval",
     answerStatusSourceReadabilityLabel: "retrieval-inferred answer status",
     answerStatusSourceReadabilitySentence: "Answer status source is retrieval-inferred answer status.",
@@ -981,6 +991,7 @@ test("TracesService keeps legacy fallback traces readable when optional provenan
     "Missing-information source is unknown; insufficient-context reason is none; missing-information count is 1."
   );
   assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source");
+  assert.equal(detail.traceSummary.answerTextSourceReadabilitySentence, "Answer text source is unknown answer text source.");
   assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source");
 });
 

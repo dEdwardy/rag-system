@@ -96,6 +96,7 @@ export type TraceSummary = {
   missingInformationProvenanceSentence: string;
   answerTextSource: TraceAnswerTextSource | null;
   answerTextSourceReadabilityLabel: string;
+  answerTextSourceReadabilitySentence: string;
   answerStatusSource: TraceAnswerStatusSource | null;
   answerStatusSourceReadabilityLabel: string;
   answerStatusSourceReadabilitySentence: string;
