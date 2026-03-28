@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 now has ACL guard hook attachment points reserved for future document/resource permission enforcement
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth-acl-guard-hook.contract.ts`
+    - `apps/api/src/modules/auth/auth-route-policy.ts`
+    - `apps/api/src/modules/auth/auth-route-policy.guard.ts`
+    - `apps/api/src/modules/auth/auth.module.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - route policy guard 现在支持可注入 ACL hook（默认 no-op），为后续资源权限判定预留统一执行落点
+    - 新增 `DocumentPermissionHook` / `ResourcePermissionHook` 元数据装饰器（`read|write`），用于后续在具体控制器方法上挂载 ACL 附加语义
+    - 当前增量保持 auth v1 行为不变：未扩展 RBAC/ABAC 规则、未引入新的资源权限判定逻辑
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ auth v1 web startup now bootstraps auth state by preloading `/auth/me` at app mount so existing sessions recover cleanly across refresh/navigation
   - 变更文件：
     - `apps/web/src/app/App.tsx`

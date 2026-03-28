@@ -4,7 +4,12 @@ require("reflect-metadata");
 
 const { AuthController } = require("../src/modules/auth/auth.controller.ts");
 const { AuthContextMiddleware } = require("../src/modules/auth/auth-context.middleware.ts");
-const { AUTH_ROUTE_POLICY_KEY } = require("../src/modules/auth/auth-route-policy.ts");
+const {
+  AUTH_ACL_ROUTE_HOOK_KEY,
+  AUTH_ROUTE_POLICY_KEY,
+  DocumentPermissionHook,
+  ResourcePermissionHook
+} = require("../src/modules/auth/auth-route-policy.ts");
 const { AuthRoutePolicyGuard } = require("../src/modules/auth/auth-route-policy.guard.ts");
 const { resolveRequestAuthContext } = require("../src/modules/auth/auth-identity.contract.ts");
 const { AuthService } = require("../src/modules/auth/auth.service.ts");
@@ -514,6 +519,85 @@ test("AuthRoutePolicyGuard allows authenticated routes with session identity", (
   });
 
   assert.equal(allowed, true);
+});
+
+test("AuthRoutePolicyGuard invokes ACL guard hook when authenticated route carries ACL hook metadata", () => {
+  const observed = [];
+  const guard = new AuthRoutePolicyGuard(
+    {
+      getAllAndOverride: (metadataKey) => {
+        if (metadataKey === AUTH_ROUTE_POLICY_KEY) {
+          return "authenticated";
+        }
+
+        if (metadataKey === AUTH_ACL_ROUTE_HOOK_KEY) {
+          return {
+            action: "write",
+            target: "document"
+          };
+        }
+
+        return undefined;
+      }
+    },
+    (input) => observed.push(input)
+  );
+
+  const request = {
+    authContext: {
+      identity: {
+        userId: "user-1",
+        tenantId: "tenant-1",
+        role: "owner",
+        sessionId: "session-1",
+        authSource: "session"
+      }
+    }
+  };
+
+  const allowed = guard.canActivate({
+    getHandler: () => "handler",
+    getClass: () => "controller",
+    switchToHttp: () => ({
+      getRequest: () => request
+    })
+  });
+
+  assert.equal(allowed, true);
+  assert.equal(observed.length, 1);
+  assert.equal(observed[0].request, request);
+  assert.deepEqual(observed[0].aclHook, {
+    action: "write",
+    target: "document"
+  });
+});
+
+test("DocumentPermissionHook and ResourcePermissionHook reserve ACL attachment metadata", () => {
+  class HookedController {
+    readDocument() {}
+    writeResource() {}
+  }
+
+  const readDescriptor = Object.getOwnPropertyDescriptor(HookedController.prototype, "readDocument");
+  const writeDescriptor = Object.getOwnPropertyDescriptor(HookedController.prototype, "writeResource");
+
+  DocumentPermissionHook("read")(HookedController.prototype, "readDocument", readDescriptor);
+  ResourcePermissionHook("write")(HookedController.prototype, "writeResource", writeDescriptor);
+
+  assert.deepEqual(
+    Reflect.getMetadata(AUTH_ACL_ROUTE_HOOK_KEY, HookedController.prototype.readDocument),
+    {
+      action: "read",
+      target: "document"
+    }
+  );
+  assert.deepEqual(
+    Reflect.getMetadata(AUTH_ACL_ROUTE_HOOK_KEY, HookedController.prototype.writeResource),
+    {
+      action: "write",
+      target: "resource"
+    }
+  );
 });
 
 test("owner-scoped business controllers are marked authenticated while auth and health remain public", () => {
