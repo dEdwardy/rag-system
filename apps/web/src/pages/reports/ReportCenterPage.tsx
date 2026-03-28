@@ -91,6 +91,25 @@ export function ReportCenterPage() {
     });
   }
 
+  function downloadReport(format: "markdown" | "json" | "html") {
+    const report = runEvalMutation.data?.reportExports?.[format];
+    if (!report) {
+      return;
+    }
+
+    const blob = new Blob([report.content], {
+      type: report.mimeType
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = report.fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -256,6 +275,49 @@ export function ReportCenterPage() {
               <span className="workspace-meta-value">{formatDateTime(runEvalMutation.data.finishedAt)}</span>
             </div>
           </div>
+
+          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+            <Stack gap="sm">
+              <div className="workspace-section-heading">{locale === "zh" ? "报告导出" : "Report export"}</div>
+              <Text c="var(--app-text-muted)" size="sm">
+                {locale === "zh"
+                  ? "将本次评测结果导出为可复用文件，便于存档和分享。"
+                  : "Export this eval run into reusable files for storage and sharing."}
+              </Text>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  className="workspace-button"
+                  color="indigo"
+                  onClick={() => downloadReport("markdown")}
+                  radius="xl"
+                  size="xs"
+                  variant="light"
+                >
+                  Markdown
+                </Button>
+                <Button
+                  className="workspace-button"
+                  color="indigo"
+                  onClick={() => downloadReport("json")}
+                  radius="xl"
+                  size="xs"
+                  variant="light"
+                >
+                  JSON
+                </Button>
+                <Button
+                  className="workspace-button"
+                  color="indigo"
+                  onClick={() => downloadReport("html")}
+                  radius="xl"
+                  size="xs"
+                  variant="light"
+                >
+                  HTML
+                </Button>
+              </div>
+            </Stack>
+          </Paper>
 
           <div className="workspace-table-shell">
             <Table.ScrollContainer minWidth={1040}>

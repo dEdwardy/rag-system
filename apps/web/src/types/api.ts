@@ -443,6 +443,26 @@ export type EvalQuestionSetRunResult = {
       meaningfulDeltas: EvalQuestionSetRunComparisonMetric[];
     };
   };
+  reportExports?: {
+    markdown: {
+      format: "markdown";
+      fileName: string;
+      mimeType: string;
+      content: string;
+    };
+    json: {
+      format: "json";
+      fileName: string;
+      mimeType: string;
+      content: string;
+    };
+    html: {
+      format: "html";
+      fileName: string;
+      mimeType: string;
+      content: string;
+    };
+  };
 };
 
 export type AskResponse = {

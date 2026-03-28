@@ -37,6 +37,56 @@ type EvalRunComparisonMetric = {
   delta: number;
 };
 
+type EvalRunItem = {
+  index: number;
+  question: string;
+  status: "succeeded" | "failed";
+  traceId: string | null;
+  conversationId: string | null;
+  answerStatus: string | null;
+  qualityOverall: string | null;
+  qualityPrimaryIssue: string | null;
+  citationCount: number;
+  usedFallback: boolean | null;
+  error: { message: string; code: string | null } | null;
+};
+
+type EvalQuestionSetRunResultPayload = {
+  questionSetId: string;
+  baselineSnapshotId: string;
+  baselineVersion: number;
+  assistantId: string;
+  startedAt: Date;
+  finishedAt: Date;
+  totals: {
+    total: number;
+    succeeded: number;
+    failed: number;
+  };
+  items: EvalRunItem[];
+  summary: EvalRunSummary;
+  baselineComparison: {
+    hasPinnedBaselineEvalResult: boolean;
+    baselineCapturedAt: Date | null;
+    baselineInitialized: boolean;
+    deltas?: {
+      metrics: EvalRunComparisonMetric[];
+      meaningfulDeltas: EvalRunComparisonMetric[];
+    };
+  };
+};
+
+type EvalRunReportExportFormat = "markdown" | "json" | "html";
+
+type EvalRunReportExport = {
+  format: EvalRunReportExportFormat;
+  fileName: string;
+  mimeType: string;
+  content: string;
+};
+
+type EvalRunReportExports = Record<EvalRunReportExportFormat, EvalRunReportExport>;
+
 const P5_V1_DEMO_REPLAY_NAME = "p5-v1-demo-replay";
 const P5_V1_DEMO_REPLAY_ASSISTANT_ID = "default-assistant";
 const P5_V1_DEMO_REPLAY_QUESTIONS = [
@@ -248,19 +298,7 @@ export class EvalQuestionSetsService {
 
     const questions = this.readQuestions(snapshot.questionsJson);
     const startedAt = new Date();
-    const items: Array<{
-      index: number;
-      question: string;
-      status: "succeeded" | "failed";
-      traceId: string | null;
-      conversationId: string | null;
-      answerStatus: string | null;
-      qualityOverall: string | null;
-      qualityPrimaryIssue: string | null;
-      citationCount: number;
-      usedFallback: boolean | null;
-      error: { message: string; code: string | null } | null;
-    }> = [];
+    const items: EvalRunItem[] = [];
 
     for (const [index, question] of questions.entries()) {
       try {
@@ -329,7 +367,7 @@ export class EvalQuestionSetsService {
       }
     });
 
-    return {
+    const runResult: EvalQuestionSetRunResultPayload = {
       questionSetId: id,
       baselineSnapshotId: snapshot.id,
       baselineVersion: snapshot.version,
@@ -349,6 +387,11 @@ export class EvalQuestionSetsService {
         baselineInitialized: shouldCapturePinnedBaseline,
         ...(baselineComparison ? { deltas: baselineComparison } : {})
       }
+    };
+
+    return {
+      ...runResult,
+      reportExports: this.buildRunReportExports(runResult)
     };
   }
 
@@ -697,5 +740,259 @@ export class EvalQuestionSetsService {
 
   private roundMetric(value: number): number {
     return Math.round(value * 1000) / 1000;
+  }
+
+  private buildRunReportExports(runResult: EvalQuestionSetRunResultPayload): EvalRunReportExports {
+    const reportPayload = {
+      schemaVersion: "p5_v1_report_export_v1",
+      exportedAt: new Date().toISOString(),
+      questionSetId: runResult.questionSetId,
+      baselineSnapshotId: runResult.baselineSnapshotId,
+      baselineVersion: runResult.baselineVersion,
+      assistantId: runResult.assistantId,
+      startedAt: runResult.startedAt,
+      finishedAt: runResult.finishedAt,
+      totals: runResult.totals,
+      summary: runResult.summary,
+      baselineComparison: runResult.baselineComparison,
+      items: runResult.items
+    };
+
+    const fileNameBase = this.buildReportFileNameBase(runResult.questionSetId, runResult.finishedAt);
+
+    return {
+      markdown: {
+        format: "markdown",
+        fileName: `${fileNameBase}.md`,
+        mimeType: "text/markdown; charset=utf-8",
+        content: this.renderMarkdownReport(reportPayload)
+      },
+      json: {
+        format: "json",
+        fileName: `${fileNameBase}.json`,
+        mimeType: "application/json; charset=utf-8",
+        content: JSON.stringify(reportPayload, null, 2)
+      },
+      html: {
+        format: "html",
+        fileName: `${fileNameBase}.html`,
+        mimeType: "text/html; charset=utf-8",
+        content: this.renderHtmlReport(reportPayload)
+      }
+    };
+  }
+
+  private buildReportFileNameBase(questionSetId: string, finishedAt: Date): string {
+    const safeQuestionSetId = questionSetId.replace(/[^a-zA-Z0-9-_]/g, "-");
+    const timestamp = finishedAt.toISOString().replace(/[:.]/g, "-");
+    return `p5-v1-report-${safeQuestionSetId}-${timestamp}`;
+  }
+
+  private renderMarkdownReport(report: {
+    schemaVersion: string;
+    exportedAt: string;
+    questionSetId: string;
+    baselineSnapshotId: string;
+    baselineVersion: number;
+    assistantId: string;
+    startedAt: Date;
+    finishedAt: Date;
+    totals: {
+      total: number;
+      succeeded: number;
+      failed: number;
+    };
+    summary: EvalRunSummary;
+    baselineComparison: EvalQuestionSetRunResultPayload["baselineComparison"];
+    items: EvalRunItem[];
+  }): string {
+    const lines = [
+      "# P5 v1 eval report",
+      "",
+      "## Metadata",
+      `- schemaVersion: ${report.schemaVersion}`,
+      `- exportedAt: ${report.exportedAt}`,
+      `- questionSetId: ${report.questionSetId}`,
+      `- baselineSnapshotId: ${report.baselineSnapshotId}`,
+      `- baselineVersion: ${report.baselineVersion}`,
+      `- assistantId: ${report.assistantId}`,
+      `- startedAt: ${report.startedAt.toISOString()}`,
+      `- finishedAt: ${report.finishedAt.toISOString()}`,
+      "",
+      "## Totals",
+      `- total: ${report.totals.total}`,
+      `- succeeded: ${report.totals.succeeded}`,
+      `- failed: ${report.totals.failed}`,
+      "",
+      "## Summary",
+      `- successRate: ${report.summary.successRate}`,
+      `- groundedRate: ${report.summary.groundedRate}`,
+      `- strongRate: ${report.summary.strongRate}`,
+      `- fallbackRate: ${report.summary.fallbackRate}`,
+      `- averageCitationCount: ${report.summary.averageCitationCount}`,
+      "",
+      "## Baseline comparison",
+      `- hasPinnedBaselineEvalResult: ${report.baselineComparison.hasPinnedBaselineEvalResult}`,
+      `- baselineCapturedAt: ${report.baselineComparison.baselineCapturedAt?.toISOString() ?? "none"}`,
+      `- baselineInitialized: ${report.baselineComparison.baselineInitialized}`,
+      "",
+      "## Items",
+      "",
+      "| # | status | question | answerStatus | qualityOverall | primaryIssue | citations | usedFallback | traceId | errorCode | errorMessage |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      ...report.items.map(item =>
+        [
+          item.index,
+          item.status,
+          item.question,
+          item.answerStatus ?? "-",
+          item.qualityOverall ?? "-",
+          item.qualityPrimaryIssue ?? "-",
+          item.citationCount,
+          item.usedFallback == null ? "-" : item.usedFallback ? "yes" : "no",
+          item.traceId ?? "-",
+          item.error?.code ?? "-",
+          item.error?.message ?? "-"
+        ]
+          .map(value => this.escapeMarkdownTableCell(String(value)))
+          .join(" | ")
+          .replace(/^/, "| ")
+          .concat(" |")
+      )
+    ];
+
+    return lines.join("\n");
+  }
+
+  private renderHtmlReport(report: {
+    schemaVersion: string;
+    exportedAt: string;
+    questionSetId: string;
+    baselineSnapshotId: string;
+    baselineVersion: number;
+    assistantId: string;
+    startedAt: Date;
+    finishedAt: Date;
+    totals: {
+      total: number;
+      succeeded: number;
+      failed: number;
+    };
+    summary: EvalRunSummary;
+    baselineComparison: EvalQuestionSetRunResultPayload["baselineComparison"];
+    items: EvalRunItem[];
+  }): string {
+    const itemRows = report.items
+      .map(item => {
+        const columns = [
+          item.index,
+          item.status,
+          item.question,
+          item.answerStatus ?? "-",
+          item.qualityOverall ?? "-",
+          item.qualityPrimaryIssue ?? "-",
+          item.citationCount,
+          item.usedFallback == null ? "-" : item.usedFallback ? "yes" : "no",
+          item.traceId ?? "-",
+          item.error?.code ?? "-",
+          item.error?.message ?? "-"
+        ]
+          .map(value => `<td>${this.escapeHtml(String(value))}</td>`)
+          .join("");
+
+        return `<tr>${columns}</tr>`;
+      })
+      .join("\n");
+
+    return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P5 v1 eval report</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; color: #111827; }
+      h1, h2 { margin-bottom: 8px; }
+      ul { margin-top: 8px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { border: 1px solid #d1d5db; text-align: left; padding: 8px; vertical-align: top; font-size: 13px; }
+      th { background: #f3f4f6; }
+      code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>P5 v1 eval report</h1>
+
+    <h2>Metadata</h2>
+    <ul>
+      <li>schemaVersion: <code>${this.escapeHtml(report.schemaVersion)}</code></li>
+      <li>exportedAt: <code>${this.escapeHtml(report.exportedAt)}</code></li>
+      <li>questionSetId: <code>${this.escapeHtml(report.questionSetId)}</code></li>
+      <li>baselineSnapshotId: <code>${this.escapeHtml(report.baselineSnapshotId)}</code></li>
+      <li>baselineVersion: <code>${report.baselineVersion}</code></li>
+      <li>assistantId: <code>${this.escapeHtml(report.assistantId)}</code></li>
+      <li>startedAt: <code>${this.escapeHtml(report.startedAt.toISOString())}</code></li>
+      <li>finishedAt: <code>${this.escapeHtml(report.finishedAt.toISOString())}</code></li>
+    </ul>
+
+    <h2>Totals</h2>
+    <ul>
+      <li>total: <code>${report.totals.total}</code></li>
+      <li>succeeded: <code>${report.totals.succeeded}</code></li>
+      <li>failed: <code>${report.totals.failed}</code></li>
+    </ul>
+
+    <h2>Summary</h2>
+    <ul>
+      <li>successRate: <code>${report.summary.successRate}</code></li>
+      <li>groundedRate: <code>${report.summary.groundedRate}</code></li>
+      <li>strongRate: <code>${report.summary.strongRate}</code></li>
+      <li>fallbackRate: <code>${report.summary.fallbackRate}</code></li>
+      <li>averageCitationCount: <code>${report.summary.averageCitationCount}</code></li>
+    </ul>
+
+    <h2>Baseline comparison</h2>
+    <ul>
+      <li>hasPinnedBaselineEvalResult: <code>${report.baselineComparison.hasPinnedBaselineEvalResult}</code></li>
+      <li>baselineCapturedAt: <code>${this.escapeHtml(report.baselineComparison.baselineCapturedAt?.toISOString() ?? "none")}</code></li>
+      <li>baselineInitialized: <code>${report.baselineComparison.baselineInitialized}</code></li>
+    </ul>
+
+    <h2>Items</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>status</th>
+          <th>question</th>
+          <th>answerStatus</th>
+          <th>qualityOverall</th>
+          <th>primaryIssue</th>
+          <th>citations</th>
+          <th>usedFallback</th>
+          <th>traceId</th>
+          <th>errorCode</th>
+          <th>errorMessage</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+      </tbody>
+    </table>
+  </body>
+</html>`;
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  private escapeMarkdownTableCell(value: string): string {
+    return value.replaceAll("|", "\\|").replaceAll("\n", " ");
   }
 }

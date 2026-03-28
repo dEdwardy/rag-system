@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 eval run output now includes reusable report exports in `markdown/json/html` for storage and sharing
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 返回值新增 `reportExports`，一次性提供 `markdown` / `json` / `html` 三种可复用报告内容（含 `fileName`、`mimeType`、`content`）
+    - 导出内容使用同一份 run payload（metadata/totals/summary/items + baseline comparison），避免前端再拼装不同格式语义
+    - Report center 在 run 完成后新增三种导出按钮，可直接下载并用于存档/分享
+    - 范围保持在 P5 v1 报告导出，不扩展新 persistence schema、不引入额外报表平台能力
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P5 v1 report center is now a dedicated route that groups eval outputs and quality summaries in one place (without expanding usage into a generic dashboard)
   - 变更文件：
     - `apps/web/src/pages/reports/ReportCenterPage.tsx`

@@ -552,6 +552,12 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
     baselineCapturedAt: null,
     baselineInitialized: true
   });
+  assert.equal(result.reportExports.markdown.format, "markdown");
+  assert.equal(result.reportExports.json.format, "json");
+  assert.equal(result.reportExports.html.format, "html");
+  assert.match(result.reportExports.markdown.content, /# P5 v1 eval report/);
+  assert.match(result.reportExports.json.content, /"schemaVersion": "p5_v1_report_export_v1"/);
+  assert.match(result.reportExports.html.content, /<!doctype html>/i);
   assert.deepEqual(
     askCalls.map(call => ({ assistantId: call.assistantId, question: call.question })),
     [
@@ -742,6 +748,9 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
       ]
     }
   });
+  assert.equal(result.reportExports.markdown.format, "markdown");
+  assert.equal(result.reportExports.json.format, "json");
+  assert.equal(result.reportExports.html.format, "html");
 });
 
 test("EvalQuestionSetsService runP5V1DemoReplay uses fixed scenario and returns replay entry", async () => {
