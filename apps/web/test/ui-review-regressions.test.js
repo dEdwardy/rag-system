@@ -26,6 +26,17 @@ test("shell and chat do not present unfinished controls as active interactions",
   assert.match(chatSource, /Coming soon|敬请期待|即将支持/);
 });
 
+test("app shell shows a compact current identity card for auth context", () => {
+  const shellSource = readFileSync(appShellPath, "utf8");
+
+  assert.match(shellSource, /data-testid="current-identity-card"/);
+  assert.match(shellSource, /Current identity|当前身份/);
+  assert.match(shellSource, /Active auth context|登录态上下文/);
+  assert.match(shellSource, /currentIdentity\.userId/);
+  assert.match(shellSource, /currentIdentity\.tenantId/);
+  assert.match(shellSource, /currentIdentity\.authSource/);
+});
+
 test("knowledge base page uses a compact metric grid instead of a long side rail", () => {
   const source = readFileSync(knowledgeBasePath, "utf8");
 

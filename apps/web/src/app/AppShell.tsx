@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useConversations, useDocuments, useKnowledgeBases, useLogout } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
+import type { AuthIdentity } from "../types/api";
 import { useThemePreferences } from "./theme-preferences";
 
 const APP_SHELL_THEME = {
@@ -39,6 +40,13 @@ const APP_SHELL_TEXT: Record<Locale, {
   usage: string;
   reportCenter: string;
   fallbackActiveLabel: string;
+  currentIdentityHeading: string;
+  currentIdentityDescription: string;
+  userIdLabel: string;
+  tenantIdLabel: string;
+  authSourceLabel: string;
+  sessionIdLabel: string;
+  noSessionValue: string;
 }> = {
   zh: {
     mainHeading: "主要功能",
@@ -50,7 +58,14 @@ const APP_SHELL_TEXT: Record<Locale, {
     traceLog: "Trace 日志",
     usage: "使用统计",
     reportCenter: "报告中心",
-    fallbackActiveLabel: "对话"
+    fallbackActiveLabel: "对话",
+    currentIdentityHeading: "当前身份",
+    currentIdentityDescription: "登录态上下文",
+    userIdLabel: "用户",
+    tenantIdLabel: "租户",
+    authSourceLabel: "来源",
+    sessionIdLabel: "会话",
+    noSessionValue: "无"
   },
   en: {
     mainHeading: "Main",
@@ -62,7 +77,14 @@ const APP_SHELL_TEXT: Record<Locale, {
     traceLog: "Trace log",
     usage: "Usage",
     reportCenter: "Report center",
-    fallbackActiveLabel: "Chat"
+    fallbackActiveLabel: "Chat",
+    currentIdentityHeading: "Current identity",
+    currentIdentityDescription: "Active auth context",
+    userIdLabel: "User",
+    tenantIdLabel: "Tenant",
+    authSourceLabel: "Source",
+    sessionIdLabel: "Session",
+    noSessionValue: "None"
   }
 };
 
@@ -187,7 +209,11 @@ function ActionButton({ children, label }: { children: React.ReactNode; label: s
   );
 }
 
-export function AppShell() {
+type AppShellProps = {
+  currentIdentity: AuthIdentity;
+};
+
+export function AppShell({ currentIdentity }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { locale, setLocale } = useI18n();
@@ -200,6 +226,7 @@ export function AppShell() {
   const conversationsQuery = useConversations(isHydrated);
   const isChatRoute = location.pathname === "/";
   const localeKey = locale === "zh" ? "zh" : "en";
+  const text = APP_SHELL_TEXT[localeKey];
 
   useEffect(() => {
     setIsHydrated(true);
@@ -302,23 +329,52 @@ export function AppShell() {
           </nav>
 
           <div className="border-t border-[var(--app-border)] p-5">
-            <div className="flex items-center gap-3 rounded-[14px] bg-[var(--app-surface)] p-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-sm font-semibold text-white">
-                {activeKnowledgeBase?.name?.slice(0, 1).toUpperCase() ?? "K"}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "未选择知识库" : "No knowledge base")}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-[14px] bg-[var(--app-surface)] p-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-sm font-semibold text-white">
+                  {activeKnowledgeBase?.name?.slice(0, 1).toUpperCase() ?? "K"}
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
-                  {documentsQuery.isSuccess
-                    ? locale === "zh"
-                      ? `${documentsQuery.data.length} 个文档`
-                      : `${documentsQuery.data.length} documents`
-                    : locale === "zh"
-                      ? "加载中"
-                      : "Loading"}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
+                    {activeKnowledgeBase?.name ?? (locale === "zh" ? "未选择知识库" : "No knowledge base")}
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
+                    {documentsQuery.isSuccess
+                      ? locale === "zh"
+                        ? `${documentsQuery.data.length} 个文档`
+                        : `${documentsQuery.data.length} documents`
+                      : locale === "zh"
+                        ? "加载中"
+                        : "Loading"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-bg)]/80 p-3" data-testid="current-identity-card">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--app-text-secondary)]">
+                    {text.currentIdentityHeading}
+                  </div>
+                  <div className="rounded-full border border-[var(--app-border)] px-2 py-0.5 text-[10px] text-[var(--app-text-muted)]">
+                    {text.currentIdentityDescription}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1 text-[11px] leading-5">
+                  <span className="text-[var(--app-text-muted)]">{text.userIdLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.userId}>{currentIdentity.userId}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{text.tenantIdLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.tenantId}>{currentIdentity.tenantId}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{text.authSourceLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.authSource}>{currentIdentity.authSource}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{text.sessionIdLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.sessionId ?? text.noSessionValue}>
+                    {currentIdentity.sessionId ?? text.noSessionValue}
+                  </span>
                 </div>
               </div>
             </div>

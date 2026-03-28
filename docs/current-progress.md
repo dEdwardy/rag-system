@@ -15,6 +15,20 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 wave now shows a compact current identity card in the desktop app shell
+  - 变更文件：
+    - `apps/web/src/app/AuthenticatedAppShell.tsx`
+    - `apps/web/src/app/AppShell.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `AuthenticatedAppShell` now passes resolved `currentIdentity` into `AppShell`, so shell-level identity display uses the already-bootstrapped auth context
+    - desktop left sidebar adds one compact `current identity` card (`userId` / `tenantId` / `authSource` / `sessionId`) to make active auth context directly readable during auth v1 usage
+    - scope remains app-shell readout only: no auth contract change, no route-policy change, no page-level redesign
+  - focused validation：
+    - `node --test apps/web/test/desktop-shell-consistency.test.js`
+  - 实测结果：passed (`4/4`)
+
 - ✅ P5 v1 eval run now includes a core-quality threshold gate with warn/fail modes
   - 变更文件：
     - `apps/api/src/modules/eval-question-sets/eval-question-set.schemas.ts`
