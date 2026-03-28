@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { HealthController } from "./common/health.controller";
 import { KnowledgeBasesModule } from "./modules/knowledge-bases/knowledge-bases.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
@@ -18,6 +18,8 @@ import { LlmModule } from "./infra/llm/llm.module";
 import { EmbeddingModule } from "./infra/embedding/embedding.module";
 import { ParsingModule } from "./infra/parsing/parsing.module";
 import { QueueModule } from "./infra/queue/queue.module";
+import { AuthModule } from "./modules/auth/auth.module";
+import { AuthContextMiddleware } from "./modules/auth/auth-context.middleware";
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { QueueModule } from "./infra/queue/queue.module";
     EmbeddingModule,
     ParsingModule,
     QueueModule,
+    AuthModule,
     KnowledgeBasesModule,
     DocumentsModule,
     AssistantsModule,
@@ -42,5 +45,8 @@ import { QueueModule } from "./infra/queue/queue.module";
   ],
   controllers: [HealthController]
 })
-export class AppModule {}
-
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthContextMiddleware).forRoutes("*");
+  }
+}
