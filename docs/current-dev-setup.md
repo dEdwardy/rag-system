@@ -636,6 +636,7 @@ For day-to-day backend work in the current repository, prefer a lighter feedback
 - default local development path:
   - implement one small but complete increment first
   - then run `typecheck` plus only the 1..3 most relevant focused tests
+  - when picking the next queue item, use dependency/blocking order first; do not use creation order as the default
 - use stricter TDD mainly for:
   - pure logic
   - schema normalization

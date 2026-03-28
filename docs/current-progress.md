@@ -13,6 +13,11 @@
 
 补充进展（2026-03-28）：
 
+- ✅ 当前 queue 已重排
+  - 本次只调整现有 queue 的执行顺序，本次整理不新增也不删除任务
+  - 排序规则：先阻塞项，再收尾项，最后优化项
+  - 当前顺序：`packages/shared` 契约收口 → 验证分层 → read-model 派生层收拢 → 兼容逻辑治理 → 外部输入标准化 → 本地环境摩擦下降
+
 - ✅ trace summary now exposes additive `candidateCountReadabilitySentence` for easier final candidate-flow scanning
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `candidateCountReadabilitySentence: string`
   - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing candidate flow counts (`ranked`, `merged`, `vector`, `lexical`, `candidateLimit`)

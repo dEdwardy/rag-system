@@ -64,6 +64,22 @@
    - contract alignment
    - focused validation
 
+### Queue 排序原则
+
+适用范围：当前 queue 和后续同类任务。
+
+排序规则：
+
+1. 先处理阻塞后续改动的项：契约不统一、验证太慢、共享边界不清
+2. 再处理 read-model / fallback / compatibility 这类收尾项
+3. 最后处理环境摩擦、文档整理、纯优化项
+
+补充规则：
+
+- 本次只重排现有 queue，不在本次整理中增删任务；后续新增任务按正常 queue 流程加入
+- 队列优先按依赖关系和阻塞风险排序，不按创建时间排序
+- 一次只推进一个主主题，保持单线执行
+
 当前这一轮已经提供了足够基础，可直接支持这一收口方向：
 
 - source run history / execution observability minimum increment: done
