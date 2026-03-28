@@ -264,6 +264,108 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
   assert.deepEqual(listed[0].citationsJson, []);
 });
 
+test("TracesService lists traces with identity scope and keyword search", async () => {
+  const findManyCalls = [];
+  const persistedTrace = {
+    id: "trace-search-1",
+    conversationId: "conversation-search-1",
+    assistantId: "assistant-search-1",
+    userMessageId: null,
+    assistantMessageId: null,
+    userQuery: "How do I rotate API credentials?",
+    rewrittenQuery: "api credential rotation policy",
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: null,
+    citationsJson: [],
+    answeringMetadataJson: null,
+    qualityEvaluationJson: null,
+    modelName: "fallback-local",
+    latencyMs: 12,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-29T01:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findMany: async args => {
+        findManyCalls.push(args);
+        return [persistedTrace];
+      }
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const listed = await service.listTraces(
+    {
+      query: "credential",
+      limit: 10
+    },
+    {
+      tenantId: "tenant-42",
+      userId: "user-42"
+    }
+  );
+
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].id, "trace-search-1");
+  assert.equal(listed[0].traceSummary.strategyReadabilityLabel, "unknown mode retrieval via rewritten; fallback: none; fallback used: unknown.");
+  assert.deepEqual(findManyCalls, [
+    {
+      where: {
+        conversation: {
+          tenantId: "tenant-42",
+          userId: "user-42"
+        },
+        OR: [
+          {
+            id: {
+              contains: "credential",
+              mode: "insensitive"
+            }
+          },
+          {
+            userQuery: {
+              contains: "credential",
+              mode: "insensitive"
+            }
+          },
+          {
+            rewrittenQuery: {
+              contains: "credential",
+              mode: "insensitive"
+            }
+          }
+        ]
+      },
+      take: 10,
+      select: {
+        id: true,
+        conversationId: true,
+        assistantId: true,
+        userMessageId: true,
+        assistantMessageId: true,
+        userQuery: true,
+        rewrittenQuery: true,
+        retrievedChunkIdsJson: true,
+        retrievalMetadataJson: true,
+        citationsJson: true,
+        answeringMetadataJson: true,
+        qualityEvaluationJson: true,
+        modelName: true,
+        latencyMs: true,
+        status: true,
+        errorMessage: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    }
+  ]);
+});
+
 test("TracesService drops invalid diagnostics failedStage values from traceSummary", async () => {
   const persistedTrace = {
     id: "trace-invalid-failed-stage",

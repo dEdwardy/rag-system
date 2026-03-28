@@ -18,7 +18,7 @@ import {
   buildRetrievalModeProvenanceSentence,
   buildStrategyReadabilityLabel
 } from "../retrieval/strategy-readability";
-import { ListConversationTracesInput } from "../documents/document.schemas";
+import { ListConversationTracesInput, ListTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
 
@@ -41,6 +41,26 @@ const TRACE_ANSWER_STATUS_SOURCE_VALUES = new Set<NonNullable<TraceSummary["answ
 @Injectable()
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly traceListSelect = {
+    id: true,
+    conversationId: true,
+    assistantId: true,
+    userMessageId: true,
+    assistantMessageId: true,
+    userQuery: true,
+    rewrittenQuery: true,
+    retrievedChunkIdsJson: true,
+    retrievalMetadataJson: true,
+    citationsJson: true,
+    answeringMetadataJson: true,
+    qualityEvaluationJson: true,
+    modelName: true,
+    latencyMs: true,
+    status: true,
+    errorMessage: true,
+    createdAt: true
+  } satisfies Prisma.AnswerTraceSelect;
 
   getTrace(id: string, scope?: { tenantId: string; userId: string } | null) {
     const traceLookup = scope != null
@@ -70,25 +90,53 @@ export class TracesService {
     return this.prisma.answerTrace.findMany({
       where: { conversationId },
       take: input.limit,
-      select: {
-        id: true,
-        conversationId: true,
-        assistantId: true,
-        userMessageId: true,
-        assistantMessageId: true,
-        userQuery: true,
-        rewrittenQuery: true,
-        retrievedChunkIdsJson: true,
-        retrievalMetadataJson: true,
-        citationsJson: true,
-        answeringMetadataJson: true,
-        qualityEvaluationJson: true,
-        modelName: true,
-        latencyMs: true,
-        status: true,
-        errorMessage: true,
-        createdAt: true
+      select: this.traceListSelect,
+      orderBy: {
+        createdAt: "desc"
+      }
+    }).then(traces => traces.map(trace => this.attachTraceListSummary(trace)));
+  }
+
+  listTraces(input: ListTracesInput, scope?: { tenantId: string; userId: string } | null) {
+    const normalizedQuery = input.query?.trim() ?? null;
+
+    return this.prisma.answerTrace.findMany({
+      where: {
+        ...(scope != null
+          ? {
+              conversation: {
+                tenantId: scope.tenantId,
+                userId: scope.userId
+              }
+            }
+          : {}),
+        ...(normalizedQuery != null
+          ? {
+              OR: [
+                {
+                  id: {
+                    contains: normalizedQuery,
+                    mode: "insensitive"
+                  }
+                },
+                {
+                  userQuery: {
+                    contains: normalizedQuery,
+                    mode: "insensitive"
+                  }
+                },
+                {
+                  rewrittenQuery: {
+                    contains: normalizedQuery,
+                    mode: "insensitive"
+                  }
+                }
+              ]
+            }
+          : {})
       },
+      take: input.limit,
+      select: this.traceListSelect,
       orderBy: {
         createdAt: "desc"
       }

@@ -15,6 +15,22 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 trace workspace now supports scoped keyword search via the authenticated `/traces` list endpoint
+  - 变更文件：
+    - `apps/api/src/modules/documents/document.schemas.ts`
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/src/modules/traces/traces.service.ts`
+    - `apps/api/test/traces.service.test.js`
+    - `apps/web/src/features/api/hooks.ts`
+    - `apps/web/src/pages/traces/TraceListPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `GET /traces`（authenticated）查询入口，支持 `query + limit`，并沿用 owner-scope identity 约束，确保仅返回当前身份可见 trace
+    - trace 列表查询在 service 层增加关键词匹配（`trace id / userQuery / rewrittenQuery`）并复用既有精简字段选择与 `traceSummary` 附加逻辑
+    - Trace 列表页改为直接消费 `/traces`，新增关键词输入框，实现快速搜索并移除按会话逐个拉取 trace 的 `N+1` 请求路径
+  - focused validation：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+
 - ✅ auth v1 owner-scope ACL denials now expose explicit permission-denied hints so blocked access returns a clear rejection state
   - 变更文件：
     - `apps/api/src/modules/auth/resource-access-policy.contract.ts`

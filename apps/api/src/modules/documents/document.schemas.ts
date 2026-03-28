@@ -84,3 +84,10 @@ export const listConversationTracesSchema = z.object({
 });
 
 export type ListConversationTracesInput = z.infer<typeof listConversationTracesSchema>;
+
+export const listTracesSchema = z.object({
+  query: z.string().trim().min(1).max(200).optional(),
+  limit: boundedListLimitSchema
+});
+
+export type ListTracesInput = z.infer<typeof listTracesSchema>;

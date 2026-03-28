@@ -276,6 +276,24 @@ export function useTrace(traceId: string | null) {
   });
 }
 
+export function useTraces(input: { query?: string; limit?: number } = {}) {
+  return useQuery({
+    queryKey: ["traces", input],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (input.query != null && input.query.trim().length > 0) {
+        params.set("query", input.query.trim());
+      }
+      if (input.limit != null) {
+        params.set("limit", String(input.limit));
+      }
+
+      const query = params.toString();
+      return apiRequest<TraceRecord[]>(`/traces${query ? `?${query}` : ""}`);
+    }
+  });
+}
+
 export function useAskAssistant(assistantId: string) {
   const queryClient = useQueryClient();
 

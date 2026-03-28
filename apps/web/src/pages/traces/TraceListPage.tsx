@@ -1,20 +1,21 @@
 import {
-  Alert,
   Anchor,
   Badge,
   Button,
   Group,
   Loader,
   Paper,
-  SimpleGrid,
   Stack,
   Text,
+  TextInput,
   Title
 } from "@mantine/core";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { useConversationTraces, useConversations } from "../../features/api/hooks";
+import { useTraces } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import type { TraceRecord } from "../../types/api";
 
 function GroupLoader() {
   return (
@@ -27,52 +28,8 @@ function GroupLoader() {
   );
 }
 
-function TraceConversationCard({
-  conversationId,
-  conversationTitle
-}: {
-  conversationId: string;
-  conversationTitle: string;
-}) {
-  const tracesQuery = useConversationTraces(conversationId);
+function TraceCard({ trace }: { trace: TraceRecord }) {
   const { formatDateTime, locale } = useI18n();
-  const latestTrace = tracesQuery.data?.[0] ?? null;
-
-  if (tracesQuery.isLoading) {
-    return (
-      <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-        <Stack gap="xs">
-          <Text c="var(--app-text)" fw={600} size="sm">
-            {conversationTitle}
-          </Text>
-          <GroupLoader />
-        </Stack>
-      </Paper>
-    );
-  }
-
-  if (tracesQuery.isError) {
-    return (
-      <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-        <Stack gap="xs">
-          <Text c="var(--app-text)" fw={600} size="sm">
-            {conversationTitle}
-          </Text>
-          <Alert color="red" radius="lg" variant="light">
-            {tracesQuery.error instanceof Error
-              ? tracesQuery.error.message
-              : locale === "zh"
-                ? "Trace 加载失败"
-                : "Failed to load traces"}
-          </Alert>
-        </Stack>
-      </Paper>
-    );
-  }
-
-  if (!latestTrace) {
-    return null;
-  }
 
   return (
     <Paper className="workspace-citation-card workspace-panel-muted" p="lg" radius="xl">
@@ -81,23 +38,23 @@ function TraceConversationCard({
           <Stack gap={8}>
             <div>
               <Text c="var(--app-text)" fw={700} size="sm">
-                {conversationTitle}
+                {locale === "zh" ? "用户问题" : "User question"}
               </Text>
               <Text c="var(--app-text-secondary)" lineClamp={2} mt={6} size="sm">
-                {latestTrace.userQuery}
+                {trace.userQuery}
               </Text>
             </div>
             <Group gap="xs">
-              <Badge color={latestTrace.status === "success" ? "teal" : "red"} radius="sm" variant="light">
-                {latestTrace.status}
+              <Badge color={trace.status === "success" ? "teal" : "red"} radius="sm" variant="light">
+                {trace.status}
               </Badge>
               <Badge color="gray" radius="sm" variant="light">
-                {latestTrace.modelName ?? (locale === "zh" ? "未记录模型" : "No model")}
+                {trace.modelName ?? (locale === "zh" ? "未记录模型" : "No model")}
               </Badge>
             </Group>
           </Stack>
           <Text c="var(--app-text-muted)" size="xs">
-            {formatDateTime(latestTrace.createdAt)}
+            {formatDateTime(trace.createdAt)}
           </Text>
         </Group>
 
@@ -105,7 +62,7 @@ function TraceConversationCard({
           <div className="workspace-meta-row">
             <span className="workspace-meta-label">{locale === "zh" ? "最新结果" : "Latest result"}</span>
             <span className="workspace-meta-value">
-              {latestTrace.status === "success"
+              {trace.status === "success"
                 ? locale === "zh"
                   ? "回答链路已完成"
                   : "Answer pipeline completed"
@@ -116,12 +73,16 @@ function TraceConversationCard({
           </div>
           <div className="workspace-meta-row">
             <span className="workspace-meta-label">{locale === "zh" ? "追踪编号" : "Trace id"}</span>
-            <span className="workspace-meta-value">{latestTrace.id}</span>
+            <span className="workspace-meta-value">{trace.id}</span>
+          </div>
+          <div className="workspace-meta-row">
+            <span className="workspace-meta-label">{locale === "zh" ? "会话编号" : "Conversation id"}</span>
+            <span className="workspace-meta-value">{trace.conversationId}</span>
           </div>
         </div>
 
         <Stack gap="xs">
-          <Anchor c="var(--app-text)" component={Link} fw={600} size="sm" to={`/traces/${latestTrace.id}`}>
+          <Anchor c="var(--app-text)" component={Link} fw={600} size="sm" to={`/traces/${trace.id}`}>
             {locale === "zh" ? "查看 Trace 详情" : "View trace details"}
           </Anchor>
           <Anchor c="var(--app-text-muted)" component={Link} size="sm" to="/">
@@ -134,9 +95,14 @@ function TraceConversationCard({
 }
 
 export function TraceListPage() {
-  const conversationsQuery = useConversations();
+  const [queryText, setQueryText] = useState("");
   const { locale } = useI18n();
-  const conversationCount = conversationsQuery.data?.length ?? 0;
+  const normalizedQuery = queryText.trim();
+  const tracesQuery = useTraces({
+    query: normalizedQuery.length > 0 ? normalizedQuery : undefined,
+    limit: 40
+  });
+  const traceCount = tracesQuery.data?.length ?? 0;
 
   return (
     <Stack gap="md">
@@ -153,61 +119,64 @@ export function TraceListPage() {
             </Title>
             <Text c="var(--app-text-muted)" mt={4} size="sm">
               {locale === "zh"
-                ? "保留 conversation -> latest trace -> detail 的原有路径，只把列表改得更像产品页面而不是诊断台账。"
-                : "Keep the same list-to-detail flow, but present the latest trace for each conversation with clearer product-facing hierarchy."}
+                ? "按关键词快速检索 trace，然后进入详情排查。"
+                : "Search traces by keyword and open details only when deeper inspection is needed."}
             </Text>
           </div>
           <Stack align="flex-end" gap={10}>
             <Badge color="indigo" radius="sm" variant="light">
-              {conversationCount}
+              {traceCount}
             </Badge>
             <Text className="workspace-hero-sidecopy" ta="right">
               {locale === "zh"
-                ? "先看问题本身、结果状态和时间，再决定是否进入 Trace 详情。"
-                : "Scan the user question, outcome, and timing first, then open the detailed trace only when needed."}
+                ? "支持按 trace id、用户问题、rewritten query 检索。"
+                : "Search by trace id, user query, or rewritten query."}
             </Text>
           </Stack>
         </div>
       </Paper>
 
-      {conversationsQuery.isLoading ? (
-        <div aria-live="polite" className="workspace-loading-grid" role="status">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Paper className="workspace-panel-hover workspace-skeleton-panel" key={index} p="lg" radius="xl">
-              <Stack gap="md">
-                <div className="workspace-skeleton-line medium" />
-                <div className="workspace-skeleton-line short" />
-                <div className="workspace-skeleton-line long" />
-                <div className="workspace-skeleton-line medium" />
-              </Stack>
-            </Paper>
-          ))}
-          <span className="sr-only">{locale === "zh" ? "加载会话中" : "Loading conversations"}</span>
-        </div>
-      ) : conversationsQuery.isError ? (
+      <Paper className="workspace-panel-muted" p="lg" radius="xl">
+        <TextInput
+          aria-label={locale === "zh" ? "Trace 搜索" : "Trace search"}
+          onChange={event => setQueryText(event.currentTarget.value)}
+          placeholder={
+            locale === "zh"
+              ? "输入关键词（trace id / 用户问题 / rewritten query）"
+              : "Search by trace id, user query, or rewritten query"
+          }
+          radius="lg"
+          size="md"
+          value={queryText}
+        />
+      </Paper>
+
+      {tracesQuery.isLoading ? (
+        <GroupLoader />
+      ) : tracesQuery.isError ? (
         <StatePanel
-          description={conversationsQuery.error instanceof Error ? conversationsQuery.error.message : undefined}
-          title={locale === "zh" ? "会话加载失败" : "Failed to load conversations"}
+          description={tracesQuery.error instanceof Error ? tracesQuery.error.message : undefined}
+          title={locale === "zh" ? "Trace 加载失败" : "Failed to load traces"}
           tone="error"
         />
-      ) : conversationsQuery.data?.length ? (
-        <div className="workspace-trace-list">
-          <div className={conversationsQuery.data.length === 1 ? "workspace-list-shell-compact" : undefined}>
-            <SimpleGrid cols={{ base: 1, lg: conversationsQuery.data.length > 1 ? 2 : 1 }} spacing="md">
-              {conversationsQuery.data.map(conversation => (
-                <TraceConversationCard
-                  conversationId={conversation.id}
-                  conversationTitle={conversation.title}
-                  key={conversation.id}
-                />
-              ))}
-            </SimpleGrid>
-          </div>
-        </div>
+      ) : tracesQuery.data?.length ? (
+        <Stack gap="md">
+          {tracesQuery.data.map(trace => (
+            <TraceCard key={trace.id} trace={trace} />
+          ))}
+        </Stack>
       ) : (
         <StatePanel
-          description={locale === "zh" ? "还没有可检查 trace 的会话。" : "There are no conversations to inspect yet."}
-          title={locale === "zh" ? "暂无会话" : "No conversations"}
+          description={
+            normalizedQuery.length > 0
+              ? locale === "zh"
+                ? "当前关键词没有命中 trace，请尝试更短或更通用的词。"
+                : "No traces match this keyword yet. Try a shorter or broader query."
+              : locale === "zh"
+                ? "还没有可检查的 trace。"
+                : "There are no traces to inspect yet."
+          }
+          title={locale === "zh" ? "暂无 Trace" : "No traces"}
         />
       )}
 
