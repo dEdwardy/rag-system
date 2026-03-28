@@ -7,6 +7,7 @@ test("web ask response type covers current backend answeringMetadata shape", asy
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
 
   assert.match(source, /answeringMetadata\?:\s*AskAnsweringMetadata;/);
+  assert.match(source, /strategySummary\?:\s*RetrievalStrategySummary;/);
   assert.match(source, /strategyReadabilityLabel\?:\s*TraceSummary\["strategyReadabilityLabel"\];/);
   assert.match(source, /retrievalModeProvenanceSentence\?:\s*TraceSummary\["retrievalModeProvenanceSentence"\];/);
   assert.match(source, /answerAttributionSummary\?:\s*TraceAnswerAttributionSummary;/);
@@ -15,6 +16,15 @@ test("web ask response type covers current backend answeringMetadata shape", asy
   assert.match(source, /answerAttributionSource\?:\s*TraceCitationSelectionSource \| null;/);
   assert.match(source, /answerEvidenceSource\?:\s*TraceCitationSelectionSource \| null;/);
   assert.match(source, /answerEvidenceSourceReadabilityLabel\?:\s*string;/);
+  assert.match(source, /answerEvidenceSourceReadabilitySentence\?:\s*TraceSummary\["answerEvidenceSourceReadabilitySentence"\];/);
+  assert.match(source, /answerTextSource\?:\s*TraceAnswerTextSource \| null;/);
+  assert.match(source, /answerTextSourceReadabilityLabel\?:\s*TraceSummary\["answerTextSourceReadabilityLabel"\];/);
+  assert.match(source, /answerTextSourceReadabilitySentence\?:\s*TraceSummary\["answerTextSourceReadabilitySentence"\];/);
+  assert.match(source, /answerStatusSource\?:\s*TraceAnswerStatusSource \| null;/);
+  assert.match(source, /answerStatusSourceReadabilityLabel\?:\s*TraceSummary\["answerStatusSourceReadabilityLabel"\];/);
+  assert.match(source, /answerStatusSourceReadabilitySentence\?:\s*TraceSummary\["answerStatusSourceReadabilitySentence"\];/);
+  assert.match(source, /answerProvenanceSentence\?:\s*TraceSummary\["answerProvenanceSentence"\];/);
+  assert.match(source, /answerProvenanceReadabilitySentence\?:\s*TraceSummary\["answerProvenanceReadabilitySentence"\];/);
   assert.match(source, /missingInformationSource\?:\s*TraceSummary\["missingInformationSource"\];/);
   assert.match(source, /missingInformationProvenanceSentence\?:\s*TraceSummary\["missingInformationProvenanceSentence"\];/);
   assert.match(source, /missingInformationSourceReadabilityLabel\?:\s*TraceSummary\["missingInformationSourceReadabilityLabel"\];/);
