@@ -15,6 +15,46 @@
 
 补充进展（2026-03-29）：
 
+- ✅ direct trace read (`GET /traces/:id`) now follows the same current-identity ownership baseline as conversation-scoped trace reads (owner-only ACL baseline)
+  - 变更文件：
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/src/modules/traces/traces.service.ts`
+    - `apps/api/test/traces.service.test.js`
+  - 最小行为改动（收口范围）：
+    - `TracesController.getTrace` 现在与 conversation 路径一致，先解析 request current identity，再将 identity scope 传给 trace 读取
+    - `TracesService.getTrace` 在提供 identity scope 时改为按 `trace.id + trace.conversation(tenantId,userId)` 读取；不在 scope 内时保持 `NotFoundException`
+    - `traceSummary` 生成语义保持不变；未引入新策略框架，未扩展 assistant ACL 或 schema/contract redesign
+  - focused validation：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+  - 实测结果：passed (`28/28`)
+
+- ⚠️ P2 `assistant conversation trace checks` implemented one focused ACL increment for assistant ownership scoping (owner-only baseline, no RBAC/share expansion)
+  - 变更文件：
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/src/modules/assistants/assistants.service.ts`
+    - `apps/api/src/modules/assistants/ask-assistant.service.ts`
+    - `apps/api/test/assistants-api.test.js`
+  - 完成内容（最小范围）：
+    - assistant `list/get/update` 现在统一从 request identity 进入 owner-only scope，并复用现有 knowledge-base ownership 口径（`owner_only_v1`）做可见性收口
+    - ask / ask-stream 在 assistant 解析阶段也改为按 current identity 做同一 owner-only 校验；仅收口 assistant 访问边界，不改 retrieval/answering 行为语义
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/assistants-api.test.js`
+  - 实测结果：当前环境失败（`DATABASE_URL` 未设置，seed 阶段报 `Environment variable not found: DATABASE_URL`），需在具备 DB 环境变量后复跑同一命令
+
+- ✅ P3 `source follow-up docs` 文档与最小验证基线已同步到当前实现状态
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+  - 同步内容（最小范围）：
+    - `P3` source family 盘点表中的 `external re-sync` 行已对齐当前实现：`web_page` 的 config 丢失恢复与 `feed/sitemap` 的缺失 `maxItems/maxPages` 恢复均已记录为已收口范围
+    - `P3 task 5` 现已补入可复用的 source follow-up focused validation baseline（`external-source-sync` / `fetch-with-retry` / `parsing`）与回归确认口径
+    - `docs/current-dev-setup.md` 现已同步同一组 P3 最小复用验证命令，避免计划文档与 setup 文档口径漂移
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`（当前基线存在 1 条失败用例：`DocumentsService records a failed external_resync run when stored source config is invalid`）
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+  - 实测结果：`fetch-with-retry` focused tests passed (`13/13`)；docs diff check passed
+
 - ✅ P2 `resource access matrix` 已完成第一版 ACL 边界盘点（聚焦 knowledge base / assistant / conversation / trace）
   - 变更文件：`docs/next_steps_rag_project_plan.md`
   - 盘点基于当前代码路径：
@@ -32,6 +72,15 @@
     - route policy 当前仅对显式 `authenticated` 路由生效，业务路由默认仍未统一收口
   - 新增 / 更新验证：
     - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ ACL baseline now has a minimal resource-access policy contract aligned with auth identity shape (owner-only, no role matrix expansion)
+  - `apps/api/src/modules/auth/resource-access-policy.contract.ts` adds one small service-layer ACL contract (`ResourceAccessPolicyInput` / `ResourceAccessDecision`) with owner-only v1 decision reasons (`owner_match`, `tenant_mismatch`, `owner_mismatch`, `owner_unassigned`)
+  - contract identity is intentionally aligned to existing auth identity fields (`tenantId`, `userId`) via `Pick<AuthIdentity, "tenantId" | "userId">`
+  - `apps/api/test/resource-access-policy.contract.test.js` adds focused coverage for allow/deny reason paths under this owner-only baseline
+  - scope remains ACL contract baseline only: no controller guard expansion, no resource wiring changes, no RBAC/ABAC enterprise policy design
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js`
+  - 实测结果：focused ACL contract tests passed (`4/4`)
 
 - ✅ web auth state now bootstraps from `GET /auth/me` and protects app routes with a minimal login gate
   - `apps/web/src/lib/api.ts` now sends `credentials: "include"` for API and stream requests, and surfaces HTTP status on request errors so auth bootstrap can distinguish `401`

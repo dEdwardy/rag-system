@@ -2,6 +2,83 @@ const assert = require("node:assert/strict");
 
 const { TracesService } = require("../src/modules/traces/traces.service.ts");
 
+test("TracesService scopes direct trace reads by current identity when scope is provided", async () => {
+  const findFirstCalls = [];
+  const findUniqueCalls = [];
+
+  const scopedTrace = {
+    id: "trace-owned",
+    conversationId: "conversation-owned",
+    assistantId: "assistant-owned",
+    userMessageId: null,
+    assistantMessageId: null,
+    userQuery: "owned trace",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: null,
+    citationsJson: [],
+    answeringMetadataJson: null,
+    qualityEvaluationJson: null,
+    modelName: null,
+    latencyMs: null,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-29T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findFirst: async args => {
+        findFirstCalls.push(args);
+        return args.where.id === "trace-owned" ? scopedTrace : null;
+      },
+      findUnique: async args => {
+        findUniqueCalls.push(args);
+        return scopedTrace;
+      }
+    }
+  };
+
+  const service = new TracesService(prisma);
+
+  const detail = await service.getTrace("trace-owned", {
+    tenantId: "tenant-42",
+    userId: "user-42"
+  });
+  assert.equal(detail.id, "trace-owned");
+
+  await assert.rejects(
+    service.getTrace("trace-not-owned", {
+      tenantId: "tenant-42",
+      userId: "user-42"
+    }),
+    /Trace trace-not-owned not found\./
+  );
+
+  assert.deepEqual(findFirstCalls, [
+    {
+      where: {
+        id: "trace-owned",
+        conversation: {
+          tenantId: "tenant-42",
+          userId: "user-42"
+        }
+      }
+    },
+    {
+      where: {
+        id: "trace-not-owned",
+        conversation: {
+          tenantId: "tenant-42",
+          userId: "user-42"
+        }
+      }
+    }
+  ]);
+  assert.equal(findUniqueCalls.length, 0);
+});
+
 test("TracesService exposes failedStage and failureMessage in traceSummary for failed traces", async () => {
   const persistedTrace = {
     id: "trace-1",

@@ -42,10 +42,22 @@ const TRACE_ANSWER_STATUS_SOURCE_VALUES = new Set<NonNullable<TraceSummary["answ
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  getTrace(id: string) {
-    return this.prisma.answerTrace.findUnique({
-      where: { id }
-    }).then((trace) => {
+  getTrace(id: string, scope?: { tenantId: string; userId: string } | null) {
+    const traceLookup = scope != null
+      ? this.prisma.answerTrace.findFirst({
+          where: {
+            id,
+            conversation: {
+              tenantId: scope.tenantId,
+              userId: scope.userId
+            }
+          }
+        })
+      : this.prisma.answerTrace.findUnique({
+          where: { id }
+        });
+
+    return traceLookup.then((trace) => {
       if (!trace) {
         throw new NotFoundException(`Trace ${id} not found.`);
       }
