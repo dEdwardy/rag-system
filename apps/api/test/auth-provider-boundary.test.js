@@ -37,6 +37,7 @@ test("SessionCookieAuthProvider returns null when session cookie is missing", as
 });
 
 test("SessionCookieAuthProvider resolves identity from persisted session", async () => {
+  const touchedSessions = [];
   const provider = new SessionCookieAuthProvider({
     authSession: {
       findUnique: async ({ where }) => ({
@@ -48,7 +49,11 @@ test("SessionCookieAuthProvider resolves identity from persisted session", async
           tenantId: "tenant-123",
           status: "active"
         }
-      })
+      }),
+      updateMany: async ({ where, data }) => {
+        touchedSessions.push({ where, data });
+        return { count: 1 };
+      }
     }
   });
 
@@ -66,10 +71,17 @@ test("SessionCookieAuthProvider resolves identity from persisted session", async
     sessionId: "session-123",
     authSource: "session"
   });
+  assert.equal(touchedSessions.length, 1);
+  assert.deepEqual(touchedSessions[0].where, {
+    id: "session-123",
+    revokedAt: null
+  });
+  assert.ok(touchedSessions[0].data.lastSeenAt instanceof Date);
 });
 
 test("SessionCookieAuthProvider decodes encoded session cookie value", async () => {
   const observedSessionIds = [];
+  const touchedSessions = [];
   const provider = new SessionCookieAuthProvider({
     authSession: {
       findUnique: async ({ where }) => {
@@ -84,6 +96,10 @@ test("SessionCookieAuthProvider decodes encoded session cookie value", async () 
             status: "active"
           }
         };
+      },
+      updateMany: async ({ where, data }) => {
+        touchedSessions.push({ where, data });
+        return { count: 1 };
       }
     }
   });
@@ -103,6 +119,46 @@ test("SessionCookieAuthProvider decodes encoded session cookie value", async () 
     sessionId: "session/123",
     authSource: "session"
   });
+  assert.equal(touchedSessions.length, 1);
+  assert.ok(touchedSessions[0].data.lastSeenAt instanceof Date);
+});
+
+test("SessionCookieAuthProvider revokes expired sessions and returns null", async () => {
+  const revokedCalls = [];
+  const provider = new SessionCookieAuthProvider({
+    authSession: {
+      findUnique: async ({ where }) => ({
+        id: where.id,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() - 60_000),
+        user: {
+          id: "user-expired",
+          tenantId: "tenant-expired",
+          status: "active"
+        }
+      }),
+      updateMany: async ({ where, data }) => {
+        revokedCalls.push({ where, data });
+        return { count: 1 };
+      }
+    }
+  });
+
+  const identity = await provider.resolveIdentity({
+    request: {
+      headers: {
+        cookie: "rag_session=expired-session"
+      }
+    }
+  });
+
+  assert.equal(identity, null);
+  assert.equal(revokedCalls.length, 1);
+  assert.deepEqual(revokedCalls[0].where, {
+    id: "expired-session",
+    revokedAt: null
+  });
+  assert.ok(revokedCalls[0].data.revokedAt instanceof Date);
 });
 
 test("AuthContextMiddleware injects request authContext via provider boundary", async () => {

@@ -34,12 +34,24 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
     }
 
     if (session.revokedAt != null || session.expiresAt.getTime() <= Date.now()) {
+      await this.markSessionRevoked(session.id, session.revokedAt);
       return null;
     }
 
     if (session.user.status !== "active") {
+      await this.markSessionRevoked(session.id, session.revokedAt);
       return null;
     }
+
+    await this.prisma.authSession.updateMany({
+      where: {
+        id: session.id,
+        revokedAt: null
+      },
+      data: {
+        lastSeenAt: new Date()
+      }
+    });
 
     return {
       userId: session.user.id,
@@ -101,5 +113,21 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
     }
 
     return null;
+  }
+
+  private async markSessionRevoked(sessionId: string, revokedAt: Date | null): Promise<void> {
+    if (revokedAt != null) {
+      return;
+    }
+
+    await this.prisma.authSession.updateMany({
+      where: {
+        id: sessionId,
+        revokedAt: null
+      },
+      data: {
+        revokedAt: new Date()
+      }
+    });
   }
 }

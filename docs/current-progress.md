@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 session provider now includes minimal lifecycle management (activity touch + invalidation-on-read)
+  - 变更文件：
+    - `apps/api/src/modules/auth/session-cookie-auth.provider.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - valid session identity resolution now updates `AuthSession.lastSeenAt` so the active session can be observed as recently used
+    - expired or inactive-user sessions are now proactively revoked (`revokedAt`) during provider resolution before returning unauthenticated
+    - scope stays on auth v1 session lifecycle baseline only: no auth contract/schema expansion, no route-policy redesign, no ACL semantic change
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+  - 实测结果：passed (`12/12`)
+
 - ✅ auth v1 wave now shows a compact current identity card in the desktop app shell
   - 变更文件：
     - `apps/web/src/app/AuthenticatedAppShell.tsx`
