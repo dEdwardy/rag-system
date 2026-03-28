@@ -178,6 +178,10 @@ export class DocumentsService {
       trigger: DocumentRunTrigger.external_resync
     });
 
+    if (!(await this.shouldContinueCurrentExternalRun(reservedDocument))) {
+      return this.getDocument(reservedDocument.id);
+    }
+
     const fetchedPage = await this.fetchExternalSourceOrRecordFailure(
       reservedDocument,
       () => this.webPageService.fetchWebPage(normalizedUrl)
@@ -218,6 +222,10 @@ export class DocumentsService {
       version: reservedDocument.version,
       trigger: DocumentRunTrigger.external_resync
     });
+
+    if (!(await this.shouldContinueCurrentExternalRun(reservedDocument))) {
+      return this.getDocument(reservedDocument.id);
+    }
 
     const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
       this.feedSourceService.fetchFeed({
@@ -268,6 +276,10 @@ export class DocumentsService {
       version: reservedDocument.version,
       trigger: DocumentRunTrigger.external_resync
     });
+
+    if (!(await this.shouldContinueCurrentExternalRun(reservedDocument))) {
+      return this.getDocument(reservedDocument.id);
+    }
 
     const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
       this.sitemapSourceService.fetchSitemap({
@@ -646,6 +658,11 @@ export class DocumentsService {
       version: queuedDocument.version,
       trigger: DocumentRunTrigger.external_resync
     });
+
+    if (!(await this.shouldContinueCurrentExternalRun(queuedDocument))) {
+      return this.getDocument(document.id);
+    }
+
     const sourceConfig = await this.parseExternalSourceConfigOrRecordFailure(
       queuedDocument,
       document.sourceConfigJson,
@@ -755,6 +772,10 @@ export class DocumentsService {
     });
 
     return false;
+  }
+
+  private async shouldContinueCurrentExternalRun(document: { id: string; version: number }) {
+    return this.ensureCurrentExternalDocumentVersion(document);
   }
 
   private async recordIngestionFailureIfCurrent(

@@ -1153,6 +1153,100 @@ test("DocumentsService stale external fetch failure does not overwrite a newer d
   ]);
 });
 
+test("DocumentsService skips stale external run before source fetch to avoid duplicate fetch work", async () => {
+  const createdRuns = [];
+  const skippedRuns = [];
+  const enqueuedDocumentIds = [];
+
+  const reservedDocument = {
+    id: "stale-prefetch-guard-document",
+    version: 3,
+    title: "Reserved title"
+  };
+  const currentDocument = {
+    id: reservedDocument.id,
+    version: 4,
+    title: "Newer title",
+    status: "pending",
+    processingStage: "uploaded"
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    reserveExternalDocument: async () => reservedDocument,
+    prisma: {
+      document: {
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: reservedDocument.id });
+          return {
+            version: currentDocument.version
+          };
+        },
+        update: async () => {
+          throw new Error("document.update should not be called for stale pre-fetch run");
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    },
+    getDocument: async documentId => {
+      assert.equal(documentId, reservedDocument.id);
+      return currentDocument;
+    },
+    webPageService: {
+      fetchWebPage: async () => {
+        throw new Error("fetchWebPage should not be called for stale pre-fetch run");
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("saveGeneratedTextFile should not be called for stale pre-fetch run");
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {}
+  });
+
+  const result = await DocumentsService.prototype.createWebPageDocument.call(fakeService, "default-kb", {
+    url: "https://example.com/stale-prefetch"
+  });
+
+  assert.deepEqual(result, currentDocument);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: reservedDocument.version,
+        message: "Skipped stale external source update because a newer document version is already active.",
+        currentDocumentVersion: currentDocument.version
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, []);
+});
+
 test("DocumentsService records external source persistence failures after fetch succeeds", async () => {
   const createdRuns = [];
   const documentUpdates = [];

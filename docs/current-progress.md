@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ external-source stale-run guard now short-circuits before remote fetch when a newer document version is already active
+  - `apps/api/src/modules/documents/documents.service.ts` now applies a pre-fetch stale guard (`shouldContinueCurrentExternalRun`) immediately after reserving/queueing an external-source run (`createWebPageDocument` / `createFeedDocument` / `createSitemapDocument` / `resyncExternalDocument`), so superseded runs are skipped before calling remote source fetchers
+  - this closes one narrow duplicate-fetch edge case in concurrent external resync/create paths: when version `N` is superseded by `N+1` before fetch starts, the stale `N` run no longer performs redundant upstream HTTP fetch + local generated-file persistence attempt
+  - `apps/api/test/external-source-sync.test.js` adds focused coverage for this pre-fetch stale path (`createWebPageDocument` skips fetch and records `EXTERNAL_SOURCE_RUN_SUPERSEDED`)
+  - scope remains stale-run guard only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed；并发场景下被新版本 supersede 的旧 run 会在 fetch 前直接标记 skipped，不再重复抓取同一 external source
+
 - ✅ external-source redirect diagnostics now fail clearly when upstream redirect response omits `Location`
   - `apps/api/src/infra/http/fetch-with-retry.ts` now treats `301/302/303/307/308` without `Location` as an explicit redirect-follow failure: `Failed to follow redirect for <url>: missing redirect location header.`
   - this closes one narrow redirect edge case across existing `web page` / `feed` / `sitemap` fetches: malformed redirect responses no longer flow downstream as opaque non-2xx HTTP/content-type failures
