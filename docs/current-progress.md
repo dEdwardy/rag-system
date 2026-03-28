@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ external-source fetch-failure diagnostics now include explicit source identity fields for run-level attribution
+  - `apps/api/src/modules/documents/documents.service.ts` now appends additive `sourceType` + `sourceName` fields on `EXTERNAL_SOURCE_FETCH_FAILED` diagnostics when current document context is available
+  - this closes one narrow source-execution visibility gap: failed runs can now be attributed to the exact source family and normalized source URL without relying only on free-form error message parsing
+  - `apps/api/test/external-source-sync.test.js` updates the existing web-page fetch-failure assertion path to guard the new diagnostic fields on both document failure state and run failure record
+  - scope remains diagnostics-only: no retry-policy changes, no ingestion state/persistence semantics changes, no source-family expansion
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed (`23/23`)
+
 - ✅ P0 closeout queue `opencode model split review`：当前 root/api/web 分工保持不变（无需调整）
   - 复核文件：`opencode.jsonc`、`apps/api/opencode.jsonc`、`apps/web/opencode.jsonc`
   - 结论：继续保持 `plan/review-risk -> gpt-5.4`、`build -> gpt-5.3-codex`、`explore -> gpt-5.3-mini`

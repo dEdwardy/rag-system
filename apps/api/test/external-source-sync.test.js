@@ -620,7 +620,9 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
           failedStage: "source_fetch",
           retryable: true,
           documentVersion: reservedDocument.version,
-          message: "Failed to fetch web page: upstream responded with 502."
+          message: "Failed to fetch web page: upstream responded with 502.",
+          sourceType: "web_page",
+          sourceName: "https://example.com/down"
         }
       }
     }
@@ -642,7 +644,9 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
         failedStage: "source_fetch",
         retryable: true,
         documentVersion: reservedDocument.version,
-        message: "Failed to fetch web page: upstream responded with 502."
+        message: "Failed to fetch web page: upstream responded with 502.",
+        sourceType: "web_page",
+        sourceName: "https://example.com/down"
       }
     }
   ]);

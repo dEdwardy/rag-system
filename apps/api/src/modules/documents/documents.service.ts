@@ -525,6 +525,8 @@ export class DocumentsService {
     document: {
       id: string;
       version: number;
+      sourceType?: string;
+      sourceName?: string;
     },
     operation: () => Promise<T>
   ) {
@@ -533,13 +535,21 @@ export class DocumentsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown external source fetch error.";
       const retryable = this.isRetryableExternalSourceError(error);
-      const diagnostics = {
+      const diagnostics: Record<string, Prisma.InputJsonValue> = {
         code: "EXTERNAL_SOURCE_FETCH_FAILED",
         failedStage: "source_fetch",
         retryable,
         documentVersion: document.version,
         message
-      } satisfies Prisma.InputJsonValue;
+      };
+
+      if (typeof document.sourceType === "string") {
+        diagnostics.sourceType = document.sourceType;
+      }
+
+      if (typeof document.sourceName === "string") {
+        diagnostics.sourceName = document.sourceName;
+      }
 
       await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
