@@ -1,7 +1,10 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 
-const { evaluateOwnerResourceAccess } = require("../src/modules/auth/resource-access-policy.contract.ts");
+const {
+  buildResourceAccessDeniedHint,
+  evaluateOwnerResourceAccess
+} = require("../src/modules/auth/resource-access-policy.contract.ts");
 
 function buildInput(overrides = {}) {
   return {
@@ -66,6 +69,11 @@ test("evaluateOwnerResourceAccess denies access when owner does not match", () =
     reason: "owner_mismatch",
     policy: "owner_only_v1"
   });
+
+  assert.equal(
+    buildResourceAccessDeniedHint(decision),
+    "Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user)."
+  );
 });
 
 test("evaluateOwnerResourceAccess denies access when owner is missing", () => {

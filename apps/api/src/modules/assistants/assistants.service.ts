@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
-import { evaluateOwnerResourceAccess } from "../auth/resource-access-policy.contract";
+import { buildResourceAccessDeniedHint, evaluateOwnerResourceAccess } from "../auth/resource-access-policy.contract";
 import { RetrievalProfilesService } from "../retrieval-profiles/retrieval-profiles.service";
 import { UpdateAssistantInput } from "./assistant.schemas";
 
@@ -69,7 +69,7 @@ export class AssistantsService {
       });
 
       if (!accessDecision.allowed) {
-        throw new NotFoundException(`Assistant ${id} not found.`);
+        throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
       }
 
       const { knowledgeBase: _, ...scopedAssistant } = assistant;

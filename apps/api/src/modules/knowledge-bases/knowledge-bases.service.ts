@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
-import { evaluateOwnerResourceAccess } from "../auth/resource-access-policy.contract";
+import { buildResourceAccessDeniedHint, evaluateOwnerResourceAccess } from "../auth/resource-access-policy.contract";
 import { CreateKnowledgeBaseInput, UpdateKnowledgeBaseInput } from "./knowledge-base.schemas";
 
 type KnowledgeBaseAccessScope = {
@@ -52,7 +52,7 @@ export class KnowledgeBasesService {
       });
 
       if (!accessDecision.allowed) {
-        throw new NotFoundException(`Knowledge base ${id} not found.`);
+        throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
       }
     }
 

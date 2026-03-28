@@ -37,6 +37,14 @@ export type ResourceAccessDecision = {
   policy: ResourceAccessPolicyVersion;
 };
 
+const RESOURCE_ACCESS_DENIED_REASON_HINTS: Record<Exclude<ResourceAccessDecisionReason, "owner_match">, string> = {
+  tenant_mismatch: "request tenant does not match resource tenant",
+  owner_mismatch: "resource owner does not match current user",
+  owner_unassigned: "resource has no assigned owner",
+  unsupported_action: "requested action is not supported by the current policy baseline",
+  unsupported_resource_kind: "resource kind is not supported by the current policy baseline"
+};
+
 const OWNER_ONLY_POLICY: ResourceAccessPolicyVersion = "owner_only_v1";
 export const RESOURCE_ACCESS_DEFAULT_STANCE: ResourceAccessDefaultStance = "deny_by_default";
 
@@ -95,4 +103,17 @@ export function evaluateOwnerResourceAccess(input: ResourceAccessPolicyInput): R
     reason: "owner_match",
     policy: OWNER_ONLY_POLICY
   };
+}
+
+export function buildResourceAccessDeniedHint(decision: ResourceAccessDecision): string {
+  if (decision.allowed) {
+    return `Access allowed by ${decision.policy} policy.`;
+  }
+
+  if (decision.reason === "owner_match") {
+    return `Access blocked by ${decision.policy} policy.`;
+  }
+
+  const reasonHint = RESOURCE_ACCESS_DENIED_REASON_HINTS[decision.reason];
+  return `Access blocked by ${decision.policy} policy (${decision.reason}: ${reasonHint}).`;
 }

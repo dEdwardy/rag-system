@@ -241,7 +241,7 @@ test("KnowledgeBasesService denies read detail when owner check fails", async ()
 
   await assert.rejects(
     service.getKnowledgeBase("kb-1", { tenantId: "tenant-auth", userId: "user-auth" }),
-    /Knowledge base kb-1 not found\./
+    /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
   );
 });
 

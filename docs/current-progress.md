@@ -15,6 +15,22 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 owner-scope ACL denials now expose explicit permission-denied hints so blocked access returns a clear rejection state
+  - 变更文件：
+    - `apps/api/src/modules/auth/resource-access-policy.contract.ts`
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts`
+    - `apps/api/src/modules/assistants/assistants.service.ts`
+    - `apps/api/test/resource-access-policy.contract.test.js`
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `apps/api/test/assistants-api.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `buildResourceAccessDeniedHint`，把 owner-only v1 deny reason 映射为可读拒绝提示（包含 policy + reason + hint）
+    - knowledge-base / assistant 的 owner-scope 拒绝路径从“伪装 not found”改为 `403 Forbidden`，并复用同一拒绝提示文案
+    - ask-stream 被 owner-scope 拒绝时，stream error event 现在也会带出同样的明确拒绝提示
+  - focused validation：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js test/knowledge-bases-auth-write-path.test.js`
+
 - ✅ auth v1 now has ACL guard hook attachment points reserved for future document/resource permission enforcement
   - 变更文件：
     - `apps/api/src/modules/auth/auth-acl-guard-hook.contract.ts`

@@ -144,7 +144,7 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
     assert.ok(listPayload.every(assistant => assistant.id !== foreignAssistantId));
 
     const foreignGetResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}`);
-    assert.equal(foreignGetResponse.status, 404);
+    assert.equal(foreignGetResponse.status, 403);
 
     const foreignPatchResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}`, {
       method: "PATCH",
@@ -155,7 +155,7 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
         name: "should-not-update"
       })
     });
-    assert.equal(foreignPatchResponse.status, 404);
+    assert.equal(foreignPatchResponse.status, 403);
 
     const foreignAskResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}/ask`, {
       method: "POST",
@@ -166,7 +166,7 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
         question: "Should fail by owner ACL before retrieval"
       })
     });
-    assert.equal(foreignAskResponse.status, 404);
+    assert.equal(foreignAskResponse.status, 403);
 
     const foreignAskStreamResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}/ask/stream`, {
       method: "POST",
@@ -186,7 +186,7 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
     assert.ok(firstEventLine, "Expected one streamed event line");
     const firstEvent = JSON.parse(firstEventLine);
     assert.equal(firstEvent.type, "error");
-    assert.match(String(firstEvent.message ?? ""), /not found/i);
+    assert.match(String(firstEvent.message ?? ""), /access blocked/i);
   } finally {
     server.kill("SIGTERM");
     await prisma.assistant.deleteMany({ where: { id: foreignAssistantId } }).catch(() => {});
