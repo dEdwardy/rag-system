@@ -18,3 +18,25 @@ export function buildStrategyReadabilityLabel(input: {
 
   return `${retrievalModeLabel} retrieval via ${querySourceLabel}; fallback: ${fallbackLabel}; fallback used: ${fallbackUsageLabel}.`;
 }
+
+export function buildRetrievalModeProvenanceSentence(input: {
+  retrievalMode: TraceSummary["retrievalMode"];
+  strategyUsedFallback: TraceSummary["strategySummary"]["usedFallback"];
+  fallbackReason: TraceSummary["fallbackReason"];
+}): TraceSummary["retrievalModeProvenanceSentence"] {
+  const retrievalModeLabel = input.retrievalMode ?? "unknown";
+
+  if (input.strategyUsedFallback === true) {
+    if (input.fallbackReason == null) {
+      return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was used (reason unspecified).`;
+    }
+
+    return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was used due to ${input.fallbackReason}.`;
+  }
+
+  if (input.strategyUsedFallback === false) {
+    return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was not used.`;
+  }
+
+  return `Resolved retrieval mode is ${retrievalModeLabel}; fallback usage is unknown.`;
+}

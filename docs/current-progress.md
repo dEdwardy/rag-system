@@ -151,6 +151,24 @@
     - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
   - 实测结果：focused ask tests passed (`48/48`)
 
+- ✅ ask / ask-stream final payload now expose additive top-level `retrievalModeProvenanceSentence` aligned with trace-summary wording
+  - `apps/api/src/modules/retrieval/strategy-readability.ts` now exports `buildRetrievalModeProvenanceSentence(...)` using the existing trace-summary wording variants, and `apps/api/src/modules/traces/traces.service.ts` now reuses this shared helper
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes `retrievalModeProvenanceSentence` in both one-shot ask and stream final payloads from existing `retrievalMetadata.strategySummary` fields (`retrievalMode`, `usedFallback`, `fallbackReason`)
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `retrievalModeProvenanceSentence` to keep web-side contract typing aligned
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` add focused assertions for one-shot and stream final payloads
+  - scope remains additive/readability-only contract alignment: no retrieval behavior changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused ask tests passed (`48/48`)
+
+- ✅ ask / ask-stream final payload now expose additive top-level missing-information source readability fields aligned with trace-summary wording
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes `missingInformationSource` and `missingInformationSourceReadabilityLabel` in both one-shot ask and stream final payloads, derived directly from existing `answeringMetadata.missingInformationSource`
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `missingInformationSource` + `missingInformationSourceReadabilityLabel` to keep web-side contract typing aligned
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` now assert these fields on one-shot and stream final paths (`none` and `model` source cases)
+  - scope remains additive/readability-only contract alignment: no retrieval behavior changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+
 - ✅ feed Atom canonical alternate-link extraction now accepts mixed-case multi-token `rel` values containing `alternate`
   - `apps/api/src/infra/feed-source/feed-source.service.ts` now treats Atom `<link rel>` as tokenized (case-insensitive) and continues preferring canonical alternate href when any `rel` token is `alternate`
   - `apps/api/test/parsing.test.js` adds one focused regression for `rel="Via ALTERNATE preview"` to guard canonical alternate-link preference over self link

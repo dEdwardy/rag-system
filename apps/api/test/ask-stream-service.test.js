@@ -135,16 +135,28 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(finalResult.answerEvidenceSource, "none");
   assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(finalResult.missingInformationSource, "none");
+  assert.equal(finalResult.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.equal(
     finalResult.strategyReadabilityLabel,
     "vector retrieval via original_unchanged; fallback: none; fallback used: no."
   );
+  assert.equal(
+    finalResult.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is vector; fallback was not used."
+  );
   assert.equal(events[5].data.answerEvidenceSource, "none");
   assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(events[5].data.missingInformationSource, "none");
+  assert.equal(events[5].data.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.equal(
     events[5].data.strategyReadabilityLabel,
     "vector retrieval via original_unchanged; fallback: none; fallback used: no."
+  );
+  assert.equal(
+    events[5].data.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is vector; fallback was not used."
   );
 });
 
@@ -503,6 +515,8 @@ test("AskAssistantService forwards fallback-local no-hit best_effort metadata in
   );
   assert.equal(finalResult.answeringMetadata.answerStatusSource, "model");
   assert.equal(finalResult.answeringMetadata.missingInformationSource, "model");
+  assert.equal(finalResult.missingInformationSource, "model");
+  assert.equal(finalResult.missingInformationSourceReadabilityLabel, "model-reported missing-information items");
 });
 
 test("AskAssistantService stream preserves fallback_generation as the primary quality issue in final payload and trace", async () => {

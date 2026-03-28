@@ -384,6 +384,7 @@ export type AskResponse = {
   contextGroups?: ContextGroup[];
   strategySummary?: RetrievalStrategySummary;
   strategyReadabilityLabel?: TraceSummary["strategyReadabilityLabel"];
+  retrievalModeProvenanceSentence?: TraceSummary["retrievalModeProvenanceSentence"];
   retrievalMetadata?: AskRetrievalMetadata;
   answerAttributionSummary?: TraceAnswerAttributionSummary;
   answerAttributionReadabilitySentence?: TraceSummary["answerAttributionReadabilitySentence"];
@@ -391,6 +392,8 @@ export type AskResponse = {
   answerAttributionSource?: TraceCitationSelectionSource | null;
   answerEvidenceSource?: TraceCitationSelectionSource | null;
   answerEvidenceSourceReadabilityLabel?: string;
+  missingInformationSource?: TraceSummary["missingInformationSource"];
+  missingInformationSourceReadabilityLabel?: TraceSummary["missingInformationSourceReadabilityLabel"];
   answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];

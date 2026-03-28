@@ -6,7 +6,10 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
-import { buildStrategyReadabilityLabel } from "../retrieval/strategy-readability";
+import {
+  buildRetrievalModeProvenanceSentence,
+  buildStrategyReadabilityLabel
+} from "../retrieval/strategy-readability";
 import { ListConversationTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
@@ -246,7 +249,7 @@ export class TracesService {
       ?? this.readNullableBoolean(strategySummary?.usedFallback)
       ?? this.readNullableBoolean(retrievalMetadata?.usedFallback)
       ?? (fallbackReason != null ? true : null);
-    const retrievalModeProvenanceSentence = this.buildRetrievalModeProvenanceSentence({
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
       retrievalMode,
       strategyUsedFallback,
       fallbackReason
@@ -744,25 +747,4 @@ export class TracesService {
     return `rewrite ${rewriteEnabledLabel}; rewrite applied: ${rewriteAppliedLabel}; rewrite fallback: ${rewriteFallbackLabel}; rewrite prompt: ${rewritePromptLabel}.`;
   }
 
-  private buildRetrievalModeProvenanceSentence(input: {
-    retrievalMode: TraceSummary["retrievalMode"];
-    strategyUsedFallback: TraceSummary["strategySummary"]["usedFallback"];
-    fallbackReason: TraceSummary["fallbackReason"];
-  }): TraceSummary["retrievalModeProvenanceSentence"] {
-    const retrievalModeLabel = input.retrievalMode ?? "unknown";
-
-    if (input.strategyUsedFallback === true) {
-      if (input.fallbackReason == null) {
-        return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was used (reason unspecified).`;
-      }
-
-      return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was used due to ${input.fallbackReason}.`;
-    }
-
-    if (input.strategyUsedFallback === false) {
-      return `Resolved retrieval mode is ${retrievalModeLabel}; fallback was not used.`;
-    }
-
-    return `Resolved retrieval mode is ${retrievalModeLabel}; fallback usage is unknown.`;
-  }
 }

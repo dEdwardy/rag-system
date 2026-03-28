@@ -448,6 +448,10 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     result.strategyReadabilityLabel,
     "hybrid retrieval via rewritten; fallback: none; fallback used: no."
   );
+  assert.equal(
+    result.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is hybrid; fallback was not used."
+  );
   assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "explicit",
@@ -465,6 +469,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(result.answerAttributionSource, "structured");
   assert.equal(result.answerEvidenceSource, "structured");
   assert.equal(result.answerEvidenceSourceReadabilityLabel, "structured evidence source");
+  assert.equal(result.missingInformationSource, "none");
+  assert.equal(result.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,
@@ -785,6 +791,10 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   assert.equal(
     result.strategyReadabilityLabel,
     "lexical retrieval via original_disabled; fallback: none; fallback used: no."
+  );
+  assert.equal(
+    result.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is lexical; fallback was not used."
   );
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "none",
@@ -1117,6 +1127,8 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
   assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
   assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.equal(result.answeringMetadata.missingInformationSource, "model");
+  assert.equal(result.missingInformationSource, "model");
+  assert.equal(result.missingInformationSourceReadabilityLabel, "model-reported missing-information items");
 });
 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {

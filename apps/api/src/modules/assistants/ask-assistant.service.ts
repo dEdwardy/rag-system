@@ -11,7 +11,10 @@ import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
-import { buildStrategyReadabilityLabel } from "../retrieval/strategy-readability";
+import {
+  buildRetrievalModeProvenanceSentence,
+  buildStrategyReadabilityLabel
+} from "../retrieval/strategy-readability";
 import {
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -26,7 +29,8 @@ import type {
   TraceAnswerAttributionSummary,
   RetrievalStrategySummary,
   TraceCitationAttribution,
-  TraceCitationSelectionSource
+  TraceCitationSelectionSource,
+  TraceSummary
 } from "@rag-system/shared";
 
 type AskResultChunk = {
@@ -143,6 +147,11 @@ export class AskAssistantService {
       fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
       strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
     });
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -196,6 +205,7 @@ export class AskAssistantService {
 
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -207,6 +217,7 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
+        retrievalModeProvenanceSentence,
         retrievalMetadata,
         answerAttributionSummary,
         answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
@@ -215,6 +226,10 @@ export class AskAssistantService {
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        missingInformationSource,
+        missingInformationSourceReadabilityLabel: this.buildMissingInformationSourceReadabilityLabel({
+          missingInformationSource
+        }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -349,6 +364,11 @@ export class AskAssistantService {
       fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
       strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
     });
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -441,6 +461,7 @@ export class AskAssistantService {
 
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
       const finalResult = {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -452,6 +473,7 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
+        retrievalModeProvenanceSentence,
         retrievalMetadata,
         answerAttributionSummary,
         answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
@@ -460,6 +482,10 @@ export class AskAssistantService {
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        missingInformationSource,
+        missingInformationSourceReadabilityLabel: this.buildMissingInformationSourceReadabilityLabel({
+          missingInformationSource
+        }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -538,6 +564,39 @@ export class AskAssistantService {
       attribution: this.resolveAnswerAttribution(answeringMetadata),
       source: this.resolveAnswerAttributionSource(answeringMetadata)
     });
+  }
+
+  private resolveMissingInformationSource(answeringMetadata: unknown): TraceSummary["missingInformationSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).missingInformationSource;
+    return source === "none" || source === "model" || source === "deterministic_default" || source === "suppressed_by_policy"
+      ? source
+      : null;
+  }
+
+  private buildMissingInformationSourceReadabilityLabel(input: {
+    missingInformationSource: TraceSummary["missingInformationSource"];
+  }): TraceSummary["missingInformationSourceReadabilityLabel"] {
+    if (input.missingInformationSource === "none") {
+      return "no missing-information items";
+    }
+
+    if (input.missingInformationSource === "model") {
+      return "model-reported missing-information items";
+    }
+
+    if (input.missingInformationSource === "deterministic_default") {
+      return "backend deterministic missing-information defaults";
+    }
+
+    if (input.missingInformationSource === "suppressed_by_policy") {
+      return "suppressed by includeMissingInformation policy";
+    }
+
+    return "unknown missing-information source";
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {
