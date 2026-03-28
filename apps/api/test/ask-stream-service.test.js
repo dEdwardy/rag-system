@@ -206,6 +206,58 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   );
 });
 
+test("AskAssistantService stream uses request current identity when creating a new conversation", async () => {
+  const createConversationCalls = [];
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async input => {
+        createConversationCalls.push(input);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async input => {
+        input.onDelta("Hello from stream");
+        return {
+          rawAnswer: "Hello from stream",
+          modelName: "test-model",
+          promptId: "answer.v2",
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "stream identity?",
+    authContext: {
+      identity: null,
+      currentIdentity: {
+        userId: "user-42",
+        tenantId: "tenant-42",
+        sessionId: "session-42",
+        authSource: "session"
+      }
+    },
+    onEvent: () => {}
+  });
+
+  assert.deepEqual(createConversationCalls, [
+    {
+      tenantId: "tenant-42",
+      userId: "user-42",
+      assistantId: "assistant-1",
+      title: "stream identity?"
+    }
+  ]);
+});
+
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
   const events = [];
   let providerStreamCalls = 0;
