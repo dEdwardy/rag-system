@@ -247,6 +247,63 @@ test("fetchWithRetry reports clear error when redirect target is non-http scheme
   }
 });
 
+test("fetchWithRetry keeps bounded raw redirect target in non-http redirect error", async () => {
+  const rawRedirectTarget = `mailto:${"debug-target-".repeat(20)}@example.com`;
+  const expectedTarget = `${rawRedirectTarget.slice(0, 160)}...<truncated>`;
+  const server = http.createServer((request, response) => {
+    if (request.url === "/redirect-long-invalid-scheme") {
+      response.writeHead(302, {
+        Location: rawRedirectTarget
+      });
+      response.end();
+      return;
+    }
+
+    response.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("ok");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  try {
+    const address = server.address();
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: `http://127.0.0.1:${address.port}/redirect-long-invalid-scheme`,
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-long-invalid-scheme: redirect target must use http/https (${expectedTarget}).`
+        );
+        assert.ok(!error.message.includes(rawRedirectTarget));
+        return true;
+      }
+    );
+  } finally {
+    await new Promise((resolvePromise, rejectPromise) => {
+      server.close(error => {
+        if (error) {
+          rejectPromise(error);
+          return;
+        }
+
+        resolvePromise();
+      });
+    });
+  }
+});
+
 test("fetchWithRetry reports clear error when redirect response misses location header", async () => {
   const server = http.createServer((request, response) => {
     if (request.url === "/redirect-missing-location") {

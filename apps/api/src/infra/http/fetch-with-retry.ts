@@ -6,6 +6,7 @@ type FetchWithRetryInput = {
 };
 
 const MAX_FOLLOW_REDIRECTS = 5;
+const MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH = 160;
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "ECONNRESET",
   "ECONNREFUSED",
@@ -101,7 +102,7 @@ async function fetchWithFollowRedirects(url: string, init: RequestInit) {
     }
 
     const nextUrl = resolveRedirectUrl(currentUrl, redirectLocation);
-    assertHttpUrl(nextUrl, currentUrl);
+    assertHttpUrl(nextUrl, currentUrl, redirectLocation);
     currentUrl = nextUrl;
   }
 
@@ -116,22 +117,36 @@ function resolveRedirectUrl(currentUrl: string, redirectLocation: string) {
   try {
     return new URL(redirectLocation, currentUrl).toString();
   } catch {
-    throw new Error(`Failed to follow redirect for ${currentUrl}: invalid redirect location.`);
+    throw new Error(
+      `Failed to follow redirect for ${currentUrl}: invalid redirect location (${formatRedirectTargetForDiagnostics(redirectLocation)}).`
+    );
   }
 }
 
-function assertHttpUrl(url: string, sourceUrl: string) {
+function assertHttpUrl(url: string, sourceUrl: string, rawRedirectTarget: string) {
   let parsed: URL;
 
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error(`Failed to follow redirect for ${sourceUrl}: invalid redirect location.`);
+    throw new Error(
+      `Failed to follow redirect for ${sourceUrl}: invalid redirect location (${formatRedirectTargetForDiagnostics(rawRedirectTarget)}).`
+    );
   }
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(`Failed to follow redirect for ${sourceUrl}: redirect target must use http/https.`);
+    throw new Error(
+      `Failed to follow redirect for ${sourceUrl}: redirect target must use http/https (${formatRedirectTargetForDiagnostics(rawRedirectTarget)}).`
+    );
   }
+}
+
+function formatRedirectTargetForDiagnostics(target: string) {
+  if (target.length <= MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH) {
+    return target;
+  }
+
+  return `${target.slice(0, MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH)}...<truncated>`;
 }
 
 function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: number) {

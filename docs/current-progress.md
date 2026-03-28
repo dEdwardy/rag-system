@@ -13,6 +13,17 @@
 
 补充进展（2026-03-28）：
 
+- ✅ source-fetch redirect diagnostics now keep a bounded raw redirect target in invalid/non-HTTP redirect-follow errors
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now appends bounded raw `Location` text (`...<truncated>` when long) on two existing redirect-follow failure paths: invalid redirect location and non-`http(s)` redirect target
+  - `apps/api/test/fetch-with-retry.test.js` adds one focused regression for long non-`http(s)` redirect target diagnostics so raw target visibility remains readable but bounded
+  - 新增 superpowers scoped note:
+    - `docs/superpowers/specs/2026-03-28-source-fetch-redirect-target-diagnostics-design.md`
+    - `docs/superpowers/plans/2026-03-28-source-fetch-redirect-target-diagnostics-plan.md`
+  - scope remains diagnostics-only for redirect-follow error wording: no retry-policy rewrite, no source-family expansion, no ingestion/persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused fetch-with-retry tests passed (`13/13`)
+
 - ✅ embedding runtime now fails fast on malformed/non-HTTP base URL config for Ollama/OpenAI embedding providers
   - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now validates configured `OLLAMA_BASE_URL` and `OPENAI_BASE_URL` with explicit `EmbeddingRuntimeConfigError` diagnostics when URL parsing fails or protocol is not `http(s)`
   - `apps/api/test/embedding-runtime-config.test.js` adds focused regressions for malformed `OPENAI_BASE_URL` and non-HTTP `OLLAMA_BASE_URL`
