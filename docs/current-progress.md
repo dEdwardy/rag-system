@@ -13,6 +13,14 @@
 
 补充进展（2026-03-28）：
 
+- ✅ feed Atom canonical link extraction now tolerates single-quoted attributes and `rel`/`href` order variants
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now parses Atom `<link>` tag attributes quote-agnostically and resolves canonical entry links by preferring `rel="alternate"` regardless of attribute order; when no alternate link exists, existing first-link fallback remains
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for Atom entries using single-quoted `rel`/`href` attributes in both `rel->href` and `href->rel` orders
+  - scope remains one feed parsing edge case only: no refresh-window changes, no dedup redesign, no new source-family work
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`29/29`)
+
 - ✅ sitemap source fetch now tolerates missing/`text/plain` content-type only when payload clearly looks like sitemap XML
   - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now applies one narrow sitemap payload fallback in both root sitemap fetch and child sitemap fetch path: when `content-type` is missing (`unknown`) or starts with `text/plain`, payloads containing `<urlset>` or `<sitemapindex>` proceed through existing sitemap parsing
   - strict behavior is preserved for non-sitemap payloads under `text/plain`/missing content-type (`Unsupported sitemap content type` remains)

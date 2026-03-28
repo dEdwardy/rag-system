@@ -171,6 +171,37 @@ test("FeedSourceService extracts normalized title and entry text from RSS", asyn
   assert.doesNotMatch(extracted.content, /Release B/);
 });
 
+test("FeedSourceService resolves Atom alternate link with single-quoted attributes and rel/href order variants", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <title>Engineering Updates</title>
+      <entry>
+        <title>Release A</title>
+        <link rel='self' href='https://example.com/feed.xml?entry=release-a' />
+        <link rel='alternate' href='https://example.com/releases/a' />
+        <summary>Marker alpha summary.</summary>
+        <updated>2026-03-21T10:00:00Z</updated>
+      </entry>
+      <entry>
+        <title>Release B</title>
+        <link href='https://example.com/releases/b' rel='alternate' />
+        <summary>Marker beta summary.</summary>
+        <updated>2026-03-22T10:00:00Z</updated>
+      </entry>
+    </feed>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 2
+    }
+  );
+
+  assert.match(extracted.content, /https:\/\/example\.com\/releases\/a/);
+  assert.match(extracted.content, /https:\/\/example\.com\/releases\/b/);
+  assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/feed\.xml\?entry=release-a/);
+});
+
 test("FeedSourceService skips invalid entries and returns partial diagnostics", async () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(

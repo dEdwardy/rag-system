@@ -438,12 +438,40 @@ export class FeedSourceService {
   }
 
   private extractAtomLink(value: string) {
-    const hrefMatch = value.match(/<link\b[^>]*href="([^"]+)"[^>]*?(?:rel="alternate")?[^>]*\/?>/i);
-    if (hrefMatch) {
-      return this.decodeEntities(hrefMatch[1]).trim();
+    const linkTags = [...value.matchAll(/<link\b[^>]*\/?>/gi)].map(match => match[0]);
+    let fallbackHref: string | null = null;
+
+    for (const tag of linkTags) {
+      const href = this.extractXmlAttribute(tag, "href");
+      if (!href) {
+        continue;
+      }
+
+      const rel = this.extractXmlAttribute(tag, "rel")?.toLowerCase() ?? null;
+      if (rel === "alternate") {
+        return this.decodeEntities(href).trim();
+      }
+
+      if (!fallbackHref) {
+        fallbackHref = href;
+      }
+    }
+
+    if (fallbackHref) {
+      return this.decodeEntities(fallbackHref).trim();
     }
 
     return this.extractTextValue(value, "link");
+  }
+
+  private extractXmlAttribute(value: string, attributeName: string) {
+    const pattern = new RegExp(`\\b${attributeName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i");
+    const match = value.match(pattern);
+    if (!match) {
+      return null;
+    }
+
+    return match[1] ?? match[2] ?? null;
   }
 
   private normalizeText(value: string) {
