@@ -4,6 +4,7 @@ import { StatePanel } from "../StatePanel";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { DocumentRunRecord, KnowledgeBaseDocumentRunRecord } from "../../types/api";
 import {
+  buildRunSummaryText,
   buildRunDiagnosticsHighlights,
   describeRunMeta
 } from "./document-run-observability";
@@ -173,6 +174,14 @@ function RunFailureSummary({ run }: { run: RunRecord }) {
   );
 }
 
+function RunSummaryText({ run, locale }: { run: RunRecord; locale: string }) {
+  return (
+    <Text c="var(--app-text-secondary)" size="sm">
+      {buildRunSummaryText(run, locale)}
+    </Text>
+  );
+}
+
 function RunDiagnosticsHighlights({ run, locale }: { run: RunRecord; locale: string }) {
   const diagnosticsHighlights = buildRunDiagnosticsHighlights(run.diagnosticsJson);
 
@@ -282,6 +291,7 @@ function DocumentRunCard({
         </Group>
 
         <RunMetaSummary formatDateTime={formatDateTime} locale={locale} run={run} />
+        <RunSummaryText locale={locale} run={run} />
         <RunFailureSummary run={run} />
         <RunDiagnosticsHighlights locale={locale} run={run} />
         <RunActions locale={locale} onReindexRun={onReindexRun} run={run} t={t} />

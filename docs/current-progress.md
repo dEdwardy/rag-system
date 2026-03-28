@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 document run cards now include a compact run summary line so operators can scan outcomes quickly
+  - 变更文件：
+    - `apps/web/src/components/document-runs/document-run-observability.ts`
+    - `apps/web/src/components/document-runs/DocumentRunList.tsx`
+    - `apps/web/test/document-run-observability.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 document-run observability helper 新增 `buildRunSummaryText`，基于已有 `status + failedStage` 生成中英双语的一句话运行结果
+    - `DocumentRunList` 每条 run 卡片新增摘要行（位于 meta 区之后），优先提供“完成/失败/跳过/进行中”的可扫读结论
+    - 保持现有后端契约与 diagnostics 详情不变，仅补前端读模型表达层
+  - focused validation：
+    - `node --test apps/web/test/document-run-observability.test.js`
+
 - ✅ P6 v1 now exposes a minimal authenticated audit-event query endpoint for quick notable-event inspection
   - 变更文件：
     - `apps/api/src/modules/audit/audit.schemas.ts`

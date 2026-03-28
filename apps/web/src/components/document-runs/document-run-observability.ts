@@ -93,3 +93,29 @@ export function describeRunMeta(run: RunLike) {
     finishedAt: run.finishedAt
   };
 }
+
+export function buildRunSummaryText(run: RunLike, locale: string) {
+  const failedStageLabel = formatRunFailedStageLabel(run.failedStage);
+
+  if (run.status === "ready") {
+    if (failedStageLabel) {
+      return locale === "zh" ? `运行完成，但在 ${failedStageLabel} 存在异常。` : `Run completed with issues at ${failedStageLabel}.`;
+    }
+
+    return locale === "zh" ? "运行完成，未发现异常。" : "Run completed successfully.";
+  }
+
+  if (run.status === "failed") {
+    if (failedStageLabel) {
+      return locale === "zh" ? `运行失败，阶段：${failedStageLabel}。` : `Run failed at ${failedStageLabel}.`;
+    }
+
+    return locale === "zh" ? "运行失败。" : "Run failed.";
+  }
+
+  if (run.status === "skipped") {
+    return locale === "zh" ? "运行已跳过。" : "Run was skipped.";
+  }
+
+  return locale === "zh" ? "运行进行中。" : "Run is in progress.";
+}
