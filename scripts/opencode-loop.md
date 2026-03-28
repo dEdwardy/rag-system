@@ -30,6 +30,8 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `scripts/opencode-loop/runtime.mjs` - queue, lock, and OpenCode API logic
 - `scripts/opencode-loop/self-test.mjs` - self-test harness and mock server
 
+Session titles use the shape `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS` so the active queue item is easier to identify at a glance.
+
 ## Environment
 
 - `OPENCODE_BASE_URL` - OpenCode server URL, default `http://127.0.0.1:4096`

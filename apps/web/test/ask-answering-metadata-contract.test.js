@@ -7,6 +7,9 @@ test("web ask response type covers current backend answeringMetadata shape", asy
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
 
   assert.match(source, /answeringMetadata\?:\s*AskAnsweringMetadata;/);
+  assert.match(source, /answerAttributionSummary\?:\s*TraceAnswerAttributionSummary;/);
+  assert.match(source, /answerAttribution\?:\s*TraceCitationAttribution \| null;/);
+  assert.match(source, /answerAttributionSource\?:\s*TraceCitationSelectionSource \| null;/);
   assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*promptId: string;/);
   assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*usedFallback: boolean;/);
   assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerPolicy: AnswerPolicy;/);

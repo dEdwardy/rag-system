@@ -43,7 +43,8 @@ export function pickNextItem(queue) {
     return { index: recoveryIndex, item: queue.items[recoveryIndex] };
   }
 
-  const startIndex = Number.isInteger(queue.cursor) && queue.cursor >= 0 ? queue.cursor : 0;
+  const cursorResolution = resolveQueueCursor(queue);
+  const startIndex = cursorResolution.cursor;
   const forwardIndex = findPendingIndex(queue.items, startIndex);
   const fallbackIndex = forwardIndex === -1 ? findPendingIndex(queue.items, 0) : -1;
   const index = forwardIndex !== -1 ? forwardIndex : fallbackIndex;
@@ -53,6 +54,56 @@ export function pickNextItem(queue) {
   }
 
   return { index, item: queue.items[index] };
+}
+
+export function resolveQueueCursor(queue) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  const firstPendingIndex = findPendingIndex(items, 0);
+  const safePendingCursor = firstPendingIndex !== -1 ? firstPendingIndex : items.length;
+  const rawCursor = queue?.cursor;
+
+  if (!Number.isInteger(rawCursor)) {
+    return {
+      cursor: safePendingCursor,
+      recovered: true,
+      from: describeCursorValue(rawCursor),
+      reason: "non_integer"
+    };
+  }
+
+  if (rawCursor < 0) {
+    return {
+      cursor: safePendingCursor,
+      recovered: true,
+      from: rawCursor,
+      reason: "negative"
+    };
+  }
+
+  if (rawCursor > items.length) {
+    return {
+      cursor: safePendingCursor,
+      recovered: true,
+      from: rawCursor,
+      reason: "out_of_range"
+    };
+  }
+
+  if (rawCursor === items.length && firstPendingIndex !== -1) {
+    return {
+      cursor: safePendingCursor,
+      recovered: true,
+      from: rawCursor,
+      reason: "past_pending"
+    };
+  }
+
+  return {
+    cursor: rawCursor,
+    recovered: false,
+    from: null,
+    reason: null
+  };
 }
 
 export function updateQueueItem(queue, index, updater) {
@@ -127,6 +178,18 @@ function findItemIndexByStatus(items, status) {
   }
 
   return -1;
+}
+
+function describeCursorValue(value) {
+  if (value === undefined) {
+    return "undefined";
+  }
+
+  if (value === null) {
+    return "null";
+  }
+
+  return typeof value === "number" ? value : String(value);
 }
 
 function decorateQueueForWrite(queue) {

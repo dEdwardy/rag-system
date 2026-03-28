@@ -79,6 +79,24 @@ test("WebPageService extracts normalized title and text from HTML", async () => 
   assert.doesNotMatch(extracted.content, /console\.log/);
 });
 
+test("WebPageService accepts HTML payload when upstream content-type is text/plain", async () => {
+  const originalFetch = global.fetch;
+  const service = new WebPageService();
+
+  global.fetch = async () =>
+    new Response("<html><head><title>Fallback Title</title></head><body><main><p>Fallback marker.</p></main></body></html>", {
+      status: 200
+    });
+
+  try {
+    const extracted = await service.fetchWebPage("https://example.com/plain-content-type");
+    assert.equal(extracted.title, "Fallback Title");
+    assert.match(extracted.content, /Fallback marker\./);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("FeedSourceService extracts normalized title and entry text from RSS", async () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(
@@ -196,7 +214,11 @@ test("FeedSourceService still fails when all feed entries are invalid", async ()
           maxItems: 1
         }
       ),
-    /all feed entries were invalid/i
+    error => {
+      assert.match(error.message, /all feed entries were invalid/i);
+      assert.match(error.message, /First failed entry ref: Broken Entry\./i);
+      return true;
+    }
   );
 });
 
@@ -228,6 +250,47 @@ test("FeedSourceService reports execution boundary when maxItems truncates entri
   });
 });
 
+test("FeedSourceService prefers newest dated entries when maxItems truncates RSS polling window", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item>
+          <title>Entry A</title>
+          <link>https://example.com/a</link>
+          <pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Entry B</title>
+          <link>https://example.com/b</link>
+          <pubDate>Tue, 02 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Entry C</title>
+          <link>https://example.com/c</link>
+          <pubDate>Wed, 03 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 2
+    }
+  );
+
+  assert.match(extracted.content, /Entry B/);
+  assert.match(extracted.content, /Entry C/);
+  assert.doesNotMatch(extracted.content, /Entry A/);
+  assert.deepEqual(extracted.diagnostics?.boundary, {
+    maxItems: 2,
+    totalExtractedEntryCount: 3,
+    selectedEntryCount: 2,
+    droppedByLimitCount: 1
+  });
+});
+
 test("FeedSourceService skips duplicate entries and records dedup diagnostics", () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(
@@ -247,6 +310,28 @@ test("FeedSourceService skips duplicate entries and records dedup diagnostics", 
 
   assert.equal(extracted.diagnostics?.skippedDuplicateEntryCount, 1);
   assert.deepEqual(extracted.diagnostics?.skippedDuplicateEntryRefs, ["https://example.com/a"]);
+  assert.equal(extracted.diagnostics?.partial, true);
+});
+
+test("FeedSourceService treats hash-only feed-link variants as duplicates", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item><title>Entry A</title><link>https://example.com/a#top</link></item>
+        <item><title>Entry A</title><link>https://example.com/a#latest</link></item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 10
+    }
+  );
+
+  assert.equal(extracted.diagnostics?.skippedDuplicateEntryCount, 1);
+  assert.deepEqual(extracted.diagnostics?.skippedDuplicateEntryRefs, ["https://example.com/a#latest"]);
   assert.equal(extracted.diagnostics?.partial, true);
 });
 

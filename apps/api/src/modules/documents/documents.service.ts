@@ -415,7 +415,17 @@ export class DocumentsService {
       diagnosticsJson?: Prisma.InputJsonValue | null;
     }
   ) {
-    if (!(await this.ensureCurrentExternalDocumentVersion(document))) {
+    const applied = await this.updateExternalDocumentIfCurrent(document, {
+      title: input.title,
+      mimeType: input.mimeType,
+      storageKey: input.storageKey,
+      status: DocumentStatus.pending,
+      processingStage: DocumentProcessingStage.uploaded,
+      errorMessage: null,
+      diagnosticsJson: input.diagnosticsJson ?? Prisma.JsonNull
+    });
+
+    if (!applied) {
       return {
         document: await this.getDocument(document.id),
         applied: false
@@ -423,19 +433,28 @@ export class DocumentsService {
     }
 
     return {
-      document: await this.prisma.document.update({
-        where: { id: document.id },
-        data: {
-          title: input.title,
-          mimeType: input.mimeType,
-          storageKey: input.storageKey,
-          status: DocumentStatus.pending,
-          processingStage: DocumentProcessingStage.uploaded,
-          errorMessage: null,
-          diagnosticsJson: input.diagnosticsJson ?? Prisma.JsonNull
-        }
-      }),
+      document: await this.resolveExternalDocumentAfterUpdate(document),
       applied: true
+    };
+  }
+
+  private async resolveExternalDocumentAfterUpdate(document: { id: string; version: number }) {
+    if (typeof this.prisma.document.findUnique === "function") {
+      const currentDocument = await this.prisma.document.findUnique({
+        where: { id: document.id }
+      });
+
+      if (currentDocument) {
+        return {
+          ...currentDocument,
+          id: document.id
+        };
+      }
+    }
+
+    return {
+      id: document.id,
+      version: document.version
     };
   }
 
@@ -447,22 +466,56 @@ export class DocumentsService {
     diagnostics: Prisma.InputJsonValue,
     message: string
   ) {
+    const applied = await this.updateExternalDocumentIfCurrent(document, {
+      status: DocumentStatus.failed,
+      processingStage: DocumentProcessingStage.failed,
+      errorMessage: message,
+      diagnosticsJson: diagnostics
+    });
+
+    if (!applied) {
+      return false;
+    }
+
+    await this.documentRunsService.markRunFailed(document.id, document.version, {
+      failedStage: DocumentRunFailedStage.source_fetch,
+      diagnosticsJson: diagnostics
+    });
+
+    return true;
+  }
+
+  private async updateExternalDocumentIfCurrent(
+    document: {
+      id: string;
+      version: number;
+    },
+    data: Prisma.DocumentUpdateManyMutationInput
+  ) {
+    if (typeof this.prisma.document.updateMany === "function") {
+      const result = await this.prisma.document.updateMany({
+        where: {
+          id: document.id,
+          version: document.version
+        },
+        data
+      });
+
+      if (result.count > 0) {
+        return true;
+      }
+
+      await this.ensureCurrentExternalDocumentVersion(document);
+      return false;
+    }
+
     if (!(await this.ensureCurrentExternalDocumentVersion(document))) {
       return false;
     }
 
     await this.prisma.document.update({
       where: { id: document.id },
-      data: {
-        status: DocumentStatus.failed,
-        processingStage: DocumentProcessingStage.failed,
-        errorMessage: message,
-        diagnosticsJson: diagnostics
-      }
-    });
-    await this.documentRunsService.markRunFailed(document.id, document.version, {
-      failedStage: DocumentRunFailedStage.source_fetch,
-      diagnosticsJson: diagnostics
+      data
     });
 
     return true;
@@ -758,20 +811,28 @@ export class DocumentsService {
       };
     }
 
-    if (value.kind === "feed" && typeof value.url === "string" && typeof value.maxItems === "number") {
-      return {
-        kind: "feed",
-        url: value.url,
-        maxItems: value.maxItems
-      };
+    if (value.kind === "feed" && typeof value.url === "string") {
+      const maxItems = this.resolveExternalSourceBoundOrLegacyDefault(value.maxItems);
+
+      if (maxItems !== null) {
+        return {
+          kind: "feed",
+          url: value.url,
+          maxItems
+        };
+      }
     }
 
-    if (value.kind === "sitemap" && typeof value.url === "string" && typeof value.maxPages === "number") {
-      return {
-        kind: "sitemap",
-        url: value.url,
-        maxPages: value.maxPages
-      };
+    if (value.kind === "sitemap" && typeof value.url === "string") {
+      const maxPages = this.resolveExternalSourceBoundOrLegacyDefault(value.maxPages);
+
+      if (maxPages !== null) {
+        return {
+          kind: "sitemap",
+          url: value.url,
+          maxPages
+        };
+      }
     }
 
     throw new Error("External source config is invalid.");
@@ -878,5 +939,17 @@ export class DocumentsService {
   ) {
     const value = diagnostics?.[key];
     return typeof value === "number" ? value : 0;
+  }
+
+  private resolveExternalSourceBoundOrLegacyDefault(value: unknown) {
+    if (typeof value === "number") {
+      return value;
+    }
+
+    if (value === undefined || value === null) {
+      return 20;
+    }
+
+    return null;
   }
 }

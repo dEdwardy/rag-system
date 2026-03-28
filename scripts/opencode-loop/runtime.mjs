@@ -9,6 +9,7 @@ import {
   formatDisplayTime,
   pickNextItem,
   readQueue,
+  resolveQueueCursor,
   updateQueueItem,
   writeQueue
 } from "./queue.mjs";
@@ -55,14 +56,31 @@ export async function runLoop(options) {
 
     for (;;) {
       let queue = readQueue(queuePath);
+      const cursorResolution = resolveQueueCursor(queue);
+      if (cursorResolution.recovered) {
+        queue = {
+          ...queue,
+          cursor: cursorResolution.cursor,
+          updatedAt: new Date().toISOString()
+        };
+        writeQueue(queuePath, queue);
+        logStatus("cursor:recover", {
+          queuePath: relative(options.repoRoot, queuePath),
+          cursorFrom: cursorResolution.from,
+          cursorTo: cursorResolution.cursor,
+          cursorReason: cursorResolution.reason
+        });
+      }
+
       const next = pickNextItem(queue);
 
       if (!next) {
         const lastProcessed = processedItems[processedItems.length - 1] ?? null;
-      logStatus("idle", {
-        processedCount: processedItems.length,
-        queuePath: relative(options.repoRoot, queuePath)
-      });
+        logStatus("idle", {
+          processedCount: processedItems.length,
+          queuePath: relative(options.repoRoot, queuePath),
+          ...buildIdleQueueWorkVisibility(queue)
+        });
 
         return {
           processedItems,
@@ -86,7 +104,9 @@ export async function runLoop(options) {
         status: next.item.status,
         agent: resolvedAgent,
         model: resolvedModel ?? "server-default",
-        promptFile: next.item.promptFile ?? DEFAULT_PROMPT_PATH
+        promptFile: next.item.promptFile ?? DEFAULT_PROMPT_PATH,
+        ...buildQueueCursorVisibility(queue, next.index),
+        ...buildQueueWorkVisibility(queue, next.index)
       });
       const runState = await resolveQueueItemRun({
         api,
@@ -371,7 +391,7 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
       model: model ?? "server-default"
     });
     session = await api.createSession({
-      title: `loop ${next.item.id} ${formatSessionTitleTime(runStartedAt)}`
+      title: `loop #${next.index + 1} ${next.item.id} ${formatSessionTitleTime(runStartedAt)}`
     });
 
     workingQueue = updateQueueItem(workingQueue, next.index, currentItem => ({
@@ -749,6 +769,224 @@ function isFetchFailedError(error) {
   );
 }
 
+function buildQueueWorkVisibility(queue, pickedIndex) {
+  const { pendingCount, completedCount, inProgressCount, totalCount } = countQueueWork(queue);
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  const pickedStatus = items[pickedIndex]?.status;
+  const currentWorkReduction = pickedStatus === "pending" || pickedStatus === "in_progress" ? 1 : 0;
+
+  return {
+    queueTotal: totalCount,
+    queuePending: pendingCount,
+    queueCompleted: completedCount,
+    queueInProgress: inProgressCount,
+    remainingAfterPick: Math.max(0, pendingCount + inProgressCount - currentWorkReduction),
+    ...buildQueueFamilyCountVisibility(queue)
+  };
+}
+
+function buildIdleQueueWorkVisibility(queue) {
+  const { pendingCount, completedCount, inProgressCount, totalCount } = countQueueWork(queue);
+
+  return {
+    queueTotal: totalCount,
+    queuePending: pendingCount,
+    queueCompleted: completedCount,
+    queueInProgress: inProgressCount,
+    remainingQueueWork: pendingCount + inProgressCount,
+    ...buildQueueFamilyCountVisibility(queue)
+  };
+}
+
+function buildQueueFamilyCountVisibility(queue) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  const pendingByFamily = new Map();
+  const completedByFamily = new Map();
+
+  for (const item of items) {
+    const family = resolveQueueItemFamily(item);
+    if (!family) {
+      continue;
+    }
+
+    if (item?.status === "pending") {
+      pendingByFamily.set(family, (pendingByFamily.get(family) ?? 0) + 1);
+      continue;
+    }
+
+    if (item?.status === "completed") {
+      completedByFamily.set(family, (completedByFamily.get(family) ?? 0) + 1);
+    }
+  }
+
+  return {
+    queuePendingByFamily: mapToSortedObject(pendingByFamily),
+    queueCompletedByFamily: mapToSortedObject(completedByFamily)
+  };
+}
+
+function resolveQueueItemFamily(item) {
+  const id = typeof item?.id === "string" ? item.id.trim() : "";
+  if (!id) {
+    return null;
+  }
+
+  const [family] = id.split(/[-_:/.]/);
+  return family || null;
+}
+
+function mapToSortedObject(countMap) {
+  if (!(countMap instanceof Map) || countMap.size === 0) {
+    return null;
+  }
+
+  return Object.fromEntries([...countMap.entries()].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function countQueueWork(queue) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  let pendingCount = 0;
+  let completedCount = 0;
+  let inProgressCount = 0;
+
+  for (const item of items) {
+    if (item?.status === "pending") {
+      pendingCount += 1;
+      continue;
+    }
+
+    if (item?.status === "completed") {
+      completedCount += 1;
+      continue;
+    }
+
+    if (item?.status === "in_progress") {
+      inProgressCount += 1;
+    }
+  }
+
+  return {
+    pendingCount,
+    completedCount,
+    inProgressCount,
+    totalCount: items.length
+  };
+}
+
+function buildQueueCursorVisibility(queue, pickedIndex) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  const cursor = Number.isInteger(queue?.cursor) ? queue.cursor : null;
+  const cursorItem =
+    Number.isInteger(cursor) && cursor >= 0 && cursor < items.length ? items[cursor] : null;
+  const nextPendingItem = findNextPendingItem(items, pickedIndex);
+  const nextPendingCursorDistance = computeCursorDistanceToIndex({
+    cursor,
+    targetIndex: nextPendingItem?.index,
+    itemCount: items.length
+  });
+
+  return {
+    queueCursor: cursor,
+    queueCursorItemId: cursorItem?.id ?? null,
+    queueCursorItemStatus: cursorItem?.status ?? null,
+    ...buildActiveCursorResumeVisibility(cursorItem),
+    nextPendingItemId: nextPendingItem?.id ?? null,
+    nextPendingItemIndex: nextPendingItem?.index ?? null,
+    nextPendingItemTitle: nextPendingItem?.title ?? null,
+    nextPendingCursorDistance
+  };
+}
+
+function computeCursorDistanceToIndex({ cursor, targetIndex, itemCount }) {
+  if (!Number.isInteger(cursor) || !Number.isInteger(targetIndex) || !Number.isInteger(itemCount)) {
+    return null;
+  }
+
+  if (itemCount <= 0 || cursor < 0 || cursor >= itemCount || targetIndex < 0 || targetIndex >= itemCount) {
+    return null;
+  }
+
+  if (targetIndex >= cursor) {
+    return targetIndex - cursor;
+  }
+
+  return itemCount - cursor + targetIndex;
+}
+
+function buildActiveCursorResumeVisibility(cursorItem) {
+  const title =
+    typeof cursorItem?.title === "string" && cursorItem.title.trim() ? cursorItem.title.trim() : null;
+  const sessionId =
+    typeof cursorItem?.sessionId === "string" && cursorItem.sessionId.trim()
+      ? cursorItem.sessionId.trim()
+      : null;
+  const messageId =
+    typeof cursorItem?.messageId === "string" && cursorItem.messageId.trim()
+      ? cursorItem.messageId.trim()
+      : null;
+  const startedAt =
+    typeof cursorItem?.startedAt === "string" && cursorItem.startedAt.trim()
+      ? cursorItem.startedAt
+      : null;
+
+  if (cursorItem?.status !== "in_progress") {
+    return {
+      queueCursorItemTitle: title
+    };
+  }
+
+  let resumePreview = "resume-metadata-missing";
+  if (sessionId && messageId) {
+    resumePreview = "resume-with-tracked-assistant-message";
+  } else if (sessionId) {
+    resumePreview = "resume-awaiting-new-assistant-message";
+  }
+
+  return {
+    queueCursorItemTitle: title,
+    queueCursorResumePreview: resumePreview,
+    queueCursorResumeSessionId: sessionId,
+    queueCursorResumeMessageId: messageId,
+    queueCursorResumeStartedAt: startedAt ? formatDisplayTime(startedAt) : null
+  };
+}
+
+function findNextPendingItem(items, pickedIndex) {
+  const startIndex = Number.isInteger(pickedIndex) ? pickedIndex + 1 : 0;
+
+  for (let index = startIndex; index < items.length; index += 1) {
+    if (index === pickedIndex) {
+      continue;
+    }
+
+    const item = items[index];
+    if (item?.status === "pending" && typeof item?.id === "string") {
+      return {
+        index,
+        id: item.id,
+        title: typeof item.title === "string" && item.title.trim() ? item.title : null
+      };
+    }
+  }
+
+  for (let index = 0; index < startIndex && index < items.length; index += 1) {
+    if (index === pickedIndex) {
+      continue;
+    }
+
+    const item = items[index];
+    if (item?.status === "pending" && typeof item?.id === "string") {
+      return {
+        index,
+        id: item.id,
+        title: typeof item.title === "string" && item.title.trim() ? item.title : null
+      };
+    }
+  }
+
+  return null;
+}
+
 function logStatus(event, fields) {
   const labelMap = {
     start: "启动",
@@ -756,6 +994,7 @@ function logStatus(event, fields) {
     resume: "恢复",
     "session:create": "建会话",
     "message:send": "发消息",
+    "cursor:recover": "游标恢复",
     complete: "完成",
     idle: "空闲"
   };
@@ -769,9 +1008,32 @@ function logStatus(event, fields) {
     "agent",
     "model",
     "promptFile",
+    "queueCursor",
+    "queueCursorItemId",
+    "queueCursorItemStatus",
+    "queueCursorItemTitle",
+    "queueCursorResumePreview",
+    "queueCursorResumeSessionId",
+    "queueCursorResumeMessageId",
+    "queueCursorResumeStartedAt",
+    "nextPendingItemId",
+    "nextPendingItemIndex",
+    "nextPendingItemTitle",
+    "nextPendingCursorDistance",
+    "remainingAfterPick",
+    "remainingQueueWork",
+    "queuePending",
+    "queuePendingByFamily",
+    "queueCompleted",
+    "queueCompletedByFamily",
+    "queueInProgress",
+    "queueTotal",
     "handoffPath",
     "processedCount",
     "queuePath",
+    "cursorFrom",
+    "cursorTo",
+    "cursorReason",
     "repoRoot",
     "baseUrl",
     "defaultAgent",

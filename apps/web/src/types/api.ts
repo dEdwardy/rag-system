@@ -1,6 +1,7 @@
 import type {
   TraceAnswerStatus,
   TraceAnswerStatusSource,
+  TraceAnswerAttributionSummary,
   TraceAnswerTextSource,
   TraceCitationAttribution,
   TraceCitationSelectionSource,
@@ -302,6 +303,7 @@ export type AskRetrievalMetadata = {
     applied: boolean;
     finalQuerySource: TraceRetrievalQuerySource;
     usedFallback: boolean | null;
+    modelName: string | null;
     promptId: string | null;
   };
   execution: {
@@ -382,6 +384,9 @@ export type AskResponse = {
   contextGroups?: ContextGroup[];
   strategySummary?: RetrievalStrategySummary;
   retrievalMetadata?: AskRetrievalMetadata;
+  answerAttributionSummary?: TraceAnswerAttributionSummary;
+  answerAttribution?: TraceCitationAttribution | null;
+  answerAttributionSource?: TraceCitationSelectionSource | null;
   answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: "grounded" | "insufficient_context";
   missingInformation?: string[];
@@ -472,6 +477,7 @@ export type {
   RetrievalStrategySummary,
   TraceAnswerStatus,
   TraceAnswerStatusSource,
+  TraceAnswerAttributionSummary,
   TraceAnswerTextSource,
   TraceCitationAttribution,
   TraceCitationSelectionSource,

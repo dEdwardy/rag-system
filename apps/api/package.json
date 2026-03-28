@@ -5,6 +5,7 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
+    "start:prod": "node scripts/start-prod.mjs",
     "build": "pnpm run prisma:generate && nest build",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run test:all",

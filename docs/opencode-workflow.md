@@ -172,6 +172,15 @@ When frontend and backend work need to proceed at the same time, prefer separate
 - start each OpenCode session from the matching worktree so it loads the local `opencode.jsonc` and `AGENTS.md`
 - use worktrees when two sessions may modify files in parallel; do not rely on directory-only separation for concurrent edits
 
+Recommended doc wording:
+
+- fixed local branches: `dev/web` and `dev/api`
+- frontend worktree uses `dev/web`
+- backend worktree uses `dev/api`
+- rule: one session, one checkout, one local branch
+- rule: keep those two local branches stable; do not spin up extra branches unless it is a clearly new task
+- rule: check `git status` before every commit so unrelated edits stay out
+
 Typical layout:
 
 ```bash

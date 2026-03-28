@@ -127,7 +127,9 @@ export class FeedSourceService {
     const title = this.extractTextValue(channelBlock ?? xml, "title");
     const description = this.extractTextByPattern(channelBlock ?? xml, /<description\b[^>]*>([\s\S]*?)<\/description>/i);
     const allItemBlocks = this.extractBlocks(channelBlock ?? xml, "item");
-    const itemBlocks = allItemBlocks.slice(0, options.maxItems);
+    const itemBlocks = this.selectEntryBlocksByFreshness(allItemBlocks, options.maxItems, block =>
+      this.extractTextByPattern(block, /<(?:pubDate|dc:date)\b[^>]*>([\s\S]*?)<\/(?:pubDate|dc:date)>/i)
+    );
     const entries = itemBlocks.map(block => ({
       title: this.extractTextValue(block, "title"),
       summary: this.extractTextByPattern(block, /<(?:description|content:encoded)\b[^>]*>([\s\S]*?)<\/(?:description|content:encoded)>/i),
@@ -153,7 +155,9 @@ export class FeedSourceService {
     const title = this.extractTextValue(xml, "title");
     const description = this.extractTextValue(xml, "subtitle");
     const allEntryBlocks = this.extractBlocks(xml, "entry");
-    const entryBlocks = allEntryBlocks.slice(0, options.maxItems);
+    const entryBlocks = this.selectEntryBlocksByFreshness(allEntryBlocks, options.maxItems, block =>
+      this.extractTextByPattern(block, /<(?:updated|published)\b[^>]*>([\s\S]*?)<\/(?:updated|published)>/i)
+    );
     const entries = entryBlocks.map(block => ({
       title: this.extractTextValue(block, "title"),
       summary: this.extractTextByPattern(block, /<(?:summary|content)\b[^>]*>([\s\S]*?)<\/(?:summary|content)>/i),
@@ -236,7 +240,10 @@ export class FeedSourceService {
     }
 
     if (input.entries.length > 0 && failedEntries.length === input.entries.length) {
-      throw new BadRequestException("Extracted feed content is empty: all feed entries were invalid.");
+      const firstFailedEntryRef = failedEntries[0]?.ref ?? "unknown";
+      throw new BadRequestException(
+        `Extracted feed content is empty: all feed entries were invalid. First failed entry ref: ${firstFailedEntryRef}.`
+      );
     }
 
     if (!content) {
@@ -282,10 +289,79 @@ export class FeedSourceService {
 
   private buildEntryDedupKey(entry: FeedEntry) {
     const normalizedTitle = entry.title?.trim().toLowerCase() ?? "";
-    const normalizedLink = entry.link?.trim().toLowerCase() ?? "";
+    const normalizedLink = this.normalizeEntryLinkForDedup(entry.link);
     const normalizedPublishedAt = entry.publishedAt?.trim().toLowerCase() ?? "";
     const normalizedSummary = entry.summary?.trim().toLowerCase() ?? "";
     return [normalizedLink, normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
+  }
+
+  private normalizeEntryLinkForDedup(link: string | null) {
+    const normalizedLink = link?.trim().toLowerCase() ?? "";
+    if (!normalizedLink) {
+      return "";
+    }
+
+    try {
+      const parsed = new URL(normalizedLink);
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return normalizedLink;
+    }
+  }
+
+  private selectEntryBlocksByFreshness(
+    allBlocks: string[],
+    maxItems: number,
+    getPublishedAt: (block: string) => string | null
+  ) {
+    if (allBlocks.length <= maxItems) {
+      return allBlocks;
+    }
+
+    const blocksWithPublishedAt = allBlocks.map((block, index) => ({
+      block,
+      index,
+      timestamp: this.resolveFeedTimestamp(getPublishedAt(block))
+    }));
+    const hasAnyTimestamp = blocksWithPublishedAt.some(item => item.timestamp !== null);
+
+    if (!hasAnyTimestamp) {
+      return allBlocks.slice(0, maxItems);
+    }
+
+    const newestBlocks = [...blocksWithPublishedAt]
+      .sort((left, right) => {
+        if (left.timestamp === null && right.timestamp === null) {
+          return left.index - right.index;
+        }
+
+        if (left.timestamp === null) {
+          return 1;
+        }
+
+        if (right.timestamp === null) {
+          return -1;
+        }
+
+        if (left.timestamp === right.timestamp) {
+          return left.index - right.index;
+        }
+
+        return right.timestamp - left.timestamp;
+      })
+      .slice(0, maxItems);
+
+    return newestBlocks.sort((left, right) => left.index - right.index).map(item => item.block);
+  }
+
+  private resolveFeedTimestamp(value: string | null) {
+    if (!value) {
+      return null;
+    }
+
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : null;
   }
 
   private validateEntry(entry: FeedEntry): FeedEntryFailure | null {

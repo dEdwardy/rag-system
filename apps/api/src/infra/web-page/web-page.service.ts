@@ -31,11 +31,14 @@ export class WebPageService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isHtmlContentType(contentType)) {
+    const payload = await response.text();
+    const htmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeHtmlPayload(payload);
+
+    if (!this.isHtmlContentType(contentType) && !htmlPayloadByFallback) {
       throw new BadRequestException(`Unsupported web page content type: ${contentType || "unknown"}.`);
     }
 
-    return this.extractFromHtml(await response.text());
+    return this.extractFromHtml(payload);
   }
 
   extractFromHtml(html: string): FetchedWebPage {
@@ -61,6 +64,14 @@ export class WebPageService {
 
   private isHtmlContentType(contentType: string) {
     return contentType.startsWith("text/html") || contentType.startsWith("application/xhtml+xml");
+  }
+
+  private isFallbackSniffingContentType(contentType: string) {
+    return !contentType || contentType.startsWith("text/plain");
+  }
+
+  private looksLikeHtmlPayload(payload: string) {
+    return /<!doctype\s+html\b|<html\b|<head\b|<body\b|<title\b/i.test(payload);
   }
 
   private buildUpstreamFetchError(prefix: string, status: number) {

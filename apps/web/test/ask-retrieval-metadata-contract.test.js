@@ -5,13 +5,21 @@ const { resolve } = require("node:path");
 
 test("web ask response type covers current backend retrievalMetadata execution shape", async () => {
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
+  const sharedSource = await readFile(resolve(__dirname, "../../../packages/shared/src/trace-contracts.ts"), "utf8");
 
   assert.match(source, /retrievalMetadata\?:\s*AskRetrievalMetadata;/);
+  assert.match(source, /export type AskRetrievalMetadata = \{[\s\S]*strategySummary\?:\s*RetrievalStrategySummary;/);
   assert.match(source, /export type AskResponse = \{[\s\S]*strategySummary\?:\s*RetrievalStrategySummary;/);
+  assert.match(sharedSource, /rewriteApplied:\s*boolean;/);
+  assert.match(sharedSource, /rewriteEnabled:\s*boolean;/);
+  assert.match(sharedSource, /rewriteUsedFallback:\s*boolean \| null;/);
+  assert.match(sharedSource, /rewritePromptId:\s*string \| null;/);
+  assert.match(sharedSource, /rewriteModelName:\s*string \| null;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*enabled: boolean;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*applied: boolean;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*finalQuerySource: TraceRetrievalQuerySource;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*usedFallback: boolean \| null;/);
+  assert.match(source, /queryRewrite:\s*\{[\s\S]*modelName: string \| null;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*promptId: string \| null;/);
   assert.match(source, /execution:\s*\{[\s\S]*retrievalQuery: string;/);
   assert.match(source, /execution:\s*\{[\s\S]*topK: number;/);

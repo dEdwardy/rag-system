@@ -4,7 +4,8 @@ import { extname, join, resolve } from "node:path";
 
 const apiRoot = resolve(import.meta.dirname, "..");
 const distRoot = resolve(apiRoot, "dist");
-const distEntry = resolve(distRoot, "main.js");
+const preferredEntry = resolve(distRoot, "apps/api/src/main.js");
+const legacyEntry = resolve(distRoot, "main.js");
 const watchedFiles = [resolve(apiRoot, "tsconfig.json"), resolve(apiRoot, "nest-cli.json")];
 const watchedDirs = [resolve(apiRoot, "src")];
 const watchedExtensions = new Set([".ts", ".json"]);
@@ -21,11 +22,11 @@ if (needsBuild()) {
 }
 
 function needsBuild() {
-  if (!existsSync(distRoot) || !existsSync(distEntry)) {
+  if (!existsSync(distRoot) || (!existsSync(preferredEntry) && !existsSync(legacyEntry))) {
     return true;
   }
 
-  const distMtime = getFileMtime(distEntry);
+  const distMtime = Math.max(getFileMtime(preferredEntry), getFileMtime(legacyEntry));
   const newestSourceMtime = Math.max(
     ...watchedFiles.map(getFileMtime),
     ...watchedDirs.map(getNewestTreeMtime)
