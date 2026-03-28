@@ -152,6 +152,7 @@ test("resolveEmbeddingRuntimeConfig reports unusable OpenAI embedding provider w
     error => {
       assert.ok(error instanceof EmbeddingRuntimeConfigError);
       assert.match(error.message, /OpenAI embedding provider is currently unusable/);
+      assert.match(error.message, /current OPENAI_EMBEDDING_MODEL="text-embedding-3-small"/);
       assert.match(error.message, /OPENAI_BASE_URL is currently set to "https:\/\/openai-proxy\.local\/v1"/);
       return true;
     }

@@ -218,7 +218,7 @@ function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbe
     const configuredBaseUrlHint = configuredBaseUrl ? ` OPENAI_BASE_URL is currently set to "${openAiBaseUrl}".` : "";
 
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_API_KEY must be set when OPENAI_EMBEDDING_MODEL is configured. OpenAI embedding provider is currently unusable and will not be selected until OPENAI_API_KEY is configured.${configuredBaseUrlHint}`
+      `Invalid embedding config: OPENAI_API_KEY must be set when OPENAI_EMBEDDING_MODEL is configured (current OPENAI_EMBEDDING_MODEL="${explicitModel}"). OpenAI embedding provider is currently unusable and will not be selected until OPENAI_API_KEY is configured.${configuredBaseUrlHint}`
     );
   }
 
