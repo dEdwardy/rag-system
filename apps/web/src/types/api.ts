@@ -358,17 +358,10 @@ export type AskAnsweringMetadata = {
 };
 
 export type AskQualityEvaluation = {
-  overall: "strong" | "partial" | "weak";
+  overall: TraceQualityOverall;
   grounding: "grounded" | "partially_grounded" | "ungrounded";
   completeness: "complete" | "partial" | "insufficient";
-  primaryIssue:
-    | "none"
-    | "no_retrieval_hits"
-    | "insufficient_context"
-    | "missing_information"
-    | "low_retrieval_score"
-    | "fallback_generation"
-    | "other";
+  primaryIssue: TracePrimaryIssue;
   flags: string[];
   summary: string;
 };
@@ -407,7 +400,7 @@ export type AskResponse = {
   missingInformationProvenanceSentence?: TraceSummary["missingInformationProvenanceSentence"];
   missingInformationSourceReadabilityLabel?: TraceSummary["missingInformationSourceReadabilityLabel"];
   answeringMetadata?: AskAnsweringMetadata;
-  answerStatus?: "grounded" | "insufficient_context";
+  answerStatus?: TraceAnswerStatus;
   missingInformation?: string[];
   qualityEvaluation?: AskQualityEvaluation;
 };
