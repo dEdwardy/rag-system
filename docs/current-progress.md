@@ -13,6 +13,14 @@
 
 补充进展（2026-03-28）：
 
+- ✅ external-source re-sync now recovers legacy web-page documents when stored `sourceConfigJson` is missing
+  - `apps/api/src/modules/documents/documents.service.ts` now applies one narrow legacy fallback during `POST /documents/:id/reindex` parsing: when external config is missing but the document identity is still `sourceType=web_page` + `sourceName=<url>`, re-sync reconstructs `{ kind: "web_page", url: sourceName }` and continues re-fetch instead of failing early with `EXTERNAL_SOURCE_CONFIG_INVALID`
+  - `apps/api/test/external-source-sync.test.js` adds focused regression coverage for this stale-state path (`sourceConfigJson: null` on a legacy web-page document) and asserts re-sync proceeds through fetch/finalize/enqueue
+  - scope remains re-sync recovery only: no new source family, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed；legacy web-page source config 丢失时不再直接失败，可继续 remote re-fetch 并进入后续 ingestion
+
 - ✅ sitemap source URL dedup now ignores hash-only differences to avoid duplicate page fetches in urlset/sitemapindex flows
   - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now normalizes sitemap URL dedup keys by stripping URL fragment (`#...`) before duplicate checks for:
     - direct `urlset` page URL extraction

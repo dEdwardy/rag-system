@@ -1633,6 +1633,121 @@ test("DocumentsService reindex recovers legacy feed config without maxItems by u
   assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
 });
 
+test("DocumentsService reindex recovers legacy web-page config when sourceConfigJson is missing", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const fetchWebPageCalls = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-legacy-web-document",
+    kbId: "default-kb",
+    sourceType: "web_page",
+    sourceName: "https://example.com/legacy-page",
+    title: "Legacy web page",
+    mimeType: "text/plain",
+    storageKey: "generated/web-page.txt",
+    sourceConfigJson: Prisma.JsonNull,
+    status: "ready",
+    processingStage: "completed",
+    version: 7,
+    chunkCount: 3,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    webPageService: {
+      fetchWebPage: async url => {
+        fetchWebPageCalls.push(url);
+        return {
+          title: "Fetched legacy page",
+          content: "Updated legacy page content"
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Updated legacy page content");
+        return {
+          storageKey: "generated/web-page-refreshed.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 8,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(fetchWebPageCalls, ["https://example.com/legacy-page"]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Fetched legacy page",
+        mimeType: "text/plain",
+        storageKey: "generated/web-page-refreshed.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
 test("DocumentsService reindex preserves an existing sitemap title when the resynced source has no title", async () => {
   const documentUpdates = [];
   const createdRuns = [];

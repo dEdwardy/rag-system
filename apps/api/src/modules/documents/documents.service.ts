@@ -648,7 +648,11 @@ export class DocumentsService {
     });
     const sourceConfig = await this.parseExternalSourceConfigOrRecordFailure(
       queuedDocument,
-      document.sourceConfigJson
+      document.sourceConfigJson,
+      {
+        sourceType: queuedDocument.sourceType ?? document.sourceType,
+        sourceName: queuedDocument.sourceName ?? document.sourceName
+      }
     );
 
     const fetchedSource = await this.fetchExternalSourceOrRecordFailure(queuedDocument, () =>
@@ -698,10 +702,14 @@ export class DocumentsService {
       id: string;
       version: number;
     },
-    value: Prisma.JsonValue | null
+    value: Prisma.JsonValue | null,
+    legacyExternalIdentity?: {
+      sourceType?: string;
+      sourceName?: string;
+    }
   ) {
     try {
-      return this.parseExternalSourceConfig(value);
+      return this.parseExternalSourceConfig(value, legacyExternalIdentity);
     } catch (error) {
       const message = error instanceof Error ? error.message : "External source config is invalid.";
       const diagnostics = {
@@ -809,8 +817,22 @@ export class DocumentsService {
     return false;
   }
 
-  private parseExternalSourceConfig(value: Prisma.JsonValue | null): ExternalSourceConfig {
+  private parseExternalSourceConfig(
+    value: Prisma.JsonValue | null,
+    legacyExternalIdentity?: {
+      sourceType?: string;
+      sourceName?: string;
+    }
+  ): ExternalSourceConfig {
+    const legacyFallbackConfig = this.resolveLegacyExternalSourceConfigFromDocumentIdentity(
+      legacyExternalIdentity
+    );
+
     if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") {
+      if (legacyFallbackConfig) {
+        return legacyFallbackConfig;
+      }
+
       throw new Error("External source config is missing.");
     }
 
@@ -846,6 +868,20 @@ export class DocumentsService {
     }
 
     throw new Error("External source config is invalid.");
+  }
+
+  private resolveLegacyExternalSourceConfigFromDocumentIdentity(identity?: {
+    sourceType?: string;
+    sourceName?: string;
+  }): ExternalSourceConfig | null {
+    if (!identity || identity.sourceType !== "web_page" || typeof identity.sourceName !== "string") {
+      return null;
+    }
+
+    return {
+      kind: "web_page",
+      url: identity.sourceName
+    };
   }
 
   private async fetchExternalSourceFromConfig(sourceConfig: ExternalSourceConfig): Promise<FetchedExternalSource> {
