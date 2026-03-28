@@ -1,6 +1,6 @@
 const DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_OPENAI_EMBEDDING_DIMENSIONS = 1536;
-const OPENAI_EMBEDDING_API_URL = "https://api.openai.com/v1/embeddings";
+const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const FALLBACK_EMBEDDING_MODEL = "hash-v1";
 const FALLBACK_EMBEDDING_DIMENSIONS = 256;
 
@@ -174,6 +174,12 @@ function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbe
   const model = embeddingModel ?? fallbackModel;
 
   if (!baseUrl && !model) {
+    if (expectedDimensions != null) {
+      throw new EmbeddingRuntimeConfigError(
+        "Invalid embedding config: OLLAMA_EMBEDDING_DIMENSIONS is set but Ollama embedding provider is disabled. Set OLLAMA_BASE_URL and OLLAMA_EMBEDDING_MODEL (or OLLAMA_MODEL), or unset OLLAMA_EMBEDDING_DIMENSIONS."
+      );
+    }
+
     return null;
   }
 
@@ -201,6 +207,7 @@ function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbe
 function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbeddingRuntimeConfig | null {
   const apiKey = readOptionalString(env.OPENAI_API_KEY);
   const explicitModel = readOptionalString(env.OPENAI_EMBEDDING_MODEL);
+  const openAiBaseUrl = normalizeBaseUrl(readOptionalString(env.OPENAI_BASE_URL) ?? DEFAULT_OPENAI_BASE_URL);
 
   if (!apiKey && !explicitModel) {
     return null;
@@ -224,7 +231,7 @@ function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbe
   return {
     provider: "openai",
     apiKey,
-    apiUrl: OPENAI_EMBEDDING_API_URL,
+    apiUrl: `${openAiBaseUrl}/embeddings`,
     model,
     modelSource: explicitModel ? "env:OPENAI_EMBEDDING_MODEL" : "default:OPENAI_EMBEDDING_MODEL",
     expectedDimensions
@@ -246,8 +253,14 @@ function validateResolvedEmbeddingDimensions(
   }
 
   if (dimensions !== providerConfig.expectedDimensions) {
+    const defaultModelHint =
+      providerConfig.modelSource === "default:OPENAI_EMBEDDING_MODEL"
+        ? ` OPENAI_EMBEDDING_MODEL is unset, so the default embedding model "${providerConfig.model}" is currently in use.`
+        : "";
+    const endpointHint = ` Resolved OpenAI embedding endpoint: ${providerConfig.apiUrl}.`;
+
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${providerConfig.model}" expects ${providerConfig.expectedDimensions} dimensions, but the provider returned ${dimensions}.`
+      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${providerConfig.model}" expects ${providerConfig.expectedDimensions} dimensions, but the provider returned ${dimensions}. Check OPENAI_EMBEDDING_MODEL and OPENAI_BASE_URL compatibility for the embedding endpoint.${endpointHint}${defaultModelHint}`
     );
   }
 

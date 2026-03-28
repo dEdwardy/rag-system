@@ -242,9 +242,13 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
       strategySummary: {
         retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+        strategyMode: trace.retrievalMetadataJson.strategy.candidateSelection.mode,
         retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
+        rewriteEnabled: trace.retrievalMetadataJson.queryRewrite.enabled,
         rewriteApplied: trace.rewrittenQuery !== null,
         rewriteUsedFallback: trace.retrievalMetadataJson.queryRewrite.usedFallback,
+        rewritePromptId: trace.retrievalMetadataJson.queryRewrite.promptId,
+        rewriteModelName: trace.retrievalMetadataJson.queryRewrite.modelName,
         fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
         usedFallback: trace.retrievalMetadataJson.execution.usedFallback
       },

@@ -7,6 +7,7 @@ import {
   DEFAULT_QUEUE_ITEM,
   LOOP_SCHEMA_VERSION,
   readQueue,
+  resolveQueueCursor
 } from "./queue.mjs";
 import { DEFAULT_PROMPT_FILE_NAME, DEFAULT_PROMPT_PATH, runLoop } from "./runtime.mjs";
 
@@ -28,7 +29,9 @@ export async function runSelfTest() {
 
     if (request.method === "POST" && request.url === "/session") {
       const id = `ses_${sessions.length + 1}`;
-      sessions.push({ id });
+      const raw = await readIncomingBody(request);
+      const payload = JSON.parse(raw || "{}");
+      sessions.push({ id, title: payload.title ?? null });
       messagesBySessionId.set(id, []);
       if (id === "ses_2") {
         transientPostFailureBySessionId.add(id);
@@ -124,6 +127,36 @@ export async function runSelfTest() {
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   try {
+    const outOfRangeCursor = resolveQueueCursor({
+      cursor: 99,
+      items: [{ status: "pending" }, { status: "completed" }]
+    });
+
+    if (
+      !outOfRangeCursor.recovered ||
+      outOfRangeCursor.reason !== "out_of_range" ||
+      outOfRangeCursor.cursor !== 0
+    ) {
+      throw new Error(
+        `Self-test cursor guardrail failed for out-of-range cursor: ${JSON.stringify(outOfRangeCursor)}`
+      );
+    }
+
+    const pastPendingCursor = resolveQueueCursor({
+      cursor: 2,
+      items: [{ status: "pending" }, { status: "completed" }]
+    });
+
+    if (
+      !pastPendingCursor.recovered ||
+      pastPendingCursor.reason !== "past_pending" ||
+      pastPendingCursor.cursor !== 0
+    ) {
+      throw new Error(
+        `Self-test cursor guardrail failed for past-pending cursor: ${JSON.stringify(pastPendingCursor)}`
+      );
+    }
+
     mkdirSync(resolve(root, ".opencode", "loop", "prompts"), { recursive: true });
     mkdirSync(resolve(root, ".opencode", "loop", "handoffs"), { recursive: true });
 
@@ -173,6 +206,10 @@ export async function runSelfTest() {
 
     if (sessions.length !== 2) {
       throw new Error(`Self-test expected two fresh sessions, got ${sessions.length}.`);
+    }
+
+    if (!sessions[0]?.title?.startsWith("loop #1 build-001") || !sessions[1]?.title?.startsWith("loop #2 build-002")) {
+      throw new Error(`Self-test session titles were not made clearer: ${JSON.stringify(sessions)}`);
     }
 
     if (result.processedCount !== 2) {

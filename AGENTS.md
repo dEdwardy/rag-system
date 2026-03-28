@@ -164,5 +164,6 @@ A task is usually complete only when all of the following are true:
 ## App-Specific Guidance
 
 - For cross-app work that needs coordinated changes in `apps/api` and `apps/web`, prefer starting OpenCode from the repository root so the default working context stays monorepo-wide.
+- When frontend and backend work need to proceed in parallel, prefer separate Git worktrees so each OpenCode session has its own checkout and local config.
 - For backend-specific workflow, validation, and risk guidance, also read `apps/api/AGENTS.md` when working in `apps/api`.
 - For frontend-specific workflow, UI constraints, and plugin notes, also read `apps/web/AGENTS.md` when working in `apps/web`.

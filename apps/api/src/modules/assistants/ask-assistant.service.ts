@@ -17,7 +17,13 @@ import { TracesService } from "../traces/traces.service";
 import { answerPolicySchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantError } from "./ask-assistant.error";
-import type { RetrievalStrategySummary } from "@rag-system/shared";
+import type {
+  TraceAnswerAttributionSummary,
+  TraceAnswerAttributionReadability,
+  RetrievalStrategySummary,
+  TraceCitationAttribution,
+  TraceCitationSelectionSource
+} from "@rag-system/shared";
 
 type AskResultChunk = {
   chunkId: string;
@@ -115,6 +121,7 @@ export class AskAssistantService {
       strategy: retrievalStrategy,
       filters: retrievalFilters,
       rewrittenQuery: rewritten.rewrittenQuery,
+      rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
       rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
       rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
       originalQuestion: input.question,
@@ -188,6 +195,9 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         retrievalMetadata,
+        answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
+        answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSource: this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -304,6 +314,7 @@ export class AskAssistantService {
       strategy: retrievalStrategy,
       filters: retrievalFilters,
       rewrittenQuery: rewritten.rewrittenQuery,
+      rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
       rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
       rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
       originalQuestion: input.question,
@@ -416,6 +427,9 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         retrievalMetadata,
+        answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
+        answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSource: this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -467,6 +481,132 @@ export class AskAssistantService {
     } as const;
   }
 
+  private resolveAnswerAttribution(answeringMetadata: unknown): TraceCitationAttribution | null {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const attribution = (answeringMetadata as Record<string, unknown>).citationAttribution;
+    return attribution === "explicit" || attribution === "heuristic" || attribution === "none"
+      ? attribution
+      : null;
+  }
+
+  private resolveAnswerAttributionSource(answeringMetadata: unknown): TraceCitationSelectionSource | null {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).citationSelectionSource;
+    return source === "structured" || source === "inline_markers" || source === "heuristic" || source === "none"
+      ? source
+      : null;
+  }
+
+  private resolveAnswerAttributionSummary(answeringMetadata: unknown): TraceAnswerAttributionSummary {
+    const attribution = this.resolveAnswerAttribution(answeringMetadata);
+    const source = this.resolveAnswerAttributionSource(answeringMetadata);
+    const attributionLabel = this.resolveAnswerAttributionLabel(attribution);
+    const sourceLabel = this.resolveAnswerAttributionSourceLabel(source);
+    const readabilityLabel = this.resolveAnswerAttributionReadabilityLabel(attributionLabel, sourceLabel);
+
+    return {
+      attribution,
+      source,
+      readability: this.resolveAnswerAttributionReadability(attribution, source),
+      attributionLabel,
+      sourceLabel,
+      readabilityLabel,
+      readabilityHint: this.resolveAnswerAttributionReadabilityHint(attributionLabel, sourceLabel, readabilityLabel),
+      readabilityResolvedLabel: this.resolveAnswerAttributionReadabilityResolvedLabel(attributionLabel, sourceLabel),
+      readabilitySentence: this.resolveAnswerAttributionReadabilitySentence(attribution, source)
+    };
+  }
+
+  private resolveAnswerAttributionReadability(
+    attribution: TraceCitationAttribution | null,
+    source: TraceCitationSelectionSource | null
+  ): TraceAnswerAttributionReadability | null {
+    return attribution != null && source != null
+      ? `${attribution}:${source}`
+      : null;
+  }
+
+  private resolveAnswerAttributionLabel(
+    attribution: TraceCitationAttribution | null
+  ): TraceAnswerAttributionSummary["attributionLabel"] {
+    if (attribution == null) {
+      return null;
+    }
+
+    return attribution === "none"
+      ? "no attribution"
+      : `${attribution} attribution`;
+  }
+
+  private resolveAnswerAttributionSourceLabel(
+    source: TraceCitationSelectionSource | null
+  ): TraceAnswerAttributionSummary["sourceLabel"] {
+    if (source == null) {
+      return null;
+    }
+
+    return source === "none"
+      ? "no source evidence"
+      : source === "inline_markers"
+        ? "inline-marker source"
+        : `${source} source`;
+  }
+
+  private resolveAnswerAttributionReadabilityLabel(
+    attributionLabel: TraceAnswerAttributionSummary["attributionLabel"],
+    sourceLabel: TraceAnswerAttributionSummary["sourceLabel"]
+  ): string | null {
+    if (attributionLabel == null || sourceLabel == null) {
+      return null;
+    }
+
+    return `${attributionLabel} via ${sourceLabel}`;
+  }
+
+  private resolveAnswerAttributionReadabilityHint(
+    attributionLabel: TraceAnswerAttributionSummary["attributionLabel"],
+    sourceLabel: TraceAnswerAttributionSummary["sourceLabel"],
+    readabilityLabel: TraceAnswerAttributionSummary["readabilityLabel"]
+  ): TraceAnswerAttributionSummary["readabilityHint"] {
+    if (readabilityLabel != null) {
+      return readabilityLabel;
+    }
+
+    if (attributionLabel != null) {
+      return `${attributionLabel} via unknown source`;
+    }
+
+    if (sourceLabel != null) {
+      return `unknown attribution via ${sourceLabel}`;
+    }
+
+    return null;
+  }
+
+  private resolveAnswerAttributionReadabilityResolvedLabel(
+    attributionLabel: TraceAnswerAttributionSummary["attributionLabel"],
+    sourceLabel: TraceAnswerAttributionSummary["sourceLabel"]
+  ): TraceAnswerAttributionSummary["readabilityResolvedLabel"] {
+    const resolvedAttributionLabel = attributionLabel ?? "unknown attribution";
+    const resolvedSourceLabel = sourceLabel ?? "unknown source";
+    return `${resolvedAttributionLabel} via ${resolvedSourceLabel}`;
+  }
+
+  private resolveAnswerAttributionReadabilitySentence(
+    attribution: TraceCitationAttribution | null,
+    source: TraceCitationSelectionSource | null
+  ): TraceAnswerAttributionSummary["readabilitySentence"] {
+    const attributionValue = attribution ?? "unknown";
+    const sourceValue = source ?? "unknown";
+    return `Answer attribution is ${attributionValue}; source evidence is ${sourceValue}.`;
+  }
+
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {
     return chunks.map(chunk => ({
       chunkId: chunk.chunkId,
@@ -498,6 +638,7 @@ export class AskAssistantService {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
     rewrittenQuery: string | null;
+    rewriteModelName: string | null;
     rewritePromptId: string | null;
     rewriteUsedFallback: boolean | null;
     originalQuestion: string;
@@ -540,14 +681,18 @@ export class AskAssistantService {
         applied: rewriteApplied,
         finalQuerySource: retrievalQuerySource,
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        modelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
       },
       strategySummary: {
         retrievalMode: input.execution.actualMode,
         strategyMode: input.strategy.candidateSelection.mode,
         retrievalQuerySource,
+        rewriteEnabled: input.strategy.queryRewrite.enabled,
         rewriteApplied,
         rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        rewritePromptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null,
+        rewriteModelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
         fallbackReason: input.execution.fallbackReason,
         usedFallback: input.execution.usedFallback
       },
@@ -628,6 +773,7 @@ export class AskAssistantService {
           strategy: input.retrievalStrategy,
           filters: input.retrievalFilters,
           rewrittenQuery: input.rewritten.rewrittenQuery,
+          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.modelName : null,
           rewritePromptId: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.promptId : null,
           rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.usedFallback : null,
           originalQuestion: input.userQuery,
@@ -658,6 +804,7 @@ export class AskAssistantService {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
     rewrittenQuery: string | null;
+    rewriteModelName: string | null;
     rewritePromptId: string | null;
     rewriteUsedFallback: boolean | null;
     originalQuestion: string;
@@ -685,14 +832,18 @@ export class AskAssistantService {
         applied: rewriteApplied,
         finalQuerySource: retrievalQuerySource,
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        modelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
       },
       strategySummary: {
         retrievalMode: null,
         strategyMode: input.strategy.candidateSelection.mode,
         retrievalQuerySource,
+        rewriteEnabled: input.strategy.queryRewrite.enabled,
         rewriteApplied,
         rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        rewritePromptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null,
+        rewriteModelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
         fallbackReason: null,
         usedFallback: null
       },

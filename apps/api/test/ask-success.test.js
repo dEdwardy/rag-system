@@ -342,14 +342,18 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       applied: true,
       finalQuerySource: "rewritten",
       usedFallback: true,
+      modelName: "rewrite-model",
       promptId: "rewrite-query.v1"
     },
     strategySummary: {
       retrievalMode: "hybrid",
       strategyMode: "hybrid",
       retrievalQuerySource: "rewritten",
+      rewriteEnabled: true,
       rewriteApplied: true,
       rewriteUsedFallback: true,
+      rewritePromptId: "rewrite-query.v1",
+      rewriteModelName: "rewrite-model",
       fallbackReason: null,
       usedFallback: false
     },
@@ -441,6 +445,19 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.deepEqual(result.contextGroups, contextGroups);
   assert.deepEqual(result.strategySummary, createTraceCalls[0].retrievalMetadataJson.strategySummary);
   assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
+  assert.deepEqual(result.answerAttributionSummary, {
+    attribution: "explicit",
+    source: "structured",
+    readability: "explicit:structured",
+    attributionLabel: "explicit attribution",
+    sourceLabel: "structured source",
+    readabilityLabel: "explicit attribution via structured source",
+    readabilityHint: "explicit attribution via structured source",
+    readabilityResolvedLabel: "explicit attribution via structured source",
+    readabilitySentence: "Answer attribution is explicit; source evidence is structured."
+  });
+  assert.equal(result.answerAttribution, "explicit");
+  assert.equal(result.answerAttributionSource, "structured");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,
@@ -715,14 +732,18 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       applied: false,
       finalQuerySource: "original_disabled",
       usedFallback: null,
+      modelName: null,
       promptId: null
     },
     strategySummary: {
       retrievalMode: "lexical",
       strategyMode: "lexical",
       retrievalQuerySource: "original_disabled",
+      rewriteEnabled: false,
       rewriteApplied: false,
       rewriteUsedFallback: null,
+      rewritePromptId: null,
+      rewriteModelName: null,
       fallbackReason: null,
       usedFallback: false
     },
@@ -754,6 +775,19 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     }
   });
   assert.equal(result.retrievalMetadata.execution.neighborChunkCount, 0);
+  assert.deepEqual(result.answerAttributionSummary, {
+    attribution: "none",
+    source: "none",
+    readability: "none:none",
+    attributionLabel: "no attribution",
+    sourceLabel: "no source evidence",
+    readabilityLabel: "no attribution via no source evidence",
+    readabilityHint: "no attribution via no source evidence",
+    readabilityResolvedLabel: "no attribution via no source evidence",
+    readabilitySentence: "Answer attribution is none; source evidence is none."
+  });
+  assert.equal(result.answerAttribution, "none");
+  assert.equal(result.answerAttributionSource, "none");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,

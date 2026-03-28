@@ -22,6 +22,12 @@ This brings up:
 pnpm install
 ```
 
+If this is a fresh checkout, copy the example env first:
+
+```bash
+cp .env.example .env
+```
+
 For clean-checkout or CI-like validation, explicitly generate the Prisma client before API build/typecheck:
 
 ```bash
@@ -72,8 +78,10 @@ Stable way in the current environment:
 
 ```bash
 pnpm --filter @rag-system/api build
-node apps/api/dist/main.js
+pnpm --filter @rag-system/api start:prod
 ```
+
+This expects the local PostgreSQL and Redis stack to be running.
 
 Health check:
 
@@ -96,6 +104,7 @@ Notes:
 - In the current local environment, `qwen2.5:7b` has been verified to respond to both `/api/generate` and `/api/embed`.
 - If you later switch to a dedicated embedding model, only `OLLAMA_EMBEDDING_MODEL` needs to change.
 - `OLLAMA_EMBEDDING_DIMENSIONS` is optional and acts as a strict guardrail: when set, the backend rejects Ollama embedding responses whose vector length does not match the configured dimension.
+- `OLLAMA_EMBEDDING_DIMENSIONS` now also requires Ollama embedding provider config (`OLLAMA_BASE_URL` + `OLLAMA_EMBEDDING_MODEL` or `OLLAMA_MODEL`); setting it alone now fails fast at startup/config resolution instead of being silently ignored.
 - external source fetch runtime now also supports:
 
 ```text
@@ -113,7 +122,7 @@ LLM_REWRITE_TEMPERATURE=0
 ```
 
 - `OPENAI_CHAT_MODEL` still defaults to `gpt-4.1-mini`
-- `OPENAI_BASE_URL` applies to the current OpenAI chat/rewrite path and makes proxy or compatible endpoint testing explicit without changing the default hosted OpenAI path
+- `OPENAI_BASE_URL` now also applies to the OpenAI embedding path (`<OPENAI_BASE_URL>/embeddings`), so chat/rewrite and embedding calls stay aligned when using a proxy or compatible endpoint
 - `LLM_ANSWER_TEMPERATURE` currently applies to both Ollama and OpenAI answer generation
 - `LLM_REWRITE_TEMPERATURE` currently applies to both Ollama and OpenAI query-rewrite calls
 - `PATCH /assistants/:id` now accepts `answerPolicyJson` with:
@@ -171,46 +180,56 @@ LLM_REWRITE_TEMPERATURE=0
     - `primaryIssue`
     - `retrievalMode`
     - `retrievalQuerySource`
+    - `rewriteReadabilityLabel`
      - `strategySummary`
        - `retrievalMode`
        - `strategyMode`
-      - `retrievalQuerySource`
-      - `rewriteApplied`
-      - `rewriteUsedFallback`
-      - `fallbackReason`
-      - `usedFallback`
+       - `retrievalQuerySource`
+       - `rewriteApplied`
+       - `rewriteUsedFallback`
+       - `rewritePromptId`
+       - `fallbackReason`
+       - `usedFallback`
     - `generationMode`
     - `contextMode`
     - `rewriteApplied`
     - `fallbackReason`
     - `resolvedLanguage`
     - `citationAttribution`
-    - `citationSelectionSource`
-    - `missingInformationCount`
-    - `missingInformationSource`
-    - `insufficientContextReason`
-    - `answerTextSource`
-    - `answerStatusSource`
-    - `failedStage`
+     - `citationSelectionSource`
+      - `answerEvidenceSource`
+      - `answerEvidenceSourceReadabilityLabel`
+      - `missingInformationCount`
+     - `missingInformationCountReadabilityLabel`
+     - `missingInformationSource`
+     - `insufficientContextReason`
+     - `answerTextSource`
+     - `answerTextSourceReadabilityLabel`
+     - `answerStatusSource`
+     - `answerStatusSourceReadabilityLabel`
+     - `failedStage`
+     - `failedStageReadabilityLabel`
     - `failureMessage`
     - `candidateLimit`
-    - `vectorCandidateCount`
-    - `lexicalCandidateCount`
-    - `mergedCandidateCount`
-    - `rankedCandidateCount`
-    - `vectorCandidateLimitHit`
-    - `lexicalCandidateLimitHit`
-    - `rankingTopKHit`
+     - `vectorCandidateCount`
+     - `lexicalCandidateCount`
+     - `mergedCandidateCount`
+     - `rankedCandidateCount`
+     - `candidateCountReadabilityLabel`
+     - `vectorCandidateLimitHit`
+     - `lexicalCandidateLimitHit`
+     - `rankingTopKHit`
     - `primaryChunkCount`
     - `neighborChunkCount`
     - `retrievedChunkCount`
     - `inputChunkCount`
     - `promptContextCount`
-    - `contextGroupCount`
-    - `citationCount`
-    - `citationCountBeforeLimit`
-    - `citationLimitHit`
-    - `usedFallback`
+     - `contextGroupCount`
+     - `citationCount`
+     - `citationCountReadabilityLabel`
+     - `citationCountBeforeLimit`
+     - `citationLimitHit`
+     - `usedFallback`
   - current `traceSummary.retrievalQuerySource` values are:
     - `rewritten`
     - `original_disabled`
@@ -277,6 +296,11 @@ Current client focus for this stage:
 - small focused tests and static checks may run in parallel when they do not start the full API, worker, or real integration stack
 - for browser-based verification or smoke checks, prefer the host-installed Edge/Chrome on this machine first; both are already available locally
 - browser download or install steps are fallback-only, not the default first action for local browser testing
+- current workspace split preference:
+  - main repository checkout: backend work + docs + orchestration
+  - `apps/web` worktree: frontend work
+  - `apps/api` worktree: currently optional / mostly unused
+  - workspace-local OpenCode or plugin state is not shared automatically across these checkouts
 
 ### Preflight for longer runs
 
@@ -364,7 +388,7 @@ Focused API integration entrypoint:
 pnpm test:api:integration
 ```
 
-Current heavy API lanes now run an on-demand build check first and only rebuild when `src/`, `prisma/`, or key API config files are newer than `dist/main.js`.
+Current heavy API lanes now run an on-demand build check first and only rebuild when `src/`, `prisma/`, or key API config files are newer than the built API entry (`dist/apps/api/src/main.js`, with `dist/main.js` as legacy fallback).
 
 Current integration and E2E files also seed default records once per file and then reset mutable test state between individual tests.
 
@@ -605,7 +629,7 @@ Notes:
 - ingestion queue jobs now carry the expected document `version`; stale jobs are skipped before parsing/chunk deletion/index writes so an older reindex or resync run cannot overwrite a newer one
 - document failure states now also persist `diagnosticsJson` with a stable `code`, `failedStage`, `retryable`, `documentVersion`, and `message`, so `GET /documents/:id` exposes structured ingestion diagnostics instead of only a flat `errorMessage`
 - the ingestion worker now records `chunking` as a real intermediate processing stage between `parsing` and `indexing`
-- external source HTTP fetches now share a small retry guard: one automatic retry for transient `429` / `5xx` upstream responses before surfacing the failure
+- external source HTTP fetches now share a small retry guard: one automatic retry for transient `408` / `429` / `5xx` upstream responses before surfacing the failure
 - external source creation now reserves a `Document` record before remote fetch, so when `web page` / `feed` / `sitemap` source fetch fails the failure is still visible later through `GET /knowledge-bases/:id/documents` and `GET /documents/:id`
 - external source documents now persist `sourceConfigJson`, and `POST /documents/:id/reindex` for `web_page` / `feed` / `sitemap` performs a true remote re-sync using the stored source config instead of only re-parsing the previous generated text artifact
 - if an external source document later loses a valid `sourceConfigJson`, `POST /documents/:id/reindex` now still creates a new `external_resync` run/version and then records a structured non-retryable failure instead of failing before run history is written
@@ -748,7 +772,7 @@ pnpm test:api
 The following path has been validated locally on `2026-03-21`:
 
 1. Start PostgreSQL and Redis with Docker.
-2. Start API with `node apps/api/dist/main.js`.
+2. Start API with `pnpm --filter @rag-system/api start:prod`.
 3. Upload a markdown, DOCX, or PDF document to `default-kb`.
 4. Wait for the document to reach `ready`.
 5. Confirm vectors are written to `storage/vectors/default-kb.json`.

@@ -998,6 +998,94 @@ test("DocumentsService stale external finalize does not overwrite a newer docume
   ]);
 });
 
+test("DocumentsService finalize uses version-guarded update to avoid stale overwrite during concurrent external resync", async () => {
+  const updateManyCalls = [];
+  const skippedRuns = [];
+
+  const currentDocument = {
+    id: "stale-race-finalize-document",
+    version: 7,
+    status: "pending",
+    processingStage: "uploaded"
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        updateMany: async args => {
+          updateManyCalls.push(args);
+          return { count: 0 };
+        },
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: currentDocument.id });
+          return {
+            version: currentDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    },
+    getDocument: async documentId => {
+      assert.equal(documentId, currentDocument.id);
+      return currentDocument;
+    }
+  });
+
+  const result = await DocumentsService.prototype.finalizeExternalDocument.call(
+    fakeService,
+    {
+      id: currentDocument.id,
+      version: 6
+    },
+    {
+      title: "Stale fetched title",
+      mimeType: "text/plain",
+      storageKey: "generated/stale-race.txt"
+    }
+  );
+
+  assert.deepEqual(updateManyCalls, [
+    {
+      where: {
+        id: currentDocument.id,
+        version: 6
+      },
+      data: {
+        title: "Stale fetched title",
+        mimeType: "text/plain",
+        storageKey: "generated/stale-race.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(result, {
+    document: currentDocument,
+    applied: false
+  });
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: currentDocument.id,
+      version: 6,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: 6,
+        message: "Skipped stale external source update because a newer document version is already active.",
+        currentDocumentVersion: 7
+      }
+    }
+  ]);
+});
+
 test("DocumentsService stale external fetch failure does not overwrite a newer document version", async () => {
   const documentUpdates = [];
   const failedRuns = [];
@@ -1416,6 +1504,129 @@ test("DocumentsService records a failed external_resync run when stored source c
     }
   ]);
   assert.deepEqual(enqueuedDocumentIds, []);
+});
+
+test("DocumentsService reindex recovers legacy feed config without maxItems by using default selection bound", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const fetchFeedCalls = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-legacy-feed-document",
+    kbId: "default-kb",
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    title: "Legacy feed",
+    mimeType: "text/plain",
+    storageKey: "generated/feed.txt",
+    sourceConfigJson: {
+      kind: "feed",
+      url: "https://example.com/feed.xml"
+    },
+    status: "ready",
+    processingStage: "completed",
+    version: 2,
+    chunkCount: 5,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    feedSourceService: {
+      fetchFeed: async options => {
+        fetchFeedCalls.push(options);
+        return {
+          title: "Fetched feed",
+          content: "Updated feed content"
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Updated feed content");
+        return {
+          storageKey: "generated/feed-refreshed.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    sitemapSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 3,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(fetchFeedCalls, [
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 20
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Fetched feed",
+        mimeType: "text/plain",
+        storageKey: "generated/feed-refreshed.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
 });
 
 test("DocumentsService reindex preserves an existing sitemap title when the resynced source has no title", async () => {

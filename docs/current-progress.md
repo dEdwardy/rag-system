@@ -13,6 +13,582 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now exposes additive `rewriteReadabilityLabel` for one-line rewrite provenance readability
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `rewriteReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.rewriteReadabilityLabel` from resolved rewrite metadata (`rewriteEnabled` / `rewriteApplied` / `rewriteUsedFallback` / `rewritePromptId`) with stable wording (`rewrite <enabled|disabled>; rewrite applied: <yes|no>; rewrite fallback: <yes|no|unknown>; rewrite prompt: <id|unknown>.`)
+  - `apps/api/test/traces.service.test.js` now asserts the new field in both default/no-rewrite and rewrite-fallback strategy-summary paths; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list now includes `rewriteReadabilityLabel`
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 rewrite 启用/是否生效/是否 fallback/prompt 来源的一行可读摘要，减少跨字段拼接阅读成本
+
+- ✅ OpenAI embedding dimension-mismatch guardrail now logs the resolved embedding endpoint for faster config drift diagnosis
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now appends one additive endpoint hint on OpenAI dimension mismatch: `Resolved OpenAI embedding endpoint: <OPENAI_BASE_URL>/embeddings.`
+  - this keeps the increment strictly diagnostics-only on one existing guardrail path: no provider-order changes, no retrieval behavior changes, no schema/persistence changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/embedding-runtime-config.test.js`
+  - 实测结果：focused embedding runtime config tests passed；当 OpenAI embedding 返回维度与模型不匹配时，报错会同时给出当前实际命中的 embedding endpoint，便于直接识别 `OPENAI_BASE_URL` 端点漂移
+
+- ✅ OpenAI embedding dimension-mismatch diagnostics now explicitly clarify default-model fallback selection
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now appends one extra hint only when OpenAI embedding model selection comes from the default path (`OPENAI_EMBEDDING_MODEL` unset): `OPENAI_EMBEDDING_MODEL is unset, so the default embedding model "text-embedding-3-small" is currently in use.`
+  - `apps/api/test/embedding-runtime-config.test.js` now adds focused coverage for this default-model mismatch wording
+  - this is a narrow embedding model-selection clarity increment only: no provider-order changes, no retrieval behavior changes, no schema/persistence changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/embedding-runtime-config.test.js`
+  - 实测结果：focused embedding runtime config tests 13/13 passed；当 OpenAI embedding 维度不匹配且模型来自默认路径时，报错会明确提示“当前在用默认模型”，降低“未显式设置模型却误以为用了自定义模型”的排障歧义
+
+- ✅ feed-source entry dedup now ignores URL hash-only differences to avoid duplicate ingestion of the same entry
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now normalizes feed entry dedup links by stripping URL fragment (`#...`) before dedup key comparison (with existing safe fallback for non-URL link strings)
+  - this is a narrow dedup guard increment for existing `feed` source extraction only: no source-family expansion, no fetch retry policy change, no ingestion persistence/schema behavior change
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed；当同一 feed entry 仅 `#fragment` 不同（如 `.../a#top` 与 `.../a#latest`）时，现在会被视为重复条目并跳过后者，避免重复 entry 写入生成内容
+
+- ✅ external-source fetch network-failure errors now include explicit source URL attribution
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now normalizes non-redirect fetch exceptions into `Fetch request failed for <url>: <original message>` while preserving existing redirect-follow diagnostics wording
+  - this is a narrow source-fetch diagnostics increment for existing `web page` / `feed` / `sitemap` paths only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused fetch-with-retry tests passed；当上游网络失败仅返回通用 `fetch failed` 时，错误现在会携带具体 source URL（例如 `Fetch request failed for https://example.com/source.xml: fetch failed`），便于 run diagnostics 直接定位失败来源
+
+- ✅ external-source fetch now reports clearer redirect-follow failures when upstream redirects to non-HTTP(S) targets
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now performs one bounded manual redirect-follow loop (`301/302/303/307/308`, max `5`) so invalid redirect targets can be reported deterministically; when a redirect points to non-HTTP(S) scheme, the helper now throws `Failed to follow redirect for <url>: redirect target must use http/https.`
+  - this is a narrow source-fetch diagnostics increment for existing `web page` / `feed` / `sitemap` fetch paths only: no source-family expansion, no retry-policy rewrite, no ingestion state/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused fetch-with-retry tests passed；当上游返回 `302` 且 Location 为 `mailto:` 等非 HTTP(S) scheme 时，错误信息现在会直接指向“redirect target must use http/https”，不再仅返回模糊的 `fetch failed`
+
+- ✅ opencode loop `pick` status now shows cursor-distance steps to the next pending item
+  - `scripts/opencode-loop/runtime.mjs` now computes one additive visibility field in `buildQueueCursorVisibility()`:
+    - `nextPendingCursorDistance`
+  - the value reports how many queue steps the active cursor is away from the next pending task index (wrap-around aware)
+  - this is a narrow queue observability increment only: no queue schema change, no pick/complete semantics change, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；`pick` 日志现在可直接看到“游标距离下一个 pending 任务还差几步”，无需再手动对比 `queueCursor` 与 `nextPendingItemIndex`
+
+- ✅ opencode loop `pick` status now adds resume-preview fields around the active queue cursor item
+  - `scripts/opencode-loop/runtime.mjs` now adds a small `buildActiveCursorResumeVisibility()` helper and extends the existing cursor visibility payload with:
+    - `queueCursorItemTitle`
+    - `queueCursorResumePreview`
+    - `queueCursorResumeSessionId`
+    - `queueCursorResumeMessageId`
+    - `queueCursorResumeStartedAt`
+  - resume-preview fields only appear when the active cursor item is `in_progress`, preserving current queue format and scheduling semantics
+  - this is a narrow queue observability increment only: no queue schema change, no pick/complete behavior change, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；恢复/中断任务在 `pick` 状态里现在可直接读到“是否已有可复用 session、是否已有已跟踪 assistant message、以及该中断任务起始时间”
+
+- ✅ opencode loop status now adds pending/completed family counts (derived from queue item id prefix)
+  - `scripts/opencode-loop/runtime.mjs` now adds a small `buildQueueFamilyCountVisibility()` helper and includes two additive status fields on existing `pick` / `idle` logs:
+    - `queuePendingByFamily`
+    - `queueCompletedByFamily`
+  - family is resolved from the queue item `id` prefix (split by `-` / `_` / `:` / `/` / `.`), preserving current queue format and scheduling behavior
+  - this is a narrow queue observability increment only: no queue schema change, no pick/complete semantics change, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；状态日志现在可直接看到按任务 family/prefix 聚合的 pending/completed 计数（例如默认 `build-*` 队列会显示 `queuePendingByFamily={"build":...}`）
+
+- ✅ trace summary `failedStageReadabilityLabel` now includes raw diagnostics stage when stage value is outside trace contract
+  - `apps/api/src/modules/traces/traces.service.ts` now keeps current normalized `failedStage` behavior (`retrieval` / `answering` only) and, for non-contract stage values, emits readability wording as `unknown failed stage (<raw-stage>)` instead of dropping the raw diagnostic stage context
+  - this is a narrow readability-only increment for failure traces; no retrieval execution semantics, stage normalization semantics, or persistence contracts are changed
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；当失败诊断里出现 `source_fetch` 这类非 trace 合约 stage 时，`traceSummary.failedStageReadabilityLabel` 现在会直接显示 `unknown failed stage (source_fetch)`，比仅显示 `unknown failed stage` 更易读
+
+- ✅ trace summary `strategyReadabilityLabel` now includes explicit fallback-usage wording for clearer retrieval-mode fallback provenance
+  - `apps/api/src/modules/traces/traces.service.ts` now appends `fallback used: yes|no|unknown` to existing strategy readability sentence, derived from resolved `strategySummary.usedFallback`
+  - this keeps the increment additive/readability-only while preserving existing retrieval execution semantics and mode resolution behavior
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；即使 `fallbackReason` 缺失（例如 legacy 仅有 `usedFallback=true`），trace summary 一行策略摘要也能直接读出 fallback 是否发生
+
+- ✅ trace summary now exposes additive `answerEvidenceSource` + `answerEvidenceSourceReadabilityLabel` for clearer final-answer evidence-source readability
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with:
+    - `answerEvidenceSource: TraceCitationSelectionSource | null`
+    - `answerEvidenceSourceReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits both fields from existing final-answer citation selection metadata, with stable fallback wording (`structured evidence source` / `inline-marker evidence source` / `heuristic evidence source` / `no evidence source` / `unknown evidence source`)
+  - `apps/api/test/traces.service.test.js` now asserts the new fields for both missing-metadata and populated-metadata summary paths; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract fields
+  - `docs/current-dev-setup.md` trace-summary field list now includes `answerEvidenceSource` and `answerEvidenceSourceReadabilityLabel`
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 answer evidence source 的别名与可读标签，减少仅看 `citationSelectionSource` 时的语义跳转
+
+- ✅ OpenAI embedding dimension mismatch error now includes explicit endpoint/model compatibility guidance
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now appends one actionable hint when OpenAI embedding response dimensions mismatch expected model dimensions: `Check OPENAI_EMBEDDING_MODEL and OPENAI_BASE_URL compatibility for the embedding endpoint.`
+  - `apps/api/test/embedding-runtime-config.test.js` now asserts this guidance in the existing OpenAI dimension-mismatch path
+  - this is a narrow embedding config diagnostics increment only: no provider-order changes, no retrieval behavior changes, no schema/persistence changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/embedding-runtime-config.test.js`
+  - 实测结果：focused embedding runtime config tests passed；当代理或模型配置导致维度不匹配时，报错会直接提示检查 `OPENAI_EMBEDDING_MODEL` 与 `OPENAI_BASE_URL` 的兼容性，降低“只看到维度数字但定位不到配置漂移点”的排障风险
+
+- ✅ external-source finalize/failure updates now use atomic `id + version` guard to avoid stale overwrite under concurrent re-sync
+  - `apps/api/src/modules/documents/documents.service.ts` now applies external finalize/failure document writes through version-guarded `updateMany({ where: { id, version } })` first, instead of relying only on pre-check then blind `update`
+  - when the guarded write misses (`count=0`), the existing stale-run skip path is preserved (`EXTERNAL_SOURCE_RUN_SUPERSEDED`), so stale fetch/persist responses cannot overwrite newer in-flight source versions between check and write
+  - `apps/api/test/external-source-sync.test.js` now adds focused coverage for this concurrent stale-response race (`finalize uses version-guarded update`)
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests 23/23 通过；并发 resync 下旧版本 finalize 响应即使晚到，也会被 `id+version` 原子写入保护拦截，不会回写覆盖新版本文档状态
+
+- ✅ web-page source fetch now accepts HTML payload when upstream content-type is missing or mis-labeled as `text/plain`
+  - `apps/api/src/infra/web-page/web-page.service.ts` now adds one narrow fallback: when response `content-type` is missing (`unknown`) or starts with `text/plain`, and payload clearly looks like HTML (`<!doctype html>` / `<html>` / `<head>` / `<body>` / `<title>`), it proceeds with existing HTML extraction instead of immediately failing with `Unsupported web page content type`
+  - this closes one real HTTP response edge case for existing `web page` and downstream `sitemap` page fetches where upstream serves valid HTML but omits or mislabels content type
+  - behavior remains strict for explicit non-HTML content types (for example `application/pdf` still fails)
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed；被标成 `text/plain`（或缺失 `content-type`）的 HTML 页面现在可继续提取 title/content，不再在 source-fetch 阶段被误判为 unsupported content type
+
+- ✅ opencode loop `pick` status now previews next pending queue item index/title for faster cursor-target readability
+  - `scripts/opencode-loop/runtime.mjs` now expands existing queue cursor visibility logs with:
+    - `nextPendingItemIndex`
+    - `nextPendingItemTitle`
+  - existing `nextPendingItemId` is preserved; this is a narrow observability-only increment to make the next pending target easier to identify at a glance
+  - no queue schema change, no scheduling-policy change, no pick/complete semantics change, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；`pick` 日志现在可同时看到 next pending item 的 `id + index + title`，更容易快速判断下一项具体指向
+
+- ✅ opencode loop `idle` status now reports remaining queue work at a glance
+  - `scripts/opencode-loop/runtime.mjs` now adds `buildIdleQueueWorkVisibility()` and extends the existing `logStatus("idle", ...)` payload with:
+    - `remainingQueueWork`
+    - `queuePending`
+    - `queueInProgress`
+    - `queueCompleted`
+    - `queueTotal`
+  - this is a narrow idle-log observability increment only: no queue schema change, no pick/complete behavior change, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；队列空闲时现在可直接看到剩余工作是否为 `0`，并同时看到 pending/in-progress/completed 的当前计数
+
+- ✅ trace read-model now backfills `strategySummary.usedFallback` from legacy top-level `retrievalMetadata.usedFallback`
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.usedFallback` in this order: `retrievalMetadata.execution.usedFallback` -> persisted `strategySummary.usedFallback` -> legacy `retrievalMetadata.usedFallback` -> derived from resolved `fallbackReason`
+  - this closes a minimal fallback-clarity gap where older traces could persist top-level fallback usage without `execution` / `strategySummary`, causing resolved strategy summary to under-report effective fallback usage
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；legacy top-level `usedFallback` metadata 下 `traceSummary.strategySummary.usedFallback` 现在可直接对齐
+
+- ✅ trace summary now exposes additive `candidateCountReadabilityLabel` for at-a-glance candidate-flow count wording
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `candidateCountReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.candidateCountReadabilityLabel` from existing `candidateLimit` / `vectorCandidateCount` / `lexicalCandidateCount` / `mergedCandidateCount` / `rankedCandidateCount` with stable wording (`vector <V>, lexical <L>, merged <M>, ranked <R> (candidate limit <C>)`)
+  - `apps/api/test/traces.service.test.js` now asserts the new field for both failed and successful trace-summary paths
+  - `docs/current-dev-setup.md` trace-summary field list now includes `candidateCountReadabilityLabel`
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 `candidateCountReadabilityLabel`，比分散读取多个 candidate 数字更容易一眼识别候选流规模
+
+- ✅ trace summary now exposes additive `citationCountReadabilityLabel` for at-a-glance citation-count wording
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `citationCountReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.citationCountReadabilityLabel` from existing `citationCount` / `citationCountBeforeLimit` / `citationLimitHit` with stable wording (`no citations` / `1 citation` / `<N> citations` / `<N> citations shown (<M> before limit)`)
+  - `apps/api/test/traces.service.test.js` now asserts the new field for both non-limited and citation-limit-hit trace-summary paths
+  - `docs/current-dev-setup.md` trace-summary field list now includes `citationCountReadabilityLabel`
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 `citationCountReadabilityLabel`，比裸 `citationCount` / `citationCountBeforeLimit` 更容易一眼识别“是否命中 citation 限制”
+
+- ✅ trace summary now exposes additive `missingInformationCountReadabilityLabel` for at-a-glance missing-information count wording
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `missingInformationCountReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.missingInformationCountReadabilityLabel` from existing `missingInformationCount` with stable wording (`no missing-information items` / `1 missing-information item` / `<N> missing-information items`)
+  - `apps/api/test/traces.service.test.js` now asserts the new field for both zero-count and singular-count trace-summary paths; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list now includes `missingInformationCountReadabilityLabel`
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 `missingInformationCountReadabilityLabel`，比裸数字更容易一眼理解缺失信息条目数量
+
+- ✅ trace summary now exposes additive `failedStageReadabilityLabel` for failed-stage readability at a glance
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `failedStageReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.failedStageReadabilityLabel` with stable wording from existing `failedStage` (`retrieval stage failed` / `answering stage failed` / `unknown failed stage`)
+  - `apps/api/test/traces.service.test.js` now asserts the new field for failed and invalid-stage trace-summary paths
+  - `docs/current-dev-setup.md` trace-summary field list now includes `failedStageReadabilityLabel`
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 `failedStageReadabilityLabel`，更快识别失败阶段语义
+
+- ✅ trace summary now exposes additive `answerStatusSourceReadabilityLabel` for final-answer status-source readability
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerStatusSourceReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.answerStatusSourceReadabilityLabel` with stable fallback wording (`model-decided answer status` / `retrieval-inferred answer status` / `deterministic policy answer status` / `unknown answer status source`) derived from existing `answerStatusSource`
+  - `apps/api/test/traces.service.test.js` now asserts the new field for both missing-metadata and populated-metadata trace-summary paths
+  - `docs/current-dev-setup.md` trace-summary field list now includes `answerStatusSourceReadabilityLabel`
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 20/20 passed；trace summary 现在可直接读取 `answerStatusSourceReadabilityLabel` 来快速识别最终答案状态来源语义
+
+- ✅ trace summary now exposes additive `answerTextSourceReadabilityLabel` for final-answer text-source readability
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerTextSourceReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.answerTextSourceReadabilityLabel` with stable fallback wording (`model-generated answer text` / `deterministic policy answer text` / `unknown answer text source`) derived from existing `answerTextSource`
+  - `apps/api/test/traces.service.test.js` now asserts the new field for both missing-metadata and populated-metadata trace-summary paths
+  - compatibility preserved: additive trace read-model readability only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 `answerTextSourceReadabilityLabel` 来快速识别最终答案文本来源语义
+
+- ✅ opencode loop `pick` status now includes queue cursor item and next pending item at a glance
+  - `scripts/opencode-loop/runtime.mjs` now adds `buildQueueCursorVisibility()` and extends the existing `logStatus("pick", ...)` payload with:
+    - `queueCursor`
+    - `queueCursorItemId`
+    - `queueCursorItemStatus`
+    - `nextPendingItemId`
+  - this is a narrow queue observability increment only: no queue schema change, no pick/complete behavior change, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；`pick` 日志现在可同时看到“当前游标指向哪个任务”与“下一个 pending 任务 id”，更快判断当前项与后续项
+
+- ✅ trace summary now exposes additive `missingInformationProvenanceSentence` for one-line missing-information provenance readability
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `missingInformationProvenanceSentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.missingInformationProvenanceSentence` with stable fallback wording (`Missing-information source is <...>; insufficient-context reason is <...>; missing-information count is <...>.`) from existing `missingInformationSource` / `insufficientContextReason` / `missingInformationCount`
+  - `apps/api/test/traces.service.test.js` now asserts the new field for both missing-metadata and populated-metadata trace-summary paths; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - compatibility preserved: additive trace read-model clarity only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取一行 `missingInformationProvenanceSentence` 来快速识别缺失信息来源、insufficient-context 原因与缺失条目数量
+
+- ✅ opencode loop now recovers stale "end-of-queue" cursor when pending items still exist
+  - `scripts/opencode-loop/queue.mjs` now treats `cursor === items.length` with remaining pending items as recoverable stale state and normalizes it back to the first safe pending index (`reason: "past_pending"`)
+  - `scripts/opencode-loop/self-test.mjs` now adds focused coverage for this `past_pending` cursor recovery edge case
+  - this is a narrow queue guardrail increment only: no queue schema change, no scheduling-policy change, no pick/complete semantics redesign
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；当手工把游标放到队列尾部但仍有 pending 任务时，loop 会先回写安全游标并继续按既有 pending 选择逻辑执行
+
+- ✅ embedding runtime now derives OpenAI embedding endpoint from `OPENAI_BASE_URL`
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now resolves OpenAI embedding `apiUrl` as `${OPENAI_BASE_URL}/embeddings` (with existing default `https://api.openai.com/v1`), instead of hard-coding only the hosted OpenAI endpoint
+  - `apps/api/test/embedding-runtime-config.test.js` now adds focused coverage for the `OPENAI_BASE_URL`-derived embedding endpoint path
+  - `docs/current-dev-setup.md` now clarifies that `OPENAI_BASE_URL` applies to both chat/rewrite and embeddings
+  - this is a narrow backend env/default alignment increment only: no provider ordering changes, no retrieval behavior changes, no schema/persistence changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/embedding-runtime-config.test.js`
+  - 实测结果：focused embedding runtime config tests passed；当使用 OpenAI-compatible proxy 时，embedding 请求不再默认漂移到 hosted OpenAI 根端点
+
+- ✅ trace summary now exposes additive `answerProvenanceSentence` for one-line final-answer provenance readability
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerProvenanceSentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.answerProvenanceSentence` using stable fallback wording (`Answer text source is <...>; status source is <...>; attribution summary is <...>.`) from existing `answerTextSource` / `answerStatusSource` and resolved attribution label
+  - `apps/api/test/traces.service.test.js` now asserts the new field for both missing-metadata and populated-metadata trace-summary paths; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - compatibility preserved: additive trace read-model clarity only; no retrieval execution semantics/source scope/schema-persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；trace summary 现在可直接读取一行 `answerProvenanceSentence` 来快速识别最终答案文本来源、答案状态来源与归因摘要
+
+- ✅ embedding runtime now rejects orphan `OLLAMA_EMBEDDING_DIMENSIONS` config when Ollama embedding provider is not enabled
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now fails fast when `OLLAMA_EMBEDDING_DIMENSIONS` is set without Ollama provider prerequisites (`OLLAMA_BASE_URL` + `OLLAMA_EMBEDDING_MODEL` or `OLLAMA_MODEL`), instead of silently ignoring the dimension guardrail setting
+  - `apps/api/test/embedding-runtime-config.test.js` now adds focused coverage for this orphan-env guardrail path
+  - this is a narrow backend config validation increment only: no provider selection order changes, no retrieval behavior changes, no schema or persistence changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:fast:llm`
+  - 实测结果：focused embedding runtime config tests passed；配置了 `OLLAMA_EMBEDDING_DIMENSIONS` 但未启用 Ollama provider 时会立刻报错，避免“以为启用了维度 guardrail、实际未生效”的静默漂移
+
+- ✅ opencode loop now auto-recovers out-of-range queue cursor before picking work
+  - `scripts/opencode-loop/queue.mjs` now adds `resolveQueueCursor()` and uses it in `pickNextItem()`, so a stale manual cursor like `cursor: 99` no longer stays opaque and is normalized to a safe pending index
+  - `scripts/opencode-loop/runtime.mjs` now persists the corrected cursor and logs one explicit `游标恢复` status with `cursorFrom` / `cursorTo` / `cursorReason`
+  - `scripts/opencode-loop/self-test.mjs` now includes focused coverage for the out-of-range cursor recovery edge case
+  - this is a narrow queue guardrail increment only: no queue schema changes, no new scheduling policy, no pick/complete semantics redesign
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；当队列游标越界时，loop 会先回写安全游标并记录恢复原因，然后继续按现有 pending 任务选择逻辑执行
+
+- ✅ opencode loop `pick` status now also shows completed queue count at a glance
+  - `scripts/opencode-loop/runtime.mjs` now extends queue visibility fields with `queueCompleted` in the existing `logStatus("pick", ...)` summary
+  - this is a narrow observability-only increment for queue status logs: no queue schema changes, no pick/complete behavior changes, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；`pick` 日志现在可同时看到 `queuePending` 与 `queueCompleted`，更容易快速判断剩余与已完成进度
+
+- ✅ external source re-sync now recovers legacy feed/sitemap bounds when stored source config misses `maxItems` / `maxPages`
+  - `apps/api/src/modules/documents/documents.service.ts` now treats missing `maxItems` / `maxPages` in persisted external source config as a legacy shape and falls back to the existing default bound `20` during `POST /documents/:id/reindex` re-sync parsing
+  - this closes one stale-state missed-update scenario where older external source documents could fail re-sync with `EXTERNAL_SOURCE_CONFIG_INVALID` before any re-fetch, even though URL/kind were still valid
+  - `apps/api/test/external-source-sync.test.js` now adds focused coverage for a legacy feed config (kind+url only) and asserts re-sync proceeds with `maxItems: 20`
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed；legacy feed/sitemap config 缺失数量边界时不再直接失败，可继续触发 re-fetch 并进入后续 ingestion
+
+- ✅ external-source fetch retry now also treats upstream HTTP 408 as transient
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now retries once for `408` in addition to existing `429` / `5xx` statuses, so transient upstream request-timeout responses in existing `web page` / `feed` / `sitemap` fetch paths are less likely to fail immediately
+  - `apps/api/test/fetch-with-retry.test.js` now adds focused coverage for `408 -> 200` retry recovery
+  - this is a minimal backend retry guardrail increment for existing source families only: no new source family, no connector architecture changes, no ingestion state/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused retry tests passed；当上游首次返回 `408 Request Timeout` 时，当前 source fetch helper 会按配置尝试一次重试并在第二次成功时继续返回成功响应
+
+- ✅ opencode loop `pick` log now exposes remaining queue work at selection time
+  - `scripts/opencode-loop/runtime.mjs` now adds a narrow `buildQueueWorkVisibility()` helper and includes `remainingAfterPick` / `queuePending` / `queueInProgress` / `queueTotal` in `logStatus("pick", ...)`
+  - this is an observability-only increment for queue runtime logs: no queue schema changes, no pick/complete semantics changes, no dashboard/UI expansion
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；每次 `pick` 状态日志现在可直接看到“当前取走此任务后剩余多少待处理工作”
+
+- ✅ feed all-invalid failure diagnostics now include a concrete failed entry anchor
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now appends `First failed entry ref: <ref>.` when feed extraction fails because all selected entries are invalid
+  - this is a minimal backend diagnostics clarity increment for existing `feed` flow only: no source-family expansion, no retry policy rewrite, no ingestion state/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests 18/18 通过；当 feed 因全部 entry 无效而失败时，错误信息现在可直接定位首个失败 entry（例如 `Broken Entry`），减少排查时的上下文丢失
+
+- ✅ final answer attribution readability now also exposes additive `readabilityResolvedLabel` for always-readable fallback wording across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` extends `TraceAnswerAttributionSummary` with `readabilityResolvedLabel: string` (always present, with unknown fallback wording)
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `answerAttributionSummary.readabilityResolvedLabel` as a stable resolved label (`<attribution label or unknown attribution> via <source label or unknown source>`) while preserving existing readability/readabilityHint/readabilitySentence semantics
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits the same `answerAttributionSummary.readabilityResolvedLabel` in one-shot and stream final payloads with aligned mapping
+  - `apps/api/test/traces.service.test.js` and `apps/api/test/ask-success.test.js` now assert the new additive resolved-label field
+  - compatibility preserved: additive read-model/metadata readability only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 45/45 通过；ask final payload 与 trace summary 现在都可直接读取 `answerAttributionSummary.readabilityResolvedLabel`（例如 `explicit attribution via structured source`、`unknown attribution via unknown source`），并继续兼容现有 attribution readability 字段
+
+- ✅ final answer attribution readability now also exposes additive `readabilitySentence` for clearer human-readable wording across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` extends `TraceAnswerAttributionSummary` with `readabilitySentence: string | null`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `answerAttributionSummary.readabilitySentence` as a stable sentence (`Answer attribution is <value>; source evidence is <value>.`) derived from resolved attribution/source metadata (with `unknown` fallback)
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits the same `answerAttributionSummary.readabilitySentence` in one-shot and stream final payloads with aligned mapping
+  - `apps/api/test/traces.service.test.js` and `apps/api/test/ask-success.test.js` now assert the new additive sentence field; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - compatibility preserved: additive read-model/metadata readability only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 45/45 通过；ask final payload 与 trace summary 现在都可直接读取 `answerAttributionSummary.readabilitySentence`（例如 `Answer attribution is explicit; source evidence is structured.`），并继续兼容现有 attribution readability 字段
+
+- ✅ final answer attribution readability now also exposes additive `readabilityHint` for partial-metadata clarity across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` extends `TraceAnswerAttributionSummary` with `readabilityHint: string | null`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `answerAttributionSummary.readabilityHint` as a readable fallback hint when attribution/source metadata is partially missing (e.g. `explicit attribution via unknown source`), while preserving existing `readabilityLabel` semantics
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits the same `answerAttributionSummary.readabilityHint` in one-shot and stream final payloads with aligned mapping
+  - `apps/api/test/traces.service.test.js`, `apps/api/test/ask-success.test.js`, and `apps/web/test/trace-summary-contract.test.js` now assert the new additive hint field
+  - compatibility preserved: additive read-model/metadata readability only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 45/45 通过；ask final payload 与 trace summary 在 attribution/source 元数据不完整时现在可直接读取可读 fallback hint，同时保持现有 `readability` / `readabilityLabel` 兼容
+
+- ✅ final answer attribution readability now also exposes additive split labels (`attributionLabel` / `sourceLabel`) across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` extends `TraceAnswerAttributionSummary` with:
+    - `attributionLabel: string | null`
+    - `sourceLabel: string | null`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.answerAttributionSummary.attributionLabel` and `sourceLabel` from resolved attribution/source, while keeping existing `readability` + `readabilityLabel`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits top-level `answerAttributionSummary.attributionLabel` and `sourceLabel` in one-shot and stream final payloads with the same mapping
+  - `apps/api/test/traces.service.test.js` and `apps/api/test/ask-success.test.js` now assert the new additive split-label fields
+  - compatibility preserved: additive read-model/metadata clarity only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 44/44 通过；ask final payload 与 trace summary 现在都可直接读取 `answerAttributionSummary.attributionLabel` / `sourceLabel`（例如 `explicit attribution` + `structured source`），并继续兼容现有 `attribution` / `source` / `readability` / `readabilityLabel`
+
+- ✅ final answer attribution readability now also exposes additive human-readable `readabilityLabel` across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` extends `TraceAnswerAttributionSummary` with `readabilityLabel: string | null`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.answerAttributionSummary.readabilityLabel` from resolved attribution + source
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits `answerAttributionSummary.readabilityLabel` in one-shot and stream final payloads
+  - `apps/api/test/traces.service.test.js` and `apps/api/test/ask-success.test.js` now assert the new additive label field
+  - compatibility preserved: additive read-model/metadata clarity only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 44/44 通过；ask final payload 与 trace summary 现在都可直接读取 `answerAttributionSummary.readabilityLabel`（例如 `explicit attribution via structured source`），同时保持现有 attribution/source/readability 字段兼容
+
+- ✅ final answer attribution readability now also exposes additive combined `readability` key in grouped summary (`<attribution>:<source>`) across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` adds `TraceAnswerAttributionReadability` and extends `TraceAnswerAttributionSummary` with `readability: TraceAnswerAttributionReadability | null`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.answerAttributionSummary.readability` from resolved attribution + source
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits `answerAttributionSummary.readability` in one-shot and stream final payloads
+  - `apps/api/test/traces.service.test.js` and `apps/api/test/ask-success.test.js` now assert the new combined readability field
+  - compatibility preserved: additive read-model/metadata clarity only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 44/44 通过；ask final payload 与 trace summary 现在都可直接读取 `answerAttributionSummary.readability`（例如 `explicit:structured`），同时保持现有 attribution/source 字段兼容
+
+- ✅ final answer attribution readability now also exposes additive grouped `answerAttributionSummary` across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` adds `TraceAnswerAttributionSummary` and `TraceSummary.answerAttributionSummary` (`{ attribution, source }`) as a compact readability view while preserving existing flat fields (`answerAttribution` / `answerAttributionSource` and legacy `citation*` compatibility aliases)
+  - `apps/api/src/modules/traces/traces.service.ts` now emits `traceSummary.answerAttributionSummary` from resolved attribution + source
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes top-level `answerAttributionSummary` in both one-shot and stream final payloads
+  - `apps/web/src/types/api.ts` and web contract guards now include additive ask response field `answerAttributionSummary?: TraceAnswerAttributionSummary`
+  - compatibility preserved: additive read-model/metadata clarity only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 44/44 通过；ask final payload 与 trace summary 现在都可直接读取 grouped `answerAttributionSummary`，同时保持现有 attribution/source 字段兼容
+
+- ✅ final answer attribution readability now also exposes additive `answerAttributionSource` alias across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` adds `TraceSummary.answerAttributionSource: TraceCitationSelectionSource | null` as a readability alias while preserving existing `citationSelectionSource`
+  - `apps/api/src/modules/traces/traces.service.ts` now resolves citation selection source once and emits both `answerAttributionSource` and `citationSelectionSource` in `buildTraceSummary()`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes top-level `answerAttributionSource` in both one-shot and stream final payloads, derived from `answeringMetadata.citationSelectionSource` via a narrow normalization helper
+  - `apps/web/src/types/api.ts` and web contract guards now include additive ask response field `answerAttributionSource?: TraceCitationSelectionSource | null`
+  - compatibility preserved: additive read-model/metadata clarity only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js test/ask-success.test.js`
+  - 实测结果：focused API tests 44/44 通过；ask final payload 与 trace summary 现在都可直接读取 `answerAttributionSource`，同时保持原有 `citationSelectionSource` 兼容
+
+- ✅ answer attribution readability now has an additive top-level alias aligned across ask response / trace summary / shared contracts
+  - `packages/shared/src/trace-contracts.ts` adds `TraceSummary.answerAttribution: TraceCitationAttribution | null` as a readability alias while preserving existing `citationAttribution`
+  - `apps/api/src/modules/traces/traces.service.ts` now resolves citation attribution once and emits both `answerAttribution` and `citationAttribution` in `buildTraceSummary()`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes top-level `answerAttribution` in both one-shot and stream final payloads, derived from `answeringMetadata.citationAttribution` via a narrow normalization helper
+  - `apps/web/src/types/api.ts` and web contract guards now include the additive ask response field `answerAttribution?: TraceCitationAttribution | null`
+  - compatibility preserved: additive read-model/metadata clarity only; no retrieval behavior/source scope/schema-persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 19/19 通过；trace summary 与 ask final payload 现在都可直接读取 `answerAttribution`，同时保持原有 `citationAttribution` 兼容
+
+- ✅ ask/trace shared contract guard now also locks `strategySummary.rewriteApplied` alignment
+  - `apps/web/test/ask-retrieval-metadata-contract.test.js` now also asserts shared `RetrievalStrategySummary.rewriteApplied: boolean`
+  - `apps/web/test/trace-summary-contract.test.js` now also asserts shared `RetrievalStrategySummary.rewriteApplied: boolean`
+  - this keeps ask response retrieval metadata usage and trace summary strategy-summary usage aligned with shared rewrite-applied provenance semantics while staying additive and behavior-preserving
+  - 新增 / 更新验证：
+    - `node --test apps/web/test/ask-retrieval-metadata-contract.test.js apps/web/test/trace-summary-contract.test.js`
+  - 实测结果：focused web contract tests 2/2 通过；ask response、trace summary 与 shared strategy summary 的 `rewriteApplied` 合约 guard 对齐已补齐
+
+- ✅ ask-side strategy summary contract guard now also locks shared `rewritePromptId` / `rewriteUsedFallback` alignment
+  - `apps/web/test/ask-retrieval-metadata-contract.test.js` now also asserts shared `RetrievalStrategySummary` includes:
+    - `rewritePromptId: string | null`
+    - `rewriteUsedFallback: boolean | null`
+  - this keeps ask response retrieval metadata strategy-summary usage aligned with trace summary / shared contract rewrite provenance fields while staying additive and behavior-preserving
+  - 新增 / 更新验证：
+    - `node --test apps/web/test/ask-retrieval-metadata-contract.test.js`
+  - 实测结果：focused web contract test 1/1 通过；ask response、trace summary 与 shared strategy summary 的 rewrite prompt/fallback provenance guard 对齐已补齐
+
+- ✅ trace read-model now backfills `rewriteApplied` from `queryRewrite.finalQuerySource="rewritten"` when `applied` is missing
+  - `TracesService.buildTraceSummary()` now resolves `rewriteApplied` in this order: `trace.rewrittenQuery` -> `retrievalMetadata.queryRewrite.applied` -> persisted `strategySummary.rewriteApplied` -> `retrievalMetadata.queryRewrite.finalQuerySource="rewritten"` -> persisted `strategySummary.retrievalQuerySource="rewritten"` -> legacy top-level `retrievalMetadata.retrievalQuerySource="rewritten"`
+  - this closes a minimal readability gap where older traces could carry `queryRewrite.finalQuerySource="rewritten"` without `queryRewrite.applied`, causing `traceSummary.rewriteApplied` / `strategySummary.rewriteApplied` to under-report effective rewrite application
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 19/19 通过；legacy `queryRewrite.finalQuerySource="rewritten"` metadata 下 `traceSummary.rewriteApplied` 现在可直接读出 `true`
+
+- ✅ trace read-model now backfills `rewriteApplied` from persisted `strategySummary.retrievalQuerySource="rewritten"`
+  - `TracesService.buildTraceSummary()` now resolves `rewriteApplied` in this order: `trace.rewrittenQuery` -> `retrievalMetadata.queryRewrite.applied` -> persisted `strategySummary.rewriteApplied` -> persisted `strategySummary.retrievalQuerySource="rewritten"` -> legacy top-level `retrievalMetadata.retrievalQuerySource="rewritten"`
+  - this closes a minimal trace readability gap where older traces could persist `strategySummary.retrievalQuerySource="rewritten"` without `rewriteApplied`, causing `traceSummary.rewriteApplied` / `strategySummary.rewriteApplied` to under-report effective rewrite application
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 18/18 通过；legacy strategy-summary-only rewrite query-source metadata 下 `traceSummary.rewriteApplied` 现在可直接读出 `true`
+
+- ✅ trace read-model now backfills `retrievalQuerySource` from resolved rewrite-enabled state when legacy final query source is missing
+  - `TracesService.buildTraceSummary()` still resolves `retrievalQuerySource` from `queryRewrite.finalQuerySource` / persisted `strategySummary.retrievalQuerySource` / legacy top-level source first; when all are missing, it now additionally derives `original_disabled` or `original_unchanged` from the resolved `rewriteEnabled` signal
+  - this closes a minimal readability gap where older traces could persist `queryRewrite.enabled` without `finalQuerySource`, causing `traceSummary.retrievalQuerySource` and `strategySummary.retrievalQuerySource` to under-report the effective final query source
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 17/17 通过；legacy rewrite-enabled metadata 缺失 `finalQuerySource` 时，trace summary 现在可直接读出 `original_unchanged` / `original_disabled` 语义
+
+- ✅ trace read-model now backfills `strategySummary.rewriteEnabled` from legacy top-level `retrievalMetadata.rewriteEnabled`
+  - `TracesService.buildTraceSummary()` now resolves `rewriteEnabled` in this order: `retrievalMetadata.queryRewrite.enabled` -> persisted `strategySummary.rewriteEnabled` -> legacy `retrievalMetadata.rewriteEnabled` -> derived from resolved rewrite/query-source signals
+  - this closes a minimal readability gap where older traces could persist top-level rewrite enablement without `queryRewrite` / `strategySummary`, causing `traceSummary.strategySummary.rewriteEnabled` to under-report effective rewrite enablement provenance
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 16/16 通过；legacy top-level rewrite enablement metadata 下 `traceSummary.strategySummary.rewriteEnabled` 现在可直接对齐
+
+- ✅ trace read-model now backfills rewrite prompt/model provenance from legacy top-level retrieval metadata
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.rewritePromptId` in this order: `retrievalMetadata.queryRewrite.promptId` -> persisted `strategySummary.rewritePromptId` -> legacy `retrievalMetadata.rewritePromptId`
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.rewriteModelName` in this order: `retrievalMetadata.queryRewrite.modelName` -> persisted `strategySummary.rewriteModelName` -> legacy `retrievalMetadata.rewriteModelName`
+  - this closes a minimal resolved-strategy provenance readability gap where older traces could persist rewrite prompt/model at top level without `queryRewrite` / `strategySummary`, causing strategy summary provenance to under-report effective rewrite metadata
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 15/15 通过；legacy top-level rewrite provenance metadata 下 `traceSummary.strategySummary.rewritePromptId` 与 `rewriteModelName` 现在可直接对齐
+
+- ✅ trace read-model now backfills `strategySummary.rewriteUsedFallback` from legacy top-level `retrievalMetadata.rewriteUsedFallback`
+  - `TracesService.buildTraceSummary()` now resolves `rewriteUsedFallback` in this order: `retrievalMetadata.queryRewrite.usedFallback` -> persisted `strategySummary.rewriteUsedFallback` -> legacy `retrievalMetadata.rewriteUsedFallback`
+  - this closes a minimal provenance-readability gap where older traces persisted rewrite fallback usage at top level without `queryRewrite`/`strategySummary`, causing `traceSummary.strategySummary.rewriteUsedFallback` to under-report effective rewrite fallback
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 14/14 通过；legacy top-level rewrite fallback metadata 下 `traceSummary.strategySummary.rewriteUsedFallback` 读取现在可直接对齐
+
+- ✅ trace read-model now backfills `strategySummary.retrievalQuerySource` from legacy top-level `retrievalMetadata.retrievalQuerySource`
+  - `TracesService.buildTraceSummary()` now resolves `retrievalQuerySource` in this order: `retrievalMetadata.queryRewrite.finalQuerySource` -> persisted `strategySummary.retrievalQuerySource` -> legacy `retrievalMetadata.retrievalQuerySource` -> derived from `rewriteApplied`
+  - for older traces that only persisted top-level `retrievalQuerySource="rewritten"`, `rewriteApplied` now also backfills from that same legacy value, so strategy summary readability stays internally aligned
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 13/13 通过；legacy top-level retrieval metadata 下 `traceSummary.retrievalQuerySource` 与 `strategySummary.retrievalQuerySource`/`rewriteApplied` 读取现在可直接对齐
+
+- ✅ trace read-model now backfills `strategySummary.retrievalMode` from legacy top-level `retrievalMetadata.retrievalMode`
+  - `TracesService.buildTraceSummary()` now resolves `retrievalMode` in this order: `retrievalMetadata.execution.actualMode` -> persisted `strategySummary.retrievalMode` -> legacy `retrievalMetadata.retrievalMode`
+  - this closes a minimal resolved-strategy readability gap where older traces persisted top-level `retrievalMode` without `execution`/`strategySummary`, causing `traceSummary.strategySummary.retrievalMode` to under-report effective retrieval mode provenance
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 11/11 通过；legacy top-level retrieval metadata 下 `traceSummary.retrievalMode` 与 `strategySummary.retrievalMode`/`strategySummary.strategyMode` 读取现在可直接对齐
+
+- ✅ trace read-model now backfills `strategySummary.fallbackReason` from legacy top-level `retrievalMetadata.fallbackReason`
+  - `TracesService.buildTraceSummary()` now resolves `fallbackReason` in this order: `retrievalMetadata.execution.fallbackReason` -> persisted `strategySummary.fallbackReason` -> legacy `retrievalMetadata.fallbackReason`
+  - this closes a minimal readability gap where older traces could persist fallback provenance without `execution`/`strategySummary`, causing `traceSummary.strategySummary.fallbackReason` to under-report effective fallback cause
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 10/10 通过；legacy fallback metadata 下 `traceSummary.fallbackReason` 与 `strategySummary.usedFallback` 读取现在可直接对齐
+
+- ✅ trace read-model now backfills `strategySummary.usedFallback` from legacy `fallbackReason`
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.usedFallback` in this order: `retrievalMetadata.execution.usedFallback` -> persisted `strategySummary.usedFallback` -> derived from resolved `fallbackReason`
+  - this closes a minimal readability gap where legacy traces could persist `fallbackReason` but miss `usedFallback`, causing strategy summary fallback provenance to under-report effective fallback resolution
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 9/9 通过；legacy strategy summary 下 `fallbackReason` 与 `usedFallback` 读取现在可直接对齐
+
+- ✅ trace read-model now backfills `strategySummary.rewriteEnabled` from legacy `queryRewrite.applied`
+  - `TracesService.buildTraceSummary()` now resolves `rewriteEnabled` in this order: `retrievalMetadata.queryRewrite.enabled` -> persisted `strategySummary.rewriteEnabled` -> derived from resolved `rewriteApplied` -> derived from `retrievalQuerySource`
+  - this closes a minimal readability gap where legacy traces could persist `queryRewrite.applied=true` without `enabled` / `finalQuerySource`, causing `traceSummary.strategySummary.rewriteEnabled` to under-report rewrite enablement while `rewriteApplied` was already true
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 8/8 通过；legacy rewrite metadata 下 `strategySummary.rewriteEnabled` 与 `rewriteApplied` 读取一致，ask response / trace summary / shared contract 的策略摘要语义保持对齐
+
+- ✅ trace read-model now backfills `strategySummary.strategyMode` from legacy `retrievalMode`
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.strategyMode` in this order: `retrievalMetadata.strategy.candidateSelection.mode` -> persisted `strategySummary.strategyMode` -> persisted `strategySummary.retrievalMode` -> resolved `retrievalMode`
+  - this closes a minimal contract-alignment gap where older traces persisted `retrievalMode` but no `strategyMode`, causing `traceSummary.strategySummary.strategyMode` to under-report the effective mode versus ask-side strategy summary readability
+  - compatibility preserved: additive trace read-model fallback only; no retrieval execution semantics/ranking/default/source-family scope changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 7/7 通过；ask response、trace summary 与 shared strategy summary 的 `strategyMode` 读取对齐覆盖已补齐 legacy retrievalMode 回填路径
+
+- ✅ trace read-model now backfills `strategySummary.rewriteApplied` from persisted `queryRewrite.applied`
+  - `TracesService.buildTraceSummary()` now resolves `rewriteApplied` in this order: `trace.rewrittenQuery` -> `retrievalMetadata.queryRewrite.applied` -> persisted `strategySummary.rewriteApplied` -> `false`
+  - this closes a minimal contract-alignment gap where legacy traces could carry `queryRewrite.applied=true` without `rewrittenQuery`/`strategySummary`, causing trace summary to under-report rewrite application
+  - compatibility preserved: additive read-model fallback only; no retrieval execution semantics/ranking/default/source-family scope changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 6/6 通过；ask metadata 的 query-rewrite applied provenance 与 trace summary/shared strategy summary 的 `rewriteApplied` 读取保持一致
+
+- ✅ `strategySummary` now carries additive `rewriteEnabled` for ask/trace/shared contract alignment
+  - `packages/shared/src/trace-contracts.ts` updates `RetrievalStrategySummary` with `rewriteEnabled: boolean`
+  - `AskAssistantService` now persists `strategySummary.rewriteEnabled` from resolved retrieval strategy on both success and retrieval-failure metadata paths
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.rewriteEnabled` from `queryRewrite.enabled` first, then falls back to persisted `strategySummary.rewriteEnabled`, and finally derives from `retrievalQuerySource` for legacy traces
+  - compatibility preserved: additive read-model/metadata alignment only; no retrieval execution semantics/ranking/default/source-family changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/ask-success.test.js test/traces.service.test.js`
+  - 实测结果：focused API tests 30/30 通过；ask response、trace summary 与 shared contract 现在可一致表达 query rewrite 是否启用
+
+- ✅ ask-side strategy summary contract guard now explicitly locks shared `rewriteModelName` alignment
+  - `apps/web/test/ask-retrieval-metadata-contract.test.js` now also asserts:
+    - `AskRetrievalMetadata.strategySummary?: RetrievalStrategySummary`
+    - shared `RetrievalStrategySummary.rewriteModelName: string | null`
+  - this keeps ask response / retrieval metadata strategy summary usage aligned with the shared contract while staying additive and behavior-preserving
+  - 新增 / 更新验证：
+    - `node --test apps/web/test/ask-retrieval-metadata-contract.test.js`
+  - 实测结果：focused web contract test 1/1 通过；ask response、trace summary 与 shared strategy summary 的 rewrite model provenance guard 继续对齐
+
+- ✅ ask read-model contract guard now also locks `queryRewrite.modelName` alignment
+  - `apps/web/test/ask-retrieval-metadata-contract.test.js` now asserts `AskRetrievalMetadata.queryRewrite.modelName: string | null`
+  - this keeps ask response retrieval metadata and shared `strategySummary.rewriteModelName` provenance alignment guarded from future type drift
+  - compatibility preserved: additive contract-guard only, no retrieval execution/ranking/default/source-scope changes
+  - 新增 / 更新验证：
+    - `node --test apps/web/test/ask-retrieval-metadata-contract.test.js`
+  - 实测结果：focused web contract test 1/1 通过；ask response 的 query rewrite model provenance 字段现在有显式 guard
+
+- ✅ `strategySummary` now carries additive `rewriteModelName` for ask/trace/shared contract convergence
+  - `packages/shared/src/trace-contracts.ts` updates `RetrievalStrategySummary` with `rewriteModelName: string | null`
+  - `AskAssistantService` now writes query-rewrite model provenance into both `retrievalMetadata.queryRewrite.modelName` and `strategySummary.rewriteModelName` on success and retrieval-failure metadata paths
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.rewriteModelName` from `queryRewrite.modelName` first, then falls back to persisted `strategySummary.rewriteModelName`
+  - web API type alignment: `apps/web/src/types/api.ts` now includes `AskRetrievalMetadata.queryRewrite.modelName`
+  - compatibility preserved: no retrieval execution semantics/ranking/default changes, no source-family scope changes, additive metadata/read-model contract alignment only
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/ask-success.test.js test/traces.service.test.js`
+  - 实测结果：focused API tests 30/30 通过；ask response、trace summary、shared contract 现在可一致携带 query rewrite model 归因字段
+
+- ✅ `strategySummary` now carries additive `rewritePromptId` for ask/trace/shared contract alignment
+  - `packages/shared/src/trace-contracts.ts` updates `RetrievalStrategySummary` with `rewritePromptId: string | null`
+  - `AskAssistantService` now writes `strategySummary.rewritePromptId` from query-rewrite prompt metadata on both success and retrieval-failure metadata paths
+  - `TracesService.buildTraceSummary()` now resolves `strategySummary.rewritePromptId` from `queryRewrite.promptId` first, then falls back to persisted `strategySummary.rewritePromptId`
+  - compatibility preserved: no retrieval execution semantics/ranking/default changes, no source-family scope changes, additive metadata/read-model contract convergence only
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests 5/5 通过；ask response、trace summary、shared contract 的 strategy summary 现在可一致携带 rewrite prompt 归因字段
+
 - ✅ OpenCode loop night-run wrapper now prefers corepack for pnpm resolution
   - `scripts/opencode-loop/night-run.sh` now launches `pnpm` through `corepack` first, with Volta/local shim fallbacks if needed
   - this fixes the systemd startup failure caused by the user service lacking the interactive shell PATH; queue semantics and execution flow stay unchanged
@@ -59,8 +635,8 @@
     - `node scripts/opencode-loop.mjs --self-test`
   - 实测结果：self-test passed after the handoff/log simplification update
 
-- ✅ OpenCode loop session titles are now shorter and more readable
-  - new OpenCode sessions now use a readable title shape like `loop <item-id> YYYY-MM-DD HH:MM:SS` instead of embedding a raw ISO timestamp
+- ✅ OpenCode loop session titles are now easier to map to queue items
+  - new OpenCode sessions now use a readable title shape like `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS`, so it is easier to tell which queue item a session belongs to
   - this is a UX/readability increment only: no queue semantics change, no resume behavior change, no execution flow change
   - 新增 / 更新验证：
     - `node scripts/opencode-loop.mjs --self-test`
@@ -888,7 +1464,7 @@
 - `Assistant` 页面现也已补齐 retrieval `strategyJson` 覆盖编辑能力，可直接管理 query rewrite、candidate mode、candidate budget、hybrid weights 和 rerank override，并在关闭覆盖时提交 `strategyJson: null`
 - 上述 `Assistant strategy` 配置区现也已补齐最小 source-level 回归覆盖，锁定关键区块和控件的稳定 selector，便于后续浏览器级验证继续接入
 - `pnpm test:api:file -- <path>` 现已按测试文件类型自动分流：fast-lane 文件直接走 `Vitest`，heavy 文件先做 build freshness 检查，再走原 runner
-- heavy API test lane 现已具备 on-demand build 检查；仅当 `src/`、`prisma/` 或关键 API 配置文件比 `dist/main.js` 更新时，才会重新 build
+- heavy API test lane 现已具备 on-demand build 检查；仅当 `src/`、`prisma/` 或关键 API 配置文件比当前 built entry（优先 `dist/apps/api/src/main.js`，兼容 `dist/main.js` 旧路径）更新时，才会重新 build
 - integration / chain E2E / source E2E 文件现已统一为“每文件 seed 一次默认数据、每条测试前 reset mutable state”，减少重复 seed 与重测试启动成本
 - fast-lane test support 现已新增通用 helper：
   - `apps/api/test/support/llm-test-helpers.js`

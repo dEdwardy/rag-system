@@ -52,6 +52,22 @@ test("resolveEmbeddingRuntimeConfig keeps Ollama first, OpenAI second, and fallb
   });
 });
 
+test("resolveEmbeddingRuntimeConfig derives OpenAI embedding endpoint from OPENAI_BASE_URL", () => {
+  const config = resolveEmbeddingRuntimeConfig({
+    OPENAI_API_KEY: "test-key",
+    OPENAI_BASE_URL: "https://openai-proxy.local/v1/"
+  });
+
+  assert.deepEqual(config.providers[0], {
+    provider: "openai",
+    apiKey: "test-key",
+    apiUrl: "https://openai-proxy.local/v1/embeddings",
+    model: "text-embedding-3-small",
+    modelSource: "default:OPENAI_EMBEDDING_MODEL",
+    expectedDimensions: 1536
+  });
+});
+
 test("resolveEmbeddingRuntimeConfig keeps explicit Ollama embedding dimensions when configured", () => {
   const config = resolveEmbeddingRuntimeConfig({
     OLLAMA_BASE_URL: "http://localhost:11434",
@@ -79,6 +95,20 @@ test("resolveEmbeddingRuntimeConfig rejects invalid OLLAMA_EMBEDDING_DIMENSIONS"
     error => {
       assert.ok(error instanceof EmbeddingRuntimeConfigError);
       assert.match(error.message, /OLLAMA_EMBEDDING_DIMENSIONS/);
+      return true;
+    }
+  );
+});
+
+test("resolveEmbeddingRuntimeConfig rejects OLLAMA_EMBEDDING_DIMENSIONS when Ollama provider is not configured", () => {
+  assert.throws(
+    () =>
+      resolveEmbeddingRuntimeConfig({
+        OLLAMA_EMBEDDING_DIMENSIONS: "768"
+      }),
+    error => {
+      assert.ok(error instanceof EmbeddingRuntimeConfigError);
+      assert.match(error.message, /OLLAMA_EMBEDDING_DIMENSIONS is set but Ollama embedding provider is disabled/);
       return true;
     }
   );
@@ -158,6 +188,40 @@ test("EmbeddingService rejects incompatible OpenAI dimensions with an explicit e
           await assert.rejects(service.embedTexts(["dimension mismatch"]), error => {
             assert.ok(error instanceof EmbeddingRuntimeConfigError);
             assert.match(error.message, /expects 1536 dimensions/);
+            assert.match(error.message, /OPENAI_EMBEDDING_MODEL and OPENAI_BASE_URL compatibility/);
+            assert.match(error.message, /Resolved OpenAI embedding endpoint: https:\/\/api\.openai\.com\/v1\/embeddings/);
+            return true;
+          });
+        }
+      );
+    }
+  );
+});
+
+test("EmbeddingService dimension mismatch error explains default OpenAI embedding model usage", async () => {
+  const service = new EmbeddingService();
+
+  await withEnv(
+    {
+      OLLAMA_BASE_URL: undefined,
+      OLLAMA_MODEL: undefined,
+      OLLAMA_EMBEDDING_MODEL: undefined,
+      OPENAI_API_KEY: "test-key",
+      OPENAI_EMBEDDING_MODEL: undefined
+    },
+    async () => {
+      await withFetchMock(
+        async () => ({
+          ok: true,
+          json: async () => ({
+            data: [{ index: 0, embedding: [0.1, 0.2, 0.3] }]
+          })
+        }),
+        async () => {
+          await assert.rejects(service.embedTexts(["dimension mismatch"]), error => {
+            assert.ok(error instanceof EmbeddingRuntimeConfigError);
+            assert.match(error.message, /OPENAI_EMBEDDING_MODEL is unset/);
+            assert.match(error.message, /default embedding model "text-embedding-3-small" is currently in use/);
             return true;
           });
         }

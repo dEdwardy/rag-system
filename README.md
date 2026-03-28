@@ -33,23 +33,29 @@ More detail: [docs/local-dev-infra.md](docs/local-dev-infra.md)
 pnpm install
 ```
 
-### 3. Apply database migrations
+### 3. Create local env file
+
+```bash
+cp .env.example .env
+```
+
+### 4. Apply database migrations
 
 ```bash
 pnpm --filter @rag-system/api exec prisma migrate dev
 ```
 
-### 4. Seed default records
+### 5. Seed default records
 
 ```bash
 node apps/api/prisma/seed.js
 ```
 
-### 5. Start the API
+### 6. Start the API
 
 ```bash
 pnpm --filter @rag-system/api build
-node apps/api/dist/main.js
+pnpm --filter @rag-system/api start:prod
 ```
 
 Health check:
@@ -58,7 +64,9 @@ Health check:
 curl http://localhost:3000/health
 ```
 
-### 6. Start the web app
+The API expects PostgreSQL and Redis from the local dev stack to be available before startup.
+
+### 7. Start the web app
 
 ```bash
 pnpm --filter @rag-system/web dev
@@ -76,7 +84,7 @@ pnpm loop:stop
 
 These commands wrap `scripts/opencode-loop/control.sh`, auto-link the `systemd --user` units, and manage the loop setup for unattended night runs.
 
-If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config.
+If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for backend/docs/orchestration, `apps/web` worktree for frontend, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
 
 ## Common Commands
 
