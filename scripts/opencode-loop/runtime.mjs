@@ -7,6 +7,7 @@ import {
   LOOP_SCHEMA_VERSION,
   completeQueueItem,
   formatDisplayTime,
+  normalizeQueueForExecution,
   pickNextItem,
   readQueue,
   resolveQueueCursor,
@@ -25,6 +26,7 @@ export const DEFAULT_PROMPT_PATH = "prompts/build.md";
 export const DEFAULT_PROMPT_FILE_NAME = "build.md";
 export const DEFAULT_READ_MODEL_METADATA_PROMPT_FILE_NAME = "read-model-metadata-build.md";
 export const DEFAULT_LOCK_DIR_NAME = "loop.lock";
+export const DEFAULT_ASSISTANT_TIMEOUT_RETRY_COUNT = 3;
 export const DEFAULT_EXECUTION_DIRECTIVE = [
   "Execution mode: implement the requested repository increment now.",
   "Do not stop at search-only or analysis-only output.",
@@ -84,6 +86,17 @@ export async function runLoop(options) {
           cursorFrom: cursorResolution.from,
           cursorTo: cursorResolution.cursor,
           cursorReason: cursorResolution.reason
+        });
+      }
+
+      const queueNormalization = normalizeQueueForExecution(queue);
+      if (queueNormalization.normalizedCount > 0) {
+        queue = queueNormalization.queue;
+        writeQueue(queuePath, queue);
+        logStatus("queue:normalize", {
+          queuePath: relative(options.repoRoot, queuePath),
+          normalizedCount: queueNormalization.normalizedCount,
+          normalizedItemIds: queueNormalization.normalizedItemIds
         });
       }
 
@@ -221,7 +234,9 @@ function acquireRunLock(lockDir) {
       mkdirSync(lockDir);
       const lockInfo = {
         pid: process.pid,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        processStartTicks: readLinuxProcessStartTicks(process.pid),
+        processCmdline: readLinuxProcessCmdline(process.pid)
       };
 
       writeFileSync(resolve(lockDir, "lock.json"), `${JSON.stringify(lockInfo, null, 2)}\n`, "utf8");
@@ -233,7 +248,7 @@ function acquireRunLock(lockDir) {
       }
 
       const lockInfo = readLockInfo(lockDir);
-      if (lockInfo && isProcessAlive(lockInfo.pid)) {
+      if (lockInfo && isLockOwnedByLiveProcess(lockInfo)) {
         throw new Error(
           `检测到另一个 opencode-loop 运行中（pid ${lockInfo.pid}），请等待它结束后再启动。`
         );
@@ -273,6 +288,56 @@ function isProcessAlive(pid) {
     return true;
   } catch (error) {
     return error?.code !== "ESRCH";
+  }
+}
+
+function isLockOwnedByLiveProcess(lockInfo) {
+  if (!lockInfo || !isProcessAlive(lockInfo.pid)) {
+    return false;
+  }
+
+  const currentStartTicks = readLinuxProcessStartTicks(lockInfo.pid);
+  if (lockInfo.processStartTicks && currentStartTicks) {
+    return lockInfo.processStartTicks === currentStartTicks;
+  }
+
+  const currentCmdline = readLinuxProcessCmdline(lockInfo.pid);
+  if (lockInfo.processCmdline && currentCmdline) {
+    return lockInfo.processCmdline === currentCmdline;
+  }
+
+  return true;
+}
+
+function readLinuxProcessStartTicks(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return null;
+  }
+
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    const closingParenIndex = stat.lastIndexOf(")");
+    if (closingParenIndex === -1) {
+      return null;
+    }
+
+    const fields = stat.slice(closingParenIndex + 2).trim().split(/\s+/);
+    return fields[19] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readLinuxProcessCmdline(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return null;
+  }
+
+  try {
+    const raw = readFileSync(`/proc/${pid}/cmdline`, "utf8");
+    return raw.replace(/\u0000/g, " ").trim() || null;
+  } catch {
+    return null;
   }
 }
 
@@ -405,97 +470,141 @@ function normalizePositiveInteger(value, fallback) {
 async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, agent, model }) {
   const runStartedAt = new Date().toISOString();
   let workingQueue = queue;
-  let session = next.item.sessionId ? { id: next.item.sessionId } : null;
-  let message = null;
-  let resumeBaselineMessageId = null;
+  let currentItem = workingQueue.items[next.index] ?? next.item;
+  const maxTimeoutRetries = DEFAULT_ASSISTANT_TIMEOUT_RETRY_COUNT;
 
-  if (next.item.status !== "in_progress") {
-      workingQueue = updateQueueItem(workingQueue, next.index, currentItem => ({
-        ...currentItem,
-        status: "in_progress",
-        startedAt: runStartedAt,
-        runId: randomUUID()
-      }));
-    writeQueue(queuePath, workingQueue);
-  }
-
-  if (session) {
-    logStatus("resume", {
-      itemId: next.item.id,
-      sessionId: session.id
-    });
-    if (next.item.messageId) {
-      try {
-        message = await api.findAssistantMessage({
-          sessionId: session.id,
-          messageId: next.item.messageId
-        });
-      } catch {
-        message = null;
-      }
-    }
-
-    if (!message) {
-      try {
-        const latestAssistant = await api.getLatestAssistantMessage({ sessionId: session.id });
-        resumeBaselineMessageId = latestAssistant?.info?.id ?? null;
-      } catch {
-        resumeBaselineMessageId = null;
-      }
-    }
-  }
-
-  if (!session) {
-    logStatus("session:create", {
-      itemId: next.item.id,
-      agent,
-      model: model ?? "server-default"
-    });
-    session = await api.createSession({
-      title: `loop #${next.index + 1} ${next.item.id} ${formatSessionTitleTime(runStartedAt)}`
-    });
-
-    workingQueue = updateQueueItem(workingQueue, next.index, currentItem => ({
-      ...currentItem,
-      sessionId: session.id,
-      startedAt: currentItem.startedAt ?? runStartedAt,
-      status: "in_progress"
+  if (currentItem.status !== "in_progress") {
+    workingQueue = updateQueueItem(workingQueue, next.index, queueItem => ({
+      ...queueItem,
+      status: "in_progress",
+      startedAt: runStartedAt,
+      runId: randomUUID()
     }));
     writeQueue(queuePath, workingQueue);
   }
 
-  if (!message) {
-    logStatus("message:send", {
-      itemId: next.item.id,
-      sessionId: session.id,
-      agent,
-      model: model ?? "server-default"
-    });
-    message = await api.sendMessage({
-      sessionId: session.id,
-      agent,
-      model,
-      promptText,
-      afterMessageId: resumeBaselineMessageId
-    });
+  for (let timeoutRetryAttempt = 0; timeoutRetryAttempt <= maxTimeoutRetries; timeoutRetryAttempt += 1) {
+    currentItem = workingQueue.items[next.index] ?? currentItem;
+    let session = currentItem.sessionId ? { id: currentItem.sessionId } : null;
+    let message = null;
+    let resumeBaselineMessageId = null;
+
+    try {
+      if (session) {
+        logStatus("resume", {
+          itemId: next.item.id,
+          sessionId: session.id,
+          timeoutRetryAttempt
+        });
+        if (currentItem.messageId) {
+          try {
+            message = await api.findAssistantMessage({
+              sessionId: session.id,
+              messageId: currentItem.messageId
+            });
+          } catch {
+            message = null;
+          }
+        }
+
+        if (!message) {
+          try {
+            const latestAssistant = await api.getLatestAssistantMessage({ sessionId: session.id });
+            resumeBaselineMessageId = latestAssistant?.info?.id ?? null;
+          } catch {
+            resumeBaselineMessageId = null;
+          }
+        }
+      }
+
+      if (!session) {
+        logStatus("session:create", {
+          itemId: next.item.id,
+          agent,
+          model: model ?? "server-default",
+          timeoutRetryAttempt
+        });
+        session = await api.createSession({
+          title: `loop #${next.index + 1} ${next.item.id} ${formatSessionTitleTime(runStartedAt)}`
+        });
+
+        workingQueue = updateQueueItem(workingQueue, next.index, queueItem => ({
+          ...queueItem,
+          sessionId: session.id,
+          startedAt: queueItem.startedAt ?? runStartedAt,
+          status: "in_progress"
+        }));
+        writeQueue(queuePath, workingQueue);
+        currentItem = workingQueue.items[next.index] ?? currentItem;
+      }
+
+      if (!message) {
+        logStatus("message:send", {
+          itemId: next.item.id,
+          sessionId: session.id,
+          agent,
+          model: model ?? "server-default",
+          timeoutRetryAttempt
+        });
+        message = await api.sendMessage({
+          sessionId: session.id,
+          agent,
+          model,
+          promptText,
+          afterMessageId: resumeBaselineMessageId
+        });
+      }
+
+      const messageId = message.info?.id ?? null;
+      workingQueue = updateQueueItem(workingQueue, next.index, queueItem => ({
+        ...queueItem,
+        sessionId: session.id,
+        messageId,
+        status: "in_progress",
+        messageReceivedAt: new Date().toISOString(),
+        resumedAt: currentItem.sessionId ? runStartedAt : undefined
+      }));
+      writeQueue(queuePath, workingQueue);
+
+      return {
+        queue: workingQueue,
+        session,
+        message
+      };
+    } catch (error) {
+      if (!isAssistantMessageTimeoutError(error)) {
+        throw error;
+      }
+
+      const exhaustedRetries = timeoutRetryAttempt >= maxTimeoutRetries;
+
+      workingQueue = resetTimedOutQueueItem(workingQueue, next.index, {
+        preserveInProgress: !exhaustedRetries
+      });
+      writeQueue(queuePath, workingQueue);
+
+      if (exhaustedRetries) {
+        logStatus("message:timeout-exhausted", {
+          itemId: next.item.id,
+          sessionId: session?.id ?? currentItem.sessionId ?? null,
+          timeoutRetryAttempt,
+          maxTimeoutRetries,
+          timeoutWaitMs: error.waitMs
+        });
+        throw error;
+      }
+
+      logStatus("message:timeout-retry", {
+        itemId: next.item.id,
+        sessionId: session?.id ?? currentItem.sessionId ?? null,
+        timeoutRetryAttempt: timeoutRetryAttempt + 1,
+        maxTimeoutRetries,
+        timeoutWaitMs: error.waitMs
+      });
+    }
   }
 
-  const messageId = message.info?.id ?? null;
-  workingQueue = updateQueueItem(workingQueue, next.index, currentItem => ({
-    ...currentItem,
-    sessionId: session.id,
-    messageId,
-    status: "in_progress",
-    messageReceivedAt: new Date().toISOString(),
-    resumedAt: next.item.sessionId ? runStartedAt : undefined
-  }));
-  writeQueue(queuePath, workingQueue);
-
-  return {
-    queue: workingQueue,
-    session,
-    message
-  };
+  throw new Error(`Loop could not resolve queue item ${next.item.id}.`);
 }
 
 function createApiClient(baseUrl, username, password, messageWaitMs, pollIntervalMs) {
@@ -528,7 +637,7 @@ function createApiClient(baseUrl, username, password, messageWaitMs, pollInterva
     async listMessages({ sessionId }) {
       const response = await requestJson({
         method: "GET",
-        url: `${normalizedBaseUrl}/session/${encodeURIComponent(sessionId)}/message?limit=200`,
+        url: buildSessionMessagesUrl(normalizedBaseUrl, sessionId),
         headers
       });
 
@@ -562,6 +671,7 @@ function createApiClient(baseUrl, username, password, messageWaitMs, pollInterva
           body: {
             ...(agent ? { agent } : {}),
             ...(normalizedModel ? { model: normalizedModel } : {}),
+            ...(afterMessageId ? { afterMessageId } : {}),
             parts: [{ type: "text", text: promptText }]
           }
         });
@@ -623,7 +733,7 @@ async function waitForAssistantMessage({
         ? await listMessages({ sessionId })
         : await requestJson({
             method: "GET",
-            url: `${normalizedBaseUrl}/session/${encodeURIComponent(sessionId)}/message?limit=200`,
+            url: buildSessionMessagesUrl(normalizedBaseUrl, sessionId),
             headers
           });
     } catch (error) {
@@ -646,9 +756,32 @@ async function waitForAssistantMessage({
     await sleep(intervalMs);
   }
 
-  throw new Error(
-    `OpenCode 在 ${waitMs}ms 内没有为 session ${sessionId} 返回 assistant 消息。`
-  );
+  throw new AssistantMessageTimeoutError(sessionId, waitMs);
+}
+
+class AssistantMessageTimeoutError extends Error {
+  constructor(sessionId, waitMs) {
+    super(`OpenCode 在 ${waitMs}ms 内没有为 session ${sessionId} 返回 assistant 消息。`);
+    this.name = "AssistantMessageTimeoutError";
+    this.sessionId = sessionId;
+    this.waitMs = waitMs;
+  }
+}
+
+function isAssistantMessageTimeoutError(error) {
+  return error instanceof AssistantMessageTimeoutError;
+}
+
+function resetTimedOutQueueItem(queue, index, { preserveInProgress }) {
+  return updateQueueItem(queue, index, queueItem => ({
+    ...queueItem,
+    status: preserveInProgress ? "in_progress" : "pending",
+    runId: randomUUID(),
+    sessionId: undefined,
+    messageId: undefined,
+    messageReceivedAt: undefined,
+    resumedAt: undefined
+  }));
 }
 
 function findLatestAssistantMessage(messages) {
@@ -678,7 +811,8 @@ function findAssistantMessageAfter(messages, afterMessageId) {
 
   const baselineIndex = messages.findIndex(message => message?.info?.id === afterMessageId);
   if (baselineIndex === -1) {
-    return null;
+    const latestAssistant = findLatestAssistantMessage(messages);
+    return latestAssistant?.info?.id === afterMessageId ? null : latestAssistant;
   }
 
   for (let index = messages.length - 1; index > baselineIndex; index -= 1) {
@@ -728,6 +862,10 @@ function extractAssistantText(parts) {
   }
 
   return `${JSON.stringify(parts, null, 2)}\n`;
+}
+
+function buildSessionMessagesUrl(normalizedBaseUrl, sessionId, limit = 200) {
+  return `${normalizedBaseUrl}/session/${encodeURIComponent(sessionId)}/message?limit=${limit}`;
 }
 
 function renderHandoff({ item, session, message, promptText, assistantText, caveats, completedAt }) {
@@ -1054,8 +1192,11 @@ function logStatus(event, fields) {
     plan: "自动补任务",
     pick: "取任务",
     resume: "恢复",
+    "queue:normalize": "队列修复",
     "session:create": "建会话",
     "message:send": "发消息",
+    "message:timeout-retry": "超时重试",
+    "message:timeout-exhausted": "超时回退",
     "cursor:recover": "游标恢复",
     refill: "补队列",
     "refill:skip": "补队列跳过",
@@ -1108,7 +1249,12 @@ function logStatus(event, fields) {
     "generatedItemIds",
     "autoRefillCycle",
     "maxAutoRefillCycles",
-    "autoRefillMaxItems"
+    "autoRefillMaxItems",
+    "timeoutRetryAttempt",
+    "maxTimeoutRetries",
+    "timeoutWaitMs",
+    "normalizedCount",
+    "normalizedItemIds"
   ];
   const orderedEntries = [];
 

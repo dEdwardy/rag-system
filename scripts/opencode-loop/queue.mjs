@@ -10,6 +10,9 @@ export const DEFAULT_QUEUE_ITEM = {
   status: "pending"
 };
 
+const RECOVERABLE_QUEUE_STATUSES = new Set(["deferred"]);
+const RECOVERABLE_QUEUE_ITEM_FIELDS = ["startedAt", "sessionId", "messageId", "messageReceivedAt", "resumedAt", "runId"];
+
 export function readQueue(queuePath) {
   const queueRaw = readFileSync(queuePath, "utf8");
   const queue = JSON.parse(queueRaw);
@@ -163,6 +166,56 @@ export function appendQueueItems(queue, items, updatedAt = new Date().toISOStrin
     items: mergedItems,
     cursor: computeNextCursor(mergedItems, queue.cursor),
     updatedAt
+  };
+}
+
+export function normalizeQueueForExecution(queue, updatedAt = new Date().toISOString()) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  let normalizedCount = 0;
+  const normalizedItemIds = [];
+
+  const normalizedItems = items.map(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return item;
+    }
+
+    if (!RECOVERABLE_QUEUE_STATUSES.has(item.status)) {
+      return item;
+    }
+
+    normalizedCount += 1;
+    if (typeof item.id === "string" && item.id.trim()) {
+      normalizedItemIds.push(item.id.trim());
+    }
+
+    const nextItem = {
+      ...item,
+      status: "pending"
+    };
+
+    for (const field of RECOVERABLE_QUEUE_ITEM_FIELDS) {
+      delete nextItem[field];
+    }
+
+    return nextItem;
+  });
+
+  if (normalizedCount === 0) {
+    return {
+      queue,
+      normalizedCount: 0,
+      normalizedItemIds: []
+    };
+  }
+
+  return {
+    queue: {
+      ...queue,
+      items: normalizedItems,
+      updatedAt
+    },
+    normalizedCount,
+    normalizedItemIds
   };
 }
 

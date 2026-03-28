@@ -6,19 +6,30 @@ import { join, resolve } from "node:path";
 import {
   DEFAULT_QUEUE_ITEM,
   LOOP_SCHEMA_VERSION,
+  normalizeQueueForExecution,
   readQueue,
   resolveQueueCursor
 } from "./queue.mjs";
+import { DEFAULT_PLANNER_PROMPT_FILE_NAME } from "./planner.mjs";
 import { DEFAULT_PROMPT_FILE_NAME, DEFAULT_PROMPT_PATH, runLoop } from "./runtime.mjs";
 
 export async function runSelfTest() {
   const root = mkdtempSync(join(tmpdir(), "opencode-loop-"));
   let resumeRoot = null;
   let refillRoot = null;
+  let deferredRoot = null;
+  let timeoutRetryRoot = null;
+  let timeoutExhaustedRoot = null;
+  let plannerDedupeRoot = null;
+  let resumeWindowRoot = null;
+  let staleLockRoot = null;
   const sessions = [];
   const transientPostFailureBySessionId = new Set();
+  const timeoutOnceSessionIds = new Set();
+  const timeoutAlwaysSessionIds = new Set();
   const messagesBySessionId = new Map();
   const pendingAssistantBySessionId = new Map();
+  const lastPostPayloadBySessionId = new Map();
   let nextMessageNumber = 1;
   let plannerResponsesRemaining = 1;
 
@@ -35,6 +46,12 @@ export async function runSelfTest() {
       const payload = JSON.parse(raw || "{}");
       sessions.push({ id, title: payload.title ?? null });
       messagesBySessionId.set(id, []);
+      if ((payload.title ?? "").includes("timeout-retry-001") && timeoutOnceSessionIds.size === 0) {
+        timeoutOnceSessionIds.add(id);
+      }
+      if ((payload.title ?? "").includes("timeout-exhaust-001")) {
+        timeoutAlwaysSessionIds.add(id);
+      }
       if (id === "ses_2") {
         transientPostFailureBySessionId.add(id);
       }
@@ -47,9 +64,23 @@ export async function runSelfTest() {
       const raw = await readIncomingBody(request);
       const payload = JSON.parse(raw || "{}");
       const sessionId = request.url.split("/")[2];
+      lastPostPayloadBySessionId.set(sessionId, payload);
       const promptText = payload.parts?.[0]?.text ?? "";
-      const assistantText =
-        promptText.includes("Planner mode:") && plannerResponsesRemaining > 0
+      const assistantText = promptText.includes("planner dedupe self-test")
+        ? JSON.stringify(
+            [
+              {
+                title: "Generated follow-up task",
+                family: "trace",
+                prompt:
+                  "Inspect the latest trace-summary closeout gap, make the smallest implementation change needed, run one focused validation command, and report exact files plus commands.",
+                agent: "rag-build"
+              }
+            ],
+            null,
+            2
+          )
+        : promptText.includes("Planner mode:") && plannerResponsesRemaining > 0
           ? JSON.stringify(
               [
                 {
@@ -104,10 +135,13 @@ export async function runSelfTest() {
 
     if (request.method === "GET" && /^\/session\/[^/]+\/message/.test(request.url)) {
       const sessionId = request.url.split("/")[2]?.split("?")[0];
+      const requestUrl = new URL(request.url, baseUrl);
+      const limitRaw = Number.parseInt(requestUrl.searchParams.get("limit") ?? "", 10);
+      const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? limitRaw : null;
       const sessionMessages = messagesBySessionId.get(sessionId) ?? [];
       const assistantText = pendingAssistantBySessionId.get(sessionId);
 
-      if (assistantText) {
+      if (assistantText && !timeoutOnceSessionIds.has(sessionId) && !timeoutAlwaysSessionIds.has(sessionId)) {
         sessionMessages.push({
           info: { id: `msg_assistant_${nextMessageNumber++}`, role: "assistant" },
           parts: [{ type: "text", text: assistantText }]
@@ -117,7 +151,7 @@ export async function runSelfTest() {
       }
 
       response.setHeader("content-type", "application/json");
-      response.end(JSON.stringify(sessionMessages));
+      response.end(JSON.stringify(limit ? sessionMessages.slice(-limit) : sessionMessages));
       return;
     }
 
@@ -336,6 +370,89 @@ export async function runSelfTest() {
       throw new Error("Self-test resume handoff still captured the stale assistant reply.");
     }
 
+    resumeWindowRoot = mkdtempSync(join(tmpdir(), "opencode-loop-resume-window-"));
+    mkdirSync(resolve(resumeWindowRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(resumeWindowRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(resumeWindowRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Resume a long session without losing the new assistant reply.",
+        "Use the afterMessageId baseline when continuing an existing session."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(resumeWindowRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "resume-window-001",
+              title: "Resume long session near message window limit",
+              agent: "rag-build",
+              promptFile: DEFAULT_PROMPT_PATH,
+              status: "in_progress",
+              startedAt: new Date().toISOString(),
+              sessionId: "ses_resume_window_1"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const resumeWindowMessages = [
+      {
+        info: { id: "msg_resume_window_baseline", role: "assistant" },
+        parts: [{ type: "text", text: "Baseline assistant reply near the edge of the message window." }]
+      }
+    ];
+    for (let index = 0; index < 199; index += 1) {
+      resumeWindowMessages.push({
+        info: { id: `msg_resume_window_user_${index + 1}`, role: "user" },
+        parts: [{ type: "text", text: `Historical user message ${index + 1}` }]
+      });
+    }
+    messagesBySessionId.set("ses_resume_window_1", resumeWindowMessages);
+
+    const resumeWindowResult = await runLoop({
+      repoRoot: resumeWindowRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 0
+    });
+
+    const resumeWindowQueue = readQueue(resolve(resumeWindowRoot, ".opencode", "loop", "queue.json"));
+    const resumeWindowItem = resumeWindowQueue.items[0];
+    const resumeWindowPostPayload = lastPostPayloadBySessionId.get("ses_resume_window_1");
+
+    if (resumeWindowItem?.status !== "completed" || resumeWindowItem.sessionId !== "ses_resume_window_1") {
+      throw new Error("Self-test resume-window path did not finish on the existing session.");
+    }
+
+    if (resumeWindowResult.item.sessionId !== "ses_resume_window_1") {
+      throw new Error("Self-test resume-window result did not preserve the existing session.");
+    }
+
+    if (resumeWindowItem.messageId === "msg_resume_window_baseline") {
+      throw new Error("Self-test resume-window path incorrectly reused the baseline assistant message.");
+    }
+
+    if (resumeWindowPostPayload?.afterMessageId !== "msg_resume_window_baseline") {
+      throw new Error(
+        `Self-test resume-window path did not send afterMessageId in the POST body: ${JSON.stringify(resumeWindowPostPayload)}`
+      );
+    }
+
     refillRoot = mkdtempSync(join(tmpdir(), "opencode-loop-refill-"));
     mkdirSync(resolve(refillRoot, ".opencode", "loop", "prompts"), { recursive: true });
     mkdirSync(resolve(refillRoot, ".opencode", "loop", "handoffs"), { recursive: true });
@@ -404,6 +521,369 @@ export async function runSelfTest() {
       throw new Error("Self-test planner handoff did not record the generated follow-up task.");
     }
 
+    deferredRoot = mkdtempSync(join(tmpdir(), "opencode-loop-deferred-"));
+    mkdirSync(resolve(deferredRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(deferredRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(deferredRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Recover deferred queue items before continuing.",
+        "Keep the run narrow and finish the recovered item."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(deferredRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "deferred-001",
+              title: "Recover deferred item",
+              agent: "rag-build",
+              promptFile: DEFAULT_PROMPT_PATH,
+              status: "deferred",
+              startedAt: "2026-03-28T00:00:00.000Z",
+              sessionId: "ses_stale_deferred",
+              messageId: "msg_stale_deferred",
+              runId: "run_stale_deferred"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const normalizedDeferredQueue = normalizeQueueForExecution(
+      readQueue(resolve(deferredRoot, ".opencode", "loop", "queue.json"))
+    );
+
+    if (
+      normalizedDeferredQueue.normalizedCount !== 1 ||
+      normalizedDeferredQueue.queue.items[0].status !== "pending" ||
+      normalizedDeferredQueue.queue.items[0].sessionId ||
+      normalizedDeferredQueue.queue.items[0].messageId ||
+      normalizedDeferredQueue.queue.items[0].runId ||
+      normalizedDeferredQueue.queue.items[0].startedAt
+    ) {
+      throw new Error(
+        `Self-test deferred normalization failed: ${JSON.stringify(normalizedDeferredQueue.queue.items[0])}`
+      );
+    }
+
+    writeFileSync(
+      resolve(deferredRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(normalizedDeferredQueue.queue, null, 2)}\n`,
+      "utf8"
+    );
+
+    const deferredResult = await runLoop({
+      repoRoot: deferredRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 0
+    });
+
+    const deferredQueue = readQueue(resolve(deferredRoot, ".opencode", "loop", "queue.json"));
+
+    if (deferredResult.processedCount !== 1) {
+      throw new Error(`Self-test deferred path expected one processed item, got ${deferredResult.processedCount}.`);
+    }
+
+    if (deferredQueue.items[0]?.status !== "completed") {
+      throw new Error("Self-test deferred path did not complete the recovered item.");
+    }
+
+    if (deferredQueue.items[0]?.sessionId === "ses_stale_deferred") {
+      throw new Error("Self-test deferred path incorrectly reused the stale session.");
+    }
+
+    timeoutRetryRoot = mkdtempSync(join(tmpdir(), "opencode-loop-timeout-retry-"));
+    mkdirSync(resolve(timeoutRetryRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(timeoutRetryRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(timeoutRetryRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Recover from assistant message timeouts by retrying once with a fresh session.",
+        "Complete the item after the retry succeeds."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(timeoutRetryRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "timeout-retry-001",
+              title: "Retry timed-out assistant wait",
+              agent: "rag-build",
+              promptFile: DEFAULT_PROMPT_PATH,
+              status: "pending"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const sessionsBeforeTimeoutRetry = sessions.length;
+    const timeoutRetryResult = await runLoop({
+      repoRoot: timeoutRetryRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      messageWaitMs: 50,
+      pollIntervalMs: 5,
+      autoRefillMaxCycles: 0
+    });
+
+    const timeoutRetryQueue = readQueue(resolve(timeoutRetryRoot, ".opencode", "loop", "queue.json"));
+    const timeoutRetryItem = timeoutRetryQueue.items[0];
+    const timeoutRetrySessions = sessions.slice(sessionsBeforeTimeoutRetry);
+
+    if (timeoutRetryResult.processedCount !== 1) {
+      throw new Error(`Self-test timeout-retry path expected one processed item, got ${timeoutRetryResult.processedCount}.`);
+    }
+
+    if (timeoutRetrySessions.length !== 2) {
+      throw new Error(`Self-test timeout-retry path expected two sessions, got ${timeoutRetrySessions.length}.`);
+    }
+
+    if (timeoutRetryItem?.status !== "completed") {
+      throw new Error("Self-test timeout-retry path did not complete the retried item.");
+    }
+
+    if (timeoutRetryItem?.sessionId !== timeoutRetrySessions[1]?.id) {
+      throw new Error("Self-test timeout-retry path did not switch to the fresh retry session.");
+    }
+
+    if (timeoutRetryItem?.sessionId === timeoutRetrySessions[0]?.id) {
+      throw new Error("Self-test timeout-retry path incorrectly preserved the timed-out session.");
+    }
+
+    timeoutExhaustedRoot = mkdtempSync(join(tmpdir(), "opencode-loop-timeout-exhausted-"));
+    mkdirSync(resolve(timeoutExhaustedRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(timeoutExhaustedRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(timeoutExhaustedRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Keep retrying until timeout retries are exhausted.",
+        "Do not produce an assistant reply for this self-test item."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(timeoutExhaustedRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "timeout-exhaust-001",
+              title: "Reset state after final timeout",
+              agent: "rag-build",
+              promptFile: DEFAULT_PROMPT_PATH,
+              status: "pending"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    let timeoutExhaustedError = null;
+    try {
+      await runLoop({
+        repoRoot: timeoutExhaustedRoot,
+        baseUrl,
+        username: undefined,
+        password: undefined,
+        messageWaitMs: 20,
+        pollIntervalMs: 5,
+        autoRefillMaxCycles: 0
+      });
+    } catch (error) {
+      timeoutExhaustedError = error;
+    }
+
+    if (!timeoutExhaustedError || !String(timeoutExhaustedError.message).includes("没有为 session")) {
+      throw new Error("Self-test timeout-exhausted path expected a final assistant timeout error.");
+    }
+
+    const timeoutExhaustedQueue = readQueue(resolve(timeoutExhaustedRoot, ".opencode", "loop", "queue.json"));
+    const timeoutExhaustedItem = timeoutExhaustedQueue.items[0];
+
+    if (timeoutExhaustedItem?.status !== "pending") {
+      throw new Error("Self-test timeout-exhausted path did not reset the item back to pending.");
+    }
+
+    if (
+      timeoutExhaustedItem?.sessionId ||
+      timeoutExhaustedItem?.messageId ||
+      timeoutExhaustedItem?.messageReceivedAt ||
+      timeoutExhaustedItem?.resumedAt
+    ) {
+      throw new Error("Self-test timeout-exhausted path left stale session metadata behind.");
+    }
+
+    plannerDedupeRoot = mkdtempSync(join(tmpdir(), "opencode-loop-planner-dedupe-"));
+    mkdirSync(resolve(plannerDedupeRoot, ".opencode", "loop", "prompts", "generated"), { recursive: true });
+    mkdirSync(resolve(plannerDedupeRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    const dedupePromptText =
+      "Inspect the latest trace-summary closeout gap, make the smallest implementation change needed, run one focused validation command, and report exact files plus commands.";
+
+    writeFileSync(
+      resolve(plannerDedupeRoot, ".opencode", "loop", "prompts", DEFAULT_PLANNER_PROMPT_FILE_NAME),
+      [
+        "planner dedupe self-test",
+        "Return the same generated task that already exists in the queue."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(plannerDedupeRoot, ".opencode", "loop", "prompts", "generated", "trace-auto-001.md"),
+      `${dedupePromptText}\n`,
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(plannerDedupeRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "trace-auto-001",
+              title: "Generated follow-up task",
+              agent: "rag-build",
+              promptFile: "prompts/generated/trace-auto-001.md",
+              status: "completed",
+              handoffPath: ".opencode/loop/handoffs/existing-trace-auto-001.md"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const plannerDedupeResult = await runLoop({
+      repoRoot: plannerDedupeRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 1,
+      autoRefillMaxItems: 1
+    });
+
+    const plannerDedupeQueue = readQueue(resolve(plannerDedupeRoot, ".opencode", "loop", "queue.json"));
+
+    if (plannerDedupeResult.processedCount !== 0) {
+      throw new Error(`Self-test planner dedupe path expected zero processed items, got ${plannerDedupeResult.processedCount}.`);
+    }
+
+    if (plannerDedupeQueue.items.length !== 1) {
+      throw new Error(`Self-test planner dedupe path incorrectly appended duplicate items: ${JSON.stringify(plannerDedupeQueue.items)}`);
+    }
+
+    staleLockRoot = mkdtempSync(join(tmpdir(), "opencode-loop-stale-lock-"));
+    mkdirSync(resolve(staleLockRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(staleLockRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+    mkdirSync(resolve(staleLockRoot, ".opencode", "loop.lock"), { recursive: true });
+
+    writeFileSync(
+      resolve(staleLockRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Ignore a stale lock record whose pid has been reused by another process.",
+        "Process the pending item normally once the stale lock is cleared."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(staleLockRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "stale-lock-001",
+              title: "Recover from stale lock info",
+              agent: "rag-build",
+              promptFile: DEFAULT_PROMPT_PATH,
+              status: "pending"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(staleLockRoot, ".opencode", "loop.lock", "lock.json"),
+      `${JSON.stringify(
+        {
+          pid: process.pid,
+          createdAt: new Date().toISOString(),
+          processStartTicks: "definitely-stale-start-ticks",
+          processCmdline: "definitely-not-the-current-process"
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const staleLockResult = await runLoop({
+      repoRoot: staleLockRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 0
+    });
+
+    const staleLockQueue = readQueue(resolve(staleLockRoot, ".opencode", "loop", "queue.json"));
+
+    if (staleLockResult.processedCount !== 1 || staleLockQueue.items[0]?.status !== "completed") {
+      throw new Error("Self-test stale-lock path did not recover and finish the pending item.");
+    }
+
     console.log("Self-test passed.");
   } finally {
     await new Promise(resolvePromise => {
@@ -415,6 +895,24 @@ export async function runSelfTest() {
     }
     if (refillRoot) {
       rmSync(refillRoot, { recursive: true, force: true });
+    }
+    if (deferredRoot) {
+      rmSync(deferredRoot, { recursive: true, force: true });
+    }
+    if (timeoutRetryRoot) {
+      rmSync(timeoutRetryRoot, { recursive: true, force: true });
+    }
+    if (timeoutExhaustedRoot) {
+      rmSync(timeoutExhaustedRoot, { recursive: true, force: true });
+    }
+    if (plannerDedupeRoot) {
+      rmSync(plannerDedupeRoot, { recursive: true, force: true });
+    }
+    if (resumeWindowRoot) {
+      rmSync(resumeWindowRoot, { recursive: true, force: true });
+    }
+    if (staleLockRoot) {
+      rmSync(staleLockRoot, { recursive: true, force: true });
     }
   }
 }

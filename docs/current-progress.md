@@ -43,6 +43,19 @@
     - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/embedding-runtime-config.test.js`
   - 实测结果：focused embedding runtime config tests passed (`16/16`)
 
+- ✅ opencode loop now retries up to three fresh sessions after assistant-wait timeout
+  - `scripts/opencode-loop/runtime.mjs` now treats the `180000ms` assistant-wait expiry as a typed timeout path, logs `message:timeout-retry`, clears stale session/message state for the item, and retries up to three times with fresh sessions before failing the loop
+  - when the final retry still times out, the queue item is now reset back to `pending` with stale runtime metadata cleared, so the next loop start does not get pinned to a dead `in_progress` session
+  - resumed items still keep the existing resume behavior when a reply eventually arrives, but no longer stay pinned to a dead session after a no-reply timeout
+  - resumed long sessions now still complete even when the baseline assistant message falls out of the latest `limit=200` window, because the runtime treats a missing baseline as "use the latest different assistant reply" instead of timing out forever
+  - `scripts/opencode-loop/runtime.mjs` now also forwards `afterMessageId` in the `POST /session/:id/message` body and records lock ownership with Linux process identity (`/proc/<pid>/stat` + `/proc/<pid>/cmdline`) so stale lock directories are less likely to block a new loop after PID reuse
+  - `scripts/opencode-loop/planner.mjs` now dedupes auto-refill proposals against existing queue prompt contents when the prompt file is available, instead of fingerprinting only the prompt file path
+  - `scripts/opencode-loop/self-test.mjs` adds focused coverage for successful timeout fresh-session retry, final-timeout reset-to-pending behavior, long-session resume window rollover, stale-lock recovery, and planner dedupe against an already-materialized generated prompt
+  - scope remains loop-runtime / planner robustness only: no queue schema expansion, no task-generation policy changes
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test passed, including deferred recovery, resume window rollover, stale-lock recovery, and timeout fresh-session retry coverage
+
 - ✅ ask / ask-stream final payload now expose additive top-level `rewriteReadabilityLabel` aligned with trace-summary wording
   - `apps/api/src/modules/retrieval/strategy-readability.ts` now centralizes existing rewrite readability sentence builder (`rewrite <enabled|disabled>; rewrite applied: <yes|no>; rewrite fallback: <yes|no|unknown>; rewrite prompt: <id|unknown>.`) for shared projection reuse
   - `apps/api/src/modules/traces/traces.service.ts` now reuses the shared helper so trace-summary wording/semantics remain unchanged while avoiding duplicated builder logic

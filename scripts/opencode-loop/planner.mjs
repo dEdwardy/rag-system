@@ -66,7 +66,7 @@ export async function maybeAutoRefillQueue({
   const generatedPromptsDir = resolve(loopRoot, "prompts", "generated");
   mkdirSync(generatedPromptsDir, { recursive: true });
 
-  const existingFingerprints = buildExistingFingerprintSet(queue);
+  const existingFingerprints = buildExistingFingerprintSet(queue, loopRoot);
   const generatedItems = [];
 
   for (const proposal of proposals) {
@@ -291,17 +291,34 @@ function sanitizeFamily(value) {
   return normalized || "build";
 }
 
-function buildExistingFingerprintSet(queue) {
+function buildExistingFingerprintSet(queue, loopRoot) {
   const items = Array.isArray(queue?.items) ? queue.items : [];
   const fingerprints = new Set();
 
   for (const item of items) {
     const title = typeof item?.title === "string" ? item.title : item?.id ?? "";
-    const prompt = typeof item?.promptFile === "string" ? item.promptFile : "";
+    const prompt = readQueueItemPromptFingerprintSource(item, loopRoot);
     fingerprints.add(fingerprintQueueItem(title, prompt));
   }
 
   return fingerprints;
+}
+
+function readQueueItemPromptFingerprintSource(item, loopRoot) {
+  const promptFile = typeof item?.promptFile === "string" ? item.promptFile.trim() : "";
+  if (!promptFile) {
+    return "";
+  }
+
+  if (loopRoot) {
+    try {
+      return readFileSync(resolve(loopRoot, promptFile), "utf8").trim();
+    } catch {
+      // Fall back to the path string when the prompt file is unavailable.
+    }
+  }
+
+  return promptFile;
 }
 
 function fingerprintQueueItem(title, prompt) {
