@@ -386,6 +386,7 @@ export type AskResponse = {
   strategySummary?: RetrievalStrategySummary;
   strategyReadabilityLabel?: TraceSummary["strategyReadabilityLabel"];
   retrievalModeProvenanceSentence?: TraceSummary["retrievalModeProvenanceSentence"];
+  rewriteReadabilityLabel?: TraceSummary["rewriteReadabilityLabel"];
   retrievalMetadata?: AskRetrievalMetadata;
   answerAttributionSummary?: TraceAnswerAttributionSummary;
   answerAttributionReadabilitySentence?: TraceSummary["answerAttributionReadabilitySentence"];

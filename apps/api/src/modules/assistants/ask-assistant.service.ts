@@ -19,6 +19,7 @@ import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
 import {
+  buildRewriteReadabilityLabel,
   buildRetrievalModeProvenanceSentence,
   buildStrategyReadabilityLabel
 } from "../retrieval/strategy-readability";
@@ -159,6 +160,12 @@ export class AskAssistantService {
       strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
       fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
     });
+    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
+      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -270,6 +277,7 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
+        rewriteReadabilityLabel,
         retrievalModeProvenanceSentence,
         retrievalMetadata,
         answerAttributionSummary,
@@ -431,6 +439,12 @@ export class AskAssistantService {
       strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
       fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
     });
+    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
+      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -581,6 +595,7 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
+        rewriteReadabilityLabel,
         retrievalModeProvenanceSentence,
         retrievalMetadata,
         answerAttributionSummary,

@@ -40,3 +40,20 @@ export function buildRetrievalModeProvenanceSentence(input: {
 
   return `Resolved retrieval mode is ${retrievalModeLabel}; fallback usage is unknown.`;
 }
+
+export function buildRewriteReadabilityLabel(input: {
+  rewriteEnabled: TraceSummary["strategySummary"]["rewriteEnabled"];
+  rewriteApplied: TraceSummary["strategySummary"]["rewriteApplied"];
+  rewriteUsedFallback: TraceSummary["strategySummary"]["rewriteUsedFallback"];
+  rewritePromptId: TraceSummary["strategySummary"]["rewritePromptId"];
+}): TraceSummary["rewriteReadabilityLabel"] {
+  const rewriteEnabledLabel = input.rewriteEnabled ? "enabled" : "disabled";
+  const rewriteAppliedLabel = input.rewriteApplied ? "yes" : "no";
+  const rewriteFallbackLabel = input.rewriteUsedFallback == null
+    ? "unknown"
+    : input.rewriteUsedFallback
+      ? "yes"
+      : "no";
+  const rewritePromptLabel = input.rewritePromptId ?? "unknown";
+  return `rewrite ${rewriteEnabledLabel}; rewrite applied: ${rewriteAppliedLabel}; rewrite fallback: ${rewriteFallbackLabel}; rewrite prompt: ${rewritePromptLabel}.`;
+}

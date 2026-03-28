@@ -164,6 +164,10 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
     finalResult.retrievalModeProvenanceSentence,
     "Resolved retrieval mode is vector; fallback was not used."
   );
+  assert.equal(
+    finalResult.rewriteReadabilityLabel,
+    "rewrite enabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+  );
   assert.equal(events[5].data.answerEvidenceSource, "none");
   assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
@@ -195,6 +199,10 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(
     events[5].data.retrievalModeProvenanceSentence,
     "Resolved retrieval mode is vector; fallback was not used."
+  );
+  assert.equal(
+    events[5].data.rewriteReadabilityLabel,
+    "rewrite enabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
   );
 });
 

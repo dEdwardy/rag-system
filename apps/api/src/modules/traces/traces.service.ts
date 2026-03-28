@@ -14,6 +14,7 @@ import {
 import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
 import {
+  buildRewriteReadabilityLabel,
   buildRetrievalModeProvenanceSentence,
   buildStrategyReadabilityLabel
 } from "../retrieval/strategy-readability";
@@ -368,7 +369,7 @@ export class TracesService {
         strategyUsedFallback
       }),
       retrievalModeProvenanceSentence,
-      rewriteReadabilityLabel: this.buildRewriteReadabilityLabel({
+      rewriteReadabilityLabel: buildRewriteReadabilityLabel({
         rewriteEnabled,
         rewriteApplied,
         rewriteUsedFallback,
@@ -623,23 +624,6 @@ export class TracesService {
     }
 
     return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}.`;
-  }
-
-  private buildRewriteReadabilityLabel(input: {
-    rewriteEnabled: TraceSummary["strategySummary"]["rewriteEnabled"];
-    rewriteApplied: TraceSummary["strategySummary"]["rewriteApplied"];
-    rewriteUsedFallback: TraceSummary["strategySummary"]["rewriteUsedFallback"];
-    rewritePromptId: TraceSummary["strategySummary"]["rewritePromptId"];
-  }): TraceSummary["rewriteReadabilityLabel"] {
-    const rewriteEnabledLabel = input.rewriteEnabled ? "enabled" : "disabled";
-    const rewriteAppliedLabel = input.rewriteApplied ? "yes" : "no";
-    const rewriteFallbackLabel = input.rewriteUsedFallback == null
-      ? "unknown"
-      : input.rewriteUsedFallback
-        ? "yes"
-        : "no";
-    const rewritePromptLabel = input.rewritePromptId ?? "unknown";
-    return `rewrite ${rewriteEnabledLabel}; rewrite applied: ${rewriteAppliedLabel}; rewrite fallback: ${rewriteFallbackLabel}; rewrite prompt: ${rewritePromptLabel}.`;
   }
 
 }

@@ -452,6 +452,10 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     result.retrievalModeProvenanceSentence,
     "Resolved retrieval mode is hybrid; fallback was not used."
   );
+  assert.equal(
+    result.rewriteReadabilityLabel,
+    "rewrite enabled; rewrite applied: yes; rewrite fallback: yes; rewrite prompt: rewrite-query.v1."
+  );
   assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "explicit",
@@ -814,6 +818,10 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   assert.equal(
     result.retrievalModeProvenanceSentence,
     "Resolved retrieval mode is lexical; fallback was not used."
+  );
+  assert.equal(
+    result.rewriteReadabilityLabel,
+    "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
   );
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "none",

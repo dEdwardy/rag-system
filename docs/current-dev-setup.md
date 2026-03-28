@@ -172,6 +172,7 @@ LLM_REWRITE_TEMPERATURE=0
   - ask one-shot responses and ask-stream `final` payloads now also expose additive top-level readability/provenance fields derived from existing metadata:
     - `strategyReadabilityLabel`
     - `retrievalModeProvenanceSentence`
+    - `rewriteReadabilityLabel`
     - `answerAttributionSummary`
     - `answerAttributionReadabilitySentence`
     - `answerAttribution` / `answerAttributionSource`

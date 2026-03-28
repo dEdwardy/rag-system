@@ -10,6 +10,7 @@ test("web ask response type covers current backend answeringMetadata shape", asy
   assert.match(source, /strategySummary\?:\s*RetrievalStrategySummary;/);
   assert.match(source, /strategyReadabilityLabel\?:\s*TraceSummary\["strategyReadabilityLabel"\];/);
   assert.match(source, /retrievalModeProvenanceSentence\?:\s*TraceSummary\["retrievalModeProvenanceSentence"\];/);
+  assert.match(source, /rewriteReadabilityLabel\?:\s*TraceSummary\["rewriteReadabilityLabel"\];/);
   assert.match(source, /answerAttributionSummary\?:\s*TraceAnswerAttributionSummary;/);
   assert.match(source, /answerAttributionReadabilitySentence\?:\s*TraceSummary\["answerAttributionReadabilitySentence"\];/);
   assert.match(source, /answerAttribution\?:\s*TraceCitationAttribution \| null;/);

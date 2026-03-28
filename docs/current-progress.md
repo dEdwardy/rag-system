@@ -13,6 +13,18 @@
 
 补充进展（2026-03-28）：
 
+- ✅ ask / ask-stream final payload now expose additive top-level `rewriteReadabilityLabel` aligned with trace-summary wording
+  - `apps/api/src/modules/retrieval/strategy-readability.ts` now centralizes existing rewrite readability sentence builder (`rewrite <enabled|disabled>; rewrite applied: <yes|no>; rewrite fallback: <yes|no|unknown>; rewrite prompt: <id|unknown>.`) for shared projection reuse
+  - `apps/api/src/modules/traces/traces.service.ts` now reuses the shared helper so trace-summary wording/semantics remain unchanged while avoiding duplicated builder logic
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes top-level `rewriteReadabilityLabel` in both one-shot ask and ask-stream final payloads using existing `strategySummary` rewrite metadata
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` add focused assertions for the new top-level field on representative rewrite-enabled and rewrite-disabled paths
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `rewriteReadabilityLabel`; `apps/web/test/ask-answering-metadata-contract.test.js` now guards the field in the existing web contract check
+  - `docs/current-dev-setup.md` ask response metadata semantics list is aligned
+  - scope remains additive contract/readability convergence only: no retrieval/answering behavior semantics changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused ask tests passed (`48/48`)
+
 - ✅ ask/trace docs contract note is refreshed after ask top-level metadata surface expansion
   - `docs/current-dev-setup.md` now explicitly notes that the `current ask response metadata semantics` top-level field list is kept aligned with `apps/web/test/ask-answering-metadata-contract.test.js`
   - scope remains docs-only alignment: no backend/web runtime changes, no shared contract changes, no retrieval/answering semantics changes
