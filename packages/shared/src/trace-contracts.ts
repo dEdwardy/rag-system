@@ -86,6 +86,7 @@ export type TraceSummary = {
   answerAttributionSource: TraceCitationSelectionSource | null;
   answerEvidenceSource: TraceCitationSelectionSource | null;
   answerEvidenceSourceReadabilityLabel: string;
+  answerEvidenceSourceReadabilitySentence: string;
   citationAttribution: TraceCitationAttribution | null;
   citationSelectionSource: TraceCitationSelectionSource | null;
   missingInformationCount: number;

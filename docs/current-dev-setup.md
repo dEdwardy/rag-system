@@ -212,6 +212,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `answerAttributionSource`
     - `answerEvidenceSource` (same source value as `citationSelectionSource`)
     - `answerEvidenceSourceReadabilityLabel` (`<kind> evidence source` readability label)
+    - `answerEvidenceSourceReadabilitySentence` (one-line evidence-source provenance sentence)
     - `citationAttribution`
     - `citationSelectionSource`
     - `missingInformationCount`

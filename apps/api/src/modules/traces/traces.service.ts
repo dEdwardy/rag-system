@@ -284,6 +284,9 @@ export class TracesService {
       rawAnswerStatusSource
     });
     const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerEvidenceSource);
+    const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+      answerEvidenceSourceReadabilityLabel
+    );
     const rawFailedStage = this.readString(retrievalFailure?.stage);
     const failedStage = this.readTraceFailedStage(rawFailedStage);
     const candidateLimit = this.readNumber(retrievalExecution?.candidateLimit) ?? 0;
@@ -342,6 +345,7 @@ export class TracesService {
       answerAttributionSource: citationSelectionSource,
       answerEvidenceSource,
       answerEvidenceSourceReadabilityLabel,
+      answerEvidenceSourceReadabilitySentence,
       citationAttribution,
       citationSelectionSource,
       missingInformationCount,
@@ -468,6 +472,12 @@ export class TracesService {
     }
 
     return "unknown answer text source";
+  }
+
+  private buildAnswerEvidenceSourceReadabilitySentence(
+    answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
+  ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
+    return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
   }
 
   private buildMissingInformationProvenanceSentence(input: {
