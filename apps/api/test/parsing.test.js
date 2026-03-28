@@ -202,6 +202,30 @@ test("FeedSourceService resolves Atom alternate link with single-quoted attribut
   assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/feed\.xml\?entry=release-a/);
 });
 
+test("FeedSourceService prefers Atom alternate link when rel contains mixed-case multi-token value", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <title>Engineering Updates</title>
+      <entry>
+        <title>Release C</title>
+        <link rel="self" href="https://example.com/feed.xml?entry=release-c" />
+        <link rel="Via ALTERNATE preview" href="https://example.com/releases/c" />
+        <summary>Marker gamma summary.</summary>
+        <updated>2026-03-23T10:00:00Z</updated>
+      </entry>
+    </feed>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 1
+    }
+  );
+
+  assert.match(extracted.content, /https:\/\/example\.com\/releases\/c/);
+  assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/feed\.xml\?entry=release-c/);
+});
+
 test("FeedSourceService skips invalid entries and returns partial diagnostics", async () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(

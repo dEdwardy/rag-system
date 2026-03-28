@@ -13,6 +13,14 @@
 
 补充进展（2026-03-28）：
 
+- ✅ feed Atom canonical alternate-link extraction now accepts mixed-case multi-token `rel` values containing `alternate`
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now treats Atom `<link rel>` as tokenized (case-insensitive) and continues preferring canonical alternate href when any `rel` token is `alternate`
+  - `apps/api/test/parsing.test.js` adds one focused regression for `rel="Via ALTERNATE preview"` to guard canonical alternate-link preference over self link
+  - scope remains one feed parsing edge case only: no feed dedup/refresh-window/source-family behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`30/30`)
+
 - ✅ feed Atom canonical link extraction now tolerates single-quoted attributes and `rel`/`href` order variants
   - `apps/api/src/infra/feed-source/feed-source.service.ts` now parses Atom `<link>` tag attributes quote-agnostically and resolves canonical entry links by preferring `rel="alternate"` regardless of attribute order; when no alternate link exists, existing first-link fallback remains
   - `apps/api/test/parsing.test.js` adds focused regression coverage for Atom entries using single-quoted `rel`/`href` attributes in both `rel->href` and `href->rel` orders

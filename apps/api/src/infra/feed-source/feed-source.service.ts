@@ -448,7 +448,12 @@ export class FeedSourceService {
       }
 
       const rel = this.extractXmlAttribute(tag, "rel")?.toLowerCase() ?? null;
-      if (rel === "alternate") {
+      const relIncludesAlternate = rel
+        ?.split(/\s+/)
+        .map(token => token.trim())
+        .filter(Boolean)
+        .includes("alternate");
+      if (relIncludesAlternate) {
         return this.decodeEntities(href).trim();
       }
 
