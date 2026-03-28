@@ -70,12 +70,41 @@
   - 当前也可通过 `GET /knowledge-bases/:id/document-runs` 在 knowledge-base 级别查看最近 run history
   - knowledge-base 级 run history 已支持最小过滤和 limit，便于直接聚焦失败 run 或某类 source
   - run list 默认已收紧 payload，仅在 `includeDiagnostics=true` 时返回大诊断 JSON
-  - 当前也可通过 `GET /knowledge-bases/:id/document-runs/summary` 读取轻量聚合概览
-  - summary 已能直接区分 retryable / non-retryable failures，并按 failed stage 聚合
-  - list / summary 当前都支持 `sinceHours` 时间窗过滤，更适合最近运行排查
-  - summary 当前也能直接给出 `latestRetryableFailure` 和 `latestSkipped` 作为诊断锚点
-  - source-fetch diagnostics 的 `retryable` 判定已按错误边界收口，不再把明显的 invalid payload / content-type 错误误记成可重试
-  - stale ingestion job 也会在 run history 中显式标记为 `skipped`
+- 当前也可通过 `GET /knowledge-bases/:id/document-runs/summary` 读取轻量聚合概览
+- summary 已能直接区分 retryable / non-retryable failures，并按 failed stage 聚合
+- list / summary 当前都支持 `sinceHours` 时间窗过滤，更适合最近运行排查
+- summary 当前也能直接给出 `latestRetryableFailure` 和 `latestSkipped` 作为诊断锚点
+- source-fetch diagnostics 的 `retryable` 判定已按错误边界收口，不再把明显的 invalid payload / content-type 错误误记成可重试
+- stale ingestion job 也会在 run history 中显式标记为 `skipped`
+
+### Queue-ready tasks（建议串行执行）
+
+下面这批适合直接丢进 queue，继续保持单线推进、小步增量、每轮收口：
+
+1. 补齐 web contract 对最新 `TraceSummary` 可读字段的守卫
+   - 重点看 `apps/web/test/trace-summary-contract.test.js` 和 `apps/web/src/types/api.ts`
+   - 目标是让 web 侧继续跟住 backend 新增的可读标签，而不是等接口变了再补
+2. 收口 ask response / trace summary 的标签映射逻辑
+   - 重点看 `apps/api/src/modules/traces/traces.service.ts` 和 `apps/api/src/modules/assistants/ask-assistant.service.ts`
+   - 如果两边还有重复映射，优先抽最窄的共享 helper，保持 additive / behavior-preserving
+3. 给 legacy fallback 路径补一轮回归测试
+   - 重点看 `answerProvenanceSentence`、`missingInformationProvenanceSentence`、`strategySummary` 的旧数据回填路径
+   - 目标是锁住旧 trace 读模型在缺字段时的回填一致性
+4. 统一 unknown / fallback 文案风格
+   - 重点看 `failedStageReadabilityLabel`、`answerStatusSourceReadabilityLabel`、`answerTextSourceReadabilityLabel`
+   - 目标是让诊断文本继续保持一眼可扫、语义一致
+5. 同步 `docs/current-dev-setup.md` 的 trace-summary 字段清单
+   - 只补当前 contract 已经存在的字段，不引入新契约
+   - 目标是让文档和实现保持同一版读模型说明
+6. 在 `docs/current-progress.md` 里补一次 closeout 记录
+   - 每完成一个 queue item，就顺手记下变更文件和最小验证命令
+   - 这样后续回看进度时能直接复盘收口结果
+7. 给 opencode loop 补一个面向 read-model / metadata 的专用 prompt 模板
+   - 重点看 `.opencode/loop/prompts/` 和 `scripts/opencode-loop.md`
+   - 目标是让 queue item 不再复用过于通用的 build prompt
+8. 复核 opencode 的模型分工是否还要微调
+   - 重点看 `opencode.jsonc`、`apps/api/opencode.jsonc`、`apps/web/opencode.jsonc`
+   - 默认保持现有分工，只有在成本/质量有明确收益时才改
 
 ### P1：external knowledge source follow-up（后续新波次）
 
