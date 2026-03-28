@@ -226,6 +226,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `answerStatusSource`
     - `answerStatusSourceReadabilityLabel` (answer status source readability label)
     - `answerStatusSourceReadabilitySentence` (one-line answer status source provenance)
+    - `answerProvenanceReadabilitySentence` (one-line answer provenance with readability labels)
     - `answerProvenanceSentence` (one-line answer provenance)
     - `failedStage`
     - `failedStageReadabilityLabel` (failed-stage readability label)

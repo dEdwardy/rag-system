@@ -270,11 +270,8 @@ export class TracesService {
       insufficientContextReason,
       missingInformationCount
     });
-    const answerProvenanceSentence = this.buildAnswerProvenanceSentence({
-      answerTextSource,
-      answerStatusSource,
-      answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
-    });
+    const answerAttributionReadabilitySentence = answerAttributionSummary.readabilitySentence
+      ?? "Answer attribution is unknown; source evidence is unknown.";
     const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel({
       answerTextSource,
       rawAnswerTextSource
@@ -289,6 +286,16 @@ export class TracesService {
     const answerStatusSourceReadabilitySentence = this.buildAnswerStatusSourceReadabilitySentence(
       answerStatusSourceReadabilityLabel
     );
+    const answerProvenanceSentence = this.buildAnswerProvenanceSentence({
+      answerTextSource,
+      answerStatusSource,
+      answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
+    });
+    const answerProvenanceReadabilitySentence = this.buildAnswerProvenanceReadabilitySentence({
+      answerTextSourceReadabilityLabel,
+      answerStatusSourceReadabilityLabel,
+      answerAttributionReadabilitySentence
+    });
     const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerEvidenceSource);
     const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
       answerEvidenceSourceReadabilityLabel
@@ -350,8 +357,7 @@ export class TracesService {
       fallbackReason,
       resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
       answerAttributionSummary,
-      answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
-        ?? "Answer attribution is unknown; source evidence is unknown.",
+      answerAttributionReadabilitySentence,
       answerAttribution: citationAttribution,
       answerAttributionSource: citationSelectionSource,
       answerEvidenceSource,
@@ -370,6 +376,7 @@ export class TracesService {
       answerStatusSource,
       answerStatusSourceReadabilityLabel,
       answerStatusSourceReadabilitySentence,
+      answerProvenanceReadabilitySentence,
       answerProvenanceSentence,
       failedStage,
       failedStageReadabilityLabel,
@@ -467,6 +474,14 @@ export class TracesService {
     const textSourceValue = input.answerTextSource ?? "unknown";
     const statusSourceValue = input.answerStatusSource ?? "unknown";
     return `Answer text source is ${textSourceValue}; status source is ${statusSourceValue}; attribution summary is ${input.answerAttributionReadabilityResolvedLabel}.`;
+  }
+
+  private buildAnswerProvenanceReadabilitySentence(input: {
+    answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"];
+    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"];
+    answerAttributionReadabilitySentence: TraceSummary["answerAttributionReadabilitySentence"];
+  }): TraceSummary["answerProvenanceReadabilitySentence"] {
+    return `Answer text source is ${input.answerTextSourceReadabilityLabel}; answer status source is ${input.answerStatusSourceReadabilityLabel}; ${input.answerAttributionReadabilitySentence}`;
   }
 
   private buildAnswerTextSourceReadabilityLabel(input: {

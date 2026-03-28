@@ -111,6 +111,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     answerStatusSource: null,
     answerStatusSourceReadabilityLabel: "unknown answer status source",
     answerStatusSourceReadabilitySentence: "Answer status source is unknown answer status source.",
+    answerProvenanceReadabilitySentence: "Answer text source is unknown answer text source; answer status source is unknown answer status source; Answer attribution is unknown; source evidence is unknown.",
     answerProvenanceSentence: "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source.",
     failedStage: "answering",
     failedStageReadabilityLabel: "answering stage failed",
@@ -443,6 +444,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     answerStatusSource: "inferred_from_retrieval",
     answerStatusSourceReadabilityLabel: "retrieval-inferred answer status",
     answerStatusSourceReadabilitySentence: "Answer status source is retrieval-inferred answer status.",
+    answerProvenanceReadabilitySentence: "Answer text source is deterministic policy answer text; answer status source is retrieval-inferred answer status; Answer attribution is heuristic; source evidence is heuristic.",
     answerProvenanceSentence: "Answer text source is deterministic_policy; status source is inferred_from_retrieval; attribution summary is heuristic attribution via heuristic evidence source.",
     failedStage: null,
     failedStageReadabilityLabel: "unknown failed stage",
@@ -1007,6 +1009,10 @@ test("TracesService keeps legacy fallback traces readable when optional provenan
   assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source");
   assert.equal(detail.traceSummary.answerTextSourceReadabilitySentence, "Answer text source is unknown answer text source.");
   assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source");
+  assert.equal(
+    detail.traceSummary.answerProvenanceReadabilitySentence,
+    "Answer text source is unknown answer text source; answer status source is unknown answer status source; Answer attribution is unknown; source evidence is unknown."
+  );
 });
 
 test("TracesService backfills strategySummary.usedFallback from legacy execution fallbackReason when usedFallback is missing", async () => {
