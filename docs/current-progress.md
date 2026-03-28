@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-28
+更新时间：2026-03-29
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -12,6 +12,60 @@
 补充进展（2026-03-27）：
 
 补充进展（2026-03-28）：
+
+补充进展（2026-03-29）：
+
+- ✅ web auth state now bootstraps from `GET /auth/me` and protects app routes with a minimal login gate
+  - `apps/web/src/lib/api.ts` now sends `credentials: "include"` for API and stream requests, and surfaces HTTP status on request errors so auth bootstrap can distinguish `401`
+  - `apps/web/src/types/api.ts` adds minimal `AuthIdentity` / `AuthMeResponse` types aligned with the backend auth contract
+  - `apps/web/src/features/api/hooks.ts` adds minimal auth hooks (`useAuthMe`, `useLogin`, `useLogout`) and keeps auth bootstrap query key scoped to `['auth','me']`
+  - `apps/web/src/app/AuthenticatedAppShell.tsx` now bootstraps login state from `/auth/me` and redirects unauthenticated users to `/login`
+  - `apps/web/src/app/router.tsx` now registers `/login` and wraps existing app routes behind `AuthenticatedAppShell`
+  - `apps/web/src/pages/auth/LoginPage.tsx` adds a minimal login form that calls `POST /auth/login` and redirects to `/` on success
+  - scope remains web auth bootstrap/plumbing only: no backend contract changes, no UI redesign, no ACL expansion
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/web build`
+  - 实测结果：web build passed
+
+- ✅ auth route policy baseline now distinguishes public routes from authenticated routes with a minimal guard/decorator contract
+  - `apps/api/src/modules/auth/auth-route-policy.ts` adds a tiny route-policy metadata contract (`public` / `authenticated`)
+  - `apps/api/src/modules/auth/auth-route-policy.guard.ts` adds a global guard that enforces only `authenticated` routes and checks real session identity (`request.authContext.identity`) instead of dev fallback identity
+  - `apps/api/src/modules/auth/auth.module.ts` now wires the guard as `APP_GUARD`
+  - `apps/api/src/common/health.controller.ts` marks health as `public`; `apps/api/src/modules/auth/auth.controller.ts` keeps auth controller public but marks `GET /auth/me` as `authenticated`
+  - focused guard regressions added in `apps/api/test/auth-provider-boundary.test.js`
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+  - 实测结果：focused auth boundary tests passed (`9/9`)
+
+- ✅ conversation read/write paths now scope by current identity (ACL-ready baseline, behavior-preserving by default dev identity)
+  - `apps/api/src/modules/conversations/conversations.controller.ts` now resolves request auth context for all conversation routes and scopes list/detail reads to current identity
+  - conversation messages/traces route reads now verify scoped conversation ownership first (`getConversation` within identity scope) before listing related records
+  - `apps/api/src/modules/conversations/conversations.service.ts` now supports optional identity-scoped list/get (`tenantId + userId`), while preserving legacy unscoped behavior when scope is omitted
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now scopes existing-conversation lookup in both ask and ask-stream paths using current identity before writing new messages/traces
+  - focused regressions added:
+    - `apps/api/test/conversations.service.test.js`
+    - `apps/api/test/ask-success.test.js`
+    - `apps/api/test/ask-stream-service.test.js`
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/conversations.service.test.js test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused API tests passed (`54/54`)
+
+- ✅ auth/login wave docs are now synced to implemented status with a focused validation baseline note
+  - `docs/next_steps_rag_project_plan.md` now records P1 (`鉴权 / 用户登录`) as implemented/closed for tasks `1~12` and adds a reusable focused validation baseline for the auth/login wave
+  - this file (`docs/current-progress.md`) now aligns the old "未开始"/"下一步" status blocks with the already-implemented auth/login baseline and keeps ACL as the next mainline
+  - 新增 / 更新验证：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+  - 实测结果：diff check passed
+
+- ✅ opencode loop now has small strategy hooks and an ordered auth/ACL/source queue wave
+  - `scripts/opencode-loop/strategy.mjs` adds a minimal strategy normalization layer with callbacks for next-item selection, run eligibility, failure handling, and completion hooks
+  - `scripts/opencode-loop/runtime.mjs` now accepts an optional `strategy` object, supports inline `promptText` queue items, and lets queue failures with `failureMode: "defer"` continue later items in the same run while keeping the deferred item for the next loop invocation
+  - `.opencode/loop/queue.json` now carries the ordered `P1/P2/P3` auth/login → ACL → external-source follow-up wave as pending queue items
+  - `scripts/opencode-loop/self-test.mjs` adds focused coverage for predicate-based item selection, deferred-item handling, inline promptText items, and the failure-defer path
+  - `scripts/opencode-loop.md` now documents the strategy hook and inline promptText / failureMode queue metadata
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test passed
 
 - ✅ source-fetch redirect diagnostics now keep a bounded raw redirect target in invalid/non-HTTP redirect-follow errors
    - `apps/api/src/infra/http/fetch-with-retry.ts` now appends bounded raw `Location` text (`...<truncated>` when long) on two existing redirect-follow failure paths: invalid redirect location and non-`http(s)` redirect target
@@ -2360,12 +2414,22 @@
 
 ---
 
-## 5. 暂未开始且不属于当前主优先级
+## 5. 暂未开始方向
 
-- [ ] 鉴权
-- [ ] 用户登录
-- [ ] 多租户隔离
+### 5.1 当前下一主线
+
+- [x] 鉴权
+- [x] 用户登录
+
+说明：
+
+- `P1: 鉴权 / 用户登录` 最小闭环已按既定范围完成（backend-first、最小 session/identity contract、web 最小登录态承载）
+- 当前下一条主线为 `ACL / 文档权限`
+
+### 5.2 暂未开始且排在后面
+
 - [ ] ACL / 文档权限
+- [ ] 多租户隔离
 - [ ] 企业级审计与治理能力
 
 ---
@@ -2432,6 +2496,9 @@
     - choose a new backend-first direction
     - do not reopen UI refactor
     - do not expand into a generic connector / source-center platform rewrite
+- [x] `鉴权 / 用户登录`
+  - 最小 auth/login 闭环已收口（见本文件 `2026-03-29` auth 相关完成记录）
+  - 当前按计划进入下一主线：`ACL / 文档权限`
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -2442,8 +2509,16 @@
 - ✅ retrieval / answering 更系统化演进
 - [ ] 外部知识源扩展
 - [ ] 更细的移动端适配
-- [ ] auth / 多租户 / ACL
+- [ ] ACL / 多租户 / 企业化后续能力
 - [ ] 企业能力
+
+### 2026-03-29
+
+- ✅ 后续主线文档顺序已调整为先做 `鉴权 / 用户登录`
+  - `docs/next_steps_rag_project_plan.md` 现已把 `鉴权 / 用户登录` 明确为 `P1` 当前主线，`ACL / 文档权限` 作为下一条主线，external knowledge source follow-up 后移为后续独立波次
+  - `docs/current-progress.md` 同步区分了“当前下一主线”和“排在后面的未开始方向”，避免继续把 auth/login 归类为“非当前主优先级”
+  - 本次仅更新计划/进度文档，不改 `apps/api` / `apps/web` / `packages/shared` 实现
+  - 验证：`git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
 
 ---
 

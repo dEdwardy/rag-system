@@ -3,7 +3,7 @@
 > 文档角色：`current-primary`
 > 当前使用方式：当前阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以本文档为主；`docs/current-progress.md` 主要承担进度记录和完成状态同步。
 
-更新时间：2026-03-28
+更新时间：2026-03-29
 
 ## 1. 当前判断
 
@@ -185,9 +185,199 @@ Queue 短标题版（可直接作为 loop item title 使用）：
     - 只做状态更新和结论记录，不再把新方向混进同一波次
     - 交付物：更新本文件的状态结论，以及 `docs/current-progress.md` 的 phase closeout 说明
 
-### P1：external knowledge source follow-up（后续新波次）
+### P1：鉴权 / 用户登录（当前主线）
 
-如果后续继续推进 external knowledge source，应视为新的后续增量，而不是当前波次未完成残项。
+`P0` 收口完成后，当前最合适的下一条主线不再是继续扩 external source，也不是直接展开企业化全家桶，而是先补齐 **鉴权 / 用户登录的最小闭环**。
+
+当前阶段建议先收口：
+
+- 先做最小身份闭环，而不是一次性做完整企业体系
+- 继续保持 `backend / API first`
+- 先锁定“谁在调用系统、请求身份如何传递、默认数据归属如何表达”
+- 先做可验证的最小 session / identity contract，再接页面承载
+- 为后续 `ACL / 文档权限` 预留稳定身份边界，但本轮不把 ACL 和多租户一起打包推进
+
+当前这一轮明确不做：
+
+- 不直接展开多租户隔离
+- 不直接展开完整企业成员/组织体系
+- 不把鉴权波次扩成通用 IAM 平台重构
+- 不顺手重写现有 retrieval / answering / trace 主链路
+- 不因为登录接入而并行开启大范围 UI 改版
+
+建议的切入顺序：
+
+1. 明确当前最小身份模型与默认单用户/单工作区假设
+2. 收口 API 侧认证入口、身份注入与最小未登录保护
+3. 补齐 web 侧登录态承载与最小路由保护
+4. 用 focused validation 锁住 auth/login 最小闭环
+5. 完成后再进入 `ACL / 文档权限`
+
+#### P1 queue-ready tasks
+
+下面这些小任务建议直接作为 `P1` 的 queue-ready 拆解来源；写进 queue 时可再压成更短 title。
+
+1. 定义 auth identity contract
+   - 目标：统一当前请求身份语义，不再让业务路径继续散落 `default-user` 或临时身份口径
+   - 建议最小字段：`userId`、`tenantId`、`sessionId`、`authSource`
+   - 要求：业务 service 依赖 identity contract，而不是直接依赖 cookie / token / OIDC 细节
+   - 当前代码对照点：`apps/api/src/modules/assistants/ask-assistant.service.ts` 仍在创建 conversation 时写死 `default-user`
+   - 交付物：一处统一类型/上下文约定 + 最小文档说明
+
+2. 收口 session persistence 最小模型
+   - 目标：先支持最小 session 登录闭环，同时不给后续 provider 替换或审计扩展制造死角
+   - 建议至少考虑：`id`、`userId`、`expiresAt`、`revokedAt`、`lastSeenAt`
+   - 当前阶段不要求一次把所有 session 管理能力做满
+   - 交付物：最小可用 session persistence 方案（含 schema / migration / seed 影响评估）
+
+3. 建立 auth provider boundary
+   - 目标：把“如何从请求里解析登录态”封成单独边界
+   - 当前推荐首个实现：`session cookie provider`
+   - 要求：后续可替换到 bearer token / OIDC，而不把业务层一起重写
+   - 交付物：provider 接口 + 当前最小 provider 实现
+
+4. 注入 request auth context
+   - 目标：在 API 入口统一完成 identity 注入，后续受保护接口复用同一条路径
+   - 要求：未登录状态可被稳定识别；已登录状态能稳定解析出当前 identity
+   - 交付物：middleware / guard / request helper 中的一种最小稳定落点
+
+5. 增加 auth API 最小闭环
+   - 建议最小接口：`POST /auth/login`、`POST /auth/logout`、`GET /auth/me`
+   - 目标：先打通登录、退出、当前身份读取，不展开更大的账号体系
+   - 要求：`/auth/me` 返回稳定 identity 结构，而不是只返回裸 `userId`
+   - 交付物：controller + service + focused tests
+
+6. 替换硬编码 identity 的业务写入路径
+   - 目标：优先清掉最关键路径里的硬编码身份
+   - 重点先看：conversation 创建、assistant ask 主链路
+   - 当前代码对照点：`apps/api/src/modules/assistants/ask-assistant.service.ts`
+   - 交付物：从 request identity 派生 `userId` / `tenantId`，不再写死 `default-user`
+
+7. 收口 conversation identity scoping
+   - 目标：会话列表、详情、消息、trace 等读取开始按当前 identity 收口
+   - 当前代码对照点：`apps/api/src/modules/conversations/conversations.controller.ts`、`apps/api/src/modules/conversations/conversations.service.ts`
+   - 要求：先做当前用户范围，不在本轮扩成完整 ACL 系统
+   - 交付物：最小用户隔离行为 + focused regression tests
+
+8. 对齐 owner / tenant 写入路径
+   - 目标：为后续 ACL 做准备，让新增或收口过的核心资源写入统一走 current identity
+   - 重点关注：`ownerId`、`tenantId`、conversation `userId`
+   - 当前代码对照点：`apps/api/prisma/schema.prisma` 已有 `Tenant` / `User` / `KnowledgeBase.ownerId` / `Conversation.userId`
+   - 交付物：最小 ownership alignment，不引入角色矩阵
+
+9. 建立 route policy baseline
+   - 目标：先把接口分成 `public` 和 `authenticated` 两层，而不是一步到位做复杂权限矩阵
+   - 要求：表达方式可继续扩展到后续 ACL / role / policy
+   - 交付物：最小受保护接口清单 + 对应 guard 接入
+
+10. 补 web auth bootstrap
+    - 目标：web 启动时能够恢复当前 identity，并与 API `/auth/me` 对齐
+    - 要求：web 侧只消费统一 identity contract，不自造并行状态语义
+    - 交付物：最小 auth store / bootstrap 逻辑
+
+11. 补 web login / logout flow
+    - 目标：提供最小登录页、退出入口、未登录分流
+    - 要求：保持当前 PC Web 既有视觉语言，不展开大范围 UI 重构
+    - 交付物：最小可用页面承载 + focused frontend validation
+
+12. 补 auth 文档与验证口径
+    - 目标：把默认开发登录方式、seed 用户、验证命令、未做项写清楚
+    - 重点更新：`docs/current-dev-setup.md`、`docs/current-progress.md`
+    - 交付物：文档对齐记录 + 最小复用验证命令清单
+
+#### P1 当前实现对齐（2026-03-29）
+
+- ✅ 已完成并与当前实现对齐：task `1~11`
+  - 已有最小 identity contract、session persistence、provider boundary、request auth context
+  - 已有 `POST /auth/login`、`POST /auth/logout`、`GET /auth/me` 最小闭环
+  - ask/conversation/knowledge-base 写入与读取路径已按 current identity 收口（保持 ACL-ready baseline，不在本轮展开角色矩阵）
+  - web 侧已完成 auth bootstrap + login/logout + 最小路由保护
+- ✅ task `12`（auth 文档与验证口径）本次同步完成
+- ⏭️ P1 最小 auth/login 闭环已可视为收口；下一主线进入 `P2: ACL / 文档权限`
+
+#### Auth/Login wave focused validation baseline
+
+推荐复用以下最小验证命令（按本轮已落地路径对齐）：
+
+- `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+- `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/conversations.service.test.js test/ask-success.test.js test/ask-stream-service.test.js`
+- `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js`
+- `pnpm --filter @rag-system/web build`
+
+建议直接用于 queue title 的短标题版：
+
+- `auth identity contract`
+- `session model baseline`
+- `auth provider boundary`
+- `request auth context`
+- `auth login/logout/me`
+- `auth service identity wiring`
+- `conversation identity scoping`
+- `ownership alignment`
+- `auth route policy baseline`
+- `web auth bootstrap`
+- `web login flow`
+- `auth docs sync`
+
+### P2：ACL / 文档权限（下一条主线）
+
+`ACL / 文档权限` 应放在 auth/login 之后，而不是并行大面积展开。
+
+进入这一波次前，默认前提应为：
+
+- 已有稳定的身份来源
+- 请求上下文里已有可消费的 user identity
+- web 侧已有最小登录态和未登录分流
+
+这一波次优先解决：
+
+- 哪些资源需要 owner / creator / visible scope
+- 文档、知识库、assistant 等核心对象的最小访问边界
+- 默认拒绝还是默认允许的策略口径
+
+#### P2 queue-ready tasks
+
+1. 盘点核心资源的权限边界
+   - 目标：先列清哪些对象需要 owner / visible scope / share boundary
+   - 重点对象：knowledge base、document、assistant、conversation、trace
+   - 交付物：一份最小资源-权限矩阵草案
+
+2. 定义 resource access policy contract
+   - 目标：统一 service 层如何表达“可访问 / 不可访问 / 原因”
+   - 要求：不要把权限判断散落在 controller 和页面里
+   - 交付物：一处统一 policy/guard/service contract
+
+3. 收口 knowledge base / document ownership checks
+   - 目标：先把最关键资源的 owner 校验跑通
+   - 范围：列表、详情、写入入口至少先有最小边界
+   - 交付物：最小 owner-based access checks + focused tests
+
+4. 收口 assistant / conversation / trace access checks
+   - 目标：把问答链路关联资源也纳入同一边界口径
+   - 要求：trace 和 conversation 不能继续只靠“知道 id 就能看”
+   - 交付物：关联资源访问边界收口 + focused tests
+
+5. 定义默认策略口径
+   - 目标：明确当前阶段哪些接口默认拒绝，哪些保留公开
+   - 要求：文档和实现口径一致
+   - 交付物：默认允许/默认拒绝策略说明 + 最小实现
+
+6. 补 ACL 基线文档与回归验证
+   - 目标：记录当前 ACL 第一轮只做到 owner-based baseline，不扩成完整 RBAC/ABAC
+   - 交付物：文档同步 + focused regression 命令
+
+建议直接用于 queue title 的短标题版：
+
+- `resource access matrix`
+- `access policy contract`
+- `kb document ownership checks`
+- `assistant conversation trace checks`
+- `default access policy`
+- `acl baseline docs`
+
+### P3：external knowledge source follow-up（后续新波次）
+
+如果后续继续推进 external knowledge source，应视为 auth/ACL 主线之后的独立后续增量，而不是当前波次未完成残项。
 
 后续如重开该方向，仍优先保持：
 
@@ -199,10 +389,42 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 当前不建议把它重新拉回当前主线的原因：
 
 - 当前 source family 已在现有范围内完成 backend / API 收口
-- 当前更高价值的最小增量，是把已落地的 retrieval / answering / trace metadata 进一步整理成稳定读模型
-- 这样后续无论是否重开 external source，都能在更稳定的 traceability / contract 基础上继续推进
+- auth/login 与后续 ACL 更直接影响系统边界与后续可扩展性
+- external source 后续扩展更适合在身份边界稳定后继续推进
 
-### P2：PC Web 后续局部收口
+#### P3 queue-ready tasks
+
+1. 盘点当前 source family 的后续缺口
+   - 目标：区分“稳定性补强”与“新增 source 类型”
+   - 要求：先列 gap，再决定是否扩面
+   - 交付物：最小 follow-up gap list
+
+2. 补 source retry / timeout / diagnostics 一致性
+   - 目标：继续优先做 execution boundary、重试、错误可读性，而不是先铺新 connector
+   - 交付物：focused backend consistency increment + tests
+
+3. 收口 source re-sync / dedupe / recovery 边界
+   - 目标：继续锁住 repeated sync、same-URL recovery、版本边界的一致性
+   - 交付物：focused regression tests + 必要实现补强
+
+4. 评估是否需要新增 source 类型
+   - 目标：只有在前面稳定性项收口后，才考虑新的 source family
+   - 要求：不把当前系统扩成 generic connector platform
+   - 交付物：明确的保留/新增结论
+
+5. 同步 external source follow-up 文档与验证基线
+   - 目标：把后续 source wave 的边界、验证方式、未做项写清楚
+   - 交付物：文档同步 + 最小复用验证清单
+
+建议直接用于 queue title 的短标题版：
+
+- `source follow-up gap list`
+- `source diagnostics consistency`
+- `source resync recovery guards`
+- `new source type review`
+- `source follow-up docs`
+
+### P4：PC Web 后续局部收口
 
 只有在新能力接入直接影响当前页面承载时，才继续做局部 UI / UX 收口。
 
@@ -211,6 +433,20 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 只做与当前新增能力直接相关的页面承载优化
 - 不再开启新一轮大范围 UI 重构
 - 继续坚持 `PC Web` 优先、移动端后置
+
+### 当前阶段推荐大类顺序
+
+当前更稳的后续顺序是：
+
+1. `鉴权 / 用户登录`
+2. `ACL / 文档权限`
+3. `外部知识源后续扩展`
+4. `运行观测 / 审计补强`
+5. `移动端适配`
+6. `企业能力（先拆小块，不整包推进）`
+7. `多租户隔离`
+
+执行方式仍保持：**主线串行推进，局部低耦合项再小范围并行，不做 7 类全面并行。**
 
 ### 边界说明：产品核心 vs 第三方集成
 
@@ -267,4 +503,4 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 ## 5. 一句话结论
 
-**`PC Web` 这轮 UI 收口已完成；当前更合适的下一最小增量是 read-model / metadata convergence：先收口 ask response、trace summary、shared contract 的策略摘要表达，并保持 behavior-preserving，不直接改 retrieval 行为语义。**
+**`P0` 已完成；当前更合适的下一最小增量是先做 `鉴权 / 用户登录` 的最小闭环，再进入 `ACL / 文档权限`，并继续保持单线推进、小步增量、每轮收口。**
