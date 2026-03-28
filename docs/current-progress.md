@@ -13,6 +13,17 @@
 
 补充进展（2026-03-28）：
 
+- ✅ embedding runtime now fails fast on malformed/non-HTTP base URL config for Ollama/OpenAI embedding providers
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now validates configured `OLLAMA_BASE_URL` and `OPENAI_BASE_URL` with explicit `EmbeddingRuntimeConfigError` diagnostics when URL parsing fails or protocol is not `http(s)`
+  - `apps/api/test/embedding-runtime-config.test.js` adds focused regressions for malformed `OPENAI_BASE_URL` and non-HTTP `OLLAMA_BASE_URL`
+  - 新增 superpowers scoped note:
+    - `docs/superpowers/specs/2026-03-28-embedding-base-url-guardrail-design.md`
+    - `docs/superpowers/plans/2026-03-28-embedding-base-url-guardrail-plan.md`
+  - scope remains one embedding config guardrail only: no provider-order changes, no retrieval behavior changes, no embedding redesign
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/embedding-runtime-config.test.js`
+  - 实测结果：focused embedding runtime config tests passed (`16/16`)
+
 - ✅ ask / ask-stream final payload now expose additive top-level `rewriteReadabilityLabel` aligned with trace-summary wording
   - `apps/api/src/modules/retrieval/strategy-readability.ts` now centralizes existing rewrite readability sentence builder (`rewrite <enabled|disabled>; rewrite applied: <yes|no>; rewrite fallback: <yes|no|unknown>; rewrite prompt: <id|unknown>.`) for shared projection reuse
   - `apps/api/src/modules/traces/traces.service.ts` now reuses the shared helper so trace-summary wording/semantics remain unchanged while avoiding duplicated builder logic

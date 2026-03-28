@@ -68,6 +68,36 @@ test("resolveEmbeddingRuntimeConfig derives OpenAI embedding endpoint from OPENA
   });
 });
 
+test("resolveEmbeddingRuntimeConfig rejects malformed OPENAI_BASE_URL", () => {
+  assert.throws(
+    () =>
+      resolveEmbeddingRuntimeConfig({
+        OPENAI_API_KEY: "test-key",
+        OPENAI_BASE_URL: "://bad-openai-url"
+      }),
+    error => {
+      assert.ok(error instanceof EmbeddingRuntimeConfigError);
+      assert.match(error.message, /OPENAI_BASE_URL must be a valid http\(s\) URL/);
+      return true;
+    }
+  );
+});
+
+test("resolveEmbeddingRuntimeConfig rejects non-http OLLAMA_BASE_URL", () => {
+  assert.throws(
+    () =>
+      resolveEmbeddingRuntimeConfig({
+        OLLAMA_BASE_URL: "ftp://localhost:11434",
+        OLLAMA_MODEL: "nomic-embed-text"
+      }),
+    error => {
+      assert.ok(error instanceof EmbeddingRuntimeConfigError);
+      assert.match(error.message, /OLLAMA_BASE_URL must use http:\/\/ or https:\/\//);
+      return true;
+    }
+  );
+});
+
 test("resolveEmbeddingRuntimeConfig keeps explicit Ollama embedding dimensions when configured", () => {
   const config = resolveEmbeddingRuntimeConfig({
     OLLAMA_BASE_URL: "http://localhost:11434",
