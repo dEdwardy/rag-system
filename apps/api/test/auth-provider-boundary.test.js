@@ -264,6 +264,70 @@ test("AuthService login creates session identity and logout revokes session", as
   assert.ok(calls.revoked.data.revokedAt instanceof Date);
 });
 
+test("AuthService checkPermission evaluates owner-only resource access for current identity", () => {
+  const authService = new AuthService({});
+
+  const allowed = authService.checkPermission({
+    authContext: {
+      identity: {
+        userId: "user-1",
+        tenantId: "tenant-1",
+        role: "owner",
+        sessionId: "session-1",
+        authSource: "session"
+      },
+      currentIdentity: {
+        userId: "user-1",
+        tenantId: "tenant-1",
+        role: "owner",
+        sessionId: "session-1",
+        authSource: "session"
+      }
+    },
+    action: "read",
+    resource: {
+      kind: "document",
+      resourceId: "doc-1",
+      tenantId: "tenant-1",
+      ownerId: "user-1"
+    }
+  });
+
+  assert.equal(allowed.decision.allowed, true);
+  assert.equal(allowed.decision.reason, "owner_match");
+  assert.equal(allowed.decision.policy, "owner_only_v1");
+
+  const denied = authService.checkPermission({
+    authContext: {
+      identity: {
+        userId: "user-1",
+        tenantId: "tenant-1",
+        role: "owner",
+        sessionId: "session-1",
+        authSource: "session"
+      },
+      currentIdentity: {
+        userId: "user-1",
+        tenantId: "tenant-1",
+        role: "owner",
+        sessionId: "session-1",
+        authSource: "session"
+      }
+    },
+    action: "write",
+    resource: {
+      kind: "assistant",
+      resourceId: "assistant-1",
+      tenantId: "tenant-1",
+      ownerId: "other-user"
+    }
+  });
+
+  assert.equal(denied.decision.allowed, false);
+  assert.equal(denied.decision.reason, "owner_mismatch");
+  assert.equal(denied.decision.policy, "owner_only_v1");
+});
+
 test("AuthController sets and clears session cookie around login and logout", async () => {
   const cookies = [];
   const controller = new AuthController({
@@ -390,5 +454,6 @@ test("owner-scoped business controllers are marked authenticated while auth and 
 
   assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController), "public");
   assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController.prototype.me), "authenticated");
+  assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController.prototype.checkPermission), "authenticated");
   assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, HealthController), "public");
 });

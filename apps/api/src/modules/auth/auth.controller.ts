@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, Req, Res } from "@nestjs/common";
 import { DEFAULT_AUTH_SESSION_COOKIE_NAME } from "./auth.constants";
 import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
 import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
-import { loginSchema } from "./auth.schemas";
+import { loginSchema, permissionCheckSchema } from "./auth.schemas";
 import { AuthService } from "./auth.service";
 
 @PublicRoute()
@@ -48,6 +48,18 @@ export class AuthController {
   me(@Req() request?: ApiRequestWithAuthContext) {
     return this.authService.getMe({
       authContext: request?.authContext
+    });
+  }
+
+  @Post("permissions/check")
+  @AuthenticatedRoute()
+  checkPermission(@Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
+    const input = permissionCheckSchema.parse(body);
+
+    return this.authService.checkPermission({
+      authContext: request?.authContext,
+      action: input.action,
+      resource: input.resource
     });
   }
 

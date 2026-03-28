@@ -15,6 +15,20 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 now exposes a minimal permission-check API for owner-only resource access decisions
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.controller.ts`
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `POST /auth/permissions/check`（`authenticated`），输入 `action + resource(kind/resourceId/tenantId/ownerId)`，输出当前 identity 与 owner-only v1 access decision（`allowed/reason/policy`）
+    - 复用现有 `evaluateOwnerResourceAccess` 合约，不扩展 ACL 语义、不引入角色矩阵、不改持久化 schema
+    - 现有 `POST /auth/login` / `POST /auth/logout` / `GET /auth/me` 路径与行为保持不变
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ auth v1 now includes a minimal persisted user-role model (`owner`/`member`) and projects role into auth identity for future RBAC-ready contracts
   - 变更文件：
     - `apps/api/prisma/schema.prisma`

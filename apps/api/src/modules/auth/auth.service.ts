@@ -9,6 +9,7 @@ import {
   type AuthIdentity,
   type RequestAuthContext
 } from "./auth-identity.contract";
+import { evaluateOwnerResourceAccess, type ResourceAccessPolicyInput } from "./resource-access-policy.contract";
 
 @Injectable()
 export class AuthService {
@@ -80,6 +81,31 @@ export class AuthService {
     return {
       identity: input.authContext?.identity ?? null,
       currentIdentity: resolveCurrentAuthIdentity({ identity: input.authContext?.identity ?? null })
+    };
+  }
+
+  checkPermission(input: {
+    authContext?: RequestAuthContext | null;
+    action: ResourceAccessPolicyInput["action"];
+    resource: ResourceAccessPolicyInput["resource"];
+  }): {
+    currentIdentity: AuthIdentity;
+    decision: ReturnType<typeof evaluateOwnerResourceAccess>;
+  } {
+    const currentIdentity = resolveCurrentAuthIdentity({
+      identity: input.authContext?.identity ?? null
+    });
+
+    return {
+      currentIdentity,
+      decision: evaluateOwnerResourceAccess({
+        identity: {
+          tenantId: currentIdentity.tenantId,
+          userId: currentIdentity.userId
+        },
+        action: input.action,
+        resource: input.resource
+      })
     };
   }
 
