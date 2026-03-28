@@ -10,6 +10,7 @@ import type {
   TraceFallbackReason,
   TraceGenerationMode,
   TraceInsufficientContextReason,
+  TraceMissingInformationSource,
   TracePrimaryIssue,
   TraceQualityOverall,
   RetrievalStrategySummary,
@@ -337,23 +338,23 @@ export type AskAnsweringMetadata = {
   promptId: string;
   usedFallback: boolean;
   answerPolicy: AnswerPolicy;
-  resolvedLanguage: "en" | "zh";
-  generationMode: "generated" | "deterministic_bypass";
-  contextMode: "chunks" | "context_groups";
+  resolvedLanguage: TraceResolvedLanguage;
+  generationMode: TraceGenerationMode;
+  contextMode: TraceContextMode;
   inputChunkCount: number;
   promptContextCount: number;
   contextGroupCount: number;
   citationCountBeforeLimit: number;
   citationCount: number;
   citationLimitHit: boolean;
-  citationAttribution: "explicit" | "heuristic" | "none";
-  citationSelectionSource: "structured" | "inline_markers" | "heuristic" | "none";
+  citationAttribution: TraceCitationAttribution;
+  citationSelectionSource: TraceCitationSelectionSource;
   missingInformationCount: number;
-  missingInformationSource: "none" | "model" | "deterministic_default" | "suppressed_by_policy";
-  answerTextSource: "model" | "deterministic_policy";
-  insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
-  answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy";
-  answerStatus: "grounded" | "insufficient_context";
+  missingInformationSource: TraceMissingInformationSource;
+  answerTextSource: TraceAnswerTextSource;
+  insufficientContextReason: TraceInsufficientContextReason | null;
+  answerStatusSource: TraceAnswerStatusSource;
+  answerStatus: TraceAnswerStatus;
 };
 
 export type AskQualityEvaluation = {
@@ -503,6 +504,7 @@ export type {
   TraceFallbackReason,
   TraceGenerationMode,
   TraceInsufficientContextReason,
+  TraceMissingInformationSource,
   TracePrimaryIssue,
   TraceQualityOverall,
   TraceResolvedLanguage,
