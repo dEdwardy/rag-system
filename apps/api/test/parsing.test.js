@@ -97,6 +97,45 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
   }
 });
 
+test("FeedSourceService accepts RSS payload when upstream content-type is text/plain", async () => {
+  const originalFetch = global.fetch;
+  const service = new FeedSourceService();
+
+  global.fetch = async () =>
+    new Response(
+      `<?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0">
+        <channel>
+          <title>Fallback Feed</title>
+          <item>
+            <title>Entry One</title>
+            <link>https://example.com/entry-1</link>
+            <description>Fallback feed marker.</description>
+          </item>
+        </channel>
+      </rss>`,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      }
+    );
+
+  try {
+    const extracted = await service.fetchFeed({
+      url: "https://example.com/plain-feed-content-type",
+      maxItems: 1
+    });
+
+    assert.equal(extracted.title, "Fallback Feed");
+    assert.match(extracted.content, /Entry One/);
+    assert.match(extracted.content, /Fallback feed marker\./);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("FeedSourceService extracts normalized title and entry text from RSS", async () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(

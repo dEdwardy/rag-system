@@ -97,11 +97,14 @@ export class FeedSourceService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isSupportedFeedContentType(contentType)) {
+    const payload = await response.text();
+    const xmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeFeedXmlPayload(payload);
+
+    if (!this.isSupportedFeedContentType(contentType) && !xmlPayloadByFallback) {
       throw new BadRequestException(`Unsupported feed content type: ${contentType || "unknown"}.`);
     }
 
-    return this.extractFromXml(await response.text(), options);
+    return this.extractFromXml(payload, options);
   }
 
   extractFromXml(xml: string, options: ExtractFeedOptions): FetchedFeed {
@@ -392,6 +395,14 @@ export class FeedSourceService {
       contentType.startsWith("application/xml") ||
       contentType.startsWith("text/xml")
     );
+  }
+
+  private isFallbackSniffingContentType(contentType: string) {
+    return !contentType || contentType.startsWith("text/plain");
+  }
+
+  private looksLikeFeedXmlPayload(payload: string) {
+    return /<rss\b|<feed\b/i.test(payload);
   }
 
   private buildUpstreamFetchError(prefix: string, status: number) {

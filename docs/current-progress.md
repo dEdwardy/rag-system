@@ -13,6 +13,14 @@
 
 补充进展（2026-03-28）：
 
+- ✅ feed source fetch now accepts RSS/Atom XML payload when upstream content-type is mis-labeled as `text/plain`
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now adds one narrow fallback: when `content-type` is missing (`unknown`) or starts with `text/plain`, and payload clearly looks like feed XML (`<rss>` / `<feed>`), it proceeds with existing feed parsing instead of immediately failing with `Unsupported feed content type`
+  - this closes one narrow HTTP response edge case for existing `feed` source ingestion where upstream serves valid RSS/Atom payload but labels response as plain text
+  - behavior remains strict for explicit non-feed content types/payloads (unsupported content-type and unsupported feed format paths are preserved)
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed；被标成 `text/plain` 的 RSS/Atom feed payload 现在可以继续解析并生成内容，不再在 source-fetch 阶段被误判为 unsupported content type
+
 - ✅ external-source fetch failures now include exhausted retry-attempt context on final network/timeout errors
   - `apps/api/src/infra/http/fetch-with-retry.ts` now appends one additive suffix on final retry-exhausted fetch exceptions: `(after <N> attempts).` (for `Fetch request failed ...` and `Fetch request timed out ...` paths only)
   - this closes one narrow fetch-visibility gap across existing `web page` / `feed` / `sitemap` source families: diagnostics can now immediately distinguish one-shot failure from retry-exhausted failure without inferring from runtime config
