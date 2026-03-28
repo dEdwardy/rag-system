@@ -171,11 +171,14 @@ In normal day-to-day repository work:
 
 For unattended `opencode-loop` runs, prefer `systemd --user` over `pm2`:
 
+- `opencode-loop` is a repo-local development harness, not part of the product runtime
+- keep this section as the operational exception, not the center of the workflow docs
 - `pnpm loop:start|stop|status` now auto-links the user units from `scripts/opencode-loop/systemd/`
 - `scripts/opencode-loop/night-run.sh` now resolves `pnpm` via `corepack`, Volta, or local pnpm shims before launching the loop
 - use `pnpm loop:start|stop|status` for day-to-day management
 - the timer kicks the service off immediately after activation, and the service restarts on failure while a normal empty-queue exit stays a normal exit
 - after each completed loop increment, commit the change before moving to the next item so work does not pile up in the checkout
+- do not push or open a PR after every commit; wait for a coherent wave to close, then push from `dev` when validation is green and the branch is unlikely to conflict
 
 ## Parallel Worktrees
 

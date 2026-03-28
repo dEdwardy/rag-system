@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { readFile } = require("node:fs/promises");
 const { resolve } = require("node:path");
 
-test("web trace summary type covers current backend query-source and failure-stage variants", async () => {
+test("web trace summary type guards current backend summary field set", async () => {
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
   const sharedSource = await readFile(resolve(__dirname, "../../../packages/shared/src/trace-contracts.ts"), "utf8");
 
@@ -22,9 +22,22 @@ test("web trace summary type covers current backend query-source and failure-sta
   assert.match(sharedSource, /strategySummary:\s*RetrievalStrategySummary;/);
   assert.match(sharedSource, /rewriteReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /promptId:\s*string \| null;/);
+  assert.match(sharedSource, /answerStatus:\s*TraceAnswerStatus \| null;/);
+  assert.match(sharedSource, /qualityOverall:\s*TraceQualityOverall \| null;/);
+  assert.match(sharedSource, /primaryIssue:\s*TracePrimaryIssue \| null;/);
+  assert.match(sharedSource, /retrievalMode:\s*TraceRetrievalMode \| null;/);
+  assert.match(sharedSource, /retrievalQuerySource:\s*TraceRetrievalQuerySource \| null;/);
+  assert.match(sharedSource, /generationMode:\s*TraceGenerationMode \| null;/);
+  assert.match(sharedSource, /contextMode:\s*TraceContextMode \| null;/);
+  assert.match(sharedSource, /rewriteApplied:\s*boolean;/);
+  assert.match(sharedSource, /fallbackReason:\s*TraceFallbackReason \| null;/);
+  assert.match(sharedSource, /resolvedLanguage:\s*TraceResolvedLanguage \| null;/);
   assert.match(sharedSource, /export type TraceAnswerAttributionSummary = \{/);
   assert.match(sharedSource, /attribution:\s*TraceCitationAttribution \| null;/);
   assert.match(sharedSource, /source:\s*TraceCitationSelectionSource \| null;/);
+  assert.match(sharedSource, /readability:\s*TraceAnswerAttributionReadability \| null;/);
+  assert.match(sharedSource, /attributionLabel:\s*string \| null;/);
+  assert.match(sharedSource, /sourceLabel:\s*string \| null;/);
   assert.match(sharedSource, /readabilityLabel:\s*string \| null;/);
   assert.match(sharedSource, /readabilityResolvedLabel:\s*string;/);
   assert.match(sharedSource, /readabilityHint:\s*string \| null;/);
@@ -36,12 +49,20 @@ test("web trace summary type covers current backend query-source and failure-sta
   assert.match(sharedSource, /answerAttributionSource:\s*TraceCitationSelectionSource \| null;/);
   assert.match(sharedSource, /answerEvidenceSource:\s*TraceCitationSelectionSource \| null;/);
   assert.match(sharedSource, /answerEvidenceSourceReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /citationAttribution:\s*TraceCitationAttribution \| null;/);
+  assert.match(sharedSource, /citationSelectionSource:\s*TraceCitationSelectionSource \| null;/);
+  assert.match(sharedSource, /missingInformationCount:\s*number;/);
   assert.match(sharedSource, /answerTextSourceReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /answerTextSource:\s*TraceAnswerTextSource \| null;/);
   assert.match(sharedSource, /answerStatusSourceReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /answerStatusSource:\s*TraceAnswerStatusSource \| null;/);
   assert.match(sharedSource, /missingInformationCountReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /missingInformationSource:\s*TraceMissingInformationSource \| null;/);
+  assert.match(sharedSource, /insufficientContextReason:\s*TraceInsufficientContextReason \| null;/);
   assert.match(sharedSource, /missingInformationProvenanceSentence:\s*string;/);
+  assert.match(sharedSource, /failedStage:\s*TraceFailedStage \| null;/);
   assert.match(sharedSource, /failedStageReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /failureMessage:\s*string \| null;/);
   assert.match(sharedSource, /candidateLimit:\s*number;/);
   assert.match(sharedSource, /vectorCandidateCount:\s*number;/);
   assert.match(sharedSource, /lexicalCandidateCount:\s*number;/);
@@ -53,10 +74,13 @@ test("web trace summary type covers current backend query-source and failure-sta
   assert.match(sharedSource, /rankingTopKHit:\s*boolean;/);
   assert.match(sharedSource, /primaryChunkCount:\s*number;/);
   assert.match(sharedSource, /neighborChunkCount:\s*number;/);
+  assert.match(sharedSource, /retrievedChunkCount:\s*number;/);
   assert.match(sharedSource, /inputChunkCount:\s*number;/);
   assert.match(sharedSource, /promptContextCount:\s*number;/);
   assert.match(sharedSource, /contextGroupCount:\s*number;/);
+  assert.match(sharedSource, /citationCount:\s*number;/);
   assert.match(sharedSource, /citationCountReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /citationCountBeforeLimit:\s*number;/);
   assert.match(sharedSource, /citationLimitHit:\s*boolean;/);
+  assert.match(sharedSource, /usedFallback:\s*boolean;/);
 });

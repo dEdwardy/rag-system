@@ -173,15 +173,15 @@ LLM_REWRITE_TEMPERATURE=0
 - current trace read semantics:
   - `GET /traces/:id` and `GET /conversations/:id/traces` now also return additive `traceSummary`
   - `traceSummary` is derived from persisted trace JSON rather than stored separately
-  - current `traceSummary` fields are:
+  - current `traceSummary` fields are (same order as `TraceSummary` in `packages/shared/src/trace-contracts.ts`):
     - `promptId`
     - `answerStatus`
     - `qualityOverall`
     - `primaryIssue`
     - `retrievalMode`
     - `retrievalQuerySource`
-    - `strategyReadabilityLabel`
-    - `rewriteReadabilityLabel`
+    - `strategyReadabilityLabel` (one-line retrieval/fallback summary)
+    - `rewriteReadabilityLabel` (one-line rewrite execution summary)
     - `strategySummary`
       - `retrievalMode`
       - `strategyMode`
@@ -210,29 +210,29 @@ LLM_REWRITE_TEMPERATURE=0
       - `readabilitySentence`
     - `answerAttribution`
     - `answerAttributionSource`
-    - `answerEvidenceSource`
-    - `answerEvidenceSourceReadabilityLabel`
+    - `answerEvidenceSource` (same source value as `citationSelectionSource`)
+    - `answerEvidenceSourceReadabilityLabel` (`<kind> evidence source` readability label)
     - `citationAttribution`
     - `citationSelectionSource`
     - `missingInformationCount`
-    - `missingInformationCountReadabilityLabel`
+    - `missingInformationCountReadabilityLabel` (count readability label)
     - `missingInformationSource`
     - `insufficientContextReason`
-    - `missingInformationProvenanceSentence`
+    - `missingInformationProvenanceSentence` (one-line missing-information provenance)
     - `answerTextSource`
-    - `answerTextSourceReadabilityLabel`
+    - `answerTextSourceReadabilityLabel` (answer text source readability label)
     - `answerStatusSource`
-    - `answerStatusSourceReadabilityLabel`
-    - `answerProvenanceSentence`
+    - `answerStatusSourceReadabilityLabel` (answer status source readability label)
+    - `answerProvenanceSentence` (one-line answer provenance)
     - `failedStage`
-    - `failedStageReadabilityLabel`
+    - `failedStageReadabilityLabel` (failed-stage readability label)
     - `failureMessage`
     - `candidateLimit`
     - `vectorCandidateCount`
     - `lexicalCandidateCount`
     - `mergedCandidateCount`
     - `rankedCandidateCount`
-    - `candidateCountReadabilityLabel`
+    - `candidateCountReadabilityLabel` (candidate-flow count readability label)
     - `vectorCandidateLimitHit`
     - `lexicalCandidateLimitHit`
     - `rankingTopKHit`
@@ -243,7 +243,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `promptContextCount`
     - `contextGroupCount`
     - `citationCount`
-    - `citationCountReadabilityLabel`
+    - `citationCountReadabilityLabel` (citation count readability label)
     - `citationCountBeforeLimit`
     - `citationLimitHit`
     - `usedFallback`
@@ -358,8 +358,8 @@ Current client focus for this stage:
 - for browser-based verification or smoke checks, prefer the host-installed Edge/Chrome on this machine first; both are already available locally
 - browser download or install steps are fallback-only, not the default first action for local browser testing
 - current workspace split preference:
-  - main repository checkout: backend work + docs + orchestration
-  - `apps/web` worktree: frontend work
+  - main repository checkout: non-pure-frontend work (backend, frontend/backend integration, docs, orchestration)
+  - `apps/web` worktree: pure frontend development
   - `apps/api` worktree: currently optional / mostly unused
   - workspace-local OpenCode or plugin state is not shared automatically across these checkouts
 
@@ -624,7 +624,7 @@ Notes:
 - small focused tests and static checks may run in parallel when they stay within a light local feedback loop
 - do not run multiple heavy builds or node test processes at the same time
 - do not overlap heavy validation with AI review
-- `pnpm opencode:loop` now runs the narrow queue harness described in `scripts/opencode-loop.md`; `node scripts/opencode-loop.mjs --self-test` validates queue draining plus interrupted-session resume recovery.
+- `pnpm opencode:loop` runs the repo-local development harness in `scripts/opencode-loop.md`; `scripts/opencode-loop/jsonc.mjs` keeps `opencode.jsonc` comment-safe; `node scripts/opencode-loop.mjs --self-test` covers draining, resume recovery, and one guarded refill pass.
 - this smoke test is currently scoped to `PC Web`
 - it validates `Knowledge Base -> Assistant` browser rendering against the real local API
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks
@@ -867,6 +867,12 @@ The following path has been validated locally on `2026-03-21`:
    - trace persistence is successful
 
 ## Current implementation scope
+
+Boundary note for contributors (implementation decision aid):
+
+- **Core:** orchestration pipeline semantics, ask/trace read-model contract outputs, fallback behavior, and regression assertions.
+- **Replaceable layers:** LLM/embedding providers, vector backend, chunking/parsing implementation, external source adapters, and eval/diagnostic tooling.
+- If a change only swaps a replaceable layer, keep it additive and behavior-preserving for core contracts (`ask` payload shape, `traceSummary` readability/semantics, fallback outcomes).
 
 - Local file storage
 - Redis-backed document ingestion queue

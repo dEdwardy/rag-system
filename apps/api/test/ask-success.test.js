@@ -450,10 +450,10 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     source: "structured",
     readability: "explicit:structured",
     attributionLabel: "explicit attribution",
-    sourceLabel: "structured source",
-    readabilityLabel: "explicit attribution via structured source",
-    readabilityHint: "explicit attribution via structured source",
-    readabilityResolvedLabel: "explicit attribution via structured source",
+    sourceLabel: "structured evidence source",
+    readabilityLabel: "explicit attribution via structured evidence source",
+    readabilityHint: "explicit attribution via structured evidence source",
+    readabilityResolvedLabel: "explicit attribution via structured evidence source",
     readabilitySentence: "Answer attribution is explicit; source evidence is structured."
   });
   assert.equal(result.answerAttribution, "explicit");
@@ -780,10 +780,10 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     source: "none",
     readability: "none:none",
     attributionLabel: "no attribution",
-    sourceLabel: "no source evidence",
-    readabilityLabel: "no attribution via no source evidence",
-    readabilityHint: "no attribution via no source evidence",
-    readabilityResolvedLabel: "no attribution via no source evidence",
+    sourceLabel: "no evidence source",
+    readabilityLabel: "no attribution via no evidence source",
+    readabilityHint: "no attribution via no evidence source",
+    readabilityResolvedLabel: "no attribution via no evidence source",
     readabilitySentence: "Answer attribution is none; source evidence is none."
   });
   assert.equal(result.answerAttribution, "none");

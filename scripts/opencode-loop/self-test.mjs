@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -14,11 +14,13 @@ import { DEFAULT_PROMPT_FILE_NAME, DEFAULT_PROMPT_PATH, runLoop } from "./runtim
 export async function runSelfTest() {
   const root = mkdtempSync(join(tmpdir(), "opencode-loop-"));
   let resumeRoot = null;
+  let refillRoot = null;
   const sessions = [];
   const transientPostFailureBySessionId = new Set();
   const messagesBySessionId = new Map();
   const pendingAssistantBySessionId = new Map();
   let nextMessageNumber = 1;
+  let plannerResponsesRemaining = 1;
 
   const server = createServer(async (request, response) => {
     if (!request.url) {
@@ -45,12 +47,30 @@ export async function runSelfTest() {
       const raw = await readIncomingBody(request);
       const payload = JSON.parse(raw || "{}");
       const sessionId = request.url.split("/")[2];
+      const promptText = payload.parts?.[0]?.text ?? "";
+      const assistantText =
+        promptText.includes("Planner mode:") && plannerResponsesRemaining > 0
+          ? JSON.stringify(
+              [
+                {
+                  title: "Generated follow-up task",
+                  family: "trace",
+                  prompt:
+                    "Inspect the latest trace-summary closeout gap, make the smallest implementation change needed, run one focused validation command, and report exact files plus commands.",
+                  agent: "rag-build"
+                }
+              ],
+              null,
+              2
+            )
+          : `Mock assistant response for: ${promptText}`;
+      if (promptText.includes("Planner mode:") && plannerResponsesRemaining > 0) {
+        plannerResponsesRemaining -= 1;
+      }
+
       if (transientPostFailureBySessionId.has(sessionId)) {
         transientPostFailureBySessionId.delete(sessionId);
-        pendingAssistantBySessionId.set(
-          sessionId,
-          `Mock assistant response for: ${payload.parts?.[0]?.text ?? ""}`
-        );
+        pendingAssistantBySessionId.set(sessionId, assistantText);
         request.socket.destroy(new Error("simulated fetch failed"));
         return;
       }
@@ -66,10 +86,7 @@ export async function runSelfTest() {
         ]
       });
       messagesBySessionId.set(sessionId, sessionMessages);
-      pendingAssistantBySessionId.set(
-        sessionId,
-        `Mock assistant response for: ${payload.parts?.[0]?.text ?? ""}`
-      );
+      pendingAssistantBySessionId.set(sessionId, assistantText);
       response.setHeader("content-type", "application/json");
       response.end(
         JSON.stringify({
@@ -199,7 +216,8 @@ export async function runSelfTest() {
       repoRoot: root,
       baseUrl,
       username: undefined,
-      password: undefined
+      password: undefined,
+      autoRefillMaxCycles: 0
     });
 
     const queue = readQueue(resolve(root, ".opencode", "loop", "queue.json"));
@@ -290,7 +308,8 @@ export async function runSelfTest() {
       repoRoot: resumeRoot,
       baseUrl,
       username: undefined,
-      password: undefined
+      password: undefined,
+      autoRefillMaxCycles: 0
     });
 
     const resumeQueue = readQueue(resolve(resumeRoot, ".opencode", "loop", "queue.json"));
@@ -317,6 +336,74 @@ export async function runSelfTest() {
       throw new Error("Self-test resume handoff still captured the stale assistant reply.");
     }
 
+    refillRoot = mkdtempSync(join(tmpdir(), "opencode-loop-refill-"));
+    mkdirSync(resolve(refillRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(refillRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(refillRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Run a generated refill task.",
+        "Keep the run narrow and exit when no further refill items are generated."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(refillRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: []
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const refillResult = await runLoop({
+      repoRoot: refillRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 1,
+      autoRefillMaxItems: 1
+    });
+
+    const refillQueue = readQueue(resolve(refillRoot, ".opencode", "loop", "queue.json"));
+    const generated = refillQueue.items[0];
+
+    if (refillResult.processedCount !== 1) {
+      throw new Error(`Self-test refill path expected one processed item, got ${refillResult.processedCount}.`);
+    }
+
+    if (!generated || generated.id !== "trace-auto-001" || generated.status !== "completed") {
+      throw new Error(`Self-test refill path did not append and finish the generated item: ${JSON.stringify(generated)}`);
+    }
+
+    if (typeof generated.promptFile !== "string" || !generated.promptFile.startsWith("prompts/generated/")) {
+      throw new Error("Self-test refill path did not materialize a generated prompt file.");
+    }
+
+    const plannerHandoffs = readdirSync(resolve(refillRoot, ".opencode", "loop", "handoffs")).filter(name =>
+      name.includes("planner-auto-refill")
+    );
+    if (plannerHandoffs.length !== 1) {
+      throw new Error(`Self-test expected exactly one planner handoff, got ${plannerHandoffs.length}.`);
+    }
+
+    const plannerHandoff = readFileSync(
+      resolve(refillRoot, ".opencode", "loop", "handoffs", plannerHandoffs[0]),
+      "utf8"
+    );
+    if (!plannerHandoff.includes("Generated follow-up task")) {
+      throw new Error("Self-test planner handoff did not record the generated follow-up task.");
+    }
+
     console.log("Self-test passed.");
   } finally {
     await new Promise(resolvePromise => {
@@ -325,6 +412,9 @@ export async function runSelfTest() {
     rmSync(root, { recursive: true, force: true });
     if (resumeRoot) {
       rmSync(resumeRoot, { recursive: true, force: true });
+    }
+    if (refillRoot) {
+      rmSync(refillRoot, { recursive: true, force: true });
     }
   }
 }

@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, TraceStatus } from "@prisma/client";
 import type { TraceSummary } from "@rag-system/shared";
 import { PrismaService } from "../../infra/database/prisma.service";
-import { buildAnswerAttributionSummary } from "../answering/answer-attribution-summary";
+import {
+  buildAnswerAttributionSummary,
+  buildCitationSelectionSourceReadabilityLabel
+} from "../answering/answer-attribution-summary";
 import { ListConversationTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
@@ -444,23 +447,9 @@ export class TracesService {
   private buildAnswerEvidenceSourceReadabilityLabel(
     answerEvidenceSource: TraceSummary["answerEvidenceSource"]
   ): TraceSummary["answerEvidenceSourceReadabilityLabel"] {
-    if (answerEvidenceSource === "structured") {
-      return "structured evidence source";
-    }
-
-    if (answerEvidenceSource === "inline_markers") {
-      return "inline-marker evidence source";
-    }
-
-    if (answerEvidenceSource === "heuristic") {
-      return "heuristic evidence source";
-    }
-
-    if (answerEvidenceSource === "none") {
-      return "no evidence source";
-    }
-
-    return "unknown evidence source";
+    return answerEvidenceSource == null
+      ? "unknown evidence source"
+      : buildCitationSelectionSourceReadabilityLabel(answerEvidenceSource);
   }
 
   private buildMissingInformationProvenanceSentence(input: {

@@ -42,6 +42,199 @@
   - 新增 / 更新验证：
     - `pnpm --filter @rag-system/web build`
   - 实测结果：web build passed after the route-splitting and SEO header update
+
+- ✅ feed Atom canonical link extraction now tolerates single-quoted attributes and `rel`/`href` order variants
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now parses Atom `<link>` tag attributes quote-agnostically and resolves canonical entry links by preferring `rel="alternate"` regardless of attribute order; when no alternate link exists, existing first-link fallback remains
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for Atom entries using single-quoted `rel`/`href` attributes in both `rel->href` and `href->rel` orders
+  - scope remains one feed parsing edge case only: no refresh-window changes, no dedup redesign, no new source-family work
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`29/29`)
+
+- ✅ sitemap source fetch now tolerates missing/`text/plain` content-type only when payload clearly looks like sitemap XML
+  - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now applies one narrow sitemap payload fallback in both root sitemap fetch and child sitemap fetch path: when `content-type` is missing (`unknown`) or starts with `text/plain`, payloads containing `<urlset>` or `<sitemapindex>` proceed through existing sitemap parsing
+  - strict behavior is preserved for non-sitemap payloads under `text/plain`/missing content-type (`Unsupported sitemap content type` remains)
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for sitemap-index root `unknown` content-type + child `text/plain` sitemap XML acceptance, and a guard test that `text/plain` non-XML payload still fails
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`28/28`)
+
+- ✅ sitemap-index parsing now accepts namespaced XML tags (`<sm:sitemapindex>`, `<sm:urlset>`) in one-level index expansion flow
+  - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now uses namespace-tolerant sitemap regex patterns for root format detection and `<url>/<loc>` / `<sitemap>/<loc>` extraction, so valid prefixed sitemap-index payloads no longer fail as unsupported format
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for namespaced sitemap-index + namespaced child urlset parsing
+  - scope remains one sitemap-index parsing edge case only: no new source family, no retry-policy rewrite, no ingestion/persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`26/26`)；带 XML namespace 前缀的 sitemap-index/child-urlset 现在可正常展开页面并继续抓取内容
+
+- ✅ feed freshness window selection now avoids timestamp-only reordering when feed entries have mixed date availability
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now keeps the original feed polling order (`slice(0, maxItems)`) when `maxItems` truncation applies but extracted entries contain mixed timestamp availability (some entries dated, some undated)
+  - this closes one narrow stale-feed refresh gap in existing `feed` source updates: undated entries (common in partial/legacy feeds) are no longer dropped purely because other entries include parseable dates
+  - full freshness sort-by-date behavior is preserved when all candidate entries have timestamps
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for the mixed-timestamp truncation path
+  - scope remains feed refresh-window selection only: no new source family, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`25/25`)；feed 轮询窗口在“日期字段混合缺失”场景下现在优先保持源顺序，避免把顶部无日期的新条目误当成旧条目而被截断
+
+- ✅ external-source stale-run guard now short-circuits before remote fetch when a newer document version is already active
+  - `apps/api/src/modules/documents/documents.service.ts` now applies a pre-fetch stale guard (`shouldContinueCurrentExternalRun`) immediately after reserving/queueing an external-source run (`createWebPageDocument` / `createFeedDocument` / `createSitemapDocument` / `resyncExternalDocument`), so superseded runs are skipped before calling remote source fetchers
+  - this closes one narrow duplicate-fetch edge case in concurrent external resync/create paths: when version `N` is superseded by `N+1` before fetch starts, the stale `N` run no longer performs redundant upstream HTTP fetch + local generated-file persistence attempt
+  - `apps/api/test/external-source-sync.test.js` adds focused coverage for this pre-fetch stale path (`createWebPageDocument` skips fetch and records `EXTERNAL_SOURCE_RUN_SUPERSEDED`)
+  - scope remains stale-run guard only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed；并发场景下被新版本 supersede 的旧 run 会在 fetch 前直接标记 skipped，不再重复抓取同一 external source
+
+- ✅ external-source redirect diagnostics now fail clearly when upstream redirect response omits `Location`
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now treats `301/302/303/307/308` without `Location` as an explicit redirect-follow failure: `Failed to follow redirect for <url>: missing redirect location header.`
+  - this closes one narrow redirect edge case across existing `web page` / `feed` / `sitemap` fetches: malformed redirect responses no longer flow downstream as opaque non-2xx HTTP/content-type failures
+  - `apps/api/test/fetch-with-retry.test.js` adds focused coverage for the missing-`Location` redirect path
+  - scope remains redirect diagnostics-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused fetch-with-retry tests passed；当上游返回 `302` 但缺失 `Location` header 时，错误现在会直接提示 `missing redirect location header`，便于快速定位上游响应问题
+
+- ✅ feed source fetch now accepts RSS/Atom XML payload when upstream content-type is mis-labeled as `text/plain`
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now adds one narrow fallback: when `content-type` is missing (`unknown`) or starts with `text/plain`, and payload clearly looks like feed XML (`<rss>` / `<feed>`), it proceeds with existing feed parsing instead of immediately failing with `Unsupported feed content type`
+  - this closes one narrow HTTP response edge case for existing `feed` source ingestion where upstream serves valid RSS/Atom payload but labels response as plain text
+  - behavior remains strict for explicit non-feed content types/payloads (unsupported content-type and unsupported feed format paths are preserved)
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed；被标成 `text/plain` 的 RSS/Atom feed payload 现在可以继续解析并生成内容，不再在 source-fetch 阶段被误判为 unsupported content type
+
+- ✅ external-source fetch failures now include exhausted retry-attempt context on final network/timeout errors
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now appends one additive suffix on final retry-exhausted fetch exceptions: `(after <N> attempts).` (for `Fetch request failed ...` and `Fetch request timed out ...` paths only)
+  - this closes one narrow fetch-visibility gap across existing `web page` / `feed` / `sitemap` source families: diagnostics can now immediately distinguish one-shot failure from retry-exhausted failure without inferring from runtime config
+  - `apps/api/test/fetch-with-retry.test.js` adds focused coverage for the retry-exhausted network-failure path (`attempts=2`)
+  - scope remains diagnostics-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused fetch-with-retry tests passed (`11/11`)；重试耗尽时错误消息现在会显式附带尝试次数（例如 `... (after 2 attempts).`）
+
+- ✅ feed-source dedup now prefers canonical entry link identity to avoid duplicate ingestion when metadata drifts
+  - `apps/api/src/infra/feed-source/feed-source.service.ts` now resolves feed-entry dedup key as:
+    - `link:<normalized-link>` when link exists (including relative-link resolution against feed URL and hash stripping)
+    - fallback to metadata-only key (`title + publishedAt + summary`) when link is missing
+  - this closes one narrow duplicate-ingest edge case in existing `feed` source flow: repeated entries with the same URL but changed title/summary/pubDate are now treated as duplicates and skipped
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for same-link feed entries with different metadata
+  - scope remains dedup-guard-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`23/23`)
+
+- ✅ external-source re-sync now recovers legacy web-page documents when stored `sourceConfigJson` is missing
+  - `apps/api/src/modules/documents/documents.service.ts` now applies one narrow legacy fallback during `POST /documents/:id/reindex` parsing: when external config is missing but the document identity is still `sourceType=web_page` + `sourceName=<url>`, re-sync reconstructs `{ kind: "web_page", url: sourceName }` and continues re-fetch instead of failing early with `EXTERNAL_SOURCE_CONFIG_INVALID`
+  - `apps/api/test/external-source-sync.test.js` adds focused regression coverage for this stale-state path (`sourceConfigJson: null` on a legacy web-page document) and asserts re-sync proceeds through fetch/finalize/enqueue
+  - scope remains re-sync recovery only: no new source family, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed；legacy web-page source config 丢失时不再直接失败，可继续 remote re-fetch 并进入后续 ingestion
+
+- ✅ sitemap source URL dedup now ignores hash-only differences to avoid duplicate page fetches in urlset/sitemapindex flows
+  - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now normalizes sitemap URL dedup keys by stripping URL fragment (`#...`) before duplicate checks for:
+    - direct `urlset` page URL extraction
+    - merged page URL collection across `sitemapindex` child sitemaps
+    - child sitemap URL extraction from `sitemapindex`
+  - this closes one narrow external-source duplication failure mode: the same page/sitemap repeated with hash-only variants (for example `.../page#intro` vs `.../page#summary`) no longer consumes `maxPages` budget or causes redundant page fetch attempts
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for hash-only duplicate page URLs across sitemap-index children
+  - scope remains duplicate-suppression-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed
+
+- ✅ external-source fetch-failure diagnostics now include explicit source identity fields for run-level attribution
+  - `apps/api/src/modules/documents/documents.service.ts` now appends additive `sourceType` + `sourceName` fields on `EXTERNAL_SOURCE_FETCH_FAILED` diagnostics when current document context is available
+  - this closes one narrow source-execution visibility gap: failed runs can now be attributed to the exact source family and normalized source URL without relying only on free-form error message parsing
+  - `apps/api/test/external-source-sync.test.js` updates the existing web-page fetch-failure assertion path to guard the new diagnostic fields on both document failure state and run failure record
+  - scope remains diagnostics-only: no retry-policy changes, no ingestion state/persistence semantics changes, no source-family expansion
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed (`23/23`)
+
+- ✅ P0 closeout queue `opencode model split review`：当前 root/api/web 分工保持不变（无需调整）
+  - 复核文件：`opencode.jsonc`、`apps/api/opencode.jsonc`、`apps/web/opencode.jsonc`
+  - 结论：继续保持 `plan/review-risk -> gpt-5.4`、`build -> gpt-5.3-codex`、`explore -> gpt-5.3-mini`
+  - 保持原因：
+    - root 与 app-local 配置当前语义一致，未出现分工漂移
+    - 当前进度未记录由模型分工导致的稳定质量回归或持续成本/时延压力
+    - 现有分工已匹配本阶段“plan/review 质量优先、build 快验证、explore 低成本检索”的执行策略
+  - 未变更内容：未改 loop harness、未改 command 模板语义、未改 plugin 边界
+
+- ✅ opencode loop harness cleanup is complete
+  - `scripts/opencode-loop/jsonc.mjs` now handles repo config comments, so `scripts/opencode-loop/runtime.mjs` stays focused on orchestration
+  - self-test passed after the split: `node scripts/opencode-loop.mjs --self-test`
+  - loop has been stopped cleanly; `p0-complete-010` is done and `007` / `009` remain `deferred`
+  - docs now keep commit cadence and push/PR timing separate from the harness itself
+
+- ✅ embedding runtime diagnostics now make partial OpenAI embedding env drift and model-source resolution easier to spot
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now adds one additive unusable-provider hint when `OPENAI_EMBEDDING_MODEL` is set without `OPENAI_API_KEY` (and includes configured `OPENAI_BASE_URL` when present)
+  - OpenAI embedding dimension-mismatch diagnostics now also include `Resolved OpenAI embedding model source: <env|default>` so it is explicit when the default model path won
+  - `apps/api/test/embedding-runtime-config.test.js` adds focused coverage for the new unusable-provider wording and model-source hint
+  - scope remains diagnostics-only: no provider-order changes, no retrieval behavior changes, no schema/persistence changes
+
+- ✅ P0 closeout queue `eval/regression baseline`：已补最小可复用回归基线清单
+  - 变更文件：`docs/next_steps_rag_project_plan.md`（在 queue item 8 下补充 closeout wave baseline）
+  - baseline 命令（可重复执行）：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `node --test apps/web/test/trace-summary-contract.test.js`
+  - 回归确认口径：三条命令全部通过即可判定本轮 ask/trace contract closeout 未回归；失败时先在对应路径修复后重跑同一组命令
+  - 未变更内容：未引入新测试框架、未改 backend/web 运行时语义、未改 retrieval 或持久化行为
+
+- ✅ P0 closeout queue `progress closeout note`：已补本轮简短收口记录
+  - 变更内容：仅追加 `docs/current-progress.md` 当前进展条目，记录本轮完成状态
+  - 未变更内容：未改 `apps/api` / `apps/web` / `packages/shared` 实现，未改 retrieval 语义、共享契约或持久化行为
+  - 验证：`git diff --check -- "docs/current-progress.md"` 通过
+
+- ✅ P0 closeout queue 已按计划完成，当前波次收口结束
+  - `docs/next_steps_rag_project_plan.md` 已补入详细 queue-ready tasks，并附上可直接作为 queue item title 使用的短标题版：`ask/trace contract align`、`web trace contract guard`、`legacy fallback regressions`、`unknown/fallback wording unify`、`trace-summary doc sync`、`progress closeout note`、`third-party boundary note`、`eval/regression baseline`、`opencode model split review`、`mark P0 complete`
+  - 完成结论：本轮仅做既定 closeout，不引入新方向；`P0: read-model / metadata convergence` 现已可标记完成
+
+- ✅ P0 closeout queue `mark P0 complete`：已完成 phase closeout 状态更新
+  - 变更文件：`docs/next_steps_rag_project_plan.md`、`docs/current-progress.md`
+  - 完成说明：仅更新 P0 状态与收口结论，不追加新实现任务
+
+- ✅ opencode loop now has a dedicated read-model/metadata build prompt template in the prompt path
+  - added `.opencode/loop/prompts/read-model-metadata-build.md` to avoid reusing generic `prompts/build.md` wording for read-model/metadata convergence queue work
+  - `scripts/opencode-loop/runtime.mjs` now ensures the dedicated prompt template exists under `.opencode/loop/prompts/` alongside existing default prompt bootstrap
+  - `scripts/opencode-loop.md` prompt-family guidance and queue example now point read-model/metadata items to `prompts/read-model-metadata-build.md`
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；loop prompt path 现在提供了专用 read-model/metadata build 模板，不再要求这类任务复用 generic build prompt wording
+
+- ✅ trace summary unknown/fallback readability wording now aligns for failed-stage and answer-source labels
+  - `apps/api/src/modules/traces/traces.service.ts` now keeps known labels unchanged, while aligning null-fallback wording to `failed stage unavailable` / `answer status source unavailable` / `answer text source unavailable`; raw unknown values still keep `unknown ... (<raw>)`
+  - `apps/api/test/traces.service.test.js` updates focused assertions for the aligned null-fallback wording
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed；本轮仅收口可读文案，不改 retrieval 语义、契约、持久化或其他无关标签
+
+- ✅ trace summary legacy fallback coverage now includes execution-level `fallbackReason -> strategySummary.usedFallback` backfill path
+  - `apps/api/test/traces.service.test.js` adds one focused regression case to lock consistency when older retrieval metadata only has `retrievalMetadata.execution.fallbackReason` (missing explicit `usedFallback` fields)
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+  - 实测结果：focused traces service tests passed (`24/24`)；legacy execution fallback-reason-only traces now have explicit regression guard that `traceSummary.strategySummary.usedFallback` resolves to `true` and aligns with strategy readability wording
+
+- ✅ opencode loop now correctly parses repo `opencode.jsonc` comments for command model split
+  - `scripts/opencode-loop/runtime.mjs` now strips JSONC line/block comments before parsing the repo command config, so `command.plan` / `command.build` can be loaded from `opencode.jsonc`
+  - this closes the earlier fallback-to-`server-default` path when the repo config contained comments
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；loop 现在可以正确读取带注释的 `opencode.jsonc`，不再因为 `JSON.parse` 直接失败而忽略模型分工配置
+
+- ✅ opencode loop can now auto-refill a small follow-up queue wave before exiting
+  - added `scripts/opencode-loop/planner.mjs` as a guarded planner path that uses the repo `command.plan` agent/model when available, asks for strict JSON follow-up tasks, writes planner audit handoffs, and materializes generated prompts under `.opencode/loop/prompts/generated/`
+  - `scripts/opencode-loop/runtime.mjs` now triggers one optional refill pass when the queue drains, appends generated items back into `.opencode/loop/queue.json`, then keeps processing them in the same run
+  - `scripts/opencode-loop/queue.mjs` now exposes `appendQueueItems(...)` for atomic append-style queue growth during refill; `scripts/opencode-loop.mjs` now supports `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` and `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS`
+  - tuned `.opencode/loop/prompts/plan-next.md` toward the current repository wave (single-line mainline, backend/API-first, additive read-model/diagnostics/contract closeout) and set the systemd loop service template to run with `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES=2`
+  - `scripts/opencode-loop/self-test.mjs` now covers three harness paths together: normal draining, interrupted-session resume, and one guarded auto-refill cycle
+  - `scripts/opencode-loop.md` now documents the planner/refill behavior and the new env knobs
+  - scope kept conservative on purpose: default refill budget is one planner pass and two generated items per loop invocation, so the runner can continue automatically without turning into an unbounded self-expanding queue
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test 通过；空队列时 loop 现在可先生成一小波后续任务并继续执行，同时保留 planner handoff 审计轨迹
+
 - ✅ current-progress closeout note appended for this increment
   - changed files: `docs/current-progress.md`
   - focused validation: `git diff --check -- "docs/current-progress.md"`
@@ -622,7 +815,7 @@
     - `pnpm --filter @rag-system/api test:file -- test/ask-success.test.js test/traces.service.test.js`
   - 实测结果：focused API tests 30/30 通过；ask response、trace summary、shared contract 现在可一致携带 query rewrite model 归因字段
 
- - ✅ `strategySummary` now carries additive `rewritePromptId` for ask/trace/shared contract alignment
+- ✅ `strategySummary` now carries additive `rewritePromptId` for ask/trace/shared contract alignment
   - `packages/shared/src/trace-contracts.ts` updates `RetrievalStrategySummary` with `rewritePromptId: string | null`
   - `AskAssistantService` now writes `strategySummary.rewritePromptId` from query-rewrite prompt metadata on both success and retrieval-failure metadata paths
   - `TracesService.buildTraceSummary()` now resolves `strategySummary.rewritePromptId` from `queryRewrite.promptId` first, then falls back to persisted `strategySummary.rewritePromptId`
@@ -630,7 +823,6 @@
   - 新增 / 更新验证：
     - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
   - 实测结果：focused traces service tests 5/5 通过；ask response、trace summary、shared contract 的 strategy summary 现在可一致携带 rewrite prompt 归因字段
-
 - ✅ 继续压缩 web 首屏负担，去掉了不必要的外链字体和首屏通知层
   - `apps/web/src/styles/global.css` now uses a local/system font stack only, so the app no longer depends on Google Fonts at runtime
   - `apps/web/index.html` no longer preconnects to Google Fonts origins

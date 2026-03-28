@@ -247,6 +247,58 @@ test("fetchWithRetry reports clear error when redirect target is non-http scheme
   }
 });
 
+test("fetchWithRetry reports clear error when redirect response misses location header", async () => {
+  const server = http.createServer((request, response) => {
+    if (request.url === "/redirect-missing-location") {
+      response.writeHead(302);
+      response.end();
+      return;
+    }
+
+    response.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8"
+    });
+    response.end("ok");
+  });
+
+  await new Promise(resolvePromise => {
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+
+  try {
+    const address = server.address();
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: `http://127.0.0.1:${address.port}/redirect-missing-location`,
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-missing-location: missing redirect location header.`
+        );
+        return true;
+      }
+    );
+  } finally {
+    await new Promise((resolvePromise, rejectPromise) => {
+      server.close(error => {
+        if (error) {
+          rejectPromise(error);
+          return;
+        }
+
+        resolvePromise();
+      });
+    });
+  }
+});
+
 test("fetchWithRetry includes source URL in network failure error", async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
@@ -269,6 +321,105 @@ test("fetchWithRetry includes source URL in network failure error", async () => 
         return true;
       }
     );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry includes source URL and timeout boundary for timeout failures", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const timeoutError = new Error("The operation was aborted.");
+    timeoutError.name = "AbortError";
+    throw timeoutError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/timeout.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 2500,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(error.message, "Fetch request timed out for https://example.com/timeout.xml after 2500ms.");
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry retries once after a transient fetch exception", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+
+  global.fetch = async () => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      throw new TypeError("fetch failed");
+    }
+
+    return new Response("ok", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8"
+      }
+    });
+  };
+
+  try {
+    const response = await fetchWithRetry({
+      url: "https://example.com/source.xml",
+      headers: {
+        Accept: "application/xml"
+      },
+      timeoutMs: 10000,
+      attempts: 2
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "ok");
+    assert.equal(requestCount, 2);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry includes retry-attempt context when transient failures exhaust retries", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+
+  global.fetch = async () => {
+    requestCount += 1;
+    throw new TypeError("fetch failed");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/source.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 10000,
+          attempts: 2
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          "Fetch request failed for https://example.com/source.xml: fetch failed (after 2 attempts)."
+        );
+        return true;
+      }
+    );
+    assert.equal(requestCount, 2);
   } finally {
     global.fetch = originalFetch;
   }

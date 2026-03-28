@@ -13,14 +13,24 @@ import {
   updateQueueItem,
   writeQueue
 } from "./queue.mjs";
+import {
+  DEFAULT_AUTO_REFILL_MAX_CYCLES,
+  DEFAULT_AUTO_REFILL_MAX_ITEMS,
+  DEFAULT_PLANNER_PROMPT_FILE_NAME,
+  maybeAutoRefillQueue
+} from "./planner.mjs";
+import { parseJsonc } from "./jsonc.mjs";
 
 export const DEFAULT_PROMPT_PATH = "prompts/build.md";
 export const DEFAULT_PROMPT_FILE_NAME = "build.md";
+export const DEFAULT_READ_MODEL_METADATA_PROMPT_FILE_NAME = "read-model-metadata-build.md";
 export const DEFAULT_LOCK_DIR_NAME = "loop.lock";
 export const DEFAULT_EXECUTION_DIRECTIVE = [
   "Execution mode: implement the requested repository increment now.",
   "Do not stop at search-only or analysis-only output.",
-  "First inspect the relevant code path, then make the smallest concrete change, run one focused validation, and report exact files and commands."
+  "First inspect the relevant code path, then make the smallest concrete change, run one focused validation, and report exact files and commands.",
+  "Commit each completed increment on the current branch, but keep push and PR decisions for a stable wave closeout point after validation is green.",
+  "Prefer `dev` for backend work unless the task explicitly requires a different branch transition."
 ].join("\n");
 
 export async function runLoop(options) {
@@ -44,7 +54,7 @@ export async function runLoop(options) {
 
     ensureDefaultFiles({ loopRoot, queuePath, promptsDir, handoffsDir });
 
-    const api = createApiClient(
+      const api = createApiClient(
       options.baseUrl,
       options.username,
       options.password,
@@ -52,9 +62,14 @@ export async function runLoop(options) {
       options.pollIntervalMs
     );
 
-    const processedItems = [];
+      const processedItems = [];
+      const autoRefillState = {
+        cycles: 0,
+        maxCycles: normalizeNonNegativeInteger(options.autoRefillMaxCycles, DEFAULT_AUTO_REFILL_MAX_CYCLES),
+        maxItems: normalizePositiveInteger(options.autoRefillMaxItems, DEFAULT_AUTO_REFILL_MAX_ITEMS)
+      };
 
-    for (;;) {
+      for (;;) {
       let queue = readQueue(queuePath);
       const cursorResolution = resolveQueueCursor(queue);
       if (cursorResolution.recovered) {
@@ -75,6 +90,23 @@ export async function runLoop(options) {
       const next = pickNextItem(queue);
 
       if (!next) {
+        const refillResult = await maybeAutoRefillQueue({
+          api,
+          repoRoot: options.repoRoot,
+          loopRoot,
+          queuePath,
+          handoffsDir,
+          queue,
+          commandConfig: repoCommandConfig,
+          autoRefillState,
+          logStatus,
+          extractAssistantText
+        });
+
+        if (refillResult.generatedItems.length > 0) {
+          continue;
+        }
+
         const lastProcessed = processedItems[processedItems.length - 1] ?? null;
         logStatus("idle", {
           processedCount: processedItems.length,
@@ -261,6 +293,26 @@ function ensureDefaultFiles(paths) {
       "Do not broaden scope or start a second independent task."
     ].join("\n")
   );
+  ensureTextFile(
+    resolve(paths.promptsDir, DEFAULT_READ_MODEL_METADATA_PROMPT_FILE_NAME),
+    [
+      "Read AGENTS.md and the repository primary docs first.",
+      "Implement one minimal read-model / metadata convergence build increment (ask response, trace summary, or shared contract readability/alignment only).",
+      "Do not change retrieval behavior semantics, source-family scope, or persistence/schema paths.",
+      "Run one focused validation command and report exact commands plus changed files."
+    ].join("\n")
+  );
+  ensureTextFile(
+    resolve(paths.promptsDir, DEFAULT_PLANNER_PROMPT_FILE_NAME),
+    [
+      "Read AGENTS.md plus the repository primary docs before proposing follow-up queue work.",
+      "Only propose the next smallest additive increment that fits the current project plan.",
+      "Prefer behavior-preserving closeout work, focused validation, and explicit acceptance wording.",
+      "Return JSON array only with objects shaped as {\"title\",\"family\",\"prompt\",\"agent\",\"model\"}.",
+      "The prompt field must be execution-ready for rag-build: name target files, keep scope narrow, and require one focused validation command.",
+      "Do not propose more than the requested number of items, do not repeat already-finished work, and do not broaden into new architecture."
+    ].join("\n")
+  );
 
   try {
     readFileSync(paths.queuePath, "utf8");
@@ -288,13 +340,14 @@ function readRepoCommandConfig(repoRoot) {
 
   try {
     const configRaw = readFileSync(configPath, "utf8");
-    const config = JSON.parse(configRaw);
+    const config = parseJsonc(configRaw);
 
     if (!config || typeof config !== "object" || Array.isArray(config)) {
       return {};
     }
 
     return {
+      plan: normalizeCommandConfig(config.command?.plan),
       build: normalizeCommandConfig(config.command?.build)
     };
   } catch {
@@ -339,6 +392,14 @@ function composeExecutionPrompt({ taskPromptText, buildTemplate }) {
   sections.push(`Task:\n${taskPromptText}`);
 
   return sections.join("\n\n");
+}
+
+function normalizeNonNegativeInteger(value, fallback) {
+  return Number.isInteger(value) && value >= 0 ? value : fallback;
+}
+
+function normalizePositiveInteger(value, fallback) {
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, agent, model }) {
@@ -990,11 +1051,14 @@ function findNextPendingItem(items, pickedIndex) {
 function logStatus(event, fields) {
   const labelMap = {
     start: "启动",
+    plan: "自动补任务",
     pick: "取任务",
     resume: "恢复",
     "session:create": "建会话",
     "message:send": "发消息",
     "cursor:recover": "游标恢复",
+    refill: "补队列",
+    "refill:skip": "补队列跳过",
     complete: "完成",
     idle: "空闲"
   };
@@ -1037,7 +1101,14 @@ function logStatus(event, fields) {
     "repoRoot",
     "baseUrl",
     "defaultAgent",
-    "defaultModel"
+    "defaultModel",
+    "plannerSessionId",
+    "plannerMessageId",
+    "generatedCount",
+    "generatedItemIds",
+    "autoRefillCycle",
+    "maxAutoRefillCycles",
+    "autoRefillMaxItems"
   ];
   const orderedEntries = [];
 

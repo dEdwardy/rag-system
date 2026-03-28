@@ -620,7 +620,9 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
           failedStage: "source_fetch",
           retryable: true,
           documentVersion: reservedDocument.version,
-          message: "Failed to fetch web page: upstream responded with 502."
+          message: "Failed to fetch web page: upstream responded with 502.",
+          sourceType: "web_page",
+          sourceName: "https://example.com/down"
         }
       }
     }
@@ -642,7 +644,9 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
         failedStage: "source_fetch",
         retryable: true,
         documentVersion: reservedDocument.version,
-        message: "Failed to fetch web page: upstream responded with 502."
+        message: "Failed to fetch web page: upstream responded with 502.",
+        sourceType: "web_page",
+        sourceName: "https://example.com/down"
       }
     }
   ]);
@@ -1149,6 +1153,100 @@ test("DocumentsService stale external fetch failure does not overwrite a newer d
   ]);
 });
 
+test("DocumentsService skips stale external run before source fetch to avoid duplicate fetch work", async () => {
+  const createdRuns = [];
+  const skippedRuns = [];
+  const enqueuedDocumentIds = [];
+
+  const reservedDocument = {
+    id: "stale-prefetch-guard-document",
+    version: 3,
+    title: "Reserved title"
+  };
+  const currentDocument = {
+    id: reservedDocument.id,
+    version: 4,
+    title: "Newer title",
+    status: "pending",
+    processingStage: "uploaded"
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    reserveExternalDocument: async () => reservedDocument,
+    prisma: {
+      document: {
+        findUnique: async ({ where }) => {
+          assert.deepEqual(where, { id: reservedDocument.id });
+          return {
+            version: currentDocument.version
+          };
+        },
+        update: async () => {
+          throw new Error("document.update should not be called for stale pre-fetch run");
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunSkipped: async (documentId, version, input) => {
+        skippedRuns.push({ documentId, version, ...input });
+      }
+    },
+    getDocument: async documentId => {
+      assert.equal(documentId, reservedDocument.id);
+      return currentDocument;
+    },
+    webPageService: {
+      fetchWebPage: async () => {
+        throw new Error("fetchWebPage should not be called for stale pre-fetch run");
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("saveGeneratedTextFile should not be called for stale pre-fetch run");
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {}
+  });
+
+  const result = await DocumentsService.prototype.createWebPageDocument.call(fakeService, "default-kb", {
+    url: "https://example.com/stale-prefetch"
+  });
+
+  assert.deepEqual(result, currentDocument);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(skippedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "stale_guard",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_RUN_SUPERSEDED",
+        failedStage: "stale_guard",
+        retryable: false,
+        documentVersion: reservedDocument.version,
+        message: "Skipped stale external source update because a newer document version is already active.",
+        currentDocumentVersion: currentDocument.version
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, []);
+});
+
 test("DocumentsService records external source persistence failures after fetch succeeds", async () => {
   const createdRuns = [];
   const documentUpdates = [];
@@ -1619,6 +1717,121 @@ test("DocumentsService reindex recovers legacy feed config without maxItems by u
         title: "Fetched feed",
         mimeType: "text/plain",
         storageKey: "generated/feed-refreshed.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
+test("DocumentsService reindex recovers legacy web-page config when sourceConfigJson is missing", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const fetchWebPageCalls = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-legacy-web-document",
+    kbId: "default-kb",
+    sourceType: "web_page",
+    sourceName: "https://example.com/legacy-page",
+    title: "Legacy web page",
+    mimeType: "text/plain",
+    storageKey: "generated/web-page.txt",
+    sourceConfigJson: Prisma.JsonNull,
+    status: "ready",
+    processingStage: "completed",
+    version: 7,
+    chunkCount: 3,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    webPageService: {
+      fetchWebPage: async url => {
+        fetchWebPageCalls.push(url);
+        return {
+          title: "Fetched legacy page",
+          content: "Updated legacy page content"
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Updated legacy page content");
+        return {
+          storageKey: "generated/web-page-refreshed.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 8,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(fetchWebPageCalls, ["https://example.com/legacy-page"]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Fetched legacy page",
+        mimeType: "text/plain",
+        storageKey: "generated/web-page-refreshed.txt",
         status: "pending",
         processingStage: "uploaded",
         errorMessage: null,

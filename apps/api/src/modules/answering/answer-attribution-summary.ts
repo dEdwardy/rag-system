@@ -4,6 +4,24 @@ import type {
   TraceCitationSelectionSource
 } from "@rag-system/shared";
 
+export function buildCitationSelectionSourceReadabilityLabel(
+  source: TraceCitationSelectionSource
+): string {
+  if (source === "structured") {
+    return "structured evidence source";
+  }
+
+  if (source === "inline_markers") {
+    return "inline-marker evidence source";
+  }
+
+  if (source === "heuristic") {
+    return "heuristic evidence source";
+  }
+
+  return "no evidence source";
+}
+
 export function buildAnswerAttributionSummary(input: {
   attribution: TraceCitationAttribution | null;
   source: TraceCitationSelectionSource | null;
@@ -16,17 +34,13 @@ export function buildAnswerAttributionSummary(input: {
       : `${attribution} attribution`;
   const sourceLabel = source == null
     ? null
-    : source === "none"
-      ? "no source evidence"
-      : source === "inline_markers"
-        ? "inline-marker source"
-        : `${source} source`;
+    : buildCitationSelectionSourceReadabilityLabel(source);
   const readabilityLabel = attributionLabel != null && sourceLabel != null
     ? `${attributionLabel} via ${sourceLabel}`
     : null;
   const readabilityHint = readabilityLabel
     ?? (attributionLabel != null
-      ? `${attributionLabel} via unknown source`
+      ? `${attributionLabel} via unknown evidence source`
       : sourceLabel != null
         ? `unknown attribution via ${sourceLabel}`
         : null);
@@ -41,7 +55,7 @@ export function buildAnswerAttributionSummary(input: {
     sourceLabel,
     readabilityLabel,
     readabilityHint,
-    readabilityResolvedLabel: `${attributionLabel ?? "unknown attribution"} via ${sourceLabel ?? "unknown source"}`,
+    readabilityResolvedLabel: `${attributionLabel ?? "unknown attribution"} via ${sourceLabel ?? "unknown evidence source"}`,
     readabilitySentence: `Answer attribution is ${attribution ?? "unknown"}; source evidence is ${source ?? "unknown"}.`
   };
 }

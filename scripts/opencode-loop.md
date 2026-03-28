@@ -5,10 +5,11 @@
 
 ## Purpose
 
-`scripts/opencode-loop.mjs` is a small harness-style entrypoint that:
+`scripts/opencode-loop.mjs` is a small repo-local harness entrypoint used to assist development, not a product runtime path. It:
 
 - reads `.opencode/loop/queue.json`
 - drains queue items one by one until the queue is empty
+- can ask the `plan` command for one guarded refill pass after the queue empties
 - creates or resumes an OpenCode session per item
 - sends the item prompt to the configured agent
 - writes a handoff markdown file
@@ -27,6 +28,8 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `scripts/opencode-loop/night-run.sh` - thin wrapper for `systemd --user` or manual night runs; resolves pnpm via corepack/Volta/local shims
 - `scripts/opencode-loop/systemd/opencode-loop.service` - user service template with crash restart behavior
 - `scripts/opencode-loop/systemd/opencode-loop.timer` - nightly timer template
+- `scripts/opencode-loop/planner.mjs` - guarded queue refill planner and generated-prompt writer
+- `scripts/opencode-loop/jsonc.mjs` - lightweight JSONC comment-stripping helper for repo config
 - `scripts/opencode-loop/runtime.mjs` - queue, lock, and OpenCode API logic
 - `scripts/opencode-loop/self-test.mjs` - self-test harness and mock server
 
@@ -39,6 +42,8 @@ Session titles use the shape `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS`
 - `OPENCODE_SERVER_PASSWORD` - basic auth password when needed
 - `OPENCODE_LOOP_MESSAGE_WAIT_MS` - max wait for an assistant message
 - `OPENCODE_LOOP_POLL_MS` - polling interval while waiting
+- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` - max planner refill passes per run; default `1`, `0` disables refill
+- `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS` - max new queue items each refill pass may append; default `2`
 
 ## Commands
 
@@ -63,7 +68,7 @@ pnpm loop:status
       "id": "build-001",
       "title": "Read-model metadata convergence increment",
       "agent": "rag-build",
-      "promptFile": "prompts/read-model-metadata.md",
+      "promptFile": "prompts/read-model-metadata-build.md",
       "status": "pending"
     }
   ]
@@ -76,14 +81,16 @@ Keep queue prompts task-family specific so metadata work does not silently fall 
 
 - `prompts/build.md`: generic small build increment
 - `prompts/build-small-increment.md`: harness/runtime maintenance increments under `scripts/opencode-loop*`
-- `prompts/read-model-metadata.md`: read-model / metadata convergence increments
+- `prompts/read-model-metadata-build.md`: read-model / metadata convergence build increments
+- `prompts/plan-next.md`: strict JSON-only planner prompt for guarded queue refill
 
-For read-model / metadata queue items, prefer `prompts/read-model-metadata.md` instead of `prompts/build.md`.
+For read-model / metadata queue items, prefer `prompts/read-model-metadata-build.md` instead of `prompts/build.md`.
 
 Completed items are enriched with `sessionId`, `messageId`, `handoffPath`, and `completedAt`.
 Queue records also carry readable `*Display` timestamp companions such as `startedAtDisplay`, `messageReceivedAtDisplay`, and `completedAtDisplay`.
 Interrupted items may stay in `in_progress` until the next run resumes them.
 The harness keeps running until the queue has no pending or recoverable items left.
+Generated refill items materialize their own execution prompt files under `.opencode/loop/prompts/generated/` before the loop continues.
 Queue items may also provide an optional `model` override; otherwise the harness falls back to `opencode.jsonc` `command.build.model` when present.
 
 ## Notes
@@ -93,10 +100,16 @@ Queue items may also provide an optional `model` override; otherwise the harness
 - A runtime lock prevents two `opencode-loop` processes from consuming the same queue at the same time.
 - The recommended unattended setup is `systemd --user` plus the thin `night-run.sh` wrapper, so crash restarts stay separate from normal queue-empty exits.
 - `pnpm loop:start|stop|status` is the quickest day-to-day entrypoint for starting, stopping, or checking the user service and timer together, and it auto-links the user units if needed.
-- After each completed queue item, commit the resulting changes before the loop moves on to the next item, so the checkout does not accumulate unfinished work.
+- After each completed queue item, commit the resulting changes so the work stays isolated, but do not rush to push or open a PR on every commit.
+- Let the loop accumulate a small coherent wave of commits on `dev`, then choose a push/PR point only after validation is green and the branch is stable enough to minimize merge conflict risk.
+- Prefer push/PR at wave closeout or other natural handoff points, not mid-increment.
+- The runtime execution directive follows the same rule so the loop prompt itself keeps push/PR timing conservative.
 - Prompt delivery is execution-oriented: the harness prepends a small execution directive and the repository `command.build.template` before the task-specific prompt, so the session is biased toward implementation instead of search-only output.
+- Auto-refill stays intentionally conservative: by default it runs at most one planner pass per invocation and appends at most two new items.
+- Planner output is audited with a dedicated `planner-auto-refill` handoff file next to normal queue handoffs.
 - Terminal output now prints concise Chinese status lines with the key fields first, so item/session/result information is easy to scan at a glance.
 - If the immediate `POST /session/:id/message` response is empty or is not an assistant message yet, it falls back to `GET /session/:id/message` and waits for the assistant reply before marking the item complete.
 - Transient `fetch failed` network errors during message send or assistant polling now retry through the same wait path instead of aborting the whole loop immediately.
 - Resume recovery is conservative: if an `in_progress` item does not already carry a tracked assistant `messageId`, the harness snapshots the latest preexisting assistant message, resends the queued prompt, and only accepts a newer assistant reply for completion.
-- The self-test spins up a tiny mock server and verifies draining multiple items plus resume recovery.
+- The self-test spins up a tiny mock server and verifies normal draining, resume recovery, and one guarded auto-refill pass.
+- Repo `opencode.jsonc` is parsed through the local JSONC helper so command config comments stay supported without adding a heavier dependency.

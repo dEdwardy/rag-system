@@ -207,15 +207,18 @@ function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbe
 function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbeddingRuntimeConfig | null {
   const apiKey = readOptionalString(env.OPENAI_API_KEY);
   const explicitModel = readOptionalString(env.OPENAI_EMBEDDING_MODEL);
-  const openAiBaseUrl = normalizeBaseUrl(readOptionalString(env.OPENAI_BASE_URL) ?? DEFAULT_OPENAI_BASE_URL);
+  const configuredBaseUrl = readOptionalString(env.OPENAI_BASE_URL);
+  const openAiBaseUrl = normalizeBaseUrl(configuredBaseUrl ?? DEFAULT_OPENAI_BASE_URL);
 
   if (!apiKey && !explicitModel) {
     return null;
   }
 
   if (!apiKey) {
+    const configuredBaseUrlHint = configuredBaseUrl ? ` OPENAI_BASE_URL is currently set to "${openAiBaseUrl}".` : "";
+
     throw new EmbeddingRuntimeConfigError(
-      "Invalid embedding config: OPENAI_API_KEY must be set when OPENAI_EMBEDDING_MODEL is configured."
+      `Invalid embedding config: OPENAI_API_KEY must be set when OPENAI_EMBEDDING_MODEL is configured (current OPENAI_EMBEDDING_MODEL="${explicitModel}"). OpenAI embedding provider is currently unusable and will not be selected until OPENAI_API_KEY is configured.${configuredBaseUrlHint}`
     );
   }
 
@@ -253,6 +256,7 @@ function validateResolvedEmbeddingDimensions(
   }
 
   if (dimensions !== providerConfig.expectedDimensions) {
+    const modelSourceHint = ` Resolved OpenAI embedding model source: ${providerConfig.modelSource}.`;
     const defaultModelHint =
       providerConfig.modelSource === "default:OPENAI_EMBEDDING_MODEL"
         ? ` OPENAI_EMBEDDING_MODEL is unset, so the default embedding model "${providerConfig.model}" is currently in use.`
@@ -260,7 +264,7 @@ function validateResolvedEmbeddingDimensions(
     const endpointHint = ` Resolved OpenAI embedding endpoint: ${providerConfig.apiUrl}.`;
 
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${providerConfig.model}" expects ${providerConfig.expectedDimensions} dimensions, but the provider returned ${dimensions}. Check OPENAI_EMBEDDING_MODEL and OPENAI_BASE_URL compatibility for the embedding endpoint.${endpointHint}${defaultModelHint}`
+      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${providerConfig.model}" expects ${providerConfig.expectedDimensions} dimensions, but the provider returned ${dimensions}. Check OPENAI_EMBEDDING_MODEL and OPENAI_BASE_URL compatibility for the embedding endpoint.${modelSourceHint}${endpointHint}${defaultModelHint}`
     );
   }
 

@@ -141,6 +141,24 @@ test("resolveEmbeddingRuntimeConfig rejects unsupported OpenAI embedding models"
   );
 });
 
+test("resolveEmbeddingRuntimeConfig reports unusable OpenAI embedding provider when model is configured without API key", () => {
+  assert.throws(
+    () =>
+      resolveEmbeddingRuntimeConfig({
+        OPENAI_BASE_URL: "https://openai-proxy.local/v1/",
+        OPENAI_API_KEY: undefined,
+        OPENAI_EMBEDDING_MODEL: "text-embedding-3-small"
+      }),
+    error => {
+      assert.ok(error instanceof EmbeddingRuntimeConfigError);
+      assert.match(error.message, /OpenAI embedding provider is currently unusable/);
+      assert.match(error.message, /current OPENAI_EMBEDDING_MODEL="text-embedding-3-small"/);
+      assert.match(error.message, /OPENAI_BASE_URL is currently set to "https:\/\/openai-proxy\.local\/v1"/);
+      return true;
+    }
+  );
+});
+
 test("EmbeddingService keeps deterministic fallback embeddings when provider requests fail", async () => {
   const service = new EmbeddingService();
 
@@ -189,6 +207,7 @@ test("EmbeddingService rejects incompatible OpenAI dimensions with an explicit e
             assert.ok(error instanceof EmbeddingRuntimeConfigError);
             assert.match(error.message, /expects 1536 dimensions/);
             assert.match(error.message, /OPENAI_EMBEDDING_MODEL and OPENAI_BASE_URL compatibility/);
+            assert.match(error.message, /Resolved OpenAI embedding model source: env:OPENAI_EMBEDDING_MODEL/);
             assert.match(error.message, /Resolved OpenAI embedding endpoint: https:\/\/api\.openai\.com\/v1\/embeddings/);
             return true;
           });
@@ -220,6 +239,7 @@ test("EmbeddingService dimension mismatch error explains default OpenAI embeddin
         async () => {
           await assert.rejects(service.embedTexts(["dimension mismatch"]), error => {
             assert.ok(error instanceof EmbeddingRuntimeConfigError);
+            assert.match(error.message, /Resolved OpenAI embedding model source: default:OPENAI_EMBEDDING_MODEL/);
             assert.match(error.message, /OPENAI_EMBEDDING_MODEL is unset/);
             assert.match(error.message, /default embedding model "text-embedding-3-small" is currently in use/);
             return true;

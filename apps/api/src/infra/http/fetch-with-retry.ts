@@ -6,6 +6,17 @@ type FetchWithRetryInput = {
 };
 
 const MAX_FOLLOW_REDIRECTS = 5;
+const TRANSIENT_NETWORK_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EHOSTUNREACH",
+  "ENETDOWN",
+  "ENETRESET",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ETIMEDOUT"
+]);
 
 export const DEFAULT_SOURCE_FETCH_TIMEOUT_MS = 10000;
 export const DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS = 2;
@@ -35,9 +46,10 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
 
       lastResponse = response;
     } catch (error) {
-      lastError = normalizeFetchError(error, input.url);
-      if (attempt === attempts) {
-        throw lastError;
+      const normalizedError = normalizeFetchError(error, input.url, input.timeoutMs);
+      lastError = normalizedError;
+      if (attempt === attempts || !shouldRetryFetchException(error)) {
+        throw withRetryAttemptContext(normalizedError, attempt);
       }
     }
   }
@@ -47,6 +59,23 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
   }
 
   throw lastError instanceof Error ? lastError : new Error("Unknown fetch error.");
+}
+
+function withRetryAttemptContext(error: unknown, attempt: number) {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+
+  if (attempt <= 1) {
+    return error;
+  }
+
+  const message = error.message.trim();
+  if (!message.startsWith("Fetch request failed for") && !message.startsWith("Fetch request timed out for")) {
+    return error;
+  }
+
+  return new Error(`${message} (after ${attempt} attempts).`);
 }
 
 function shouldRetryResponse(status: number) {
@@ -68,7 +97,7 @@ async function fetchWithFollowRedirects(url: string, init: RequestInit) {
 
     const redirectLocation = response.headers.get("location");
     if (!redirectLocation) {
-      return response;
+      throw new Error(`Failed to follow redirect for ${currentUrl}: missing redirect location header.`);
     }
 
     const nextUrl = resolveRedirectUrl(currentUrl, redirectLocation);
@@ -105,9 +134,13 @@ function assertHttpUrl(url: string, sourceUrl: string) {
   }
 }
 
-function normalizeFetchError(error: unknown, sourceUrl: string) {
+function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: number) {
   if (!(error instanceof Error)) {
     return error;
+  }
+
+  if (error.name === "AbortError" || error.name === "TimeoutError") {
+    return new Error(`Fetch request timed out for ${sourceUrl} after ${timeoutMs}ms.`);
   }
 
   const causeMessage =
@@ -133,6 +166,34 @@ function normalizeFetchError(error: unknown, sourceUrl: string) {
 
   return new Error(`Fetch request failed for ${sourceUrl}: ${normalizedMessage}`);
 
+}
+
+function shouldRetryFetchException(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.name === "AbortError" || error.name === "TimeoutError") {
+    return true;
+  }
+
+  const causeCode = readErrorCode(error.cause);
+  if (causeCode && TRANSIENT_NETWORK_ERROR_CODES.has(causeCode)) {
+    return true;
+  }
+
+  const causeMessage = error.cause instanceof Error ? error.cause.message : "";
+  const combinedMessage = `${error.message} ${causeMessage}`.toLowerCase();
+  return combinedMessage.includes("fetch failed") || combinedMessage.includes("network error");
+}
+
+function readErrorCode(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const maybeCode = Reflect.get(value, "code");
+  return typeof maybeCode === "string" ? maybeCode.toUpperCase() : null;
 }
 
 function readPositiveInteger(value: string | undefined, fallback: number) {

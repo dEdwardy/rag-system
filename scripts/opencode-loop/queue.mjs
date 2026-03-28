@@ -146,6 +146,26 @@ export function completeQueueItem({ queue, index, sessionId, messageId, handoffP
   };
 }
 
+export function appendQueueItems(queue, items, updatedAt = new Date().toISOString()) {
+  const nextItems = Array.isArray(items) ? items.filter(Boolean) : [];
+
+  if (nextItems.length === 0) {
+    return {
+      ...queue,
+      updatedAt
+    };
+  }
+
+  const mergedItems = [...queue.items, ...nextItems];
+
+  return {
+    ...queue,
+    items: mergedItems,
+    cursor: computeNextCursor(mergedItems, queue.cursor),
+    updatedAt
+  };
+}
+
 function computeNextCursor(items, start) {
   const nextIndex = findPendingIndex(items, start);
   if (nextIndex !== -1) {

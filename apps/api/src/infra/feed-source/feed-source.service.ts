@@ -97,11 +97,14 @@ export class FeedSourceService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isSupportedFeedContentType(contentType)) {
+    const payload = await response.text();
+    const xmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeFeedXmlPayload(payload);
+
+    if (!this.isSupportedFeedContentType(contentType) && !xmlPayloadByFallback) {
       throw new BadRequestException(`Unsupported feed content type: ${contentType || "unknown"}.`);
     }
 
-    return this.extractFromXml(await response.text(), options);
+    return this.extractFromXml(payload, options);
   }
 
   extractFromXml(xml: string, options: ExtractFeedOptions): FetchedFeed {
@@ -208,7 +211,7 @@ export class FeedSourceService {
         return;
       }
 
-      const dedupKey = this.buildEntryDedupKey(entry);
+      const dedupKey = this.buildEntryDedupKey(entry, input.sourceUrl);
       if (seenEntryKeys.has(dedupKey)) {
         skippedDuplicateEntryRefs.push(entry.link ?? entry.title ?? "Untitled");
         return;
@@ -287,22 +290,27 @@ export class FeedSourceService {
     };
   }
 
-  private buildEntryDedupKey(entry: FeedEntry) {
+  private buildEntryDedupKey(entry: FeedEntry, sourceUrl: string) {
     const normalizedTitle = entry.title?.trim().toLowerCase() ?? "";
-    const normalizedLink = this.normalizeEntryLinkForDedup(entry.link);
+    const normalizedLink = this.normalizeEntryLinkForDedup(entry.link, sourceUrl);
     const normalizedPublishedAt = entry.publishedAt?.trim().toLowerCase() ?? "";
     const normalizedSummary = entry.summary?.trim().toLowerCase() ?? "";
-    return [normalizedLink, normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
+
+    if (normalizedLink) {
+      return `link:${normalizedLink}`;
+    }
+
+    return [normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
   }
 
-  private normalizeEntryLinkForDedup(link: string | null) {
+  private normalizeEntryLinkForDedup(link: string | null, sourceUrl: string) {
     const normalizedLink = link?.trim().toLowerCase() ?? "";
     if (!normalizedLink) {
       return "";
     }
 
     try {
-      const parsed = new URL(normalizedLink);
+      const parsed = new URL(normalizedLink, sourceUrl);
       parsed.hash = "";
       return parsed.toString();
     } catch {
@@ -325,8 +333,9 @@ export class FeedSourceService {
       timestamp: this.resolveFeedTimestamp(getPublishedAt(block))
     }));
     const hasAnyTimestamp = blocksWithPublishedAt.some(item => item.timestamp !== null);
+    const hasMissingTimestamp = blocksWithPublishedAt.some(item => item.timestamp === null);
 
-    if (!hasAnyTimestamp) {
+    if (!hasAnyTimestamp || hasMissingTimestamp) {
       return allBlocks.slice(0, maxItems);
     }
 
@@ -389,6 +398,14 @@ export class FeedSourceService {
     );
   }
 
+  private isFallbackSniffingContentType(contentType: string) {
+    return !contentType || contentType.startsWith("text/plain");
+  }
+
+  private looksLikeFeedXmlPayload(payload: string) {
+    return /<rss\b|<feed\b/i.test(payload);
+  }
+
   private buildUpstreamFetchError(prefix: string, status: number) {
     const message = `${prefix}: upstream responded with ${status}.`;
     return this.isRetryableUpstreamStatus(status)
@@ -421,12 +438,40 @@ export class FeedSourceService {
   }
 
   private extractAtomLink(value: string) {
-    const hrefMatch = value.match(/<link\b[^>]*href="([^"]+)"[^>]*?(?:rel="alternate")?[^>]*\/?>/i);
-    if (hrefMatch) {
-      return this.decodeEntities(hrefMatch[1]).trim();
+    const linkTags = [...value.matchAll(/<link\b[^>]*\/?>/gi)].map(match => match[0]);
+    let fallbackHref: string | null = null;
+
+    for (const tag of linkTags) {
+      const href = this.extractXmlAttribute(tag, "href");
+      if (!href) {
+        continue;
+      }
+
+      const rel = this.extractXmlAttribute(tag, "rel")?.toLowerCase() ?? null;
+      if (rel === "alternate") {
+        return this.decodeEntities(href).trim();
+      }
+
+      if (!fallbackHref) {
+        fallbackHref = href;
+      }
+    }
+
+    if (fallbackHref) {
+      return this.decodeEntities(fallbackHref).trim();
     }
 
     return this.extractTextValue(value, "link");
+  }
+
+  private extractXmlAttribute(value: string, attributeName: string) {
+    const pattern = new RegExp(`\\b${attributeName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i");
+    const match = value.match(pattern);
+    if (!match) {
+      return null;
+    }
+
+    return match[1] ?? match[2] ?? null;
   }
 
   private normalizeText(value: string) {

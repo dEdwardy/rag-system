@@ -178,6 +178,10 @@ export class DocumentsService {
       trigger: DocumentRunTrigger.external_resync
     });
 
+    if (!(await this.shouldContinueCurrentExternalRun(reservedDocument))) {
+      return this.getDocument(reservedDocument.id);
+    }
+
     const fetchedPage = await this.fetchExternalSourceOrRecordFailure(
       reservedDocument,
       () => this.webPageService.fetchWebPage(normalizedUrl)
@@ -218,6 +222,10 @@ export class DocumentsService {
       version: reservedDocument.version,
       trigger: DocumentRunTrigger.external_resync
     });
+
+    if (!(await this.shouldContinueCurrentExternalRun(reservedDocument))) {
+      return this.getDocument(reservedDocument.id);
+    }
 
     const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
       this.feedSourceService.fetchFeed({
@@ -268,6 +276,10 @@ export class DocumentsService {
       version: reservedDocument.version,
       trigger: DocumentRunTrigger.external_resync
     });
+
+    if (!(await this.shouldContinueCurrentExternalRun(reservedDocument))) {
+      return this.getDocument(reservedDocument.id);
+    }
 
     const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
       this.sitemapSourceService.fetchSitemap({
@@ -525,6 +537,8 @@ export class DocumentsService {
     document: {
       id: string;
       version: number;
+      sourceType?: string;
+      sourceName?: string;
     },
     operation: () => Promise<T>
   ) {
@@ -533,13 +547,21 @@ export class DocumentsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown external source fetch error.";
       const retryable = this.isRetryableExternalSourceError(error);
-      const diagnostics = {
+      const diagnostics: Record<string, Prisma.InputJsonValue> = {
         code: "EXTERNAL_SOURCE_FETCH_FAILED",
         failedStage: "source_fetch",
         retryable,
         documentVersion: document.version,
         message
-      } satisfies Prisma.InputJsonValue;
+      };
+
+      if (typeof document.sourceType === "string") {
+        diagnostics.sourceType = document.sourceType;
+      }
+
+      if (typeof document.sourceName === "string") {
+        diagnostics.sourceName = document.sourceName;
+      }
 
       await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
@@ -636,9 +658,18 @@ export class DocumentsService {
       version: queuedDocument.version,
       trigger: DocumentRunTrigger.external_resync
     });
+
+    if (!(await this.shouldContinueCurrentExternalRun(queuedDocument))) {
+      return this.getDocument(document.id);
+    }
+
     const sourceConfig = await this.parseExternalSourceConfigOrRecordFailure(
       queuedDocument,
-      document.sourceConfigJson
+      document.sourceConfigJson,
+      {
+        sourceType: queuedDocument.sourceType ?? document.sourceType,
+        sourceName: queuedDocument.sourceName ?? document.sourceName
+      }
     );
 
     const fetchedSource = await this.fetchExternalSourceOrRecordFailure(queuedDocument, () =>
@@ -688,10 +719,14 @@ export class DocumentsService {
       id: string;
       version: number;
     },
-    value: Prisma.JsonValue | null
+    value: Prisma.JsonValue | null,
+    legacyExternalIdentity?: {
+      sourceType?: string;
+      sourceName?: string;
+    }
   ) {
     try {
-      return this.parseExternalSourceConfig(value);
+      return this.parseExternalSourceConfig(value, legacyExternalIdentity);
     } catch (error) {
       const message = error instanceof Error ? error.message : "External source config is invalid.";
       const diagnostics = {
@@ -737,6 +772,10 @@ export class DocumentsService {
     });
 
     return false;
+  }
+
+  private async shouldContinueCurrentExternalRun(document: { id: string; version: number }) {
+    return this.ensureCurrentExternalDocumentVersion(document);
   }
 
   private async recordIngestionFailureIfCurrent(
@@ -799,8 +838,22 @@ export class DocumentsService {
     return false;
   }
 
-  private parseExternalSourceConfig(value: Prisma.JsonValue | null): ExternalSourceConfig {
+  private parseExternalSourceConfig(
+    value: Prisma.JsonValue | null,
+    legacyExternalIdentity?: {
+      sourceType?: string;
+      sourceName?: string;
+    }
+  ): ExternalSourceConfig {
+    const legacyFallbackConfig = this.resolveLegacyExternalSourceConfigFromDocumentIdentity(
+      legacyExternalIdentity
+    );
+
     if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") {
+      if (legacyFallbackConfig) {
+        return legacyFallbackConfig;
+      }
+
       throw new Error("External source config is missing.");
     }
 
@@ -836,6 +889,20 @@ export class DocumentsService {
     }
 
     throw new Error("External source config is invalid.");
+  }
+
+  private resolveLegacyExternalSourceConfigFromDocumentIdentity(identity?: {
+    sourceType?: string;
+    sourceName?: string;
+  }): ExternalSourceConfig | null {
+    if (!identity || identity.sourceType !== "web_page" || typeof identity.sourceName !== "string") {
+      return null;
+    }
+
+    return {
+      kind: "web_page",
+      url: identity.sourceName
+    };
   }
 
   private async fetchExternalSourceFromConfig(sourceConfig: ExternalSourceConfig): Promise<FetchedExternalSource> {

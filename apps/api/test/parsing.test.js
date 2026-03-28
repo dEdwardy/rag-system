@@ -97,6 +97,45 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
   }
 });
 
+test("FeedSourceService accepts RSS payload when upstream content-type is text/plain", async () => {
+  const originalFetch = global.fetch;
+  const service = new FeedSourceService();
+
+  global.fetch = async () =>
+    new Response(
+      `<?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0">
+        <channel>
+          <title>Fallback Feed</title>
+          <item>
+            <title>Entry One</title>
+            <link>https://example.com/entry-1</link>
+            <description>Fallback feed marker.</description>
+          </item>
+        </channel>
+      </rss>`,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      }
+    );
+
+  try {
+    const extracted = await service.fetchFeed({
+      url: "https://example.com/plain-feed-content-type",
+      maxItems: 1
+    });
+
+    assert.equal(extracted.title, "Fallback Feed");
+    assert.match(extracted.content, /Entry One/);
+    assert.match(extracted.content, /Fallback feed marker\./);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("FeedSourceService extracts normalized title and entry text from RSS", async () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(
@@ -130,6 +169,37 @@ test("FeedSourceService extracts normalized title and entry text from RSS", asyn
   assert.match(extracted.content, /Marker alpha summary\./);
   assert.match(extracted.content, /https:\/\/example\.com\/releases\/a/);
   assert.doesNotMatch(extracted.content, /Release B/);
+});
+
+test("FeedSourceService resolves Atom alternate link with single-quoted attributes and rel/href order variants", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <title>Engineering Updates</title>
+      <entry>
+        <title>Release A</title>
+        <link rel='self' href='https://example.com/feed.xml?entry=release-a' />
+        <link rel='alternate' href='https://example.com/releases/a' />
+        <summary>Marker alpha summary.</summary>
+        <updated>2026-03-21T10:00:00Z</updated>
+      </entry>
+      <entry>
+        <title>Release B</title>
+        <link href='https://example.com/releases/b' rel='alternate' />
+        <summary>Marker beta summary.</summary>
+        <updated>2026-03-22T10:00:00Z</updated>
+      </entry>
+    </feed>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 2
+    }
+  );
+
+  assert.match(extracted.content, /https:\/\/example\.com\/releases\/a/);
+  assert.match(extracted.content, /https:\/\/example\.com\/releases\/b/);
+  assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/feed\.xml\?entry=release-a/);
 });
 
 test("FeedSourceService skips invalid entries and returns partial diagnostics", async () => {
@@ -291,6 +361,40 @@ test("FeedSourceService prefers newest dated entries when maxItems truncates RSS
   });
 });
 
+test("FeedSourceService keeps feed order when mixed timestamp availability would make freshness sorting ambiguous", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item>
+          <title>Entry A</title>
+          <link>https://example.com/a</link>
+        </item>
+        <item>
+          <title>Entry B</title>
+          <link>https://example.com/b</link>
+          <pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Entry C</title>
+          <link>https://example.com/c</link>
+          <pubDate>Tue, 02 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 2
+    }
+  );
+
+  assert.match(extracted.content, /Entry A/);
+  assert.match(extracted.content, /Entry B/);
+  assert.doesNotMatch(extracted.content, /Entry C/);
+});
+
 test("FeedSourceService skips duplicate entries and records dedup diagnostics", () => {
   const service = new FeedSourceService();
   const extracted = service.extractFromXml(
@@ -333,6 +437,39 @@ test("FeedSourceService treats hash-only feed-link variants as duplicates", () =
   assert.equal(extracted.diagnostics?.skippedDuplicateEntryCount, 1);
   assert.deepEqual(extracted.diagnostics?.skippedDuplicateEntryRefs, ["https://example.com/a#latest"]);
   assert.equal(extracted.diagnostics?.partial, true);
+});
+
+test("FeedSourceService deduplicates same-link entries even when metadata differs", () => {
+  const service = new FeedSourceService();
+  const extracted = service.extractFromXml(
+    `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Engineering Updates</title>
+        <item>
+          <title>Entry A</title>
+          <link>https://example.com/a</link>
+          <description>Initial summary.</description>
+          <pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Entry A (updated headline)</title>
+          <link>https://example.com/a</link>
+          <description>Updated summary.</description>
+          <pubDate>Tue, 02 Jan 2024 10:00:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>`,
+    {
+      url: "https://example.com/feed.xml",
+      maxItems: 10
+    }
+  );
+
+  assert.match(extracted.content, /Entry A/);
+  assert.doesNotMatch(extracted.content, /updated headline/);
+  assert.equal(extracted.diagnostics?.skippedDuplicateEntryCount, 1);
+  assert.deepEqual(extracted.diagnostics?.skippedDuplicateEntryRefs, ["https://example.com/a"]);
 });
 
 test("SitemapSourceService extracts ordered unique page URLs from sitemap XML", () => {
@@ -460,6 +597,196 @@ test("SitemapSourceService expands one-level sitemap index into bounded unique p
     assert.match(extracted.content, /https:\/\/example\.com\/docs\/start/);
     assert.match(extracted.content, /https:\/\/example\.com\/docs\/shared/);
     assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/blog\/post-a/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService parses namespaced sitemap index and child urlset tags", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sm:sitemapindex xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sm:sitemap><sm:loc>https://example.com/sitemaps/docs.xml</sm:loc></sm:sitemap>
+          <sm:sitemap><sm:loc>https://example.com/sitemaps/blog.xml</sm:loc></sm:sitemap>
+        </sm:sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/docs.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sm:urlset xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sm:url><sm:loc>https://example.com/docs/start</sm:loc></sm:url>
+        </sm:urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/blog.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <ns:urlset xmlns:ns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <ns:url><ns:loc>https://example.com/blog/post-a</ns:loc></ns:url>
+        </ns:urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/docs/start") {
+      return new Response(
+        "<html><head><title>Docs Start</title></head><body><main><p>Namespaced marker alpha.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/blog/post-a") {
+      return new Response(
+        "<html><head><title>Blog Post A</title></head><body><main><p>Namespaced marker beta.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 5
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/docs\/start/);
+    assert.match(extracted.content, /https:\/\/example\.com\/blog\/post-a/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService accepts unknown/text-plain content-type when sitemap payload is clearly XML", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/docs.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/docs.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/docs/start</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/docs/start") {
+      return new Response(
+        "<html><head><title>Docs Start</title></head><body><main><p>Sitemap fallback marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 5
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/docs\/start/);
+    assert.match(extracted.content, /Sitemap fallback marker\./);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService still rejects text/plain payloads that do not look like sitemap XML", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap.xml") {
+      return new Response("not xml", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    await assert.rejects(
+      service.fetchSitemap({
+        url: "https://example.com/sitemap.xml",
+        maxPages: 5
+      }),
+      error => {
+        assert.match(error.message, /Unsupported sitemap content type: text\/plain/i);
+        return true;
+      }
+    );
   } finally {
     global.fetch = originalFetch;
   }
@@ -973,6 +1300,102 @@ test("SitemapSourceService does not count duplicate child sitemap URLs as droppe
       selectedChildSitemapCount: 2,
       droppedChildSitemapCount: 0
     });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService treats hash-only page URL variants as duplicates across sitemap index children", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/one.xml</loc></sitemap>
+          <sitemap><loc>https://example.com/sitemaps/two.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/one.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/shared#intro</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/two.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/shared#summary</loc></url>
+          <url><loc>https://example.com/pages/unique</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/shared#intro") {
+      return new Response(
+        "<html><head><title>Shared Page</title></head><body><main><p>Shared marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/pages/unique") {
+      return new Response(
+        "<html><head><title>Unique Page</title></head><body><main><p>Unique marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 2
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/shared#intro/);
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/unique/);
+    assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/pages\/shared#summary/);
+    assert.equal(extracted.diagnostics, null);
   } finally {
     global.fetch = originalFetch;
   }

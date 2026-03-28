@@ -74,7 +74,7 @@ pnpm --filter @rag-system/web dev
 
 Default local web URL: `http://localhost:5173`
 
-### 7. Nightly loop helper
+### 7. Optional loop helper
 
 ```bash
 pnpm loop:start
@@ -82,9 +82,9 @@ pnpm loop:status
 pnpm loop:stop
 ```
 
-These commands wrap `scripts/opencode-loop/control.sh`, auto-link the `systemd --user` units, and manage the loop setup for unattended night runs.
+These commands wrap `scripts/opencode-loop/control.sh`, auto-link the `systemd --user` units, and manage a repo-local development harness for unattended runs. This is optional tooling, not product runtime.
 
-If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for backend/docs/orchestration, `apps/web` worktree for frontend, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
+If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for non-pure-frontend work (backend, frontend/backend integration, docs/orchestration), `apps/web` worktree for pure frontend development, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
 
 ## Common Commands
 
@@ -119,6 +119,12 @@ The current codebase supports:
 - file-backed vector retrieval with lexical fallback
 - ask flow with citations, conversations, messages, and traces
 - a web MVP for chat, documents, knowledge base, and assistant configuration
+
+## Product core vs replaceable integrations
+
+- **Product core (keep stable and regression-guarded):** orchestration across ingestion/retrieval/answering, traceability/read-model outputs, fallback behavior, and regression contracts/tests.
+- **Replaceable integration layers (can be swapped without redefining product value):** model provider runtime (Ollama/OpenAI-compatible), vector/embedding backend, chunking/parsing adapters, external source connectors (`web page`/`feed`/`sitemap`), and evaluation/diagnostic helpers.
+- Practical rule: when changing third-party integrations, preserve ask/trace contracts and fallback semantics first; do not treat provider replacement as a core-architecture rewrite.
 
 ## Notes
 

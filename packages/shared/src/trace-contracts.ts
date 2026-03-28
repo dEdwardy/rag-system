@@ -34,6 +34,7 @@ export type TraceAnswerAttributionSummary = {
   source: TraceCitationSelectionSource | null;
   readability: TraceAnswerAttributionReadability | null;
   attributionLabel: string | null;
+  // Uses the same "<kind> evidence source" wording as answerEvidenceSourceReadabilityLabel.
   sourceLabel: string | null;
   readabilityLabel: string | null;
   readabilityHint: string | null;
