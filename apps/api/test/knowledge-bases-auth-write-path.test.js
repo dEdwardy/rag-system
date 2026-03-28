@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 
+const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
 const { KnowledgeBasesController } = require("../src/modules/knowledge-bases/knowledge-bases.controller.ts");
 const { KnowledgeBasesService } = require("../src/modules/knowledge-bases/knowledge-bases.service.ts");
 
@@ -242,4 +243,51 @@ test("KnowledgeBasesService denies read detail when owner check fails", async ()
     service.getKnowledgeBase("kb-1", { tenantId: "tenant-auth", userId: "user-auth" }),
     /Knowledge base kb-1 not found\./
   );
+});
+
+test("DocumentsService verifies document read access through knowledge-base owner check", async () => {
+  const calls = {
+    documentGet: [],
+    knowledgeBaseGet: []
+  };
+
+  const service = new DocumentsService(
+    {
+      document: {
+        findUnique: async args => {
+          calls.documentGet.push(args);
+          return {
+            id: "doc-1",
+            kbId: "kb-1"
+          };
+        }
+      }
+    },
+    {
+      getKnowledgeBase: async (id, scope) => {
+        calls.knowledgeBaseGet.push({ id, scope });
+        return { id };
+      }
+    },
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
+  );
+
+  await service.getDocument("doc-1", { tenantId: "tenant-auth", userId: "user-auth" });
+
+  assert.deepEqual(calls.documentGet, [{ where: { id: "doc-1" } }]);
+  assert.deepEqual(calls.knowledgeBaseGet, [
+    {
+      id: "kb-1",
+      scope: {
+        tenantId: "tenant-auth",
+        userId: "user-auth"
+      }
+    }
+  ]);
 });
