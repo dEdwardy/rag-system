@@ -43,6 +43,7 @@ test("web trace summary type guards current backend summary field set", async ()
   assert.match(sharedSource, /readabilityHint:\s*string \| null;/);
   assert.match(sharedSource, /readabilitySentence:\s*string \| null;/);
   assert.match(sharedSource, /answerAttributionSummary:\s*TraceAnswerAttributionSummary;/);
+  assert.match(sharedSource, /answerAttributionReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /answerProvenanceSentence:\s*string;/);
   assert.match(sharedSource, /strategyReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /answerAttribution:\s*TraceCitationAttribution \| null;/);

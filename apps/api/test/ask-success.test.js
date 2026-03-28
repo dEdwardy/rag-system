@@ -460,6 +460,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     readabilityResolvedLabel: "explicit attribution via structured evidence source",
     readabilitySentence: "Answer attribution is explicit; source evidence is structured."
   });
+  assert.equal(result.answerAttributionReadabilitySentence, "Answer attribution is explicit; source evidence is structured.");
   assert.equal(result.answerAttribution, "explicit");
   assert.equal(result.answerAttributionSource, "structured");
   assert.equal(result.answerEvidenceSource, "structured");

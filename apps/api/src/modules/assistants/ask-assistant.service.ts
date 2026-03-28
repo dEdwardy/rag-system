@@ -194,6 +194,7 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
       return {
         conversationId: conversation.id,
@@ -207,7 +208,9 @@ export class AskAssistantService {
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
         retrievalMetadata,
-        answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
+          ?? "Answer attribution is unknown; source evidence is unknown.",
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
@@ -436,6 +439,7 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
       const finalResult = {
         conversationId: conversation.id,
@@ -449,7 +453,9 @@ export class AskAssistantService {
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
         retrievalMetadata,
-        answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
+          ?? "Answer attribution is unknown; source evidence is unknown.",
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,

@@ -92,6 +92,7 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
       readabilityResolvedLabel: "unknown attribution via unknown evidence source",
       readabilitySentence: "Answer attribution is unknown; source evidence is unknown."
     },
+    answerAttributionReadabilitySentence: "Answer attribution is unknown; source evidence is unknown.",
     answerAttribution: null,
     answerAttributionSource: null,
     answerEvidenceSource: null,
@@ -399,6 +400,7 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       readabilityResolvedLabel: "heuristic attribution via heuristic evidence source",
       readabilitySentence: "Answer attribution is heuristic; source evidence is heuristic."
     },
+    answerAttributionReadabilitySentence: "Answer attribution is heuristic; source evidence is heuristic.",
     answerAttribution: "heuristic",
     answerAttributionSource: "heuristic",
     answerEvidenceSource: "heuristic",

@@ -13,6 +13,16 @@
 
 补充进展（2026-03-28）：
 
+- ✅ ask / ask-stream / trace summary now expose additive top-level `answerAttributionReadabilitySentence`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now reuses `answerAttributionSummary` in one-shot and stream final payloads, and adds `answerAttributionReadabilitySentence` from summary readability text
+  - `apps/api/src/modules/traces/traces.service.ts` now projects the same readability sentence into `traceSummary.answerAttributionReadabilitySentence` for top-level trace readability access
+  - `packages/shared/src/trace-contracts.ts` and `apps/web/src/types/api.ts` are aligned with the additive field (`TraceSummary.answerAttributionReadabilitySentence` + optional `AskResponse.answerAttributionReadabilitySentence`)
+  - focused tests updated in `apps/api/test/traces.service.test.js`, `apps/api/test/ask-success.test.js`, and `apps/api/test/ask-stream-service.test.js`
+  - scope remains readability-only contract convergence: no retrieval behavior changes, no source expansion changes, no persistence/schema semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/traces.service.test.js test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused API tests passed (`74/74`)
+
 - ✅ trace detail execution summary now surfaces trace-summary provenance readability rows
   - `apps/web/src/pages/traces/TraceDetailPage.tsx` now adds two additive execution-summary rows bound to existing trace-summary fields: `answerProvenanceSentence` and `missingInformationProvenanceSentence`
   - `apps/web/test/ui-review-regressions.test.js` adds one focused UI regression guard to ensure these provenance rows remain visible in trace detail

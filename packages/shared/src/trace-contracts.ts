@@ -81,6 +81,7 @@ export type TraceSummary = {
   fallbackReason: TraceFallbackReason | null;
   resolvedLanguage: TraceResolvedLanguage | null;
   answerAttributionSummary: TraceAnswerAttributionSummary;
+  answerAttributionReadabilitySentence: string;
   answerAttribution: TraceCitationAttribution | null;
   answerAttributionSource: TraceCitationSelectionSource | null;
   answerEvidenceSource: TraceCitationSelectionSource | null;

@@ -336,6 +336,8 @@ export class TracesService {
       fallbackReason,
       resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
       answerAttributionSummary,
+      answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
+        ?? "Answer attribution is unknown; source evidence is unknown.",
       answerAttribution: citationAttribution,
       answerAttributionSource: citationSelectionSource,
       answerEvidenceSource,

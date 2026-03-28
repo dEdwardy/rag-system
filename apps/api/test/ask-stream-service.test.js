@@ -132,6 +132,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, null);
   assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
   assert.equal(finalResult.answeringMetadata.generationMode, "generated");
+  assert.equal(finalResult.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(finalResult.answerEvidenceSource, "none");
   assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
   assert.equal(
@@ -139,6 +140,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
     "vector retrieval via original_unchanged; fallback: none; fallback used: no."
   );
   assert.equal(events[5].data.answerEvidenceSource, "none");
+  assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
   assert.equal(
     events[5].data.strategyReadabilityLabel,

@@ -386,6 +386,7 @@ export type AskResponse = {
   strategyReadabilityLabel?: TraceSummary["strategyReadabilityLabel"];
   retrievalMetadata?: AskRetrievalMetadata;
   answerAttributionSummary?: TraceAnswerAttributionSummary;
+  answerAttributionReadabilitySentence?: TraceSummary["answerAttributionReadabilitySentence"];
   answerAttribution?: TraceCitationAttribution | null;
   answerAttributionSource?: TraceCitationSelectionSource | null;
   answerEvidenceSource?: TraceCitationSelectionSource | null;
