@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
+  AuditEventRecord,
   AuthMeResponse,
   AskResponse,
   AskStreamEvent,
@@ -15,6 +16,7 @@ import {
   KnowledgeBaseDocumentRunSummary,
   EvalQuestionSetRunResult,
   EvalQuestionSetRunQualityGateMode,
+  HealthResponse,
   Message,
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -30,6 +32,51 @@ export function useAuthMe(enabled = true) {
     queryFn: () => apiRequest<AuthMeResponse>("/auth/me"),
     enabled,
     retry: false
+  });
+}
+
+export function useApiHealth() {
+  return useQuery({
+    queryKey: ["health"],
+    queryFn: () => apiRequest<HealthResponse>("/health"),
+    retry: false,
+    refetchInterval: 30000
+  });
+}
+
+export function useAuditEvents(
+  input: {
+    source?: "all" | "trace" | "document_run";
+    issueOnly?: boolean;
+    sinceHours?: number;
+    query?: string;
+    limit?: number;
+  } = {}
+) {
+  return useQuery({
+    queryKey: ["audit-events", input],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (input.source != null) {
+        params.set("source", input.source);
+      }
+      if (input.issueOnly != null) {
+        params.set("issueOnly", String(input.issueOnly));
+      }
+      if (input.sinceHours != null) {
+        params.set("sinceHours", String(input.sinceHours));
+      }
+      if (input.query != null && input.query.trim().length > 0) {
+        params.set("query", input.query.trim());
+      }
+      if (input.limit != null) {
+        params.set("limit", String(input.limit));
+      }
+
+      const query = params.toString();
+      return apiRequest<AuditEventRecord[]>(`/audit/events${query ? `?${query}` : ""}`);
+    },
+    refetchInterval: 15000
   });
 }
 

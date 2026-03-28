@@ -72,6 +72,19 @@
   - focused validation：
     - `pnpm test:api:file -- test/traces.service.test.js`
 
+- ✅ P6 v1 usage page now includes a lightweight health dashboard to surface core operational status without expanding into a generic ops platform
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/features/api/hooks.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - usage 页面新增 `P6 v1 health dashboard` 面板，聚合 `GET /health`、`GET /knowledge-bases/:id/document-runs/summary?sinceHours=24`、`GET /audit/events?issueOnly=true&sinceHours=24&limit=5` 三类已有信号
+    - 面板仅展示 4 个核心健康读数（API、run backlog、24h issue events、failed runs）和最近问题事件简表，保持“快速态势感知”而非完整运维平台
+    - 保持 backend contract 不变，仅在 web 侧补充轻量 hooks 与已有数据投影
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ auth v1 owner-scope ACL denials now expose explicit permission-denied hints so blocked access returns a clear rejection state
   - 变更文件：
     - `apps/api/src/modules/auth/resource-access-policy.contract.ts`

@@ -33,6 +33,21 @@ export type AuthMeResponse = {
   currentIdentity: AuthIdentity;
 };
 
+export type HealthResponse = {
+  status: "ok";
+};
+
+export type AuditEventRecord = {
+  id: string;
+  kind: "trace" | "document_run";
+  entityId: string;
+  event: string;
+  status: string;
+  occurredAt: string;
+  summary: string | null;
+  details: Record<string, unknown>;
+};
+
 export type StringIncludeExcludeFilter = {
   include?: string[];
   exclude?: string[];

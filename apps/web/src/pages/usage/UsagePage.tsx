@@ -2,15 +2,26 @@ import { Badge, Button, Paper } from "@mantine/core";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { useAssistants, useConversations, useDocuments, useKnowledgeBases } from "../../features/api/hooks";
+import {
+  useApiHealth,
+  useAssistants,
+  useAuditEvents,
+  useConversations,
+  useDocuments,
+  useKnowledgeBaseDocumentRunSummary,
+  useKnowledgeBases
+} from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 
 export function UsagePage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
   const conversationsQuery = useConversations();
+  const apiHealthQuery = useApiHealth();
+  const auditEventsQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 5 });
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
+  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 24 });
   const { locale } = useI18n();
 
   const documents = documentsQuery.data ?? [];
@@ -70,6 +81,67 @@ export function UsagePage() {
         documentsQuery.isLoading),
     [assistantsQuery.isLoading, conversationsQuery.isLoading, documentsQuery.isLoading, hasError, knowledgeBasesQuery.isLoading]
   );
+
+  const runSummary = runSummaryQuery.data;
+  const pendingRunCount =
+    (runSummary?.byStatus.pending ?? 0) + (runSummary?.byStatus.processing ?? 0);
+  const recentIssueCount = auditEventsQuery.data?.length ?? 0;
+  const isApiHealthy = apiHealthQuery.data?.status === "ok";
+  const hasRecentFailure = (runSummary?.retryableFailures ?? 0) + (runSummary?.nonRetryableFailures ?? 0) > 0;
+  const healthSignals = useMemo(
+    () => [
+      {
+        label: locale === "zh" ? "API" : "API",
+        tone: isApiHealthy ? "green" : apiHealthQuery.isLoading ? "gray" : "red",
+        value: isApiHealthy
+          ? locale === "zh"
+            ? "正常"
+            : "healthy"
+          : apiHealthQuery.isLoading
+            ? locale === "zh"
+              ? "检查中"
+              : "checking"
+            : locale === "zh"
+              ? "不可用"
+              : "unhealthy"
+      },
+      {
+        label: locale === "zh" ? "运行积压" : "Run backlog",
+        tone: pendingRunCount > 0 ? "yellow" : "green",
+        value: pendingRunCount > 0 ? `${pendingRunCount}` : locale === "zh" ? "无" : "none"
+      },
+      {
+        label: locale === "zh" ? "最近 24h 问题事件" : "Issue events (24h)",
+        tone: recentIssueCount > 0 ? "orange" : "green",
+        value: String(recentIssueCount)
+      },
+      {
+        label: locale === "zh" ? "失败运行" : "Failed runs",
+        tone: hasRecentFailure ? "red" : "green",
+        value: hasRecentFailure
+          ? `${runSummary?.retryableFailures ?? 0} / ${runSummary?.nonRetryableFailures ?? 0}`
+          : locale === "zh"
+            ? "无"
+            : "none"
+      }
+    ],
+    [
+      apiHealthQuery.isLoading,
+      hasRecentFailure,
+      isApiHealthy,
+      locale,
+      pendingRunCount,
+      recentIssueCount,
+      runSummary?.nonRetryableFailures,
+      runSummary?.retryableFailures
+    ]
+  );
+
+  const healthPanelErrorMessage =
+    (apiHealthQuery.error instanceof Error && apiHealthQuery.error.message) ||
+    (runSummaryQuery.error instanceof Error && runSummaryQuery.error.message) ||
+    (auditEventsQuery.error instanceof Error && auditEventsQuery.error.message) ||
+    null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -203,6 +275,92 @@ export function UsagePage() {
               <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/reports" variant="light">
                 {locale === "zh" ? "打开报告中心" : "Open report center"}
               </Button>
+            </div>
+          </Paper>
+
+          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 健康看板" : "P6 v1 health dashboard"}</div>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                    {locale === "zh"
+                      ? "聚合 API 存活、文档运行摘要和问题事件，快速判断当前工作区是否可继续运行。"
+                      : "Combine API heartbeat, document-run summary, and issue events for a quick workspace-operational check."}
+                  </p>
+                </div>
+                <Badge color={healthPanelErrorMessage ? "red" : "indigo"} radius="sm" variant="light">
+                  {healthPanelErrorMessage
+                    ? locale === "zh"
+                      ? "部分信号加载失败"
+                      : "partial signal load failure"
+                    : locale === "zh"
+                      ? "轻量运行视图"
+                      : "light operational view"}
+                </Badge>
+              </div>
+
+              {healthPanelErrorMessage ? (
+                <StatePanel
+                  description={healthPanelErrorMessage}
+                  title={locale === "zh" ? "健康看板信号加载失败" : "Failed to load health dashboard signals"}
+                  tone="error"
+                />
+              ) : null}
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {healthSignals.map(signal => (
+                  <div className="workspace-subpanel rounded-[20px] p-4" key={signal.label}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="workspace-section-heading">{signal.label}</div>
+                      <Badge color={signal.tone} radius="sm" variant="light">
+                        {signal.value}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+                <div className="workspace-subpanel rounded-[20px] p-4">
+                  <div className="workspace-section-heading">
+                    {locale === "zh" ? "最近问题事件（24h）" : "Recent issue events (24h)"}
+                  </div>
+                  {auditEventsQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : recentIssueCount === 0 ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                      {locale === "zh" ? "最近 24 小时没有新的问题事件。" : "No issue events in the last 24 hours."}
+                    </p>
+                  ) : (
+                    <ul className="mt-3 flex list-disc flex-col gap-2 pl-5 text-sm text-[var(--app-text-muted)]">
+                      {(auditEventsQuery.data ?? []).map(event => (
+                        <li key={event.id}>
+                          <span className="font-medium text-[var(--app-text)]">{event.event}</span>
+                          {" · "}
+                          {event.summary ?? event.entityId}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/traces" variant="light">
+                    {locale === "zh" ? "查看 Trace" : "Open traces"}
+                  </Button>
+                  <Button
+                    className="workspace-button"
+                    color="indigo"
+                    component={Link}
+                    radius="xl"
+                    to="/knowledge-base"
+                    variant="light"
+                  >
+                    {locale === "zh" ? "查看运行摘要" : "Open run summary"}
+                  </Button>
+                </div>
+              </div>
             </div>
           </Paper>
         </>
