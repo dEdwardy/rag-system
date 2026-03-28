@@ -13,6 +13,14 @@
 
 补充进展（2026-03-28）：
 
+- ✅ sitemap source fetch now tolerates missing/`text/plain` content-type only when payload clearly looks like sitemap XML
+  - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now applies one narrow sitemap payload fallback in both root sitemap fetch and child sitemap fetch path: when `content-type` is missing (`unknown`) or starts with `text/plain`, payloads containing `<urlset>` or `<sitemapindex>` proceed through existing sitemap parsing
+  - strict behavior is preserved for non-sitemap payloads under `text/plain`/missing content-type (`Unsupported sitemap content type` remains)
+  - `apps/api/test/parsing.test.js` adds focused regression coverage for sitemap-index root `unknown` content-type + child `text/plain` sitemap XML acceptance, and a guard test that `text/plain` non-XML payload still fails
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/parsing.test.js`
+  - 实测结果：focused parsing tests passed (`28/28`)
+
 - ✅ sitemap-index parsing now accepts namespaced XML tags (`<sm:sitemapindex>`, `<sm:urlset>`) in one-level index expansion flow
   - `apps/api/src/infra/sitemap-source/sitemap-source.service.ts` now uses namespace-tolerant sitemap regex patterns for root format detection and `<url>/<loc>` / `<sitemap>/<loc>` extraction, so valid prefixed sitemap-index payloads no longer fail as unsupported format
   - `apps/api/test/parsing.test.js` adds focused regression coverage for namespaced sitemap-index + namespaced child urlset parsing

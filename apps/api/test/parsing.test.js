@@ -664,6 +664,103 @@ test("SitemapSourceService parses namespaced sitemap index and child urlset tags
   }
 });
 
+test("SitemapSourceService accepts unknown/text-plain content-type when sitemap payload is clearly XML", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <sitemap><loc>https://example.com/sitemaps/docs.xml</loc></sitemap>
+        </sitemapindex>`,
+        {
+          status: 200
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/sitemaps/docs.xml") {
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/docs/start</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    if (normalizedUrl === "https://example.com/docs/start") {
+      return new Response(
+        "<html><head><title>Docs Start</title></head><body><main><p>Sitemap fallback marker.</p></main></body></html>",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 5
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/docs\/start/);
+    assert.match(extracted.content, /Sitemap fallback marker\./);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("SitemapSourceService still rejects text/plain payloads that do not look like sitemap XML", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap.xml") {
+      return new Response("not xml", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    await assert.rejects(
+      service.fetchSitemap({
+        url: "https://example.com/sitemap.xml",
+        maxPages: 5
+      }),
+      error => {
+        assert.match(error.message, /Unsupported sitemap content type: text\/plain/i);
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("SitemapSourceService tolerates partial sitemap page failures and returns structured diagnostics", async () => {
   const originalFetch = global.fetch;
   const service = new SitemapSourceService(new WebPageService());

@@ -140,12 +140,9 @@ export class SitemapSourceService {
       throw this.buildUpstreamFetchError("Failed to fetch sitemap", response.status);
     }
 
-    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isSupportedSitemapContentType(contentType)) {
-      throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
-    }
-
     const xml = await response.text();
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    this.assertSupportedSitemapPayload(contentType, xml);
     const resolvedSitemap = await this.resolvePageUrls(xml, options);
     const builtSitemap = await this.buildCombinedContent(
       options.url,
@@ -472,6 +469,27 @@ export class SitemapSourceService {
     return contentType.startsWith("application/xml") || contentType.startsWith("text/xml");
   }
 
+  private isContentTypeFallbackEligible(contentType: string) {
+    return !contentType || contentType.startsWith("text/plain");
+  }
+
+  private looksLikeSitemapPayload(payload: string) {
+    const normalizedPayload = payload.trim();
+    return URLSET_TAG_PATTERN.test(normalizedPayload) || SITEMAP_INDEX_TAG_PATTERN.test(normalizedPayload);
+  }
+
+  private assertSupportedSitemapPayload(contentType: string, payload: string) {
+    if (this.isSupportedSitemapContentType(contentType)) {
+      return;
+    }
+
+    if (this.isContentTypeFallbackEligible(contentType) && this.looksLikeSitemapPayload(payload)) {
+      return;
+    }
+
+    throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
+  }
+
   private extractChildSitemapUrls(xml: string) {
     const extractedChildSitemapUrls = [...xml.matchAll(CHILD_SITEMAP_ENTRY_PATTERN)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
@@ -559,12 +577,11 @@ export class SitemapSourceService {
       throw this.buildUpstreamFetchError("Failed to fetch sitemap", response.status);
     }
 
+    const xml = await response.text();
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isSupportedSitemapContentType(contentType)) {
-      throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
-    }
+    this.assertSupportedSitemapPayload(contentType, xml);
 
-    return response.text();
+    return xml;
   }
 
   private normalizePageFetchError(error: unknown) {
