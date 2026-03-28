@@ -4,6 +4,7 @@ import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import {
   chooseEvalQuestionSetBaselineSchema,
   createEvalQuestionSetSchema,
+  runEvalQuestionSetSchema,
   updateEvalQuestionSetSchema
 } from "./eval-question-set.schemas";
 import { EvalQuestionSetsService } from "./eval-question-sets.service";
@@ -72,6 +73,20 @@ export class EvalQuestionSetsController {
     });
 
     return this.evalQuestionSetsService.chooseBaselineSnapshot(id, input, authContext.identity);
+  }
+
+  @Post(":id/runs")
+  runQuestionSet(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const input = runEvalQuestionSetSchema.parse(body);
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.evalQuestionSetsService.runQuestionSet(id, input, authContext.identity);
   }
 
   @Get(":id/baselines/compare")

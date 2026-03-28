@@ -23,7 +23,11 @@ function buildRequest() {
   };
 }
 
-test("EvalQuestionSetsController forwards request identity for create/update/lock/archive/baseline", async () => {
+function buildService(prisma, askAssistantService = { askAssistant: async () => ({}) }) {
+  return new EvalQuestionSetsService(prisma, askAssistantService);
+}
+
+test("EvalQuestionSetsController forwards request identity for create/update/lock/archive/baseline/run", async () => {
   const calls = [];
   const controller = new EvalQuestionSetsController({
     createQuestionSet: async (input, identity) => {
@@ -53,6 +57,10 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
     compareWithBaseline: async (id, identity) => {
       calls.push({ type: "compare-baseline", id, identity });
       return { hasBaseline: true };
+    },
+    runQuestionSet: async (id, input, identity) => {
+      calls.push({ type: "run", id, input, identity });
+      return { id: "run-1" };
     }
   });
 
@@ -64,6 +72,7 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
   await controller.snapshotBaseline("set-1", request);
   await controller.chooseBaseline("set-1", { snapshotId: "snapshot-1" }, request);
   await controller.compareWithBaseline("set-1", request);
+  await controller.runQuestionSet("set-1", { assistantId: "assistant-1" }, request);
 
   assert.deepEqual(calls, [
     {
@@ -109,6 +118,14 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
       type: "compare-baseline",
       id: "set-1",
       identity: request.authContext.currentIdentity
+    },
+    {
+      type: "run",
+      id: "set-1",
+      input: {
+        assistantId: "assistant-1"
+      },
+      identity: request.authContext.currentIdentity
     }
   ]);
 });
@@ -120,7 +137,7 @@ test("EvalQuestionSetsService writes question-set ownership from auth identity",
     create: []
   };
 
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     tenant: {
       findUnique: async ({ where }) => {
         calls.ensureTenant.push(where);
@@ -169,7 +186,7 @@ test("EvalQuestionSetsService writes question-set ownership from auth identity",
 });
 
 test("EvalQuestionSetsService blocks editing locked sets", async () => {
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     evalQuestionSet: {
       findFirst: async () => ({
         id: "set-locked",
@@ -197,7 +214,7 @@ test("EvalQuestionSetsService blocks editing locked sets", async () => {
 
 test("EvalQuestionSetsService lock operation sets locked status and timestamp", async () => {
   const calls = [];
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     evalQuestionSet: {
       findFirst: async () => ({
         id: "set-1",
@@ -227,7 +244,7 @@ test("EvalQuestionSetsService lock operation sets locked status and timestamp", 
 
 test("EvalQuestionSetsService archive operation sets archived status and timestamp", async () => {
   const calls = [];
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     evalQuestionSet: {
       findFirst: async () => ({
         id: "set-1",
@@ -257,7 +274,7 @@ test("EvalQuestionSetsService archive operation sets archived status and timesta
 
 test("EvalQuestionSetsService increments current version when updating editable fields", async () => {
   const calls = [];
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     evalQuestionSet: {
       findFirst: async () => ({
         id: "set-1",
@@ -292,7 +309,7 @@ test("EvalQuestionSetsService snapshot baseline creates immutable snapshot for c
   const calls = {
     create: []
   };
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     evalQuestionSet: {
       findFirst: async () => ({
         id: "set-1",
@@ -334,7 +351,7 @@ test("EvalQuestionSetsService snapshot baseline creates immutable snapshot for c
 
 test("EvalQuestionSetsService choose baseline assigns selected snapshot", async () => {
   const calls = [];
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     evalQuestionSet: {
       findFirst: async ({ where }) => {
         if (where.id === "set-1") {
@@ -379,7 +396,7 @@ test("EvalQuestionSetsService choose baseline assigns selected snapshot", async 
 });
 
 test("EvalQuestionSetsService compare baseline returns diff summary", async () => {
-  const service = new EvalQuestionSetsService({
+  const service = buildService({
     evalQuestionSet: {
       findFirst: async ({ where }) => {
         if (where.id === "set-1") {
@@ -430,6 +447,155 @@ test("EvalQuestionSetsService compare baseline returns diff summary", async () =
       added: 1,
       removed: 1,
       unchanged: 1
+    }
+  });
+});
+
+test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot questions", async () => {
+  const askCalls = [];
+  const service = buildService(
+    {
+      evalQuestionSet: {
+        findFirst: async ({ where }) => {
+          if (where.id === "set-1") {
+            return {
+              id: "set-1",
+              tenantId: "tenant-auth",
+              ownerId: "user-auth",
+              baselineSnapshotId: "snapshot-selected"
+            };
+          }
+
+          return null;
+        }
+      },
+      evalQuestionSetBaselineSnapshot: {
+        findFirst: async ({ where }) => ({
+          id: where.id,
+          version: 2,
+          questionsJson: ["Q1", "Q2"]
+        })
+      }
+    },
+    {
+      askAssistant: async input => {
+        askCalls.push(input);
+        return {
+          traceId: `trace-${askCalls.length}`,
+          conversationId: `conv-${askCalls.length}`,
+          answerStatus: "grounded",
+          citations: [{ id: `citation-${askCalls.length}` }],
+          qualityEvaluation: {
+            overall: "strong",
+            primaryIssue: "none"
+          },
+          answeringMetadata: {
+            usedFallback: false
+          }
+        };
+      }
+    }
+  );
+
+  const result = await service.runQuestionSet(
+    "set-1",
+    {
+      assistantId: "assistant-1"
+    },
+    {
+      tenantId: "tenant-auth",
+      userId: "user-auth",
+      sessionId: "session-1",
+      authSource: "session"
+    }
+  );
+
+  assert.equal(result.baselineSnapshotId, "snapshot-selected");
+  assert.deepEqual(result.totals, {
+    total: 2,
+    succeeded: 2,
+    failed: 0
+  });
+  assert.equal(result.items[0].status, "succeeded");
+  assert.equal(result.items[0].qualityOverall, "strong");
+  assert.equal(result.items[0].citationCount, 1);
+  assert.deepEqual(
+    askCalls.map(call => ({ assistantId: call.assistantId, question: call.question })),
+    [
+      { assistantId: "assistant-1", question: "Q1" },
+      { assistantId: "assistant-1", question: "Q2" }
+    ]
+  );
+});
+
+test("EvalQuestionSetsService runQuestionSet allows baseline override and captures ask failures", async () => {
+  const service = buildService(
+    {
+      evalQuestionSet: {
+        findFirst: async () => ({
+          id: "set-1",
+          tenantId: "tenant-auth",
+          ownerId: "user-auth",
+          baselineSnapshotId: "snapshot-selected"
+        })
+      },
+      evalQuestionSetBaselineSnapshot: {
+        findFirst: async ({ where }) => ({
+          id: where.id,
+          version: 4,
+          questionsJson: ["Q1"]
+        })
+      }
+    },
+    {
+      askAssistant: async () => {
+        throw Object.assign(new Error("Ask pipeline failed."), {
+          getResponse() {
+            return {
+              message: "Ask pipeline failed.",
+              code: "ASK_PIPELINE_FAILED",
+              traceId: "trace-err"
+            };
+          }
+        });
+      }
+    }
+  );
+
+  const result = await service.runQuestionSet(
+    "set-1",
+    {
+      assistantId: "assistant-1",
+      baselineSnapshotId: "snapshot-override"
+    },
+    {
+      tenantId: "tenant-auth",
+      userId: "user-auth",
+      sessionId: "session-1",
+      authSource: "session"
+    }
+  );
+
+  assert.equal(result.baselineSnapshotId, "snapshot-override");
+  assert.deepEqual(result.totals, {
+    total: 1,
+    succeeded: 0,
+    failed: 1
+  });
+  assert.deepEqual(result.items[0], {
+    index: 1,
+    question: "Q1",
+    status: "failed",
+    traceId: "trace-err",
+    conversationId: null,
+    answerStatus: null,
+    qualityOverall: null,
+    qualityPrimaryIssue: null,
+    citationCount: 0,
+    usedFallback: null,
+    error: {
+      message: "Ask pipeline failed.",
+      code: "ASK_PIPELINE_FAILED"
     }
   });
 });

@@ -22,6 +22,14 @@ export const chooseEvalQuestionSetBaselineSchema = z
   })
   .strict();
 
+export const runEvalQuestionSetSchema = z
+  .object({
+    assistantId: z.string().trim().min(1).max(191),
+    baselineSnapshotId: z.string().trim().min(1).max(191).optional()
+  })
+  .strict();
+
 export type CreateEvalQuestionSetInput = z.infer<typeof createEvalQuestionSetSchema>;
 export type UpdateEvalQuestionSetInput = z.infer<typeof updateEvalQuestionSetSchema>;
 export type ChooseEvalQuestionSetBaselineInput = z.infer<typeof chooseEvalQuestionSetBaselineSchema>;
+export type RunEvalQuestionSetInput = z.infer<typeof runEvalQuestionSetSchema>;
