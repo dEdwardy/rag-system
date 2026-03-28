@@ -14,6 +14,7 @@ const { AssistantsController } = require("../src/modules/assistants/assistants.c
 const { ConversationsController } = require("../src/modules/conversations/conversations.controller.ts");
 const { DocumentsController } = require("../src/modules/documents/documents.controller.ts");
 const { KnowledgeBasesController } = require("../src/modules/knowledge-bases/knowledge-bases.controller.ts");
+const { RetrievalProfilesController } = require("../src/modules/retrieval-profiles/retrieval-profiles.controller.ts");
 const { TracesController } = require("../src/modules/traces/traces.controller.ts");
 
 test("SessionCookieAuthProvider returns null when session cookie is missing", async () => {
@@ -366,6 +367,7 @@ test("owner-scoped business controllers are marked authenticated while auth and 
     DocumentsController,
     AssistantsController,
     ConversationsController,
+    RetrievalProfilesController,
     TracesController
   ];
 

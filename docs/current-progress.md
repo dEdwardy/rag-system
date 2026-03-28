@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 route policy baseline now also protects retrieval-profile APIs under the authenticated surface split
+  - 变更文件：
+    - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `apps/api/test/auth-surface-route-policy.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `RetrievalProfilesController` now carries class-level `@AuthenticatedRoute()` metadata, so retrieval-profile endpoints join the authenticated route surface in auth v1
+    - route-policy coverage tests now include retrieval-profile controller metadata checks to keep public/authenticated separation explicit
+    - scope remains route-protection baseline only: no retrieval-profile service semantics change, no ACL matrix expansion, no guard-logic redesign
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js test/auth-surface-route-policy.test.js`
+
 - ✅ auth v1 session provider now includes minimal lifecycle management (activity touch + invalidation-on-read)
   - 变更文件：
     - `apps/api/src/modules/auth/session-cookie-auth.provider.ts`

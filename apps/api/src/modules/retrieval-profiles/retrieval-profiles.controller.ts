@@ -3,8 +3,10 @@ import {
   createRetrievalProfileSchema,
   updateRetrievalProfileSchema
 } from "./retrieval-profile.schemas";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import { RetrievalProfilesService } from "./retrieval-profiles.service";
 
+@AuthenticatedRoute()
 @Controller("retrieval-profiles")
 export class RetrievalProfilesController {
   constructor(private readonly retrievalProfilesService: RetrievalProfilesService) {}
@@ -31,4 +33,3 @@ export class RetrievalProfilesController {
     return this.retrievalProfilesService.updateRetrievalProfile(id, input);
   }
 }
-
