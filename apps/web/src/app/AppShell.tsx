@@ -10,7 +10,7 @@ const APP_SHELL_THEME = {
 } as const;
 
 type NavIconProps = {
-  type: "chat" | "documents" | "knowledge" | "assistant" | "trace" | "usage";
+  type: "chat" | "documents" | "knowledge" | "assistant" | "trace" | "usage" | "report";
 };
 
 type NavItem = {
@@ -37,6 +37,7 @@ const APP_SHELL_TEXT: Record<Locale, {
   assistant: string;
   traceLog: string;
   usage: string;
+  reportCenter: string;
   fallbackActiveLabel: string;
 }> = {
   zh: {
@@ -48,6 +49,7 @@ const APP_SHELL_TEXT: Record<Locale, {
     assistant: "助手配置",
     traceLog: "Trace 日志",
     usage: "使用统计",
+    reportCenter: "报告中心",
     fallbackActiveLabel: "对话"
   },
   en: {
@@ -59,6 +61,7 @@ const APP_SHELL_TEXT: Record<Locale, {
     assistant: "Assistant",
     traceLog: "Trace log",
     usage: "Usage",
+    reportCenter: "Report center",
     fallbackActiveLabel: "Chat"
   }
 };
@@ -80,7 +83,8 @@ function buildNavGroups(locale: Locale, badges: { documentBadge: string | null; 
       heading: text.tracingHeading,
       items: [
         { to: "/traces", label: text.traceLog, icon: "trace" },
-        { to: "/usage", label: text.usage, icon: "usage" }
+        { to: "/usage", label: text.usage, icon: "usage" },
+        { to: "/reports", label: text.reportCenter, icon: "report" }
       ]
     }
   ];
@@ -97,6 +101,10 @@ function isLinkActivePath(pathname: string, link: NavItem) {
 
   if (link.to === "/traces") {
     return pathname === "/traces" || pathname.startsWith("/traces/");
+  }
+
+  if (link.to === "/reports") {
+    return pathname === "/reports";
   }
 
   return pathname === link.to;
@@ -143,11 +151,20 @@ function NavIcon({ type }: NavIconProps) {
               ? (
                 <path d="M22 12h-4l-3 9-6-18-3 9H2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
               )
-              : (
+              : type === "usage"
+                ? (
+                  <>
+                    <line x1="18" x2="18" y1="20" y2="10" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                    <line x1="12" x2="12" y1="20" y2="4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                    <line x1="6" x2="6" y1="20" y2="14" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  </>
+                )
+                : (
                 <>
-                  <line x1="18" x2="18" y1="20" y2="10" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                  <line x1="12" x2="12" y1="20" y2="4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                  <line x1="6" x2="6" y1="20" y2="14" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <path d="M4 4h16v16H4z" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" />
+                  <path d="M8 8h8" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <path d="M8 12h8" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <path d="M8 16h5" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
                 </>
               );
 

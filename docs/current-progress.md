@@ -15,6 +15,22 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 report center is now a dedicated route that groups eval outputs and quality summaries in one place (without expanding usage into a generic dashboard)
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/src/app/router.tsx`
+    - `apps/web/src/app/AppShell.tsx`
+    - `apps/web/test/trace-router.test.js`
+    - `apps/web/test/desktop-shell-consistency.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `/reports`（Report center）页面，集中承载 P5 v1 eval run 触发、题目级输出列表、以及质量汇总读数（成功率/grounded/strong/fallback/平均引用 + quality distribution）
+    - `Usage` 页面保留 workspace usage 统计，并改为指向 report center 的入口，避免将该页继续演进为通用仪表盘平台
+    - 左侧导航新增 `Report center` 路由入口，保持 trace/usage/report 三者并列
+  - focused validation：
+    - `node --test apps/web/test/trace-router.test.js apps/web/test/desktop-shell-consistency.test.js`
+
 - ✅ route policy baseline now marks owner-scoped business controllers as authenticated while keeping auth/health public
   - 变更文件：
     - `apps/api/src/modules/knowledge-bases/knowledge-bases.controller.ts`
@@ -31,6 +47,14 @@
     - `docs/current-dev-setup.md` now reflects the authenticated business-route baseline
   - 新增 / 更新验证：
     - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ opencode loop session titles now show remaining queue work and omit the year
+  - `scripts/opencode-loop/runtime.mjs` titles now read like `loop #N · X left · <item-id> · MM-DD HH:mm:ss`
+  - `scripts/opencode-loop/planner.mjs` titles now use the same no-year session time format
+  - `scripts/opencode-loop/queue.mjs` adds a shared `formatSessionTitleTime()` helper for loop session titles
+  - `scripts/opencode-loop/self-test.mjs` now checks the clearer title shape
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
 
 - ✅ ACL docs and focused regression baseline are now aligned to the implemented owner-only access rules
   - 变更文件：
@@ -199,6 +223,13 @@
   - 新增 / 更新验证：
     - `node scripts/opencode-loop.mjs --self-test`
   - 实测结果：self-test passed
+
+- 📝 RAG 质量证明方向已整理为后续可执行清单（暂未进入 queue）
+  - 已在 `docs/next_steps_rag_project_plan.md` 新增 `P5：RAG 质量证明（eval / regression / demo）`
+  - 这一波次明确拆分了两类工作：
+    - **可自动化**：固定题集执行、指标采集、regression report、demo 回放
+    - **需要人工**：题集挑选、期望答案 / 期望引用标注、基线文档集版本确认、开放式答案验收
+  - 当前仍保持“先记录、后进入 queue”的方式，等抽空再把该波次拆成可执行 queue item
 
 - ✅ source-fetch redirect diagnostics now keep a bounded raw redirect target in invalid/non-HTTP redirect-follow errors
    - `apps/api/src/infra/http/fetch-with-retry.ts` now appends bounded raw `Location` text (`...<truncated>` when long) on two existing redirect-follow failure paths: invalid redirect location and non-`http(s)` redirect target

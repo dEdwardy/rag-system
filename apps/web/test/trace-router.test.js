@@ -9,5 +9,6 @@ test("router registers traces list and detail routes", async () => {
   assert.match(routerSource, /path:\s*"traces"/);
   assert.match(routerSource, /path:\s*"traces\/:traceId"/);
   assert.match(routerSource, /path:\s*"usage"/);
+  assert.match(routerSource, /path:\s*"reports"/);
   assert.doesNotMatch(routerSource, /path:\s*"knowledge-base"[\s\S]*path:\s*"knowledge-base"/);
 });
