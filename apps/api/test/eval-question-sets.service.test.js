@@ -23,7 +23,7 @@ function buildRequest() {
   };
 }
 
-test("EvalQuestionSetsController forwards request identity for create/update/lock/archive", async () => {
+test("EvalQuestionSetsController forwards request identity for create/update/lock/archive/baseline", async () => {
   const calls = [];
   const controller = new EvalQuestionSetsController({
     createQuestionSet: async (input, identity) => {
@@ -41,6 +41,18 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
     archiveQuestionSet: async (id, identity) => {
       calls.push({ type: "archive", id, identity });
       return { id };
+    },
+    snapshotBaseline: async (id, identity) => {
+      calls.push({ type: "snapshot-baseline", id, identity });
+      return { id: "snapshot-1" };
+    },
+    chooseBaselineSnapshot: async (id, input, identity) => {
+      calls.push({ type: "choose-baseline", id, input, identity });
+      return { id };
+    },
+    compareWithBaseline: async (id, identity) => {
+      calls.push({ type: "compare-baseline", id, identity });
+      return { hasBaseline: true };
     }
   });
 
@@ -49,6 +61,9 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
   await controller.updateQuestionSet("set-1", { name: "Updated" }, request);
   await controller.lockQuestionSet("set-1", request);
   await controller.archiveQuestionSet("set-1", request);
+  await controller.snapshotBaseline("set-1", request);
+  await controller.chooseBaseline("set-1", { snapshotId: "snapshot-1" }, request);
+  await controller.compareWithBaseline("set-1", request);
 
   assert.deepEqual(calls, [
     {
@@ -74,6 +89,24 @@ test("EvalQuestionSetsController forwards request identity for create/update/loc
     },
     {
       type: "archive",
+      id: "set-1",
+      identity: request.authContext.currentIdentity
+    },
+    {
+      type: "snapshot-baseline",
+      id: "set-1",
+      identity: request.authContext.currentIdentity
+    },
+    {
+      type: "choose-baseline",
+      id: "set-1",
+      input: {
+        snapshotId: "snapshot-1"
+      },
+      identity: request.authContext.currentIdentity
+    },
+    {
+      type: "compare-baseline",
       id: "set-1",
       identity: request.authContext.currentIdentity
     }
@@ -220,4 +253,183 @@ test("EvalQuestionSetsService archive operation sets archived status and timesta
   assert.equal(calls[0].where.id, "set-1");
   assert.equal(calls[0].data.status, "archived");
   assert.ok(calls[0].data.archivedAt instanceof Date);
+});
+
+test("EvalQuestionSetsService increments current version when updating editable fields", async () => {
+  const calls = [];
+  const service = new EvalQuestionSetsService({
+    evalQuestionSet: {
+      findFirst: async () => ({
+        id: "set-1",
+        tenantId: "tenant-auth",
+        ownerId: "user-auth",
+        status: "draft"
+      }),
+      update: async args => {
+        calls.push(args);
+        return { id: "set-1", ...args.data };
+      }
+    }
+  });
+
+  await service.updateQuestionSet(
+    "set-1",
+    {
+      questions: ["Q1 updated"]
+    },
+    {
+      tenantId: "tenant-auth",
+      userId: "user-auth"
+    }
+  );
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].data.currentVersion, { increment: 1 });
+  assert.deepEqual(calls[0].data.questionsJson, ["Q1 updated"]);
+});
+
+test("EvalQuestionSetsService snapshot baseline creates immutable snapshot for current version", async () => {
+  const calls = {
+    create: []
+  };
+  const service = new EvalQuestionSetsService({
+    evalQuestionSet: {
+      findFirst: async () => ({
+        id: "set-1",
+        tenantId: "tenant-auth",
+        ownerId: "user-auth",
+        status: "draft",
+        currentVersion: 3,
+        name: "P5 set",
+        description: "desc",
+        questionsJson: ["Q1", "Q2"]
+      })
+    },
+    evalQuestionSetBaselineSnapshot: {
+      findFirst: async () => null,
+      create: async args => {
+        calls.create.push(args);
+        return { id: "snapshot-1", ...args.data };
+      }
+    }
+  });
+
+  const result = await service.snapshotBaseline("set-1", {
+    tenantId: "tenant-auth",
+    userId: "user-auth"
+  });
+
+  assert.equal(result.id, "snapshot-1");
+  assert.equal(calls.create.length, 1);
+  assert.deepEqual(calls.create[0].data, {
+    tenantId: "tenant-auth",
+    ownerId: "user-auth",
+    questionSetId: "set-1",
+    version: 3,
+    name: "P5 set",
+    description: "desc",
+    questionsJson: ["Q1", "Q2"]
+  });
+});
+
+test("EvalQuestionSetsService choose baseline assigns selected snapshot", async () => {
+  const calls = [];
+  const service = new EvalQuestionSetsService({
+    evalQuestionSet: {
+      findFirst: async ({ where }) => {
+        if (where.id === "set-1") {
+          return {
+            id: "set-1",
+            tenantId: "tenant-auth",
+            ownerId: "user-auth",
+            status: "draft"
+          };
+        }
+
+        return null;
+      },
+      update: async args => {
+        calls.push(args);
+        return { id: "set-1", ...args.data };
+      }
+    },
+    evalQuestionSetBaselineSnapshot: {
+      findFirst: async () => ({
+        id: "snapshot-1",
+        questionSetId: "set-1"
+      })
+    }
+  });
+
+  const result = await service.chooseBaselineSnapshot(
+    "set-1",
+    {
+      snapshotId: "snapshot-1"
+    },
+    {
+      tenantId: "tenant-auth",
+      userId: "user-auth"
+    }
+  );
+
+  assert.equal(result.baselineSnapshotId, "snapshot-1");
+  assert.ok(result.baselineChosenAt instanceof Date);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].where.id, "set-1");
+});
+
+test("EvalQuestionSetsService compare baseline returns diff summary", async () => {
+  const service = new EvalQuestionSetsService({
+    evalQuestionSet: {
+      findFirst: async ({ where }) => {
+        if (where.id === "set-1") {
+          return {
+            id: "set-1",
+            tenantId: "tenant-auth",
+            ownerId: "user-auth",
+            currentVersion: 4,
+            baselineSnapshotId: "snapshot-1",
+            name: "set-current",
+            description: "desc-current",
+            questionsJson: ["Q1", "Q3"]
+          };
+        }
+
+        return null;
+      }
+    },
+    evalQuestionSetBaselineSnapshot: {
+      findFirst: async () => ({
+        id: "snapshot-1",
+        questionSetId: "set-1",
+        version: 2,
+        name: "set-baseline",
+        description: "desc-baseline",
+        questionsJson: ["Q1", "Q2"]
+      })
+    }
+  });
+
+  const result = await service.compareWithBaseline("set-1", {
+    tenantId: "tenant-auth",
+    userId: "user-auth"
+  });
+
+  assert.deepEqual(result, {
+    hasBaseline: true,
+    baselineSnapshotId: "snapshot-1",
+    baselineVersion: 2,
+    currentVersion: 4,
+    hasChanges: true,
+    changedFields: {
+      name: true,
+      description: true,
+      questions: true
+    },
+    questionDiff: {
+      added: 1,
+      removed: 1,
+      unchanged: 1
+    }
+  });
 });

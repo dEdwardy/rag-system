@@ -97,6 +97,7 @@ model Tenant {
   assistants Assistant[]
   conversations Conversation[]
   evalQuestionSets EvalQuestionSet[]
+  evalQuestionSetBaselineSnapshots EvalQuestionSetBaselineSnapshot[]
 }
 
 model User {
@@ -112,26 +113,54 @@ model User {
   conversations  Conversation[]
   authSessions   AuthSession[]
   evalQuestionSets EvalQuestionSet[]
+  evalQuestionSetBaselineSnapshots EvalQuestionSetBaselineSnapshot[]
 }
 
 model EvalQuestionSet {
-  id           String                @id @default(cuid())
-  tenantId     String
-  ownerId      String
-  name         String
-  description  String?
-  questionsJson Json
-  status       EvalQuestionSetStatus @default(draft)
-  lockedAt     DateTime?
-  archivedAt   DateTime?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner        User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  id               String                          @id @default(cuid())
+  tenantId         String
+  ownerId          String
+  name             String
+  description      String?
+  questionsJson    Json
+  currentVersion   Int                             @default(1)
+  baselineSnapshotId String?
+  baselineChosenAt DateTime?
+  status           EvalQuestionSetStatus           @default(draft)
+  lockedAt         DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+  tenant           Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner            User                            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  snapshots        EvalQuestionSetBaselineSnapshot[] @relation("EvalQuestionSetSnapshots")
+  baselineSnapshot EvalQuestionSetBaselineSnapshot?  @relation("EvalQuestionSetChosenBaseline", fields: [baselineSnapshotId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([ownerId])
   @@index([status])
+  @@index([baselineSnapshotId])
+}
+
+model EvalQuestionSetBaselineSnapshot {
+  id            String          @id @default(cuid())
+  tenantId      String
+  ownerId       String
+  questionSetId String
+  version       Int
+  name          String
+  description   String?
+  questionsJson Json
+  createdAt     DateTime        @default(now())
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  questionSet   EvalQuestionSet @relation("EvalQuestionSetSnapshots", fields: [questionSetId], references: [id], onDelete: Cascade)
+  chosenByQuestionSets EvalQuestionSet[] @relation("EvalQuestionSetChosenBaseline")
+
+  @@unique([questionSetId, version])
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([questionSetId])
 }
 
 model AuthSession {

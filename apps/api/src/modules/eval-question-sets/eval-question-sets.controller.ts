@@ -1,7 +1,8 @@
-import { Body, Controller, Param, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import {
+  chooseEvalQuestionSetBaselineSchema,
   createEvalQuestionSetSchema,
   updateEvalQuestionSetSchema
 } from "./eval-question-set.schemas";
@@ -48,5 +49,37 @@ export class EvalQuestionSetsController {
     });
 
     return this.evalQuestionSetsService.archiveQuestionSet(id, authContext.identity);
+  }
+
+  @Post(":id/baselines/snapshots")
+  snapshotBaseline(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.evalQuestionSetsService.snapshotBaseline(id, authContext.identity);
+  }
+
+  @Post(":id/baselines/choose")
+  chooseBaseline(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const input = chooseEvalQuestionSetBaselineSchema.parse(body);
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.evalQuestionSetsService.chooseBaselineSnapshot(id, input, authContext.identity);
+  }
+
+  @Get(":id/baselines/compare")
+  compareWithBaseline(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.evalQuestionSetsService.compareWithBaseline(id, authContext.identity);
   }
 }

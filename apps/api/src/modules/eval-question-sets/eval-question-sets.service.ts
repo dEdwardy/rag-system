@@ -3,6 +3,7 @@ import { Prisma, type EvalQuestionSetStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import type { AuthIdentity } from "../auth/auth-identity.contract";
 import {
+  type ChooseEvalQuestionSetBaselineInput,
   type CreateEvalQuestionSetInput,
   type UpdateEvalQuestionSetInput
 } from "./eval-question-set.schemas";
@@ -30,6 +31,13 @@ export class EvalQuestionSetsService {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
     this.assertEditable(questionSet.status, id);
 
+    const hasEditableInput =
+      input.name !== undefined || input.description !== undefined || input.questions !== undefined;
+
+    if (!hasEditableInput) {
+      return questionSet;
+    }
+
     return this.prisma.evalQuestionSet.update({
       where: { id },
       data: {
@@ -39,6 +47,9 @@ export class EvalQuestionSetsService {
               description: input.description
             }
           : {}),
+        currentVersion: {
+          increment: 1
+        },
         ...(input.questions !== undefined
           ? {
               questionsJson: input.questions as Prisma.InputJsonValue
@@ -46,6 +57,116 @@ export class EvalQuestionSetsService {
           : {})
       }
     });
+  }
+
+  async snapshotBaseline(id: string, identity: AuthIdentity) {
+    const questionSet = await this.getOwnedQuestionSet(id, identity);
+    this.assertNotArchived(questionSet.status, id);
+
+    const existingSnapshot = await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
+      where: {
+        questionSetId: id,
+        tenantId: identity.tenantId,
+        ownerId: identity.userId,
+        version: questionSet.currentVersion
+      }
+    });
+
+    if (existingSnapshot) {
+      return existingSnapshot;
+    }
+
+    return this.prisma.evalQuestionSetBaselineSnapshot.create({
+      data: {
+        tenantId: identity.tenantId,
+        ownerId: identity.userId,
+        questionSetId: id,
+        version: questionSet.currentVersion,
+        name: questionSet.name,
+        description: questionSet.description,
+        questionsJson: questionSet.questionsJson as Prisma.InputJsonValue
+      }
+    });
+  }
+
+  async chooseBaselineSnapshot(id: string, input: ChooseEvalQuestionSetBaselineInput, identity: AuthIdentity) {
+    const questionSet = await this.getOwnedQuestionSet(id, identity);
+    this.assertNotArchived(questionSet.status, id);
+
+    const snapshot = await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
+      where: {
+        id: input.snapshotId,
+        questionSetId: id,
+        tenantId: identity.tenantId,
+        ownerId: identity.userId
+      }
+    });
+
+    if (!snapshot) {
+      throw new NotFoundException(`Eval question set baseline snapshot ${input.snapshotId} not found.`);
+    }
+
+    return this.prisma.evalQuestionSet.update({
+      where: { id },
+      data: {
+        baselineSnapshotId: snapshot.id,
+        baselineChosenAt: new Date()
+      }
+    });
+  }
+
+  async compareWithBaseline(id: string, identity: AuthIdentity) {
+    const questionSet = await this.getOwnedQuestionSet(id, identity);
+
+    if (!questionSet.baselineSnapshotId) {
+      return {
+        hasBaseline: false,
+        currentVersion: questionSet.currentVersion
+      };
+    }
+
+    const snapshot = await this.prisma.evalQuestionSetBaselineSnapshot.findFirst({
+      where: {
+        id: questionSet.baselineSnapshotId,
+        questionSetId: id,
+        tenantId: identity.tenantId,
+        ownerId: identity.userId
+      }
+    });
+
+    if (!snapshot) {
+      throw new NotFoundException(`Eval question set baseline snapshot ${questionSet.baselineSnapshotId} not found.`);
+    }
+
+    const currentQuestions = this.readQuestions(questionSet.questionsJson);
+    const baselineQuestions = this.readQuestions(snapshot.questionsJson);
+    const currentQuestionSet = new Set(currentQuestions);
+    const baselineQuestionSet = new Set(baselineQuestions);
+    const addedQuestionCount = currentQuestions.filter(question => !baselineQuestionSet.has(question)).length;
+    const removedQuestionCount = baselineQuestions.filter(question => !currentQuestionSet.has(question)).length;
+    const unchangedQuestionCount = baselineQuestions.filter(question => currentQuestionSet.has(question)).length;
+
+    const nameChanged = questionSet.name !== snapshot.name;
+    const descriptionChanged = questionSet.description !== snapshot.description;
+    const questionsChanged = addedQuestionCount > 0 || removedQuestionCount > 0;
+
+    return {
+      hasBaseline: true,
+      baselineSnapshotId: snapshot.id,
+      baselineVersion: snapshot.version,
+      currentVersion: questionSet.currentVersion,
+      hasChanges: nameChanged || descriptionChanged || questionsChanged,
+      changedFields: {
+        name: nameChanged,
+        description: descriptionChanged,
+        questions: questionsChanged
+      },
+      questionDiff: {
+        added: addedQuestionCount,
+        removed: removedQuestionCount,
+        unchanged: unchangedQuestionCount
+      }
+    };
   }
 
   async lockQuestionSet(id: string, identity: AuthIdentity) {
@@ -126,5 +247,19 @@ export class EvalQuestionSetsService {
     if (status === "archived") {
       throw new ConflictException(`Eval question set ${id} is archived and cannot be edited.`);
     }
+  }
+
+  private assertNotArchived(status: EvalQuestionSetStatus, id: string) {
+    if (status === "archived") {
+      throw new ConflictException(`Eval question set ${id} is archived and cannot be changed.`);
+    }
+  }
+
+  private readQuestions(input: Prisma.JsonValue) {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+
+    return input.filter(question => typeof question === "string");
   }
 }
