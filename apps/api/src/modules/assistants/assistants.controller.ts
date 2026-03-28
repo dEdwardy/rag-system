@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpException, Param, Patch, Post, Req, Res } fr
 import { askAssistantSchema, updateAssistantSchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantService } from "./ask-assistant.service";
-import type { ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 
 @Controller("assistants")
 export class AssistantsController {
@@ -12,19 +12,31 @@ export class AssistantsController {
   ) {}
 
   @Get()
-  listAssistants() {
-    return this.assistantsService.listAssistants();
+  listAssistants(@Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.assistantsService.listAssistants(authContext.identity);
   }
 
   @Get(":id")
-  getAssistant(@Param("id") id: string) {
-    return this.assistantsService.getAssistant(id);
+  getAssistant(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.assistantsService.getAssistant(id, authContext.identity);
   }
 
   @Patch(":id")
-  updateAssistant(@Param("id") id: string, @Body() body: unknown) {
+  updateAssistant(@Param("id") id: string, @Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
     const input = updateAssistantSchema.parse(body);
-    return this.assistantsService.updateAssistant(id, input);
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.assistantsService.updateAssistant(id, input, authContext.identity);
   }
 
   @Post(":id/ask")

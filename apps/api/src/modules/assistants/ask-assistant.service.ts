@@ -80,10 +80,10 @@ export class AskAssistantService {
     conversationId?: string;
     authContext?: RequestAuthContext | null;
   }) {
-    const assistant = await this.assistantsService.getAssistant(input.assistantId);
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
+    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
@@ -357,10 +357,10 @@ export class AskAssistantService {
       phase: "started"
     });
 
-    const assistant = await this.assistantsService.getAssistant(input.assistantId);
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
+    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
