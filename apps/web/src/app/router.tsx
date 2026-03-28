@@ -1,12 +1,4 @@
 import { createBrowserRouter } from "react-router-dom";
-import { ChatPage } from "../pages/chat/ChatPage";
-import { DocumentsPage } from "../pages/documents/DocumentsPage";
-import { DocumentDetailPage } from "../pages/documents/DocumentDetailPage";
-import { KnowledgeBasePage } from "../pages/knowledge-base/KnowledgeBasePage";
-import { AssistantPage } from "../pages/assistant/AssistantPage";
-import { TraceDetailPage } from "../pages/traces/TraceDetailPage";
-import { TraceListPage } from "../pages/traces/TraceListPage";
-import { UsagePage } from "../pages/usage/UsagePage";
 import { AppShell } from "./AppShell";
 
 export const router = createBrowserRouter([
@@ -16,35 +8,67 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <ChatPage />
+        lazy: async () => {
+          const { ChatPage } = await import("../pages/chat/ChatPage");
+
+          return { Component: ChatPage };
+        }
       },
       {
         path: "documents",
-        element: <DocumentsPage />
+        lazy: async () => {
+          const { DocumentsPage } = await import("../pages/documents/DocumentsPage");
+
+          return { Component: DocumentsPage };
+        }
       },
       {
         path: "documents/:documentId",
-        element: <DocumentDetailPage />
+        lazy: async () => {
+          const { DocumentDetailPage } = await import("../pages/documents/DocumentDetailPage");
+
+          return { Component: DocumentDetailPage };
+        }
       },
       {
         path: "knowledge-base",
-        element: <KnowledgeBasePage />
+        lazy: async () => {
+          const { KnowledgeBasePage } = await import("../pages/knowledge-base/KnowledgeBasePage");
+
+          return { Component: KnowledgeBasePage };
+        }
       },
       {
         path: "usage",
-        element: <UsagePage />
+        lazy: async () => {
+          const { UsagePage } = await import("../pages/usage/UsagePage");
+
+          return { Component: UsagePage };
+        }
       },
       {
         path: "assistant",
-        element: <AssistantPage />
+        lazy: async () => {
+          const { AssistantPage } = await import("../pages/assistant/AssistantPage");
+
+          return { Component: AssistantPage };
+        }
       },
       {
         path: "traces",
-        element: <TraceListPage />
+        lazy: async () => {
+          const { TraceListPage } = await import("../pages/traces/TraceListPage");
+
+          return { Component: TraceListPage };
+        }
       },
       {
         path: "traces/:traceId",
-        element: <TraceDetailPage />
+        lazy: async () => {
+          const { TraceDetailPage } = await import("../pages/traces/TraceDetailPage");
+
+          return { Component: TraceDetailPage };
+        }
       }
     ]
   }

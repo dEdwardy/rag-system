@@ -14,10 +14,12 @@ const apiBaseUrl = "http://127.0.0.1:3000";
 const webBaseUrl = "http://127.0.0.1:3001";
 const webDistRoot = resolve(repoRoot, "apps/web/dist");
 const smokeBrowserExecutablePaths = [
+  process.env.PLAYWRIGHT_SMOKE_EXECUTABLE_PATH,
+  "/mnt/c/Program Files/Microsoft/Edge/Application/msedge.exe",
   "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe",
   "/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"
-];
-const smokeBrowserDebugPort = 9222;
+].filter(Boolean);
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -43,21 +45,7 @@ async function isHttpReady(url) {
   }
 }
 
-async function waitForHttp(url, label, timeoutMs = 30000) {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    if (await isHttpReady(url)) {
-      return;
-    }
-
-    await delay(500);
-  }
-
-  throw new Error(`${label} did not become ready at ${url} within ${timeoutMs}ms.`);
-}
-
-async function waitForCdpReady(port, timeoutMs = 30000) {
+async function waitForCdpReady(port, timeoutMs = 15000) {
   const startedAt = Date.now();
   const endpointUrl = `http://127.0.0.1:${port}/json/version`;
 
@@ -76,10 +64,112 @@ async function waitForCdpReady(port, timeoutMs = 30000) {
     } catch {
     }
 
-    await delay(500);
+    await delay(250);
   }
 
   throw new Error(`Browser CDP endpoint did not become ready at ${endpointUrl} within ${timeoutMs}ms.`);
+}
+
+const smokeBrowserDebugPortBase = Number(process.env.PLAYWRIGHT_SMOKE_DEBUG_PORT || 9777);
+
+function toWindowsPath(executablePath) {
+  return executablePath.replace(/^\/mnt\/c\//i, "C:\\").replaceAll("/", "\\");
+}
+
+function quotePowerShell(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+async function startWindowsProcess(executablePath, args) {
+  const windowsPath = toWindowsPath(executablePath);
+  const userDataDir = `C:\\Users\\Public\\rag-smoke-browser-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const processArgs = [
+    `--remote-debugging-port=${args.port}`,
+    `--user-data-dir=${userDataDir}`,
+    "--headless",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "about:blank"
+  ];
+  const command = [
+    `$p = Start-Process -FilePath ${quotePowerShell(windowsPath)} -ArgumentList @(${processArgs.map(quotePowerShell).join(",")}) -PassThru`,
+    "$p.Id"
+  ].join("; ");
+
+  if (process.env.PLAYWRIGHT_SMOKE_VERBOSE === "1") {
+    console.log(`[smoke] ps ${command}`);
+  }
+
+  const child = spawn("powershell.exe", ["-NoProfile", "-Command", command], {
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  const pid = await new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", chunk => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", chunk => {
+      stderr += chunk.toString();
+    });
+
+    child.once("error", reject);
+    child.once("exit", code => {
+      if (code !== 0 && !stdout.trim()) {
+        reject(new Error(stderr.trim() || `powershell.exe exited with code ${code}`));
+        return;
+      }
+
+      const parsedPid = Number.parseInt(stdout.trim(), 10);
+      if (Number.isNaN(parsedPid)) {
+        reject(new Error(stderr.trim() || `Could not read browser pid from: ${stdout.trim()}`));
+        return;
+      }
+
+      resolve(parsedPid);
+    });
+  });
+
+  return { pid, userDataDir };
+}
+
+async function cleanupWindowsProcess(pid, userDataDir) {
+  await new Promise(resolve => {
+    const child = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-Command", `Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue`],
+      {
+        stdio: "ignore"
+      }
+    );
+    child.once("exit", () => resolve());
+    child.once("error", () => resolve());
+  });
+
+  await new Promise(resolve => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-Command", `Remove-Item -Recurse -Force ${quotePowerShell(userDataDir)}`], {
+      stdio: "ignore"
+    });
+    child.once("exit", () => resolve());
+    child.once("error", () => resolve());
+  });
+}
+
+async function waitForHttp(url, label, timeoutMs = 30000) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await isHttpReady(url)) {
+      return;
+    }
+
+    await delay(500);
+  }
+
+  throw new Error(`${label} did not become ready at ${url} within ${timeoutMs}ms.`);
 }
 
 function startProcess(command, args, label, cwd = repoRoot) {
@@ -169,6 +259,51 @@ async function stopProcess(child) {
 }
 
 async function launchSmokeBrowser() {
+  for (const [index, executablePath] of smokeBrowserExecutablePaths.entries()) {
+    if (!existsSync(executablePath)) {
+      continue;
+    }
+
+    try {
+      if (process.env.PLAYWRIGHT_SMOKE_VERBOSE === "1") {
+        console.log(`[smoke] trying ${executablePath}`);
+      }
+
+      const debugPort = smokeBrowserDebugPortBase + index;
+      const { pid, userDataDir } = await startWindowsProcess(executablePath, {
+        port: debugPort
+      });
+
+      try {
+        const wsEndpoint = await waitForCdpReady(debugPort);
+        if (process.env.PLAYWRIGHT_SMOKE_VERBOSE === "1") {
+          console.log(`[smoke] cdp ready on ${debugPort}`);
+        }
+        const browser = await chromium.connectOverCDP(wsEndpoint);
+        if (process.env.PLAYWRIGHT_SMOKE_VERBOSE === "1") {
+          console.log(`[smoke] connected ${executablePath}`);
+        }
+
+        return {
+          browser,
+          cleanup: async () => {
+            await browser.close();
+            await cleanupWindowsProcess(pid, userDataDir);
+          }
+          };
+      } catch (error) {
+        if (process.env.PLAYWRIGHT_SMOKE_VERBOSE === "1") {
+          console.log(`[smoke] failed ${executablePath}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        await cleanupWindowsProcess(pid, userDataDir);
+      }
+    } catch (error) {
+      if (process.env.PLAYWRIGHT_SMOKE_VERBOSE === "1") {
+        console.log(`[smoke] start failed ${executablePath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
   try {
     return {
       browser: await chromium.launch({
@@ -177,45 +312,6 @@ async function launchSmokeBrowser() {
       cleanup: async () => {}
     };
   } catch {
-    for (const executablePath of smokeBrowserExecutablePaths) {
-      if (!existsSync(executablePath)) {
-        continue;
-      }
-
-      const userDataDir = await mkdtemp(join(tmpdir(), "rag-smoke-browser-"));
-      const child = spawn(
-        executablePath,
-        [
-          `--remote-debugging-port=${smokeBrowserDebugPort}`,
-          `--user-data-dir=${userDataDir}`,
-          "--headless=new",
-          "--no-first-run",
-          "--no-default-browser-check",
-          "about:blank"
-        ],
-        {
-          stdio: "ignore"
-        }
-      );
-
-      try {
-        const wsEndpoint = await waitForCdpReady(smokeBrowserDebugPort);
-        const browser = await chromium.connectOverCDP(wsEndpoint);
-
-        return {
-          browser,
-          cleanup: async () => {
-            await browser.close();
-            await stopProcess(child);
-            await rm(userDataDir, { recursive: true, force: true });
-          }
-        };
-      } catch {
-        await stopProcess(child);
-        await rm(userDataDir, { recursive: true, force: true });
-      }
-    }
-
     return {
       browser: await chromium.launch(),
       cleanup: async () => {}

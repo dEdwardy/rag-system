@@ -33,17 +33,19 @@ export function useRetrievalProfiles() {
   });
 }
 
-export function useKnowledgeBases() {
+export function useKnowledgeBases(enabled = true) {
   return useQuery({
     queryKey: ["knowledge-bases"],
-    queryFn: () => apiRequest<KnowledgeBase[]>("/knowledge-bases")
+    queryFn: () => apiRequest<KnowledgeBase[]>("/knowledge-bases"),
+    enabled
   });
 }
 
-export function useDocuments(knowledgeBaseId: string) {
+export function useDocuments(knowledgeBaseId: string, enabled = true) {
   return useQuery({
     queryKey: ["documents", knowledgeBaseId],
     queryFn: () => apiRequest<DocumentRecord[]>(`/knowledge-bases/${knowledgeBaseId}/documents`),
+    enabled,
     refetchInterval: query => {
       const documents = query.state.data;
       if (!documents) {
@@ -199,10 +201,11 @@ export function useKnowledgeBaseDocumentRunSummary(
   });
 }
 
-export function useConversations() {
+export function useConversations(enabled = true) {
   return useQuery({
     queryKey: ["conversations"],
-    queryFn: () => apiRequest<Conversation[]>("/conversations")
+    queryFn: () => apiRequest<Conversation[]>("/conversations"),
+    enabled
   });
 }
 

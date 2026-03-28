@@ -17,7 +17,7 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAssistants,
@@ -53,6 +53,34 @@ export function AssistantPage() {
   useEffect(() => {
     form.setValues(createAssistantConfigFormValues(assistant, retrievalProfile));
   }, [assistant, retrievalProfile]);
+
+  const isLoading = assistantsQuery.isLoading || retrievalProfilesQuery.isLoading;
+  const assistantErrorMessage =
+    assistantsQuery.error instanceof Error ? assistantsQuery.error.message : undefined;
+  const retrievalProfileErrorMessage =
+    retrievalProfilesQuery.error instanceof Error ? retrievalProfilesQuery.error.message : undefined;
+  const canRenderForm = assistant != null && retrievalProfile != null;
+
+  const handleSubmit = useMemo(
+    () =>
+      form.onSubmit(async values => {
+        try {
+          await updateAssistantMutation.mutateAsync(buildAssistantUpdatePayload(values));
+          await updateRetrievalProfileMutation.mutateAsync(buildRetrievalProfileUpdatePayload(values));
+
+          notifications.show({
+            color: "teal",
+            message: t("assistant.updated")
+          });
+        } catch (error) {
+          notifications.show({
+            color: "red",
+            message: error instanceof Error ? error.message : t("assistant.updateError")
+          });
+        }
+      }),
+    [form, t, updateAssistantMutation, updateRetrievalProfileMutation]
+  );
 
   return (
     <Stack data-testid="assistant-page" gap="md">
@@ -99,7 +127,7 @@ export function AssistantPage() {
         </div>
       </Paper>
 
-      {assistantsQuery.isLoading || retrievalProfilesQuery.isLoading ? (
+      {isLoading ? (
         <StatePanel
           description={t("assistant.loadingDescription")}
           title={t("assistant.loadingTitle")}
@@ -109,7 +137,7 @@ export function AssistantPage() {
 
       {assistantsQuery.isError ? (
         <StatePanel
-          description={assistantsQuery.error instanceof Error ? assistantsQuery.error.message : undefined}
+          description={assistantErrorMessage}
           title={t("assistant.assistantLoadError")}
           tone="error"
         />
@@ -117,34 +145,14 @@ export function AssistantPage() {
 
       {retrievalProfilesQuery.isError ? (
         <StatePanel
-          description={
-            retrievalProfilesQuery.error instanceof Error ? retrievalProfilesQuery.error.message : undefined
-          }
+          description={retrievalProfileErrorMessage}
           title={t("assistant.retrievalProfileLoadError")}
           tone="error"
         />
       ) : null}
 
-      {assistant && retrievalProfile ? (
-        <Box
-          component="form"
-          onSubmit={form.onSubmit(async values => {
-            try {
-              await updateAssistantMutation.mutateAsync(buildAssistantUpdatePayload(values));
-              await updateRetrievalProfileMutation.mutateAsync(buildRetrievalProfileUpdatePayload(values));
-
-              notifications.show({
-                color: "teal",
-                message: t("assistant.updated")
-              });
-            } catch (error) {
-              notifications.show({
-                color: "red",
-                message: error instanceof Error ? error.message : t("assistant.updateError")
-              });
-            }
-          })}
-        >
+      {canRenderForm ? (
+        <Box component="form" onSubmit={handleSubmit}>
           <div className="workspace-page-grid workspace-page-grid-main-first">
             <div className="workspace-page-main-stack">
               <Stack gap="md">
@@ -636,14 +644,14 @@ export function AssistantPage() {
         </Box>
       ) : null}
 
-      {!assistantsQuery.isLoading && !retrievalProfilesQuery.isLoading && !assistant ? (
+      {!isLoading && !assistant ? (
         <StatePanel
           description={t("assistant.noAssistantDescription")}
           title={t("assistant.noAssistantTitle")}
         />
       ) : null}
 
-      {!assistantsQuery.isLoading && !retrievalProfilesQuery.isLoading && assistant && !retrievalProfile ? (
+      {!isLoading && assistant && !retrievalProfile ? (
         <StatePanel
           description={t("assistant.missingProfileDescription")}
           title={t("assistant.missingProfileTitle")}

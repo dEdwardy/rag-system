@@ -19,6 +19,11 @@ export const DEFAULT_THEME_PREFERENCES: ThemePreferences = {
 type StorageLike = Pick<Storage, "getItem">;
 type StorageWriterLike = Pick<Storage, "setItem">;
 
+function applyThemeDataset(preferences: ThemePreferences) {
+  document.documentElement.dataset.themeColor = preferences.themeColor;
+  document.documentElement.dataset.themeLayout = preferences.themeLayout;
+}
+
 export function normalizeThemeColor(value: string | null | undefined): ThemeColorMode {
   return value === "constrained-light" || value === "creative-dark"
     ? value
@@ -73,8 +78,7 @@ export function ThemePreferencesProvider({ children }: { children: React.ReactNo
       setStoredThemePreferences(window.localStorage, preferences);
     }
 
-    document.documentElement.dataset.themeColor = preferences.themeColor;
-    document.documentElement.dataset.themeLayout = preferences.themeLayout;
+    applyThemeDataset(preferences);
   }, [preferences]);
 
   return createElement(
@@ -82,8 +86,8 @@ export function ThemePreferencesProvider({ children }: { children: React.ReactNo
     {
       value: {
         ...preferences,
-        setThemeColor: themeColor => setPreferences(current => ({ ...current, themeColor })),
-        setThemeLayout: themeLayout => setPreferences(current => ({ ...current, themeLayout }))
+        setThemeColor: themeColor => setPreferences(current => (current.themeColor === themeColor ? current : { ...current, themeColor })),
+        setThemeLayout: themeLayout => setPreferences(current => (current.themeLayout === themeLayout ? current : { ...current, themeLayout }))
       }
     },
     children

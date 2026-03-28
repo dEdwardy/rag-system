@@ -12,6 +12,7 @@ import {
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -29,15 +30,118 @@ export function DocumentsPage() {
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
   const reindexMutation = useReindexDocument();
   const { t, locale, formatDateTime } = useI18n();
+
+  const documents = documentsQuery.data ?? [];
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
-  const documentCount = documentsQuery.data?.length ?? 0;
-  const readyCount = documentsQuery.data?.filter(document => document.status === "ready").length ?? 0;
-  const processingCount =
-    documentsQuery.data?.filter(
-      document => document.status === "pending" || document.status === "processing"
-    ).length ?? 0;
-  const failedCount = documentsQuery.data?.filter(document => document.status === "failed").length ?? 0;
+  const { documentCount, readyCount, processingCount, failedCount } = useMemo(
+    () =>
+      documents.reduce(
+        (acc, document) => {
+          acc.documentCount += 1;
+          if (document.status === "ready") {
+            acc.readyCount += 1;
+          } else if (document.status === "pending" || document.status === "processing") {
+            acc.processingCount += 1;
+          } else if (document.status === "failed") {
+            acc.failedCount += 1;
+          }
+          return acc;
+        },
+        {
+          documentCount: 0,
+          readyCount: 0,
+          processingCount: 0,
+          failedCount: 0
+        }
+      ),
+    [documents]
+  );
   const hasProcessingDocuments = processingCount > 0;
+
+  const metricCards = useMemo(
+    () => [
+      {
+        key: "total",
+        label: locale === "zh" ? "文档总数" : "Total documents",
+        value: documentCount,
+        subtle:
+          locale === "zh"
+            ? "当前知识库下全部文档"
+            : "All documents in the active knowledge base"
+      },
+      {
+        key: "ready",
+        label: locale === "zh" ? "可检索" : "Ready",
+        value: readyCount,
+        subtle:
+          locale === "zh"
+            ? "已完成切分与索引"
+            : "Indexed and available for retrieval"
+      },
+      {
+        key: "processing",
+        label: locale === "zh" ? "处理中" : "Processing",
+        value: processingCount,
+        subtle:
+          locale === "zh"
+            ? "等待上传或重建完成"
+            : "Waiting for upload or reindex to finish"
+      },
+      {
+        key: "failed",
+        label: locale === "zh" ? "需要关注" : "Needs attention",
+        value: failedCount,
+        subtle:
+          locale === "zh"
+            ? "失败文档建议重试或删除"
+            : "Failed documents should be retried or removed"
+      }
+    ],
+    [documentCount, failedCount, locale, processingCount, readyCount]
+  );
+
+  const handleUploadFile = useCallback(
+    async (file: File | null) => {
+      if (!file || !activeKnowledgeBase) {
+        return;
+      }
+
+      try {
+        await uploadMutation.mutateAsync(file);
+        notifications.show({
+          color: "indigo",
+          message: t("documents.uploadSuccess", { fileName: file.name })
+        });
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : t("documents.uploadError")
+        });
+      }
+    },
+    [activeKnowledgeBase, t, uploadMutation]
+  );
+
+  const handleReindexDocument = useCallback(
+    async (documentId: string, knowledgeBaseId: string, title: string) => {
+      try {
+        await reindexMutation.mutateAsync({
+          documentId,
+          knowledgeBaseId
+        });
+        notifications.show({
+          color: "indigo",
+          message: t("documents.reindexRequested", { title })
+        });
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : t("documents.reindexError")
+        });
+      }
+    },
+    [reindexMutation, t]
+  );
 
   return (
     <Stack gap="md">
@@ -83,24 +187,7 @@ export function DocumentsPage() {
                 : "Keep upload, status review, detail navigation, and reindex in one tighter workspace surface."}
             </Text>
             <FileButton
-              onChange={async file => {
-                if (!file || !activeKnowledgeBase) {
-                  return;
-                }
-
-                try {
-                  await uploadMutation.mutateAsync(file);
-                  notifications.show({
-                    color: "indigo",
-                    message: t("documents.uploadSuccess", { fileName: file.name })
-                  });
-                } catch (error) {
-                  notifications.show({
-                    color: "red",
-                    message: error instanceof Error ? error.message : t("documents.uploadError")
-                  });
-                }
-              }}
+              onChange={handleUploadFile}
             >
               {props => (
                 <Button
@@ -145,38 +232,13 @@ export function DocumentsPage() {
 
       <div className="workspace-split-summary">
         <div className="workspace-metric-grid">
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">
-              {locale === "zh" ? "文档总数" : "Total documents"}
-            </Text>
-            <Text className="workspace-metric-value">{documentCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh"
-                ? "当前知识库下全部文档"
-                : "All documents in the active knowledge base"}
-            </Text>
-          </Paper>
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">{locale === "zh" ? "可检索" : "Ready"}</Text>
-            <Text className="workspace-metric-value">{readyCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh" ? "已完成切分与索引" : "Indexed and available for retrieval"}
-            </Text>
-          </Paper>
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">{locale === "zh" ? "处理中" : "Processing"}</Text>
-            <Text className="workspace-metric-value">{processingCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh" ? "等待上传或重建完成" : "Waiting for upload or reindex to finish"}
-            </Text>
-          </Paper>
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">{locale === "zh" ? "需要关注" : "Needs attention"}</Text>
-            <Text className="workspace-metric-value">{failedCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh" ? "失败文档建议重试或删除" : "Failed documents should be retried or removed"}
-            </Text>
-          </Paper>
+          {metricCards.map(metric => (
+            <Paper className="workspace-metric-card workspace-metric-card-compact" key={metric.key} p="lg" radius="xl">
+              <Text className="workspace-metric-label">{metric.label}</Text>
+              <Text className="workspace-metric-value">{metric.value}</Text>
+              <Text className="workspace-metric-subtle">{metric.subtle}</Text>
+            </Paper>
+          ))}
         </div>
 
         <Paper className="workspace-subpanel" p="lg" radius="xl">
@@ -249,7 +311,7 @@ export function DocumentsPage() {
               ))}
               <span className="sr-only">{t("documents.loadingTitle")}</span>
             </div>
-          ) : documentsQuery.data?.length ? (
+          ) : documents.length ? (
             <div className="workspace-table-shell">
               <Table.ScrollContainer minWidth={760}>
                 <Table
@@ -289,7 +351,7 @@ export function DocumentsPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {documentsQuery.data.map(document => (
+                    {documents.map(document => (
                       <Table.Tr key={document.id}>
                         <Table.Td>
                           <Stack gap={2}>
@@ -354,21 +416,7 @@ export function DocumentsPage() {
                             color="indigo"
                             loading={reindexMutation.isPending}
                             onClick={async () => {
-                              try {
-                                await reindexMutation.mutateAsync({
-                                  documentId: document.id,
-                                  knowledgeBaseId: document.kbId
-                                });
-                                notifications.show({
-                                  color: "indigo",
-                                  message: t("documents.reindexRequested", { title: document.title })
-                                });
-                              } catch (error) {
-                                notifications.show({
-                                  color: "red",
-                                  message: error instanceof Error ? error.message : t("documents.reindexError")
-                                });
-                              }
+                              await handleReindexDocument(document.id, document.kbId, document.title);
                             }}
                             radius="xl"
                             size="xs"
