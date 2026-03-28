@@ -80,6 +80,12 @@ enum DocumentRunFailedStage {
   stale_guard
 }
 
+enum EvalQuestionSetStatus {
+  draft
+  locked
+  archived
+}
+
 model Tenant {
   id        String         @id @default(cuid())
   name      String
@@ -90,6 +96,7 @@ model Tenant {
   knowledgeBases KnowledgeBase[]
   assistants Assistant[]
   conversations Conversation[]
+  evalQuestionSets EvalQuestionSet[]
 }
 
 model User {
@@ -104,6 +111,27 @@ model User {
   knowledgeBases KnowledgeBase[]
   conversations  Conversation[]
   authSessions   AuthSession[]
+  evalQuestionSets EvalQuestionSet[]
+}
+
+model EvalQuestionSet {
+  id           String                @id @default(cuid())
+  tenantId     String
+  ownerId      String
+  name         String
+  description  String?
+  questionsJson Json
+  status       EvalQuestionSetStatus @default(draft)
+  lockedAt     DateTime?
+  archivedAt   DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner        User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([status])
 }
 
 model AuthSession {

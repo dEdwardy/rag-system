@@ -20,6 +20,7 @@ import { ParsingModule } from "./infra/parsing/parsing.module";
 import { QueueModule } from "./infra/queue/queue.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { AuthContextMiddleware } from "./modules/auth/auth-context.middleware";
+import { EvalQuestionSetsModule } from "./modules/eval-question-sets/eval-question-sets.module";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AuthContextMiddleware } from "./modules/auth/auth-context.middleware";
     ParsingModule,
     QueueModule,
     AuthModule,
+    EvalQuestionSetsModule,
     KnowledgeBasesModule,
     DocumentsModule,
     AssistantsModule,
