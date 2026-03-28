@@ -4,7 +4,9 @@ import { MessagesService } from "../messages/messages.service";
 import { TracesService } from "../traces/traces.service";
 import { listConversationTracesSchema } from "../documents/document.schemas";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
 
+@AuthenticatedRoute()
 @Controller("conversations")
 export class ConversationsController {
   constructor(

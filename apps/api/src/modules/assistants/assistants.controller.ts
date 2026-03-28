@@ -3,7 +3,9 @@ import { askAssistantSchema, updateAssistantSchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantService } from "./ask-assistant.service";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
 
+@AuthenticatedRoute()
 @Controller("assistants")
 export class AssistantsController {
   constructor(

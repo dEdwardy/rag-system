@@ -1,12 +1,20 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
+require("reflect-metadata");
 
 const { AuthController } = require("../src/modules/auth/auth.controller.ts");
 const { AuthContextMiddleware } = require("../src/modules/auth/auth-context.middleware.ts");
+const { AUTH_ROUTE_POLICY_KEY } = require("../src/modules/auth/auth-route-policy.ts");
 const { AuthRoutePolicyGuard } = require("../src/modules/auth/auth-route-policy.guard.ts");
 const { resolveRequestAuthContext } = require("../src/modules/auth/auth-identity.contract.ts");
 const { AuthService } = require("../src/modules/auth/auth.service.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
+const { HealthController } = require("../src/common/health.controller.ts");
+const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
+const { ConversationsController } = require("../src/modules/conversations/conversations.controller.ts");
+const { DocumentsController } = require("../src/modules/documents/documents.controller.ts");
+const { KnowledgeBasesController } = require("../src/modules/knowledge-bases/knowledge-bases.controller.ts");
+const { TracesController } = require("../src/modules/traces/traces.controller.ts");
 
 test("SessionCookieAuthProvider returns null when session cookie is missing", async () => {
   const provider = new SessionCookieAuthProvider({
@@ -257,4 +265,22 @@ test("AuthRoutePolicyGuard allows authenticated routes with session identity", (
   });
 
   assert.equal(allowed, true);
+});
+
+test("owner-scoped business controllers are marked authenticated while auth and health remain public", () => {
+  const businessControllers = [
+    KnowledgeBasesController,
+    DocumentsController,
+    AssistantsController,
+    ConversationsController,
+    TracesController
+  ];
+
+  for (const controller of businessControllers) {
+    assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, controller), "authenticated");
+  }
+
+  assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController), "public");
+  assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController.prototype.me), "authenticated");
+  assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, HealthController), "public");
 });

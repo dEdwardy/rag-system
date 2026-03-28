@@ -13,6 +13,7 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import {
   createDocumentSchema,
   createFeedDocumentSchema,
@@ -24,6 +25,7 @@ import {
 } from "./document.schemas";
 import { DocumentsService } from "./documents.service";
 
+@AuthenticatedRoute()
 @Controller()
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}

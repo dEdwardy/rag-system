@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import { createKnowledgeBaseSchema, updateKnowledgeBaseSchema } from "./knowledge-base.schemas";
 import { KnowledgeBasesService } from "./knowledge-bases.service";
 
+@AuthenticatedRoute()
 @Controller("knowledge-bases")
 export class KnowledgeBasesController {
   constructor(private readonly knowledgeBasesService: KnowledgeBasesService) {}

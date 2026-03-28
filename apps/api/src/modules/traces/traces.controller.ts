@@ -1,7 +1,9 @@
 import { Controller, Get, Param, Req } from "@nestjs/common";
 import { TracesService } from "./traces.service";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
 
+@AuthenticatedRoute()
 @Controller("traces")
 export class TracesController {
   constructor(private readonly tracesService: TracesService) {}
