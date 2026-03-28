@@ -68,6 +68,43 @@ test("SessionCookieAuthProvider resolves identity from persisted session", async
   });
 });
 
+test("SessionCookieAuthProvider decodes encoded session cookie value", async () => {
+  const observedSessionIds = [];
+  const provider = new SessionCookieAuthProvider({
+    authSession: {
+      findUnique: async ({ where }) => {
+        observedSessionIds.push(where.id);
+        return {
+          id: where.id,
+          revokedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+          user: {
+            id: "user-encoded",
+            tenantId: "tenant-encoded",
+            status: "active"
+          }
+        };
+      }
+    }
+  });
+
+  const identity = await provider.resolveIdentity({
+    request: {
+      headers: {
+        cookie: "rag_session=session%2F123"
+      }
+    }
+  });
+
+  assert.deepEqual(observedSessionIds, ["session/123"]);
+  assert.deepEqual(identity, {
+    userId: "user-encoded",
+    tenantId: "tenant-encoded",
+    sessionId: "session/123",
+    authSource: "session"
+  });
+});
+
 test("AuthContextMiddleware injects request authContext via provider boundary", async () => {
   const middleware = new AuthContextMiddleware({
     resolveIdentity: () => ({

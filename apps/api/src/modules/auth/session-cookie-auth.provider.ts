@@ -77,7 +77,12 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
         return null;
       }
 
-      return value;
+      try {
+        const decoded = decodeURIComponent(value);
+        return decoded.length > 0 ? decoded : null;
+      } catch {
+        return null;
+      }
     }
 
     return null;
