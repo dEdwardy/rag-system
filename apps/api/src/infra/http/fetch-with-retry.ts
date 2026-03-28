@@ -46,7 +46,7 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
 
       lastResponse = response;
     } catch (error) {
-      const normalizedError = normalizeFetchError(error, input.url);
+      const normalizedError = normalizeFetchError(error, input.url, input.timeoutMs);
       lastError = normalizedError;
       if (attempt === attempts || !shouldRetryFetchException(error)) {
         throw normalizedError;
@@ -117,9 +117,13 @@ function assertHttpUrl(url: string, sourceUrl: string) {
   }
 }
 
-function normalizeFetchError(error: unknown, sourceUrl: string) {
+function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: number) {
   if (!(error instanceof Error)) {
     return error;
+  }
+
+  if (error.name === "AbortError" || error.name === "TimeoutError") {
+    return new Error(`Fetch request timed out for ${sourceUrl} after ${timeoutMs}ms.`);
   }
 
   const causeMessage =

@@ -274,6 +274,35 @@ test("fetchWithRetry includes source URL in network failure error", async () => 
   }
 });
 
+test("fetchWithRetry includes source URL and timeout boundary for timeout failures", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const timeoutError = new Error("The operation was aborted.");
+    timeoutError.name = "AbortError";
+    throw timeoutError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/timeout.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 2500,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(error.message, "Fetch request timed out for https://example.com/timeout.xml after 2500ms.");
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("fetchWithRetry retries once after a transient fetch exception", async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
