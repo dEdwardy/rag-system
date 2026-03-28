@@ -90,7 +90,7 @@ export class AskAssistantService {
 
     const conversation =
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId)
+        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
         : await this.conversationsService.createConversation({
             tenantId: authContext.identity.tenantId,
             userId: authContext.identity.userId,
@@ -367,7 +367,7 @@ export class AskAssistantService {
 
     const conversation =
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId)
+        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
         : await this.conversationsService.createConversation({
             tenantId: authContext.identity.tenantId,
             userId: authContext.identity.userId,

@@ -258,6 +258,70 @@ test("AskAssistantService stream uses request current identity when creating a n
   ]);
 });
 
+test("AskAssistantService stream scopes existing conversation lookup to current identity", async () => {
+  const getConversationCalls = [];
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async () => {
+        throw new Error("should not create a new conversation in this test");
+      },
+      getConversation: async (...args) => {
+        getConversationCalls.push(args);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async input => {
+        input.onDelta("delta");
+        return {
+          rawAnswer: "delta",
+          modelName: "test-model",
+          promptId: "answer.v2",
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "stream existing conversation",
+    conversationId: "conversation-1",
+    authContext: {
+      identity: {
+        userId: "user-88",
+        tenantId: "tenant-88",
+        sessionId: "session-88",
+        authSource: "session"
+      },
+      currentIdentity: {
+        userId: "user-88",
+        tenantId: "tenant-88",
+        sessionId: "session-88",
+        authSource: "session"
+      }
+    },
+    onEvent: () => {}
+  });
+
+  assert.deepEqual(getConversationCalls, [
+    [
+      "conversation-1",
+      {
+        userId: "user-88",
+        tenantId: "tenant-88",
+        sessionId: "session-88",
+        authSource: "session"
+      }
+    ]
+  ]);
+});
+
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
   const events = [];
   let providerStreamCalls = 0;

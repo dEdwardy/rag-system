@@ -581,6 +581,52 @@ test("AskAssistantService uses request auth context identity when creating a new
   ]);
 });
 
+test("AskAssistantService scopes existing conversation lookup to current identity", async () => {
+  const getConversationCalls = [];
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async () => {
+        throw new Error("should not create a new conversation in this test");
+      },
+      getConversation: async (...args) => {
+        getConversationCalls.push(args);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "Use existing conversation",
+    conversationId: "conversation-1",
+    authContext: {
+      identity: {
+        userId: "user-99",
+        tenantId: "tenant-99",
+        sessionId: "session-99",
+        authSource: "session"
+      }
+    }
+  });
+
+  assert.deepEqual(getConversationCalls, [
+    [
+      "conversation-1",
+      {
+        userId: "user-99",
+        tenantId: "tenant-99",
+        sessionId: "session-99",
+        authSource: "session"
+      }
+    ]
+  ]);
+});
+
 test("AskAssistantService can disable query rewrite and forwards resolved retrieval strategy", async () => {
   const retrievalCalls = [];
   let rewriteCalls = 0;

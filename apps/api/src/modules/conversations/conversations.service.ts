@@ -6,18 +6,36 @@ import { PrismaService } from "../../infra/database/prisma.service";
 export class ConversationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listConversations() {
+  private readonly defaultOrderBy = {
+    updatedAt: "desc" as const
+  };
+
+  listConversations(scope?: { tenantId: string; userId: string } | null) {
     return this.prisma.conversation.findMany({
-      orderBy: {
-        updatedAt: "desc"
-      }
+      where:
+        scope != null
+          ? {
+              tenantId: scope.tenantId,
+              userId: scope.userId
+            }
+          : undefined,
+      orderBy: this.defaultOrderBy
     });
   }
 
-  async getConversation(id: string) {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id }
-    });
+  async getConversation(id: string, scope?: { tenantId: string; userId: string } | null) {
+    const conversation =
+      scope != null
+        ? await this.prisma.conversation.findFirst({
+            where: {
+              id,
+              tenantId: scope.tenantId,
+              userId: scope.userId
+            }
+          })
+        : await this.prisma.conversation.findUnique({
+            where: { id }
+          });
 
     if (!conversation) {
       throw new NotFoundException(`Conversation ${id} not found.`);
@@ -44,4 +62,3 @@ export class ConversationsService {
     });
   }
 }
-
