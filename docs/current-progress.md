@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth v1 web startup now bootstraps auth state by preloading `/auth/me` at app mount so existing sessions recover cleanly across refresh/navigation
+  - 变更文件：
+    - `apps/web/src/app/App.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `QueryClientProvider` 内新增轻量 `AuthStateBootstrap`，应用启动即触发 `useAuthMe()` 查询
+    - 复用既有 `['auth','me']` 查询缓存；`AuthenticatedAppShell` / `LoginPage` 继续消费同一身份数据，不新增并行 auth 状态语义
+    - 范围保持在 web auth bootstrap 预加载：不改 backend contract、不改路由策略、不改 UI 结构
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ auth v1 now supports default-user dev mode on the request-auth context path while preserving the auth identity contract
   - 变更文件：
     - `.env.example`

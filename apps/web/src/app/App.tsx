@@ -2,6 +2,7 @@ import "@mantine/core/styles.css";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router-dom";
+import { useAuthMe } from "../features/api/hooks";
 import { router } from "./router";
 import { I18nProvider } from "../i18n/I18nProvider";
 import { theme } from "../styles/theme";
@@ -23,10 +24,16 @@ export function App() {
       <ThemePreferencesProvider>
         <I18nProvider>
           <QueryClientProvider client={queryClient}>
+            <AuthStateBootstrap />
             <RouterProvider router={router} />
           </QueryClientProvider>
         </I18nProvider>
       </ThemePreferencesProvider>
     </MantineProvider>
   );
+}
+
+function AuthStateBootstrap() {
+  useAuthMe();
+  return null;
 }
