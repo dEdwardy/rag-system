@@ -985,6 +985,9 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answeringMetadata.usedFallback, true);
   assert.equal(result.answerStatus, "insufficient_context");
+  assert.equal(result.answerEvidenceSource, null);
+  assert.equal(result.answerEvidenceSourceReadabilityLabel, "unknown evidence source");
+  assert.equal(result.answerEvidenceSourceReadabilitySentence, "Answer evidence source is unknown evidence source.");
   assert.equal(
     result.answerProvenanceSentence,
     "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source."

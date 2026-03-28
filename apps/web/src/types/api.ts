@@ -392,7 +392,7 @@ export type AskResponse = {
   answerAttribution?: TraceCitationAttribution | null;
   answerAttributionSource?: TraceCitationSelectionSource | null;
   answerEvidenceSource?: TraceCitationSelectionSource | null;
-  answerEvidenceSourceReadabilityLabel?: string;
+  answerEvidenceSourceReadabilityLabel?: TraceSummary["answerEvidenceSourceReadabilityLabel"];
   answerEvidenceSourceReadabilitySentence?: TraceSummary["answerEvidenceSourceReadabilitySentence"];
   answerTextSource?: TraceAnswerTextSource | null;
   answerTextSourceReadabilityLabel?: TraceSummary["answerTextSourceReadabilityLabel"];

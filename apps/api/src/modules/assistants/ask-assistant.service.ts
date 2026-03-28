@@ -212,6 +212,10 @@ export class AskAssistantService {
 
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+        answerEvidenceSourceReadabilityLabel
+      );
       const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
       const rawAnswerTextSource = this.readString(
         typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
@@ -273,10 +277,8 @@ export class AskAssistantService {
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
-        answerEvidenceSourceReadabilitySentence: this.buildAnswerEvidenceSourceReadabilitySentence(
-          buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource)
-        ),
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
         answerTextSource,
         answerTextSourceReadabilityLabel,
         answerTextSourceReadabilitySentence,
@@ -521,6 +523,10 @@ export class AskAssistantService {
 
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+        answerEvidenceSourceReadabilityLabel
+      );
       const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
       const rawAnswerTextSource = this.readString(
         typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
@@ -582,10 +588,8 @@ export class AskAssistantService {
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
-        answerEvidenceSourceReadabilitySentence: this.buildAnswerEvidenceSourceReadabilitySentence(
-          buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource)
-        ),
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
         answerTextSource,
         answerTextSourceReadabilityLabel,
         answerTextSourceReadabilitySentence,

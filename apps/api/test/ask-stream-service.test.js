@@ -337,6 +337,9 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   );
   assert.equal(events[3].delta, "deterministic fallback for: What detail is missing?");
   assert.equal(events[4].data.answer, "deterministic fallback for: What detail is missing?");
+  assert.equal(events[4].data.answerEvidenceSource, "none");
+  assert.equal(events[4].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(events[4].data.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
   assert.equal(
     events[4].data.answerProvenanceSentence,
     "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
@@ -349,6 +352,8 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   assert.equal(finalResult.answeringMetadata.usedFallback, true);
   assert.equal(finalResult.answeringMetadata.answerTextSource, "deterministic_policy");
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(finalResult.answerEvidenceSource, "none");
+  assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
   assert.equal(finalResult.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
   assert.equal(finalResult.answerTextSource, "deterministic_policy");
   assert.equal(finalResult.answerTextSourceReadabilityLabel, "deterministic policy answer text");
