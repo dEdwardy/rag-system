@@ -338,3 +338,37 @@ test("fetchWithRetry retries once after a transient fetch exception", async () =
     global.fetch = originalFetch;
   }
 });
+
+test("fetchWithRetry includes retry-attempt context when transient failures exhaust retries", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+
+  global.fetch = async () => {
+    requestCount += 1;
+    throw new TypeError("fetch failed");
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/source.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 10000,
+          attempts: 2
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          "Fetch request failed for https://example.com/source.xml: fetch failed (after 2 attempts)."
+        );
+        return true;
+      }
+    );
+    assert.equal(requestCount, 2);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

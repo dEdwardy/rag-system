@@ -49,7 +49,7 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
       const normalizedError = normalizeFetchError(error, input.url, input.timeoutMs);
       lastError = normalizedError;
       if (attempt === attempts || !shouldRetryFetchException(error)) {
-        throw normalizedError;
+        throw withRetryAttemptContext(normalizedError, attempt);
       }
     }
   }
@@ -59,6 +59,23 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
   }
 
   throw lastError instanceof Error ? lastError : new Error("Unknown fetch error.");
+}
+
+function withRetryAttemptContext(error: unknown, attempt: number) {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+
+  if (attempt <= 1) {
+    return error;
+  }
+
+  const message = error.message.trim();
+  if (!message.startsWith("Fetch request failed for") && !message.startsWith("Fetch request timed out for")) {
+    return error;
+  }
+
+  return new Error(`${message} (after ${attempt} attempts).`);
 }
 
 function shouldRetryResponse(status: number) {

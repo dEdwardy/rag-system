@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ external-source fetch failures now include exhausted retry-attempt context on final network/timeout errors
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now appends one additive suffix on final retry-exhausted fetch exceptions: `(after <N> attempts).` (for `Fetch request failed ...` and `Fetch request timed out ...` paths only)
+  - this closes one narrow fetch-visibility gap across existing `web page` / `feed` / `sitemap` source families: diagnostics can now immediately distinguish one-shot failure from retry-exhausted failure without inferring from runtime config
+  - `apps/api/test/fetch-with-retry.test.js` adds focused coverage for the retry-exhausted network-failure path (`attempts=2`)
+  - scope remains diagnostics-only: no source-family expansion, no retry-policy rewrite, no ingestion/persistence semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - 实测结果：focused fetch-with-retry tests passed (`11/11`)；重试耗尽时错误消息现在会显式附带尝试次数（例如 `... (after 2 attempts).`）
+
 - ✅ feed-source dedup now prefers canonical entry link identity to avoid duplicate ingestion when metadata drifts
   - `apps/api/src/infra/feed-source/feed-source.service.ts` now resolves feed-entry dedup key as:
     - `link:<normalized-link>` when link exists (including relative-link resolution against feed URL and hash stripping)
