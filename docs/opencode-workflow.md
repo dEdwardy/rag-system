@@ -157,8 +157,11 @@ In normal day-to-day repository work:
 - commit only files that belong to the current task
 - check `git status --short` before staging so unrelated edits stay out
 - use a concise commit message that matches the change type (`feat:`, `fix:`, `perf:`, `docs:`, `refactor:`)
+- if a task produces multiple commits, push the branch as soon as a clearly bounded, independently verifiable sub-increment is validated; do not keep finished commits sitting locally unless you still expect immediate follow-up edits on the same small unit
+- this applies to both frontend and backend tasks
 - push only after the task's focused validation passes
 - prefer updating the existing branch / PR instead of rewriting history unless a rebase is explicitly needed
+- when the same branch is updated, assume the existing PR will sync automatically; do not restate "new PR" unless the branch changes or a new PR is explicitly requested
 - default PR target follows the current task direction; for web frontend work in this repo, use `dev` unless the task says otherwise
 - if a PR has conflicts, resolve them locally, rerun the smallest relevant validation, then update the same PR when possible
 - keep frontend-only work frontend-only unless the task explicitly requires backend changes
