@@ -6,6 +6,7 @@ import {
   buildAnswerAttributionSummary,
   buildCitationSelectionSourceReadabilityLabel
 } from "../answering/answer-attribution-summary";
+import { buildStrategyReadabilityLabel } from "../retrieval/strategy-readability";
 import { ListConversationTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
@@ -305,7 +306,7 @@ export class TracesService {
       primaryIssue: this.readStringAs<NonNullable<TraceSummary["primaryIssue"]>>(qualityEvaluation?.primaryIssue),
       retrievalMode,
       retrievalQuerySource,
-      strategyReadabilityLabel: this.buildStrategyReadabilityLabel({
+      strategyReadabilityLabel: buildStrategyReadabilityLabel({
         retrievalMode,
         retrievalQuerySource,
         fallbackReason,
@@ -573,24 +574,6 @@ export class TracesService {
     }
 
     return "unknown failed stage";
-  }
-
-  private buildStrategyReadabilityLabel(input: {
-    retrievalMode: TraceSummary["retrievalMode"];
-    retrievalQuerySource: TraceSummary["retrievalQuerySource"];
-    fallbackReason: TraceSummary["fallbackReason"];
-    strategyUsedFallback: TraceSummary["strategySummary"]["usedFallback"];
-  }) {
-    const retrievalModeLabel = input.retrievalMode ?? "unknown mode";
-    const querySourceLabel = input.retrievalQuerySource ?? "unknown query source";
-    const fallbackLabel = input.fallbackReason
-      ?? (input.strategyUsedFallback === true ? "unspecified" : "none");
-    const fallbackUsageLabel = input.strategyUsedFallback == null
-      ? "unknown"
-      : input.strategyUsedFallback
-        ? "yes"
-        : "no";
-    return `${retrievalModeLabel} retrieval via ${querySourceLabel}; fallback: ${fallbackLabel}; fallback used: ${fallbackUsageLabel}.`;
   }
 
   private buildRewriteReadabilityLabel(input: {

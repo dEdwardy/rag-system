@@ -383,6 +383,7 @@ export type AskResponse = {
   retrievedChunks: RetrievedChunk[];
   contextGroups?: ContextGroup[];
   strategySummary?: RetrievalStrategySummary;
+  strategyReadabilityLabel?: TraceSummary["strategyReadabilityLabel"];
   retrievalMetadata?: AskRetrievalMetadata;
   answerAttributionSummary?: TraceAnswerAttributionSummary;
   answerAttribution?: TraceCitationAttribution | null;

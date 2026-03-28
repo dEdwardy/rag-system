@@ -11,6 +11,7 @@ import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
+import { buildStrategyReadabilityLabel } from "../retrieval/strategy-readability";
 import {
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -136,6 +137,12 @@ export class AskAssistantService {
       embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
     }) as AskRetrievalMetadataJson;
+    const strategyReadabilityLabel = buildStrategyReadabilityLabel({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -198,6 +205,7 @@ export class AskAssistantService {
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
+        strategyReadabilityLabel,
         retrievalMetadata,
         answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
@@ -332,6 +340,12 @@ export class AskAssistantService {
       embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
     }) as AskRetrievalMetadataJson;
+    const strategyReadabilityLabel = buildStrategyReadabilityLabel({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -433,6 +447,7 @@ export class AskAssistantService {
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
+        strategyReadabilityLabel,
         retrievalMetadata,
         answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),

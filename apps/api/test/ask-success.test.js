@@ -444,6 +444,10 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.deepEqual(result.retrievedChunks, retrievedChunks);
   assert.deepEqual(result.contextGroups, contextGroups);
   assert.deepEqual(result.strategySummary, createTraceCalls[0].retrievalMetadataJson.strategySummary);
+  assert.equal(
+    result.strategyReadabilityLabel,
+    "hybrid retrieval via rewritten; fallback: none; fallback used: no."
+  );
   assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "explicit",
@@ -777,6 +781,10 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     }
   });
   assert.equal(result.retrievalMetadata.execution.neighborChunkCount, 0);
+  assert.equal(
+    result.strategyReadabilityLabel,
+    "lexical retrieval via original_disabled; fallback: none; fallback used: no."
+  );
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "none",
     source: "none",
