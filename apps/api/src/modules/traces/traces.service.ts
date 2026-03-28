@@ -319,6 +319,13 @@ export class TracesService {
       mergedCandidateCount,
       rankedCandidateCount
     });
+    const candidateCountReadabilitySentence = this.buildCandidateCountReadabilitySentence({
+      candidateLimit,
+      vectorCandidateCount,
+      lexicalCandidateCount,
+      mergedCandidateCount,
+      rankedCandidateCount
+    });
 
     return {
       promptId: this.readString(answeringMetadata?.promptId),
@@ -391,6 +398,7 @@ export class TracesService {
       mergedCandidateCount,
       rankedCandidateCount,
       candidateCountReadabilityLabel,
+      candidateCountReadabilitySentence,
       vectorCandidateLimitHit: this.readBoolean(retrievalExecution?.vectorCandidateLimitHit),
       lexicalCandidateLimitHit: this.readBoolean(retrievalExecution?.lexicalCandidateLimitHit),
       rankingTopKHit: this.readBoolean(retrievalExecution?.rankingTopKHit),
@@ -577,6 +585,16 @@ export class TracesService {
     rankedCandidateCount: TraceSummary["rankedCandidateCount"];
   }): TraceSummary["candidateCountReadabilityLabel"] {
     return `vector ${input.vectorCandidateCount}, lexical ${input.lexicalCandidateCount}, merged ${input.mergedCandidateCount}, ranked ${input.rankedCandidateCount} (candidate limit ${input.candidateLimit})`;
+  }
+
+  private buildCandidateCountReadabilitySentence(input: {
+    candidateLimit: TraceSummary["candidateLimit"];
+    vectorCandidateCount: TraceSummary["vectorCandidateCount"];
+    lexicalCandidateCount: TraceSummary["lexicalCandidateCount"];
+    mergedCandidateCount: TraceSummary["mergedCandidateCount"];
+    rankedCandidateCount: TraceSummary["rankedCandidateCount"];
+  }): TraceSummary["candidateCountReadabilitySentence"] {
+    return `Candidate flow produced ${input.rankedCandidateCount} ranked candidates from ${input.mergedCandidateCount} merged candidates (${input.vectorCandidateCount} vector, ${input.lexicalCandidateCount} lexical) with candidate limit ${input.candidateLimit}.`;
   }
 
   private buildAnswerStatusSourceReadabilityLabel(input: {

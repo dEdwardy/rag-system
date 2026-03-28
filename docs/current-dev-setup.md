@@ -238,6 +238,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `mergedCandidateCount`
     - `rankedCandidateCount`
     - `candidateCountReadabilityLabel` (candidate-flow count readability label)
+    - `candidateCountReadabilitySentence` (one-line candidate-flow readability sentence)
     - `vectorCandidateLimitHit`
     - `lexicalCandidateLimitHit`
     - `rankingTopKHit`

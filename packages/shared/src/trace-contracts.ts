@@ -112,6 +112,7 @@ export type TraceSummary = {
   mergedCandidateCount: number;
   rankedCandidateCount: number;
   candidateCountReadabilityLabel: string;
+  candidateCountReadabilitySentence: string;
   vectorCandidateLimitHit: boolean;
   lexicalCandidateLimitHit: boolean;
   rankingTopKHit: boolean;

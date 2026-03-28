@@ -13,6 +13,15 @@
 
 补充进展（2026-03-28）：
 
+- ✅ trace summary now exposes additive `candidateCountReadabilitySentence` for easier final candidate-flow scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `candidateCountReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing candidate flow counts (`ranked`, `merged`, `vector`, `lexical`, `candidateLimit`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary snapshots to guard the new field; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
 - ✅ trace summary now exposes additive `answerProvenanceReadabilitySentence` for easier final-answer provenance scanning
   - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerProvenanceReadabilitySentence: string`
   - `apps/api/src/modules/traces/traces.service.ts` now emits this sentence from existing answer text/status readability labels plus `answerAttributionReadabilitySentence`
