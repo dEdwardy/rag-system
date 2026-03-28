@@ -15,7 +15,7 @@ test("web ask response type covers current backend answeringMetadata shape", asy
   assert.match(source, /answerAttribution\?:\s*TraceCitationAttribution \| null;/);
   assert.match(source, /answerAttributionSource\?:\s*TraceCitationSelectionSource \| null;/);
   assert.match(source, /answerEvidenceSource\?:\s*TraceCitationSelectionSource \| null;/);
-  assert.match(source, /answerEvidenceSourceReadabilityLabel\?:\s*string;/);
+  assert.match(source, /answerEvidenceSourceReadabilityLabel\?:\s*TraceSummary\["answerEvidenceSourceReadabilityLabel"\];/);
   assert.match(source, /answerEvidenceSourceReadabilitySentence\?:\s*TraceSummary\["answerEvidenceSourceReadabilitySentence"\];/);
   assert.match(source, /answerTextSource\?:\s*TraceAnswerTextSource \| null;/);
   assert.match(source, /answerTextSourceReadabilityLabel\?:\s*TraceSummary\["answerTextSourceReadabilityLabel"\];/);
