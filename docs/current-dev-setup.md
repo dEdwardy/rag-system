@@ -172,8 +172,14 @@ LLM_REWRITE_TEMPERATURE=0
   - ask one-shot responses and ask-stream `final` payloads now also expose additive top-level readability/provenance fields derived from existing metadata:
     - `strategyReadabilityLabel`
     - `retrievalModeProvenanceSentence`
+    - `answerAttributionSummary`
     - `answerAttributionReadabilitySentence`
+    - `answerAttribution` / `answerAttributionSource`
     - `answerEvidenceSource` / `answerEvidenceSourceReadabilityLabel`
+    - `answerEvidenceSourceReadabilitySentence`
+    - `answerTextSource` / `answerTextSourceReadabilityLabel` / `answerTextSourceReadabilitySentence`
+    - `answerStatusSource` / `answerStatusSourceReadabilityLabel` / `answerStatusSourceReadabilitySentence`
+    - `answerProvenanceSentence` / `answerProvenanceReadabilitySentence`
     - `missingInformationProvenanceSentence`
     - `missingInformationSource` / `missingInformationSourceReadabilityLabel`
   - the ask response still keeps `retrievalMetadata` and `answeringMetadata` for lower-level inspection, but the top-level summary makes the resolved retrieval provenance easier to read

@@ -13,6 +13,10 @@
 
 补充进展（2026-03-28）：
 
+- ✅ ask/trace contract docs were tightened to match the currently shipped ask top-level metadata surface
+  - `docs/current-dev-setup.md` `current ask response metadata semantics` now lists the already-shipped top-level ask provenance/readability fields for attribution/evidence/text-source/status-source/provenance sentences, so it stays aligned with the existing web ask metadata contract guard
+  - scope is docs-only alignment: no backend/web runtime changes, no shared contract changes, no retrieval/answering semantics changes
+
 - ✅ ask / ask-stream final payload now expose additive top-level `missingInformationProvenanceSentence` aligned with trace-summary wording
   - `apps/api/src/modules/answering/missing-information-provenance.ts` now centralizes existing missing-information provenance sentence wording (`Missing-information source is <...>; insufficient-context reason is <...>; missing-information count is <...>.`)
   - `apps/api/src/modules/traces/traces.service.ts` now reuses that helper so trace-summary wording path remains unchanged while shared with ask-path projection
