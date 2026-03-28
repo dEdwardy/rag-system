@@ -265,17 +265,28 @@ LLM_REWRITE_TEMPERATURE=0
     - `strong`
     - `partial`
     - `weak`
+  - current `traceSummary.primaryIssue` values are:
+    - `none`
+    - `no_retrieval_hits`
+    - `insufficient_context`
+    - `missing_information`
+    - `low_retrieval_score`
+    - `fallback_generation`
+    - `other`
   - current `traceSummary.generationMode` values are:
     - `generated`
     - `deterministic_bypass`
   - current `traceSummary.contextMode` values are:
     - `chunks`
     - `context_groups`
-  - current `traceSummary.citationAttribution` values are:
+  - current `traceSummary.resolvedLanguage` values are:
+    - `zh`
+    - `en`
+  - current `traceSummary.answerAttribution` / `traceSummary.citationAttribution` values are:
     - `explicit`
     - `heuristic`
     - `none`
-  - current `traceSummary.citationSelectionSource` / `traceSummary.answerEvidenceSource` values are:
+  - current `traceSummary.answerAttributionSource` / `traceSummary.citationSelectionSource` / `traceSummary.answerEvidenceSource` values are:
     - `structured`
     - `inline_markers`
     - `heuristic`
@@ -298,6 +309,21 @@ LLM_REWRITE_TEMPERATURE=0
   - current `traceSummary.failedStage` values are:
     - `retrieval`
     - `answering`
+  - current `traceSummary` readability field examples (derived from `apps/api/src/modules/traces/traces.service.ts`):
+    - `strategyReadabilityLabel` example:
+      - `hybrid retrieval via rewritten; fallback: none; fallback used: no.`
+    - `rewriteReadabilityLabel` example:
+      - `rewrite enabled; rewrite applied: yes; rewrite fallback: no; rewrite prompt: rewrite-query.v1.`
+    - `answerAttributionSummary.readability` example values:
+      - `explicit:structured`
+      - `heuristic:inline_markers`
+      - `none:none`
+    - `answerAttributionSummary.readabilitySentence` example:
+      - `Answer attribution is explicit; source evidence is structured.`
+    - `answerProvenanceSentence` example:
+      - `Answer text source is model; status source is model; attribution summary is explicit attribution via structured evidence source.`
+    - `missingInformationProvenanceSentence` example:
+      - `Missing-information source is model; insufficient-context reason is none; missing-information count is 0.`
   - retrieval-stage ask failures now also create a failed trace before the pipeline aborts
   - that failed trace carries minimal retrieval failure metadata so `traceSummary.failedStage` and `traceSummary.failureMessage` remain available even when retrieval fails before any chunks are returned
 - current quality-evaluation semantics:
