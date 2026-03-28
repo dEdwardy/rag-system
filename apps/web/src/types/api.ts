@@ -392,6 +392,15 @@ export type AskResponse = {
   answerAttributionSource?: TraceCitationSelectionSource | null;
   answerEvidenceSource?: TraceCitationSelectionSource | null;
   answerEvidenceSourceReadabilityLabel?: string;
+  answerEvidenceSourceReadabilitySentence?: TraceSummary["answerEvidenceSourceReadabilitySentence"];
+  answerTextSource?: TraceAnswerTextSource | null;
+  answerTextSourceReadabilityLabel?: TraceSummary["answerTextSourceReadabilityLabel"];
+  answerTextSourceReadabilitySentence?: TraceSummary["answerTextSourceReadabilitySentence"];
+  answerStatusSource?: TraceAnswerStatusSource | null;
+  answerStatusSourceReadabilityLabel?: TraceSummary["answerStatusSourceReadabilityLabel"];
+  answerStatusSourceReadabilitySentence?: TraceSummary["answerStatusSourceReadabilitySentence"];
+  answerProvenanceSentence?: TraceSummary["answerProvenanceSentence"];
+  answerProvenanceReadabilitySentence?: TraceSummary["answerProvenanceReadabilitySentence"];
   missingInformationSource?: TraceSummary["missingInformationSource"];
   missingInformationProvenanceSentence?: TraceSummary["missingInformationProvenanceSentence"];
   missingInformationSourceReadabilityLabel?: TraceSummary["missingInformationSourceReadabilityLabel"];

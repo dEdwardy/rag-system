@@ -207,6 +207,28 @@ export class AskAssistantService {
 
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+          : null
+      );
+      const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel({
+        answerTextSource,
+        rawAnswerTextSource
+      });
+      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+          : null
+      );
+      const answerStatusSourceReadabilityLabel = this.buildAnswerStatusSourceReadabilityLabel({
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
       const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
       const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
         missingInformationSource,
@@ -230,12 +252,32 @@ export class AskAssistantService {
         retrievalModeProvenanceSentence,
         retrievalMetadata,
         answerAttributionSummary,
-        answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
-          ?? "Answer attribution is unknown; source evidence is unknown.",
+        answerAttributionReadabilitySentence,
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        answerEvidenceSourceReadabilitySentence: this.buildAnswerEvidenceSourceReadabilitySentence(
+          buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource)
+        ),
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence: this.buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence: this.buildAnswerStatusSourceReadabilitySentence(
+          answerStatusSourceReadabilityLabel
+        ),
+        answerProvenanceSentence: this.buildAnswerProvenanceSentence({
+          answerTextSource,
+          answerStatusSource,
+          answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
+        }),
+        answerProvenanceReadabilitySentence: this.buildAnswerProvenanceReadabilitySentence({
+          answerTextSourceReadabilityLabel,
+          answerStatusSourceReadabilityLabel,
+          answerAttributionReadabilitySentence
+        }),
         missingInformationSource,
         missingInformationProvenanceSentence,
         missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
@@ -472,6 +514,28 @@ export class AskAssistantService {
 
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+          : null
+      );
+      const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel({
+        answerTextSource,
+        rawAnswerTextSource
+      });
+      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+          : null
+      );
+      const answerStatusSourceReadabilityLabel = this.buildAnswerStatusSourceReadabilityLabel({
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
       const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
       const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
         missingInformationSource,
@@ -495,12 +559,32 @@ export class AskAssistantService {
         retrievalModeProvenanceSentence,
         retrievalMetadata,
         answerAttributionSummary,
-        answerAttributionReadabilitySentence: answerAttributionSummary.readabilitySentence
-          ?? "Answer attribution is unknown; source evidence is unknown.",
+        answerAttributionReadabilitySentence,
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        answerEvidenceSourceReadabilitySentence: this.buildAnswerEvidenceSourceReadabilitySentence(
+          buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource)
+        ),
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence: this.buildAnswerTextSourceReadabilitySentence(answerTextSourceReadabilityLabel),
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence: this.buildAnswerStatusSourceReadabilitySentence(
+          answerStatusSourceReadabilityLabel
+        ),
+        answerProvenanceSentence: this.buildAnswerProvenanceSentence({
+          answerTextSource,
+          answerStatusSource,
+          answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
+        }),
+        answerProvenanceReadabilitySentence: this.buildAnswerProvenanceReadabilitySentence({
+          answerTextSourceReadabilityLabel,
+          answerStatusSourceReadabilityLabel,
+          answerAttributionReadabilitySentence
+        }),
         missingInformationSource,
         missingInformationProvenanceSentence,
         missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
@@ -584,6 +668,108 @@ export class AskAssistantService {
       attribution: this.resolveAnswerAttribution(answeringMetadata),
       source: this.resolveAnswerAttributionSource(answeringMetadata)
     });
+  }
+
+  private resolveAnswerTextSource(answeringMetadata: unknown): TraceSummary["answerTextSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).answerTextSource;
+    return source === "model" || source === "deterministic_policy" ? source : null;
+  }
+
+  private resolveAnswerStatusSource(answeringMetadata: unknown): TraceSummary["answerStatusSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).answerStatusSource;
+    return source === "model" || source === "inferred_from_retrieval" || source === "deterministic_policy"
+      ? source
+      : null;
+  }
+
+  private readString(value: unknown): string | null {
+    return typeof value === "string" ? value : null;
+  }
+
+  private buildAnswerTextSourceReadabilityLabel(input: {
+    answerTextSource: TraceSummary["answerTextSource"];
+    rawAnswerTextSource: string | null;
+  }): TraceSummary["answerTextSourceReadabilityLabel"] {
+    if (input.answerTextSource === "model") {
+      return "model-generated answer text";
+    }
+
+    if (input.answerTextSource === "deterministic_policy") {
+      return "deterministic policy answer text";
+    }
+
+    if (input.rawAnswerTextSource != null) {
+      return `unknown answer text source (${input.rawAnswerTextSource})`;
+    }
+
+    return "unknown answer text source";
+  }
+
+  private buildAnswerStatusSourceReadabilityLabel(input: {
+    answerStatusSource: TraceSummary["answerStatusSource"];
+    rawAnswerStatusSource: string | null;
+  }): TraceSummary["answerStatusSourceReadabilityLabel"] {
+    if (input.answerStatusSource === "model") {
+      return "model-decided answer status";
+    }
+
+    if (input.answerStatusSource === "inferred_from_retrieval") {
+      return "retrieval-inferred answer status";
+    }
+
+    if (input.answerStatusSource === "deterministic_policy") {
+      return "deterministic policy answer status";
+    }
+
+    if (input.rawAnswerStatusSource != null) {
+      return `unknown answer status source (${input.rawAnswerStatusSource})`;
+    }
+
+    return "unknown answer status source";
+  }
+
+  private buildAnswerTextSourceReadabilitySentence(
+    answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"]
+  ): TraceSummary["answerTextSourceReadabilitySentence"] {
+    return `Answer text source is ${answerTextSourceReadabilityLabel}.`;
+  }
+
+  private buildAnswerStatusSourceReadabilitySentence(
+    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"]
+  ): TraceSummary["answerStatusSourceReadabilitySentence"] {
+    return `Answer status source is ${answerStatusSourceReadabilityLabel}.`;
+  }
+
+  private buildAnswerEvidenceSourceReadabilitySentence(
+    answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
+  ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
+    return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
+  }
+
+  private buildAnswerProvenanceSentence(input: {
+    answerTextSource: TraceSummary["answerTextSource"];
+    answerStatusSource: TraceSummary["answerStatusSource"];
+    answerAttributionReadabilityResolvedLabel: TraceSummary["answerAttributionSummary"]["readabilityResolvedLabel"];
+  }): TraceSummary["answerProvenanceSentence"] {
+    const textSourceValue = input.answerTextSource ?? "unknown";
+    const statusSourceValue = input.answerStatusSource ?? "unknown";
+    return `Answer text source is ${textSourceValue}; status source is ${statusSourceValue}; attribution summary is ${input.answerAttributionReadabilityResolvedLabel}.`;
+  }
+
+  private buildAnswerProvenanceReadabilitySentence(input: {
+    answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"];
+    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"];
+    answerAttributionReadabilitySentence: TraceSummary["answerAttributionReadabilitySentence"];
+  }): TraceSummary["answerProvenanceReadabilitySentence"] {
+    return `Answer text source is ${input.answerTextSourceReadabilityLabel}; answer status source is ${input.answerStatusSourceReadabilityLabel}; ${input.answerAttributionReadabilitySentence}`;
   }
 
   private resolveMissingInformationSource(answeringMetadata: unknown): TraceSummary["missingInformationSource"] {

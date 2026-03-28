@@ -469,6 +469,21 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.equal(result.answerAttributionSource, "structured");
   assert.equal(result.answerEvidenceSource, "structured");
   assert.equal(result.answerEvidenceSourceReadabilityLabel, "structured evidence source");
+  assert.equal(result.answerEvidenceSourceReadabilitySentence, "Answer evidence source is structured evidence source.");
+  assert.equal(result.answerTextSource, "model");
+  assert.equal(result.answerTextSourceReadabilityLabel, "model-generated answer text");
+  assert.equal(result.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
+  assert.equal(result.answerStatusSource, "model");
+  assert.equal(result.answerStatusSourceReadabilityLabel, "model-decided answer status");
+  assert.equal(result.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(
+    result.answerProvenanceSentence,
+    "Answer text source is model; status source is model; attribution summary is explicit attribution via structured evidence source."
+  );
+  assert.equal(
+    result.answerProvenanceReadabilitySentence,
+    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is explicit; source evidence is structured."
+  );
   assert.equal(result.missingInformationSource, "none");
   assert.equal(
     result.missingInformationProvenanceSentence,
@@ -815,6 +830,27 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   assert.equal(result.answerAttributionSource, "none");
   assert.equal(result.answerEvidenceSource, "none");
   assert.equal(result.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(result.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(result.answerTextSource, "deterministic_policy");
+  assert.equal(result.answerTextSourceReadabilityLabel, "deterministic policy answer text");
+  assert.equal(
+    result.answerTextSourceReadabilitySentence,
+    "Answer text source is deterministic policy answer text."
+  );
+  assert.equal(result.answerStatusSource, "deterministic_policy");
+  assert.equal(result.answerStatusSourceReadabilityLabel, "deterministic policy answer status");
+  assert.equal(
+    result.answerStatusSourceReadabilitySentence,
+    "Answer status source is deterministic policy answer status."
+  );
+  assert.equal(
+    result.answerProvenanceSentence,
+    "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    result.answerProvenanceReadabilitySentence,
+    "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
+  );
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,

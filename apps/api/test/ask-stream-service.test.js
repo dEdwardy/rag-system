@@ -135,6 +135,21 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(finalResult.answerEvidenceSource, "none");
   assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(finalResult.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(finalResult.answerTextSource, "model");
+  assert.equal(finalResult.answerTextSourceReadabilityLabel, "model-generated answer text");
+  assert.equal(finalResult.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
+  assert.equal(finalResult.answerStatusSource, "model");
+  assert.equal(finalResult.answerStatusSourceReadabilityLabel, "model-decided answer status");
+  assert.equal(finalResult.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(
+    finalResult.answerProvenanceSentence,
+    "Answer text source is model; status source is model; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    finalResult.answerProvenanceReadabilitySentence,
+    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none."
+  );
   assert.equal(finalResult.missingInformationSource, "none");
   assert.equal(
     finalResult.missingInformationProvenanceSentence,
@@ -152,6 +167,21 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(events[5].data.answerEvidenceSource, "none");
   assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(events[5].data.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(events[5].data.answerTextSource, "model");
+  assert.equal(events[5].data.answerTextSourceReadabilityLabel, "model-generated answer text");
+  assert.equal(events[5].data.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
+  assert.equal(events[5].data.answerStatusSource, "model");
+  assert.equal(events[5].data.answerStatusSourceReadabilityLabel, "model-decided answer status");
+  assert.equal(events[5].data.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(
+    events[5].data.answerProvenanceSentence,
+    "Answer text source is model; status source is model; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    events[5].data.answerProvenanceReadabilitySentence,
+    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none."
+  );
   assert.equal(events[5].data.missingInformationSource, "none");
   assert.equal(
     events[5].data.missingInformationProvenanceSentence,
@@ -311,6 +341,27 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   assert.equal(finalResult.answeringMetadata.usedFallback, true);
   assert.equal(finalResult.answeringMetadata.answerTextSource, "deterministic_policy");
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(finalResult.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(finalResult.answerTextSource, "deterministic_policy");
+  assert.equal(finalResult.answerTextSourceReadabilityLabel, "deterministic policy answer text");
+  assert.equal(
+    finalResult.answerTextSourceReadabilitySentence,
+    "Answer text source is deterministic policy answer text."
+  );
+  assert.equal(finalResult.answerStatusSource, "deterministic_policy");
+  assert.equal(finalResult.answerStatusSourceReadabilityLabel, "deterministic policy answer status");
+  assert.equal(
+    finalResult.answerStatusSourceReadabilitySentence,
+    "Answer status source is deterministic policy answer status."
+  );
+  assert.equal(
+    finalResult.answerProvenanceSentence,
+    "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    finalResult.answerProvenanceReadabilitySentence,
+    "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
+  );
 });
 
 test("AskAssistantService preserves best_effort stream no-hit answers instead of using deterministic bypass", async () => {
