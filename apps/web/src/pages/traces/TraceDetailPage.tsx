@@ -33,6 +33,104 @@ type RetrievalScoreRecord = {
 
 type RankedEntry = RetrievalScoreRecord;
 
+type FailureTaxonomyKey = "no_hit" | "fallback" | "slow_path" | "timeout" | "source_failure";
+
+const SLOW_PATH_LATENCY_MS = 10_000;
+
+function buildFailureTaxonomy(trace: {
+  status: "success" | "failed";
+  latencyMs: number | null;
+  errorMessage: string | null;
+  traceSummary?: {
+    primaryIssue: string | null;
+    insufficientContextReason: string | null;
+    usedFallback: boolean;
+    strategySummary: {
+      usedFallback: boolean | null;
+    };
+    retrievedChunkCount: number;
+    failureMessage: string | null;
+    failureReadabilitySentence: string;
+  } | null;
+}): FailureTaxonomyKey[] {
+  const taxonomy: FailureTaxonomyKey[] = [];
+  const summary = trace.traceSummary ?? null;
+  const diagnosticsText = [trace.errorMessage, summary?.failureMessage, summary?.failureReadabilitySentence]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+
+  const noHitDetected =
+    summary?.primaryIssue === "no_retrieval_hits" ||
+    summary?.insufficientContextReason === "no_retrieval_hits" ||
+    summary?.retrievedChunkCount === 0;
+  if (noHitDetected) {
+    taxonomy.push("no_hit");
+  }
+
+  const fallbackDetected = Boolean(summary?.usedFallback || summary?.strategySummary.usedFallback || summary?.primaryIssue === "fallback_generation");
+  if (fallbackDetected) {
+    taxonomy.push("fallback");
+  }
+
+  const slowPathDetected = (trace.latencyMs ?? 0) >= SLOW_PATH_LATENCY_MS;
+  if (slowPathDetected) {
+    taxonomy.push("slow_path");
+  }
+
+  const timeoutDetected =
+    trace.status === "failed" &&
+    ["timeout", "timed out", "abort", "aborted", "deadline exceeded"].some(keyword => diagnosticsText.includes(keyword));
+  if (timeoutDetected) {
+    taxonomy.push("timeout");
+  }
+
+  const sourceFailureDetected =
+    trace.status === "failed" &&
+    ["source", "fetch", "web page", "feed", "sitemap", "content-type", "redirect", "external"].some(keyword =>
+      diagnosticsText.includes(keyword)
+    );
+  if (sourceFailureDetected) {
+    taxonomy.push("source_failure");
+  }
+
+  return taxonomy;
+}
+
+function getFailureTaxonomyLabel(key: FailureTaxonomyKey, locale: "zh" | "en") {
+  if (key === "no_hit") {
+    return locale === "zh" ? "无命中检索（no-hit）" : "No-hit retrieval";
+  }
+  if (key === "fallback") {
+    return locale === "zh" ? "回退路径（fallback）" : "Fallback path";
+  }
+  if (key === "slow_path") {
+    return locale === "zh" ? "慢路径（slow-path）" : "Slow path";
+  }
+  if (key === "timeout") {
+    return locale === "zh" ? "超时（timeout）" : "Timeout";
+  }
+
+  return locale === "zh" ? "来源失败（source-failure）" : "Source failure";
+}
+
+function getFailureTaxonomyColor(key: FailureTaxonomyKey) {
+  if (key === "no_hit") {
+    return "gray";
+  }
+  if (key === "fallback") {
+    return "yellow";
+  }
+  if (key === "slow_path") {
+    return "orange";
+  }
+  if (key === "timeout") {
+    return "red";
+  }
+
+  return "pink";
+}
+
 function formatJson(value: JsonValue | unknown) {
   if (value == null) {
     return "null";
@@ -180,6 +278,14 @@ export function TraceDetailPage() {
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
   const hasRewrite = Boolean(trace?.rewrittenQuery);
   const traceSummary = trace?.traceSummary ?? null;
+  const failureTaxonomy = trace
+    ? buildFailureTaxonomy({
+        status: trace.status,
+        latencyMs: trace.latencyMs,
+        errorMessage: trace.errorMessage,
+        traceSummary
+      })
+    : [];
   const userRequestText =
     (trace?.userMessageId
       ? conversationMessages.find(message => message.id === trace.userMessageId)?.content
@@ -427,6 +533,34 @@ export function TraceDetailPage() {
                   </Text>
                 </Paper>
               </div>
+
+              <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                <Stack gap="xs">
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "失败分类（P6 v1）" : "Failure taxonomy (P6 v1)"}
+                  </Text>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    {locale === "zh"
+                      ? "按 no-hit / fallback / slow-path / timeout / source-failure 归类当前 trace，便于快速定位问题类型。"
+                      : "Categorizes this trace into no-hit, fallback, slow-path, timeout, and source-failure for faster triage."}
+                  </Text>
+                  {failureTaxonomy.length > 0 ? (
+                    <Group gap="xs">
+                      {failureTaxonomy.map(category => (
+                        <Badge color={getFailureTaxonomyColor(category)} key={category} variant="light">
+                          {getFailureTaxonomyLabel(category, locale)}
+                        </Badge>
+                      ))}
+                    </Group>
+                  ) : (
+                    <Text c="var(--app-text-secondary)" size="sm">
+                      {locale === "zh"
+                        ? "当前 trace 未命中以上失败分类。"
+                        : "No failure taxonomy category was detected for this trace."}
+                    </Text>
+                  )}
+                </Stack>
+              </Paper>
 
               {traceSummary ? (
                 <div className="workspace-meta-list">

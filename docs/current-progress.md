@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 trace detail now includes a failure taxonomy view to quickly classify no-hit / fallback / slow-path / timeout / source-failure cases
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - trace 详情页 `Execution summary` 新增 `Failure taxonomy (P6 v1)` 面板，按固定分类输出当前 trace 命中的失败标签（可多标签并存）
+    - 分类口径保持前端读模型内聚：`no-hit`（primary issue/insufficient reason/0 chunks）、`fallback`（strategy/answer fallback）、`slow-path`（`latencyMs >= 10000`）、`timeout`（失败诊断包含 timeout/abort 关键词）、`source-failure`（失败诊断包含 source/fetch/feed/sitemap 等关键词）
+    - 不改后端契约与 trace persistence，仅补前端可读排障视图和最小回归守卫
+  - focused validation：
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 trace detail page now surfaces essential request, response, and step-level execution context in one view
   - 变更文件：
     - `apps/web/src/pages/traces/TraceDetailPage.tsx`

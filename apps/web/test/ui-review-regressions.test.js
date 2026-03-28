@@ -83,6 +83,8 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   assert.match(chatSource, /workspace-chat-summary/);
   assert.match(chatSource, /Ready to ask|准备提问/);
   assert.match(traceSource, /Execution summary|执行摘要/);
+  assert.match(traceSource, /Failure taxonomy \(P6 v1\)|失败分类（P6 v1）/);
+  assert.match(traceSource, /No-hit retrieval|无命中检索（no-hit）/);
   assert.match(traceSource, /workspace-metric-grid/);
   assert.match(traceSource, /Answer provenance|回答溯源/);
   assert.match(traceSource, /Missing-information provenance|缺失信息溯源/);
