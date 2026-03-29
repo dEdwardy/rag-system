@@ -844,10 +844,15 @@ Notes:
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`
+- backend now also exposes one scan-first comparison summary endpoint for recent-window diagnostics through `GET /knowledge-bases/:id/document-runs/comparison` (run-vs-run or snapshot-vs-snapshot)
+- backend now also exposes one minimal authenticated issue-event scan endpoint through `GET /audit/events`
 - the current PC Web now minimally consumes these run observability endpoints in existing pages:
 - `Knowledge Base` shows recent source/document runs plus a small recent-run summary and latest failure context
 - `Knowledge Base` recent runs now also support a minimal status filter (`all` / `failed` / `processing`), direct jump to the related document, and one-item reindex for failed/skipped runs
 - `Document Detail` shows per-document run history with status, trigger, source timing, and minimal diagnostics expansion
+- `Usage` keeps a scan-first `P6 v1 health dashboard` surface (alerts, trend, hotspot, anomaly clustering, regression diff, snapshot window diff) by reusing existing summary/comparison/audit endpoints
+- `Trace Detail` keeps a scan-first execution-summary surface (diagnostic summary slice, failure taxonomy, quick-jump anchors) and does not require new backend contracts
+- dashboard scope is intentionally constrained in this wave: keep scan-first troubleshooting panels only, and defer generic analytics/ops-platform expansion
 - the knowledge-base scoped run list currently supports minimal query filters:
   - `documentId`
   - `sourceType`

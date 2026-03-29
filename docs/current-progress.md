@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ observability + usage docs are now synced to the current scan-first surfaces, summary endpoints, and intentionally deferred dashboard scope (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 已补齐当前 scan-first observability surface 快照：明确 `Usage` / `Trace Detail` 仅复用现有 `document-runs summary/comparison` 与 `audit events` 读取面，不新增运行时契约
+    - 文档同步明确当前 dashboard 约束：保持 scan-first 排障面板，不扩展为通用 analytics/ops dashboard 平台
+    - 保持本次为纯文档收口，不改 API/持久化/行为语义
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ document-run snapshot comparison now includes one focused issue-hotspot slice for faster issue concentration scanning across existing summary/comparison buckets
   - 变更文件：
     - `apps/api/src/modules/document-runs/document-runs.service.ts`
