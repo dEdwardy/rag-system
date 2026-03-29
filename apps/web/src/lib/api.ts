@@ -3,6 +3,10 @@ const apiHostname =
 
 const API_BASE_URL = window.location.port === "5174" ? "/api" : `${window.location.protocol}//${apiHostname}:3000`;
 
+export function resolveApiUrl(path: string) {
+  return `${API_BASE_URL}${path}`;
+}
+
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
@@ -21,7 +25,7 @@ type StreamErrorPayload = {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     method: options.method ?? "GET",
     credentials: "include",
     headers:
@@ -62,7 +66,7 @@ export async function apiStreamRequest<TEvent>(
     onEvent: (event: TEvent) => void;
   }
 ) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     method: options.method ?? "GET",
     credentials: "include",
     headers: {

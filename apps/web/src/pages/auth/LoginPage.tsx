@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuthMe, useLogin } from "../../features/api/hooks";
+import { resolveApiUrl } from "../../lib/api";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -8,6 +9,7 @@ export function LoginPage() {
   const loginMutation = useLogin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const githubOauthStartUrl = resolveApiUrl("/auth/oauth/github/start");
 
   if (authMeQuery.data?.identity != null) {
     return <Navigate replace to="/" />;
@@ -63,11 +65,13 @@ export function LoginPage() {
 
         <div className="mt-5 space-y-2">
           <button
-            className="w-full rounded-md border border-[var(--app-border)] px-4 py-2 text-sm text-[var(--app-text-muted)] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled
+            className="w-full rounded-md border border-[var(--app-border)] px-4 py-2 text-sm text-[var(--app-text)] hover:bg-[var(--app-surface)]"
+            onClick={() => {
+              window.location.assign(githubOauthStartUrl);
+            }}
             type="button"
           >
-            Continue with GitHub (coming soon)
+            Continue with GitHub
           </button>
           <button
             className="w-full rounded-md border border-[var(--app-border)] px-4 py-2 text-sm text-[var(--app-text-muted)] disabled:cursor-not-allowed disabled:opacity-60"
