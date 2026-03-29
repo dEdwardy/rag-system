@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ document-run snapshot comparison null/empty contract docs are now aligned for `issueHotspotSlice` (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 已补充 `GET /knowledge-bases/:id/document-runs/comparison` 的 snapshot 合同说明：`issueHotspotSlice` 为 additive 字段，包含 `leftHotspot` / `rightHotspot` / `dominantShift`
+    - 同步明确当前已验证的 null/empty 语义：当 comparison 属于 low-signal（无热点或无主变化项）时，以上 additive keys 仍保持稳定返回，并以显式 `null` 表达
+    - 范围仅限文档对齐，不改 backend/web 运行时行为
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ auth route-policy docs wording now explicitly matches the current authenticated owner-scoped controller baseline (docs-only sync)
   - 变更文件：
     - `docs/current-dev-setup.md`

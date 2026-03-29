@@ -845,6 +845,8 @@ Notes:
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`
 - backend now also exposes one scan-first comparison summary endpoint for recent-window diagnostics through `GET /knowledge-bases/:id/document-runs/comparison` (run-vs-run or snapshot-vs-snapshot)
+- in `snapshot` mode, the comparison payload now also includes additive `issueHotspotSlice` (`leftHotspot` / `rightHotspot` / `dominantShift`) for quick issue-concentration scan
+- snapshot comparison null/empty contract (validated baseline): low-signal windows still keep these additive `issueHotspotSlice` keys stable and explicit, with `null` values when no hotspot or meaningful dominant shift exists (instead of omitting keys)
 - backend now also exposes one minimal authenticated issue-event scan endpoint through `GET /audit/events`
 - the current PC Web now minimally consumes these run observability endpoints in existing pages:
 - `Knowledge Base` shows recent source/document runs plus a small recent-run summary and latest failure context
