@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ external source follow-up docs are now re-synced to the accepted stability boundary, queue-ready slices, and intentionally deferred expansion scope (docs-only increment)
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `next_steps` 的 P3 段新增 `queue-ready slices (accepted)`，把当前已接受的 5 个最小切片顺序固定为：`source follow-up gap list` → `source diagnostics consistency` → `source resync recovery guards` → `new source type review` → `source follow-up docs`
+    - `current-dev-setup` 增补 P3 快照：明确当前 stability boundary（现有 source family、nested sitemapindex fail-fast、`MAX_CHILD_SITEMAPS=20` 常量、静态 HTML 抓取边界）
+    - 同步标注本波次 intentionally deferred 扩展项（新 source family、JS 渲染抓取、跨 family 错误码重构、source 平台化）
+    - 仅做文档对齐，不改实现行为与运行时语义
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md`
+
 - ✅ web/feed source ingestion now records consistent partial diagnostics for content-type fallback sniffing, so scan-first troubleshooting keeps one readable partial envelope
   - 变更文件：
     - `apps/api/src/infra/web-page/web-page.service.ts`

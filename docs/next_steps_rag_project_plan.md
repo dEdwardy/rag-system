@@ -478,6 +478,18 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 跨 source family 的全面错误码体系重构
 - source 平台化/插件化重构（保持现有主链路与契约）
 
+#### P3 queue-ready slices（accepted）
+
+当前 follow-up 的 queue-ready 最小切片保持为 5 个（按当前建议顺序）：
+
+1. `source follow-up gap list`
+2. `source diagnostics consistency`
+3. `source resync recovery guards`
+4. `new source type review`
+5. `source follow-up docs`
+
+约束说明：以上切片仅用于现有 source family 稳定性补强；不在本波次引入新 source family 或平台化重构。
+
 #### P3 queue-ready tasks
 
 1. 盘点当前 source family 的后续缺口

@@ -824,6 +824,23 @@ Notes:
 - external source fetch diagnostics now distinguish retryability at the source-fetch boundary:
   - upstream / transient fetch failures remain `retryable: true`
   - invalid payload / unsupported content type style failures now persist as `retryable: false`
+- external source follow-up（P3）当前 accepted stability boundary / queue slices 快照：
+  - stability boundary（保持不变）：
+    - source family 仅限 `web page` / `feed` / `sitemap urlset` / `sitemapindex(一层)` + `external_resync`
+    - nested sitemapindex 仍按不支持处理（保持当前失败语义）
+    - `MAX_CHILD_SITEMAPS=20` 仍为实现常量（本波次不做 per-source 动态配置）
+    - web page 仍按静态 HTML 提取，不引入 JS 渲染抓取
+  - queue-ready slices（按顺序）：
+    1) `source follow-up gap list`
+    2) `source diagnostics consistency`
+    3) `source resync recovery guards`
+    4) `new source type review`
+    5) `source follow-up docs`
+  - intentionally deferred（本波次明确后置）：
+    - 新 source family 扩展（connector 扩面）
+    - web page JS 渲染抓取能力
+    - 跨 source family 的全面错误码体系重构
+    - source 平台化/插件化重构
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`
