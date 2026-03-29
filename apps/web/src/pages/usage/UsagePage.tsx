@@ -9,6 +9,7 @@ import {
   useConversations,
   useDocuments,
   useKnowledgeBaseDocumentRuns,
+  useKnowledgeBaseDocumentRunComparison,
   useKnowledgeBaseDocumentRunSummary,
   useKnowledgeBases
 } from "../../features/api/hooks";
@@ -33,6 +34,25 @@ export function UsagePage() {
     sinceHours: 24,
     limit: 100
   });
+  const latestIssueRunPair = useMemo(() => {
+    const issueRuns = anomalyRunsQuery.data ?? [];
+    if (issueRuns.length < 2) {
+      return null;
+    }
+
+    return {
+      leftRunId: issueRuns[1].id,
+      rightRunId: issueRuns[0].id
+    };
+  }, [anomalyRunsQuery.data]);
+  const runDiffQuery = useKnowledgeBaseDocumentRunComparison(
+    activeKnowledgeBase?.id ?? null,
+    latestIssueRunPair ?? {
+      leftRunId: "",
+      rightRunId: ""
+    },
+    latestIssueRunPair != null
+  );
   const { locale } = useI18n();
 
   const documents = documentsQuery.data ?? [];
@@ -342,6 +362,9 @@ export function UsagePage() {
 
   const anomalyPanelErrorMessage =
     (anomalyRunsQuery.error instanceof Error && anomalyRunsQuery.error.message) ||
+    null;
+  const runDiffPanelErrorMessage =
+    (runDiffQuery.error instanceof Error && runDiffQuery.error.message) ||
     null;
 
   const anomalyClusters = useMemo(
@@ -737,6 +760,58 @@ export function UsagePage() {
                               : `Stage: ${cluster.failedStage} · Sources: ${cluster.sourceTypes.join(", ")}`}
                           </p>
                           {cluster.sampleMessage ? <p className="mt-1 text-[var(--app-text-muted)]">{cluster.sampleMessage}</p> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
+                  <div className="workspace-section-heading">
+                    {locale === "zh" ? "P6 v1 回归差异视图" : "P6 v1 regression diff view"}
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                    {locale === "zh"
+                      ? "对比最近两次问题 run，快速查看状态/阶段/错误码变化。"
+                      : "Compare the latest two issue runs and scan status/stage/failure-code shifts quickly."}
+                  </p>
+
+                  {runDiffPanelErrorMessage ? (
+                    <StatePanel
+                      description={runDiffPanelErrorMessage}
+                      title={locale === "zh" ? "回归差异信号加载失败" : "Failed to load regression diff signals"}
+                      tone="error"
+                    />
+                  ) : anomalyRunsQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : !latestIssueRunPair ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                      {locale === "zh"
+                        ? "至少需要两次问题 run 才能显示差异。"
+                        : "At least two issue runs are required to render a diff."}
+                    </p>
+                  ) : runDiffQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : runDiffQuery.data?.mode !== "run" ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                      {locale === "zh" ? "当前差异视图仅展示 run 对比模式。" : "This view currently renders run comparison mode only."}
+                    </p>
+                  ) : runDiffQuery.data.meaningfulDifferences.length === 0 ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]" data-testid="regression-diff-row">
+                      {locale === "zh"
+                        ? "最近两次问题 run 未检测到关键差异。"
+                        : "No meaningful differences detected between the latest two issue runs."}
+                    </p>
+                  ) : (
+                    <ul className="mt-3 flex flex-col gap-2 text-sm">
+                      {runDiffQuery.data.meaningfulDifferences.slice(0, 5).map(diff => (
+                        <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={diff.metric}>
+                          <div className="font-medium text-[var(--app-text)]">{diff.summary}</div>
+                          <div className="mt-1 text-[var(--app-text-muted)]" data-testid="regression-diff-row">
+                            {locale === "zh"
+                              ? `指标：${diff.metric} · ${String(diff.left)} → ${String(diff.right)}`
+                              : `Metric: ${diff.metric} · ${String(diff.left)} → ${String(diff.right)}`}
+                          </div>
                         </li>
                       ))}
                     </ul>

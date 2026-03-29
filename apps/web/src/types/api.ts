@@ -285,6 +285,57 @@ export type KnowledgeBaseDocumentRunSummary = {
   latestFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
 };
 
+export type KnowledgeBaseDocumentRunComparisonRunSnapshot = {
+  runId: string;
+  documentId: string;
+  version: number;
+  trigger: DocumentRunTrigger;
+  status: DocumentRunStatus;
+  failedStage: DocumentRunFailedStage;
+  failureSummary: KnowledgeBaseDocumentRunFailureSummary | null;
+  sourceType: string;
+  sourceName: string;
+  boundarySummary: KnowledgeBaseDocumentRunBoundarySummary | null;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
+export type KnowledgeBaseDocumentRunComparisonRunDifference = {
+  metric: string;
+  left: string | number | boolean | null;
+  right: string | number | boolean | null;
+  summary: string;
+};
+
+export type KnowledgeBaseDocumentRunComparisonSnapshotDifference = {
+  metric: string;
+  left: number;
+  right: number;
+  delta: number;
+  trend: "up" | "down";
+  summary: string;
+};
+
+export type KnowledgeBaseDocumentRunComparison =
+  | {
+      mode: "run";
+      left: KnowledgeBaseDocumentRunComparisonRunSnapshot;
+      right: KnowledgeBaseDocumentRunComparisonRunSnapshot;
+      meaningfulDifferences: KnowledgeBaseDocumentRunComparisonRunDifference[];
+    }
+  | {
+      mode: "snapshot";
+      left: {
+        sinceHours: number;
+        summary: KnowledgeBaseDocumentRunSummary;
+      };
+      right: {
+        sinceHours: number;
+        summary: KnowledgeBaseDocumentRunSummary;
+      };
+      meaningfulDifferences: KnowledgeBaseDocumentRunComparisonSnapshotDifference[];
+    };
+
 export type DocumentChunk = {
   id: string;
   documentId: string;

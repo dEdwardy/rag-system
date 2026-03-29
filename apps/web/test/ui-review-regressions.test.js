@@ -118,6 +118,15 @@ test("usage page exposes a P6 v1 anomaly clustering view for repeated failure pa
   assert.match(usageSource, /failure-pattern-cluster/);
 });
 
+test("usage page exposes a P6 v1 regression diff view for concise run-to-run diagnostics", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /P6 v1 regression diff view|P6 v1 回归差异视图/);
+  assert.match(usageSource, /latest two issue runs|最近两次问题 run/);
+  assert.match(usageSource, /useKnowledgeBaseDocumentRunComparison/);
+  assert.match(usageSource, /regression-diff-row/);
+});
+
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {
   const cssSource = readFileSync(globalCssPath, "utf8");
 

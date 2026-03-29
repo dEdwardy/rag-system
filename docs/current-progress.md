@@ -15,6 +15,20 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 usage page now includes a regression diff view so operators can scan concise run-to-run changes for diagnosis
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/features/api/hooks.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 中新增 `P6 v1 regression diff view` 子面板
+    - 复用已有 `GET /knowledge-bases/:id/document-runs/comparison`，对最近两次 issue run 做 run-vs-run 差异展示（状态/失败阶段/失败码等有意义差异）
+    - 保持 backend contract 不变，仅补 web 类型、查询 hook 和简洁差异读模型展示
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a P6 v1 regression diff view for concise run-to-run diagnostics" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 usage page now includes an anomaly clustering view so repeated failure patterns stand out in one grouped list
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`

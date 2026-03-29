@@ -13,6 +13,7 @@ import {
   DocumentRecord,
   KnowledgeBase,
   KnowledgeBaseDocumentRunRecord,
+  KnowledgeBaseDocumentRunComparison,
   KnowledgeBaseDocumentRunSummary,
   EvalQuestionSetRunResult,
   EvalQuestionSetRunQualityGateMode,
@@ -288,6 +289,65 @@ export function useKnowledgeBaseDocumentRunSummary(
 
       return summary.byStatus.pending > 0 || summary.byStatus.processing > 0 ? 2000 : false;
     }
+  });
+}
+
+export function useKnowledgeBaseDocumentRunComparison(
+  knowledgeBaseId: string | null,
+  input:
+    | {
+        documentId?: string;
+        sourceType?: string;
+        status?: DocumentRunRecord["status"];
+        trigger?: DocumentRunRecord["trigger"];
+        issueOnly?: boolean;
+        leftRunId: string;
+        rightRunId: string;
+      }
+    | {
+        documentId?: string;
+        sourceType?: string;
+        status?: DocumentRunRecord["status"];
+        trigger?: DocumentRunRecord["trigger"];
+        issueOnly?: boolean;
+        leftSinceHours: number;
+        rightSinceHours: number;
+      },
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ["knowledge-base-document-runs-comparison", knowledgeBaseId, input],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (input.documentId != null) {
+        params.set("documentId", input.documentId);
+      }
+      if (input.sourceType != null) {
+        params.set("sourceType", input.sourceType);
+      }
+      if (input.status != null) {
+        params.set("status", input.status);
+      }
+      if (input.trigger != null) {
+        params.set("trigger", input.trigger);
+      }
+      if (input.issueOnly != null) {
+        params.set("issueOnly", String(input.issueOnly));
+      }
+
+      if ("leftRunId" in input) {
+        params.set("leftRunId", input.leftRunId);
+        params.set("rightRunId", input.rightRunId);
+      } else {
+        params.set("leftSinceHours", String(input.leftSinceHours));
+        params.set("rightSinceHours", String(input.rightSinceHours));
+      }
+
+      return apiRequest<KnowledgeBaseDocumentRunComparison>(
+        `/knowledge-bases/${knowledgeBaseId}/document-runs/comparison?${params.toString()}`
+      );
+    },
+    enabled: knowledgeBaseId != null && enabled
   });
 }
 
