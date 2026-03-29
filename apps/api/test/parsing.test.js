@@ -786,6 +786,42 @@ test("SitemapSourceService accepts unknown/text-plain content-type when sitemap 
 
     assert.match(extracted.content, /https:\/\/example\.com\/docs\/start/);
     assert.match(extracted.content, /Sitemap fallback marker\./);
+    assert.deepEqual(extracted.diagnostics, {
+      sourceKind: "sitemap",
+      schemaVersion: 2,
+      retryable: false,
+      contentTypeFallbackApplied: true,
+      upstreamContentType: "text/plain; charset=utf-8",
+      attemptedPageCount: 1,
+      succeededPageCount: 1,
+      failedPageCount: 0,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 0,
+      failedPageUrls: [],
+      failedPages: [],
+      failedPagesTruncated: false,
+      failedPagesOmittedCount: 0,
+      partial: true,
+      attemptedChildSitemapCount: 1,
+      succeededChildSitemapCount: 1,
+      failedChildSitemapCount: 0,
+      failedChildSitemapUrls: [],
+      failedChildSitemaps: [],
+      failedChildSitemapsTruncated: false,
+      failedChildSitemapsOmittedCount: 0,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxPages: 5,
+        maxChildSitemaps: 20,
+        totalExtractedPageUrlCount: 1,
+        selectedPageUrlCount: 1,
+        droppedPageUrlCount: 0,
+        totalExtractedChildSitemapCount: 1,
+        selectedChildSitemapCount: 1,
+        droppedChildSitemapCount: 0
+      }
+    });
   } finally {
     global.fetch = originalFetch;
   }

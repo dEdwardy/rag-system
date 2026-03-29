@@ -1090,6 +1090,7 @@ export class DocumentsService {
   private buildSitemapPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
     const failedPageCount = this.getNumericDiagnosticField(diagnostics, "failedPageCount");
     const failedChildSitemapCount = this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount");
+    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
 
     if (failedPageCount > 0 && failedChildSitemapCount > 0) {
       return "Sitemap source completed with partial child sitemap and page fetch failures.";
@@ -1097,6 +1098,10 @@ export class DocumentsService {
 
     if (failedChildSitemapCount > 0) {
       return "Sitemap source completed with partial child sitemap fetch failures.";
+    }
+
+    if (contentTypeFallbackApplied) {
+      return "Sitemap source completed with content-type fallback sniffing.";
     }
 
     return "Sitemap source completed with partial page fetch failures.";

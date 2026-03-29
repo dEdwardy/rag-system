@@ -21,6 +21,8 @@ type SitemapFetchDiagnostics = {
   sourceKind?: "sitemap";
   schemaVersion?: 2;
   retryable: boolean;
+  contentTypeFallbackApplied?: boolean;
+  upstreamContentType?: string;
   attemptedPageCount: number;
   succeededPageCount: number;
   failedPageCount: number;
@@ -75,6 +77,11 @@ type ChildSitemapFailure = {
 type ExtractPageUrlsResult = {
   urls: string[];
   totalExtractedCount: number;
+};
+
+type SitemapPayloadAcceptance = {
+  contentTypeFallbackApplied: boolean;
+  upstreamContentType: string;
 };
 
 type ResolvedSitemapPages = {
@@ -142,8 +149,8 @@ export class SitemapSourceService {
 
     const xml = await response.text();
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    this.assertSupportedSitemapPayload(contentType, xml);
-    const resolvedSitemap = await this.resolvePageUrls(xml, options);
+    const payloadAcceptance = this.assertSupportedSitemapPayload(contentType, xml);
+    const resolvedSitemap = await this.resolvePageUrls(xml, options, payloadAcceptance);
     const builtSitemap = await this.buildCombinedContent(
       options.url,
       resolvedSitemap.pageUrls,
@@ -187,7 +194,11 @@ export class SitemapSourceService {
     };
   }
 
-  private async resolvePageUrls(xml: string, options: ExtractSitemapOptions): Promise<ResolvedSitemapPages> {
+  private async resolvePageUrls(
+    xml: string,
+    options: ExtractSitemapOptions,
+    rootPayloadAcceptance: SitemapPayloadAcceptance
+  ): Promise<ResolvedSitemapPages> {
     const normalizedXml = xml.trim();
     if (!normalizedXml) {
       throw new BadRequestException("Sitemap payload is empty.");
@@ -199,30 +210,37 @@ export class SitemapSourceService {
       const boundaryHit = droppedPageUrlCount > 0;
       return {
         pageUrls: extracted.urls,
-        diagnostics: boundaryHit
-          ? {
-              retryable: false,
-              partial: true,
-              attemptedPageCount: extracted.urls.length,
-              succeededPageCount: extracted.urls.length,
-              failedPageCount: 0,
-              failedPageUrls: [],
-              retryableFailureCount: 0,
-              nonRetryableFailureCount: 0,
-              boundaryHit: true,
-              boundaryReasons: ["MAX_PAGES_REACHED"],
-              boundary: {
-                maxPages: options.maxPages,
-                maxChildSitemaps: MAX_CHILD_SITEMAPS,
-                totalExtractedPageUrlCount: extracted.totalExtractedCount,
-                selectedPageUrlCount: extracted.urls.length,
-                droppedPageUrlCount,
-                totalExtractedChildSitemapCount: 0,
-                selectedChildSitemapCount: 0,
-                droppedChildSitemapCount: 0
+        diagnostics:
+          boundaryHit || rootPayloadAcceptance.contentTypeFallbackApplied
+            ? {
+                retryable: false,
+                partial: true,
+                attemptedPageCount: extracted.urls.length,
+                succeededPageCount: extracted.urls.length,
+                failedPageCount: 0,
+                failedPageUrls: [],
+                retryableFailureCount: 0,
+                nonRetryableFailureCount: 0,
+                ...(rootPayloadAcceptance.contentTypeFallbackApplied
+                  ? {
+                      contentTypeFallbackApplied: true,
+                      upstreamContentType: rootPayloadAcceptance.upstreamContentType
+                    }
+                  : {}),
+                boundaryHit,
+                boundaryReasons: boundaryHit ? ["MAX_PAGES_REACHED"] : [],
+                boundary: {
+                  maxPages: options.maxPages,
+                  maxChildSitemaps: MAX_CHILD_SITEMAPS,
+                  totalExtractedPageUrlCount: extracted.totalExtractedCount,
+                  selectedPageUrlCount: extracted.urls.length,
+                  droppedPageUrlCount,
+                  totalExtractedChildSitemapCount: 0,
+                  selectedChildSitemapCount: 0,
+                  droppedChildSitemapCount: 0
+                }
               }
-            }
-          : null
+            : null
       };
     }
 
@@ -247,6 +265,8 @@ export class SitemapSourceService {
     let maxPagesLimitReached = false;
     let totalExtractedPageUrlCount = 0;
     let droppedPageUrlCount = 0;
+    let contentTypeFallbackApplied = rootPayloadAcceptance.contentTypeFallbackApplied;
+    let fallbackUpstreamContentType = rootPayloadAcceptance.upstreamContentType;
 
     for (const childSitemapUrl of selectedChildSitemapUrls) {
       if (collectedPageUrls.length >= options.maxPages) {
@@ -257,7 +277,12 @@ export class SitemapSourceService {
       let childXml: string;
 
       try {
-        childXml = await this.fetchSitemapXml(childSitemapUrl);
+        const childSitemapResult = await this.fetchSitemapXml(childSitemapUrl);
+        childXml = childSitemapResult.xml;
+        if (childSitemapResult.contentTypeFallbackApplied) {
+          contentTypeFallbackApplied = true;
+          fallbackUpstreamContentType = childSitemapResult.upstreamContentType;
+        }
       } catch (error) {
         failedChildSitemapUrls.push(childSitemapUrl);
         childSitemapFailures.push({
@@ -321,7 +346,7 @@ export class SitemapSourceService {
     return {
       pageUrls: collectedPageUrls,
       diagnostics:
-        failedChildSitemapUrls.length > 0 || boundaryHit
+        failedChildSitemapUrls.length > 0 || boundaryHit || contentTypeFallbackApplied
           ? {
               ...this.buildFailureSummary(
                 childSitemapFailures,
@@ -342,6 +367,12 @@ export class SitemapSourceService {
                 retryableFailureCount,
                 nonRetryableFailureCount,
                 retryable: retryableFailureCount > 0,
+                ...(contentTypeFallbackApplied
+                  ? {
+                      contentTypeFallbackApplied: true,
+                      upstreamContentType: fallbackUpstreamContentType
+                    }
+                  : {}),
                 boundaryHit,
                 boundaryReasons,
                 boundary: {
@@ -478,13 +509,19 @@ export class SitemapSourceService {
     return URLSET_TAG_PATTERN.test(normalizedPayload) || SITEMAP_INDEX_TAG_PATTERN.test(normalizedPayload);
   }
 
-  private assertSupportedSitemapPayload(contentType: string, payload: string) {
+  private assertSupportedSitemapPayload(contentType: string, payload: string): SitemapPayloadAcceptance {
     if (this.isSupportedSitemapContentType(contentType)) {
-      return;
+      return {
+        contentTypeFallbackApplied: false,
+        upstreamContentType: contentType || "unknown"
+      };
     }
 
     if (this.isContentTypeFallbackEligible(contentType) && this.looksLikeSitemapPayload(payload)) {
-      return;
+      return {
+        contentTypeFallbackApplied: true,
+        upstreamContentType: contentType || "unknown"
+      };
     }
 
     throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
@@ -555,7 +592,7 @@ export class SitemapSourceService {
       .replace(/&apos;/gi, "'");
   }
 
-  private async fetchSitemapXml(url: string) {
+  private async fetchSitemapXml(url: string): Promise<{ xml: string } & SitemapPayloadAcceptance> {
     let response: Response;
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
@@ -579,9 +616,12 @@ export class SitemapSourceService {
 
     const xml = await response.text();
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    this.assertSupportedSitemapPayload(contentType, xml);
+    const payloadAcceptance = this.assertSupportedSitemapPayload(contentType, xml);
 
-    return xml;
+    return {
+      xml,
+      ...payloadAcceptance
+    };
   }
 
   private normalizePageFetchError(error: unknown) {
