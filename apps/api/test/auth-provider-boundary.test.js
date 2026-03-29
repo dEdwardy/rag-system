@@ -353,7 +353,7 @@ test("AuthController reserves oauth provider route shapes without implementing c
   });
 });
 
-test("AuthService startOauthProvider resolves GitHub start redirect with CSRF state", () => {
+test("AuthService startOauthProvider resolves GitHub start redirect with CSRF state", async () => {
   const previousClientId = process.env.AUTH_GITHUB_CLIENT_ID;
   const previousRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
   const previousScope = process.env.AUTH_GITHUB_SCOPE;
@@ -364,7 +364,7 @@ test("AuthService startOauthProvider resolves GitHub start redirect with CSRF st
 
   try {
     const authService = new AuthService({});
-    const result = authService.startOauthProvider({ provider: "github" });
+    const result = await authService.startOauthProvider({ provider: "github" });
     const redirectUrl = new URL(result.redirectUrl);
 
     assert.equal(result.provider, "github");
@@ -397,7 +397,7 @@ test("AuthService startOauthProvider resolves GitHub start redirect with CSRF st
   }
 });
 
-test("AuthService startOauthProvider fails clearly when GitHub OAuth config is missing", () => {
+test("AuthService startOauthProvider fails clearly when GitHub OAuth config is missing", async () => {
   const previousClientId = process.env.AUTH_GITHUB_CLIENT_ID;
   const previousRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
 
@@ -406,7 +406,7 @@ test("AuthService startOauthProvider fails clearly when GitHub OAuth config is m
 
   try {
     const authService = new AuthService({});
-    assert.throws(
+    await assert.rejects(
       () => authService.startOauthProvider({ provider: "github" }),
       /GitHub OAuth start is not configured\. Required env:/i
     );
@@ -425,13 +425,88 @@ test("AuthService startOauthProvider fails clearly when GitHub OAuth config is m
   }
 });
 
-test("AuthService startOauthProvider keeps oidc unimplemented", () => {
-  const authService = new AuthService({});
+test("AuthService startOauthProvider resolves OIDC redirect via discovery authorization endpoint", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      authorization_endpoint: "https://accounts.example.com/authorize"
+    })
+  });
 
-  assert.throws(() => authService.startOauthProvider({ provider: "oidc" }), /not implemented/i);
+  const authService = new AuthService(
+    {},
+    undefined,
+    undefined,
+    {
+      resolveStartConfig: () => ({
+        issuer: "https://accounts.example.com",
+        discoveryUrl: "https://accounts.example.com/.well-known/openid-configuration",
+        clientId: "oidc-client-id",
+        redirectUri: "http://localhost:3000/auth/oauth/oidc/callback",
+        scope: "openid email profile",
+        stateCookieName: "rag_oauth_state",
+        stateTtlSeconds: 600
+      })
+    }
+  );
+
+  try {
+    const result = await authService.startOauthProvider({ provider: "oidc" });
+    const redirectUrl = new URL(result.redirectUrl);
+
+    assert.equal(result.provider, "oidc");
+    assert.equal(result.stateCookieName, "rag_oauth_state");
+    assert.ok(result.state.length > 0);
+    assert.equal(result.stateTtlSeconds, 600);
+    assert.equal(redirectUrl.origin + redirectUrl.pathname, "https://accounts.example.com/authorize");
+    assert.equal(redirectUrl.searchParams.get("client_id"), "oidc-client-id");
+    assert.equal(redirectUrl.searchParams.get("redirect_uri"), "http://localhost:3000/auth/oauth/oidc/callback");
+    assert.equal(redirectUrl.searchParams.get("scope"), "openid email profile");
+    assert.equal(redirectUrl.searchParams.get("response_type"), "code");
+    assert.equal(redirectUrl.searchParams.get("state"), result.state);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
-test("AuthService startOauthProvider resolves Google start redirect with CSRF state", () => {
+test("AuthService startOauthProvider fails clearly when OIDC OAuth config is missing", async () => {
+  const previousIssuer = process.env.AUTH_OIDC_ISSUER;
+  const previousClientId = process.env.AUTH_OIDC_CLIENT_ID;
+  const previousRedirectUri = process.env.AUTH_OIDC_REDIRECT_URI;
+
+  delete process.env.AUTH_OIDC_ISSUER;
+  delete process.env.AUTH_OIDC_CLIENT_ID;
+  delete process.env.AUTH_OIDC_REDIRECT_URI;
+
+  try {
+    const authService = new AuthService({});
+    await assert.rejects(
+      () => authService.startOauthProvider({ provider: "oidc" }),
+      /OIDC OAuth config is not configured\. Required env: AUTH_OIDC_ISSUER\./i
+    );
+  } finally {
+    if (previousIssuer == null) {
+      delete process.env.AUTH_OIDC_ISSUER;
+    } else {
+      process.env.AUTH_OIDC_ISSUER = previousIssuer;
+    }
+
+    if (previousClientId == null) {
+      delete process.env.AUTH_OIDC_CLIENT_ID;
+    } else {
+      process.env.AUTH_OIDC_CLIENT_ID = previousClientId;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_OIDC_REDIRECT_URI;
+    } else {
+      process.env.AUTH_OIDC_REDIRECT_URI = previousRedirectUri;
+    }
+  }
+});
+
+test("AuthService startOauthProvider resolves Google start redirect with CSRF state", async () => {
   const previousClientId = process.env.AUTH_GOOGLE_CLIENT_ID;
   const previousRedirectUri = process.env.AUTH_GOOGLE_REDIRECT_URI;
   const previousScope = process.env.AUTH_GOOGLE_SCOPE;
@@ -442,7 +517,7 @@ test("AuthService startOauthProvider resolves Google start redirect with CSRF st
 
   try {
     const authService = new AuthService({});
-    const result = authService.startOauthProvider({ provider: "google" });
+    const result = await authService.startOauthProvider({ provider: "google" });
     const redirectUrl = new URL(result.redirectUrl);
 
     assert.equal(result.provider, "google");
@@ -476,7 +551,7 @@ test("AuthService startOauthProvider resolves Google start redirect with CSRF st
   }
 });
 
-test("AuthService startOauthProvider fails clearly when Google OAuth config is missing", () => {
+test("AuthService startOauthProvider fails clearly when Google OAuth config is missing", async () => {
   const previousClientId = process.env.AUTH_GOOGLE_CLIENT_ID;
   const previousRedirectUri = process.env.AUTH_GOOGLE_REDIRECT_URI;
 
@@ -485,7 +560,7 @@ test("AuthService startOauthProvider fails clearly when Google OAuth config is m
 
   try {
     const authService = new AuthService({});
-    assert.throws(
+    await assert.rejects(
       () => authService.startOauthProvider({ provider: "google" }),
       /Google OAuth start is not configured\. Required env:/i
     );
@@ -687,7 +762,7 @@ test("OIDC provider config boundary fails clearly when required env is missing",
   }
 });
 
-test("AuthController oauthProviderStart sets state cookie and redirects to GitHub", () => {
+test("AuthController oauthProviderStart sets state cookie and redirects to GitHub", async () => {
   const previousClientId = process.env.AUTH_GITHUB_CLIENT_ID;
   const previousRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
 
@@ -699,7 +774,7 @@ test("AuthController oauthProviderStart sets state cookie and redirects to GitHu
     const redirects = [];
     const controller = new AuthController(new AuthService({}));
 
-    controller.oauthProviderStart(
+    await controller.oauthProviderStart(
       {
         provider: "github"
       },
@@ -740,7 +815,7 @@ test("AuthController oauthProviderStart sets state cookie and redirects to GitHu
   }
 });
 
-test("AuthController oauthProviderStart sets state cookie and redirects to Google", () => {
+test("AuthController oauthProviderStart sets state cookie and redirects to Google", async () => {
   const previousClientId = process.env.AUTH_GOOGLE_CLIENT_ID;
   const previousRedirectUri = process.env.AUTH_GOOGLE_REDIRECT_URI;
 
@@ -752,7 +827,7 @@ test("AuthController oauthProviderStart sets state cookie and redirects to Googl
     const redirects = [];
     const controller = new AuthController(new AuthService({}));
 
-    controller.oauthProviderStart(
+    await controller.oauthProviderStart(
       {
         provider: "google"
       },

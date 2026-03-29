@@ -34,6 +34,11 @@ import {
   HttpGoogleOauthProvider,
   type GoogleOauthProvider
 } from "./google-oauth.provider";
+import {
+  HttpOidcOauthProvider,
+  OIDC_OAUTH_PROVIDER,
+  type OidcOauthProvider
+} from "./oidc-oauth.provider";
 
 @Injectable()
 export class AuthService {
@@ -42,33 +47,31 @@ export class AuthService {
     @Inject(GITHUB_OAUTH_PROVIDER)
     private readonly githubOauthProvider: GithubOauthProvider = new HttpGithubOauthProvider(),
     @Inject(GOOGLE_OAUTH_PROVIDER)
-    private readonly googleOauthProvider: GoogleOauthProvider = new HttpGoogleOauthProvider()
+    private readonly googleOauthProvider: GoogleOauthProvider = new HttpGoogleOauthProvider(),
+    @Inject(OIDC_OAUTH_PROVIDER)
+    private readonly oidcOauthProvider: OidcOauthProvider = new HttpOidcOauthProvider()
   ) {}
 
-  startOauthProvider(input: {
+  async startOauthProvider(input: {
     provider: OauthProvider;
-  }): {
-    provider: "github" | "google";
+  }): Promise<{
+    provider: "github" | "google" | "oidc";
     redirectUrl: string;
     state: string;
     stateCookieName: string;
     stateTtlSeconds: number;
-  } {
-    if (input.provider === "oidc") {
-      throw new NotImplementedException(`OAuth provider '${input.provider}' is not implemented yet.`);
-    }
-
-    const providerConfig = this.resolveOauthStartConfig(input.provider);
+  }> {
     const state = this.generateOauthState();
+    const providerConfig = input.provider === "oidc"
+      ? await this.resolveOidcOauthStartConfig({
+        ...this.oidcOauthProvider.resolveStartConfig(),
+        state
+      })
+      : this.resolveOauthStartConfig(input.provider, state);
+
     const url = new URL(providerConfig.authorizeUrl);
-    url.searchParams.set("client_id", providerConfig.clientId);
-    url.searchParams.set("redirect_uri", providerConfig.redirectUri);
-    url.searchParams.set("scope", providerConfig.scope);
-    url.searchParams.set("state", state);
-    if (providerConfig.extraQueryParams != null) {
-      for (const [key, value] of Object.entries(providerConfig.extraQueryParams)) {
-        url.searchParams.set(key, value);
-      }
+    for (const [key, value] of Object.entries(providerConfig.queryParams)) {
+      url.searchParams.set(key, value);
     }
 
     return {
@@ -448,27 +451,22 @@ export class AuthService {
     return null;
   }
 
-  private resolveOauthStartConfig(provider: Exclude<OauthProvider, "oidc">): {
-    clientId: string;
-    redirectUri: string;
+  private resolveOauthStartConfig(provider: Exclude<OauthProvider, "oidc">, state: string): {
     authorizeUrl: string;
-    scope: string;
+    queryParams: Record<string, string>;
     stateCookieName: string;
     stateTtlSeconds: number;
-    extraQueryParams?: Record<string, string>;
   } {
     if (provider === "github") {
-      return this.resolveGithubOauthConfig();
+      return this.resolveGithubOauthConfig(state);
     }
 
-    return this.resolveGoogleOauthConfig();
+    return this.resolveGoogleOauthConfig(state);
   }
 
-  private resolveGithubOauthConfig(): {
-    clientId: string;
-    redirectUri: string;
+  private resolveGithubOauthConfig(state: string): {
     authorizeUrl: string;
-    scope: string;
+    queryParams: Record<string, string>;
     stateCookieName: string;
     stateTtlSeconds: number;
   } {
@@ -495,23 +493,23 @@ export class AuthService {
       : DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS;
 
     return {
-      clientId,
-      redirectUri,
       authorizeUrl,
-      scope,
+      queryParams: {
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope,
+        state
+      },
       stateCookieName,
       stateTtlSeconds
     };
   }
 
-  private resolveGoogleOauthConfig(): {
-    clientId: string;
-    redirectUri: string;
+  private resolveGoogleOauthConfig(state: string): {
     authorizeUrl: string;
-    scope: string;
+    queryParams: Record<string, string>;
     stateCookieName: string;
     stateTtlSeconds: number;
-    extraQueryParams: Record<string, string>;
   } {
     const clientId = (process.env.AUTH_GOOGLE_CLIENT_ID ?? "").trim();
     const redirectUri = (process.env.AUTH_GOOGLE_REDIRECT_URI ?? "").trim();
@@ -536,15 +534,63 @@ export class AuthService {
       : DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS;
 
     return {
-      clientId,
-      redirectUri,
       authorizeUrl,
-      scope,
-      stateCookieName,
-      stateTtlSeconds,
-      extraQueryParams: {
+      queryParams: {
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope,
+        state,
         response_type: "code"
-      }
+      },
+      stateCookieName,
+      stateTtlSeconds
+    };
+  }
+
+  private async resolveOidcOauthStartConfig(input: {
+    discoveryUrl: string;
+    clientId: string;
+    redirectUri: string;
+    scope: string;
+    stateCookieName: string;
+    stateTtlSeconds: number;
+    state: string;
+  }): Promise<{
+    authorizeUrl: string;
+    queryParams: Record<string, string>;
+    stateCookieName: string;
+    stateTtlSeconds: number;
+  }> {
+    const discoveryResponse = await fetch(input.discoveryUrl);
+    if (!discoveryResponse.ok) {
+      throw new ServiceUnavailableException("OIDC OAuth start is not configured. Failed to resolve authorization endpoint.");
+    }
+
+    const discoveryPayload = (await discoveryResponse.json()) as {
+      authorization_endpoint?: unknown;
+    };
+    const authorizationEndpoint =
+      typeof discoveryPayload.authorization_endpoint === "string"
+        ? discoveryPayload.authorization_endpoint.trim()
+        : "";
+
+    if (authorizationEndpoint.length === 0) {
+      throw new ServiceUnavailableException(
+        "OIDC OAuth start is not configured. Discovery metadata is missing authorization_endpoint."
+      );
+    }
+
+    return {
+      authorizeUrl: authorizationEndpoint,
+      queryParams: {
+        client_id: input.clientId,
+        redirect_uri: input.redirectUri,
+        scope: input.scope,
+        state: input.state,
+        response_type: "code"
+      },
+      stateCookieName: input.stateCookieName,
+      stateTtlSeconds: input.stateTtlSeconds
     };
   }
 

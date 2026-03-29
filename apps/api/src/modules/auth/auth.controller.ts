@@ -67,7 +67,7 @@ export class AuthController {
   }
 
   @Get("oauth/:provider/start")
-  oauthProviderStart(
+  async oauthProviderStart(
     @Param() params: unknown,
     @Res() response: {
       setHeader: (name: string, value: string | string[]) => void;
@@ -75,7 +75,7 @@ export class AuthController {
     }
   ) {
     const input = oauthProviderParamSchema.parse(params);
-    const start = this.authService.startOauthProvider({
+    const start = await this.authService.startOauthProvider({
       provider: input.provider
     });
 
