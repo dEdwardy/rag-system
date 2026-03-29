@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ sitemap nested-index + child-limit boundary behavior is now explicitly locked by focused parsing regressions
+  - 变更文件：
+    - `apps/api/test/parsing.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 sitemapindex child 为 nested sitemapindex 的回归守卫，明确当前行为仍是 fail-fast 拒绝（不做更深层 sitemap expansion）
+    - 新增 child sitemap 数量超过上限（20）时的边界回归守卫，锁定 `MAX_CHILD_SITEMAPS_REACHED`、`droppedChildSitemapCount` 与“仅处理前 20 个 child”行为
+    - 仅补 regression guard，不改现有 source family、抓取语义或边界常量
+  - focused validation：
+    - `pnpm test:api:file -- test/parsing.test.js`
+
 - ✅ external source re-sync now hardens legacy identity recovery for config-loss payload edges while keeping unrecoverable identity failures unchanged
   - 变更文件：
     - `apps/api/src/modules/documents/documents.service.ts`
