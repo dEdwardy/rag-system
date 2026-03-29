@@ -1900,6 +1900,146 @@ test("DocumentRunsService summary prefers a newer partial-ready run over an olde
   });
 });
 
+test("DocumentRunsService summary exposes web-page body-missing partial diagnostics in summary anchors", async () => {
+  const runs = [
+    {
+      documentId: "doc-web-body-missing",
+      version: 1,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Web page source completed with body-missing diagnostics.",
+        bodyMissing: true,
+        bodyQualityLow: false,
+        partial: true
+      },
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/body-missing"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-web-body-missing",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-missing",
+    message: "Web page source completed with body-missing diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with body-missing diagnostics."
+    }
+  });
+  assert.deepEqual(summary.latestPartialSourceFailure, {
+    documentId: "doc-web-body-missing",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-missing",
+    message: "Web page source completed with body-missing diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with body-missing diagnostics."
+    }
+  });
+});
+
+test("DocumentRunsService summary exposes web-page low body-quality partial diagnostics in summary anchors", async () => {
+  const runs = [
+    {
+      documentId: "doc-web-body-quality-low",
+      version: 1,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Web page source completed with low body-quality diagnostics.",
+        bodyMissing: false,
+        bodyQualityLow: true,
+        partial: true
+      },
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/body-quality-low"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-web-body-quality-low",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-quality-low",
+    message: "Web page source completed with low body-quality diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with low body-quality diagnostics."
+    }
+  });
+  assert.deepEqual(summary.latestPartialSourceFailure, {
+    documentId: "doc-web-body-quality-low",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-quality-low",
+    message: "Web page source completed with low body-quality diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with low body-quality diagnostics."
+    }
+  });
+});
+
 test("DocumentRunsService summary keeps the latest skipped run even if the same document later succeeds", async () => {
   const runs = [
     {
