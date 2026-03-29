@@ -113,6 +113,7 @@ SOURCE_FETCH_RETRY_ATTEMPTS=2
 ```
 
 - current defaults preserve the existing behavior: `10s` timeout and `2` total fetch attempts for `web page` / `feed` / `sitemap` source HTTP requests
+- optional OpenCode harness note: the harness now lives under `.opencode/loop/`; use `.opencode/loop/README.md` for its docs and `node .opencode/loop/cli.mjs --self-test` for its focused smoke test
 - auth/session runtime now also supports:
 
 ```text
@@ -608,11 +609,11 @@ pnpm --filter @rag-system/api eval:runner:p5-v1
   - latest Markdown/HTML: use the same basename and swap extension to `.md` / `.html`
 - report summarizes retrieval regression signals from existing eval item metadata + `traceSummary`, including: `no-hit`, `fallback`, `low-score`, `citation-limit-hit`, and `source-family-failure` (with source-family breakdown)
 - boundary note (P5 v1): timestamped files under `storage/evals/p5-v1` are **offline regression artifacts** for replay-proof/archive/diff workflows; they are not a web runtime contract surface
-- boundary note (artifact producer): offline files under `storage/evals/p5-v1` are produced by the CLI runner path (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) after calling `POST /eval/question-sets/demo-replays/p5-v1/run`
 - baseline source-of-truth note (P5 v1 engineering baseline):
   - canonical manifest path: `apps/api/scripts/p5-baseline-manifest.v1.json`
   - this manifest is the approved **engineering baseline v1** source of truth (question set + replay binding), not a broad benchmark framework contract
   - runner consumption path: `eval:runner:p5-v1` (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) loads `runnerReplayBinding` from this manifest first, then validates the shortlist pin via `apps/api/scripts/p5-demo-shortlist.json`, then calls `POST /eval/question-sets/demo-replays/p5-v1/run`
+- boundary note (artifact producer): offline files under `storage/evals/p5-v1` are produced by the CLI runner path (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) after calling `POST /eval/question-sets/demo-replays/p5-v1/run`
 - boundary note (report-center contract): web `Report center` keeps using live eval API response contracts (`POST /eval/question-sets/:id/runs` + `reportExports`) for in-app read/trigger/export flows, and does not directly consume or index offline files under `storage/evals/p5-v1`
 - current wave scope guard: this wave stays on eval/regression proof closeout; do not expand `Report center`/`Usage` into a generic analytics or ops dashboard platform
 
@@ -800,7 +801,7 @@ Notes:
 - small focused tests and static checks may run in parallel when they stay within a light local feedback loop
 - do not run multiple heavy builds or node test processes at the same time
 - do not overlap heavy validation with AI review
-- `pnpm opencode:loop` runs the repo-local development harness in `scripts/opencode-loop.md`; `scripts/opencode-loop/jsonc.mjs` keeps `opencode.jsonc` comment-safe; `node scripts/opencode-loop.mjs --self-test` covers draining, resume recovery, and one guarded refill pass.
+- `pnpm opencode:loop` runs the optional repo-local OpenCode harness under `.opencode/loop/`; its implementation details stay in `.opencode/loop/README.md`, not the main product docs.
 - this smoke test is currently scoped to `PC Web`
 - it validates `Knowledge Base -> Assistant` browser rendering against the real local API
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks
