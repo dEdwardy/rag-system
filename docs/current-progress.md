@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth persistence now includes a minimal `AuthIdentityLink` schema skeleton for future provider-linking (Phase 2 additive baseline)
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 Prisma schema 中新增 `AuthIdentityLink` model，包含最小字段 `id/userId/provider/subject/createdAt/updatedAt`
+    - 新增 `User.authIdentityLinks` 关系，并将 `AuthIdentityLink.user` 以 `userId -> User.id` 关联，保持 `onDelete: Cascade`
+    - 新增 `@@unique([provider, subject])` 以固定 provider-subject 全局唯一边界；同时加 `@@index([userId])` 支持按本地用户检索 link
+    - 明确保持不变：未引入 OAuth endpoint/callback、未改本地 login/session-cookie 路径、未改 seed 假设与 owner-only ACL 语义
+  - focused validation：
+    - `pnpm --filter @rag-system/api exec prisma validate`
+
 - ✅ auth identity contract now explicitly reserves Phase 2 planned `authSource` values while keeping current local-session behavior unchanged
   - 变更文件：
     - `apps/api/src/modules/auth/auth-identity.contract.ts`
