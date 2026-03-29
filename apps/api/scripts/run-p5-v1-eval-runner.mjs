@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +8,12 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "../../..");
 const DEFAULT_BASE_URL = process.env.RAG_EVAL_BASE_URL ?? "http://127.0.0.1:3000";
 const DEFAULT_OUTPUT_DIR = path.join(REPO_ROOT, "storage/evals/p5-v1");
+const P5_DEMO_SHORTLIST_PATH = path.join(SCRIPT_DIR, "p5-demo-shortlist.json");
+const P5_APPROVED_SHORTLIST_SET = "p5-demo-shortlist-4plus1";
+const P5_APPROVED_REPLAY_DEMO_ID = "demo-eval-report-replay";
+const P5_APPROVED_REPLAY_CAPABILITY_SURFACE_ID = "eval-report-replay";
+const P5_APPROVED_REPLAY_ID = "p5-v1";
+const P5_APPROVED_REPLAY_ENDPOINT = "/eval/question-sets/demo-replays/p5-v1/run";
 
 function readOptionValue(argv, index, optionName) {
   const next = argv[index + 1];
@@ -112,8 +118,47 @@ function usage() {
     "",
     "Notes:",
     "  - unknown flags and missing option values fail fast",
-    "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default"
+    "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default",
+    "  - replay target is pinned by apps/api/scripts/p5-demo-shortlist.json (approved shortlist only)"
   ].join("\n");
+}
+
+async function loadApprovedReplayTargetFromShortlist() {
+  let shortlist;
+  try {
+    shortlist = JSON.parse(await readFile(P5_DEMO_SHORTLIST_PATH, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `Failed to read approved demo shortlist at ${P5_DEMO_SHORTLIST_PATH}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (shortlist?.approvedSet !== P5_APPROVED_SHORTLIST_SET) {
+    throw new Error(
+      `Unsupported demo shortlist approvedSet: ${shortlist?.approvedSet ?? "unknown"}. Expected ${P5_APPROVED_SHORTLIST_SET}.`
+    );
+  }
+
+  if (!Array.isArray(shortlist.selected)) {
+    throw new Error("Approved demo shortlist contract edge: selected must be an array.");
+  }
+
+  const replayDemo = shortlist.selected.find(
+    item =>
+      item?.id === P5_APPROVED_REPLAY_DEMO_ID &&
+      item?.capabilitySurfaceId === P5_APPROVED_REPLAY_CAPABILITY_SURFACE_ID
+  );
+  if (!replayDemo) {
+    throw new Error(
+      `Approved demo shortlist is missing ${P5_APPROVED_REPLAY_DEMO_ID} mapped to ${P5_APPROVED_REPLAY_CAPABILITY_SURFACE_ID}.`
+    );
+  }
+
+  return {
+    demoId: replayDemo.id,
+    replayId: P5_APPROVED_REPLAY_ID,
+    endpointPath: P5_APPROVED_REPLAY_ENDPOINT
+  };
 }
 
 function toCookieHeader(response) {
@@ -163,8 +208,8 @@ async function login(baseUrl, userId) {
   return toCookieHeader(response);
 }
 
-async function runReplay(baseUrl, cookieHeader, qualityGateMode) {
-  const response = await fetch(`${baseUrl}/eval/question-sets/demo-replays/p5-v1/run`, {
+async function runReplay(baseUrl, replayTarget, cookieHeader, qualityGateMode) {
+  const response = await fetch(`${baseUrl}${replayTarget.endpointPath}`, {
     method: "POST",
     headers: {
       cookie: cookieHeader,
@@ -570,8 +615,9 @@ async function main() {
     return;
   }
 
+  const replayTarget = await loadApprovedReplayTargetFromShortlist();
   const cookieHeader = await login(options.baseUrl, options.userId);
-  const runResult = await runReplay(options.baseUrl, cookieHeader, options.qualityGateMode);
+  const runResult = await runReplay(options.baseUrl, replayTarget, cookieHeader, options.qualityGateMode);
   assertRunResultContract(runResult);
 
   const itemDetails = await Promise.all(
@@ -652,7 +698,8 @@ async function main() {
     runner: {
       baseUrl: options.baseUrl,
       qualityGateMode: options.qualityGateMode,
-      replayId: runResult.replayEntry?.id ?? "p5-v1"
+      replayId: runResult.replayEntry?.id ?? replayTarget.replayId,
+      shortlistDemoId: replayTarget.demoId
     },
     run: {
       questionSetId: runResult.questionSetId,

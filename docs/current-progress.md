@@ -17,6 +17,17 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 demo replay now has one narrow shortlist-pinned entrypoint on the existing eval runner path
+  - 变更文件：
+    - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `eval:runner:p5-v1` 在执行前会读取 `apps/api/scripts/p5-demo-shortlist.json`，只接受 approved shortlist (`p5-demo-shortlist-4plus1`) 中的 `demo-eval-report-replay` / `eval-report-replay` 映射
+    - 实际执行路径保持不变：仍复用 `POST /eval/question-sets/demo-replays/p5-v1/run` 与现有 report/json/html artifact 输出合同，不引入新的 demo 平台
+    - 输出 metadata 增加 `runner.shortlistDemoId`，用于回放证明与 shortlist 对齐
+  - focused validation：
+    - `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
 - ✅ P5 approved demo shortlist (4+1) is now materialized in one machine-readable manifest for replay-path consumption
   - 变更文件：
     - `apps/api/scripts/p5-demo-shortlist.json`
