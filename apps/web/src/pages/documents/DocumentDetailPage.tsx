@@ -52,7 +52,7 @@ export function DocumentDetailPage() {
   const document = documentQuery.data;
   const chunkRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const { formatDateTime, t, locale } = useI18n();
+  const { formatDateTime, t } = useI18n();
 
   useEffect(() => {
     if (!focusedChunkId || !chunksQuery.data) {
@@ -87,17 +87,13 @@ export function DocumentDetailPage() {
           }
         }}
         opened={isDeleteConfirmOpen}
-        title={locale === "zh" ? "确认删除文档" : "Confirm document deletion"}
+        title={t("documents.detail.deleteDialogTitle")}
       >
         <Stack gap="md">
           <Text c="var(--app-text-secondary)" size="sm">
             {document
-              ? locale === "zh"
-                ? `删除“${document.title}”后将无法恢复。该操作不会修改后端 API，但会永久移除当前文档记录。`
-                : `Deleting “${document.title}” cannot be undone. This action will not change backend APIs, but it will permanently remove the current document record.`
-              : locale === "zh"
-                ? "删除当前文档后将无法恢复。"
-                : "Deleting the current document cannot be undone."}
+              ? t("documents.detail.deleteDialogDescriptionWithTitle", { title: document.title })
+              : t("documents.detail.deleteDialogDescriptionFallback")}
           </Text>
 
           <Group justify="flex-end">
@@ -109,7 +105,7 @@ export function DocumentDetailPage() {
               type="button"
               variant="default"
             >
-              {locale === "zh" ? "取消" : "Cancel"}
+              {t("documents.detail.deleteCancel")}
             </Button>
             <Button
               color="red"
@@ -156,7 +152,7 @@ export function DocumentDetailPage() {
               <Box className="workspace-hero-icon">DOC</Box>
               <div className="workspace-hero-copy">
                 <Text className="workspace-hero-kicker">
-                  {locale === "zh" ? "文档详情" : "Document detail"}
+                  {t("documents.detail.kicker")}
                 </Text>
                 <Title
                   order={3}
@@ -185,9 +181,7 @@ export function DocumentDetailPage() {
                   </Badge>
                 </Group>
                 <Text className="workspace-hero-sidecopy" ta="right">
-                  {locale === "zh"
-                    ? "保留现有 trace 深链和 chunk 聚焦能力，只继续收紧信息层级、状态分区和阅读密度。"
-                    : "Keep the same trace deep-link flow and tighten hierarchy, focus states, and reading density only."}
+                  {t("documents.detail.detailHeroCopy")}
                 </Text>
               </Stack>
             ) : null}
@@ -217,7 +211,7 @@ export function DocumentDetailPage() {
                   <Stack gap="md">
                     <Group justify="space-between" wrap="nowrap">
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "文档状态" : "Document status"}
+                        {t("documents.detail.documentStatus")}
                       </Text>
                       <Badge
                         color={document.status === "ready" ? "indigo" : document.status === "failed" ? "red" : "yellow"}
@@ -316,12 +310,10 @@ export function DocumentDetailPage() {
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                   <Stack gap="sm">
                     <Text className="workspace-section-heading">
-                      {locale === "zh" ? "存储与诊断" : "Storage and diagnostics"}
+                      {t("documents.detail.storageAndDiagnostics")}
                     </Text>
                     <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "保留底层存储标识和错误信息，但降为次级信息区。"
-                        : "Keep the storage key and error details available, but treat them as secondary diagnostics."}
+                      {t("documents.detail.storageAndDiagnosticsCopy")}
                     </Text>
                     <pre className="workspace-code-block workspace-code-block-scroll">{document.storageKey}</pre>
                     {document.errorMessage ? (
@@ -336,25 +328,15 @@ export function DocumentDetailPage() {
                   <Alert color="red" radius="xl" variant="light">
                     {runsQuery.error instanceof Error
                       ? runsQuery.error.message
-                      : locale === "zh"
-                        ? "加载文档 runs 失败。"
-                        : "Failed to load document runs."}
+                      : t("documents.detail.runsLoadError")}
                   </Alert>
                 ) : (
                   <DocumentRunList
-                    title={locale === "zh" ? "文档 runs" : "Document runs"}
-                    description={
-                      locale === "zh"
-                        ? "按版本和时间查看该文档的 upload / reindex / external resync 历史。"
-                        : "Review the upload, reindex, and external resync history for this document by version and time."
-                    }
+                    title={t("documents.detail.runsTitle")}
+                    description={t("documents.detail.runsDescription")}
                     runs={runsQuery.data ?? []}
-                    emptyTitle={locale === "zh" ? "暂无文档 runs" : "No document runs yet"}
-                    emptyDescription={
-                      locale === "zh"
-                        ? "当前文档还没有可展示的执行历史。"
-                        : "This document does not have execution history yet."
-                    }
+                    emptyTitle={t("documents.detail.runsEmptyTitle")}
+                    emptyDescription={t("documents.detail.runsEmptyDescription")}
                   />
                 )}
               </Stack>
@@ -368,9 +350,7 @@ export function DocumentDetailPage() {
                   <div>
                     <Text className="workspace-section-heading">{t("documents.detail.chunksTitle")}</Text>
                     <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "Chunk 列表逻辑不变，只继续压缩间距、聚焦态和来自 trace 的定位信息。"
-                        : "The chunk list keeps its logic unchanged and only tightens hierarchy, focus state, and density."}
+                      {t("documents.detail.chunkListCopy")}
                     </Text>
                   </div>
                   <Badge color="indigo" variant="light">

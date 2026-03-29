@@ -43,7 +43,7 @@ export function AssistantPage() {
   const updateRetrievalProfileMutation = useUpdateRetrievalProfile(
     retrievalProfile?.id ?? "default-retrieval-profile"
   );
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
 
   const form = useForm<AssistantConfigFormValues>({
     initialValues: createAssistantConfigFormValues(assistant, retrievalProfile),
@@ -90,7 +90,7 @@ export function AssistantPage() {
             <Box className="workspace-hero-icon">CFG</Box>
             <div className="workspace-hero-copy">
               <Text className="workspace-hero-kicker">
-                {locale === "zh" ? "助手工作台" : "Assistant workspace"}
+                {t("assistant.copy.heroTitle")}
               </Text>
               <Title
                 c="var(--app-text)"
@@ -118,9 +118,7 @@ export function AssistantPage() {
                 ) : null}
               </Group>
               <Text className="workspace-hero-sidecopy" ta="right">
-                {locale === "zh"
-                  ? "把回答策略、检索参数和过滤条件收进同一套配置工作台中，不改变现有提交语义。"
-                  : "Keep policy, retrieval tuning, and filters in one workspace without changing the current payload semantics."}
+                {t("assistant.copy.heroSubtitle")}
               </Text>
             </Stack>
           ) : null}
@@ -160,12 +158,10 @@ export function AssistantPage() {
                   <Stack gap="md">
                     <div>
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "助手身份" : "Assistant identity"}
+                        {t("assistant.copy.assistantIdentity")}
                       </Text>
                       <Text c="var(--app-text-muted)" size="sm">
-                        {locale === "zh"
-                          ? "名称、状态、描述和 system prompt 保持在同一块主控制面板中。"
-                          : "Name, status, description, and system prompt stay in one control surface."}
+                        {t("assistant.copy.assistantIdentityCopy")}
                       </Text>
                     </div>
 
@@ -221,9 +217,7 @@ export function AssistantPage() {
                     <div>
                       <Text className="workspace-section-heading">{t("assistant.answerPolicySection")}</Text>
                       <Text c="var(--app-text-muted)" size="sm">
-                        {locale === "zh"
-                          ? "只收紧输入层级、分组和可读性，不改变 answer policy 的字段含义。"
-                          : "Control tone, structure, citation policy, and fallback behavior without changing backend semantics."}
+                        {t("assistant.copy.answerPolicyCopy")}
                       </Text>
                     </div>
 
@@ -331,9 +325,7 @@ export function AssistantPage() {
                     <div>
                       <Text className="workspace-section-heading">{t("assistant.retrievalSection")}</Text>
                       <Text c="var(--app-text-muted)" size="sm">
-                        {locale === "zh"
-                          ? "保留现有 retrieval tuning 字段和提交逻辑，只优化配置层级与可扫读性。"
-                          : "Tune retrieval depth and rerank behavior while keeping the same payload contract."}
+                        {t("assistant.copy.retrievalCopy")}
                       </Text>
                     </div>
 
@@ -599,7 +591,7 @@ export function AssistantPage() {
                   <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                     <Stack gap="sm">
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "工作台状态" : "Workspace status"}
+                        {t("assistant.copy.workspaceStatus")}
                       </Text>
                       <Text c="var(--app-text)" data-testid="assistant-retrieval-profile-name" fw={600} size="sm">
                         {t("common.fields.retrievalProfile")}: {retrievalProfile.name}
@@ -619,12 +611,10 @@ export function AssistantPage() {
                   <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
                     <Stack gap="sm">
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "保存检查点" : "Save checkpoint"}
+                        {t("assistant.copy.saveCheckpoint")}
                       </Text>
                       <Text c="var(--app-text-muted)" size="sm">
-                        {locale === "zh"
-                          ? "一次提交同时持久化 assistant policy 和 retrieval profile。"
-                          : "Submit once to persist both assistant policy and retrieval profile changes together."}
+                        {t("assistant.copy.saveCheckpointCopy")}
                       </Text>
                       <Button
                         className="workspace-button"

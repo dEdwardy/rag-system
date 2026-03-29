@@ -172,7 +172,7 @@ function ActionButton({ children, label }: { children: React.ReactNode; label: s
 
 export function AppShell() {
   const location = useLocation();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const { themeLayout, setThemeLayout } = useThemePreferences();
   const [isHydrated, setIsHydrated] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -184,6 +184,27 @@ export function AppShell() {
   const conversationsQuery = useConversations(isHydrated);
   const isChatRoute = location.pathname === "/";
   const localeKey = locale === "zh" ? "zh" : "en";
+  const appShellCopy = useMemo(
+    () => ({
+      primaryNavigation: t("appShell.copy.primaryNavigation"),
+      intelligentWorkspace: t("appShell.copy.intelligentWorkspace"),
+      workspaceMenu: t("appShell.copy.workspaceMenu"),
+      noKnowledgeBase: t("appShell.copy.noKnowledgeBase"),
+      loading: t("appShell.copy.loading"),
+      documentCount: (count: number) => t("appShell.copy.documentCount", { count }),
+      openNavigationMenu: t("appShell.copy.openNavigationMenu"),
+      currentKnowledgeBase: t("appShell.copy.currentKnowledgeBase"),
+      loadingKnowledgeBase: t("appShell.copy.loadingKnowledgeBase"),
+      search: t("appShell.copy.search"),
+      notifications: t("appShell.copy.notifications"),
+      switchToChinese: t("appShell.copy.switchToChinese"),
+      switchToEnglish: t("appShell.copy.switchToEnglish"),
+      closeNavigationMenu: t("appShell.copy.closeNavigationMenu"),
+      mobileWorkspaceMenu: t("appShell.copy.mobileWorkspaceMenu"),
+      workspaceNavigation: t("appShell.copy.workspaceNavigation")
+    }),
+    [t]
+  );
 
   useEffect(() => {
     setIsHydrated(true);
@@ -240,7 +261,7 @@ export function AppShell() {
       />
 
       <div className="relative z-10 flex h-full">
-        <aside aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
+        <aside aria-label={appShellCopy.primaryNavigation} className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
           <div className="border-b border-[var(--app-border)] px-6 py-6">
             <div className="flex items-center gap-3.5">
               <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-lg font-bold text-white shadow-[0_4px_20px_var(--app-accent-glow)]">
@@ -251,13 +272,13 @@ export function AppShell() {
                   RAG System
                 </h1>
                 <p className="mt-0.5 text-[11px] text-[var(--app-text-muted)]">
-                  {locale === "zh" ? "智能知识库问答工作台" : "Intelligent knowledge workspace"}
+                  {appShellCopy.intelligentWorkspace}
                 </p>
               </div>
             </div>
           </div>
 
-          <nav aria-label={locale === "zh" ? "工作区菜单" : "Workspace menu"} className="flex-1 px-4 py-5">
+          <nav aria-label={appShellCopy.workspaceMenu} className="flex-1 px-4 py-5">
             {links.map(group => (
               <div className="mb-6" key={group.heading}>
                 <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
@@ -303,17 +324,13 @@ export function AppShell() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "未选择知识库" : "No knowledge base")}
+                  {activeKnowledgeBase?.name ?? appShellCopy.noKnowledgeBase}
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
                   {documentsQuery.isSuccess
-                    ? locale === "zh"
-                      ? `${documentsQuery.data.length} 个文档`
-                      : `${documentsQuery.data.length} documents`
-                    : locale === "zh"
-                      ? "加载中"
-                      : "Loading"}
+                    ? appShellCopy.documentCount(documentsQuery.data.length)
+                    : appShellCopy.loading}
                 </div>
               </div>
             </div>
@@ -326,7 +343,7 @@ export function AppShell() {
               <button
                 aria-controls="mobile-nav-drawer"
                 aria-expanded={isMobileNavOpen}
-                aria-label={locale === "zh" ? "打开导航菜单" : "Open navigation menu"}
+                aria-label={appShellCopy.openNavigationMenu}
                 className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)] transition duration-300 hover:border-[var(--app-accent)] hover:text-[var(--app-accent)] lg:hidden"
                 data-testid="mobile-nav-toggle"
                 onClick={() => setIsMobileNavOpen(current => !current)}
@@ -347,10 +364,10 @@ export function AppShell() {
               <div
                 aria-hidden="true"
                 className="hidden items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--app-text-secondary)] md:flex"
-                title={locale === "zh" ? "当前知识库" : "Current knowledge base"}
+                title={appShellCopy.currentKnowledgeBase}
               >
                 <span className="h-2 w-2 rounded-full bg-[#10b981]" />
-                {activeKnowledgeBase?.name ?? (locale === "zh" ? "知识库加载中" : "Loading knowledge base")}
+                {activeKnowledgeBase?.name ?? appShellCopy.loadingKnowledgeBase}
                 <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
                   <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
                 </svg>
@@ -358,13 +375,13 @@ export function AppShell() {
             </div>
 
             <div className="flex items-center gap-3">
-              <ActionButton label={locale === "zh" ? "搜索" : "Search"}>
+              <ActionButton label={appShellCopy.search}>
                 <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
                   <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
                   <line stroke="currentColor" strokeWidth="2" x1="21" x2="16.65" y1="21" y2="16.65" />
                 </svg>
               </ActionButton>
-              <ActionButton label={locale === "zh" ? "通知" : "Notifications"}>
+              <ActionButton label={appShellCopy.notifications}>
                 <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" />
                   <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" />
@@ -372,7 +389,7 @@ export function AppShell() {
               </ActionButton>
               <div className="flex rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-[3px]">
                 <button
-                  aria-label={locale === "zh" ? "切换中文" : "Switch to Chinese"}
+                  aria-label={appShellCopy.switchToChinese}
                   aria-pressed={locale === "zh"}
                   className={[
                     "rounded-md px-3 py-1.5 text-xs font-medium transition duration-300",
@@ -384,7 +401,7 @@ export function AppShell() {
                   中
                 </button>
                 <button
-                  aria-label={locale === "en" ? "Switch to English" : "切换到英文"}
+                  aria-label={appShellCopy.switchToEnglish}
                   aria-pressed={locale === "en"}
                   className={[
                     "rounded-md px-3 py-1.5 text-xs font-medium transition duration-300",
@@ -402,14 +419,14 @@ export function AppShell() {
           {isMobileNavOpen ? (
             <div className="fixed inset-0 z-[60] lg:hidden">
               <button
-                aria-label={locale === "zh" ? "关闭导航菜单" : "Close navigation menu"}
+                aria-label={appShellCopy.closeNavigationMenu}
                 className="absolute inset-0 bg-[rgba(7,10,18,0.72)]"
                 onClick={() => setIsMobileNavOpen(false)}
                 type="button"
               />
 
               <div
-                aria-label={locale === "zh" ? "移动端导航抽屉" : "Mobile navigation drawer"}
+                aria-label={appShellCopy.mobileWorkspaceMenu}
                 className="absolute inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.45)]"
                 data-testid="mobile-nav-drawer"
                 id="mobile-nav-drawer"
@@ -423,15 +440,15 @@ export function AppShell() {
                 <div className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-5">
                   <div>
                     <div className="text-sm font-semibold text-[var(--app-text)]">
-                      {locale === "zh" ? "工作区导航" : "Workspace navigation"}
+                      {appShellCopy.workspaceNavigation}
                     </div>
                     <div className="mt-1 text-xs text-[var(--app-text-muted)]">
-                      {activeKnowledgeBase?.name ?? (locale === "zh" ? "知识库加载中" : "Loading knowledge base")}
+                      {activeKnowledgeBase?.name ?? appShellCopy.loadingKnowledgeBase}
                     </div>
                   </div>
 
                   <button
-                    aria-label={locale === "zh" ? "关闭导航菜单" : "Close navigation menu"}
+                    aria-label={appShellCopy.closeNavigationMenu}
                     className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] text-[var(--app-text)] transition duration-300 hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
                     onClick={() => setIsMobileNavOpen(false)}
                     type="button"
@@ -443,7 +460,7 @@ export function AppShell() {
                   </button>
                 </div>
 
-                <nav aria-label={locale === "zh" ? "移动端工作区菜单" : "Mobile workspace menu"} className="flex-1 overflow-y-auto px-4 py-5">
+                <nav aria-label={appShellCopy.mobileWorkspaceMenu} className="flex-1 overflow-y-auto px-4 py-5">
                   {links.map((group, groupIndex) => (
                     <div className="mb-6" key={`mobile-${group.heading}`}>
                       <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">

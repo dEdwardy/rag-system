@@ -35,7 +35,7 @@ function TraceConversationCard({
   conversationTitle: string;
   latestTrace: TraceRecord;
 }) {
-  const { formatDateTime, locale } = useI18n();
+  const { formatDateTime, t } = useI18n();
 
   return (
     <Paper className="workspace-citation-card workspace-panel-muted" p="lg" radius="xl">
@@ -55,7 +55,7 @@ function TraceConversationCard({
                 {latestTrace.status}
               </Badge>
               <Badge color="gray" radius="sm" variant="light">
-                {latestTrace.modelName ?? (locale === "zh" ? "未记录模型" : "No model")}
+                {latestTrace.modelName ?? t("trace.copy.modelUnknown")}
               </Badge>
             </Group>
           </Stack>
@@ -66,29 +66,25 @@ function TraceConversationCard({
 
         <div className="workspace-meta-list">
           <div className="workspace-meta-row">
-            <span className="workspace-meta-label">{locale === "zh" ? "最新结果" : "Latest result"}</span>
+            <span className="workspace-meta-label">{t("trace.copy.latestResult")}</span>
             <span className="workspace-meta-value">
               {latestTrace.status === "success"
-                ? locale === "zh"
-                  ? "回答链路已完成"
-                  : "Answer pipeline completed"
-                : locale === "zh"
-                  ? "本轮需要排查"
-                  : "Needs inspection"}
+                ? t("trace.copy.latestResultSuccess")
+                : t("trace.copy.latestResultNeedsInspection")}
             </span>
           </div>
           <div className="workspace-meta-row">
-            <span className="workspace-meta-label">{locale === "zh" ? "追踪编号" : "Trace id"}</span>
+            <span className="workspace-meta-label">{t("trace.copy.traceId")}</span>
             <span className="workspace-meta-value">{latestTrace.id}</span>
           </div>
         </div>
 
         <Stack gap="xs">
           <Anchor c="var(--app-text)" component={Link} fw={600} size="sm" to={`/traces/${latestTrace.id}`}>
-            {locale === "zh" ? "查看 Trace 详情" : "View trace details"}
+            {t("trace.copy.viewTraceDetails")}
           </Anchor>
           <Anchor c="var(--app-text-muted)" component={Link} size="sm" to="/">
-            {locale === "zh" ? "回到对话" : "Back to chat"}
+            {t("trace.copy.backToChat")}
           </Anchor>
         </Stack>
       </Stack>
@@ -98,16 +94,14 @@ function TraceConversationCard({
 
 export function TraceListPage() {
   const conversationsQuery = useConversations();
-  const { locale } = useI18n();
+  const { t } = useI18n();
   const conversationCount = conversationsQuery.data?.length ?? 0;
   const conversationIds = conversationsQuery.data?.map(conversation => conversation.id) ?? [];
   const latestTracesQuery = useLatestConversationTraces(conversationIds, conversationsQuery.isSuccess);
   const traceErrorMessage =
     latestTracesQuery.error instanceof Error
       ? latestTracesQuery.error.message
-      : locale === "zh"
-        ? "Trace 加载失败"
-        : "Failed to load traces";
+      : t("trace.copy.loadTracesError");
   const traceCards =
     conversationsQuery.data?.flatMap(conversation => {
       const latestTrace = latestTracesQuery.latestTraceByConversationId[conversation.id] ?? null;
@@ -125,12 +119,10 @@ export function TraceListPage() {
               c="var(--app-text)"
               style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
             >
-              {locale === "zh" ? "Trace 工作台" : "Trace log"}
+              {t("trace.copy.traceHeading")}
             </Title>
             <Text c="var(--app-text-muted)" mt={4} size="sm">
-              {locale === "zh"
-                ? "保留 conversation -> latest trace -> detail 的原有路径，只把列表改得更像产品页面而不是诊断台账。"
-                : "Keep the same list-to-detail flow, but present the latest trace for each conversation with clearer product-facing hierarchy."}
+              {t("trace.copy.traceDescription")}
             </Text>
           </div>
           <Stack align="flex-end" gap={10}>
@@ -138,9 +130,7 @@ export function TraceListPage() {
               {conversationCount}
             </Badge>
             <Text className="workspace-hero-sidecopy" ta="right">
-              {locale === "zh"
-                ? "先看问题本身、结果状态和时间，再决定是否进入 Trace 详情。"
-                : "Scan the user question, outcome, and timing first, then open the detailed trace only when needed."}
+              {t("trace.copy.traceSidecopy")}
             </Text>
           </Stack>
         </div>
@@ -158,12 +148,12 @@ export function TraceListPage() {
               </Stack>
             </Paper>
           ))}
-          <span className="sr-only">{locale === "zh" ? "加载会话中" : "Loading conversations"}</span>
+          <span className="sr-only">{t("trace.copy.loadingConversations")}</span>
         </div>
       ) : conversationsQuery.isError ? (
         <StatePanel
           description={conversationsQuery.error instanceof Error ? conversationsQuery.error.message : undefined}
-          title={locale === "zh" ? "会话加载失败" : "Failed to load conversations"}
+          title={t("trace.copy.conversationsError")}
           tone="error"
         />
       ) : conversationsQuery.data?.length ? (
@@ -175,9 +165,10 @@ export function TraceListPage() {
           ) : null}
           {latestTracesQuery.isError ? (
             <Alert color="red" mb="md" radius="lg" variant="light">
-              {locale === "zh"
-                ? `部分 Trace 加载失败（${latestTracesQuery.failedConversationCount} 个会话）。${traceErrorMessage}`
-                : `Failed to load traces for ${latestTracesQuery.failedConversationCount} conversation(s). ${traceErrorMessage}`}
+              {t("trace.copy.partialLoadError", {
+                count: latestTracesQuery.failedConversationCount,
+                error: traceErrorMessage
+              })}
             </Alert>
           ) : null}
           <div className={conversationsQuery.data.length === 1 ? "workspace-list-shell-compact" : undefined}>
@@ -194,8 +185,8 @@ export function TraceListPage() {
         </div>
       ) : (
         <StatePanel
-          description={locale === "zh" ? "还没有可检查 trace 的会话。" : "There are no conversations to inspect yet."}
-          title={locale === "zh" ? "暂无会话" : "No conversations"}
+          description={t("trace.copy.noConversationsDescription")}
+          title={t("trace.copy.noConversationsTitle")}
         />
       )}
 
@@ -208,7 +199,7 @@ export function TraceListPage() {
         variant="light"
         w="fit-content"
       >
-        {locale === "zh" ? "回到对话" : "Back to chat"}
+        {t("trace.copy.backToChat")}
       </Button>
     </Stack>
   );
