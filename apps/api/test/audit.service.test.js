@@ -103,6 +103,21 @@ test("AuditService lists merged trace/document-run events in reverse chronologic
       { id: "trace:trace-success", event: "trace.completed" }
     ]
   );
+
+  const readyRunEvent = result.find(event => event.id === "document_run:run-ready");
+  assert.equal(readyRunEvent.issue, false);
+  assert.equal(readyRunEvent.issueReadabilityLabel, null);
+  assert.equal(readyRunEvent.summary, "Ready document");
+
+  const failedTraceEvent = result.find(event => event.id === "trace:trace-failed");
+  assert.equal(failedTraceEvent.issue, true);
+  assert.equal(failedTraceEvent.issueReadabilityLabel, "trace failed");
+  assert.equal(failedTraceEvent.summary, "Trace failed: trace failure");
+
+  const failedRunEvent = result.find(event => event.id === "document_run:run-failed");
+  assert.equal(failedRunEvent.issue, true);
+  assert.equal(failedRunEvent.issueReadabilityLabel, "document run failed");
+  assert.equal(failedRunEvent.summary, "Failed document · failed at indexing");
 });
 
 test("AuditService issueOnly mode filters to failed trace and failed/skipped runs", async () => {

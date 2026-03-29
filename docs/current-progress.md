@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ audit scan-first contract now includes explicit issue-oriented fields and summaries for faster operator triage in `GET /audit/events`
+  - 变更文件：
+    - `apps/api/src/modules/audit/audit.service.ts`
+    - `apps/api/test/audit.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持现有事件语义与过滤条件不变，在 audit 事件返回中新增 `issue` 与 `issueReadabilityLabel`（additive contract），让 issue 与非 issue 事件可直接扫读区分
+    - issue 事件的 `summary` 现在优先输出问题导向文案：trace 失败优先显示错误摘要，document run 失败/跳过显示状态与阶段（如 `failed at indexing`）
+    - 范围限制在现有 audit endpoint 的 read-model 可读性收口，不新增 endpoint、不改持久化、不扩展 ops 平台能力面
+  - focused validation：
+    - `pnpm test:api:file -- test/audit.service.test.js`
+
 - ✅ P5 eval run output now carries an explicit fixed-threshold contract in `qualityGate`, so automated consumers can apply the gate deterministically without inferring limits from prose or model judgment
   - 变更文件：
     - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`

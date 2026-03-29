@@ -16,6 +16,8 @@ type AuditEvent = {
   status: string;
   occurredAt: Date;
   summary: string | null;
+  issue: boolean;
+  issueReadabilityLabel: string | null;
   details: Record<string, unknown>;
 };
 
@@ -174,6 +176,7 @@ export class AuditService {
     const [traces, documentRuns] = await Promise.all([tracesPromise, documentRunsPromise]);
     const traceEvents = traces.map((trace): AuditEvent => {
       const event = trace.status === TraceStatus.failed ? "trace.failed" : "trace.completed";
+      const issue = trace.status === TraceStatus.failed;
       return {
         id: `trace:${trace.id}`,
         kind: "trace",
@@ -181,7 +184,13 @@ export class AuditService {
         event,
         status: trace.status,
         occurredAt: trace.createdAt,
-        summary: trace.userQuery,
+        summary: issue
+          ? this.buildTraceIssueSummary(trace.errorMessage, trace.userQuery)
+          : trace.userQuery,
+        issue,
+        issueReadabilityLabel: issue
+          ? "trace failed"
+          : null,
         details: {
           conversationId: trace.conversationId,
           errorMessage: trace.errorMessage
@@ -190,6 +199,7 @@ export class AuditService {
     });
     const documentRunEvents = documentRuns.map((run): AuditEvent => {
       const event = this.resolveDocumentRunEvent(run.status);
+      const issue = this.isDocumentRunIssue(run.status);
       return {
         id: `document_run:${run.id}`,
         kind: "document_run",
@@ -197,7 +207,13 @@ export class AuditService {
         event,
         status: run.status,
         occurredAt: run.startedAt,
-        summary: run.document.title,
+        summary: issue
+          ? this.buildDocumentRunIssueSummary(run.document.title, run.status, run.failedStage)
+          : run.document.title,
+        issue,
+        issueReadabilityLabel: issue
+          ? this.resolveDocumentRunIssueReadabilityLabel(run.status)
+          : null,
         details: {
           documentId: run.documentId,
           kbId: run.document.kbId,
@@ -242,5 +258,40 @@ export class AuditService {
     }
 
     return "document_run.pending";
+  }
+
+  private isDocumentRunIssue(status: DocumentRunStatus) {
+    return status === DocumentRunStatus.failed || status === DocumentRunStatus.skipped;
+  }
+
+  private resolveDocumentRunIssueReadabilityLabel(status: DocumentRunStatus) {
+    if (status === DocumentRunStatus.failed) {
+      return "document run failed";
+    }
+
+    if (status === DocumentRunStatus.skipped) {
+      return "document run skipped";
+    }
+
+    return "document run issue";
+  }
+
+  private buildTraceIssueSummary(errorMessage: string | null, fallbackSummary: string | null) {
+    if (errorMessage && errorMessage.trim().length > 0) {
+      return `Trace failed: ${errorMessage}`;
+    }
+
+    return fallbackSummary;
+  }
+
+  private buildDocumentRunIssueSummary(title: string | null, status: DocumentRunStatus, failedStage: string | null) {
+    const baseTitle = title?.trim().length ? title : "document run";
+    const statusLabel = status === DocumentRunStatus.skipped ? "skipped" : "failed";
+
+    if (failedStage && failedStage.trim().length > 0) {
+      return `${baseTitle} · ${statusLabel} at ${failedStage}`;
+    }
+
+    return `${baseTitle} · ${statusLabel}`;
   }
 }
