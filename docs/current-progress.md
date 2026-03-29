@@ -15,6 +15,42 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P3 source follow-up gap list has been minimally refreshed to match current implementation/tests (docs/planning sync only)
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 仅刷新 `P3 task 1` 的现有 source family gap 快照（`web page` / `feed` / `sitemap` / `external resync`），不新增 source family、不调整 retrieval/answering 语义、不重开 auth/ACL 波次
+    - 对齐当前已落地事实：`external_resync` 的 legacy config recovery 已覆盖 `web_page` / `feed` / `sitemap`（含缺失 config 与 feed/sitemap 选择上限回退）；将 gap 重点改为跨 family diagnostics/error-code 一致性收口
+    - 同步收敛最小 gap list 顺序为：`web/feed partial diagnostics consistency`、`sitemap nested-index + child-limit boundary policy`、`external resync diagnostics/error-code consistency`
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ next-wave docs are now aligned to the approved 12-item loop rebuild, and the execution-ready queue has been appended for automatic drain
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 已把当前 post-drain 状态从“queue 已跑空、待重建”推进到“approved 12-item wave 已入队”，顺序固定为 `P3 main queue -> P5/P6 closeout -> loop queue refresh`
+    - 已把 12 个 execution-ready items 追加进 `.opencode/loop/queue.json`，覆盖 `P3` 的 gap/diagnostics/resync/boundary/docs 收口、`P5/P6` 的 contract/readability/docs closeout、以及最后的 queue refresh closeout
+    - 已在 planning/refinement docs 中同步保留边界：不新增 source family、不把 `P5` 人工判断项塞进自动 loop、不重开 auth/ACL 扩面、不做 observability dashboard 平台化或大 UI 改版
+    - queue 追加完成后会直接重启 loop，让当前 wave 按既定顺序自动串行消费
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ roadmap/planning docs now reflect the landed post-auth state and the next-wave recommendation
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 已把 `next_steps` 中过期的“`P1` 完成后进入 `P2`”口径更新为当前真实状态：`P1 auth/login`、后续 `GitHub/Google/OIDC` provider wave、以及 `P2 owner-only ACL baseline` 都已收口
+    - 已同步 queue 状态：上一轮 `P5 -> P6 -> docs sync` auto-queue 已 drain，当前默认不再继续追加 auth/ACL closeout，而是把下一条主线重新收束为 `P3 external knowledge source follow-up`
+    - 同时保留既有边界：`P5` 的人工判断项继续留在自动 loop 外，`P4` 仍保持条件触发，不把 docs 对齐扩成新的功能波次
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ web login page now surfaces the landed OIDC start entry alongside existing GitHub/Google provider buttons
   - 变更文件：
     - `apps/web/src/pages/auth/LoginPage.tsx`

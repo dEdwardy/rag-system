@@ -185,7 +185,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
     - 只做状态更新和结论记录，不再把新方向混进同一波次
     - 交付物：更新本文件的状态结论，以及 `docs/current-progress.md` 的 phase closeout 说明
 
-### P1：鉴权 / 用户登录（当前主线）
+### P1：鉴权 / 用户登录（已收口）
 
 `P0` 收口完成后，当前最合适的下一条主线不再是继续扩 external source，也不是直接展开企业化全家桶，而是先补齐 **鉴权 / 用户登录的最小闭环**。
 
@@ -292,8 +292,11 @@ Queue 短标题版（可直接作为 loop item title 使用）：
   - 已有 `POST /auth/login`、`POST /auth/logout`、`GET /auth/me` 最小闭环
   - ask/conversation/knowledge-base 写入与读取路径已按 current identity 收口（保持 ACL-ready baseline，不在本轮展开角色矩阵）
   - web 侧已完成 auth bootstrap + login/logout + 最小路由保护
+- ✅ auth provider wave 也已完成到当前既定边界：`GitHub` / `Google` / real `OIDC` 均已落地为 `AuthIdentityLink(provider, subject) -> 本地 AuthSession(rag_session)` 的 provider-session bridge
+  - 当前登录入口与 `/auth/me.loginProvenance` 已能区分本地会话与 OAuth/OIDC provider 会话
+  - 本轮仍保持边界不变：不展开账号管理体系、不引入 provider token 前端会话模型、不重开 ACL 扩面
 - ✅ task `12`（auth 文档与验证口径）本次同步完成
-- ⏭️ P1 最小 auth/login 闭环已可视为收口；下一主线进入 `P2: ACL / 文档权限`
+- ⏭️ `P1` auth/login 与后续 provider wave 已可视为收口；鉴权后续默认只做必要 docs/setup/ops 对齐，不再作为当前主线继续扩波次
 
 #### Auth/Login wave focused validation baseline
 
@@ -513,16 +516,16 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
    | source family | 当前已收口范围 | concrete missing edges（后续补强优先） |
    | --- | --- | --- |
-   | web page | 单 URL 抓取、重试/超时、redirect 跟随与诊断、`text/plain/unknown + html sniff` 容错已具备 | 1) 仍是纯静态 HTML 提取（`WebPageService.extractFromHtml`），JS 渲染内容为空时会直接失败；2) 目前无页面级 partial diagnostics（只有整体成功/失败），排查“部分正文缺失”信息粒度不足 |
+   | web page | 单 URL 抓取、重试/超时、redirect 跟随与诊断、`text/plain/unknown + html sniff` 容错已具备；content-type fallback 路径已带最小 partial diagnostics | 1) 仍是纯静态 HTML 提取（`WebPageService.extractFromHtml`），JS 渲染内容为空时会直接失败；2) 目前 partial diagnostics 主要覆盖 fetch/content-type fallback，缺少“正文提取质量/正文缺失”粒度信号 |
    | feed (RSS/Atom) | RSS/Atom 抓取、entry 级 partial failure/duplicate diagnostics、content-type fallback、重试与 dedup 已具备 | 1) 仅支持 RSS/Atom XML（`Unsupported feed format`），不支持其他 feed 表达；2) 当 entry 无 link 时，dedup 仍退化到 `title+publishedAt+summary`，metadata 漂移下仍可能重复入库 |
    | sitemap / sitemapindex | `urlset` + 一层 `sitemapindex`、子 sitemap 与 page 级 partial diagnostics、maxPages/maxChildSitemaps 边界与 dedup 已具备 | 1) 明确不支持 nested sitemapindex（子项再指向 index 会失败）；2) `MAX_CHILD_SITEMAPS=20` 当前是代码常量，不支持按 source 配置细粒度调节 |
-   | external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备；legacy config recovery 已覆盖 `web_page`（config 丢失）和 `feed/sitemap`（缺失 `maxItems/maxPages`） | 1) `feed/sitemap` 在 `sourceConfigJson` 完整缺失时仍会直接 `EXTERNAL_SOURCE_CONFIG_INVALID`；2) source fetch diagnostics 已有 retryable 标记，但跨 family 的错误 code 映射口径仍不完全统一（后续可收敛） |
+   | external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备；legacy config recovery 已覆盖 `web_page` / `feed` / `sitemap`（含 config 丢失与 feed/sitemap 边界默认值回退） | 1) 对不可恢复配置异常仍统一落到 `EXTERNAL_SOURCE_CONFIG_INVALID`，跨 family 的错误 code/readability 映射口径仍可继续收敛；2) source-level diagnostics 字段在跨 family 对齐上仍有细粒度差异 |
 
    稳定性补强（现有 source family 内，优先）：
 
-   1) external re-sync：补齐 `feed/sitemap` 在 `sourceConfigJson` 完整缺失时的 identity-based recovery（当前仅 `web_page` 已覆盖）
+   1) web/feed：收口 partial diagnostics 粒度一致性，优先补“可观测性不足”而不是改抓取语义
    2) sitemap：明确 nested sitemapindex 与 child-limit 的边界策略（保持当前失败语义或做最小可控放宽）
-   3) web/feed：收口 partial diagnostics 粒度一致性，优先补“可观测性不足”而不是改抓取语义
+   3) external re-sync：收口不可恢复配置异常在跨 family 的 diagnostics / error-code 可读性一致性
 
    扩面候选（后置，非当前最小缺口）：
 
@@ -531,9 +534,9 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
    最小 follow-up gap list（P3 task 1 交付版）：
 
-   - `re-sync identity recovery for feed/sitemap missing full config`
-   - `sitemap nested-index + child-limit boundary policy`
    - `web/feed partial diagnostics consistency`
+   - `sitemap nested-index + child-limit boundary policy`
+   - `external resync diagnostics/error-code consistency`
 
 2. 补 source retry / timeout / diagnostics 一致性
    - 目标：继续优先做 execution boundary、重试、错误可读性，而不是先铺新 connector
@@ -659,22 +662,22 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 当前更稳的后续顺序是：
 
-1. `鉴权 / 用户登录`
-2. `ACL / 文档权限`
-3. `外部知识源后续扩展`
-4. `RAG 质量证明（eval / regression / demo）`
-5. `运行观测 / 审计补强`
-6. `移动端适配`
-7. `企业能力（先拆小块，不整包推进）`
-8. `多租户隔离`
+1. `外部知识源后续扩展（P3，stabilization-first）`
+2. `RAG 质量证明（P5，先处理人工基线项）`
+3. `运行观测 / 审计补强（P6）`
+4. `PC Web 后续局部收口（P4，仅在能力承载直接需要时触发）`
+5. `企业能力（先拆小块，不整包推进）`
+6. `多租户隔离`
+
+已完成并默认不再作为当前主线重开的阶段：`P0 read-model/metadata convergence`、`P1 鉴权/用户登录`、`P2 owner-only ACL baseline`。
 
 执行方式仍保持：**主线串行推进，局部低耦合项再小范围并行，不做 7 类全面并行。**
 
 #### 当前 queue refinement note（2026-03-29）
 
-- `P1` 最小闭环已收口，当前自动队列主顺序按 `P2 -> P3 -> P5 -> P6 -> P4` 推进。
+- `P1`、`P2` 与上一轮 `P5 -> P6 -> docs sync` auto-queue 已收口；当前已按批准范围重建一条新的 12-item 执行队列，主线固定为 `P3` 稳定性补强，随后接 `P5/P6` closeout，最后做 queue closeout refresh。
 - queue `title` 可以继续保持短标题；真正的执行边界、涉及文件、focused validation 统一放在 queue item 的 `promptText` / `promptFile`。
-- 本轮新追加的 queue items 以“可一次消费的最小工程增量”为准，不再把 `P2/P3/P5/P6/P4` 整波直接写成单个 queue item。
+- 当前批准顺序：`p3-source-gaplist-refresh -> p3-source-diagnostics-consistency -> p3-source-resync-recovery-guards -> p3-sitemap-boundary-guard -> p3-web-feed-partial-diagnostics -> p3-source-followup-docs-sync -> p5-runner-report-contract-sync -> p6-usage-scan-first-closeout -> p6-report-center-closeout -> p6-trace-detail-closeout -> p6-observability-docs-sync -> loop-queue-refresh`。
 - `P5` 里需要人工判断的任务（题集选择、标注、baseline 文档版本、demo case 取舍、demo replay 验收）仍留在自动 queue 外，避免把主观评审混进自动 build loop。
 
 #### 第二批 queue refinement note（2026-03-29）
@@ -687,9 +690,9 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 #### 第三批 post-drain queue note（2026-03-29）
 
-- post-drain 第三批 queue 已开始消费，当前执行方向保持 `P5 -> P6 -> docs sync`。
-- 当前 queue tail 已进入 docs 同步项 `docs-next-wave-sync-039`（`third-batch queue docs sync`）`in_progress`，用于收口 planning/progress 与 refinement 文档对齐。
-- 本批继续保持 docs-only / contract-closeout 边界，不重开 `P2/P3`、不改 roadmap 排序。
+- post-drain 第三批 queue（`P5 -> P6 -> docs sync`）现已消费完成；该段继续保留为 closeout 记录。
+- 在该 drain 之后，当前已重建一条新的 execution-ready 12-item 队列：先完成 `P3 external knowledge source follow-up` 的 gap/diagnostics/resync/boundary/docs 收口，再接 `P5/P6` 已落地能力的 contract/readability/docs closeout，最后做 queue refresh closeout。
+- 本轮继续保持边界不变：不新增 source family、不把 `P5` 人工判断项塞进自动 loop、不重开 auth/ACL 扩面、不把 Usage / Report center / Trace Detail 扩成 dashboard 平台化或大 UI 改版。
 
 ### 边界说明：产品核心 vs 第三方集成
 
@@ -746,4 +749,4 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 ## 5. 一句话结论
 
-**`P0` 与 `P1` 已完成；当前更合适的下一最小增量是先做 `P2: ACL / 文档权限` 收口，再按 `P3 -> P5 -> P6 -> P4` 继续单线推进、小步增量、每轮收口。**
+**`P0`、`P1`、`P2` 与上一轮 auto-queue closeout 已完成；当前更合适的下一最小增量是以 `P3 external knowledge source follow-up` 作为下一主线，随后再按 `P5 -> P6 -> P4` 继续单线推进、小步增量、每轮收口。**
