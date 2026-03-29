@@ -1,5 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res } from "@nestjs/common";
-import { DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME, DEFAULT_AUTH_SESSION_COOKIE_NAME } from "./auth.constants";
+import {
+  DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME,
+  DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
+  DEFAULT_AUTH_SESSION_COOKIE_NAME
+} from "./auth.constants";
 import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
 import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
 import {
@@ -9,6 +13,8 @@ import {
   permissionCheckSchema
 } from "./auth.schemas";
 import { AuthService } from "./auth.service";
+
+const LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE = "local";
 
 export const AUTH_OAUTH_PROVIDER_ROUTE_SHAPES = {
   start: "/auth/oauth/:provider/start",
@@ -31,7 +37,10 @@ export class AuthController {
       password: input.password
     });
 
-    this.setSessionCookie(response, result.identity.sessionId, result.expiresAt);
+    response.setHeader("Set-Cookie", [
+      this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
+      this.buildLoginProvenanceCookieValue(LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE, result.expiresAt)
+    ]);
 
     return result;
   }
@@ -46,7 +55,10 @@ export class AuthController {
     });
 
     if (response != null) {
-      this.clearSessionCookie(response);
+      response.setHeader("Set-Cookie", [
+        this.buildClearSessionCookieValue(),
+        this.buildClearLoginProvenanceCookieValue()
+      ]);
     }
 
     return {
@@ -100,7 +112,8 @@ export class AuthController {
 
     response.setHeader("Set-Cookie", [
       this.buildClearOauthStateCookieValue(),
-      this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt)
+      this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
+      this.buildLoginProvenanceCookieValue(providerInput.provider, result.expiresAt)
     ]);
 
     return result;
@@ -108,9 +121,19 @@ export class AuthController {
 
   @Get("me")
   @AuthenticatedRoute()
-  me(@Req() request?: ApiRequestWithAuthContext) {
+  me(
+    @Req()
+    request?:
+      | (ApiRequestWithAuthContext & {
+          headers?: {
+            cookie?: string | string[];
+          };
+        })
+      | undefined
+  ) {
     return this.authService.getMe({
-      authContext: request?.authContext
+      authContext: request?.authContext,
+      loginProvenanceHint: this.readNamedCookie(request?.headers, this.resolveLoginProvenanceCookieName())
     });
   }
 
@@ -124,18 +147,6 @@ export class AuthController {
       action: input.action,
       resource: input.resource
     });
-  }
-
-  private setSessionCookie(
-    response: { setHeader: (name: string, value: string | string[]) => void },
-    sessionId: string | null,
-    expiresAtIso: string
-  ) {
-    response.setHeader("Set-Cookie", this.buildSessionCookieValue(sessionId, expiresAtIso));
-  }
-
-  private clearSessionCookie(response: { setHeader: (name: string, value: string | string[]) => void }) {
-    response.setHeader("Set-Cookie", this.buildClearSessionCookieValue());
   }
 
   private readNamedCookie(
@@ -206,6 +217,12 @@ export class AuthController {
     return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
   }
 
+  private resolveLoginProvenanceCookieName() {
+    const cookieName =
+      (process.env.AUTH_LOGIN_PROVENANCE_COOKIE_NAME ?? DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME).trim();
+    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME;
+  }
+
   private buildSessionCookieValue(sessionId: string | null, expiresAtIso: string): string {
     const cookieName = this.resolveCookieName();
     const safeSessionId = encodeURIComponent(sessionId ?? "");
@@ -215,6 +232,18 @@ export class AuthController {
 
   private buildClearSessionCookieValue(): string {
     const cookieName = this.resolveCookieName();
+    return `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  }
+
+  private buildLoginProvenanceCookieValue(value: string, expiresAtIso: string): string {
+    const cookieName = this.resolveLoginProvenanceCookieName();
+    const safeValue = encodeURIComponent(value);
+    const expiresAt = new Date(expiresAtIso).toUTCString();
+    return `${cookieName}=${safeValue}; Path=/; HttpOnly; SameSite=Lax; Expires=${expiresAt}`;
+  }
+
+  private buildClearLoginProvenanceCookieValue(): string {
+    const cookieName = this.resolveLoginProvenanceCookieName();
     return `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   }
 

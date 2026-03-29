@@ -15,6 +15,22 @@
 
 补充进展（2026-03-29）：
 
+- ✅ `GET /auth/me` now exposes additive login provenance (`local_session` vs `oauth_session`) while keeping existing identity fields unchanged
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.constants.ts`
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/auth.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /auth/login` 和 OAuth callback 现在与 session cookie 同步写入一个最小 provenance cookie，用于后续 `GET /auth/me` 判断当前登录来源
+    - `GET /auth/me` 在保留 `{ identity, currentIdentity }` 结构的同时，新增 `loginProvenance` 字段（最小区分 local-session / oauth-backed session）
+    - 保持范围收敛：未改 session 持久化模型、未改 ACL 语义、未改登录流程与前端流程
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ auth `Phase 2/3/4` docs closeout is now synced to landed code facts (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`

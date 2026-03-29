@@ -23,7 +23,7 @@ import {
   type RequestAuthContext
 } from "./auth-identity.contract";
 import { evaluateOwnerResourceAccess, type ResourceAccessPolicyInput } from "./resource-access-policy.contract";
-import type { OauthProvider } from "./auth.schemas";
+import type { AuthMeLoginProvenance, OauthProvider } from "./auth.schemas";
 import {
   GITHUB_OAUTH_PROVIDER,
   HttpGithubOauthProvider,
@@ -264,13 +264,23 @@ export class AuthService {
     return { ok: true };
   }
 
-  getMe(input: { authContext?: RequestAuthContext | null }): {
+  getMe(input: {
+    authContext?: RequestAuthContext | null;
+    loginProvenanceHint?: string | null;
+  }): {
     identity: AuthIdentity | null;
     currentIdentity: AuthIdentity;
+    loginProvenance: AuthMeLoginProvenance;
   } {
+    const identity = input.authContext?.identity ?? null;
+
     return {
-      identity: input.authContext?.identity ?? null,
-      currentIdentity: resolveCurrentAuthIdentity({ identity: input.authContext?.identity ?? null })
+      identity,
+      currentIdentity: resolveCurrentAuthIdentity({ identity }),
+      loginProvenance: this.resolveLoginProvenance({
+        authSource: identity?.authSource ?? null,
+        loginProvenanceHint: input.loginProvenanceHint ?? null
+      })
     };
   }
 
@@ -301,6 +311,31 @@ export class AuthService {
 
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
+  }
+
+  private resolveLoginProvenance(input: {
+    authSource: AuthIdentity["authSource"] | null;
+    loginProvenanceHint: string | null;
+  }): AuthMeLoginProvenance {
+    if (input.loginProvenanceHint === "github" || input.loginProvenanceHint === "google" || input.loginProvenanceHint === "oidc") {
+      return {
+        type: "oauth_session",
+        oauthProvider: input.loginProvenanceHint
+      };
+    }
+
+    if (input.authSource === "github" || input.authSource === "google" || input.authSource === "oidc") {
+      const oauthProvider = input.authSource as Extract<AuthMeLoginProvenance["oauthProvider"], string>;
+      return {
+        type: "oauth_session",
+        oauthProvider
+      };
+    }
+
+    return {
+      type: "local_session",
+      oauthProvider: null
+    };
   }
 
   private resolveSessionTtlMs(): number {

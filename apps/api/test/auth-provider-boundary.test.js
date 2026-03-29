@@ -827,6 +827,7 @@ test("AuthController oauthProviderCallback validates state cookie and writes oau
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-1/);
+  assert.match(cookies[0][2], /^rag_login_provenance=github/);
 });
 
 test("AuthController oauthProviderCallback supports Google callback with shared cookie/session handling", async () => {
@@ -883,6 +884,7 @@ test("AuthController oauthProviderCallback supports Google callback with shared 
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-google-1/);
+  assert.match(cookies[0][2], /^rag_login_provenance=google/);
 });
 
 test("AuthService completeOauthProviderCallback rejects mismatched state", async () => {
@@ -1122,7 +1124,9 @@ test("AuthController sets and clears session cookie around login and logout", as
 
   assert.equal(loginResult.identity.sessionId, "session-xyz");
   assert.deepEqual(loginCalls, [{ email: "default-user@example.com", password: "local-password-1" }]);
-  assert.match(cookies[0], /rag_session=session-xyz/);
+  assert.ok(Array.isArray(cookies[0]));
+  assert.match(cookies[0][0], /rag_session=session-xyz/);
+  assert.match(cookies[0][1], /rag_login_provenance=local/);
 
   const logoutResult = await controller.logout(
     {
@@ -1142,8 +1146,121 @@ test("AuthController sets and clears session cookie around login and logout", as
   );
 
   assert.deepEqual(logoutResult, { ok: true });
-  assert.match(cookies[1], /rag_session=;/);
-  assert.match(cookies[1], /Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+  assert.ok(Array.isArray(cookies[1]));
+  assert.match(cookies[1][0], /rag_session=;/);
+  assert.match(cookies[1][0], /Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+  assert.match(cookies[1][1], /rag_login_provenance=;/);
+});
+
+test("AuthController me returns local-session provenance by default and oauth-session provenance from cookie hint", () => {
+  const meCalls = [];
+  const controller = new AuthController({
+    getMe: (input) => {
+      meCalls.push(input);
+      return {
+        identity: input.authContext?.identity ?? null,
+        currentIdentity: input.authContext?.currentIdentity ?? null,
+        loginProvenance: {
+          type: input.loginProvenanceHint === "github" ? "oauth_session" : "local_session",
+          oauthProvider: input.loginProvenanceHint === "github" ? "github" : null
+        }
+      };
+    }
+  });
+
+  const baseAuthContext = {
+    identity: {
+      userId: "user-1",
+      tenantId: "tenant-1",
+      role: "owner",
+      sessionId: "session-1",
+      authSource: "session"
+    },
+    currentIdentity: {
+      userId: "user-1",
+      tenantId: "tenant-1",
+      role: "owner",
+      sessionId: "session-1",
+      authSource: "session"
+    }
+  };
+
+  const localMe = controller.me({
+    authContext: baseAuthContext,
+    headers: {
+      cookie: "other=1"
+    }
+  });
+  assert.equal(localMe.loginProvenance.type, "local_session");
+  assert.equal(localMe.loginProvenance.oauthProvider, null);
+
+  const oauthMe = controller.me({
+    authContext: baseAuthContext,
+    headers: {
+      cookie: "other=1; rag_login_provenance=github"
+    }
+  });
+  assert.equal(oauthMe.loginProvenance.type, "oauth_session");
+  assert.equal(oauthMe.loginProvenance.oauthProvider, "github");
+
+  assert.equal(meCalls.length, 2);
+  assert.equal(meCalls[0].loginProvenanceHint, null);
+  assert.equal(meCalls[1].loginProvenanceHint, "github");
+});
+
+test("AuthService getMe resolves oauth-backed and local-session provenance without changing identity payload", () => {
+  const authService = new AuthService({});
+
+  const oauthMe = authService.getMe({
+    authContext: {
+      identity: {
+        userId: "user-oauth",
+        tenantId: "tenant-oauth",
+        role: "member",
+        sessionId: "session-oauth",
+        authSource: "session"
+      },
+      currentIdentity: {
+        userId: "user-oauth",
+        tenantId: "tenant-oauth",
+        role: "member",
+        sessionId: "session-oauth",
+        authSource: "session"
+      }
+    },
+    loginProvenanceHint: "google"
+  });
+
+  assert.equal(oauthMe.identity.authSource, "session");
+  assert.equal(oauthMe.currentIdentity.authSource, "session");
+  assert.deepEqual(oauthMe.loginProvenance, {
+    type: "oauth_session",
+    oauthProvider: "google"
+  });
+
+  const localMe = authService.getMe({
+    authContext: {
+      identity: {
+        userId: "user-local",
+        tenantId: "tenant-local",
+        role: "owner",
+        sessionId: "session-local",
+        authSource: "session"
+      },
+      currentIdentity: {
+        userId: "user-local",
+        tenantId: "tenant-local",
+        role: "owner",
+        sessionId: "session-local",
+        authSource: "session"
+      }
+    }
+  });
+
+  assert.deepEqual(localMe.loginProvenance, {
+    type: "local_session",
+    oauthProvider: null
+  });
 });
 
 test("AuthRoutePolicyGuard allows public routes without identity", () => {

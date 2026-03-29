@@ -117,6 +117,7 @@ SOURCE_FETCH_RETRY_ATTEMPTS=2
 
 ```text
 AUTH_SESSION_COOKIE_NAME=rag_session
+AUTH_LOGIN_PROVENANCE_COOKIE_NAME=rag_login_provenance
 AUTH_SESSION_TTL_HOURS=168
 ```
 
@@ -130,7 +131,9 @@ AUTH_SESSION_TTL_HOURS=168
   - backend now exposes minimal auth loop endpoints:
     - `POST /auth/login` (Phase 1 local-account baseline: accepts `{ email, password }`, sets session cookie, returns identity)
     - `POST /auth/logout` (revokes current session when present, clears cookie)
-    - `GET /auth/me` (returns `{ identity, currentIdentity }`)
+    - `GET /auth/me` (returns `{ identity, currentIdentity, loginProvenance }`)
+      - `loginProvenance.type`: `local_session` or `oauth_session`
+      - `loginProvenance.oauthProvider`: `github` / `google` / `oidc` / `null` (null for local session)
   - current local-account login baseline (`Phase 1`) scope:
     - pre-created users only (seed/admin/manual bootstrap); no public signup in this wave
     - no password reset / forgot-password / email verification in this wave

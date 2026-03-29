@@ -19,9 +19,17 @@ export const oauthCallbackQuerySchema = z.object({
   state: z.string().trim().min(1)
 });
 
+export const authMeLoginProvenanceTypeValues = ["local_session", "oauth_session"] as const;
+export const authMeLoginProvenanceTypeSchema = z.enum(authMeLoginProvenanceTypeValues);
+export const authMeLoginProvenanceSchema = z.object({
+  type: authMeLoginProvenanceTypeSchema,
+  oauthProvider: oauthProviderSchema.nullable()
+});
+
 export type OauthProvider = z.infer<typeof oauthProviderSchema>;
 export type OauthProviderParamInput = z.infer<typeof oauthProviderParamSchema>;
 export type OauthCallbackQueryInput = z.infer<typeof oauthCallbackQuerySchema>;
+export type AuthMeLoginProvenance = z.infer<typeof authMeLoginProvenanceSchema>;
 
 const permissionActionSchema = z.enum(RESOURCE_ACCESS_ACTION_VALUES);
 const permissionResourceKindSchema = z.enum(RESOURCE_KIND_VALUES);
