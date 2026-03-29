@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, OnModuleDestroy } from "@nestjs/common";
 import { getDocumentIngestionQueueName } from "./queue.constants";
 import { QueueRuntimeConfigService } from "./queue-runtime-config";
 
@@ -10,7 +10,7 @@ export class QueueService implements OnModuleDestroy {
 
   private readonly documentIngestionQueue;
 
-  constructor(private readonly queueRuntimeConfigService: QueueRuntimeConfigService) {
+  constructor(@Inject(QueueRuntimeConfigService) private readonly queueRuntimeConfigService: QueueRuntimeConfigService) {
     this.connection = this.queueRuntimeConfigService.createRedisConnection();
     this.documentIngestionQueue = new Queue(getDocumentIngestionQueueName(), {
       connection: this.connection,

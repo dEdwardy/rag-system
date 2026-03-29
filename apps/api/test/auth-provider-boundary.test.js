@@ -1286,9 +1286,137 @@ test("AuthService completeOauthProviderCallback supports OIDC with the same iden
   assert.ok(calls.sessionCreate.lastSeenAt instanceof Date);
 });
 
+test("AuthService completeOauthProviderCallback provisions a default workspace for a newly created OAuth user", async () => {
+  const calls = {
+    tenantLookup: null,
+    userCreate: null,
+    linkCreate: null,
+    knowledgeBaseLookup: null,
+    knowledgeBaseCreate: null,
+    retrievalProfileLookup: null,
+    retrievalProfileCreate: null,
+    assistantLookup: null,
+    assistantCreate: null,
+    sessionCreate: null
+  };
+
+  const authService = new AuthService(
+    {
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async ({ data }) => {
+          calls.linkCreate = data;
+          return { id: "link-oauth-new-1" };
+        }
+      },
+      user: {
+        findUnique: async () => null,
+        create: async ({ data }) => {
+          calls.userCreate = data;
+          return {
+            id: "user-oauth-new-1",
+            tenantId: "default-tenant",
+            role: "owner",
+            status: "active"
+          };
+        }
+      },
+      tenant: {
+        findUnique: async ({ where }) => {
+          calls.tenantLookup = where;
+          return { id: "default-tenant" };
+        }
+      },
+      knowledgeBase: {
+        findFirst: async ({ where }) => {
+          calls.knowledgeBaseLookup = where;
+          return null;
+        },
+        create: async ({ data }) => {
+          calls.knowledgeBaseCreate = data;
+          return { id: "kb-oauth-new-1" };
+        }
+      },
+      retrievalProfile: {
+        findFirst: async ({ where }) => {
+          calls.retrievalProfileLookup = where;
+          return null;
+        },
+        create: async ({ data }) => {
+          calls.retrievalProfileCreate = data;
+          return { id: "rp-oauth-new-1" };
+        }
+      },
+      assistant: {
+        findFirst: async ({ where }) => {
+          calls.assistantLookup = where;
+          return null;
+        },
+        create: async ({ data }) => {
+          calls.assistantCreate = data;
+          return { id: "assistant-oauth-new-1" };
+        }
+      },
+      authSession: {
+        create: async ({ data }) => {
+          calls.sessionCreate = data;
+          return { id: "session-oauth-new-1" };
+        }
+      }
+    },
+    {
+      exchangeCodeForIdentity: async ({ code }) => {
+        assert.equal(code, "github-code-new-1");
+        return {
+          subject: "github-subject-new-1",
+          email: "oauth-new@example.com",
+          profileSnapshot: {
+            id: 999,
+            login: "oauth-new-user",
+            name: "OAuth New User"
+          }
+        };
+      }
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: "github",
+    code: "github-code-new-1",
+    state: "state-oauth-new-1",
+    expectedState: "state-oauth-new-1"
+  });
+
+  assert.equal(result.identity.userId, "user-oauth-new-1");
+  assert.equal(result.identity.tenantId, "default-tenant");
+  assert.equal(result.identity.sessionId, "session-oauth-new-1");
+  assert.deepEqual(calls.tenantLookup, { id: "default-tenant" });
+  assert.equal(calls.userCreate.tenantId, "default-tenant");
+  assert.equal(calls.userCreate.email, "oauth-new@example.com");
+  assert.equal(calls.linkCreate.userId, "user-oauth-new-1");
+  assert.deepEqual(calls.knowledgeBaseLookup, {
+    tenantId: "default-tenant",
+    ownerId: "user-oauth-new-1"
+  });
+  assert.equal(calls.knowledgeBaseCreate.ownerId, "user-oauth-new-1");
+  assert.deepEqual(calls.retrievalProfileLookup, {
+    tenantId: "default-tenant",
+    ownerId: "user-oauth-new-1"
+  });
+  assert.equal(calls.retrievalProfileCreate.ownerId, "user-oauth-new-1");
+  assert.deepEqual(calls.assistantLookup, {
+    tenantId: "default-tenant",
+    kbId: "kb-oauth-new-1"
+  });
+  assert.equal(calls.assistantCreate.kbId, "kb-oauth-new-1");
+  assert.equal(calls.assistantCreate.retrievalProfileId, "rp-oauth-new-1");
+  assert.equal(calls.sessionCreate.userId, "user-oauth-new-1");
+});
+
 test("AuthController oauthProviderCallback validates state cookie and writes oauth/session cookies", async () => {
   const cookies = [];
   const callbackCalls = [];
+  const redirects = [];
   const controller = new AuthController({
     completeOauthProviderCallback: async (input) => {
       callbackCalls.push(input);
@@ -1305,7 +1433,7 @@ test("AuthController oauthProviderCallback validates state cookie and writes oau
     }
   });
 
-  const result = await controller.oauthProviderCallback(
+  await controller.oauthProviderCallback(
     {
       provider: "github"
     },
@@ -1323,11 +1451,13 @@ test("AuthController oauthProviderCallback validates state cookie and writes oau
         if (name === "Set-Cookie") {
           cookies.push(value);
         }
+      },
+      redirect: (statusCode, url) => {
+        redirects.push({ statusCode, url });
       }
     }
   );
 
-  assert.equal(result.identity.sessionId, "session-1");
   assert.deepEqual(callbackCalls, [
     {
       provider: "github",
@@ -1341,11 +1471,71 @@ test("AuthController oauthProviderCallback validates state cookie and writes oau
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-1/);
   assert.match(cookies[0][2], /^rag_login_provenance=github/);
+  assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
+});
+
+test("AuthController githubOauthCallback accepts local callback alias with shared cookie/session handling", async () => {
+  const cookies = [];
+  const callbackCalls = [];
+  const redirects = [];
+  const controller = new AuthController({
+    completeOauthProviderCallback: async (input) => {
+      callbackCalls.push(input);
+      return {
+        identity: {
+          userId: "user-gh-alias-1",
+          tenantId: "tenant-gh-alias-1",
+          role: "owner",
+          sessionId: "session-gh-alias-1",
+          authSource: "session"
+        },
+        expiresAt: "2030-01-03T00:00:00.000Z"
+      };
+    }
+  });
+
+  await controller.githubOauthCallback(
+    {
+      code: "callback-gh-alias-code-1",
+      state: "state-gh-alias-cookie-1"
+    },
+    {
+      headers: {
+        cookie: "other=1; rag_oauth_state=state-gh-alias-cookie-1"
+      }
+    },
+    {
+      setHeader: (name, value) => {
+        if (name === "Set-Cookie") {
+          cookies.push(value);
+        }
+      },
+      redirect: (statusCode, url) => {
+        redirects.push({ statusCode, url });
+      }
+    }
+  );
+
+  assert.deepEqual(callbackCalls, [
+    {
+      provider: "github",
+      code: "callback-gh-alias-code-1",
+      state: "state-gh-alias-cookie-1",
+      expectedState: "state-gh-alias-cookie-1"
+    }
+  ]);
+  assert.equal(cookies.length, 1);
+  assert.ok(Array.isArray(cookies[0]));
+  assert.match(cookies[0][0], /^rag_oauth_state=;/);
+  assert.match(cookies[0][1], /^rag_session=session-gh-alias-1/);
+  assert.match(cookies[0][2], /^rag_login_provenance=github/);
+  assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
 });
 
 test("AuthController oauthProviderCallback supports Google callback with shared cookie/session handling", async () => {
   const cookies = [];
   const callbackCalls = [];
+  const redirects = [];
   const controller = new AuthController({
     completeOauthProviderCallback: async (input) => {
       callbackCalls.push(input);
@@ -1362,7 +1552,7 @@ test("AuthController oauthProviderCallback supports Google callback with shared 
     }
   });
 
-  const result = await controller.oauthProviderCallback(
+  await controller.oauthProviderCallback(
     {
       provider: "google"
     },
@@ -1380,11 +1570,13 @@ test("AuthController oauthProviderCallback supports Google callback with shared 
         if (name === "Set-Cookie") {
           cookies.push(value);
         }
+      },
+      redirect: (statusCode, url) => {
+        redirects.push({ statusCode, url });
       }
     }
   );
 
-  assert.equal(result.identity.sessionId, "session-google-1");
   assert.deepEqual(callbackCalls, [
     {
       provider: "google",
@@ -1398,11 +1590,13 @@ test("AuthController oauthProviderCallback supports Google callback with shared 
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-google-1/);
   assert.match(cookies[0][2], /^rag_login_provenance=google/);
+  assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
 });
 
 test("AuthController oauthProviderCallback supports OIDC callback with shared cookie/session handling", async () => {
   const cookies = [];
   const callbackCalls = [];
+  const redirects = [];
   const controller = new AuthController({
     completeOauthProviderCallback: async (input) => {
       callbackCalls.push(input);
@@ -1419,7 +1613,7 @@ test("AuthController oauthProviderCallback supports OIDC callback with shared co
     }
   });
 
-  const result = await controller.oauthProviderCallback(
+  await controller.oauthProviderCallback(
     {
       provider: "oidc"
     },
@@ -1437,11 +1631,13 @@ test("AuthController oauthProviderCallback supports OIDC callback with shared co
         if (name === "Set-Cookie") {
           cookies.push(value);
         }
+      },
+      redirect: (statusCode, url) => {
+        redirects.push({ statusCode, url });
       }
     }
   );
 
-  assert.equal(result.identity.sessionId, "session-oidc-1");
   assert.deepEqual(callbackCalls, [
     {
       provider: "oidc",
@@ -1455,6 +1651,7 @@ test("AuthController oauthProviderCallback supports OIDC callback with shared co
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-oidc-1/);
   assert.match(cookies[0][2], /^rag_login_provenance=oidc/);
+  assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
 });
 
 test("AuthService completeOauthProviderCallback rejects mismatched state", async () => {
@@ -1776,6 +1973,60 @@ test("AuthController me returns local-session provenance by default and oauth-se
   assert.equal(meCalls.length, 2);
   assert.equal(meCalls[0].loginProvenanceHint, null);
   assert.equal(meCalls[1].loginProvenanceHint, "github");
+});
+
+test("AuthController providers returns local dev credentials and OAuth readiness", () => {
+  const controller = new AuthController({
+    getAuthProviders: () => ({
+      local: {
+        enabled: true,
+        defaultCredentials: {
+          email: "default-user@example.com",
+          password: "local-password-1"
+        }
+      },
+      oauth: {
+        github: {
+          configured: false,
+          requiredEnv: ["AUTH_GITHUB_CLIENT_ID", "AUTH_GITHUB_CLIENT_SECRET", "AUTH_GITHUB_REDIRECT_URI"]
+        },
+        google: {
+          configured: true,
+          requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET", "AUTH_GOOGLE_REDIRECT_URI"]
+        },
+        oidc: {
+          configured: false,
+          requiredEnv: ["AUTH_OIDC_ISSUER", "AUTH_OIDC_CLIENT_ID", "AUTH_OIDC_CLIENT_SECRET", "AUTH_OIDC_REDIRECT_URI"]
+        }
+      }
+    })
+  });
+
+  const result = controller.providers();
+
+  assert.deepEqual(result, {
+    local: {
+      enabled: true,
+      defaultCredentials: {
+        email: "default-user@example.com",
+        password: "local-password-1"
+      }
+    },
+    oauth: {
+      github: {
+        configured: false,
+        requiredEnv: ["AUTH_GITHUB_CLIENT_ID", "AUTH_GITHUB_CLIENT_SECRET", "AUTH_GITHUB_REDIRECT_URI"]
+      },
+      google: {
+        configured: true,
+        requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET", "AUTH_GOOGLE_REDIRECT_URI"]
+      },
+      oidc: {
+        configured: false,
+        requiredEnv: ["AUTH_OIDC_ISSUER", "AUTH_OIDC_CLIENT_ID", "AUTH_OIDC_CLIENT_SECRET", "AUTH_OIDC_REDIRECT_URI"]
+      }
+    }
+  });
 });
 
 test("AuthService getMe resolves oauth-backed and local-session provenance without changing identity payload", () => {

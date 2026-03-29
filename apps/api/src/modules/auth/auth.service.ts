@@ -9,12 +9,15 @@ import { compare } from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "../../infra/database/prisma.service";
 import {
+  DEFAULT_DEV_LOGIN_EMAIL,
+  DEFAULT_DEV_LOGIN_PASSWORD,
   DEFAULT_DEV_TENANT_ID,
   DEFAULT_AUTH_SESSION_TTL_HOURS,
   DEFAULT_GITHUB_OAUTH_AUTHORIZE_URL,
   DEFAULT_GOOGLE_OAUTH_AUTHORIZE_URL,
   DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS,
-  DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME
+  DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
+  isAuthDevDefaultUserModeEnabled
 } from "./auth.constants";
 import {
   resolveCurrentAuthIdentity,
@@ -238,6 +241,11 @@ export class AuthService {
       });
     }
 
+    await this.ensureDefaultWorkspaceForUser({
+      userId: user.id,
+      tenantId: user.tenantId
+    });
+
     return this.createSessionResultForUser({
       userId: user.id,
       tenantId: user.tenantId,
@@ -260,6 +268,51 @@ export class AuthService {
     }
 
     return { ok: true };
+  }
+
+  getAuthProviders(): {
+    local: {
+      enabled: true;
+      defaultCredentials: {
+        email: string;
+        password: string;
+      } | null;
+    };
+    oauth: Record<OauthProvider, {
+      configured: boolean;
+      requiredEnv: string[];
+    }>;
+  } {
+    const isDevelopmentLike = process.env.NODE_ENV !== "production";
+    const configuredLocalEmail = (process.env.AUTH_DEV_DEFAULT_USER_EMAIL ?? DEFAULT_DEV_LOGIN_EMAIL).trim();
+    const configuredLocalPassword = (process.env.AUTH_DEV_DEFAULT_USER_PASSWORD ?? DEFAULT_DEV_LOGIN_PASSWORD).trim();
+
+    return {
+      local: {
+        enabled: true,
+        defaultCredentials:
+          isDevelopmentLike && isAuthDevDefaultUserModeEnabled() && configuredLocalEmail.length > 0 && configuredLocalPassword.length > 0
+            ? {
+                email: configuredLocalEmail,
+                password: configuredLocalPassword
+              }
+            : null
+      },
+      oauth: {
+        github: {
+          configured: this.hasRequiredEnvValues(["AUTH_GITHUB_CLIENT_ID", "AUTH_GITHUB_CLIENT_SECRET", "AUTH_GITHUB_REDIRECT_URI"]),
+          requiredEnv: ["AUTH_GITHUB_CLIENT_ID", "AUTH_GITHUB_CLIENT_SECRET", "AUTH_GITHUB_REDIRECT_URI"]
+        },
+        google: {
+          configured: this.hasRequiredEnvValues(["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET", "AUTH_GOOGLE_REDIRECT_URI"]),
+          requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET", "AUTH_GOOGLE_REDIRECT_URI"]
+        },
+        oidc: {
+          configured: this.hasRequiredEnvValues(["AUTH_OIDC_ISSUER", "AUTH_OIDC_CLIENT_ID", "AUTH_OIDC_CLIENT_SECRET", "AUTH_OIDC_REDIRECT_URI"]),
+          requiredEnv: ["AUTH_OIDC_ISSUER", "AUTH_OIDC_CLIENT_ID", "AUTH_OIDC_CLIENT_SECRET", "AUTH_OIDC_REDIRECT_URI"]
+        }
+      }
+    };
   }
 
   getMe(input: {
@@ -375,6 +428,103 @@ export class AuthService {
       },
       expiresAt: expiresAt.toISOString()
     };
+  }
+
+  private async ensureDefaultWorkspaceForUser(input: {
+    userId: string;
+    tenantId: string;
+  }) {
+    if (
+      this.prisma.knowledgeBase == null ||
+      this.prisma.retrievalProfile == null ||
+      this.prisma.assistant == null ||
+      typeof this.prisma.knowledgeBase.findFirst !== "function" ||
+      typeof this.prisma.knowledgeBase.create !== "function" ||
+      typeof this.prisma.retrievalProfile.findFirst !== "function" ||
+      typeof this.prisma.retrievalProfile.create !== "function" ||
+      typeof this.prisma.assistant.findFirst !== "function" ||
+      typeof this.prisma.assistant.create !== "function"
+    ) {
+      return;
+    }
+
+    const existingKnowledgeBase = await this.prisma.knowledgeBase.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        ownerId: input.userId
+      },
+      select: {
+        id: true
+      }
+    });
+
+    const knowledgeBase = existingKnowledgeBase ?? await this.prisma.knowledgeBase.create({
+      data: {
+        tenantId: input.tenantId,
+        ownerId: input.userId,
+        name: "Personal Knowledge Base",
+        description: "Default knowledge base created for OAuth login.",
+        status: "active"
+      },
+      select: {
+        id: true
+      }
+    });
+
+    const existingRetrievalProfile = await this.prisma.retrievalProfile.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        ownerId: input.userId
+      },
+      select: {
+        id: true
+      }
+    });
+
+    const retrievalProfile = existingRetrievalProfile ?? await this.prisma.retrievalProfile.create({
+      data: {
+        tenantId: input.tenantId,
+        ownerId: input.userId,
+        name: "Default Retrieval Profile",
+        topK: 3,
+        chunkWindow: 0,
+        enableHybrid: false,
+        enableRerank: false,
+        scoreThreshold: 0
+      },
+      select: {
+        id: true
+      }
+    });
+
+    const existingAssistant = await this.prisma.assistant.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        kbId: knowledgeBase.id
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (existingAssistant != null) {
+      return;
+    }
+
+    await this.prisma.assistant.create({
+      data: {
+        tenantId: input.tenantId,
+        kbId: knowledgeBase.id,
+        name: "Default Assistant",
+        description: "Default assistant created for OAuth login.",
+        systemPrompt: "Answer using the retrieved knowledge base content and cite the source snippets.",
+        retrievalProfileId: retrievalProfile.id,
+        status: "active"
+      },
+      select: {
+        id: true
+      }
+    });
   }
 
   private resolveOauthDefaultTenantId(): string {
@@ -630,5 +780,12 @@ export class AuthService {
 
   private generateOauthState(): string {
     return randomBytes(24).toString("base64url");
+  }
+
+  private hasRequiredEnvValues(keys: string[]): boolean {
+    return keys.every(key => {
+      const value = process.env[key];
+      return typeof value === "string" && value.trim().length > 0;
+    });
   }
 }

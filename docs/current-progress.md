@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ login readiness polish now exposes provider setup status and explicit local dev credentials
+  - backend adds public `GET /auth/providers` so the web login page can tell whether `GitHub` / `Google` / `OIDC` are actually configured before sending the user into a failing start route
+  - local dev seed credentials are now explicit and overridable via `AUTH_DEV_DEFAULT_USER_EMAIL` / `AUTH_DEV_DEFAULT_USER_PASSWORD`, with the default pair `default-user@example.com` / `local-password-1`
+  - web login page now shows the dev local-account helper and disables unconfigured OAuth buttons instead of failing only after click
+
+- ✅ local GitHub OAuth setup is now easier to wire for local verification
+  - API `start:prod` now auto-loads workspace `.env.local` / `.env` when present, so local OAuth secrets can stay in ignored env files instead of shell-only launch commands
+  - backend now also accepts `GET /auth/github/callback` as a local GitHub callback alias while keeping `/auth/oauth/github/callback` unchanged for the main provider route shape
+
+- ✅ OAuth callback now returns the browser to the web app instead of leaving the user on the backend callback URL
+  - provider callbacks now write the session cookies and then redirect to the configured web success URL via `AUTH_OAUTH_SUCCESS_REDIRECT_URI` (with local fallback to the first `CORS_ORIGIN`)
+  - local GitHub verification now lands back on `http://localhost:5173/` after callback instead of rendering the backend callback route directly
+
 - ✅ P3 follow-up micro-wave extra batch queue closeout 已完成：queue/progress/refinement 已对齐，队列状态已整理为等待下一批人工批准 wave（未追加新工作）
   - 变更文件：
     - `.opencode/loop/queue.json`

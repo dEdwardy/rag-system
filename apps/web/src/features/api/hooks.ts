@@ -3,6 +3,7 @@ import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
   AuditEventRecord,
   AuthMeResponse,
+  AuthProvidersResponse,
   AskResponse,
   AskStreamEvent,
   AnswerPolicy,
@@ -32,6 +33,14 @@ export function useAuthMe(enabled = true) {
     queryKey: AUTH_ME_QUERY_KEY,
     queryFn: () => apiRequest<AuthMeResponse>("/auth/me"),
     enabled,
+    retry: false
+  });
+}
+
+export function useAuthProviders() {
+  return useQuery({
+    queryKey: ["auth", "providers"],
+    queryFn: () => apiRequest<AuthProvidersResponse>("/auth/providers"),
     retry: false
   });
 }

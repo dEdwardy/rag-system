@@ -37,6 +37,30 @@ export type AuthMeResponse = {
   };
 };
 
+export type AuthProvidersResponse = {
+  local: {
+    enabled: true;
+    defaultCredentials: {
+      email: string;
+      password: string;
+    } | null;
+  };
+  oauth: {
+    github: {
+      configured: boolean;
+      requiredEnv: string[];
+    };
+    google: {
+      configured: boolean;
+      requiredEnv: string[];
+    };
+    oidc: {
+      configured: boolean;
+      requiredEnv: string[];
+    };
+  };
+};
+
 export type HealthResponse = {
   status: "ok";
 };

@@ -125,17 +125,19 @@ AUTH_SESSION_TTL_HOURS=168
   - cookie name default is `rag_session`
   - login session TTL default is `168` hours (`7` days)
   - route policy baseline now distinguishes public and authenticated API routes:
-    - public: `GET /health`, `POST /auth/login`, `POST /auth/logout`
+    - public: `GET /health`, `GET /auth/providers`, `POST /auth/login`, `POST /auth/logout`
     - authenticated: `GET /auth/me`, `POST /auth/permissions/check`, plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, and `retrieval-profiles`
     - `GET /auth/me` and the owner-scoped business routes require an authenticated session cookie and return `401` when unauthenticated
   - backend now exposes minimal auth loop endpoints:
     - `POST /auth/login` (Phase 1 local-account baseline: accepts `{ email, password }`, sets session cookie, returns identity)
     - `POST /auth/logout` (revokes current session when present, clears cookie)
+    - `GET /auth/providers` (returns local-login dev helper info plus OAuth provider configuration readiness for the login UI)
     - `GET /auth/me` (returns `{ identity, currentIdentity, loginProvenance }`)
       - `loginProvenance.type`: `local_session` or `oauth_session`
       - `loginProvenance.oauthProvider`: `github` / `google` / `oidc` / `null` (null for local session)
   - current local-account login baseline (`Phase 1`) scope:
     - pre-created users only (seed/admin/manual bootstrap); no public signup in this wave
+    - local seed defaults are now explicit for local development: `AUTH_DEV_DEFAULT_USER_EMAIL` (default `default-user@example.com`) and `AUTH_DEV_DEFAULT_USER_PASSWORD` (default `local-password-1`)
     - no password reset / forgot-password / email verification in this wave
     - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
     - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
@@ -146,7 +148,8 @@ AUTH_SESSION_TTL_HOURS=168
       - reserved provider route shape remains `GET /auth/oauth/:provider/start` + `GET /auth/oauth/:provider/callback`
     - `Phase 3` GitHub flow is landed in backend runtime:
       - `/auth/oauth/github/start` builds redirect URL + state cookie
-      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession` and writes `rag_session`
+      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession`, writes `rag_session`, and redirects back to the web app success URL
+      - local GitHub app setups may also point the callback URL at `/auth/github/callback`; the backend now accepts that alias and runs the same callback flow
     - `Phase 4` Google flow is landed with the same backend pattern:
       - `/auth/oauth/google/start` and `/auth/oauth/google/callback` follow the same state + identity-link + local-session bridge semantics
     - real `oidc` flow is now landed with the same backend identity-link/session bridge pattern:
@@ -154,6 +157,7 @@ AUTH_SESSION_TTL_HOURS=168
       - `/auth/oauth/oidc/callback` resolves discovery metadata (`token_endpoint` + `userinfo_endpoint`), exchanges code, reads stable `sub`, then links/creates local user via `AuthIdentityLink(provider, subject)` and creates local `AuthSession`
     - runtime env requirements currently used by code paths above:
       - shared OAuth state controls: `AUTH_OAUTH_STATE_COOKIE_NAME` (default `rag_oauth_state`), `AUTH_OAUTH_STATE_TTL_SECONDS` (default `600`)
+      - shared post-login redirect control: `AUTH_OAUTH_SUCCESS_REDIRECT_URI` (fallbacks: `AUTH_WEB_SUCCESS_REDIRECT_URI`, then first `CORS_ORIGIN`, then `http://localhost:5173`)
       - GitHub start/callback config: `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET`, `AUTH_GITHUB_REDIRECT_URI` (optional overrides: `AUTH_GITHUB_AUTHORIZE_URL`, `AUTH_GITHUB_TOKEN_URL`, `AUTH_GITHUB_USER_URL`, `AUTH_GITHUB_SCOPE`)
       - Google start/callback config: `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_GOOGLE_REDIRECT_URI` (optional overrides: `AUTH_GOOGLE_AUTHORIZE_URL`, `AUTH_GOOGLE_TOKEN_URL`, `AUTH_GOOGLE_USER_URL`, `AUTH_GOOGLE_SCOPE`)
       - OIDC start/callback config: `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_REDIRECT_URI` (optional: `AUTH_OIDC_SCOPE`, default `openid email profile`)
@@ -478,6 +482,10 @@ LLM_REWRITE_TEMPERATURE=0
 ```text
 CORS_ORIGIN=http://localhost:5173,http://your-other-origin
 ```
+
+- local API `start:prod` now loads gitignored workspace env files automatically when present:
+  - `.env.local`
+  - `.env`
 
 ## Start web
 
