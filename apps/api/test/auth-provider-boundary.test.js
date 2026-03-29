@@ -762,6 +762,102 @@ test("OIDC provider config boundary fails clearly when required env is missing",
   }
 });
 
+test("OIDC provider exchanges callback code and resolves identity from discovery metadata", async () => {
+  const previousIssuer = process.env.AUTH_OIDC_ISSUER;
+  const previousClientId = process.env.AUTH_OIDC_CLIENT_ID;
+  const previousClientSecret = process.env.AUTH_OIDC_CLIENT_SECRET;
+  const previousRedirectUri = process.env.AUTH_OIDC_REDIRECT_URI;
+  const previousFetch = globalThis.fetch;
+
+  process.env.AUTH_OIDC_ISSUER = "https://accounts.example.com";
+  process.env.AUTH_OIDC_CLIENT_ID = "oidc-client-id";
+  process.env.AUTH_OIDC_CLIENT_SECRET = "oidc-client-secret";
+  process.env.AUTH_OIDC_REDIRECT_URI = "http://localhost:3000/auth/oauth/oidc/callback";
+
+  const observedRequests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    observedRequests.push({ url, options });
+    const normalizedUrl = typeof url === "string" ? url : url.toString();
+
+    if (normalizedUrl.endsWith("/.well-known/openid-configuration")) {
+      return {
+        ok: true,
+        json: async () => ({
+          token_endpoint: "https://accounts.example.com/oauth/token",
+          userinfo_endpoint: "https://accounts.example.com/oauth/userinfo"
+        })
+      };
+    }
+
+    if (normalizedUrl === "https://accounts.example.com/oauth/token") {
+      assert.equal(options.method, "POST");
+      assert.match(options.body, /grant_type=authorization_code/);
+      return {
+        ok: true,
+        json: async () => ({
+          access_token: "oidc-access-token"
+        })
+      };
+    }
+
+    if (normalizedUrl === "https://accounts.example.com/oauth/userinfo") {
+      assert.equal(options.headers.Authorization, "Bearer oidc-access-token");
+      return {
+        ok: true,
+        json: async () => ({
+          sub: "oidc-subject-abc",
+          email: "oidc-user@example.com",
+          name: "OIDC User"
+        })
+      };
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const oidcProvider = new HttpOidcOauthProvider();
+    const identity = await oidcProvider.exchangeCodeForIdentity({ code: "oidc-code-123" });
+
+    assert.deepEqual(identity, {
+      subject: "oidc-subject-abc",
+      email: "oidc-user@example.com",
+      profileSnapshot: {
+        sub: "oidc-subject-abc",
+        email: "oidc-user@example.com",
+        name: "OIDC User"
+      }
+    });
+    assert.equal(observedRequests.length, 3);
+  } finally {
+    globalThis.fetch = previousFetch;
+
+    if (previousIssuer == null) {
+      delete process.env.AUTH_OIDC_ISSUER;
+    } else {
+      process.env.AUTH_OIDC_ISSUER = previousIssuer;
+    }
+
+    if (previousClientId == null) {
+      delete process.env.AUTH_OIDC_CLIENT_ID;
+    } else {
+      process.env.AUTH_OIDC_CLIENT_ID = previousClientId;
+    }
+
+    if (previousClientSecret == null) {
+      delete process.env.AUTH_OIDC_CLIENT_SECRET;
+    } else {
+      process.env.AUTH_OIDC_CLIENT_SECRET = previousClientSecret;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_OIDC_REDIRECT_URI;
+    } else {
+      process.env.AUTH_OIDC_REDIRECT_URI = previousRedirectUri;
+    }
+  }
+});
+
 test("AuthController oauthProviderStart sets state cookie and redirects to GitHub", async () => {
   const previousClientId = process.env.AUTH_GITHUB_CLIENT_ID;
   const previousRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
@@ -1031,6 +1127,96 @@ test("AuthService completeOauthProviderCallback supports Google with the same id
   assert.equal(calls.linkCreate.emailSnapshot, "google-existing@example.com");
   assert.ok(calls.linkCreate.lastLoginAt instanceof Date);
   assert.equal(calls.sessionCreate.userId, "user-google-existing");
+  assert.ok(calls.sessionCreate.lastSeenAt instanceof Date);
+});
+
+test("AuthService completeOauthProviderCallback supports OIDC with the same identity-link session pattern", async () => {
+  const calls = {
+    linkLookup: null,
+    userLookup: null,
+    linkCreate: null,
+    sessionCreate: null
+  };
+
+  const authService = new AuthService(
+    {
+      authIdentityLink: {
+        findUnique: async ({ where }) => {
+          calls.linkLookup = where;
+          return null;
+        },
+        create: async ({ data }) => {
+          calls.linkCreate = data;
+          return { id: "link-oidc-1" };
+        }
+      },
+      user: {
+        findUnique: async ({ where }) => {
+          calls.userLookup = where;
+          return {
+            id: "user-oidc-existing",
+            tenantId: "tenant-oidc-1",
+            role: "member",
+            status: "active"
+          };
+        }
+      },
+      authSession: {
+        create: async ({ data }) => {
+          calls.sessionCreate = data;
+          return { id: "session-oidc-1" };
+        }
+      }
+    },
+    {
+      exchangeCodeForIdentity: async () => {
+        throw new Error("github provider should not be used for oidc callback");
+      }
+    },
+    {
+      exchangeCodeForIdentity: async () => {
+        throw new Error("google provider should not be used for oidc callback");
+      }
+    },
+    {
+      exchangeCodeForIdentity: async ({ code }) => {
+        assert.equal(code, "oidc-code-123");
+        return {
+          subject: "oidc-subject-123",
+          email: "oidc-existing@example.com",
+          profileSnapshot: {
+            sub: "oidc-subject-123",
+            name: "OIDC Existing User"
+          }
+        };
+      }
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: "oidc",
+    code: "oidc-code-123",
+    state: "state-oidc-1",
+    expectedState: "state-oidc-1"
+  });
+
+  assert.equal(result.identity.userId, "user-oidc-existing");
+  assert.equal(result.identity.tenantId, "tenant-oidc-1");
+  assert.equal(result.identity.sessionId, "session-oidc-1");
+  assert.equal(result.identity.authSource, "session");
+  assert.deepEqual(calls.linkLookup, {
+    provider_subject: {
+      provider: "oidc",
+      subject: "oidc-subject-123"
+    }
+  });
+  assert.deepEqual(calls.userLookup, { email: "oidc-existing@example.com" });
+  assert.equal(calls.linkCreate.userId, "user-oidc-existing");
+  assert.equal(calls.linkCreate.provider, "oidc");
+  assert.equal(calls.linkCreate.subject, "oidc-subject-123");
+  assert.equal(calls.linkCreate.emailSnapshot, "oidc-existing@example.com");
+  assert.ok(calls.linkCreate.lastLoginAt instanceof Date);
+  assert.equal(calls.sessionCreate.userId, "user-oidc-existing");
   assert.ok(calls.sessionCreate.lastSeenAt instanceof Date);
 });
 

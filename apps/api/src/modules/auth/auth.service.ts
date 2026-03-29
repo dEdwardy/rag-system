@@ -1,7 +1,6 @@
 import {
   Inject,
   Injectable,
-  NotImplementedException,
   ServiceUnavailableException,
   UnauthorizedException
 } from "@nestjs/common";
@@ -124,10 +123,6 @@ export class AuthService {
     state: string;
     expectedState: string | null;
   }): Promise<{ identity: AuthIdentity; expiresAt: string }> {
-    if (input.provider === "oidc") {
-      throw new NotImplementedException(`OAuth provider '${input.provider}' is not implemented yet.`);
-    }
-
     if (input.expectedState == null || input.expectedState !== input.state) {
       throw new UnauthorizedException("Invalid OAuth state.");
     }
@@ -388,7 +383,7 @@ export class AuthService {
   }
 
   private exchangeProviderIdentity(input: {
-    provider: Exclude<OauthProvider, "oidc">;
+    provider: OauthProvider;
     code: string;
   }): Promise<{
     subject: string;
@@ -401,13 +396,19 @@ export class AuthService {
       });
     }
 
-    return this.googleOauthProvider.exchangeCodeForIdentity({
+    if (input.provider === "google") {
+      return this.googleOauthProvider.exchangeCodeForIdentity({
+        code: input.code
+      });
+    }
+
+    return this.oidcOauthProvider.exchangeCodeForIdentity({
       code: input.code
     });
   }
 
   private resolveOauthDisplayName(
-    provider: Exclude<OauthProvider, "oidc">,
+    provider: OauthProvider,
     profileSnapshot: Record<string, unknown>,
     normalizedEmail: string
   ): string | null {
@@ -415,7 +416,11 @@ export class AuthService {
       return this.resolveGithubDisplayName(profileSnapshot);
     }
 
-    return this.resolveGoogleDisplayName(profileSnapshot, normalizedEmail);
+    if (provider === "google") {
+      return this.resolveGoogleDisplayName(profileSnapshot, normalizedEmail);
+    }
+
+    return this.resolveOidcDisplayName(profileSnapshot, normalizedEmail);
   }
 
   private resolveGithubDisplayName(profileSnapshot: Record<string, unknown>): string | null {
@@ -432,6 +437,35 @@ export class AuthService {
     const fromName = typeof profileSnapshot.name === "string" ? profileSnapshot.name.trim() : "";
     if (fromName.length > 0) {
       return fromName;
+    }
+
+    const fromGivenFamily = [profileSnapshot.given_name, profileSnapshot.family_name]
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter((value) => value.length > 0)
+      .join(" ")
+      .trim();
+    if (fromGivenFamily.length > 0) {
+      return fromGivenFamily;
+    }
+
+    if (normalizedEmail.length > 0) {
+      const localPart = normalizedEmail.split("@")[0]?.trim() ?? "";
+      return localPart.length > 0 ? localPart : null;
+    }
+
+    return null;
+  }
+
+  private resolveOidcDisplayName(profileSnapshot: Record<string, unknown>, normalizedEmail: string): string | null {
+    const fromName = typeof profileSnapshot.name === "string" ? profileSnapshot.name.trim() : "";
+    if (fromName.length > 0) {
+      return fromName;
+    }
+
+    const fromPreferredUsername =
+      typeof profileSnapshot.preferred_username === "string" ? profileSnapshot.preferred_username.trim() : "";
+    if (fromPreferredUsername.length > 0) {
+      return fromPreferredUsername;
     }
 
     const fromGivenFamily = [profileSnapshot.given_name, profileSnapshot.family_name]
