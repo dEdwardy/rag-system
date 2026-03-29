@@ -12,6 +12,13 @@
     "sourceVersion": "p5-v1-demo-replay.questions.v1",
     "sourceSnapshotRef": "apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts#P5_V1_DEMO_REPLAY_QUESTIONS"
   },
+  "runnerReplayBinding": {
+    "replayId": "p5-v1",
+    "endpointPath": "/eval/question-sets/demo-replays/p5-v1/run",
+    "approvedShortlistSet": "p5-demo-shortlist-4plus1",
+    "approvedReplayDemoId": "demo-eval-report-replay",
+    "approvedReplayCapabilitySurfaceId": "eval-report-replay"
+  },
   "questionSet": {
     "id": "p5-engineering-baseline-v1",
     "version": "v1",

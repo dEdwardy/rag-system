@@ -17,6 +17,18 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 eval runner/replay path now reads baseline manifest v1 as the replay binding source of truth
+  - 变更文件：
+    - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
+    - `apps/api/scripts/p5-baseline-manifest.v1.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `eval:runner:p5-v1` 在非 `--help` 执行路径下会先读取 `apps/api/scripts/p5-baseline-manifest.v1.json`，并从 `runnerReplayBinding` 提取 replay `replayId/endpointPath` 与 approved shortlist 绑定约束
+    - runner 随后继续复用现有 shortlist guard，但校验值改为 manifest 提供，不再在脚本里硬编码 replay/shortlist 绑定常量
+    - 保持边界不变：未改 eval framework 合同、未改 report center、未重做 runner/replay 架构
+  - focused validation：
+    - `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
 - ✅ P5 baseline manifest now materializes approved baseline v1 decisions in one parseable machine-readable source
   - 变更文件：
     - `apps/api/scripts/p5-baseline-manifest.v1.json`
