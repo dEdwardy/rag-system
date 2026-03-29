@@ -14,6 +14,34 @@ export const RESOURCE_KIND_VALUES = ["knowledge_base", "document", "assistant", 
 
 export type ResourceKind = (typeof RESOURCE_KIND_VALUES)[number];
 
+export const RESOURCE_VISIBILITY_VALUES = ["private", "public"] as const;
+
+export type ResourceVisibility = (typeof RESOURCE_VISIBILITY_VALUES)[number];
+
+export const RESOURCE_VISIBILITY_INHERITANCE_RULE_VALUES = [
+  "explicit_private",
+  "inherit_from_knowledge_base",
+  "inherit_from_conversation"
+] as const;
+
+export type ResourceVisibilityInheritanceRule = (typeof RESOURCE_VISIBILITY_INHERITANCE_RULE_VALUES)[number];
+
+export const RESOURCE_DEFAULT_VISIBILITY_BY_KIND: Record<ResourceKind, ResourceVisibility> = {
+  knowledge_base: "private",
+  document: "private",
+  assistant: "private",
+  conversation: "private",
+  trace: "private"
+};
+
+export const RESOURCE_VISIBILITY_INHERITANCE_BY_KIND: Record<ResourceKind, ResourceVisibilityInheritanceRule> = {
+  knowledge_base: "explicit_private",
+  document: "inherit_from_knowledge_base",
+  assistant: "inherit_from_knowledge_base",
+  conversation: "explicit_private",
+  trace: "inherit_from_conversation"
+};
+
 export type ResourceAccessIdentity = {
   tenantId: string;
   userId: string;

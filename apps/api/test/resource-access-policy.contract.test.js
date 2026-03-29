@@ -3,7 +3,8 @@ const { test } = require("node:test");
 
 const {
   buildResourceAccessDeniedHint,
-  evaluateOwnerResourceAccess
+  evaluateOwnerResourceAccess,
+  resolveResourceVisibilityOnCreate
 } = require("../src/modules/auth/resource-access-policy.contract.ts");
 
 function buildInput(overrides = {}) {
@@ -126,4 +127,22 @@ test("evaluateOwnerResourceAccess denies access for unsupported resource kind us
     reason: "unsupported_resource_kind",
     policy: "owner_only_v1"
   });
+});
+
+test("resolveResourceVisibilityOnCreate defaults new resources to private", () => {
+  const kinds = ["knowledge_base", "document", "assistant", "conversation", "trace"];
+  for (const kind of kinds) {
+    assert.equal(resolveResourceVisibilityOnCreate({ kind }), "private");
+  }
+});
+
+test("resolveResourceVisibilityOnCreate inherits public visibility for KB/conversation child resources", () => {
+  assert.equal(resolveResourceVisibilityOnCreate({ kind: "document", parentVisibility: "public" }), "public");
+  assert.equal(resolveResourceVisibilityOnCreate({ kind: "assistant", parentVisibility: "public" }), "public");
+  assert.equal(resolveResourceVisibilityOnCreate({ kind: "trace", parentVisibility: "public" }), "public");
+});
+
+test("resolveResourceVisibilityOnCreate keeps explicit-private resources private even with public parent", () => {
+  assert.equal(resolveResourceVisibilityOnCreate({ kind: "knowledge_base", parentVisibility: "public" }), "private");
+  assert.equal(resolveResourceVisibilityOnCreate({ kind: "conversation", parentVisibility: "public" }), "private");
 });

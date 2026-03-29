@@ -135,6 +135,14 @@ AUTH_SESSION_TTL_HOURS=168
     - allow only when `tenantId` matches and `ownerId === userId`
     - deny when tenant mismatches, owner mismatches, or owner is unassigned
     - conservative fallback: unsupported access action or unsupported resource kind is denied explicitly (`unsupported_action` / `unsupported_resource_kind`)
+    - default resource visibility stance in this ACL wave:
+      - private-by-default resources: `knowledge_base`, `document`, `assistant`, `conversation`, `trace`
+      - public surface remains route-level only (`/health`, `/auth/login`, `/auth/logout`), not business-resource visibility
+      - new-resource visibility inheritance baseline:
+        - `knowledge_base` / `conversation`: `explicit_private`
+        - `document` / `assistant`: inherit from parent knowledge-base visibility
+        - `trace`: inherit from parent conversation visibility
+      - because current parent resources are private in `owner_only_v1`, effective visibility for newly created resources currently stays private
     - the current focused ACL/access-control regression baseline is:
       - `pnpm test:api:focus:acl`
       - coverage stays intentionally narrow to the implemented owner-scoped access rules:

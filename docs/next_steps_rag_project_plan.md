@@ -403,6 +403,16 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    - 交付物：默认允许/默认拒绝策略说明 + 最小实现
    - 对应 queue title：`default access policy`
 
+   当前 ACL wave 默认口径（2026-03-29，对齐 `owner_only_v1` contract）：
+
+   - 核心资源默认可见性：`knowledge base`、`document`、`assistant`、`conversation`、`trace` 均为 `private`（默认不公开）。
+   - 保留 public 的仅是公共 auth/health surface（如 `GET /health`、`POST /auth/login`、`POST /auth/logout`），不是业务资源公开可见。
+   - 新资源创建时的可见性继承规则（contract baseline）：
+     - `knowledge base` / `conversation`：`explicit_private`（即使存在 public parent 语义输入，也默认保持 private）
+     - `document` / `assistant`：`inherit_from_knowledge_base`
+     - `trace`：`inherit_from_conversation`
+   - 在当前实现下，由于父资源 baseline 仍为 private，继承结果也保持 private；该继承规则仅用于后续 share/public 波次时避免语义漂移。
+
 6. 补 ACL 基线文档与回归验证
    - 目标：记录当前 ACL 第一轮只做到 owner-based baseline，不扩成完整 RBAC/ABAC
    - 交付物：文档同步 + focused regression 命令

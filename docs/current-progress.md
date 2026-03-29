@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P2 `default access policy` now has an explicit private/public + inheritance baseline aligned in shared contract and docs
+  - 变更文件：
+    - `packages/shared/src/access-policy-contracts.ts`
+    - `apps/api/src/modules/auth/resource-access-policy.contract.ts`
+    - `apps/api/test/resource-access-policy.contract.test.js`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 shared ACL contract 新增资源可见性基线：`private/public` 枚举、按资源类型默认可见性映射、以及创建时继承规则映射
+    - API ACL contract 新增 `resolveResourceVisibilityOnCreate`，用于统一“新资源默认 private + parent visibility 继承”的实现口径（当前 owner-only 基线下结果仍为 private）
+    - 文档同步明确：核心业务资源默认 private；public 仅保留在 auth/health 路由面，不代表业务资源可公开访问
+  - focused validation：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js`
+
 - ✅ P2 `kb document ownership checks` denial baseline now covers list/detail/write rejection regressions for owner-mismatch paths
   - 变更文件：
     - `apps/api/test/knowledge-bases-auth-write-path.test.js`

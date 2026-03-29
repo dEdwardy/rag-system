@@ -3,7 +3,11 @@ import {
   RESOURCE_ACCESS_ACTION_VALUES,
   RESOURCE_ACCESS_DEFAULT_STANCE_VALUES,
   RESOURCE_ACCESS_POLICY_VERSION_VALUES,
+  RESOURCE_DEFAULT_VISIBILITY_BY_KIND,
   RESOURCE_KIND_VALUES,
+  RESOURCE_VISIBILITY_INHERITANCE_BY_KIND,
+  type ResourceKind,
+  type ResourceVisibility,
   type ResourceAccessDecision,
   type ResourceAccessDecisionReason,
   type ResourceAccessDenyReason,
@@ -18,6 +22,11 @@ export type ResourceAccessDefaultStance = (typeof RESOURCE_ACCESS_DEFAULT_STANCE
 export type ResourceAccessIdentity = Pick<AuthIdentity, "tenantId" | "userId">;
 export type ResourceAccessPolicyInput = Omit<SharedResourceAccessPolicyInput, "identity"> & {
   identity: ResourceAccessIdentity;
+};
+
+export type ResourceCreateVisibilityInput = {
+  kind: ResourceKind;
+  parentVisibility?: ResourceVisibility | null;
 };
 
 const RESOURCE_ACCESS_DENIED_REASON_HINTS: Record<ResourceAccessDenyReason, string> = {
@@ -89,4 +98,22 @@ export function buildResourceAccessDeniedHint(decision: ResourceAccessDecision):
 
   const reasonHint = RESOURCE_ACCESS_DENIED_REASON_HINTS[decision.reason];
   return `Access blocked by ${decision.policy} policy (${decision.reason}: ${reasonHint}).`;
+}
+
+export function resolveResourceVisibilityOnCreate(input: ResourceCreateVisibilityInput): ResourceVisibility {
+  const defaultVisibility = RESOURCE_DEFAULT_VISIBILITY_BY_KIND[input.kind];
+  const inheritanceRule = RESOURCE_VISIBILITY_INHERITANCE_BY_KIND[input.kind];
+
+  if (input.parentVisibility !== "public") {
+    return defaultVisibility;
+  }
+
+  if (
+    inheritanceRule === "inherit_from_knowledge_base" ||
+    inheritanceRule === "inherit_from_conversation"
+  ) {
+    return "public";
+  }
+
+  return defaultVisibility;
 }
