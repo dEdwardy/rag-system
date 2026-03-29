@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { messages, type SupportedLocale } from "./messages";
 
 type TranslationValues = Record<string, string | number>;
@@ -52,26 +52,41 @@ function getInitialLocale(): SupportedLocale {
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<SupportedLocale>(getInitialLocale);
 
+  const dateTimeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }),
+    [locale]
+  );
+
+  const setLocale = useCallback((nextLocale: SupportedLocale) => {
+    setLocaleState(currentLocale => (currentLocale === nextLocale ? currentLocale : nextLocale));
+  }, []);
+
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, locale);
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
   }, [locale]);
 
-  const t = (key: string, values?: TranslationValues) => {
-    const translated = resolvePath(locale, key) ?? resolvePath("en", key) ?? key;
-    return interpolate(translated, values);
-  };
+  const t = useCallback(
+    (key: string, values?: TranslationValues) => {
+      const translated = resolvePath(locale, key) ?? resolvePath("en", key) ?? key;
+      return interpolate(translated, values);
+    },
+    [locale]
+  );
 
-  const formatDateTime = (value: string) =>
-    new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
-      dateStyle: "medium",
-      timeStyle: "short"
-    }).format(new Date(value));
+  const formatDateTime = useCallback((value: string) => dateTimeFormatter.format(new Date(value)), [dateTimeFormatter]);
+
+  const value = useMemo(
+    () => ({ locale, setLocale, t, formatDateTime }),
+    [formatDateTime, locale, setLocale, t]
+  );
 
   return (
-    <I18nContext.Provider value={{ locale, setLocale: setLocaleState, t, formatDateTime }}>
-      {children}
-    </I18nContext.Provider>
+    <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
   );
 }
 

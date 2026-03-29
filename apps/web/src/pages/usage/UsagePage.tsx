@@ -14,6 +14,11 @@ import {
   useKnowledgeBases
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import type {
+  KnowledgeBaseDocumentRunComparisonRunDifference,
+  KnowledgeBaseDocumentRunComparisonSnapshotDifference,
+  KnowledgeBaseDocumentRunComparisonSourceFamilyDelta
+} from "../../types/api";
 
 export function UsagePage() {
   const knowledgeBasesQuery = useKnowledgeBases();
@@ -120,6 +125,20 @@ export function UsagePage() {
   );
 
   const runSummary = runSummaryQuery.data;
+  const runSummaryBySourceFamily = (
+    runSummary as
+      | (typeof runSummary & {
+          bySourceFamily?: Record<
+            string,
+            {
+              failedRuns: number;
+              runsWithBoundaryHit: number;
+              totalRuns: number;
+            }
+          >;
+        })
+      | undefined
+  )?.bySourceFamily;
   const runSummary1h = runSummary1hQuery.data;
   const runSummary6h = runSummary6hQuery.data;
   const pendingRunCount =
@@ -452,7 +471,7 @@ export function UsagePage() {
   );
 
   const sourceFamilyHotspot = useMemo(() => {
-    const sourceFamilyEntries = Object.entries(runSummary?.bySourceFamily ?? {}).filter(
+    const sourceFamilyEntries = Object.entries(runSummaryBySourceFamily ?? {}).filter(
       ([, stats]) => stats.failedRuns > 0 || stats.runsWithBoundaryHit > 0
     );
 
@@ -476,7 +495,7 @@ export function UsagePage() {
       family,
       stats
     };
-  }, [runSummary?.bySourceFamily]);
+  }, [runSummaryBySourceFamily]);
 
   const snapshotWindowSourceFamilyDrilldown = useMemo(() => {
     if (snapshotWindowDiffQuery.data?.mode !== "snapshot") {
@@ -488,24 +507,26 @@ export function UsagePage() {
       return null;
     }
 
-    const [driver] = [...deltas].sort((left, right) => {
-      const leftImpact =
-        Math.abs(left.deltas.failedRuns) +
-        Math.abs(left.deltas.runsWithBoundaryHit) +
-        Math.abs(left.deltas.retryableFailures) +
-        Math.abs(left.deltas.nonRetryableFailures);
-      const rightImpact =
-        Math.abs(right.deltas.failedRuns) +
-        Math.abs(right.deltas.runsWithBoundaryHit) +
-        Math.abs(right.deltas.retryableFailures) +
-        Math.abs(right.deltas.nonRetryableFailures);
+    const getDeltaImpact = (delta: KnowledgeBaseDocumentRunComparisonSourceFamilyDelta) =>
+      Math.abs(delta.deltas.failedRuns) +
+      Math.abs(delta.deltas.runsWithBoundaryHit) +
+      Math.abs(delta.deltas.retryableFailures) +
+      Math.abs(delta.deltas.nonRetryableFailures);
 
-      if (rightImpact !== leftImpact) {
-        return rightImpact - leftImpact;
+    let driver: KnowledgeBaseDocumentRunComparisonSourceFamilyDelta | null = null;
+    let driverImpact = Number.NEGATIVE_INFINITY;
+    let driverTotalRunDelta = Number.NEGATIVE_INFINITY;
+
+    for (const delta of deltas) {
+      const deltaImpact = getDeltaImpact(delta);
+      const totalRunDelta = Math.abs(delta.deltas.totalRuns);
+
+      if (deltaImpact > driverImpact || (deltaImpact === driverImpact && totalRunDelta > driverTotalRunDelta)) {
+        driver = delta;
+        driverImpact = deltaImpact;
+        driverTotalRunDelta = totalRunDelta;
       }
-
-      return Math.abs(right.deltas.totalRuns) - Math.abs(left.deltas.totalRuns);
-    });
+    }
 
     if (!driver) {
       return null;
@@ -952,7 +973,7 @@ export function UsagePage() {
                     </p>
                   ) : (
                     <ul className="mt-3 flex flex-col gap-2 text-sm">
-                      {runDiffQuery.data.meaningfulDifferences.slice(0, 5).map(diff => (
+                      {runDiffQuery.data.meaningfulDifferences.slice(0, 5).map((diff: KnowledgeBaseDocumentRunComparisonRunDifference) => (
                         <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={diff.metric}>
                           <div className="font-medium text-[var(--app-text)]">{diff.summary}</div>
                           <div className="mt-1 text-[var(--app-text-muted)]" data-testid="regression-diff-row">
@@ -999,7 +1020,7 @@ export function UsagePage() {
                   ) : (
                     <>
                       <ul className="mt-3 flex flex-col gap-2 text-sm">
-                        {snapshotWindowDiffQuery.data.meaningfulDifferences.slice(0, 5).map(diff => (
+                        {snapshotWindowDiffQuery.data.meaningfulDifferences.slice(0, 5).map((diff: KnowledgeBaseDocumentRunComparisonSnapshotDifference) => (
                           <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={diff.metric}>
                             <div className="font-medium text-[var(--app-text)]">{diff.summary}</div>
                             <div className="mt-1 text-[var(--app-text-muted)]" data-testid="snapshot-window-diff-row">
