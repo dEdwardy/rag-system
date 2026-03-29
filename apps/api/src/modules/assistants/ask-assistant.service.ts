@@ -352,11 +352,6 @@ export class AskAssistantService {
         | { type: "final"; data: Record<string, unknown> }
     ) => void | Promise<void>;
   }) {
-    await input.onEvent({
-      type: "status",
-      phase: "started"
-    });
-
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
@@ -374,6 +369,11 @@ export class AskAssistantService {
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
+
+    await input.onEvent({
+      type: "status",
+      phase: "started"
+    });
 
     const userMessage = await this.messagesService.createMessage({
       conversationId: conversation.id,

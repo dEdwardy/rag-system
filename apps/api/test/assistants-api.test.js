@@ -145,6 +145,11 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
 
     const foreignGetResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}`);
     assert.equal(foreignGetResponse.status, 403);
+    const foreignGetPayload = await foreignGetResponse.json();
+    assert.match(
+      String(foreignGetPayload.message ?? ""),
+      /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+    );
 
     const foreignPatchResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}`, {
       method: "PATCH",
@@ -156,6 +161,21 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
       })
     });
     assert.equal(foreignPatchResponse.status, 403);
+    const foreignPatchPayload = await foreignPatchResponse.json();
+    assert.match(
+      String(foreignPatchPayload.message ?? ""),
+      /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+    );
+
+    const persistedForeignAssistant = await prisma.assistant.findUnique({
+      where: {
+        id: foreignAssistantId
+      },
+      select: {
+        name: true
+      }
+    });
+    assert.equal(persistedForeignAssistant?.name, "Assistant ACL foreign assistant");
 
     const foreignAskResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}/ask`, {
       method: "POST",
@@ -167,6 +187,11 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
       })
     });
     assert.equal(foreignAskResponse.status, 403);
+    const foreignAskPayload = await foreignAskResponse.json();
+    assert.match(
+      String(foreignAskPayload.message ?? ""),
+      /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+    );
 
     const foreignAskStreamResponse = await fetch(`http://localhost:${port}/assistants/${foreignAssistantId}/ask/stream`, {
       method: "POST",
@@ -179,14 +204,21 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
     });
     assert.equal(foreignAskStreamResponse.status, 200);
     const streamPayload = await foreignAskStreamResponse.text();
-    const firstEventLine = streamPayload
-      .split("\n")
-      .map(line => line.trim())
-      .find(Boolean);
-    assert.ok(firstEventLine, "Expected one streamed event line");
-    const firstEvent = JSON.parse(firstEventLine);
+    const streamEvents = parseNdjsonEvents(streamPayload);
+    assert.equal(streamEvents.length, 1);
+    const [firstEvent] = streamEvents;
     assert.equal(firstEvent.type, "error");
-    assert.match(String(firstEvent.message ?? ""), /access blocked/i);
+    assert.match(
+      String(firstEvent.message ?? ""),
+      /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+    );
+
+    const deniedConversationCount = await prisma.conversation.count({
+      where: {
+        assistantId: foreignAssistantId
+      }
+    });
+    assert.equal(deniedConversationCount, 0);
   } finally {
     server.kill("SIGTERM");
     await prisma.assistant.deleteMany({ where: { id: foreignAssistantId } }).catch(() => {});
@@ -423,4 +455,12 @@ function resolveBuiltApiEntry() {
   }
 
   return resolve(repoRoot, "apps/api/dist/main.js");
+}
+
+function parseNdjsonEvents(payload) {
+  return payload
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => JSON.parse(line));
 }
