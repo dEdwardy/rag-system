@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 snapshot window diff now includes one compact issue-window slice for faster 6h→24h scan of issue composition shifts
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 `P6 v1 snapshot window diff` 面板内复用同一份 snapshot comparison 响应，新增一条 `issue-window slice` 精简摘要
+    - 摘要固定输出 `failed / boundary / retryable / non-retryable` 的 `6h -> 24h` Δ，并给出本次窗口对比的主变化项，减少逐条阅读差异列表的扫描成本
+    - 不新增接口、不改 comparison contract、不扩展 usage 页为通用 dashboard
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ trace detail now includes one scan-first diagnostic summary slice to speed up first-pass troubleshooting without changing trace detail architecture
   - 变更文件：
     - `apps/web/src/pages/traces/TraceDetailPage.tsx`

@@ -145,6 +145,8 @@ test("usage page exposes a focused snapshot window diff (6h vs 24h) for issue sn
   assert.match(usageSource, /snapshot-window-diff-row/);
   assert.match(usageSource, /sourceFamilyDeltas/);
   assert.match(usageSource, /snapshot-window-source-family-drilldown/);
+  assert.match(usageSource, /issue-window slice|issue-window 切片/);
+  assert.match(usageSource, /snapshot-window-issue-slice/);
 });
 
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {

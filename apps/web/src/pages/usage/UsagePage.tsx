@@ -515,6 +515,43 @@ export function UsagePage() {
     };
   }, [snapshotWindowDiffQuery.data]);
 
+  const snapshotWindowIssueSlice = useMemo(() => {
+    if (snapshotWindowDiffQuery.data?.mode !== "snapshot") {
+      return null;
+    }
+
+    const leftSummary = snapshotWindowDiffQuery.data.left.summary;
+    const rightSummary = snapshotWindowDiffQuery.data.right.summary;
+    const failedDelta = (rightSummary.byStatus.failed ?? 0) - (leftSummary.byStatus.failed ?? 0);
+    const boundaryDelta =
+      (rightSummary.boundaryStats.runsWithBoundaryHit ?? 0) -
+      (leftSummary.boundaryStats.runsWithBoundaryHit ?? 0);
+    const retryableDelta =
+      (rightSummary.retryableFailures ?? 0) -
+      (leftSummary.retryableFailures ?? 0);
+    const nonRetryableDelta =
+      (rightSummary.nonRetryableFailures ?? 0) -
+      (leftSummary.nonRetryableFailures ?? 0);
+
+    const primaryIssueDelta = [
+      { key: "failed-runs", delta: failedDelta },
+      { key: "boundary-hits", delta: boundaryDelta },
+      { key: "retryable", delta: retryableDelta },
+      { key: "non-retryable", delta: nonRetryableDelta }
+    ].sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))[0];
+
+    return {
+      leftWindowLabel: snapshotWindowDiffQuery.data.left.sinceHours,
+      rightWindowLabel: snapshotWindowDiffQuery.data.right.sinceHours,
+      failedDelta,
+      boundaryDelta,
+      retryableDelta,
+      nonRetryableDelta,
+      primaryIssueMetric: primaryIssueDelta.key,
+      primaryIssueDelta: primaryIssueDelta.delta
+    };
+  }, [snapshotWindowDiffQuery.data]);
+
   return (
     <div className="flex flex-col gap-4">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -953,6 +990,20 @@ export function UsagePage() {
                           {locale === "zh"
                             ? `：${snapshotWindowSourceFamilyDrilldown.sourceFamily}（${snapshotWindowSourceFamilyDrilldown.leftWindowLabel}h → ${snapshotWindowSourceFamilyDrilldown.rightWindowLabel}h）失败 Δ ${snapshotWindowSourceFamilyDrilldown.failedDelta}，边界命中 Δ ${snapshotWindowSourceFamilyDrilldown.boundaryDelta}，可重试 Δ ${snapshotWindowSourceFamilyDrilldown.retryableDelta}，不可重试 Δ ${snapshotWindowSourceFamilyDrilldown.nonRetryableDelta}。`
                             : `: ${snapshotWindowSourceFamilyDrilldown.sourceFamily} (${snapshotWindowSourceFamilyDrilldown.leftWindowLabel}h → ${snapshotWindowSourceFamilyDrilldown.rightWindowLabel}h) with failed-runs Δ ${snapshotWindowSourceFamilyDrilldown.failedDelta}, boundary-hits Δ ${snapshotWindowSourceFamilyDrilldown.boundaryDelta}, retryable Δ ${snapshotWindowSourceFamilyDrilldown.retryableDelta}, and non-retryable Δ ${snapshotWindowSourceFamilyDrilldown.nonRetryableDelta}.`}
+                        </div>
+                      ) : null}
+
+                      {snapshotWindowIssueSlice ? (
+                        <div
+                          className="mt-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3 text-sm text-[var(--app-text-muted)]"
+                          data-testid="snapshot-window-issue-slice"
+                        >
+                          <span className="font-medium text-[var(--app-text)]">
+                            {locale === "zh" ? "issue-window 切片" : "issue-window slice"}
+                          </span>
+                          {locale === "zh"
+                            ? `：${snapshotWindowIssueSlice.leftWindowLabel}h → ${snapshotWindowIssueSlice.rightWindowLabel}h，failed Δ ${snapshotWindowIssueSlice.failedDelta}，boundary Δ ${snapshotWindowIssueSlice.boundaryDelta}，retryable Δ ${snapshotWindowIssueSlice.retryableDelta}，non-retryable Δ ${snapshotWindowIssueSlice.nonRetryableDelta}；主变化项 ${snapshotWindowIssueSlice.primaryIssueMetric} (Δ ${snapshotWindowIssueSlice.primaryIssueDelta})。`
+                            : `: ${snapshotWindowIssueSlice.leftWindowLabel}h → ${snapshotWindowIssueSlice.rightWindowLabel}h with failed Δ ${snapshotWindowIssueSlice.failedDelta}, boundary Δ ${snapshotWindowIssueSlice.boundaryDelta}, retryable Δ ${snapshotWindowIssueSlice.retryableDelta}, and non-retryable Δ ${snapshotWindowIssueSlice.nonRetryableDelta}; dominant shift ${snapshotWindowIssueSlice.primaryIssueMetric} (Δ ${snapshotWindowIssueSlice.primaryIssueDelta}).`}
                         </div>
                       ) : null}
                     </>
