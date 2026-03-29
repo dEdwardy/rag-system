@@ -880,6 +880,7 @@ Notes:
     - `source retry/timeout diagnostics consistency`
     - `web page body-quality diagnostics`
     - `external resync diagnostics/error-code consistency`
+  - extra batch note（P3 follow-up micro-wave）：本轮附加批次只收口以上 3 个 remaining safe gaps，不重开 auth/ACL sequencing，不新增 source family。
   - intentionally deferred（本波次明确后置）：
     - 新 source family 扩展（connector 扩面）
     - web page JS 渲染抓取能力
@@ -889,6 +890,7 @@ Notes:
     - `pnpm test:api:file -- test/external-source-sync.test.js`
     - `pnpm test:api:file -- test/fetch-with-retry.test.js`
     - `pnpm test:api:file -- test/parsing.test.js`
+  - focused validation baseline（extra batch）：复用同一组三条 P3 follow-up 命令，不额外升级到重型全量验证。
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`

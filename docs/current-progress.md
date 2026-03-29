@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P3 follow-up micro-wave extra batch 已做最小 docs sync：补齐本批剩余 safe gaps 覆盖范围与 focused validation baseline（docs-only）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `next_steps` 的 `P3 follow-up micro-wave` 段补齐 extra batch 的 remaining safe gaps 三项，并同步该批次复用的 focused validation baseline（三条 P3 follow-up 命令）
+    - 在 `current-dev-setup` 的 `P3 accepted stability boundary` 快照补一条 extra batch 说明：只收口上述三项 safe gaps，不重开 auth/ACL sequencing，不新增 source family
+    - 保持边界不变：仅 docs 同步，不改运行时行为，不扩展 source family，不重开 auth/ACL 或 dashboard scope
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P3 follow-up minimal gap list 已按当前 source wave 剩余 safe gaps 刷新，并与 planning/setup 文档对齐（docs/planning only）
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`

@@ -701,6 +701,14 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 - 当前追加的 micro-wave 只覆盖仍在当前稳定性边界内、且适合自动 loop 消费的剩余 follow-up：`retry / timeout diagnostics`、`web page body-quality diagnostics`、`external resync error-code consistency`、`source follow-up docs sync`，最后以 queue refresh 收口。
 - 固定顺序：`p3-source-gaplist-refresh -> p3-source-retry-timeout-diagnostics -> p3-web-body-quality-diagnostics -> p3-external-resync-error-code-consistency -> p3-source-followup-docs-sync -> loop-queue-refresh`。
+- 本 extra batch 对应的 remaining safe gaps（保持当前边界，不扩面）明确为：
+  - `source retry/timeout diagnostics consistency`
+  - `web page body-quality diagnostics`
+  - `external resync diagnostics/error-code consistency`
+- focused validation baseline（for this extra batch，复用当前 P3 follow-up baseline）：
+  - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - `pnpm test:api:file -- test/parsing.test.js`
 - 继续保持同一条边界：不新增 source family、不重开 auth/ACL、不把自动 queue 扩成 dashboard 平台化或手动 baseline 流程。
 
 ### 边界说明：产品核心 vs 第三方集成
