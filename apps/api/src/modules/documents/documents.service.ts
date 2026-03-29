@@ -972,6 +972,9 @@ export class DocumentsService {
       return null;
     }
 
+    const normalizedSourceType =
+      typeof identity.sourceType === "string" ? identity.sourceType.trim().toLowerCase() : undefined;
+
     let normalizedSourceName: string;
     try {
       normalizedSourceName = this.normalizeRemoteSourceUrl(identity.sourceName);
@@ -979,14 +982,14 @@ export class DocumentsService {
       return null;
     }
 
-    if (identity.sourceType === "web_page") {
+    if (normalizedSourceType === "web_page") {
       return {
         kind: "web_page",
         url: normalizedSourceName
       };
     }
 
-    if (identity.sourceType === "feed") {
+    if (normalizedSourceType === "feed") {
       return {
         kind: "feed",
         url: normalizedSourceName,
@@ -994,7 +997,7 @@ export class DocumentsService {
       };
     }
 
-    if (identity.sourceType === "sitemap") {
+    if (normalizedSourceType === "sitemap") {
       return {
         kind: "sitemap",
         url: normalizedSourceName,
@@ -1030,7 +1033,8 @@ export class DocumentsService {
   }
 
   private isExternalSourceType(sourceType: string) {
-    return sourceType === "web_page" || sourceType === "feed" || sourceType === "sitemap";
+    const normalizedSourceType = sourceType.trim().toLowerCase();
+    return normalizedSourceType === "web_page" || normalizedSourceType === "feed" || normalizedSourceType === "sitemap";
   }
 
   private isRetryableExternalSourceError(error: unknown) {

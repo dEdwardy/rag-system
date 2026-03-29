@@ -1973,6 +1973,180 @@ test("DocumentsService reindex recovers legacy sitemap config when sourceConfigJ
   assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
 });
 
+test("DocumentsService reindex recovers legacy feed/sitemap config when sourceType casing differs and sourceConfigJson is missing", async () => {
+  const runRecoveryCase = async ({
+    existingDocument,
+    expectedFetchCall,
+    buildFakeService,
+    expectedVersion
+  }) => {
+    const createdRuns = [];
+    const enqueuedDocumentIds = [];
+
+    const fakeService = Object.assign(
+      Object.create(DocumentsService.prototype),
+      buildFakeService({ createdRuns, enqueuedDocumentIds, existingDocument })
+    );
+
+    const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+    assert.equal(result.id, existingDocument.id);
+    assert.deepEqual(createdRuns, [
+      {
+        documentId: existingDocument.id,
+        version: expectedVersion,
+        trigger: "external_resync"
+      }
+    ]);
+    assert.deepEqual(expectedFetchCall.calls, [expectedFetchCall.value]);
+    assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+  };
+
+  const feedFetchCalls = [];
+  await runRecoveryCase({
+    existingDocument: {
+      id: "existing-legacy-uppercase-feed-document",
+      kbId: "default-kb",
+      sourceType: "  FEED  ",
+      sourceName: "https://Example.com/legacy-feed-upper.xml#latest",
+      title: "Legacy uppercase feed",
+      mimeType: "text/plain",
+      storageKey: "generated/feed-upper.txt",
+      sourceConfigJson: Prisma.JsonNull,
+      status: "ready",
+      processingStage: "completed",
+      version: 2,
+      chunkCount: 3,
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    expectedVersion: 3,
+    expectedFetchCall: {
+      calls: feedFetchCalls,
+      value: {
+        url: "https://example.com/legacy-feed-upper.xml",
+        maxItems: 20
+      }
+    },
+    buildFakeService: ({ createdRuns, enqueuedDocumentIds, existingDocument }) => ({
+      getDocument: async documentId => {
+        assert.equal(documentId, existingDocument.id);
+        return existingDocument;
+      },
+      prisma: {
+        document: {
+          update: async args => ({
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          })
+        }
+      },
+      documentRunsService: {
+        createRun: async input => {
+          createdRuns.push(input);
+        }
+      },
+      feedSourceService: {
+        fetchFeed: async options => {
+          feedFetchCalls.push(options);
+          return {
+            title: "Recovered uppercase feed",
+            content: "Recovered uppercase feed content"
+          };
+        }
+      },
+      sitemapSourceService: {},
+      webPageService: {},
+      storageService: {
+        saveGeneratedTextFile: async () => ({
+          storageKey: "generated/feed-upper-recovered.txt"
+        })
+      },
+      ingestionService: {
+        enqueueDocument: async documentId => {
+          enqueuedDocumentIds.push(documentId);
+        }
+      }
+    })
+  });
+
+  const sitemapFetchCalls = [];
+  await runRecoveryCase({
+    existingDocument: {
+      id: "existing-legacy-uppercase-sitemap-document",
+      kbId: "default-kb",
+      sourceType: "SITEMAP",
+      sourceName: "https://Example.com/legacy-sitemap-upper.xml#root",
+      title: "Legacy uppercase sitemap",
+      mimeType: "text/plain",
+      storageKey: "generated/sitemap-upper.txt",
+      sourceConfigJson: Prisma.JsonNull,
+      status: "ready",
+      processingStage: "completed",
+      version: 4,
+      chunkCount: 8,
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    expectedVersion: 5,
+    expectedFetchCall: {
+      calls: sitemapFetchCalls,
+      value: {
+        url: "https://example.com/legacy-sitemap-upper.xml",
+        maxPages: 20
+      }
+    },
+    buildFakeService: ({ createdRuns, enqueuedDocumentIds, existingDocument }) => ({
+      getDocument: async documentId => {
+        assert.equal(documentId, existingDocument.id);
+        return existingDocument;
+      },
+      prisma: {
+        document: {
+          update: async args => ({
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          })
+        }
+      },
+      documentRunsService: {
+        createRun: async input => {
+          createdRuns.push(input);
+        }
+      },
+      feedSourceService: {},
+      webPageService: {},
+      sitemapSourceService: {
+        fetchSitemap: async options => {
+          sitemapFetchCalls.push(options);
+          return {
+            content: "Recovered uppercase sitemap content",
+            diagnostics: null
+          };
+        }
+      },
+      storageService: {
+        saveGeneratedTextFile: async () => ({
+          storageKey: "generated/sitemap-upper-recovered.txt"
+        })
+      },
+      ingestionService: {
+        enqueueDocument: async documentId => {
+          enqueuedDocumentIds.push(documentId);
+        }
+      }
+    })
+  });
+});
+
 test("DocumentsService reindex recovers legacy feed config without maxItems by using default selection bound", async () => {
   const documentUpdates = [];
   const createdRuns = [];
