@@ -7,6 +7,7 @@ import { AUTH_IDENTITY_PROVIDER } from "./auth-provider.contract";
 import { AuthController } from "./auth.controller";
 import { GOOGLE_OAUTH_PROVIDER, HttpGoogleOauthProvider } from "./google-oauth.provider";
 import { GITHUB_OAUTH_PROVIDER, HttpGithubOauthProvider } from "./github-oauth.provider";
+import { HttpOidcOauthProvider, OIDC_OAUTH_PROVIDER } from "./oidc-oauth.provider";
 import { AuthRoutePolicyGuard } from "./auth-route-policy.guard";
 import { AuthService } from "./auth.service";
 import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
@@ -18,6 +19,7 @@ import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
     SessionCookieAuthProvider,
     HttpGithubOauthProvider,
     HttpGoogleOauthProvider,
+    HttpOidcOauthProvider,
     AuthService,
     {
       provide: AUTH_IDENTITY_PROVIDER,
@@ -30,6 +32,10 @@ import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
     {
       provide: GOOGLE_OAUTH_PROVIDER,
       useExisting: HttpGoogleOauthProvider
+    },
+    {
+      provide: OIDC_OAUTH_PROVIDER,
+      useExisting: HttpOidcOauthProvider
     },
     {
       provide: APP_GUARD,

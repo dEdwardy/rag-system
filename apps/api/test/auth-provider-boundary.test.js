@@ -20,6 +20,7 @@ const { AuthService } = require("../src/modules/auth/auth.service.ts");
 const { oauthProviderParamSchema } = require("../src/modules/auth/auth.schemas.ts");
 const { HttpGithubOauthProvider } = require("../src/modules/auth/github-oauth.provider.ts");
 const { HttpGoogleOauthProvider } = require("../src/modules/auth/google-oauth.provider.ts");
+const { HttpOidcOauthProvider } = require("../src/modules/auth/oidc-oauth.provider.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
 const { HealthController } = require("../src/common/health.controller.ts");
 const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
@@ -565,6 +566,123 @@ test("OAuth provider callback config failures use the same readability boundary 
       delete process.env.AUTH_GOOGLE_REDIRECT_URI;
     } else {
       process.env.AUTH_GOOGLE_REDIRECT_URI = previousGoogleRedirectUri;
+    }
+  }
+});
+
+test("OIDC provider config boundary resolves start and callback config for reserved oidc slot", () => {
+  const previousIssuer = process.env.AUTH_OIDC_ISSUER;
+  const previousClientId = process.env.AUTH_OIDC_CLIENT_ID;
+  const previousClientSecret = process.env.AUTH_OIDC_CLIENT_SECRET;
+  const previousRedirectUri = process.env.AUTH_OIDC_REDIRECT_URI;
+  const previousScope = process.env.AUTH_OIDC_SCOPE;
+
+  process.env.AUTH_OIDC_ISSUER = "https://accounts.example.com/";
+  process.env.AUTH_OIDC_CLIENT_ID = "oidc-client-id";
+  process.env.AUTH_OIDC_CLIENT_SECRET = "oidc-client-secret";
+  process.env.AUTH_OIDC_REDIRECT_URI = "http://localhost:3000/auth/oauth/oidc/callback";
+  process.env.AUTH_OIDC_SCOPE = "openid profile email";
+
+  try {
+    const oidcProvider = new HttpOidcOauthProvider();
+    const startConfig = oidcProvider.resolveStartConfig();
+    const callbackConfig = oidcProvider.resolveCallbackConfig();
+
+    assert.equal(startConfig.issuer, "https://accounts.example.com");
+    assert.equal(startConfig.discoveryUrl, "https://accounts.example.com/.well-known/openid-configuration");
+    assert.equal(startConfig.clientId, "oidc-client-id");
+    assert.equal(startConfig.redirectUri, "http://localhost:3000/auth/oauth/oidc/callback");
+    assert.equal(startConfig.scope, "openid profile email");
+    assert.equal(startConfig.stateCookieName, "rag_oauth_state");
+    assert.equal(startConfig.stateTtlSeconds, 600);
+
+    assert.equal(callbackConfig.issuer, "https://accounts.example.com");
+    assert.equal(callbackConfig.discoveryUrl, "https://accounts.example.com/.well-known/openid-configuration");
+    assert.equal(callbackConfig.clientId, "oidc-client-id");
+    assert.equal(callbackConfig.clientSecret, "oidc-client-secret");
+    assert.equal(callbackConfig.redirectUri, "http://localhost:3000/auth/oauth/oidc/callback");
+  } finally {
+    if (previousIssuer == null) {
+      delete process.env.AUTH_OIDC_ISSUER;
+    } else {
+      process.env.AUTH_OIDC_ISSUER = previousIssuer;
+    }
+
+    if (previousClientId == null) {
+      delete process.env.AUTH_OIDC_CLIENT_ID;
+    } else {
+      process.env.AUTH_OIDC_CLIENT_ID = previousClientId;
+    }
+
+    if (previousClientSecret == null) {
+      delete process.env.AUTH_OIDC_CLIENT_SECRET;
+    } else {
+      process.env.AUTH_OIDC_CLIENT_SECRET = previousClientSecret;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_OIDC_REDIRECT_URI;
+    } else {
+      process.env.AUTH_OIDC_REDIRECT_URI = previousRedirectUri;
+    }
+
+    if (previousScope == null) {
+      delete process.env.AUTH_OIDC_SCOPE;
+    } else {
+      process.env.AUTH_OIDC_SCOPE = previousScope;
+    }
+  }
+});
+
+test("OIDC provider config boundary fails clearly when required env is missing", () => {
+  const previousIssuer = process.env.AUTH_OIDC_ISSUER;
+  const previousClientId = process.env.AUTH_OIDC_CLIENT_ID;
+  const previousClientSecret = process.env.AUTH_OIDC_CLIENT_SECRET;
+  const previousRedirectUri = process.env.AUTH_OIDC_REDIRECT_URI;
+
+  delete process.env.AUTH_OIDC_ISSUER;
+  delete process.env.AUTH_OIDC_CLIENT_ID;
+  delete process.env.AUTH_OIDC_CLIENT_SECRET;
+  delete process.env.AUTH_OIDC_REDIRECT_URI;
+
+  try {
+    const oidcProvider = new HttpOidcOauthProvider();
+
+    assert.throws(() => oidcProvider.resolveStartConfig(), /OIDC OAuth config is not configured\. Required env: AUTH_OIDC_ISSUER\./i);
+
+    process.env.AUTH_OIDC_ISSUER = "https://accounts.example.com";
+
+    assert.throws(
+      () => oidcProvider.resolveStartConfig(),
+      /OIDC OAuth start is not configured\. Required env: AUTH_OIDC_ISSUER, AUTH_OIDC_CLIENT_ID, AUTH_OIDC_REDIRECT_URI\./i
+    );
+    assert.throws(
+      () => oidcProvider.resolveCallbackConfig(),
+      /OIDC OAuth callback is not configured\. Required env: AUTH_OIDC_ISSUER, AUTH_OIDC_CLIENT_ID, AUTH_OIDC_CLIENT_SECRET, AUTH_OIDC_REDIRECT_URI\./i
+    );
+  } finally {
+    if (previousIssuer == null) {
+      delete process.env.AUTH_OIDC_ISSUER;
+    } else {
+      process.env.AUTH_OIDC_ISSUER = previousIssuer;
+    }
+
+    if (previousClientId == null) {
+      delete process.env.AUTH_OIDC_CLIENT_ID;
+    } else {
+      process.env.AUTH_OIDC_CLIENT_ID = previousClientId;
+    }
+
+    if (previousClientSecret == null) {
+      delete process.env.AUTH_OIDC_CLIENT_SECRET;
+    } else {
+      process.env.AUTH_OIDC_CLIENT_SECRET = previousClientSecret;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_OIDC_REDIRECT_URI;
+    } else {
+      process.env.AUTH_OIDC_REDIRECT_URI = previousRedirectUri;
     }
   }
 });

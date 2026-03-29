@@ -9,6 +9,8 @@ export const DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME = "rag_oauth_state";
 export const DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS = 10 * 60;
 export const DEFAULT_GITHUB_OAUTH_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 export const DEFAULT_GOOGLE_OAUTH_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+export const DEFAULT_OIDC_OAUTH_SCOPE = "openid email profile";
+export const DEFAULT_OIDC_WELL_KNOWN_PATH = "/.well-known/openid-configuration";
 
 export function isAuthDevDefaultUserModeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env.AUTH_DEV_DEFAULT_USER_MODE?.trim().toLowerCase();
