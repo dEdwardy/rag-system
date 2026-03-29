@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ planning docs follow-up sync：已明确记录“第一批 refined queue batch 已完成，第二批聚焦 closeout-style contract/guard 增量”
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `next_steps` 的“第二批 queue refinement note”补充状态句，显式标注上一批 refined queue 已完成消费
+    - 对照 `.opencode/loop/queue-refinement-plan-2026-03-29.md` 的既有目标边界（wave follow-up refinement），同步强调当前第二批是 contract/guard/docs closeout，而不是新 wave 扩面
+    - 仅做 planning/progress 文档同步，不改 queue runtime、不调整 roadmap 顺序
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md .opencode/loop/queue-refinement-plan-2026-03-29.md`
+
 - ✅ document-run snapshot comparison null/empty contract docs are now aligned for `issueHotspotSlice` (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`

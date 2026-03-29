@@ -652,6 +652,14 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 本轮新追加的 queue items 以“可一次消费的最小工程增量”为准，不再把 `P2/P3/P5/P6/P4` 整波直接写成单个 queue item。
 - `P5` 里需要人工判断的任务（题集选择、标注、baseline 文档版本、demo case 取舍、demo replay 验收）仍留在自动 queue 外，避免把主观评审混进自动 build loop。
 
+#### 第二批 queue refinement note（2026-03-29）
+
+- 第一批 refined queue batch（上一批 execution-ready queue items）已按既定顺序消费完成；本段仅作为后续 closeout 收口同步。
+- 上一批 `P2/P3/P5/P6/P4` 的第一轮 execution-ready items 跑完后，下一批继续收口为 11 个更偏 contract / guard / docs-sync 的小增量，而不是重新打开新功能波次。
+- 当前推荐分层：先入主队列 5 个（ACL contract closeout + snapshot hotspot null-state closeout），再接扩展队列 6 个（route policy / web contract parity / wording guard / docs sync）。
+- 本批仍遵守同一条边界：每个 queue item 只做一个最小可验证增量，明确 not-doing，且只带一条 focused validation。
+- `P5` 的 5 个人工判断项仍不进入自动 queue；本批次也不新增 source family、ACL 放权语义、dashboard 平台化或评测人工标注流程。
+
 ### 边界说明：产品核心 vs 第三方集成
 
 - 当前产品核心不是“自研所有底层组件”，而是：稳定的 orchestration、可读可追踪的 trace/read-model、可预期的 fallback 语义、以及可复用的 regression 基线。
