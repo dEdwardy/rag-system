@@ -1,8 +1,8 @@
 {
   "version": 1,
   "cursor": 0,
-  "createdAt": "2026-03-29T19:31:59.147Z",
-  "updatedAt": "2026-03-29T19:31:59.147Z",
+  "createdAt": "2026-03-29T20:56:36.255Z",
+  "updatedAt": "2026-03-29T20:56:36.255Z",
   "materializedFrom": ".opencode/loop/execution-backlog.jsonc",
   "materializedWaveId": "p5-demo-replay-wave",
   "items": [
@@ -14,7 +14,7 @@
       "goal": "Store the approved 4+1 demo shortlist in one machine-readable place that replay logic can consume.",
       "agent": "rag-build",
       "status": "pending",
-      "promptText": "Inspect the current P5 codepath and docs for `materialize approved demo replay entrypoint` first.\nThen make the smallest concrete change to complete `materialize approved demo shortlist` without broadening scope.\nWave goal: Materialize the approved demo shortlist and expose one narrow replay path that reuses existing eval proof surfaces.\nTask goal: Store the approved 4+1 demo shortlist in one machine-readable place that replay logic can consume.\nRelevant scope: apps/api/scripts or existing replay entrypoint, docs/current-dev-setup.md, docs/current-progress.md\nAcceptance:\n- Selected demos and the one candidate demo are explicitly recorded.\n- Each demo maps to a named capability surface.\nDo not:\n- No new demo platform\n- No broad frontend showcase page\nRun exactly one focused validation command: `node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" <demo-shortlist-path>`.\nReport the exact changed files and exact validation result.\n",
+      "promptText": "Inspect the current P5 codepath and docs for `materialize approved demo replay entrypoint` first.\nThen make the smallest concrete change to complete `materialize approved demo shortlist` without broadening scope.\nWave goal: Materialize the approved demo shortlist and expose one narrow replay path that reuses existing eval proof surfaces.\nTask goal: Store the approved 4+1 demo shortlist in one machine-readable place that replay logic can consume.\nRelevant scope: apps/api/scripts or existing replay entrypoint, docs/current-dev-setup.md, docs/current-progress.md\nAcceptance:\n- Selected demos and the one candidate demo are explicitly recorded.\n- Each demo maps to a named capability surface.\nDo not:\n- No new demo platform\n- No broad frontend showcase page\nRun exactly one focused validation command: `node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-demo-shortlist.json`.\nReport the exact changed files and exact validation result.\n",
       "acceptance": {
         "checklist": [
           "Selected demos and the one candidate demo are explicitly recorded.",
@@ -24,10 +24,10 @@
       "verification": {
         "mode": "command+artifact",
         "commands": [
-          "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" <demo-shortlist-path>"
+          "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-demo-shortlist.json"
         ],
         "artifacts": [
-          "<demo-shortlist-path>"
+          "apps/api/scripts/p5-demo-shortlist.json"
         ]
       },
       "retryPolicy": {
@@ -125,6 +125,6 @@
       "plannerSource": "backlog-materializer"
     }
   ],
-  "createdAtDisplay": "2026-03-30 03:31:59",
-  "updatedAtDisplay": "2026-03-30 03:31:59"
+  "createdAtDisplay": "2026-03-30 04:56:36",
+  "updatedAtDisplay": "2026-03-30 04:56:36"
 }

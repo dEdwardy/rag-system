@@ -1,8 +1,8 @@
 {
   "version": 1,
   "cursor": 0,
-  "createdAt": "2026-03-29T19:32:53.280Z",
-  "updatedAt": "2026-03-29T19:32:53.280Z",
+  "createdAt": "2026-03-29T20:56:36.249Z",
+  "updatedAt": "2026-03-29T20:56:36.249Z",
   "materializedFrom": ".opencode/loop/execution-backlog.jsonc",
   "materializedWaveId": "p5-baseline-manifest-wave",
   "items": [
@@ -50,7 +50,7 @@
       "goal": "Create the actual machine-readable manifest/file that stores the approved baseline v1 decisions.",
       "agent": "rag-build",
       "status": "pending",
-      "promptText": "Inspect the current P5 codepath and docs for `materialize curated P5 baseline into machine-readable manifest` first.\nThen make the smallest concrete change to complete `materialize approved baseline v1 into manifest source` without broadening scope.\nWave goal: Turn the approved engineering baseline v1 decisions into one manifest-backed runner source of truth.\nTask goal: Create the actual machine-readable manifest/file that stores the approved baseline v1 decisions.\nRelevant scope: apps/api/scripts, storage/evals or docs baseline manifest, docs/current-dev-setup.md, docs/current-progress.md\nAssume these earlier queue items are completed first: p5-manifest-schema-and-storage-shape.\nAcceptance:\n- Manifest contains baseline questions, default-layer annotations, critical-question evidence rules, and baseline source declaration.\n- Manifest is parseable and can be referenced from runner/docs.\nDo not:\n- No eval runner contract rewrite\n- No web report-center redesign\nRun exactly one focused validation command: `node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" <manifest-path>`.\nReport the exact changed files and exact validation result.\n",
+      "promptText": "Inspect the current P5 codepath and docs for `materialize curated P5 baseline into machine-readable manifest` first.\nThen make the smallest concrete change to complete `materialize approved baseline v1 into manifest source` without broadening scope.\nWave goal: Turn the approved engineering baseline v1 decisions into one manifest-backed runner source of truth.\nTask goal: Create the actual machine-readable manifest/file that stores the approved baseline v1 decisions.\nRelevant scope: apps/api/scripts, storage/evals or docs baseline manifest, docs/current-dev-setup.md, docs/current-progress.md\nAssume these earlier queue items are completed first: p5-manifest-schema-and-storage-shape.\nAcceptance:\n- Manifest contains baseline questions, default-layer annotations, critical-question evidence rules, and baseline source declaration.\n- Manifest is parseable and can be referenced from runner/docs.\nDo not:\n- No eval runner contract rewrite\n- No web report-center redesign\nRun exactly one focused validation command: `node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-baseline-manifest.v1.json`.\nReport the exact changed files and exact validation result.\n",
       "acceptance": {
         "checklist": [
           "Manifest contains baseline questions, default-layer annotations, critical-question evidence rules, and baseline source declaration.",
@@ -60,10 +60,10 @@
       "verification": {
         "mode": "command+artifact",
         "commands": [
-          "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" <manifest-path>"
+          "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-baseline-manifest.v1.json"
         ],
         "artifacts": [
-          "<manifest-path>"
+          "apps/api/scripts/p5-baseline-manifest.v1.json"
         ]
       },
       "retryPolicy": {
@@ -165,6 +165,6 @@
       "plannerSource": "backlog-materializer"
     }
   ],
-  "createdAtDisplay": "2026-03-30 03:32:53",
-  "updatedAtDisplay": "2026-03-30 03:32:53"
+  "createdAtDisplay": "2026-03-30 04:56:36",
+  "updatedAtDisplay": "2026-03-30 04:56:36"
 }

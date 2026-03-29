@@ -102,10 +102,10 @@
             "verifier": {
               "mode": "command+artifact",
               "commands": [
-                "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" <manifest-path>"
+                "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-baseline-manifest.v1.json"
               ],
               "artifacts": [
-                "<manifest-path>"
+                "apps/api/scripts/p5-baseline-manifest.v1.json"
               ]
             },
             "retryPolicy": {
@@ -175,10 +175,10 @@
             "verifier": {
               "mode": "command+artifact",
               "commands": [
-                "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" <demo-shortlist-path>"
+                "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-demo-shortlist.json"
               ],
               "artifacts": [
-                "<demo-shortlist-path>"
+                "apps/api/scripts/p5-demo-shortlist.json"
               ]
             },
             "retryPolicy": {
@@ -466,7 +466,7 @@
             "Manifest contains baseline questions, default-layer annotations, critical-question evidence rules, and baseline source declaration.",
             "Manifest is parseable and can be referenced from runner/docs."
           ],
-          "verification": "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" <manifest-path>"
+          "verification": "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-baseline-manifest.v1.json"
         },
         {
           "id": "p5-runner-baseline-manifest-consumption",
@@ -488,7 +488,7 @@
             "Docs point to the baseline manifest as the current source of truth.",
             "Docs keep the engineering-baseline scope explicit."
           ],
-          "verification": "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+          "verification": "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-demo-shortlist.json"
         }
       ],
       "acceptance": [

@@ -6,6 +6,7 @@ import { appendQueueItems, readQueue, writeQueue } from "./queue.mjs";
 
 const DEFAULT_BACKLOG_PATH = ".opencode/loop/execution-backlog.jsonc";
 const DEFAULT_QUEUE_PATH = ".opencode/loop/queue.json";
+const TEMPLATE_PLACEHOLDER_PATTERN = /<[^<>\n]+>/;
 
 export function materializeBacklogWave({
   repoRoot,
@@ -41,6 +42,9 @@ export function materializeBacklogWave({
     const previousTaskIds = (Array.isArray(wave.candidateTasks) ? wave.candidateTasks : []).slice(0, index);
     const dependsOn = previousTaskIds.filter(taskId => taskId !== contract.taskId);
 
+    const verification = contract.verifier ?? { mode: "assistant_only" };
+    assertNoUnresolvedVerificationPlaceholders({ taskId: contract.taskId, verification });
+
     return {
       id: contract.taskId,
       version: 2,
@@ -59,7 +63,7 @@ export function materializeBacklogWave({
       acceptance: {
         checklist: matched.step.acceptance ?? matched.parent.acceptance ?? []
       },
-      verification: contract.verifier ?? { mode: "assistant_only" },
+      verification,
       retryPolicy: contract.retryPolicy ?? { maxAttempts: 1, onVerificationFail: "needs_replan" },
       attempt: 0,
       riskLevel: contract.riskLevel ?? matched.parent.riskLevel ?? "medium",
@@ -125,6 +129,27 @@ export function appendMaterializedWaveToQueue({
 
 function defaultOutputPathForWave(waveId) {
   return `.opencode/loop/materialized/${waveId}.queue.json`;
+}
+
+function assertNoUnresolvedVerificationPlaceholders({ taskId, verification }) {
+  const commands = Array.isArray(verification?.commands) ? verification.commands : [];
+  const artifacts = Array.isArray(verification?.artifacts) ? verification.artifacts : [];
+
+  for (const command of commands) {
+    const match = typeof command === "string" ? command.match(TEMPLATE_PLACEHOLDER_PATTERN) : null;
+    if (match) {
+      throw new Error(`Backlog verifier for ${taskId} still contains unresolved placeholder ${match[0]} in command: ${command}`);
+    }
+  }
+
+  for (const artifactPath of artifacts) {
+    const match = typeof artifactPath === "string" ? artifactPath.match(TEMPLATE_PLACEHOLDER_PATTERN) : null;
+    if (match) {
+      throw new Error(
+        `Backlog verifier for ${taskId} still contains unresolved placeholder ${match[0]} in artifact path: ${artifactPath}`
+      );
+    }
+  }
 }
 
 function buildPromptText({ wave, parent, step, contract, dependsOn }) {

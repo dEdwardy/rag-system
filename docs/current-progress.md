@@ -17,6 +17,22 @@
 
 补充进展（2026-03-30）：
 
+- ✅ loop queue P5 manifest/demo false-failure state is now repaired, and backlog materialization now rejects unresolved verifier placeholders before they reach live queue execution
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/materialized/p5-baseline-manifest-wave.queue.json`
+    - `.opencode/loop/materialized/p5-demo-replay-wave.queue.json`
+    - `.opencode/loop/harness/materialize.mjs`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将两条实际已完成的 P5 item（`p5-demo-shortlist-manifest`、`p5-manifest-writer-or-source-materialization`）从 queue 误报 `failed` 修正为 `completed`，并把 verifier 记录对齐到真实落地路径
+    - 把 backlog/materialized wave 中残留的 `<manifest-path>` / `<demo-shortlist-path>` 占位符替换为具体文件路径，避免同类 verifier 再次被原样执行
+    - `materializeBacklogWave()` 新增最窄 guard：若 verifier command/artifact 仍含未解析占位符，直接在 materialization 阶段报错，而不是等 runtime 才落成假失败
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; const queue=JSON.parse(readFileSync('.opencode/loop/queue.json','utf8')); const counts=queue.items.reduce((acc,item)=>{acc[item.status]=(acc[item.status]||0)+1; return acc;},{}); const unfinished=queue.items.filter(item=>item.status!=='completed'&&item.status!=='cancelled').length; console.log(JSON.stringify({unfinished, counts}, null, 2));"`
+    - `node --input-type=module -e 'import { materializeBacklogWave } from "./.opencode/loop/harness/materialize.mjs"; const repoRoot=process.cwd(); const waves=["p5-baseline-manifest-wave","p5-demo-replay-wave"]; for (const waveId of waves) { const outputPath=`.opencode/loop/materialized/${waveId}.queue.json`; const { queue } = materializeBacklogWave({ repoRoot, waveId, outputPath }); const bad=(queue.items||[]).flatMap(item => [...(item.verification?.commands || []), ...(item.verification?.artifacts || [])]).filter(value => /<[^<>\\n]+>/.test(value)); if (bad.length) throw new Error(`${waveId} unresolved placeholders: ${bad.join(", ")}`); } console.log("ok");'`
+
 - ✅ P5 baseline manifest usage docs are now synced to the current engineering-baseline-v1 runner path (docs-only)
   - 变更文件：
     - `docs/current-dev-setup.md`
