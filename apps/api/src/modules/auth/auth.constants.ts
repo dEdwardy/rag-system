@@ -7,6 +7,7 @@ export const DEFAULT_AUTH_SESSION_TTL_HOURS = 24 * 7;
 export const DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME = "rag_oauth_state";
 export const DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS = 10 * 60;
 export const DEFAULT_GITHUB_OAUTH_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
+export const DEFAULT_GOOGLE_OAUTH_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 
 export function isAuthDevDefaultUserModeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env.AUTH_DEV_DEFAULT_USER_MODE?.trim().toLowerCase();

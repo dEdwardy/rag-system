@@ -422,11 +422,83 @@ test("AuthService startOauthProvider fails clearly when GitHub OAuth config is m
   }
 });
 
-test("AuthService startOauthProvider keeps google and oidc unimplemented", () => {
+test("AuthService startOauthProvider keeps oidc unimplemented", () => {
   const authService = new AuthService({});
 
-  assert.throws(() => authService.startOauthProvider({ provider: "google" }), /not implemented/i);
   assert.throws(() => authService.startOauthProvider({ provider: "oidc" }), /not implemented/i);
+});
+
+test("AuthService startOauthProvider resolves Google start redirect with CSRF state", () => {
+  const previousClientId = process.env.AUTH_GOOGLE_CLIENT_ID;
+  const previousRedirectUri = process.env.AUTH_GOOGLE_REDIRECT_URI;
+  const previousScope = process.env.AUTH_GOOGLE_SCOPE;
+
+  process.env.AUTH_GOOGLE_CLIENT_ID = "google-client-id";
+  process.env.AUTH_GOOGLE_REDIRECT_URI = "http://localhost:3000/auth/oauth/google/callback";
+  process.env.AUTH_GOOGLE_SCOPE = "openid email profile";
+
+  try {
+    const authService = new AuthService({});
+    const result = authService.startOauthProvider({ provider: "google" });
+    const redirectUrl = new URL(result.redirectUrl);
+
+    assert.equal(result.provider, "google");
+    assert.equal(result.stateCookieName, "rag_oauth_state");
+    assert.ok(result.state.length > 0);
+    assert.equal(result.stateTtlSeconds, 600);
+    assert.equal(redirectUrl.origin + redirectUrl.pathname, "https://accounts.google.com/o/oauth2/v2/auth");
+    assert.equal(redirectUrl.searchParams.get("client_id"), "google-client-id");
+    assert.equal(redirectUrl.searchParams.get("redirect_uri"), "http://localhost:3000/auth/oauth/google/callback");
+    assert.equal(redirectUrl.searchParams.get("scope"), "openid email profile");
+    assert.equal(redirectUrl.searchParams.get("response_type"), "code");
+    assert.equal(redirectUrl.searchParams.get("state"), result.state);
+  } finally {
+    if (previousClientId == null) {
+      delete process.env.AUTH_GOOGLE_CLIENT_ID;
+    } else {
+      process.env.AUTH_GOOGLE_CLIENT_ID = previousClientId;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_GOOGLE_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GOOGLE_REDIRECT_URI = previousRedirectUri;
+    }
+
+    if (previousScope == null) {
+      delete process.env.AUTH_GOOGLE_SCOPE;
+    } else {
+      process.env.AUTH_GOOGLE_SCOPE = previousScope;
+    }
+  }
+});
+
+test("AuthService startOauthProvider fails clearly when Google OAuth config is missing", () => {
+  const previousClientId = process.env.AUTH_GOOGLE_CLIENT_ID;
+  const previousRedirectUri = process.env.AUTH_GOOGLE_REDIRECT_URI;
+
+  delete process.env.AUTH_GOOGLE_CLIENT_ID;
+  delete process.env.AUTH_GOOGLE_REDIRECT_URI;
+
+  try {
+    const authService = new AuthService({});
+    assert.throws(
+      () => authService.startOauthProvider({ provider: "google" }),
+      /Google OAuth is not configured/i
+    );
+  } finally {
+    if (previousClientId == null) {
+      delete process.env.AUTH_GOOGLE_CLIENT_ID;
+    } else {
+      process.env.AUTH_GOOGLE_CLIENT_ID = previousClientId;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_GOOGLE_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GOOGLE_REDIRECT_URI = previousRedirectUri;
+    }
+  }
 });
 
 test("AuthController oauthProviderStart sets state cookie and redirects to GitHub", () => {
@@ -478,6 +550,60 @@ test("AuthController oauthProviderStart sets state cookie and redirects to GitHu
       delete process.env.AUTH_GITHUB_REDIRECT_URI;
     } else {
       process.env.AUTH_GITHUB_REDIRECT_URI = previousRedirectUri;
+    }
+  }
+});
+
+test("AuthController oauthProviderStart sets state cookie and redirects to Google", () => {
+  const previousClientId = process.env.AUTH_GOOGLE_CLIENT_ID;
+  const previousRedirectUri = process.env.AUTH_GOOGLE_REDIRECT_URI;
+
+  process.env.AUTH_GOOGLE_CLIENT_ID = "google-client-id";
+  process.env.AUTH_GOOGLE_REDIRECT_URI = "http://localhost:3000/auth/oauth/google/callback";
+
+  try {
+    const cookies = [];
+    const redirects = [];
+    const controller = new AuthController(new AuthService({}));
+
+    controller.oauthProviderStart(
+      {
+        provider: "google"
+      },
+      {
+        setHeader: (name, value) => {
+          if (name === "Set-Cookie") {
+            cookies.push(value);
+          }
+        },
+        redirect: (statusCode, url) => {
+          redirects.push({ statusCode, url });
+        }
+      }
+    );
+
+    assert.equal(cookies.length, 1);
+    assert.match(cookies[0], /^rag_oauth_state=/);
+    assert.match(cookies[0], /HttpOnly/);
+    assert.match(cookies[0], /SameSite=Lax/);
+    assert.match(cookies[0], /Max-Age=600/);
+    assert.equal(redirects.length, 1);
+    assert.equal(redirects[0].statusCode, 302);
+    assert.match(redirects[0].url, /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/);
+    assert.match(redirects[0].url, /client_id=google-client-id/);
+    assert.match(redirects[0].url, /response_type=code/);
+    assert.match(redirects[0].url, /state=/);
+  } finally {
+    if (previousClientId == null) {
+      delete process.env.AUTH_GOOGLE_CLIENT_ID;
+    } else {
+      process.env.AUTH_GOOGLE_CLIENT_ID = previousClientId;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_GOOGLE_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GOOGLE_REDIRECT_URI = previousRedirectUri;
     }
   }
 });
@@ -562,6 +688,91 @@ test("AuthService completeOauthProviderCallback reuses local user by email, crea
   assert.ok(calls.sessionCreate.lastSeenAt instanceof Date);
 });
 
+test("AuthService completeOauthProviderCallback supports Google with the same identity-link session pattern", async () => {
+  const calls = {
+    linkLookup: null,
+    userLookup: null,
+    linkCreate: null,
+    sessionCreate: null
+  };
+
+  const authService = new AuthService(
+    {
+      authIdentityLink: {
+        findUnique: async ({ where }) => {
+          calls.linkLookup = where;
+          return null;
+        },
+        create: async ({ data }) => {
+          calls.linkCreate = data;
+          return { id: "link-google-1" };
+        }
+      },
+      user: {
+        findUnique: async ({ where }) => {
+          calls.userLookup = where;
+          return {
+            id: "user-google-existing",
+            tenantId: "tenant-google-1",
+            role: "owner",
+            status: "active"
+          };
+        }
+      },
+      authSession: {
+        create: async ({ data }) => {
+          calls.sessionCreate = data;
+          return { id: "session-google-1" };
+        }
+      }
+    },
+    {
+      exchangeCodeForIdentity: async () => {
+        throw new Error("github provider should not be used for google callback");
+      }
+    },
+    {
+      exchangeCodeForIdentity: async ({ code }) => {
+        assert.equal(code, "google-code-123");
+        return {
+          subject: "google-subject-123",
+          email: "google-existing@example.com",
+          profileSnapshot: {
+            sub: "google-subject-123",
+            name: "Google Existing User"
+          }
+        };
+      }
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: "google",
+    code: "google-code-123",
+    state: "state-google-1",
+    expectedState: "state-google-1"
+  });
+
+  assert.equal(result.identity.userId, "user-google-existing");
+  assert.equal(result.identity.tenantId, "tenant-google-1");
+  assert.equal(result.identity.sessionId, "session-google-1");
+  assert.equal(result.identity.authSource, "session");
+  assert.deepEqual(calls.linkLookup, {
+    provider_subject: {
+      provider: "google",
+      subject: "google-subject-123"
+    }
+  });
+  assert.deepEqual(calls.userLookup, { email: "google-existing@example.com" });
+  assert.equal(calls.linkCreate.userId, "user-google-existing");
+  assert.equal(calls.linkCreate.provider, "google");
+  assert.equal(calls.linkCreate.subject, "google-subject-123");
+  assert.equal(calls.linkCreate.emailSnapshot, "google-existing@example.com");
+  assert.ok(calls.linkCreate.lastLoginAt instanceof Date);
+  assert.equal(calls.sessionCreate.userId, "user-google-existing");
+  assert.ok(calls.sessionCreate.lastSeenAt instanceof Date);
+});
+
 test("AuthController oauthProviderCallback validates state cookie and writes oauth/session cookies", async () => {
   const cookies = [];
   const callbackCalls = [];
@@ -616,6 +827,62 @@ test("AuthController oauthProviderCallback validates state cookie and writes oau
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-1/);
+});
+
+test("AuthController oauthProviderCallback supports Google callback with shared cookie/session handling", async () => {
+  const cookies = [];
+  const callbackCalls = [];
+  const controller = new AuthController({
+    completeOauthProviderCallback: async (input) => {
+      callbackCalls.push(input);
+      return {
+        identity: {
+          userId: "user-google-1",
+          tenantId: "tenant-google-1",
+          role: "member",
+          sessionId: "session-google-1",
+          authSource: "session"
+        },
+        expiresAt: "2030-01-02T00:00:00.000Z"
+      };
+    }
+  });
+
+  const result = await controller.oauthProviderCallback(
+    {
+      provider: "google"
+    },
+    {
+      code: "callback-google-code-1",
+      state: "state-google-cookie-1"
+    },
+    {
+      headers: {
+        cookie: "other=1; rag_oauth_state=state-google-cookie-1"
+      }
+    },
+    {
+      setHeader: (name, value) => {
+        if (name === "Set-Cookie") {
+          cookies.push(value);
+        }
+      }
+    }
+  );
+
+  assert.equal(result.identity.sessionId, "session-google-1");
+  assert.deepEqual(callbackCalls, [
+    {
+      provider: "google",
+      code: "callback-google-code-1",
+      state: "state-google-cookie-1",
+      expectedState: "state-google-cookie-1"
+    }
+  ]);
+  assert.equal(cookies.length, 1);
+  assert.ok(Array.isArray(cookies[0]));
+  assert.match(cookies[0][0], /^rag_oauth_state=;/);
+  assert.match(cookies[0][1], /^rag_session=session-google-1/);
 });
 
 test("AuthService completeOauthProviderCallback rejects mismatched state", async () => {

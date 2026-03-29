@@ -142,10 +142,11 @@ AUTH_SESSION_TTL_HOURS=168
     - future OAuth/OIDC route shapes are reserved as contract/controller constants only:
       - `GET /auth/oauth/:provider/start`
       - `GET /auth/oauth/:provider/callback`
-    - behavior boundary remains unchanged in this closeout:
+    - behavior boundary in the current auth wave:
       - local login + session-cookie flow remains the active runtime path (`POST /auth/login` + `rag_session` + `GET /auth/me`)
-      - real GitHub/Google/OIDC provider integration and callback exchange logic are still out of scope in current phase
-      - owner-only ACL behavior remains unchanged; this closeout does not reopen ACL expansion
+      - backend OAuth provider start/callback is now implemented for `github` and `google` using the same `AuthIdentityLink + AuthSession` session-bridge pattern
+      - `oidc` stays reserved-only (`NotImplemented`) in this wave
+      - owner-only ACL behavior remains unchanged; this auth increment does not reopen ACL expansion
   - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
     - allow only when `tenantId` matches and `ownerId === userId`
     - deny when tenant mismatches, owner mismatches, or owner is unassigned

@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth `Phase 4` backend increment now extends the landed GitHub identity-link/session pattern to Google OAuth start/callback (OIDC still reserved-only)
+  - 变更文件：
+    - `apps/api/src/modules/auth/google-oauth.provider.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/auth.module.ts`
+    - `apps/api/src/modules/auth/auth.constants.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `HttpGoogleOauthProvider`（code->token->userinfo）并通过 `GOOGLE_OAUTH_PROVIDER` 注入，保持与 GitHub provider 相同的 provider boundary 模式
+    - `startOauthProvider` / `completeOauthProviderCallback` 现在支持 `google`，沿用 `AuthIdentityLink(provider, subject)` + 本地 `AuthSession` + session cookie 闭环
+    - 保持范围收敛：`oidc` 仍显式 `NotImplemented`，未改 `/auth/me`、未改 ACL 语义、未接入前端按钮
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ auth `Phase 2` skeleton closeout facts are now synced into current docs (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`

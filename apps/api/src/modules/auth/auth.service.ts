@@ -13,6 +13,7 @@ import {
   DEFAULT_DEV_TENANT_ID,
   DEFAULT_AUTH_SESSION_TTL_HOURS,
   DEFAULT_GITHUB_OAUTH_AUTHORIZE_URL,
+  DEFAULT_GOOGLE_OAUTH_AUTHORIZE_URL,
   DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS,
   DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME
 } from "./auth.constants";
@@ -28,42 +29,54 @@ import {
   HttpGithubOauthProvider,
   type GithubOauthProvider
 } from "./github-oauth.provider";
+import {
+  GOOGLE_OAUTH_PROVIDER,
+  HttpGoogleOauthProvider,
+  type GoogleOauthProvider
+} from "./google-oauth.provider";
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(GITHUB_OAUTH_PROVIDER)
-    private readonly githubOauthProvider: GithubOauthProvider = new HttpGithubOauthProvider()
+    private readonly githubOauthProvider: GithubOauthProvider = new HttpGithubOauthProvider(),
+    @Inject(GOOGLE_OAUTH_PROVIDER)
+    private readonly googleOauthProvider: GoogleOauthProvider = new HttpGoogleOauthProvider()
   ) {}
 
   startOauthProvider(input: {
     provider: OauthProvider;
   }): {
-    provider: "github";
+    provider: "github" | "google";
     redirectUrl: string;
     state: string;
     stateCookieName: string;
     stateTtlSeconds: number;
   } {
-    if (input.provider !== "github") {
+    if (input.provider === "oidc") {
       throw new NotImplementedException(`OAuth provider '${input.provider}' is not implemented yet.`);
     }
 
-    const githubConfig = this.resolveGithubOauthConfig();
+    const providerConfig = this.resolveOauthStartConfig(input.provider);
     const state = this.generateOauthState();
-    const url = new URL(githubConfig.authorizeUrl);
-    url.searchParams.set("client_id", githubConfig.clientId);
-    url.searchParams.set("redirect_uri", githubConfig.redirectUri);
-    url.searchParams.set("scope", githubConfig.scope);
+    const url = new URL(providerConfig.authorizeUrl);
+    url.searchParams.set("client_id", providerConfig.clientId);
+    url.searchParams.set("redirect_uri", providerConfig.redirectUri);
+    url.searchParams.set("scope", providerConfig.scope);
     url.searchParams.set("state", state);
+    if (providerConfig.extraQueryParams != null) {
+      for (const [key, value] of Object.entries(providerConfig.extraQueryParams)) {
+        url.searchParams.set(key, value);
+      }
+    }
 
     return {
-      provider: "github",
+      provider: input.provider,
       redirectUrl: url.toString(),
       state,
-      stateCookieName: githubConfig.stateCookieName,
-      stateTtlSeconds: githubConfig.stateTtlSeconds
+      stateCookieName: providerConfig.stateCookieName,
+      stateTtlSeconds: providerConfig.stateTtlSeconds
     };
   }
 
@@ -108,7 +121,7 @@ export class AuthService {
     state: string;
     expectedState: string | null;
   }): Promise<{ identity: AuthIdentity; expiresAt: string }> {
-    if (input.provider !== "github") {
+    if (input.provider === "oidc") {
       throw new NotImplementedException(`OAuth provider '${input.provider}' is not implemented yet.`);
     }
 
@@ -116,19 +129,20 @@ export class AuthService {
       throw new UnauthorizedException("Invalid OAuth state.");
     }
 
-    const githubIdentity = await this.githubOauthProvider.exchangeCodeForIdentity({
+    const providerIdentity = await this.exchangeProviderIdentity({
+      provider: input.provider,
       code: input.code
     });
-    const profileSnapshot = githubIdentity.profileSnapshot as Prisma.InputJsonValue;
+    const profileSnapshot = providerIdentity.profileSnapshot as Prisma.InputJsonValue;
 
-    const normalizedEmail = typeof githubIdentity.email === "string" ? this.normalizeEmail(githubIdentity.email) : "";
+    const normalizedEmail = typeof providerIdentity.email === "string" ? this.normalizeEmail(providerIdentity.email) : "";
     const now = new Date();
 
     const existingLink = await this.prisma.authIdentityLink.findUnique({
       where: {
         provider_subject: {
-          provider: "github",
-          subject: githubIdentity.subject
+          provider: input.provider,
+          subject: providerIdentity.subject
         }
       },
       select: {
@@ -183,11 +197,11 @@ export class AuthService {
         throw new ServiceUnavailableException("Default tenant is not available for OAuth login.");
       }
 
-      const displayName = this.resolveGithubDisplayName(githubIdentity.profileSnapshot);
+      const displayName = this.resolveOauthDisplayName(input.provider, providerIdentity.profileSnapshot, normalizedEmail);
       user = await this.prisma.user.create({
         data: {
           tenantId,
-          name: displayName ?? `github-${githubIdentity.subject}`,
+          name: displayName ?? `${input.provider}-${providerIdentity.subject}`,
           displayName,
           email: normalizedEmail.length > 0 ? normalizedEmail : null,
           status: "active"
@@ -205,8 +219,8 @@ export class AuthService {
       await this.prisma.authIdentityLink.create({
         data: {
           userId: user.id,
-          provider: "github",
-          subject: githubIdentity.subject,
+          provider: input.provider,
+          subject: providerIdentity.subject,
           emailSnapshot: normalizedEmail.length > 0 ? normalizedEmail : null,
           profileSnapshot,
           lastLoginAt: now
@@ -335,6 +349,37 @@ export class AuthService {
     return configured.length > 0 ? configured : DEFAULT_DEV_TENANT_ID;
   }
 
+  private exchangeProviderIdentity(input: {
+    provider: Exclude<OauthProvider, "oidc">;
+    code: string;
+  }): Promise<{
+    subject: string;
+    email: string | null;
+    profileSnapshot: Record<string, unknown>;
+  }> {
+    if (input.provider === "github") {
+      return this.githubOauthProvider.exchangeCodeForIdentity({
+        code: input.code
+      });
+    }
+
+    return this.googleOauthProvider.exchangeCodeForIdentity({
+      code: input.code
+    });
+  }
+
+  private resolveOauthDisplayName(
+    provider: Exclude<OauthProvider, "oidc">,
+    profileSnapshot: Record<string, unknown>,
+    normalizedEmail: string
+  ): string | null {
+    if (provider === "github") {
+      return this.resolveGithubDisplayName(profileSnapshot);
+    }
+
+    return this.resolveGoogleDisplayName(profileSnapshot, normalizedEmail);
+  }
+
   private resolveGithubDisplayName(profileSnapshot: Record<string, unknown>): string | null {
     const fromName = typeof profileSnapshot.name === "string" ? profileSnapshot.name.trim() : "";
     if (fromName.length > 0) {
@@ -343,6 +388,45 @@ export class AuthService {
 
     const fromLogin = typeof profileSnapshot.login === "string" ? profileSnapshot.login.trim() : "";
     return fromLogin.length > 0 ? fromLogin : null;
+  }
+
+  private resolveGoogleDisplayName(profileSnapshot: Record<string, unknown>, normalizedEmail: string): string | null {
+    const fromName = typeof profileSnapshot.name === "string" ? profileSnapshot.name.trim() : "";
+    if (fromName.length > 0) {
+      return fromName;
+    }
+
+    const fromGivenFamily = [profileSnapshot.given_name, profileSnapshot.family_name]
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter((value) => value.length > 0)
+      .join(" ")
+      .trim();
+    if (fromGivenFamily.length > 0) {
+      return fromGivenFamily;
+    }
+
+    if (normalizedEmail.length > 0) {
+      const localPart = normalizedEmail.split("@")[0]?.trim() ?? "";
+      return localPart.length > 0 ? localPart : null;
+    }
+
+    return null;
+  }
+
+  private resolveOauthStartConfig(provider: Exclude<OauthProvider, "oidc">): {
+    clientId: string;
+    redirectUri: string;
+    authorizeUrl: string;
+    scope: string;
+    stateCookieName: string;
+    stateTtlSeconds: number;
+    extraQueryParams?: Record<string, string>;
+  } {
+    if (provider === "github") {
+      return this.resolveGithubOauthConfig();
+    }
+
+    return this.resolveGoogleOauthConfig();
   }
 
   private resolveGithubOauthConfig(): {
@@ -382,6 +466,50 @@ export class AuthService {
       scope,
       stateCookieName,
       stateTtlSeconds
+    };
+  }
+
+  private resolveGoogleOauthConfig(): {
+    clientId: string;
+    redirectUri: string;
+    authorizeUrl: string;
+    scope: string;
+    stateCookieName: string;
+    stateTtlSeconds: number;
+    extraQueryParams: Record<string, string>;
+  } {
+    const clientId = (process.env.AUTH_GOOGLE_CLIENT_ID ?? "").trim();
+    const redirectUri = (process.env.AUTH_GOOGLE_REDIRECT_URI ?? "").trim();
+
+    if (clientId.length === 0 || redirectUri.length === 0) {
+      throw new ServiceUnavailableException(
+        "Google OAuth is not configured. Set AUTH_GOOGLE_CLIENT_ID and AUTH_GOOGLE_REDIRECT_URI."
+      );
+    }
+
+    const authorizeUrl = (process.env.AUTH_GOOGLE_AUTHORIZE_URL ?? DEFAULT_GOOGLE_OAUTH_AUTHORIZE_URL).trim();
+    const scope = (process.env.AUTH_GOOGLE_SCOPE ?? "openid email profile").trim() || "openid email profile";
+    const stateCookieName =
+      (process.env.AUTH_OAUTH_STATE_COOKIE_NAME ?? DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME).trim() ||
+      DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
+
+    const rawStateTtlSeconds =
+      (process.env.AUTH_OAUTH_STATE_TTL_SECONDS ?? `${DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS}`).trim();
+    const parsedStateTtlSeconds = Number.parseInt(rawStateTtlSeconds, 10);
+    const stateTtlSeconds = Number.isFinite(parsedStateTtlSeconds) && parsedStateTtlSeconds > 0
+      ? parsedStateTtlSeconds
+      : DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS;
+
+    return {
+      clientId,
+      redirectUri,
+      authorizeUrl,
+      scope,
+      stateCookieName,
+      stateTtlSeconds,
+      extraQueryParams: {
+        response_type: "code"
+      }
     };
   }
 
