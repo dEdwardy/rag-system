@@ -17,6 +17,18 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 approved demo shortlist (4+1) is now materialized in one machine-readable manifest for replay-path consumption
+  - 变更文件：
+    - `apps/api/scripts/p5-demo-shortlist.json`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `apps/api/scripts/p5-demo-shortlist.json`，把已批准的 4 个 selected demos + 1 个 candidate demo 以结构化数据固化
+    - 每个 demo 都通过 `capabilitySurfaceId` 映射到命名能力面（ask happy-path、no-hit guardrail、source-backed answer、eval-report-replay、trace diagnostic readability）
+    - 保持边界：仅 materialize shortlist，不新增 demo 平台、不扩展 frontend showcase
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');" apps/api/scripts/p5-demo-shortlist.json`
+
 - ✅ loop runtime now has a weak-network hardening v1 for VPN / flaky connectivity
   - 变更文件：
     - `.opencode/loop/harness/runtime.mjs`

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "p5-demo-shortlist.v1",
+  "waveId": "p5-demo-replay-wave",
+  "approvedSet": "p5-demo-shortlist-4plus1",
+  "capabilitySurfaces": [
+    {
+      "id": "ask-happy-path",
+      "name": "Ask happy-path answer with citations",
+      "proofSurface": "existing ask + trace evidence flow"
+    },
+    {
+      "id": "no-hit-guardrail",
+      "name": "No-hit / insufficient-context guardrail",
+      "proofSurface": "existing answerStatus + traceSummary.primaryIssue"
+    },
+    {
+      "id": "source-backed-answer",
+      "name": "External-source-backed grounded answer",
+      "proofSurface": "existing source ingestion + retrieval + citation path"
+    },
+    {
+      "id": "eval-report-replay",
+      "name": "Eval runner replay + report export",
+      "proofSurface": "existing POST /eval/question-sets/demo-replays/p5-v1/run + reportExports"
+    },
+    {
+      "id": "trace-diagnostic-readability",
+      "name": "Trace diagnostic readability scan",
+      "proofSurface": "existing trace detail readability surface"
+    }
+  ],
+  "selected": [
+    {
+      "id": "demo-happy-path-answer",
+      "title": "standard ask happy path",
+      "capabilitySurfaceId": "ask-happy-path"
+    },
+    {
+      "id": "demo-no-hit-missing-info",
+      "title": "missing-info or no-hit path",
+      "capabilitySurfaceId": "no-hit-guardrail"
+    },
+    {
+      "id": "demo-source-backed-answer",
+      "title": "external source backed answer path",
+      "capabilitySurfaceId": "source-backed-answer"
+    },
+    {
+      "id": "demo-eval-report-replay",
+      "title": "eval/report/replay loop",
+      "capabilitySurfaceId": "eval-report-replay"
+    }
+  ],
+  "candidate": [
+    {
+      "id": "demo-trace-diagnostic-readability",
+      "title": "trace diagnostic readability path",
+      "capabilitySurfaceId": "trace-diagnostic-readability"
+    }
+  ]
+}
