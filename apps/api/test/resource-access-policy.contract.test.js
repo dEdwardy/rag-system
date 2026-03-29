@@ -136,13 +136,26 @@ test("resolveResourceVisibilityOnCreate defaults new resources to private", () =
   }
 });
 
-test("resolveResourceVisibilityOnCreate inherits public visibility for KB/conversation child resources", () => {
-  assert.equal(resolveResourceVisibilityOnCreate({ kind: "document", parentVisibility: "public" }), "public");
-  assert.equal(resolveResourceVisibilityOnCreate({ kind: "assistant", parentVisibility: "public" }), "public");
-  assert.equal(resolveResourceVisibilityOnCreate({ kind: "trace", parentVisibility: "public" }), "public");
-});
+test("resolveResourceVisibilityOnCreate locks owner_only_v1 create-time visibility inheritance matrix", () => {
+  const matrix = [
+    { kind: "knowledge_base", parentVisibility: "public", expected: "private" },
+    { kind: "document", parentVisibility: "public", expected: "public" },
+    { kind: "assistant", parentVisibility: "public", expected: "public" },
+    { kind: "conversation", parentVisibility: "public", expected: "private" },
+    { kind: "trace", parentVisibility: "public", expected: "public" },
+    { kind: "knowledge_base", parentVisibility: "private", expected: "private" },
+    { kind: "document", parentVisibility: "private", expected: "private" },
+    { kind: "assistant", parentVisibility: "private", expected: "private" },
+    { kind: "conversation", parentVisibility: "private", expected: "private" },
+    { kind: "trace", parentVisibility: "private", expected: "private" },
+    { kind: "knowledge_base", parentVisibility: null, expected: "private" },
+    { kind: "document", parentVisibility: null, expected: "private" },
+    { kind: "assistant", parentVisibility: null, expected: "private" },
+    { kind: "conversation", parentVisibility: null, expected: "private" },
+    { kind: "trace", parentVisibility: null, expected: "private" }
+  ];
 
-test("resolveResourceVisibilityOnCreate keeps explicit-private resources private even with public parent", () => {
-  assert.equal(resolveResourceVisibilityOnCreate({ kind: "knowledge_base", parentVisibility: "public" }), "private");
-  assert.equal(resolveResourceVisibilityOnCreate({ kind: "conversation", parentVisibility: "public" }), "private");
+  for (const { kind, parentVisibility, expected } of matrix) {
+    assert.equal(resolveResourceVisibilityOnCreate({ kind, parentVisibility }), expected);
+  }
 });
