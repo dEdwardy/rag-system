@@ -68,7 +68,10 @@ function withRetryAttemptContext(error: unknown, attempt: number) {
   }
 
   const message = error.message.trim();
-  if (!message.startsWith("Failed to fetch ")) {
+  const shouldAttachAttemptContext =
+    message.startsWith("Failed to fetch ") || message.startsWith("Failed to follow redirect for ");
+
+  if (!shouldAttachAttemptContext || /\(after \d+ attempts?\)\.?$/i.test(message)) {
     return error;
   }
 

@@ -284,7 +284,7 @@ test("fetchWithRetry keeps bounded raw redirect target in non-http redirect erro
       error => {
         assert.equal(
           error.message,
-          `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-long-invalid-scheme: redirect target must use http/https (${expectedTarget}).`
+          `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-long-invalid-scheme: redirect target must use http/https (${expectedTarget}). (after 1 attempt).`
         );
         assert.ok(!error.message.includes(rawRedirectTarget));
         return true;
@@ -337,7 +337,7 @@ test("fetchWithRetry reports clear error when redirect response misses location 
       error => {
         assert.equal(
           error.message,
-          `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-missing-location: missing redirect location header.`
+          `Failed to follow redirect for http://127.0.0.1:${address.port}/redirect-missing-location: missing redirect location header. (after 1 attempt).`
         );
         return true;
       }
