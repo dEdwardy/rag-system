@@ -15,6 +15,16 @@
 
 补充进展（2026-03-29）：
 
+- ✅ trace detail now includes one scan-first diagnostic summary slice to speed up first-pass troubleshooting without changing trace detail architecture
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在既有 `Execution summary` 内新增一个紧凑 `diagnostic summary slice`（问题线索 / 检索线索 / 回答线索三行），直接复用现有 `traceSummary` 可读字段与现有错误信息
+    - 范围严格限制在 trace 详情页 UI 读模型表达层，不新增后端接口、不改 trace 持久化结构、不重排页面主布局
+  - focused validation：
+    - `node --test apps/web/test/trace-summary-contract.test.js`
+
 - ✅ audit scan-first contract now includes explicit issue-oriented fields and summaries for faster operator triage in `GET /audit/events`
   - 变更文件：
     - `apps/api/src/modules/audit/audit.service.ts`

@@ -35,6 +35,12 @@ type RankedEntry = RetrievalScoreRecord;
 
 type FailureTaxonomyKey = "no_hit" | "fallback" | "slow_path" | "timeout" | "source_failure";
 
+type TraceDiagnosticSummarySlice = {
+  issueLine: string;
+  retrievalLine: string;
+  answerLine: string;
+};
+
 const SLOW_PATH_LATENCY_MS = 10_000;
 
 function buildFailureTaxonomy(trace: {
@@ -129,6 +135,45 @@ function getFailureTaxonomyColor(key: FailureTaxonomyKey) {
   }
 
   return "pink";
+}
+
+function buildTraceDiagnosticSummarySlice(
+  trace: {
+    status: "success" | "failed";
+    errorMessage: string | null;
+    traceSummary?: {
+      primaryIssue: string | null;
+      retrievalModeProvenanceSentence: string;
+      failureReadabilitySentence: string;
+      answerStatusSourceReadabilitySentence: string;
+      missingInformationProvenanceSentence: string;
+    } | null;
+  },
+  locale: "zh" | "en"
+): TraceDiagnosticSummarySlice {
+  const summary = trace.traceSummary ?? null;
+  const issueSource =
+    trace.status === "failed"
+      ? summary?.failureReadabilitySentence || trace.errorMessage || (locale === "zh" ? "执行失败，需继续查看下方诊断。" : "Execution failed. Continue with diagnostics below.")
+      : summary?.primaryIssue && summary.primaryIssue !== "none"
+        ? `${locale === "zh" ? "主要问题" : "Primary issue"}: ${summary.primaryIssue}`
+        : locale === "zh"
+          ? "未发现阻断性主问题。"
+          : "No blocking primary issue detected.";
+
+  const retrievalLine =
+    summary?.retrievalModeProvenanceSentence ||
+    (locale === "zh" ? "暂无检索来源诊断摘要。" : "No retrieval-source diagnostic summary available.");
+
+  const answerLine =
+    summary?.answerStatusSourceReadabilitySentence || summary?.missingInformationProvenanceSentence ||
+    (locale === "zh" ? "暂无回答状态溯源摘要。" : "No answer-status provenance summary available.");
+
+  return {
+    issueLine: issueSource,
+    retrievalLine,
+    answerLine
+  };
 }
 
 function formatJson(value: JsonValue | unknown) {
@@ -278,6 +323,16 @@ export function TraceDetailPage() {
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
   const hasRewrite = Boolean(trace?.rewrittenQuery);
   const traceSummary = trace?.traceSummary ?? null;
+  const diagnosticSummarySlice = trace
+    ? buildTraceDiagnosticSummarySlice(
+        {
+          status: trace.status,
+          errorMessage: trace.errorMessage,
+          traceSummary
+        },
+        locale
+      )
+    : null;
   const failureTaxonomy = trace
     ? buildFailureTaxonomy({
         status: trace.status,
@@ -561,6 +616,35 @@ export function TraceDetailPage() {
                   )}
                 </Stack>
               </Paper>
+
+              {diagnosticSummarySlice ? (
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">
+                      {locale === "zh" ? "诊断摘要切片（scan-first）" : "Diagnostic summary slice (scan-first)"}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === "zh"
+                        ? "先看一条问题线索 + 一条检索线索 + 一条回答线索，快速决定下一步排查方向。"
+                        : "Scan one issue line, one retrieval line, and one answer line before drilling into raw detail."}
+                    </Text>
+                    <div className="workspace-meta-list">
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "问题线索" : "Issue signal"}</span>
+                        <span className="workspace-meta-value">{diagnosticSummarySlice.issueLine}</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "检索线索" : "Retrieval signal"}</span>
+                        <span className="workspace-meta-value">{diagnosticSummarySlice.retrievalLine}</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "回答线索" : "Answer signal"}</span>
+                        <span className="workspace-meta-value">{diagnosticSummarySlice.answerLine}</span>
+                      </div>
+                    </div>
+                  </Stack>
+                </Paper>
+              ) : null}
 
               {traceSummary ? (
                 <div className="workspace-meta-list">
