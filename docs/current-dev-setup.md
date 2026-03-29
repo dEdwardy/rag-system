@@ -567,6 +567,9 @@ pnpm --filter @rag-system/api eval:runner:p5-v1
   - latest JSON: `ls -1t storage/evals/p5-v1/p5-v1-retrieval-regression-*.json | sed -n '1p'`
   - latest Markdown/HTML: use the same basename and swap extension to `.md` / `.html`
 - report summarizes retrieval regression signals from existing eval item metadata + `traceSummary`, including: `no-hit`, `fallback`, `low-score`, `citation-limit-hit`, and `source-family-failure` (with source-family breakdown)
+- boundary note (P5 v1): timestamped files under `storage/evals/p5-v1` are **offline regression artifacts** for replay-proof/archive/diff workflows; they are not a web runtime contract surface
+- boundary note (report-center): web `Report center` keeps using live eval API responses for in-app read/trigger flows and does not directly consume or index offline files under `storage/evals/p5-v1`
+- current wave scope guard: this wave stays on eval/regression proof closeout; do not expand `Report center`/`Usage` into a generic analytics or ops dashboard platform
 
 Focused API integration entrypoint:
 

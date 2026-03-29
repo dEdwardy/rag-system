@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 retrieval-regression artifact boundary wording now explicitly separates offline eval proof outputs from the web report-center surface (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 的 `eval:runner:p5-v1` 段补充边界说明：`storage/evals/p5-v1` 时间戳产物属于离线回归证据（archive/diff/replay-proof），不是 web runtime contract 面
+    - 同步明确 `Report center` 仍以在线 eval API 响应为页面读取/触发面，不直接消费或索引离线 artifact 文件目录
+    - 继续锁定本波次定位：`P5` 目标是 eval/regression proof 收口，而不是把 report/usage 扩展为通用 analytics dashboard
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P5 v1 eval artifact layout + latest-artifact lookup convention are now documented in dev setup/progress docs (docs-only alignment)
   - 变更文件：
     - `docs/current-dev-setup.md`
