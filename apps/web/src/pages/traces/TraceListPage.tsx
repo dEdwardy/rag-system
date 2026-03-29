@@ -13,8 +13,9 @@ import {
 } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { useConversationTraces, useConversations } from "../../features/api/hooks";
+import { useConversations, useLatestConversationTraces } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import type { TraceRecord } from "../../types/api";
 
 function GroupLoader() {
   return (
@@ -28,51 +29,13 @@ function GroupLoader() {
 }
 
 function TraceConversationCard({
-  conversationId,
-  conversationTitle
+  conversationTitle,
+  latestTrace
 }: {
-  conversationId: string;
   conversationTitle: string;
+  latestTrace: TraceRecord;
 }) {
-  const tracesQuery = useConversationTraces(conversationId);
   const { formatDateTime, locale } = useI18n();
-  const latestTrace = tracesQuery.data?.[0] ?? null;
-
-  if (tracesQuery.isLoading) {
-    return (
-      <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-        <Stack gap="xs">
-          <Text c="var(--app-text)" fw={600} size="sm">
-            {conversationTitle}
-          </Text>
-          <GroupLoader />
-        </Stack>
-      </Paper>
-    );
-  }
-
-  if (tracesQuery.isError) {
-    return (
-      <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-        <Stack gap="xs">
-          <Text c="var(--app-text)" fw={600} size="sm">
-            {conversationTitle}
-          </Text>
-          <Alert color="red" radius="lg" variant="light">
-            {tracesQuery.error instanceof Error
-              ? tracesQuery.error.message
-              : locale === "zh"
-                ? "Trace 加载失败"
-                : "Failed to load traces"}
-          </Alert>
-        </Stack>
-      </Paper>
-    );
-  }
-
-  if (!latestTrace) {
-    return null;
-  }
 
   return (
     <Paper className="workspace-citation-card workspace-panel-muted" p="lg" radius="xl">
@@ -137,6 +100,19 @@ export function TraceListPage() {
   const conversationsQuery = useConversations();
   const { locale } = useI18n();
   const conversationCount = conversationsQuery.data?.length ?? 0;
+  const conversationIds = conversationsQuery.data?.map(conversation => conversation.id) ?? [];
+  const latestTracesQuery = useLatestConversationTraces(conversationIds, conversationsQuery.isSuccess);
+  const traceErrorMessage =
+    latestTracesQuery.error instanceof Error
+      ? latestTracesQuery.error.message
+      : locale === "zh"
+        ? "Trace 加载失败"
+        : "Failed to load traces";
+  const traceCards =
+    conversationsQuery.data?.flatMap(conversation => {
+      const latestTrace = latestTracesQuery.latestTraceByConversationId[conversation.id] ?? null;
+      return latestTrace ? [{ conversation, latestTrace }] : [];
+    }) ?? [];
 
   return (
     <Stack gap="md">
@@ -192,12 +168,24 @@ export function TraceListPage() {
         />
       ) : conversationsQuery.data?.length ? (
         <div className="workspace-trace-list">
+          {latestTracesQuery.isLoading ? (
+            <Paper className="workspace-panel-muted" mb="md" p="lg" radius="xl">
+              <GroupLoader />
+            </Paper>
+          ) : null}
+          {latestTracesQuery.isError ? (
+            <Alert color="red" mb="md" radius="lg" variant="light">
+              {locale === "zh"
+                ? `部分 Trace 加载失败（${latestTracesQuery.failedConversationCount} 个会话）。${traceErrorMessage}`
+                : `Failed to load traces for ${latestTracesQuery.failedConversationCount} conversation(s). ${traceErrorMessage}`}
+            </Alert>
+          ) : null}
           <div className={conversationsQuery.data.length === 1 ? "workspace-list-shell-compact" : undefined}>
             <SimpleGrid cols={{ base: 1, lg: conversationsQuery.data.length > 1 ? 2 : 1 }} spacing="md">
-              {conversationsQuery.data.map(conversation => (
+              {traceCards.map(({ conversation, latestTrace }) => (
                 <TraceConversationCard
-                  conversationId={conversation.id}
                   conversationTitle={conversation.title}
+                  latestTrace={latestTrace}
                   key={conversation.id}
                 />
               ))}

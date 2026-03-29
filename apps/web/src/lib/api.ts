@@ -1,7 +1,49 @@
-const apiHostname =
-  window.location.hostname === "127.0.0.1" ? "localhost" : window.location.hostname;
+const LOCAL_API_PORT = "3000";
+const LOCAL_VITE_DEV_PORT = "5173";
 
-const API_BASE_URL = window.location.port === "5174" ? "/api" : `${window.location.protocol}//${apiHostname}:3000`;
+const API_BASE_URL = resolveApiBaseUrl();
+
+function resolveApiBaseUrl() {
+  const configuredBaseUrl = normalizeConfiguredApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
+  if (supportsSameOriginApiBase(window.location)) {
+    return "/api";
+  }
+
+  return resolveLocalhostApiBase(window.location);
+}
+
+function normalizeConfiguredApiBaseUrl(value: string | undefined) {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  return trimmedValue.replace(/\/+$/, "");
+}
+
+function supportsSameOriginApiBase(location: Location) {
+  return !isLocalViteDevOrigin(location);
+}
+
+function isLocalViteDevOrigin(location: Location) {
+  return isLoopbackHostname(location.hostname) && location.port === LOCAL_VITE_DEV_PORT;
+}
+
+function resolveLocalhostApiBase(location: Location) {
+  return `${location.protocol}//${normalizeLoopbackHostname(location.hostname)}:${LOCAL_API_PORT}`;
+}
+
+function isLoopbackHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function normalizeLoopbackHostname(hostname: string) {
+  return hostname === "127.0.0.1" ? "localhost" : hostname;
+}
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";

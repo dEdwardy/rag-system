@@ -5,13 +5,14 @@ import {
   Button,
   Divider,
   Group,
+  Modal,
   Paper,
   Stack,
   Text,
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
 import { StatePanel } from "../../components/StatePanel";
@@ -50,6 +51,7 @@ export function DocumentDetailPage() {
   const deleteMutation = useDeleteDocument();
   const document = documentQuery.data;
   const chunkRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const { formatDateTime, t, locale } = useI18n();
 
   useEffect(() => {
@@ -74,6 +76,76 @@ export function DocumentDetailPage() {
 
   return (
     <Stack gap="md">
+      <Modal
+        centered
+        closeOnClickOutside={!deleteMutation.isPending}
+        closeOnEscape={!deleteMutation.isPending}
+        data-testid="document-delete-confirmation"
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setIsDeleteConfirmOpen(false);
+          }
+        }}
+        opened={isDeleteConfirmOpen}
+        title={locale === "zh" ? "确认删除文档" : "Confirm document deletion"}
+      >
+        <Stack gap="md">
+          <Text c="var(--app-text-secondary)" size="sm">
+            {document
+              ? locale === "zh"
+                ? `删除“${document.title}”后将无法恢复。该操作不会修改后端 API，但会永久移除当前文档记录。`
+                : `Deleting “${document.title}” cannot be undone. This action will not change backend APIs, but it will permanently remove the current document record.`
+              : locale === "zh"
+                ? "删除当前文档后将无法恢复。"
+                : "Deleting the current document cannot be undone."}
+          </Text>
+
+          <Group justify="flex-end">
+            <Button
+              data-testid="document-delete-cancel"
+              disabled={deleteMutation.isPending}
+              onClick={() => setIsDeleteConfirmOpen(false)}
+              radius="xl"
+              type="button"
+              variant="default"
+            >
+              {locale === "zh" ? "取消" : "Cancel"}
+            </Button>
+            <Button
+              color="red"
+              data-testid="document-delete-confirm"
+              loading={deleteMutation.isPending}
+              onClick={async () => {
+                if (!document) {
+                  return;
+                }
+
+                try {
+                  await deleteMutation.mutateAsync({
+                    documentId: document.id
+                  });
+                  setIsDeleteConfirmOpen(false);
+                  notifications.show({
+                    color: "indigo",
+                    message: t("documents.detail.deleteSuccess", { title: document.title })
+                  });
+                  navigate("/documents");
+                } catch (error) {
+                  notifications.show({
+                    color: "red",
+                    message: error instanceof Error ? error.message : t("documents.detail.deleteError")
+                  });
+                }
+              }}
+              radius="xl"
+              type="button"
+            >
+              {t("common.actions.delete")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Paper className="workspace-hero" p="lg" radius="xl">
         <Stack gap={10}>
           <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/documents">
@@ -186,24 +258,9 @@ export function DocumentDetailPage() {
                       <Button
                         className="workspace-button"
                         color="red"
+                        data-testid="document-delete-trigger"
                         loading={deleteMutation.isPending}
-                        onClick={async () => {
-                          try {
-                            await deleteMutation.mutateAsync({
-                              documentId: document.id
-                            });
-                            notifications.show({
-                              color: "indigo",
-                              message: t("documents.detail.deleteSuccess", { title: document.title })
-                            });
-                            navigate("/documents");
-                          } catch (error) {
-                            notifications.show({
-                              color: "red",
-                              message: error instanceof Error ? error.message : t("documents.detail.deleteError")
-                            });
-                          }
-                        }}
+                        onClick={() => setIsDeleteConfirmOpen(true)}
                         radius="xl"
                         size="xs"
                         variant="light"

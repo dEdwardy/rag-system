@@ -26,6 +26,19 @@ test("shell and chat do not present unfinished controls as active interactions",
   assert.match(chatSource, /Coming soon|敬请期待|即将支持/);
 });
 
+test("wave 1 remediation controls expose stable mobile-nav and delete-confirm selectors", () => {
+  const shellSource = readFileSync(appShellPath, "utf8");
+  const detailSource = readFileSync(documentDetailPath, "utf8");
+
+  assert.match(shellSource, /data-testid="mobile-nav-toggle"/);
+  assert.match(shellSource, /data-testid="mobile-nav-drawer"/);
+  assert.match(shellSource, /aria-controls="mobile-nav-drawer"/);
+  assert.match(detailSource, /data-testid="document-delete-trigger"/);
+  assert.match(detailSource, /data-testid="document-delete-confirm"/);
+  assert.match(detailSource, /data-testid="document-delete-cancel"/);
+  assert.match(detailSource, /opened=\{isDeleteConfirmOpen\}/);
+});
+
 test("knowledge base page uses a compact metric grid instead of a long side rail", () => {
   const source = readFileSync(knowledgeBasePath, "utf8");
 

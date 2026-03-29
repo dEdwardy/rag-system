@@ -485,6 +485,33 @@ html[data-theme-layout="workspace-app"] {
       grid-template-columns: minmax(0, 1fr);
     }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-panel-hover {
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .workspace-panel-hover:hover {
+      transform: none;
+    }
+
+    .workspace-skeleton-panel::after {
+      animation: none;
+      transform: none;
+    }
+
+    .workspace-skeleton-panel {
+      overflow: hidden;
+    }
+
+    [class*="animate-[pulse-status_2s_ease-in-out_infinite]"] {
+      animation: none !important;
+    }
+
+    [class*="animate-[typing-bounce_1.4s_ease-in-out_infinite]"] {
+      animation: none !important;
+    }
+  }
 }
 
 @keyframes pulse-status {

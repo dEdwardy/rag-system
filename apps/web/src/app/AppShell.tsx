@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useConversations, useDocuments, useKnowledgeBases } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
@@ -173,8 +173,11 @@ function ActionButton({ children, label }: { children: React.ReactNode; label: s
 export function AppShell() {
   const location = useLocation();
   const { locale, setLocale } = useI18n();
-  const { themeColor, themeLayout, setThemeColor, setThemeLayout } = useThemePreferences();
+  const { themeLayout, setThemeLayout } = useThemePreferences();
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const mobileNavToggleRef = useRef<HTMLButtonElement | null>(null);
+  const firstMobileNavLinkRef = useRef<HTMLAnchorElement | null>(null);
   const knowledgeBasesQuery = useKnowledgeBases(isHydrated);
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb", isHydrated);
@@ -187,14 +190,33 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    if (themeColor !== APP_SHELL_THEME.color) {
-      setThemeColor(APP_SHELL_THEME.color);
-    }
-
     if (themeLayout !== APP_SHELL_THEME.layout) {
       setThemeLayout(APP_SHELL_THEME.layout);
     }
-  }, [setThemeColor, setThemeLayout, themeColor, themeLayout]);
+  }, [setThemeLayout, themeLayout]);
+
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isMobileNavOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusTimeoutId = window.setTimeout(() => {
+      firstMobileNavLinkRef.current?.focus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(focusTimeoutId);
+      document.body.style.overflow = previousOverflow;
+      mobileNavToggleRef.current?.focus();
+    };
+  }, [isMobileNavOpen]);
 
   const documentBadge = documentsQuery.isSuccess ? String(documentsQuery.data.length) : null;
   const conversationBadge = conversationsQuery.isSuccess ? String(conversationsQuery.data.length) : null;
@@ -301,6 +323,22 @@ export function AppShell() {
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden" id="workspace-main">
           <header className="sticky top-0 z-50 flex h-[70px] items-center justify-between border-b border-[var(--app-border)] bg-[rgba(22,22,29,0.8)] px-4 backdrop-blur-xl md:px-8">
             <div className="flex min-w-0 items-center gap-4">
+              <button
+                aria-controls="mobile-nav-drawer"
+                aria-expanded={isMobileNavOpen}
+                aria-label={locale === "zh" ? "打开导航菜单" : "Open navigation menu"}
+                className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)] transition duration-300 hover:border-[var(--app-accent)] hover:text-[var(--app-accent)] lg:hidden"
+                data-testid="mobile-nav-toggle"
+                onClick={() => setIsMobileNavOpen(current => !current)}
+                ref={mobileNavToggleRef}
+                type="button"
+              >
+                <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <line x1="4" x2="20" y1="7" y2="7" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <line x1="4" x2="20" y1="12" y2="12" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <line x1="4" x2="20" y1="17" y2="17" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                </svg>
+              </button>
               <div className="flex items-center gap-2 text-[13px]">
                 <span className="text-[var(--app-text-muted)]">RAG System</span>
                 <span className="text-[var(--app-text-muted)]/50">/</span>
@@ -360,6 +398,94 @@ export function AppShell() {
               </div>
             </div>
           </header>
+
+          {isMobileNavOpen ? (
+            <div className="fixed inset-0 z-[60] lg:hidden">
+              <button
+                aria-label={locale === "zh" ? "关闭导航菜单" : "Close navigation menu"}
+                className="absolute inset-0 bg-[rgba(7,10,18,0.72)]"
+                onClick={() => setIsMobileNavOpen(false)}
+                type="button"
+              />
+
+              <div
+                aria-label={locale === "zh" ? "移动端导航抽屉" : "Mobile navigation drawer"}
+                className="absolute inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.45)]"
+                data-testid="mobile-nav-drawer"
+                id="mobile-nav-drawer"
+                onKeyDown={event => {
+                  if (event.key === "Escape") {
+                    setIsMobileNavOpen(false);
+                  }
+                }}
+                role="dialog"
+              >
+                <div className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-5">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--app-text)]">
+                      {locale === "zh" ? "工作区导航" : "Workspace navigation"}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--app-text-muted)]">
+                      {activeKnowledgeBase?.name ?? (locale === "zh" ? "知识库加载中" : "Loading knowledge base")}
+                    </div>
+                  </div>
+
+                  <button
+                    aria-label={locale === "zh" ? "关闭导航菜单" : "Close navigation menu"}
+                    className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] text-[var(--app-text)] transition duration-300 hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
+                    onClick={() => setIsMobileNavOpen(false)}
+                    type="button"
+                  >
+                    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <line x1="6" x2="18" y1="6" y2="18" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                      <line x1="18" x2="6" y1="6" y2="18" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                    </svg>
+                  </button>
+                </div>
+
+                <nav aria-label={locale === "zh" ? "移动端工作区菜单" : "Mobile workspace menu"} className="flex-1 overflow-y-auto px-4 py-5">
+                  {links.map((group, groupIndex) => (
+                    <div className="mb-6" key={`mobile-${group.heading}`}>
+                      <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
+                        {group.heading}
+                      </div>
+                      {group.items.map((item, itemIndex) => {
+                        const isActive = isLinkActivePath(location.pathname, item);
+
+                        return (
+                          <NavLink
+                            className={[
+                              "group relative mb-1 flex items-center gap-3 rounded-[10px] px-3.5 py-3 text-sm font-medium transition duration-300 ease-out hover:-translate-y-0.5",
+                              isActive
+                                ? "bg-[linear-gradient(135deg,rgba(99,102,241,0.15)_0%,rgba(99,102,241,0.05)_100%)] text-[#818cf8]"
+                                : "text-[var(--app-text-secondary)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+                            ].join(" ")}
+                            key={`mobile-${item.to}-${item.label}`}
+                            onClick={() => setIsMobileNavOpen(false)}
+                            ref={groupIndex === 0 && itemIndex === 0 ? firstMobileNavLinkRef : undefined}
+                            to={item.to}
+                          >
+                            {isActive ? (
+                              <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-[3px] bg-[var(--app-accent)]" />
+                            ) : null}
+                            <span className={isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"}>
+                              <NavIcon type={item.icon} />
+                            </span>
+                            <span>{item.label}</span>
+                            {item.badge ? (
+                              <span className="ml-auto rounded-full bg-[var(--app-surface-muted)] px-2 py-0.5 text-[11px] font-semibold text-[var(--app-text-muted)]">
+                                {item.badge}
+                              </span>
+                            ) : null}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </nav>
+              </div>
+            </div>
+          ) : null}
 
           <div className={isChatRoute ? "flex min-h-0 flex-1 overflow-hidden" : "flex-1 overflow-auto p-4 md:p-6"}>
             <Outlet />
