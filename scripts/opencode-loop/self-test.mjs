@@ -585,6 +585,15 @@ export async function runSelfTest() {
       throw new Error("Self-test planner handoff did not record the generated follow-up task.");
     }
 
+    const refillGeneratedSession = sessions.find(session =>
+      typeof session?.title === "string" && session.title.includes("trace-auto-001")
+    );
+    if (!refillGeneratedSession?.title?.startsWith("loop #1 · refill 1 left · trace-auto-001")) {
+      throw new Error(
+        `Self-test refill session title did not clarify auto-refill scope: ${JSON.stringify(refillGeneratedSession)}`
+      );
+    }
+
     refillPersistRoot = mkdtempSync(join(tmpdir(), "opencode-loop-refill-persist-"));
     mkdirSync(resolve(refillPersistRoot, ".opencode", "loop", "prompts"), { recursive: true });
     mkdirSync(resolve(refillPersistRoot, ".opencode", "loop", "handoffs"), { recursive: true });

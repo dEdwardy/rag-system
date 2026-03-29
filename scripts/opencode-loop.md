@@ -34,7 +34,7 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `scripts/opencode-loop/self-test.mjs` - self-test harness and mock server
 - `scripts/opencode-loop/strategy.mjs` - small strategy/callback normalization layer for selection and failure handling
 
-Session titles use the shape `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS` so the active queue item is easier to identify at a glance.
+Session titles use the shape `loop #<queue-index> · <remaining> left · <item-id> · MM-DD HH:MM:SS`. Auto-refill follow-up items are labeled as `refill <remaining> left` so a second mini-countdown after the planner run is visually distinguishable from the manual wave countdown.
 
 ## Environment
 

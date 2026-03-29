@@ -574,7 +574,12 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
           timeoutRetryAttempt
         });
         session = await api.createSession({
-          title: `loop #${next.index + 1} · ${countRemainingQueueWork(workingQueue)} left · ${next.item.id} · ${formatSessionTitleTime(runStartedAt)}`
+          title: buildLoopSessionTitle({
+            index: next.index,
+            item: next.item,
+            queue: workingQueue,
+            runStartedAt
+          })
         });
 
         workingQueue = updateQueueItem(workingQueue, next.index, queueItem => ({
@@ -1096,6 +1101,12 @@ function mapToSortedObject(countMap) {
   }
 
   return Object.fromEntries([...countMap.entries()].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function buildLoopSessionTitle({ index, item, queue, runStartedAt }) {
+  const remaining = countRemainingQueueWork(queue);
+  const stagePrefix = item?.plannerSource === "auto-refill" ? "refill " : "";
+  return `loop #${index + 1} · ${stagePrefix}${remaining} left · ${item?.id ?? "unknown-item"} · ${formatSessionTitleTime(runStartedAt)}`;
 }
 
 function countQueueWork(queue) {

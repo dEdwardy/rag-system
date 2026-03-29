@@ -91,6 +91,19 @@
   - focused validation：
     - `node scripts/opencode-loop.mjs --self-test`
 
+- ✅ loop session titles now distinguish auto-refill follow-up countdowns from the main manual-wave countdown
+  - 变更文件：
+    - `scripts/opencode-loop/runtime.mjs`
+    - `scripts/opencode-loop/self-test.mjs`
+    - `scripts/opencode-loop.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持主队列 session title 的 `X left` 语义不变，但对 `plannerSource="auto-refill"` 的生成任务改为显示 `refill X left`
+    - 这样在 session 列表里会看到“手动 wave 的 4/3/2/1”之后，planner 再启动一段独立的 “refill 2/1” 倒计数，不再像同一串数字回跳
+    - self-test 新增对 generated refill session title 的断言，避免以后又把 refill item 和 manual item 写成同样的标题形态
+  - focused validation：
+    - `node scripts/opencode-loop.mjs --self-test`
+
 - ✅ OAuth provider start/callback config-missing diagnostics now share a clearer boundary wording shape across GitHub and Google
   - 变更文件：
     - `apps/api/src/modules/auth/auth.service.ts`
