@@ -389,6 +389,110 @@ test("DocumentRunsService snapshot comparison keeps issueHotspotSlice keys with 
   });
 });
 
+test("DocumentRunsService snapshot comparison keeps dominantShift deterministic when issue concentration and signal deltas tie", async () => {
+  let callCount = 0;
+  const partialIssueDiagnostics = {
+    code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+    failedStage: "source_fetch",
+    retryable: false,
+    boundaryHit: true,
+    boundaryReasons: ["MAX_ITEMS_LIMIT_REACHED"],
+    boundary: {
+      droppedByLimitCount: 1
+    },
+    message: "partial"
+  };
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return [
+              {
+                documentId: "doc-left-web",
+                version: 1,
+                trigger: "external_resync",
+                status: "ready",
+                failedStage: null,
+                diagnosticsJson: null,
+                startedAt: new Date("2026-03-22T08:01:00.000Z"),
+                finishedAt: new Date("2026-03-22T08:02:00.000Z"),
+                document: {
+                  sourceType: "web_page",
+                  sourceName: "https://example.com/left-web"
+                }
+              },
+              {
+                documentId: "doc-left-feed",
+                version: 1,
+                trigger: "external_resync",
+                status: "ready",
+                failedStage: null,
+                diagnosticsJson: null,
+                startedAt: new Date("2026-03-22T08:03:00.000Z"),
+                finishedAt: new Date("2026-03-22T08:04:00.000Z"),
+                document: {
+                  sourceType: "feed",
+                  sourceName: "https://example.com/left-feed.xml"
+                }
+              }
+            ];
+          }
+
+          return [
+            {
+              documentId: "doc-right-web",
+              version: 2,
+              trigger: "external_resync",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: partialIssueDiagnostics,
+              startedAt: new Date("2026-03-22T08:05:00.000Z"),
+              finishedAt: new Date("2026-03-22T08:06:00.000Z"),
+              document: {
+                sourceType: "web_page",
+                sourceName: "https://example.com/right-web"
+              }
+            },
+            {
+              documentId: "doc-right-feed",
+              version: 2,
+              trigger: "external_resync",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: partialIssueDiagnostics,
+              startedAt: new Date("2026-03-22T08:07:00.000Z"),
+              finishedAt: new Date("2026-03-22T08:08:00.000Z"),
+              document: {
+                sourceType: "feed",
+                sourceName: "https://example.com/right-feed.xml"
+              }
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftSinceHours: 6,
+    rightSinceHours: 24,
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "snapshot");
+  assert.deepEqual(result.issueHotspotSlice.dominantShift, {
+    sourceFamily: "feed",
+    leftIssueSignalScore: 0,
+    rightIssueSignalScore: 2,
+    issueSignalDelta: 2,
+    leftIssueConcentration: 0,
+    rightIssueConcentration: 2,
+    issueConcentrationDelta: 2
+  });
+});
+
 test("DocumentRunsService summary exposes latest retryable failure and latest skipped run", async () => {
   const startedAt = new Date("2026-03-22T10:00:00.000Z");
 

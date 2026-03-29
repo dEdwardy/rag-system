@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ document-run snapshot `issueHotspotSlice.dominantShift` selection now has an explicit deterministic tie-break contract for equal issue concentration/signal deltas
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `dominantShift` 选取逻辑收口为显式 comparator：先比 `|issueConcentrationDelta|`，再比 `|issueSignalDelta|`，再比右窗 `issueConcentration`、右窗 `issueSignalScore`，最后按 `sourceFamily` 字典序稳定兜底
+    - 补一条 focused regression，锁定在 issue concentration / issue signal 并列时仍可 deterministic 选中同一锚点，避免 usage scan-first 文案锚点随排序细节抖动
+    - 保持范围为 snapshot comparison additive contract 收口：不改 endpoint、不扩 dashboard、不引入新 source family 语义
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
 - ✅ planning docs follow-up sync：已明确记录“第一批 refined queue batch 已完成，第二批聚焦 closeout-style contract/guard 增量”
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`

@@ -491,25 +491,56 @@ export class DocumentRunsService {
         };
       })
       .filter(item => item.issueSignalDelta !== 0 || item.issueConcentrationDelta !== 0)
-      .sort((a, b) => {
-        const concentrationDeltaGap = Math.abs(b.issueConcentrationDelta) - Math.abs(a.issueConcentrationDelta);
-        if (concentrationDeltaGap !== 0) {
-          return concentrationDeltaGap;
-        }
-
-        const issueSignalDeltaGap = Math.abs(b.issueSignalDelta) - Math.abs(a.issueSignalDelta);
-        if (issueSignalDeltaGap !== 0) {
-          return issueSignalDeltaGap;
-        }
-
-        return a.sourceFamily.localeCompare(b.sourceFamily);
-      })[0] ?? null;
+      .sort((a, b) => this.compareDominantShiftCandidates(a, b))[0] ?? null;
 
     return {
       leftHotspot,
       rightHotspot,
       dominantShift
     };
+  }
+
+  private compareDominantShiftCandidates(
+    a: {
+      sourceFamily: string;
+      leftIssueSignalScore: number;
+      rightIssueSignalScore: number;
+      issueSignalDelta: number;
+      leftIssueConcentration: number;
+      rightIssueConcentration: number;
+      issueConcentrationDelta: number;
+    },
+    b: {
+      sourceFamily: string;
+      leftIssueSignalScore: number;
+      rightIssueSignalScore: number;
+      issueSignalDelta: number;
+      leftIssueConcentration: number;
+      rightIssueConcentration: number;
+      issueConcentrationDelta: number;
+    }
+  ) {
+    const concentrationDeltaGap = Math.abs(b.issueConcentrationDelta) - Math.abs(a.issueConcentrationDelta);
+    if (concentrationDeltaGap !== 0) {
+      return concentrationDeltaGap;
+    }
+
+    const issueSignalDeltaGap = Math.abs(b.issueSignalDelta) - Math.abs(a.issueSignalDelta);
+    if (issueSignalDeltaGap !== 0) {
+      return issueSignalDeltaGap;
+    }
+
+    const rightConcentrationGap = b.rightIssueConcentration - a.rightIssueConcentration;
+    if (rightConcentrationGap !== 0) {
+      return rightConcentrationGap;
+    }
+
+    const rightSignalGap = b.rightIssueSignalScore - a.rightIssueSignalScore;
+    if (rightSignalGap !== 0) {
+      return rightSignalGap;
+    }
+
+    return a.sourceFamily.localeCompare(b.sourceFamily);
   }
 
   private resolveTopIssueHotspot(
