@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth route-policy docs wording now explicitly matches the current authenticated owner-scoped controller baseline (docs-only sync)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 的 route-policy baseline 文案已明确对齐当前受保护面：`GET /auth/me`、`POST /auth/permissions/check`，以及已在代码中标注 `@AuthenticatedRoute()` 的 owner-scoped 业务控制器
+    - 同步明确 owner-scoped business controller 列表包含 `knowledge-bases`、`documents`、`assistants`、`conversations`、`traces`、`audit`、`retrieval-profiles`，保持知识库/文档访问面为显式 authenticated baseline
+    - 仅做文档对齐；不改运行时 route-policy guard 逻辑、不调整 queue/planning 结构
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ 已将第二批 11 个 execution-ready closeout items 追加到 loop queue，并同步第二批 refinement note
   - 变更文件：
     - `.opencode/loop/queue.json`
@@ -856,7 +867,7 @@
     - `docs/current-dev-setup.md`
     - `docs/current-progress.md`
   - 同步内容（最小范围）：
-    - knowledge-base / document / assistant / conversation / trace controllers now carry class-level `authenticated` route policy metadata
+    - knowledge-base / document / assistant / conversation / trace / audit / retrieval-profile controllers now carry class-level `authenticated` route policy metadata
     - public auth/health exceptions remain unchanged, including `AuthController` class-level public policy and `GET /auth/me` authenticated policy
     - `docs/current-dev-setup.md` now reflects the authenticated business-route baseline
   - 新增 / 更新验证：

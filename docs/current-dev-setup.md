@@ -125,7 +125,7 @@ AUTH_SESSION_TTL_HOURS=168
   - login session TTL default is `168` hours (`7` days)
   - route policy baseline now distinguishes public and authenticated API routes:
     - public: `GET /health`, `POST /auth/login`, `POST /auth/logout`
-    - authenticated: `GET /auth/me` plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, and `traces`
+    - authenticated: `GET /auth/me`, `POST /auth/permissions/check`, plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, and `retrieval-profiles`
     - `GET /auth/me` and the owner-scoped business routes require an authenticated session cookie and return `401` when unauthenticated
   - backend now exposes minimal auth loop endpoints:
     - `POST /auth/login` (sets session cookie, returns identity)
@@ -144,7 +144,7 @@ AUTH_SESSION_TTL_HOURS=168
         - `trace`: inherit from parent conversation visibility
       - because current parent resources are private in `owner_only_v1`, effective visibility for newly created resources currently stays private
     - ACL owner-based wave (`owner_only_v1`) implemented boundaries snapshot:
-      - route boundary: business routes are authenticated (`knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`)
+      - route boundary: business routes are authenticated (`knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, `retrieval-profiles`)
       - policy boundary: service-layer owner check uses `evaluateOwnerResourceAccess` with explicit deny reasons (`tenant_mismatch`, `owner_mismatch`, `owner_unassigned`, plus unsupported action/resource guards)
       - resource boundary (implemented):
         - `knowledge_base`: owner-scoped list/get/update
