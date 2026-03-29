@@ -253,6 +253,39 @@ export function normalizeQueueForExecution(queue, updatedAt = new Date().toISOSt
   };
 }
 
+export function countQueueWork(queue) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  let pendingCount = 0;
+  let completedCount = 0;
+  let inProgressCount = 0;
+  let deferredCount = 0;
+
+  for (const item of items) {
+    if (item?.status === "pending") {
+      pendingCount += 1;
+    } else if (item?.status === "completed") {
+      completedCount += 1;
+    } else if (item?.status === "in_progress") {
+      inProgressCount += 1;
+    } else if (item?.status === "deferred") {
+      deferredCount += 1;
+    }
+  }
+
+  return {
+    pendingCount,
+    completedCount,
+    inProgressCount,
+    deferredCount,
+    totalCount: items.length
+  };
+}
+
+export function countRemainingQueueWork(queue) {
+  const { pendingCount, inProgressCount, deferredCount } = countQueueWork(queue);
+  return pendingCount + inProgressCount + deferredCount;
+}
+
 export function computeNextCursor(items, start) {
   const nextIndex = findPendingIndex(items, start);
   if (nextIndex !== -1) {
@@ -357,6 +390,22 @@ function formatDisplayTime(value) {
   const second = String(date.getSeconds()).padStart(2, "0");
 
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+export function formatSessionTitleTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "invalid-date";
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+
+  return `${month}-${day} ${hour}:${minute}:${second}`;
 }
 
 export { formatDisplayTime };

@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
-import { appendQueueItems, formatDisplayTime, writeQueue } from "./queue.mjs";
+import { appendQueueItems, formatDisplayTime, formatSessionTitleTime, writeQueue } from "./queue.mjs";
 
 export const DEFAULT_PLANNER_PROMPT_PATH = "prompts/plan-next.md";
 export const DEFAULT_PLANNER_PROMPT_FILE_NAME = "plan-next.md";
@@ -51,7 +51,7 @@ export async function maybeAutoRefillQueue({
 
   const plannedAt = new Date().toISOString();
   const session = await api.createSession({
-    title: `loop planner #${autoRefillState.cycles + 1} ${formatDisplayTime(plannedAt)}`
+    title: `loop planner #${autoRefillState.cycles + 1} · ${formatSessionTitleTime(plannedAt)}`
   });
   const message = await api.sendMessage({
     sessionId: session.id,

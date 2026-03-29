@@ -306,7 +306,10 @@ export async function runSelfTest() {
       throw new Error(`Self-test expected two fresh sessions, got ${sessions.length}.`);
     }
 
-    if (!sessions[0]?.title?.startsWith("loop #1 build-001") || !sessions[1]?.title?.startsWith("loop #2 build-002")) {
+    if (
+      !sessions[0]?.title?.startsWith("loop #1 · 2 left · build-001") ||
+      !sessions[1]?.title?.startsWith("loop #2 · 1 left · build-002")
+    ) {
       throw new Error(`Self-test session titles were not made clearer: ${JSON.stringify(sessions)}`);
     }
 

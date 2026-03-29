@@ -146,6 +146,7 @@ AUTH_SESSION_TTL_HOURS=168
   - web auth bootstrap now calls `GET /auth/me` at app-shell entry and redirects unauthenticated users to `/login`
   - web app shell now exposes a minimal `Logout` action that calls `POST /auth/logout`, clears auth-scoped cached query state, and returns to `/login`
   - web API requests now include credentials by default so the auth session cookie is sent for protected API routes
+  - when the web app runs on `5174`, Vite now proxies `/api` to `http://localhost:3000` so browser requests still reach the backend instead of Vite returning `index.html`
 - LLM runtime now also supports a small set of explicit operational overrides:
 
 ```text

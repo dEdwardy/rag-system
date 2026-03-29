@@ -7,7 +7,9 @@ import {
   LOOP_SCHEMA_VERSION,
   completeQueueItem,
   deferQueueItem,
+  countRemainingQueueWork,
   formatDisplayTime,
+  formatSessionTitleTime,
   normalizeQueueForExecution,
   pickNextItem,
   readQueue,
@@ -571,7 +573,7 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
           timeoutRetryAttempt
         });
         session = await api.createSession({
-          title: `loop #${next.index + 1} ${next.item.id} ${formatSessionTitleTime(runStartedAt)}`
+          title: `loop #${next.index + 1} · ${countRemainingQueueWork(workingQueue)} left · ${next.item.id} · ${formatSessionTitleTime(runStartedAt)}`
         });
 
         workingQueue = updateQueueItem(workingQueue, next.index, queueItem => ({
@@ -1339,8 +1341,4 @@ function logStatus(event, fields) {
   const suffix = orderedEntries.join(" ");
   const prefix = `[opencode-loop] ${formatDisplayTime(new Date())} ${label}`;
   console.log(suffix ? `${prefix} ${suffix}` : prefix);
-}
-
-function formatSessionTitleTime(value) {
-  return formatDisplayTime(value);
 }

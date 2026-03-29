@@ -476,6 +476,54 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 不再开启新一轮大范围 UI 重构
 - 继续坚持 `PC Web` 优先、移动端后置
 
+### P5：RAG 质量证明（eval / regression / demo）
+
+这条线的目标不是继续堆功能，而是把当前 RAG 核心能力变成“可证明地好用”：
+
+- 先建立小而硬的 eval baseline
+- 再把已有 trace / answer 元信息汇总成质量报告
+- 最后补少量端到端 demo case，便于展示和回归
+
+这一波次里，适合自动化的部分和需要人工介入的部分要先分开：
+
+- 可自动化：批量跑固定题集、记录指标、生成 regression report、执行 demo 回归
+- 需要人工：选择真实问题集、标注期望答案 / 期望引用、确定固定文档集版本、判断开放式答案是否足够好
+
+#### P5 queue-ready tasks
+
+1. 建立 eval baseline 题集
+   - 目标：先挑出一批真实问题，作为后续所有质量对比的固定输入
+   - 建议规模：20–50 条
+   - 需要人工：挑题、去重、按主题覆盖、确定问题表达方式
+   - 交付物：题集清单 + baseline 说明
+
+2. 为 eval baseline 补标注
+   - 目标：给每个问题补上期望答案要点、期望引用、期望命中内容
+   - 需要人工：标注期望答案 / 引用，尤其是开放式问题的“够不够好”判断
+   - 交付物：标注文件 / manifest
+
+3. 固定 baseline 文档集版本
+   - 目标：把评测输入的文档 / 知识库版本固定下来，避免每次跑出来的对比不稳定
+   - 需要人工：确认哪一版文档集作为基线
+   - 交付物：固定基线版本说明 + 数据快照引用
+
+4. 实现可重复 eval runner
+   - 目标：批量执行固定题集，收集 `answer status`、`qualityOverall`、`top-k`、`fallback/no-hit`
+   - 自动化为主：跑题、抓结果、输出结构化数据
+   - 交付物：一条可复用的命令 / 脚本
+
+5. 生成 retrieval quality regression report
+   - 目标：把已有 trace 元信息汇总成健康指标
+   - 建议指标：`no-hit rate`、`fallback usage rate`、`low-score answer ratio`、`citation limit hit ratio`、`source family failure ratio`
+   - 自动化为主：生成报告；人工只负责 review 结论
+   - 交付物：regression report（markdown / json / html 任选其一）
+
+6. 做 3–5 个端到端 demo case
+   - 目标：把“系统好用”做成可展示、可复跑的固定案例
+   - 建议覆盖：本地 PDF 问答、混合 web/feed/sitemap 问答、no-hit / insufficient-context 受控行为、trace detail 排障
+   - 需要人工：选 demo 场景、确认预期输出、验收展示效果
+   - 交付物：demo case 清单 + 一键回放入口
+
 ### 当前阶段推荐大类顺序
 
 当前更稳的后续顺序是：
@@ -483,10 +531,11 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 1. `鉴权 / 用户登录`
 2. `ACL / 文档权限`
 3. `外部知识源后续扩展`
-4. `运行观测 / 审计补强`
-5. `移动端适配`
-6. `企业能力（先拆小块，不整包推进）`
-7. `多租户隔离`
+4. `RAG 质量证明（eval / regression / demo）`
+5. `运行观测 / 审计补强`
+6. `移动端适配`
+7. `企业能力（先拆小块，不整包推进）`
+8. `多租户隔离`
 
 执行方式仍保持：**主线串行推进，局部低耦合项再小范围并行，不做 7 类全面并行。**
 
