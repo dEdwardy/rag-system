@@ -92,6 +92,13 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
     const extracted = await service.fetchWebPage("https://example.com/plain-content-type");
     assert.equal(extracted.title, "Fallback Title");
     assert.match(extracted.content, /Fallback marker\./);
+    assert.deepEqual(extracted.diagnostics, {
+      sourceKind: "web",
+      schemaVersion: 2,
+      contentTypeFallbackApplied: true,
+      upstreamContentType: "text/plain;charset=utf-8",
+      partial: true
+    });
   } finally {
     global.fetch = originalFetch;
   }
@@ -131,6 +138,9 @@ test("FeedSourceService accepts RSS payload when upstream content-type is text/p
     assert.equal(extracted.title, "Fallback Feed");
     assert.match(extracted.content, /Entry One/);
     assert.match(extracted.content, /Fallback feed marker\./);
+    assert.equal(extracted.diagnostics?.contentTypeFallbackApplied, true);
+    assert.equal(extracted.diagnostics?.upstreamContentType, "text/plain; charset=utf-8");
+    assert.equal(extracted.diagnostics?.partial, true);
   } finally {
     global.fetch = originalFetch;
   }

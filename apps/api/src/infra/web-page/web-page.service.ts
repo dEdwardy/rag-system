@@ -4,6 +4,15 @@ import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-w
 type FetchedWebPage = {
   title: string | null;
   content: string;
+  diagnostics: WebPageFetchDiagnostics | null;
+};
+
+type WebPageFetchDiagnostics = {
+  sourceKind: "web";
+  schemaVersion: 2;
+  contentTypeFallbackApplied: boolean;
+  upstreamContentType: string;
+  partial: boolean;
 };
 
 @Injectable()
@@ -38,7 +47,20 @@ export class WebPageService {
       throw new BadRequestException(`Unsupported web page content type: ${contentType || "unknown"}.`);
     }
 
-    return this.extractFromHtml(payload);
+    const extracted = this.extractFromHtml(payload);
+
+    return {
+      ...extracted,
+      diagnostics: htmlPayloadByFallback
+        ? {
+            sourceKind: "web",
+            schemaVersion: 2,
+            contentTypeFallbackApplied: true,
+            upstreamContentType: contentType || "unknown",
+            partial: true
+          }
+        : null
+    };
   }
 
   extractFromHtml(html: string): FetchedWebPage {
@@ -58,7 +80,8 @@ export class WebPageService {
 
     return {
       title: title || null,
-      content
+      content,
+      diagnostics: null
     };
   }
 

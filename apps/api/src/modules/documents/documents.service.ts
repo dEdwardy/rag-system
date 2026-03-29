@@ -234,7 +234,14 @@ export class DocumentsService {
       return this.finalizeExternalDocument(reservedDocument, {
         title: input.title ?? fetchedPage.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
         mimeType: "text/plain",
-        storageKey: storedFile.storageKey
+        storageKey: storedFile.storageKey,
+        diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+          reservedDocument.version,
+          fetchedPage.diagnostics,
+          "Web page source completed with content-type fallback sniffing.",
+          false,
+          "web"
+        )
       });
     });
 
@@ -289,7 +296,7 @@ export class DocumentsService {
         diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
           reservedDocument.version,
           fetchedFeed.diagnostics,
-          "Feed source completed with partial entry validation failures.",
+          this.buildFeedPartialDiagnosticsMessage(fetchedFeed.diagnostics),
           false,
           "feed"
         )
@@ -747,13 +754,22 @@ export class DocumentsService {
                    "sitemap"
                  ) ??
                 null)
-             : sourceConfig.kind === "feed"
+              : sourceConfig.kind === "feed"
+                ? (this.buildExternalSourcePartialDiagnostics(
+                    queuedDocument.version,
+                    fetchedSource.diagnostics ?? null,
+                    this.buildFeedPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
+                    false,
+                    "feed"
+                  ) ??
+                null)
+             : sourceConfig.kind === "web_page"
                ? (this.buildExternalSourcePartialDiagnostics(
                    queuedDocument.version,
                    fetchedSource.diagnostics ?? null,
-                   "Feed source completed with partial entry validation failures.",
+                   "Web page source completed with content-type fallback sniffing.",
                    false,
-                   "feed"
+                   "web"
                  ) ??
                null)
              : null
@@ -1026,7 +1042,7 @@ export class DocumentsService {
     diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
     message: string,
     retryable: boolean,
-    sourceKind: "feed" | "sitemap"
+    sourceKind: "feed" | "sitemap" | "web"
   ) {
     if (!diagnostics?.partial) {
       return null;
@@ -1034,11 +1050,13 @@ export class DocumentsService {
 
     const retryableFailureCount = this.getNumericDiagnosticField(diagnostics, "retryableFailureCount");
     const nonRetryableFailureCount = this.getNumericDiagnosticField(diagnostics, "nonRetryableFailureCount");
+    const contentTypeFallbackApplied = diagnostics.contentTypeFallbackApplied === true;
     const partialFailureCount =
       this.getNumericDiagnosticField(diagnostics, "failedEntryCount") +
       this.getNumericDiagnosticField(diagnostics, "failedPageCount") +
       this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount") +
       this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
+    const partialSignalCount = partialFailureCount + (contentTypeFallbackApplied ? 1 : 0);
     const boundaryHit = diagnostics.boundaryHit === true;
     const boundaryReasons = Array.isArray(diagnostics.boundaryReasons)
       ? diagnostics.boundaryReasons.filter((reason): reason is string => typeof reason === "string")
@@ -1059,7 +1077,7 @@ export class DocumentsService {
       sourceKind,
       schemaVersion: 2,
       category: "external_source_partial",
-      partialFailureCount,
+      partialFailureCount: partialSignalCount,
       retryableFailureCount,
       nonRetryableFailureCount,
       boundaryHit,
@@ -1082,6 +1100,31 @@ export class DocumentsService {
     }
 
     return "Sitemap source completed with partial page fetch failures.";
+  }
+
+  private buildFeedPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
+    const failedEntryCount = this.getNumericDiagnosticField(diagnostics, "failedEntryCount");
+    const skippedDuplicateEntryCount = this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
+    const boundaryHit = diagnostics?.boundaryHit === true;
+    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
+
+    if (failedEntryCount > 0) {
+      return "Feed source completed with partial entry validation failures.";
+    }
+
+    if (skippedDuplicateEntryCount > 0) {
+      return "Feed source completed with duplicate entries skipped.";
+    }
+
+    if (boundaryHit) {
+      return "Feed source completed with max-items boundary truncation.";
+    }
+
+    if (contentTypeFallbackApplied) {
+      return "Feed source completed with content-type fallback sniffing.";
+    }
+
+    return "Feed source completed with partial diagnostics.";
   }
 
   private getNumericDiagnosticField(

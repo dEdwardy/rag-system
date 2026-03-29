@@ -15,6 +15,20 @@
 
 补充进展（2026-03-29）：
 
+- ✅ web/feed source ingestion now records consistent partial diagnostics for content-type fallback sniffing, so scan-first troubleshooting keeps one readable partial envelope
+  - 变更文件：
+    - `apps/api/src/infra/web-page/web-page.service.ts`
+    - `apps/api/src/infra/feed-source/feed-source.service.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/parsing.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `WebPageService.fetchWebPage` 在 `text/plain/unknown` + HTML sniff fallback 成功时返回结构化 partial diagnostics（不改提取语义）
+    - `FeedSourceService.fetchFeed` 在同类 content-type fallback 成功时也补齐同口径 partial diagnostics，并保持 RSS/Atom 解析与去重语义不变
+    - `DocumentsService` 将 web/feed fallback partial 统一写入 `EXTERNAL_SOURCE_PARTIAL_SUCCESS` 包装，同时把 feed partial message 改为按失败/去重/边界/fallback 选择更可读文案
+  - focused validation：
+    - `pnpm test:api:file -- test/parsing.test.js`
+
 - ✅ sitemap nested-index + child-limit boundary behavior is now explicitly locked by focused parsing regressions
   - 变更文件：
     - `apps/api/test/parsing.test.js`
