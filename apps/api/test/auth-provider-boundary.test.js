@@ -965,6 +965,72 @@ test("AuthController oauthProviderStart sets state cookie and redirects to Googl
   }
 });
 
+test("AuthController oauthProviderStart sets state cookie and redirects to OIDC", async () => {
+  const cookies = [];
+  const redirects = [];
+  const controller = new AuthController(
+    new AuthService(
+      {},
+      undefined,
+      undefined,
+      {
+        resolveStartConfig: () => ({
+          issuer: "https://accounts.example.com",
+          discoveryUrl: "https://accounts.example.com/.well-known/openid-configuration",
+          clientId: "oidc-client-id",
+          redirectUri: "http://localhost:3000/auth/oauth/oidc/callback",
+          scope: "openid email profile",
+          stateCookieName: "rag_oauth_state",
+          stateTtlSeconds: 600
+        }),
+        exchangeCodeForIdentity: async () => {
+          throw new Error("oidc callback provider should not be used for start test");
+        }
+      }
+    )
+  );
+
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      authorization_endpoint: "https://accounts.example.com/authorize"
+    })
+  });
+
+  try {
+    await controller.oauthProviderStart(
+      {
+        provider: "oidc"
+      },
+      {
+        setHeader: (name, value) => {
+          if (name === "Set-Cookie") {
+            cookies.push(value);
+          }
+        },
+        redirect: (statusCode, url) => {
+          redirects.push({ statusCode, url });
+        }
+      }
+    );
+
+    assert.equal(cookies.length, 1);
+    assert.match(cookies[0], /^rag_oauth_state=/);
+    assert.match(cookies[0], /HttpOnly/);
+    assert.match(cookies[0], /SameSite=Lax/);
+    assert.match(cookies[0], /Max-Age=600/);
+    assert.equal(redirects.length, 1);
+    assert.equal(redirects[0].statusCode, 302);
+    assert.match(redirects[0].url, /^https:\/\/accounts\.example\.com\/authorize\?/);
+    assert.match(redirects[0].url, /client_id=oidc-client-id/);
+    assert.match(redirects[0].url, /response_type=code/);
+    assert.match(redirects[0].url, /state=/);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("AuthService completeOauthProviderCallback reuses local user by email, creates identity link, and creates session", async () => {
   const calls = {
     linkLookup: null,
@@ -1332,6 +1398,63 @@ test("AuthController oauthProviderCallback supports Google callback with shared 
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-google-1/);
   assert.match(cookies[0][2], /^rag_login_provenance=google/);
+});
+
+test("AuthController oauthProviderCallback supports OIDC callback with shared cookie/session handling", async () => {
+  const cookies = [];
+  const callbackCalls = [];
+  const controller = new AuthController({
+    completeOauthProviderCallback: async (input) => {
+      callbackCalls.push(input);
+      return {
+        identity: {
+          userId: "user-oidc-1",
+          tenantId: "tenant-oidc-1",
+          role: "member",
+          sessionId: "session-oidc-1",
+          authSource: "session"
+        },
+        expiresAt: "2030-01-03T00:00:00.000Z"
+      };
+    }
+  });
+
+  const result = await controller.oauthProviderCallback(
+    {
+      provider: "oidc"
+    },
+    {
+      code: "callback-oidc-code-1",
+      state: "state-oidc-cookie-1"
+    },
+    {
+      headers: {
+        cookie: "other=1; rag_oauth_state=state-oidc-cookie-1"
+      }
+    },
+    {
+      setHeader: (name, value) => {
+        if (name === "Set-Cookie") {
+          cookies.push(value);
+        }
+      }
+    }
+  );
+
+  assert.equal(result.identity.sessionId, "session-oidc-1");
+  assert.deepEqual(callbackCalls, [
+    {
+      provider: "oidc",
+      code: "callback-oidc-code-1",
+      state: "state-oidc-cookie-1",
+      expectedState: "state-oidc-cookie-1"
+    }
+  ]);
+  assert.equal(cookies.length, 1);
+  assert.ok(Array.isArray(cookies[0]));
+  assert.match(cookies[0][0], /^rag_oauth_state=;/);
+  assert.match(cookies[0][1], /^rag_session=session-oidc-1/);
+  assert.match(cookies[0][2], /^rag_login_provenance=oidc/);
 });
 
 test("AuthService completeOauthProviderCallback rejects mismatched state", async () => {
