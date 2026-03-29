@@ -92,7 +92,7 @@
     - 在现有 queue 已完全消费、无 pending item 的状态下，补入第三批 execution-ready items，顺序改为先做 `P5` auto-safe closeout，再做 `P6` observability/report closeout，最后做 docs sync
     - 这批不再继续拆 `P2/P3`：当前默认视 `P2` owner-only ACL baseline 已收口、`P3` source follow-up 已完成 accepted slices；`P4` 继续保持条件触发，不作为当前自动 queue 主线
     - 继续把 `P5` 人工判断项留在自动 queue 外，只让 loop 消费适合自动执行的 contract/docs/readability 增量
-    - `pnpm loop:start` 已重新拉起 loop；当前首个 item `p5-eval-artifact-index-033` 已进入 `in_progress`
+    - `pnpm loop:start` 已重新拉起 loop；第三批已按 `P5 -> P6 -> docs sync` 开始消费，当前 queue tail 在 docs 同步项 `docs-next-wave-sync-039`（`third-batch queue docs sync`）处于 `in_progress`
   - focused validation：
     - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/next_steps_rag_project_plan.md docs/current-progress.md`
 

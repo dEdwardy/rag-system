@@ -685,6 +685,12 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 本批仍遵守同一条边界：每个 queue item 只做一个最小可验证增量，明确 not-doing，且只带一条 focused validation。
 - `P5` 的 5 个人工判断项仍不进入自动 queue；本批次也不新增 source family、ACL 放权语义、dashboard 平台化或评测人工标注流程。
 
+#### 第三批 post-drain queue note（2026-03-29）
+
+- post-drain 第三批 queue 已开始消费，当前执行方向保持 `P5 -> P6 -> docs sync`。
+- 当前 queue tail 已进入 docs 同步项 `docs-next-wave-sync-039`（`third-batch queue docs sync`）`in_progress`，用于收口 planning/progress 与 refinement 文档对齐。
+- 本批继续保持 docs-only / contract-closeout 边界，不重开 `P2/P3`、不改 roadmap 排序。
+
 ### 边界说明：产品核心 vs 第三方集成
 
 - 当前产品核心不是“自研所有底层组件”，而是：稳定的 orchestration、可读可追踪的 trace/read-model、可预期的 fallback 语义、以及可复用的 regression 基线。
