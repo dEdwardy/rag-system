@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ OAuth provider start/callback config-missing diagnostics now share a clearer boundary wording shape across GitHub and Google
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/github-oauth.provider.ts`
+    - `apps/api/src/modules/auth/google-oauth.provider.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `startOauthProvider` 对 GitHub/Google 的缺失配置错误统一为 `... OAuth start is not configured. Required env: ...`
+    - GitHub/Google callback provider 的缺失配置错误统一为 `... OAuth callback is not configured. Required env: ...`
+    - `auth-provider-boundary` 测试新增 callback 配置缺失可读性边界断言，并同步 start 断言到新 wording
+    - 保持范围收敛：未改成功登录语义、未新增 provider、未扩展 ACL 或前端流程
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ `GET /auth/me` now exposes additive login provenance (`local_session` vs `oauth_session`) while keeping existing identity fields unchanged
   - 变更文件：
     - `apps/api/src/modules/auth/auth.constants.ts`

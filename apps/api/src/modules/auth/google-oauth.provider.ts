@@ -50,7 +50,7 @@ export class HttpGoogleOauthProvider implements GoogleOauthProvider {
 
     if (clientId.length === 0 || clientSecret.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(
-        "Google OAuth callback is not configured. Set AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_CLIENT_SECRET, and AUTH_GOOGLE_REDIRECT_URI."
+        "Google OAuth callback is not configured. Required env: AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_CLIENT_SECRET, AUTH_GOOGLE_REDIRECT_URI."
       );
     }
 

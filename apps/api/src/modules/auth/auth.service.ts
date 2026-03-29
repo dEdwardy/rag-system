@@ -477,7 +477,7 @@ export class AuthService {
 
     if (clientId.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(
-        "GitHub OAuth is not configured. Set AUTH_GITHUB_CLIENT_ID and AUTH_GITHUB_REDIRECT_URI."
+        "GitHub OAuth start is not configured. Required env: AUTH_GITHUB_CLIENT_ID, AUTH_GITHUB_REDIRECT_URI."
       );
     }
 
@@ -518,7 +518,7 @@ export class AuthService {
 
     if (clientId.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(
-        "Google OAuth is not configured. Set AUTH_GOOGLE_CLIENT_ID and AUTH_GOOGLE_REDIRECT_URI."
+        "Google OAuth start is not configured. Required env: AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_REDIRECT_URI."
       );
     }
 

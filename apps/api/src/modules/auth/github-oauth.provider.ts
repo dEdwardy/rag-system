@@ -50,7 +50,7 @@ export class HttpGithubOauthProvider implements GithubOauthProvider {
 
     if (clientId.length === 0 || clientSecret.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(
-        "GitHub OAuth callback is not configured. Set AUTH_GITHUB_CLIENT_ID, AUTH_GITHUB_CLIENT_SECRET, and AUTH_GITHUB_REDIRECT_URI."
+        "GitHub OAuth callback is not configured. Required env: AUTH_GITHUB_CLIENT_ID, AUTH_GITHUB_CLIENT_SECRET, AUTH_GITHUB_REDIRECT_URI."
       );
     }
 

@@ -18,6 +18,8 @@ const {
 } = require("../src/modules/auth/auth-identity.contract.ts");
 const { AuthService } = require("../src/modules/auth/auth.service.ts");
 const { oauthProviderParamSchema } = require("../src/modules/auth/auth.schemas.ts");
+const { HttpGithubOauthProvider } = require("../src/modules/auth/github-oauth.provider.ts");
+const { HttpGoogleOauthProvider } = require("../src/modules/auth/google-oauth.provider.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
 const { HealthController } = require("../src/common/health.controller.ts");
 const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
@@ -405,7 +407,7 @@ test("AuthService startOauthProvider fails clearly when GitHub OAuth config is m
     const authService = new AuthService({});
     assert.throws(
       () => authService.startOauthProvider({ provider: "github" }),
-      /GitHub OAuth is not configured/i
+      /GitHub OAuth start is not configured\. Required env:/i
     );
   } finally {
     if (previousClientId == null) {
@@ -484,7 +486,7 @@ test("AuthService startOauthProvider fails clearly when Google OAuth config is m
     const authService = new AuthService({});
     assert.throws(
       () => authService.startOauthProvider({ provider: "google" }),
-      /Google OAuth is not configured/i
+      /Google OAuth start is not configured\. Required env:/i
     );
   } finally {
     if (previousClientId == null) {
@@ -497,6 +499,72 @@ test("AuthService startOauthProvider fails clearly when Google OAuth config is m
       delete process.env.AUTH_GOOGLE_REDIRECT_URI;
     } else {
       process.env.AUTH_GOOGLE_REDIRECT_URI = previousRedirectUri;
+    }
+  }
+});
+
+test("OAuth provider callback config failures use the same readability boundary shape", async () => {
+  const previousGithubClientId = process.env.AUTH_GITHUB_CLIENT_ID;
+  const previousGithubClientSecret = process.env.AUTH_GITHUB_CLIENT_SECRET;
+  const previousGithubRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
+  const previousGoogleClientId = process.env.AUTH_GOOGLE_CLIENT_ID;
+  const previousGoogleClientSecret = process.env.AUTH_GOOGLE_CLIENT_SECRET;
+  const previousGoogleRedirectUri = process.env.AUTH_GOOGLE_REDIRECT_URI;
+
+  delete process.env.AUTH_GITHUB_CLIENT_ID;
+  delete process.env.AUTH_GITHUB_CLIENT_SECRET;
+  delete process.env.AUTH_GITHUB_REDIRECT_URI;
+  delete process.env.AUTH_GOOGLE_CLIENT_ID;
+  delete process.env.AUTH_GOOGLE_CLIENT_SECRET;
+  delete process.env.AUTH_GOOGLE_REDIRECT_URI;
+
+  try {
+    const githubProvider = new HttpGithubOauthProvider();
+    const googleProvider = new HttpGoogleOauthProvider();
+
+    await assert.rejects(
+      () => githubProvider.exchangeCodeForIdentity({ code: "github-code" }),
+      /GitHub OAuth callback is not configured\. Required env:/i
+    );
+    await assert.rejects(
+      () => googleProvider.exchangeCodeForIdentity({ code: "google-code" }),
+      /Google OAuth callback is not configured\. Required env:/i
+    );
+  } finally {
+    if (previousGithubClientId == null) {
+      delete process.env.AUTH_GITHUB_CLIENT_ID;
+    } else {
+      process.env.AUTH_GITHUB_CLIENT_ID = previousGithubClientId;
+    }
+
+    if (previousGithubClientSecret == null) {
+      delete process.env.AUTH_GITHUB_CLIENT_SECRET;
+    } else {
+      process.env.AUTH_GITHUB_CLIENT_SECRET = previousGithubClientSecret;
+    }
+
+    if (previousGithubRedirectUri == null) {
+      delete process.env.AUTH_GITHUB_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GITHUB_REDIRECT_URI = previousGithubRedirectUri;
+    }
+
+    if (previousGoogleClientId == null) {
+      delete process.env.AUTH_GOOGLE_CLIENT_ID;
+    } else {
+      process.env.AUTH_GOOGLE_CLIENT_ID = previousGoogleClientId;
+    }
+
+    if (previousGoogleClientSecret == null) {
+      delete process.env.AUTH_GOOGLE_CLIENT_SECRET;
+    } else {
+      process.env.AUTH_GOOGLE_CLIENT_SECRET = previousGoogleClientSecret;
+    }
+
+    if (previousGoogleRedirectUri == null) {
+      delete process.env.AUTH_GOOGLE_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GOOGLE_REDIRECT_URI = previousGoogleRedirectUri;
     }
   }
 });
