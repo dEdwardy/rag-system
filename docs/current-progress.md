@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-29
+更新时间：2026-03-30
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -14,6 +14,121 @@
 补充进展（2026-03-28）：
 
 补充进展（2026-03-29）：
+
+补充进展（2026-03-30）：
+
+- ✅ backlog materializer can now append a wave directly into the live loop queue
+  - 变更文件：
+    - `.opencode/loop/harness/materialize.mjs`
+    - `.opencode/loop/cli.mjs`
+    - `.opencode/loop/README.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在已有 queue draft materializer 基础上新增 `appendMaterializedWaveToQueue()`，可把指定 wave 的 materialized items 直接 append 到 `.opencode/loop/queue.json`
+    - CLI 新增 `--materialize-append-wave <wave-id>`，并带最小去重：若 queue 中已存在相同 item id，则跳过不重复追加
+    - 这样当前 backlog 已经不只是“生成草案”，而是具备了 backlog -> live queue 的最小 promotion 路径
+  - focused validation：
+    - `node .opencode/loop/cli.mjs --materialize-append-wave p5-demo-replay-wave`
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; const queue = JSON.parse(readFileSync('./.opencode/loop/queue.json', 'utf8')); console.log(queue.items.some(item => item.id === 'p5-demo-shortlist-manifest'));"`
+
+- ✅ loop backlog now has a first queue materializer for wave-level queueContracts
+  - 变更文件：
+    - `.opencode/loop/harness/materialize.mjs`
+    - `.opencode/loop/cli.mjs`
+    - `.opencode/loop/README.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `materializeBacklogWave()`，可读取 `.opencode/loop/execution-backlog.jsonc` 中某个 wave 的 `queueContracts`，并输出对应 queue draft
+    - CLI 新增 `--materialize-wave <wave-id>` 与可选 `--materialize-output <path>`，默认把结果写到 `.opencode/loop/materialized/<wave-id>.queue.json`
+    - materializer 当前会把 backlog 中的 `goal / acceptance / verifier / retryPolicy / suspendWhen` 组合成可执行 queue item 草案，并保留 `backlogWaveId / backlogParentId / plannerSource=backlog-materializer` 方便追踪
+  - focused validation：
+    - `node .opencode/loop/cli.mjs --materialize-wave p5-baseline-manifest-wave`
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; const queue = JSON.parse(readFileSync('./.opencode/loop/materialized/p5-baseline-manifest-wave.queue.json', 'utf8')); console.log(queue.materializedWaveId, queue.items.length, queue.items[0].id);"`
+
+- ✅ `p5-demo-replay-wave` now also has queue-ready contract metadata in the loop-local backlog
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 为 `p5-demo-replay-wave` 补齐 `queueContracts`，把 demo shortlist materialization / narrow replay entrypoint / docs sync 这条主线也收敛到与 manifest wave 同级的 queue-ready contract 形态
+    - 3 个 demo replay 子任务都带上了最小 `kind / riskLevel / verifier / retryPolicy / suspendWhen`，并保持边界只复用现有 eval proof surface，不扩成更大的 demo/showcase 平台
+    - 至此当前 backlog 中仅剩的两条真实 `P5` 开发主线，都已经具备后续 queue materializer 可直接消费的 contract 草案
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; import { parseJsonc } from './.opencode/loop/harness/jsonc.mjs'; const raw = readFileSync('./.opencode/loop/execution-backlog.jsonc', 'utf8'); const parsed = parseJsonc(raw); const wave = parsed.queueMaterializationPlan.nextQueueFamilies.find(f => f.id === 'p5-demo-replay-wave'); console.log('contracts', wave.queueContracts.length); console.log('lastTask', wave.queueContracts.at(-1).taskId);"`
+
+- ✅ `p5-baseline-manifest-wave` now has queue-ready contract metadata in the loop-local backlog
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 为 `p5-baseline-manifest-wave` 补齐 `waveGoal + queueContracts`，把 baseline manifest 这条主线从“分解计划”继续收敛到更接近 queue item contract 的形态
+    - 4 个 manifest 子任务现在都带上了最小 `kind / riskLevel / verifier / retryPolicy / suspendWhen`，后续 queue materializer 可以直接基于这些字段生成真正 queue items
+    - 仍保持当前边界：只有 `P5` 的 manifest 主线进入 queue-ready 细化；routing rules 与 human-late 决策继续留在 queue 外
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; import { parseJsonc } from './.opencode/loop/harness/jsonc.mjs'; const raw = readFileSync('./.opencode/loop/execution-backlog.jsonc', 'utf8'); const parsed = parseJsonc(raw); const wave = parsed.queueMaterializationPlan.nextQueueFamilies.find(f => f.id === 'p5-baseline-manifest-wave'); console.log('contracts', wave.queueContracts.length); console.log('firstTask', wave.queueContracts[0].taskId);"`
+
+- ✅ loop-local backlog now separates routing rules, human-late decisions, and real queue-materializable tasks
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 backlog 顶层新增 `routingView`，把当前 11 项显式切成 `routingRules / humanLateDecisions / queueMaterializableTasks` 三类，避免后续 planner 把边界规则和真实开发项混在一起
+    - 为两个真正值得继续入 queue 的 `P5` 实现项新增 `decompositionPlan`：`baseline manifest wave` 拆成 schema/storage、manifest materialization、runner consumption、docs sync；`demo replay wave` 拆成 shortlist materialization、narrow replay entrypoint、docs sync
+    - 同步补充 `queueMaterializationPlan`，让后续 queue generation 可以直接优先消费这两个 wave，而把 routing/human-late 项继续留在 queue 外
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; import { parseJsonc } from './.opencode/loop/harness/jsonc.mjs'; const raw = readFileSync('./.opencode/loop/execution-backlog.jsonc', 'utf8'); const parsed = parseJsonc(raw); console.log('routing', parsed.routingView.routingRules.length); console.log('queueTasks', parsed.routingView.queueMaterializableTasks.length); console.log('manifestSteps', parsed.items.find(item => item.id === 'p5-annotation-manifest-materialization').decompositionPlan.length);"`
+
+- ✅ loop-local execution backlog now records the first explicit P5 baseline/demo decisions for later queue materialization
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 `P5` 里原本偏抽象的人工项收敛成更明确的 backlog 决策：`baseline question set` 改为最小 `engineering baseline v1`，强调低成本、可重复、非最终 benchmark
+    - `baseline annotations` 改为分层方案：默认题统一标 `intent / expected answer points / must-not-miss / acceptable expression range`，关键题再补 grounded evidence expectation
+    - `demo case shortlist` 记录为一版 4+1 shortlist：4 个正式 v1 demo（happy path / no-hit path / source-backed answer / eval-report-replay）+ 1 个候补 trace-diagnostic readability case，方便后续继续精修并接入 queue materialization
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; import { parseJsonc } from './.opencode/loop/harness/jsonc.mjs'; const raw = readFileSync('./.opencode/loop/execution-backlog.jsonc', 'utf8'); const parsed = parseJsonc(raw); if (!parsed.items || !Array.isArray(parsed.items)) { throw new Error('invalid backlog'); } console.log('items', parsed.items.length);"`
+
+- ✅ current-stage execution backlog now has a repo-local machine-readable draft under `.opencode/loop/`
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/README.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `.opencode/loop/execution-backlog.jsonc` 作为当前阶段 canonical backlog 草案，明确把本阶段范围收敛到非 SaaS、非移动端，只保留当前阶段还值得排队消费的模块与任务
+    - backlog 把剩余工作分成 `auto_now / auto_later / human_late / manual_only` 四类，并先记录 `P3/P5/P6/P4` 的当前模块状态、依赖和后置人工项，方便后续直接接入 queue materialization
+    - loop README 同步补充该 backlog 文件角色说明，让后续 planner/backlog/queue 的责任边界更贴近 `.opencode/loop/`
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; import { parseJsonc } from './.opencode/loop/harness/jsonc.mjs'; const raw = readFileSync('./.opencode/loop/execution-backlog.jsonc', 'utf8'); const parsed = parseJsonc(raw); if (!parsed.items || !Array.isArray(parsed.items)) { throw new Error('invalid backlog'); } console.log('items', parsed.items.length);"`
+
+- ✅ opencode loop planner now extracts structured candidate tasks from repo docs instead of only surfacing shallow priority signals
+  - 变更文件：
+    - `.opencode/loop/harness/planner.mjs`
+    - `.opencode/loop/harness/self-test.mjs`
+    - `.opencode/loop/prompts/plan-next.md`
+    - `.opencode/loop/README.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - planner doc snapshot 现在除了 `priority/progress/constraints` 外，还会抽一层结构化 `planExtractionSchema + extractedPlan`，包含当前 objective/mainline、phase 状态、queue-ready candidate tasks，以及 `executable / deferred / blockedHumanLate` 三类候选任务
+    - `docs/next_steps_rag_project_plan.md` 中的 `#### Pn queue-ready tasks` 会被解析成更接近 queue materialization 的候选项，planner prompt 也明确加入“先吃 executable，再把需人工项后置”的 late-human bias
+    - self-test 新增断言，确认 planner handoff 中能看到结构化 candidate task extraction，而不只是浅层文档信号
+  - focused validation：
+    - `node .opencode/loop/cli.mjs --self-test`
+
+- ✅ opencode loop planner now feeds auto-refill from a doc-derived planning snapshot instead of only a thin generic refill prompt
+  - 变更文件：
+    - `.opencode/loop/harness/planner.mjs`
+    - `.opencode/loop/harness/self-test.mjs`
+    - `.opencode/loop/README.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `planner.mjs` 现在会在 planner prompt 中注入一个小型结构化 planning snapshot，固定读取 `AGENTS.md`、`docs/next_steps_rag_project_plan.md`、`docs/current-progress.md`、`docs/current-dev-setup.md`、`README.md` 与 `.opencode/loop/README.md`，提取当前 priority/progress/constraints/validation/harness contract 信号
+    - 同时补进显式的 task decomposition / queue generation contract，让 auto-refill 更聚焦“从当前文档和队列状态推导下一波 safe executable queue items”，而不是泛化成开放式 backlog brainstorming
+    - self-test 追加了 planner prompt 审计断言，确认 planner handoff 中能看到 doc ingestion scope、priority signal 和 decomposition contract
+  - focused validation：
+    - `node .opencode/loop/cli.mjs --self-test`
+
+- optional OpenCode harness files/docs are now centralized under `.opencode/loop/`; main product docs only keep brief references and leave harness details in `.opencode/loop/README.md`
 
 - ✅ login readiness polish now exposes provider setup status and explicit local dev credentials
   - backend adds public `GET /auth/providers` so the web login page can tell whether `GitHub` / `Google` / `OIDC` are actually configured before sending the user into a failing start route
@@ -27,6 +142,10 @@
 - ✅ OAuth callback now returns the browser to the web app instead of leaving the user on the backend callback URL
   - provider callbacks now write the session cookies and then redirect to the configured web success URL via `AUTH_OAUTH_SUCCESS_REDIRECT_URI` (with local fallback to the first `CORS_ORIGIN`)
   - local GitHub verification now lands back on `http://localhost:5173/` after callback instead of rendering the backend callback route directly
+
+- ✅ GitHub OAuth first-login workspace flow is now easier to verify after redirect
+  - newly provisioned OAuth users now get onboarding banners across chat, assistant, and knowledge-base pages so the auto-created personal workspace does not feel like an invisible side effect
+  - the UI now points first-login users toward the next useful action (`/documents`, `/knowledge-base`, `/assistant`, or `/`) based on whether their personal workspace has documents or conversations yet
 
 - ✅ P3 follow-up micro-wave extra batch queue closeout 已完成：queue/progress/refinement 已对齐，队列状态已整理为等待下一批人工批准 wave（未追加新工作）
   - 变更文件：
@@ -259,10 +378,10 @@
 
 - ✅ opencode loop auto-refill budget now persists across service restarts for the same queue wave
   - 变更文件：
-    - `scripts/opencode-loop/planner.mjs`
-    - `scripts/opencode-loop/runtime.mjs`
-    - `scripts/opencode-loop/self-test.mjs`
-    - `scripts/opencode-loop.md`
+    - `.opencode/loop/harness/planner.mjs`
+    - `.opencode/loop/harness/runtime.mjs`
+    - `.opencode/loop/harness/self-test.mjs`
+    - `.opencode/loop/README.md`
     - `docs/current-progress.md`
   - 完成内容（最小范围）：
     - 修复 auto-refill `cycles` 只存在进程内内存、导致 loop 服务重启后会把同一批 queue wave 再次当成“可补队列”的问题
@@ -271,20 +390,20 @@
     - 仍保持原边界：当 manual queue wave 真的发生变化（例如后续人工追加新的非 auto-refill items）时，下一轮仍可重新获得自己的 refill budget
     - self-test 新增“同一 queue wave 重启后不重复 refill”的覆盖，避免再次回归成 endless follow-up append
   - focused validation：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
 
 - ✅ loop session titles now distinguish auto-refill follow-up countdowns from the main manual-wave countdown
   - 变更文件：
-    - `scripts/opencode-loop/runtime.mjs`
-    - `scripts/opencode-loop/self-test.mjs`
-    - `scripts/opencode-loop.md`
+    - `.opencode/loop/harness/runtime.mjs`
+    - `.opencode/loop/harness/self-test.mjs`
+    - `.opencode/loop/README.md`
     - `docs/current-progress.md`
   - 完成内容（最小范围）：
     - 保持主队列 session title 的 `X left` 语义不变，但对 `plannerSource="auto-refill"` 的生成任务改为显示 `refill X left`
     - 这样在 session 列表里会看到“手动 wave 的 4/3/2/1”之后，planner 再启动一段独立的 “refill 2/1” 倒计数，不再像同一串数字回跳
     - self-test 新增对 generated refill session title 的断言，避免以后又把 refill item 和 manual item 写成同样的标题形态
   - focused validation：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
 
 - ✅ OAuth provider start/callback config-missing diagnostics now share a clearer boundary wording shape across GitHub and Google
   - 变更文件：
@@ -1470,12 +1589,12 @@
     - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
 
 - ✅ opencode loop session titles now show remaining queue work and omit the year
-  - `scripts/opencode-loop/runtime.mjs` titles now read like `loop #N · X left · <item-id> · MM-DD HH:mm:ss`
-  - `scripts/opencode-loop/planner.mjs` titles now use the same no-year session time format
-  - `scripts/opencode-loop/queue.mjs` adds a shared `formatSessionTitleTime()` helper for loop session titles
-  - `scripts/opencode-loop/self-test.mjs` now checks the clearer title shape
+  - `.opencode/loop/harness/runtime.mjs` titles now read like `loop #N · X left · <item-id> · MM-DD HH:mm:ss`
+  - `.opencode/loop/harness/planner.mjs` titles now use the same no-year session time format
+  - `.opencode/loop/harness/queue.mjs` adds a shared `formatSessionTitleTime()` helper for loop session titles
+  - `.opencode/loop/harness/self-test.mjs` now checks the clearer title shape
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
 
 - ✅ ACL docs and focused regression baseline are now aligned to the implemented owner-only access rules
   - 变更文件：
@@ -1636,13 +1755,13 @@
   - 实测结果：diff check passed
 
 - ✅ opencode loop now has small strategy hooks and an ordered auth/ACL/source queue wave
-  - `scripts/opencode-loop/strategy.mjs` adds a minimal strategy normalization layer with callbacks for next-item selection, run eligibility, failure handling, and completion hooks
-  - `scripts/opencode-loop/runtime.mjs` now accepts an optional `strategy` object, supports inline `promptText` queue items, and lets queue failures with `failureMode: "defer"` continue later items in the same run while keeping the deferred item for the next loop invocation
+  - `.opencode/loop/harness/strategy.mjs` adds a minimal strategy normalization layer with callbacks for next-item selection, run eligibility, failure handling, and completion hooks
+  - `.opencode/loop/harness/runtime.mjs` now accepts an optional `strategy` object, supports inline `promptText` queue items, and lets queue failures with `failureMode: "defer"` continue later items in the same run while keeping the deferred item for the next loop invocation
   - `.opencode/loop/queue.json` now carries the ordered `P1/P2/P3` auth/login → ACL → external-source follow-up wave as pending queue items
-  - `scripts/opencode-loop/self-test.mjs` adds focused coverage for predicate-based item selection, deferred-item handling, inline promptText items, and the failure-defer path
-  - `scripts/opencode-loop.md` now documents the strategy hook and inline promptText / failureMode queue metadata
+  - `.opencode/loop/harness/self-test.mjs` adds focused coverage for predicate-based item selection, deferred-item handling, inline promptText items, and the failure-defer path
+  - `.opencode/loop/README.md` now documents the strategy hook and inline promptText / failureMode queue metadata
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test passed
 
 - 📝 RAG 质量证明方向已整理为后续可执行清单（暂未进入 queue）
@@ -1683,16 +1802,16 @@
   - 实测结果：focused embedding runtime config tests passed (`16/16`)
 
 - ✅ opencode loop now retries up to three fresh sessions after assistant-wait timeout
-  - `scripts/opencode-loop/runtime.mjs` now treats the `180000ms` assistant-wait expiry as a typed timeout path, logs `message:timeout-retry`, clears stale session/message state for the item, and retries up to three times with fresh sessions before failing the loop
+  - `.opencode/loop/harness/runtime.mjs` now treats the `180000ms` assistant-wait expiry as a typed timeout path, logs `message:timeout-retry`, clears stale session/message state for the item, and retries up to three times with fresh sessions before failing the loop
   - when the final retry still times out, the queue item is now reset back to `pending` with stale runtime metadata cleared, so the next loop start does not get pinned to a dead `in_progress` session
   - resumed items still keep the existing resume behavior when a reply eventually arrives, but no longer stay pinned to a dead session after a no-reply timeout
   - resumed long sessions now still complete even when the baseline assistant message falls out of the latest `limit=200` window, because the runtime treats a missing baseline as "use the latest different assistant reply" instead of timing out forever
-  - `scripts/opencode-loop/runtime.mjs` now also forwards `afterMessageId` in the `POST /session/:id/message` body and records lock ownership with Linux process identity (`/proc/<pid>/stat` + `/proc/<pid>/cmdline`) so stale lock directories are less likely to block a new loop after PID reuse
-  - `scripts/opencode-loop/planner.mjs` now dedupes auto-refill proposals against existing queue prompt contents when the prompt file is available, instead of fingerprinting only the prompt file path
-  - `scripts/opencode-loop/self-test.mjs` adds focused coverage for successful timeout fresh-session retry, final-timeout reset-to-pending behavior, long-session resume window rollover, stale-lock recovery, and planner dedupe against an already-materialized generated prompt
+  - `.opencode/loop/harness/runtime.mjs` now also forwards `afterMessageId` in the `POST /session/:id/message` body and records lock ownership with Linux process identity (`/proc/<pid>/stat` + `/proc/<pid>/cmdline`) so stale lock directories are less likely to block a new loop after PID reuse
+  - `.opencode/loop/harness/planner.mjs` now dedupes auto-refill proposals against existing queue prompt contents when the prompt file is available, instead of fingerprinting only the prompt file path
+  - `.opencode/loop/harness/self-test.mjs` adds focused coverage for successful timeout fresh-session retry, final-timeout reset-to-pending behavior, long-session resume window rollover, stale-lock recovery, and planner dedupe against an already-materialized generated prompt
   - scope remains loop-runtime / planner robustness only: no queue schema expansion, no task-generation policy changes
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test passed, including deferred recovery, resume window rollover, stale-lock recovery, and timeout fresh-session retry coverage
 
 - ✅ ask / ask-stream final payload now expose additive top-level `rewriteReadabilityLabel` aligned with trace-summary wording
@@ -2040,8 +2159,8 @@
   - 未变更内容：未改 loop harness、未改 command 模板语义、未改 plugin 边界
 
 - ✅ opencode loop harness cleanup is complete
-  - `scripts/opencode-loop/jsonc.mjs` now handles repo config comments, so `scripts/opencode-loop/runtime.mjs` stays focused on orchestration
-  - self-test passed after the split: `node scripts/opencode-loop.mjs --self-test`
+  - `.opencode/loop/harness/jsonc.mjs` now handles repo config comments, so `.opencode/loop/harness/runtime.mjs` stays focused on orchestration
+  - self-test passed after the split: `node .opencode/loop/cli.mjs --self-test`
   - loop has been stopped cleanly; `p0-complete-010` is done and `007` / `009` remain `deferred`
   - docs now keep commit cadence and push/PR timing separate from the harness itself
 
@@ -2075,10 +2194,10 @@
 
 - ✅ opencode loop now has a dedicated read-model/metadata build prompt template in the prompt path
   - added `.opencode/loop/prompts/read-model-metadata-build.md` to avoid reusing generic `prompts/build.md` wording for read-model/metadata convergence queue work
-  - `scripts/opencode-loop/runtime.mjs` now ensures the dedicated prompt template exists under `.opencode/loop/prompts/` alongside existing default prompt bootstrap
-  - `scripts/opencode-loop.md` prompt-family guidance and queue example now point read-model/metadata items to `prompts/read-model-metadata-build.md`
+  - `.opencode/loop/harness/runtime.mjs` now ensures the dedicated prompt template exists under `.opencode/loop/prompts/` alongside existing default prompt bootstrap
+  - `.opencode/loop/README.md` prompt-family guidance and queue example now point read-model/metadata items to `prompts/read-model-metadata-build.md`
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；loop prompt path 现在提供了专用 read-model/metadata build 模板，不再要求这类任务复用 generic build prompt wording
 
 - ✅ trace summary unknown/fallback readability wording now aligns for failed-stage and answer-source labels
@@ -2095,22 +2214,22 @@
   - 实测结果：focused traces service tests passed (`24/24`)；legacy execution fallback-reason-only traces now have explicit regression guard that `traceSummary.strategySummary.usedFallback` resolves to `true` and aligns with strategy readability wording
 
 - ✅ opencode loop now correctly parses repo `opencode.jsonc` comments for command model split
-  - `scripts/opencode-loop/runtime.mjs` now strips JSONC line/block comments before parsing the repo command config, so `command.plan` / `command.build` can be loaded from `opencode.jsonc`
+  - `.opencode/loop/harness/runtime.mjs` now strips JSONC line/block comments before parsing the repo command config, so `command.plan` / `command.build` can be loaded from `opencode.jsonc`
   - this closes the earlier fallback-to-`server-default` path when the repo config contained comments
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；loop 现在可以正确读取带注释的 `opencode.jsonc`，不再因为 `JSON.parse` 直接失败而忽略模型分工配置
 
 - ✅ opencode loop can now auto-refill a small follow-up queue wave before exiting
-  - added `scripts/opencode-loop/planner.mjs` as a guarded planner path that uses the repo `command.plan` agent/model when available, asks for strict JSON follow-up tasks, writes planner audit handoffs, and materializes generated prompts under `.opencode/loop/prompts/generated/`
-  - `scripts/opencode-loop/runtime.mjs` now triggers one optional refill pass when the queue drains, appends generated items back into `.opencode/loop/queue.json`, then keeps processing them in the same run
-  - `scripts/opencode-loop/queue.mjs` now exposes `appendQueueItems(...)` for atomic append-style queue growth during refill; `scripts/opencode-loop.mjs` now supports `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` and `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS`
+  - added `.opencode/loop/harness/planner.mjs` as a guarded planner path that uses the repo `command.plan` agent/model when available, asks for strict JSON follow-up tasks, writes planner audit handoffs, and materializes generated prompts under `.opencode/loop/prompts/generated/`
+  - `.opencode/loop/harness/runtime.mjs` now triggers one optional refill pass when the queue drains, appends generated items back into `.opencode/loop/queue.json`, then keeps processing them in the same run
+  - `.opencode/loop/harness/queue.mjs` now exposes `appendQueueItems(...)` for atomic append-style queue growth during refill; `.opencode/loop/cli.mjs` now supports `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` and `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS`
   - tuned `.opencode/loop/prompts/plan-next.md` toward the current repository wave (single-line mainline, backend/API-first, additive read-model/diagnostics/contract closeout) and set the systemd loop service template to run with `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES=2`
-  - `scripts/opencode-loop/self-test.mjs` now covers three harness paths together: normal draining, interrupted-session resume, and one guarded auto-refill cycle
-  - `scripts/opencode-loop.md` now documents the planner/refill behavior and the new env knobs
+  - `.opencode/loop/harness/self-test.mjs` now covers three harness paths together: normal draining, interrupted-session resume, and one guarded auto-refill cycle
+  - `.opencode/loop/README.md` now documents the planner/refill behavior and the new env knobs
   - scope kept conservative on purpose: default refill budget is one planner pass and two generated items per loop invocation, so the runner can continue automatically without turning into an unbounded self-expanding queue
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；空队列时 loop 现在可先生成一小波后续任务并继续执行，同时保留 planner handoff 审计轨迹
 
 - ✅ current-progress closeout note appended for this increment
@@ -2173,16 +2292,16 @@
   - 实测结果：focused fetch-with-retry tests passed；当上游返回 `302` 且 Location 为 `mailto:` 等非 HTTP(S) scheme 时，错误信息现在会直接指向“redirect target must use http/https”，不再仅返回模糊的 `fetch failed`
 
 - ✅ opencode loop `pick` status now shows cursor-distance steps to the next pending item
-  - `scripts/opencode-loop/runtime.mjs` now computes one additive visibility field in `buildQueueCursorVisibility()`:
+  - `.opencode/loop/harness/runtime.mjs` now computes one additive visibility field in `buildQueueCursorVisibility()`:
     - `nextPendingCursorDistance`
   - the value reports how many queue steps the active cursor is away from the next pending task index (wrap-around aware)
   - this is a narrow queue observability increment only: no queue schema change, no pick/complete semantics change, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；`pick` 日志现在可直接看到“游标距离下一个 pending 任务还差几步”，无需再手动对比 `queueCursor` 与 `nextPendingItemIndex`
 
 - ✅ opencode loop `pick` status now adds resume-preview fields around the active queue cursor item
-  - `scripts/opencode-loop/runtime.mjs` now adds a small `buildActiveCursorResumeVisibility()` helper and extends the existing cursor visibility payload with:
+  - `.opencode/loop/harness/runtime.mjs` now adds a small `buildActiveCursorResumeVisibility()` helper and extends the existing cursor visibility payload with:
     - `queueCursorItemTitle`
     - `queueCursorResumePreview`
     - `queueCursorResumeSessionId`
@@ -2191,17 +2310,17 @@
   - resume-preview fields only appear when the active cursor item is `in_progress`, preserving current queue format and scheduling semantics
   - this is a narrow queue observability increment only: no queue schema change, no pick/complete behavior change, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；恢复/中断任务在 `pick` 状态里现在可直接读到“是否已有可复用 session、是否已有已跟踪 assistant message、以及该中断任务起始时间”
 
 - ✅ opencode loop status now adds pending/completed family counts (derived from queue item id prefix)
-  - `scripts/opencode-loop/runtime.mjs` now adds a small `buildQueueFamilyCountVisibility()` helper and includes two additive status fields on existing `pick` / `idle` logs:
+  - `.opencode/loop/harness/runtime.mjs` now adds a small `buildQueueFamilyCountVisibility()` helper and includes two additive status fields on existing `pick` / `idle` logs:
     - `queuePendingByFamily`
     - `queueCompletedByFamily`
   - family is resolved from the queue item `id` prefix (split by `-` / `_` / `:` / `/` / `.`), preserving current queue format and scheduling behavior
   - this is a narrow queue observability increment only: no queue schema change, no pick/complete semantics change, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；状态日志现在可直接看到按任务 family/prefix 聚合的 pending/completed 计数（例如默认 `build-*` 队列会显示 `queuePendingByFamily={"build":...}`）
 
 - ✅ trace summary `failedStageReadabilityLabel` now includes raw diagnostics stage when stage value is outside trace contract
@@ -2255,17 +2374,17 @@
   - 实测结果：focused parsing tests passed；被标成 `text/plain`（或缺失 `content-type`）的 HTML 页面现在可继续提取 title/content，不再在 source-fetch 阶段被误判为 unsupported content type
 
 - ✅ opencode loop `pick` status now previews next pending queue item index/title for faster cursor-target readability
-  - `scripts/opencode-loop/runtime.mjs` now expands existing queue cursor visibility logs with:
+  - `.opencode/loop/harness/runtime.mjs` now expands existing queue cursor visibility logs with:
     - `nextPendingItemIndex`
     - `nextPendingItemTitle`
   - existing `nextPendingItemId` is preserved; this is a narrow observability-only increment to make the next pending target easier to identify at a glance
   - no queue schema change, no scheduling-policy change, no pick/complete semantics change, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；`pick` 日志现在可同时看到 next pending item 的 `id + index + title`，更容易快速判断下一项具体指向
 
 - ✅ opencode loop `idle` status now reports remaining queue work at a glance
-  - `scripts/opencode-loop/runtime.mjs` now adds `buildIdleQueueWorkVisibility()` and extends the existing `logStatus("idle", ...)` payload with:
+  - `.opencode/loop/harness/runtime.mjs` now adds `buildIdleQueueWorkVisibility()` and extends the existing `logStatus("idle", ...)` payload with:
     - `remainingQueueWork`
     - `queuePending`
     - `queueInProgress`
@@ -2273,7 +2392,7 @@
     - `queueTotal`
   - this is a narrow idle-log observability increment only: no queue schema change, no pick/complete behavior change, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；队列空闲时现在可直接看到剩余工作是否为 `0`，并同时看到 pending/in-progress/completed 的当前计数
 
 - ✅ trace read-model now backfills `strategySummary.usedFallback` from legacy top-level `retrievalMetadata.usedFallback`
@@ -2344,14 +2463,14 @@
   - 实测结果：focused traces service tests passed；trace summary 现在可直接读取 `answerTextSourceReadabilityLabel` 来快速识别最终答案文本来源语义
 
 - ✅ opencode loop `pick` status now includes queue cursor item and next pending item at a glance
-  - `scripts/opencode-loop/runtime.mjs` now adds `buildQueueCursorVisibility()` and extends the existing `logStatus("pick", ...)` payload with:
+  - `.opencode/loop/harness/runtime.mjs` now adds `buildQueueCursorVisibility()` and extends the existing `logStatus("pick", ...)` payload with:
     - `queueCursor`
     - `queueCursorItemId`
     - `queueCursorItemStatus`
     - `nextPendingItemId`
   - this is a narrow queue observability increment only: no queue schema change, no pick/complete behavior change, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；`pick` 日志现在可同时看到“当前游标指向哪个任务”与“下一个 pending 任务 id”，更快判断当前项与后续项
 
 - ✅ trace summary now exposes additive `missingInformationProvenanceSentence` for one-line missing-information provenance readability
@@ -2364,11 +2483,11 @@
   - 实测结果：focused traces service tests passed；trace summary 现在可直接读取一行 `missingInformationProvenanceSentence` 来快速识别缺失信息来源、insufficient-context 原因与缺失条目数量
 
 - ✅ opencode loop now recovers stale "end-of-queue" cursor when pending items still exist
-  - `scripts/opencode-loop/queue.mjs` now treats `cursor === items.length` with remaining pending items as recoverable stale state and normalizes it back to the first safe pending index (`reason: "past_pending"`)
-  - `scripts/opencode-loop/self-test.mjs` now adds focused coverage for this `past_pending` cursor recovery edge case
+  - `.opencode/loop/harness/queue.mjs` now treats `cursor === items.length` with remaining pending items as recoverable stale state and normalizes it back to the first safe pending index (`reason: "past_pending"`)
+  - `.opencode/loop/harness/self-test.mjs` now adds focused coverage for this `past_pending` cursor recovery edge case
   - this is a narrow queue guardrail increment only: no queue schema change, no scheduling-policy change, no pick/complete semantics redesign
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；当手工把游标放到队列尾部但仍有 pending 任务时，loop 会先回写安全游标并继续按既有 pending 选择逻辑执行
 
 - ✅ embedding runtime now derives OpenAI embedding endpoint from `OPENAI_BASE_URL`
@@ -2398,19 +2517,19 @@
   - 实测结果：focused embedding runtime config tests passed；配置了 `OLLAMA_EMBEDDING_DIMENSIONS` 但未启用 Ollama provider 时会立刻报错，避免“以为启用了维度 guardrail、实际未生效”的静默漂移
 
 - ✅ opencode loop now auto-recovers out-of-range queue cursor before picking work
-  - `scripts/opencode-loop/queue.mjs` now adds `resolveQueueCursor()` and uses it in `pickNextItem()`, so a stale manual cursor like `cursor: 99` no longer stays opaque and is normalized to a safe pending index
-  - `scripts/opencode-loop/runtime.mjs` now persists the corrected cursor and logs one explicit `游标恢复` status with `cursorFrom` / `cursorTo` / `cursorReason`
-  - `scripts/opencode-loop/self-test.mjs` now includes focused coverage for the out-of-range cursor recovery edge case
+  - `.opencode/loop/harness/queue.mjs` now adds `resolveQueueCursor()` and uses it in `pickNextItem()`, so a stale manual cursor like `cursor: 99` no longer stays opaque and is normalized to a safe pending index
+  - `.opencode/loop/harness/runtime.mjs` now persists the corrected cursor and logs one explicit `游标恢复` status with `cursorFrom` / `cursorTo` / `cursorReason`
+  - `.opencode/loop/harness/self-test.mjs` now includes focused coverage for the out-of-range cursor recovery edge case
   - this is a narrow queue guardrail increment only: no queue schema changes, no new scheduling policy, no pick/complete semantics redesign
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；当队列游标越界时，loop 会先回写安全游标并记录恢复原因，然后继续按现有 pending 任务选择逻辑执行
 
 - ✅ opencode loop `pick` status now also shows completed queue count at a glance
-  - `scripts/opencode-loop/runtime.mjs` now extends queue visibility fields with `queueCompleted` in the existing `logStatus("pick", ...)` summary
+  - `.opencode/loop/harness/runtime.mjs` now extends queue visibility fields with `queueCompleted` in the existing `logStatus("pick", ...)` summary
   - this is a narrow observability-only increment for queue status logs: no queue schema changes, no pick/complete behavior changes, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；`pick` 日志现在可同时看到 `queuePending` 与 `queueCompleted`，更容易快速判断剩余与已完成进度
 
 - ✅ external source re-sync now recovers legacy feed/sitemap bounds when stored source config misses `maxItems` / `maxPages`
@@ -2430,10 +2549,10 @@
   - 实测结果：focused retry tests passed；当上游首次返回 `408 Request Timeout` 时，当前 source fetch helper 会按配置尝试一次重试并在第二次成功时继续返回成功响应
 
 - ✅ opencode loop `pick` log now exposes remaining queue work at selection time
-  - `scripts/opencode-loop/runtime.mjs` now adds a narrow `buildQueueWorkVisibility()` helper and includes `remainingAfterPick` / `queuePending` / `queueInProgress` / `queueTotal` in `logStatus("pick", ...)`
+  - `.opencode/loop/harness/runtime.mjs` now adds a narrow `buildQueueWorkVisibility()` helper and includes `remainingAfterPick` / `queuePending` / `queueInProgress` / `queueTotal` in `logStatus("pick", ...)`
   - this is an observability-only increment for queue runtime logs: no queue schema changes, no pick/complete semantics changes, no dashboard/UI expansion
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test 通过；每次 `pick` 状态日志现在可直接看到“当前取走此任务后剩余多少待处理工作”
 
 - ✅ feed all-invalid failure diagnostics now include a concrete failed entry anchor
@@ -2732,41 +2851,41 @@
   - 实测结果：web build passed after the route-splitting and SEO header update
 
 - ✅ OpenCode loop night-run wrapper now prefers corepack for pnpm resolution
-  - `scripts/opencode-loop/night-run.sh` now launches `pnpm` through `corepack` first, with Volta/local shim fallbacks if needed
+  - `.opencode/loop/harness/night-run.sh` now launches `pnpm` through `corepack` first, with Volta/local shim fallbacks if needed
   - this fixes the systemd startup failure caused by the user service lacking the interactive shell PATH; queue semantics and execution flow stay unchanged
 
 - ✅ OpenCode loop start helper now auto-links systemd user units
-  - `pnpm loop:start|stop|status` now link the service/timer from `scripts/opencode-loop/systemd/` before managing them, so there is no separate manual copy step
+  - `pnpm loop:start|stop|status` now link the service/timer from `.opencode/loop/harness/systemd/` before managing them, so there is no separate manual copy step
   - this removes the unit-install error seen when the timer was not yet present in the user systemd search path; queue semantics and execution flow stay unchanged
 
 - ✅ OpenCode loop now has pnpm aliases for control commands
-  - `pnpm loop:start|status|stop` now wrap `scripts/opencode-loop/control.sh`
+  - `pnpm loop:start|status|stop` now wrap `.opencode/loop/harness/control.sh`
   - `README.md` now shows the short pnpm commands for day-to-day unattended loop management
   - this is an operations-only convenience increment; queue semantics and execution flow stay unchanged
 
 - ✅ OpenCode loop now has a one-command start/stop/status helper for the systemd setup
-  - added `scripts/opencode-loop/control.sh` so the loop can be started, stopped, or inspected without remembering separate `systemctl` invocations
+  - added `.opencode/loop/harness/control.sh` so the loop can be started, stopped, or inspected without remembering separate `systemctl` invocations
   - this wraps the existing `systemd --user` setup and keeps the same crash-only restart behavior; it does not change queue semantics or execution flow
   - 新增 / 更新验证：
-    - `bash -n scripts/opencode-loop/control.sh`
+    - `bash -n .opencode/loop/harness/control.sh`
   - 实测结果：helper syntax is valid and the commands map cleanly to the expected user-unit operations
 
 - ✅ OpenCode loop unattended startup now triggers immediately instead of waiting for a fixed clock time
-  - `scripts/opencode-loop/systemd/opencode-loop.timer` now starts the service right after activation rather than only at 23:00
+  - `.opencode/loop/harness/systemd/opencode-loop.timer` now starts the service right after activation rather than only at 23:00
   - this keeps the crash-restart behavior from `systemd --user` while removing the time gate, so the loop will run whenever you start the user unit
   - this is an operations-only increment: no queue semantics change, no prompt change, no execution-flow change
   - 新增 / 更新验证：
-    - `bash -n scripts/opencode-loop/night-run.sh`
-    - `systemd-analyze verify scripts/opencode-loop/systemd/opencode-loop.service scripts/opencode-loop/systemd/opencode-loop.timer`
+    - `bash -n .opencode/loop/harness/night-run.sh`
+    - `systemd-analyze verify .opencode/loop/harness/systemd/opencode-loop.service .opencode/loop/harness/systemd/opencode-loop.timer`
   - 实测结果：the unit templates still verify cleanly after removing the 23:00 restriction
 
 - ✅ OpenCode loop now has a systemd --user night-run option with crash-only restarts
-  - added `scripts/opencode-loop/night-run.sh` plus `scripts/opencode-loop/systemd/opencode-loop.service` and `scripts/opencode-loop/systemd/opencode-loop.timer`
+  - added `.opencode/loop/harness/night-run.sh` plus `.opencode/loop/harness/systemd/opencode-loop.service` and `.opencode/loop/harness/systemd/opencode-loop.timer`
   - the recommended unattended setup is now `systemd --user` rather than `pm2`, so the loop can restart on failure without turning a normal empty-queue exit into noise
   - this is an operations-only increment: no queue semantics change, no prompt change, no execution-flow change
   - 新增 / 更新验证：
-    - `bash -n scripts/opencode-loop/night-run.sh`
-    - `systemd-analyze verify scripts/opencode-loop/systemd/opencode-loop.service scripts/opencode-loop/systemd/opencode-loop.timer`
+    - `bash -n .opencode/loop/harness/night-run.sh`
+    - `systemd-analyze verify .opencode/loop/harness/systemd/opencode-loop.service .opencode/loop/harness/systemd/opencode-loop.timer`
   - 实测结果：service/timer templates are ready for user installation; crash-restart behavior is expressed in the unit file instead of the loop core
 
 - ✅ OpenCode loop handoff and terminal logs are now more scan-friendly
@@ -2774,29 +2893,29 @@
   - terminal status lines now keep a fixed short shape with concise Chinese labels and the most important fields front-loaded
   - this is a readability/operations increment only: no queue semantics change, no resume behavior change, no execution flow change
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test passed after the handoff/log simplification update
 
 - ✅ OpenCode loop session titles are now easier to map to queue items
   - new OpenCode sessions now use a readable title shape like `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS`, so it is easier to tell which queue item a session belongs to
   - this is a UX/readability increment only: no queue semantics change, no resume behavior change, no execution flow change
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test still passed after the session title formatting change
 
 - ✅ OpenCode loop queue helpers are now centralized in a dedicated module
-  - queue schema/read/write/pick/complete logic now lives in `scripts/opencode-loop/queue.mjs` instead of being spread across `runtime.mjs` and the self-test harness
-  - `scripts/opencode-loop/runtime.mjs` now focuses on orchestration, lock handling, prompt composition, and API interaction
+  - queue schema/read/write/pick/complete logic now lives in `.opencode/loop/harness/queue.mjs` instead of being spread across `runtime.mjs` and the self-test harness
+  - `.opencode/loop/harness/runtime.mjs` now focuses on orchestration, lock handling, prompt composition, and API interaction
   - this is a structure/maintainability increment only: queue semantics, resume behavior, and unattended execution flow stay the same
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test still passed after the queue-module extraction; queue draining and resume recovery remain intact
 
 - ✅ OpenCode loop queue writes now use atomic temp-file replacement
-  - `scripts/opencode-loop/runtime.mjs` now writes queue state through a same-directory temp file plus rename, so a crash or interruption is much less likely to leave `.opencode/loop/queue.json` truncated
+  - `.opencode/loop/harness/runtime.mjs` now writes queue state through a same-directory temp file plus rename, so a crash or interruption is much less likely to leave `.opencode/loop/queue.json` truncated
   - this is a safety hardening increment for unattended night execution only: no queue semantics change, no task-order change, no retrieval / answer behavior change
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test still passed after the queue-write hardening; resume recovery and completion flow remain intact
 
 - ✅ Ollama embedding runtime now enforces an optional expected-dimension guardrail
@@ -2808,12 +2927,12 @@
   - 实测结果：focused embedding runtime tests passed; configured Ollama vector dimensions now act as a strict runtime guardrail
 
 - ✅ OpenCode loop harness now provides a narrow queue-driven local execution entrypoint
-  - `pnpm opencode:loop` now launches `scripts/opencode-loop.mjs`
+  - `pnpm opencode:loop` now launches `.opencode/loop/cli.mjs`
   - the harness drains `.opencode/loop/queue.json` one item at a time, manages resume/recovery, writes handoff markdown, and keeps a lock to avoid concurrent consumption
-  - `node scripts/opencode-loop.mjs --self-test` now covers fresh queue draining plus interrupted-session resume recovery against a local mock server
+  - `node .opencode/loop/cli.mjs --self-test` now covers fresh queue draining plus interrupted-session resume recovery against a local mock server
   - this is a workflow/supporting-tooling increment only: no core API/retrieval behavior changes
   - 新增 / 更新验证：
-    - `node scripts/opencode-loop.mjs --self-test`
+    - `node .opencode/loop/cli.mjs --self-test`
   - 实测结果：self-test passed; queue processing, handoff generation, and resume recovery all behave as expected
 
 - ✅ sitemap all-failure diagnostics now include a concrete failed URL anchor
