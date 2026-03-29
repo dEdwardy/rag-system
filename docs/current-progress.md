@@ -15,6 +15,35 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P2 `resource access matrix` 已补齐 owner/member/viewer/public 的最小 ACL 边界矩阵（含 document 行）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 P2 task 1 补充五类核心资源（knowledge base / document / assistant / conversation / trace）的最小 ACL matrix
+    - 显式定义当前阶段四类可见性边界：owner（已实现）、member（planned-deny）、viewer（planned-deny）、public（核心业务资源不公开）
+    - 追加当前实现 gap、最小实现计划（concise）与 focused validation ideas；仅做文档收口，不改现有 ACL 行为语义
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ P2 ACL follow-up items have been整理并追加到 queue（按推荐顺序）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+    - `.opencode/loop/queue.json`
+  - 完成内容（最小范围）：
+    - 将 `P2: ACL / 文档权限` 的 queue-ready tasks 收束为 6 个短标题：`resource access matrix`、`access policy contract`、`kb document ownership checks`、`assistant conversation trace checks`、`default access policy`、`acl baseline docs`
+    - 这些条目已按推荐顺序写入 loop queue，后续可直接顺着 queue 单线推进
+    - 仅做计划/进度/queue 同步，不改 ACL 实现语义
+
+- ✅ P5 可自动化的 eval / regression follow-up 已追加到 queue
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+  - 完成内容（最小范围）：
+    - 先把 `P5: RAG 质量证明` 里能自动跑的两个任务写入 queue：`eval runner`、`regression report`
+    - 保留 `P5` 里需要人工介入的题集选择 / 标注 / demo case，不强行塞进自动 queue
+    - 仍保持 queue 串行推进，不改现有 P2 / P3 顺序
+
 - ✅ P6 v1 snapshot window diff panel now shows one concise source-family drilldown for the 6h vs 24h issue-window shift
   - 变更文件：
     - `apps/web/src/types/api.ts`

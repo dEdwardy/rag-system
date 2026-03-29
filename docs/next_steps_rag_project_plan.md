@@ -341,45 +341,74 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    - 目标：先列清哪些对象需要 owner / visible scope / share boundary
    - 重点对象：knowledge base、document、assistant、conversation、trace
    - 交付物：一份最小资源-权限矩阵草案
+   - 对应 queue title：`resource access matrix`
 
-   当前代码盘点快照（2026-03-29，P2 task 1 最小增量）：
+   当前代码盘点快照（2026-03-29，P2 task 1 补充：最小 ACL 边界矩阵，additive / behavior-preserving）：
 
-   | 资源面 | 现有入口（聚焦 ACL 相关） | 当前已收口边界 | 当前缺口（ACL 下一步） |
-   | --- | --- | --- | --- |
-   | knowledge base | `GET /knowledge-bases`、`GET /knowledge-bases/:id`、`POST /knowledge-bases`、`PATCH /knowledge-bases/:id`；以及 `DocumentsController` 下 `knowledge-bases/:id/*` 文档与 run 入口 | `POST /knowledge-bases` 已从 request identity 写入 `tenantId/ownerId` | list/get/update 仍是按 id 直接访问；`knowledge-bases/:id/*` 入口也未统一做 owner/member 校验 |
-   | assistant | `GET /assistants`、`GET /assistants/:id`、`PATCH /assistants/:id`、`POST /assistants/:id/ask`、`POST /assistants/:id/ask/stream` | ask/ask-stream 在会话读取与创建时已使用 current identity（conversation scope） | assistant 自身 list/get/update/ask 入口尚未校验“该 identity 是否可访问 assistant/kb” |
-   | conversation | `GET /conversations`、`GET /conversations/:id`、`GET /conversations/:id/messages`、`GET /conversations/:id/traces` | 已按 `tenantId + userId` 做 list/get scope；messages/traces 先校验 conversation ownership | 仍是 owner-based baseline；尚未扩展 share scope / role policy |
-   | trace | `GET /conversations/:id/traces`、`GET /traces/:id` | conversation 下 traces 已复用 conversation ownership 边界 | `GET /traces/:id` 仍是直接按 trace id 读取，未与 conversation/assistant ownership 绑定 |
+   | 资源 | owner | member | viewer | public | 当前实现落点（按现有代码） | 当前 gap（下一步 ACL） |
+   | --- | --- | --- | --- | --- | --- | --- |
+   | knowledge base | 可读写本人 `tenantId + ownerId` 资源 | 本轮先不放开（默认拒绝） | 本轮先不放开（默认拒绝） | 不公开 | `KnowledgeBasesController/Service` 已走 authenticated + owner-only（list 过滤 owner，get/update 用 `evaluateOwnerResourceAccess`） | 尚未引入 member/viewer 可见范围；未有 share 语义 |
+   | document | 继承所属 knowledge base 的 owner 边界（可读写） | 本轮先不放开（默认拒绝） | 本轮先不放开（默认拒绝） | 不公开 | `DocumentsController/Service` 所有入口都传 current identity；读写前统一经 `getKnowledgeBase/getDocument` 复用 KB owner 校验 | 文档级 share/role 规则尚未独立定义；目前是 KB owner-only 继承模型 |
+   | assistant | 可读写本人 KB 下 assistant，并可发起 ask/stream | 本轮先不放开（默认拒绝） | 本轮先不放开（默认拒绝） | 不公开 | `AssistantsController/Service` 已走 authenticated + owner-only（基于 assistant.knowledgeBase owner 校验）；ask/ask-stream 也复用同一 identity 边界 | 未定义 assistant 级 member/viewer 协作边界 |
+   | conversation | 当前 owner 可读（list/detail/messages/traces），创建写入 current identity | 本轮先不放开（默认拒绝） | 本轮先不放开（默认拒绝） | 不公开 | `ConversationsController/Service` 已按 `tenantId + userId` 收口；ask 创建会话写入 current identity | 无 share conversation 语义；member/viewer 角色尚未接入 |
+   | trace | 当前 owner 可读（conversation 下与 direct `/traces` 均按 conversation owner scope） | 本轮先不放开（默认拒绝） | 本轮先不放开（默认拒绝） | 不公开 | `TracesController/Service` list/get 已按 `conversation(tenantId,userId)` 过滤；`/conversations/:id/traces` 先校验 conversation scope | trace 独立授权模型（如跨会话分享）尚未定义 |
+
+   角色与可见性边界（最小定义）：
+
+   - owner：当前唯一已实现角色边界，口径为 `owner_only_v1 + deny_by_default`。
+   - member：已存在 `AuthIdentity.role = member` 形状，但 ACL 决策尚未使用 role 放权。
+   - viewer：当前仅作为后续规划角色，尚无持久化或策略执行路径。
+   - public：上述五类核心资源均不公开；仅认证后可访问业务路由。
 
    配套约束快照（与上表一起作为 ACL 起点）：
 
-   - 认证中间件对所有路由注入 `authContext`，但当前 route policy 仅 `@AuthenticatedRoute()` 会被 guard 拦截。
-   - 目前仅 `GET /auth/me` 显式标记 `authenticated`；上述业务面入口默认仍可未登录访问（依赖 dev fallback identity 参与部分写入/读取路径）。
-   - P2 的最小收口目标应是：先把 knowledge base / assistant / trace 关键入口对齐到与 conversation 相同的 identity ownership baseline，再讨论 share/role 扩展。
+   - 认证中间件会注入 `authContext`；`@AuthenticatedRoute()` 由 guard 强制要求真实 session identity。
+   - 上述五类业务控制器目前均已标注 `@AuthenticatedRoute()`；默认不走 public 访问面。
+   - 在开发环境若启用 `AUTH_DEV_DEFAULT_USER_MODE`，未登录请求会回落到 `dev_seed` identity；该行为是开发便捷路径，不是 ACL 放权语义。
+
+   最小实现计划（concise）：
+
+   1. 固化 owner-only 语义：保持五类资源继续复用当前 owner scope，不改现有行为边界。
+   2. 抽象 role 可见矩阵：先在 contract/doc 明确 member/viewer 仅为 `planned-deny`，避免隐式放权。
+   3. 逐资源补 member/viewer 的显式 deny 回归用例（先 contract/service 层，不扩展 UI）。
+   4. 待 deny 基线稳定后，再按资源顺序引入最小 share scope（建议 KB/document → assistant → conversation/trace）。
+
+   focused validation ideas：
+
+   - `pnpm test:api:file -- test/resource-access-policy.contract.test.js`
+   - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js test/kb-document-access.test.js`
+   - `pnpm test:api:file -- test/assistants-api.test.js test/traces.service.test.js`
 
 2. 定义 resource access policy contract
    - 目标：统一 service 层如何表达“可访问 / 不可访问 / 原因”
    - 要求：不要把权限判断散落在 controller 和页面里
    - 交付物：一处统一 policy/guard/service contract
+   - 对应 queue title：`access policy contract`
 
 3. 收口 knowledge base / document ownership checks
    - 目标：先把最关键资源的 owner 校验跑通
    - 范围：列表、详情、写入入口至少先有最小边界
    - 交付物：最小 owner-based access checks + focused tests
+   - 对应 queue title：`kb document ownership checks`
 
 4. 收口 assistant / conversation / trace access checks
    - 目标：把问答链路关联资源也纳入同一边界口径
    - 要求：trace 和 conversation 不能继续只靠“知道 id 就能看”
    - 交付物：关联资源访问边界收口 + focused tests
+   - 对应 queue title：`assistant conversation trace checks`
 
 5. 定义默认策略口径
    - 目标：明确当前阶段哪些接口默认拒绝，哪些保留公开
    - 要求：文档和实现口径一致
    - 交付物：默认允许/默认拒绝策略说明 + 最小实现
+   - 对应 queue title：`default access policy`
 
 6. 补 ACL 基线文档与回归验证
    - 目标：记录当前 ACL 第一轮只做到 owner-based baseline，不扩成完整 RBAC/ABAC
    - 交付物：文档同步 + focused regression 命令
+   - 对应 queue title：`acl baseline docs`
+
+当前这组 `P2` queue-ready 项已按上述顺序整理，可直接写入 `.opencode/loop/queue.json` 继续单线推进。
 
 建议直接用于 queue title 的短标题版：
 
