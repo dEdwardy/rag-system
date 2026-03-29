@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ `AuthIdentityLink` now includes the remaining Phase 2 future-link metadata fields (`emailSnapshot` / `profileSnapshot` / `lastLoginAt`) as an additive schema increment
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 `AuthIdentityLink` skeleton 上补齐 roadmap 已预留但尚缺失的字段：`emailSnapshot`（nullable string）、`profileSnapshot`（nullable json）、`lastLoginAt`（nullable datetime）
+    - 保持最小增量：未改 `AuthSession`/session-cookie 登录链路、未改 seed 行为、未改 owner-only ACL 语义
+    - 明确不做：不引入 OAuth endpoint/callback/provider 逻辑，不做 schema 清理或跨模型重构
+  - focused validation：
+    - `pnpm --filter @rag-system/api exec prisma validate`
+
 - ✅ auth persistence now includes a minimal `AuthIdentityLink` schema skeleton for future provider-linking (Phase 2 additive baseline)
   - 变更文件：
     - `apps/api/prisma/schema.prisma`
