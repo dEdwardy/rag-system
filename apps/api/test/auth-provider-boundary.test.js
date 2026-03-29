@@ -3,7 +3,7 @@ const { test } = require("node:test");
 require("reflect-metadata");
 const { hashSync } = require("bcryptjs");
 
-const { AuthController } = require("../src/modules/auth/auth.controller.ts");
+const { AUTH_OAUTH_PROVIDER_ROUTE_SHAPES, AuthController } = require("../src/modules/auth/auth.controller.ts");
 const { AuthContextMiddleware } = require("../src/modules/auth/auth-context.middleware.ts");
 const {
   AUTH_ACL_ROUTE_HOOK_KEY,
@@ -17,6 +17,7 @@ const {
   resolveRequestAuthContext
 } = require("../src/modules/auth/auth-identity.contract.ts");
 const { AuthService } = require("../src/modules/auth/auth.service.ts");
+const { oauthProviderParamSchema } = require("../src/modules/auth/auth.schemas.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
 const { HealthController } = require("../src/common/health.controller.ts");
 const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
@@ -326,6 +327,27 @@ test("resolveCurrentAuthIdentity keeps reserved authSource values for phase-2 pr
 
     assert.equal(resolved.authSource, authSource);
   }
+});
+
+test("oauth provider schema boundary accepts only planned providers", () => {
+  const plannedProviders = ["github", "google", "oidc"];
+
+  for (const provider of plannedProviders) {
+    assert.deepEqual(oauthProviderParamSchema.parse({ provider }), { provider });
+  }
+
+  assert.throws(
+    () => oauthProviderParamSchema.parse({ provider: "local" }),
+    /invalid|expected/i,
+    "local is an authSource but not an oauth provider route param"
+  );
+});
+
+test("AuthController reserves oauth provider route shapes without implementing callbacks", () => {
+  assert.deepEqual(AUTH_OAUTH_PROVIDER_ROUTE_SHAPES, {
+    start: "/auth/oauth/:provider/start",
+    callback: "/auth/oauth/:provider/callback"
+  });
 });
 
 test("AuthService login creates session identity and logout revokes session", async () => {

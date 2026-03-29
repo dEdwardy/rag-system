@@ -8,6 +8,15 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const oauthProviderValues = ["github", "google", "oidc"] as const;
+export const oauthProviderSchema = z.enum(oauthProviderValues);
+export const oauthProviderParamSchema = z.object({
+  provider: oauthProviderSchema
+});
+
+export type OauthProvider = z.infer<typeof oauthProviderSchema>;
+export type OauthProviderParamInput = z.infer<typeof oauthProviderParamSchema>;
+
 const permissionActionSchema = z.enum(RESOURCE_ACCESS_ACTION_VALUES);
 const permissionResourceKindSchema = z.enum(RESOURCE_KIND_VALUES);
 

@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth contract now reserves Phase 2 OAuth/OIDC provider route shapes through a reusable provider schema boundary (contract-only)
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `apps/api/src/modules/auth/auth.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 auth schema 增加可复用 `oauthProvider` 边界（仅允许 `github` / `google` / `oidc`）与参数 schema，作为后续 `:provider` 路由段的合同保留
+    - 在 auth controller 增加未来 OAuth/OIDC 路由形状常量（`/auth/oauth/:provider/start`、`/auth/oauth/:provider/callback`），不新增实际 provider 登录/callback 处理
+    - 保持当前行为不变：`/auth/login`、`/auth/logout`、`/auth/me`、session-cookie 语义与 route policy 不变
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ `AuthIdentityLink` now includes the remaining Phase 2 future-link metadata fields (`emailSnapshot` / `profileSnapshot` / `lastLoginAt`) as an additive schema increment
   - 变更文件：
     - `apps/api/prisma/schema.prisma`

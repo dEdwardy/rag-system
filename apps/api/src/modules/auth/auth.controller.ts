@@ -5,6 +5,11 @@ import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
 import { loginSchema, permissionCheckSchema } from "./auth.schemas";
 import { AuthService } from "./auth.service";
 
+export const AUTH_OAUTH_PROVIDER_ROUTE_SHAPES = {
+  start: "/auth/oauth/:provider/start",
+  callback: "/auth/oauth/:provider/callback"
+} as const;
+
 @PublicRoute()
 @Controller("auth")
 export class AuthController {
