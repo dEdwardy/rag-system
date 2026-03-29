@@ -609,6 +609,10 @@ pnpm --filter @rag-system/api eval:runner:p5-v1
 - report summarizes retrieval regression signals from existing eval item metadata + `traceSummary`, including: `no-hit`, `fallback`, `low-score`, `citation-limit-hit`, and `source-family-failure` (with source-family breakdown)
 - boundary note (P5 v1): timestamped files under `storage/evals/p5-v1` are **offline regression artifacts** for replay-proof/archive/diff workflows; they are not a web runtime contract surface
 - boundary note (artifact producer): offline files under `storage/evals/p5-v1` are produced by the CLI runner path (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) after calling `POST /eval/question-sets/demo-replays/p5-v1/run`
+- baseline source-of-truth note (P5 v1 engineering baseline):
+  - canonical manifest path: `apps/api/scripts/p5-baseline-manifest.v1.json`
+  - this manifest is the approved **engineering baseline v1** source of truth (question set + replay binding), not a broad benchmark framework contract
+  - runner consumption path: `eval:runner:p5-v1` (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) loads `runnerReplayBinding` from this manifest first, then validates the shortlist pin via `apps/api/scripts/p5-demo-shortlist.json`, then calls `POST /eval/question-sets/demo-replays/p5-v1/run`
 - boundary note (report-center contract): web `Report center` keeps using live eval API response contracts (`POST /eval/question-sets/:id/runs` + `reportExports`) for in-app read/trigger/export flows, and does not directly consume or index offline files under `storage/evals/p5-v1`
 - current wave scope guard: this wave stays on eval/regression proof closeout; do not expand `Report center`/`Usage` into a generic analytics or ops dashboard platform
 

@@ -17,6 +17,17 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 baseline manifest usage docs are now synced to the current engineering-baseline-v1 runner path (docs-only)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 dev setup 的 `eval:runner:p5-v1` 段补充 baseline source-of-truth 说明：`apps/api/scripts/p5-baseline-manifest.v1.json` 是当前 approved engineering baseline v1 的机器可读单一来源
+    - 明确 runner/replay 现状：`run-p5-v1-eval-runner.mjs` 会先读取 manifest 的 `runnerReplayBinding`，再用 `apps/api/scripts/p5-demo-shortlist.json` 做 approved shortlist pin 校验，随后调用既有 replay endpoint
+    - 保持边界不变：本次仅 docs sync，不改 eval runner contract，不改 report center，不扩展到非 engineering-baseline 范围
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P5 eval runner/replay path now reads baseline manifest v1 as the replay binding source of truth
   - 变更文件：
     - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
