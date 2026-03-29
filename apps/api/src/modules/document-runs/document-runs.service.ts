@@ -490,6 +490,7 @@ export class DocumentRunsService {
           issueConcentrationDelta: rightIssueConcentration - leftIssueConcentration
         };
       })
+      .filter(item => item.issueSignalDelta !== 0 || item.issueConcentrationDelta !== 0)
       .sort((a, b) => {
         const concentrationDeltaGap = Math.abs(b.issueConcentrationDelta) - Math.abs(a.issueConcentrationDelta);
         if (concentrationDeltaGap !== 0) {

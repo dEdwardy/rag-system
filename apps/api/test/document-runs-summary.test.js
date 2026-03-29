@@ -288,6 +288,107 @@ test("DocumentRunsService snapshot comparison highlights summary metric deltas",
   ]);
 });
 
+test("DocumentRunsService snapshot comparison keeps issueHotspotSlice keys with null values when no issue hotspot or meaningful shift exists", async () => {
+  let callCount = 0;
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return [
+              {
+                documentId: "doc-left-1",
+                version: 1,
+                trigger: "upload",
+                status: "ready",
+                failedStage: null,
+                diagnosticsJson: null,
+                startedAt: new Date("2026-03-22T09:01:00.000Z"),
+                finishedAt: new Date("2026-03-22T09:02:00.000Z"),
+                document: {
+                  sourceType: "upload",
+                  sourceName: "left-1.md"
+                }
+              }
+            ];
+          }
+
+          return [
+            {
+              documentId: "doc-right-1",
+              version: 1,
+              trigger: "upload",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: null,
+              startedAt: new Date("2026-03-22T09:03:00.000Z"),
+              finishedAt: new Date("2026-03-22T09:04:00.000Z"),
+              document: {
+                sourceType: "upload",
+                sourceName: "right-1.md"
+              }
+            },
+            {
+              documentId: "doc-right-2",
+              version: 1,
+              trigger: "upload",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: null,
+              startedAt: new Date("2026-03-22T09:05:00.000Z"),
+              finishedAt: new Date("2026-03-22T09:06:00.000Z"),
+              document: {
+                sourceType: "upload",
+                sourceName: "right-2.md"
+              }
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftSinceHours: 1,
+    rightSinceHours: 24,
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "snapshot");
+  assert.deepEqual(result.sourceFamilyDeltas, [
+    {
+      sourceFamily: "upload",
+      left: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      right: {
+        totalRuns: 2,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      deltas: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      }
+    }
+  ]);
+  assert.deepEqual(result.issueHotspotSlice, {
+    leftHotspot: null,
+    rightHotspot: null,
+    dominantShift: null
+  });
+});
+
 test("DocumentRunsService summary exposes latest retryable failure and latest skipped run", async () => {
   const startedAt = new Date("2026-03-22T10:00:00.000Z");
 
