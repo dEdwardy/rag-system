@@ -941,6 +941,10 @@ export class DocumentsService {
       }
     }
 
+    if (legacyFallbackConfig) {
+      return legacyFallbackConfig;
+    }
+
     throw new Error("External source config is invalid.");
   }
 

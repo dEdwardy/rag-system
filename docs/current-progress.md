@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ external source re-sync now hardens legacy identity recovery for config-loss payload edges while keeping unrecoverable identity failures unchanged
+  - 变更文件：
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `parseExternalSourceConfig` 在 legacy identity 可恢复时，除完整缺失配置外，也会覆盖配置对象损坏场景（如 feed 缺失 `url`、sitemap `maxPages` 类型损坏）并继续走同一份 identity-based fallback
+    - recovery 仍严格受 identity 可恢复性约束：当 `sourceType + sourceName` 无法归一化为有效 URL 时，仍保持 `EXTERNAL_SOURCE_CONFIG_INVALID` 失败语义
+    - 仅补现有 source family（`web_page` / `feed` / `sitemap`）re-sync recovery guard，不改 fetch/retry/ingestion 主链路语义
+  - focused validation：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+
 - ✅ ACL closeout docs are now synced to the current owner-only baseline, validated denial paths, and intentionally deferred role/share expansions (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`
