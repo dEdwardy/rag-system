@@ -727,19 +727,26 @@ export function UsagePage() {
               ) : null}
 
               {showP6PreRunGuidance ? (
-                <StatePanel
-                  action={
-                    <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
-                      {locale === "zh" ? "先跑一次扫描" : "Start with one scan-first run"}
-                    </Button>
-                  }
-                  description={
-                    locale === "zh"
-                      ? "当前知识库还没有文档运行记录。先在 Knowledge base 页触发一次文档扫描/重跑，再回到这里查看 P6 健康信号。"
-                      : "This knowledge base has no document-run history yet. Trigger one document scan/re-run in the knowledge base page before reading P6 health signals here."
-                  }
-                  title={locale === "zh" ? "P6 预运行引导（scan-first）" : "P6 pre-run guidance (scan-first)"}
-                />
+                <div className="flex flex-col gap-3" data-testid="usage-p6-pre-run-guidance">
+                  <StatePanel
+                    action={
+                      <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+                        {locale === "zh" ? "先跑一次扫描" : "Start with one scan-first run"}
+                      </Button>
+                    }
+                    description={
+                      locale === "zh"
+                        ? "当前知识库还没有文档运行记录。先在 Knowledge base 页触发一次文档扫描/重跑，再回到这里查看 P6 健康信号。首轮运行完成前，这里的趋势/告警/热点面板会保持收起，避免误读。"
+                        : "This knowledge base has no document-run history yet. Trigger one document scan/re-run in the knowledge base page before reading P6 health signals here. Until the first run lands, trend/alert/hotspot panels stay collapsed to avoid false zero-signal reading."
+                    }
+                    title={locale === "zh" ? "P6 预运行引导（scan-first）" : "P6 pre-run guidance (scan-first)"}
+                  />
+                  <p className="text-xs text-[var(--app-text-muted)]" data-testid="usage-p6-pre-run-path">
+                    {locale === "zh"
+                      ? "scan path：Knowledge base（触发扫描）→ Usage（回看 P6 信号）。"
+                      : "scan path: Knowledge base (trigger scan) → Usage (review P6 signals)."}
+                  </p>
+                </div>
               ) : (
                 <>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

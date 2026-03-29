@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ usage page pre-run empty state now includes a stable scan-path hint and explicit collapsed-panel wording for first-run readability (P6 closeout, narrow UI-only)
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持现有 `showP6PreRunGuidance` 分支不变，仅在该分支下补一层稳定容器与 `scan path` 提示，明确首轮 run 完成前趋势/告警/热点面板保持收起，降低“零信号即健康”误读
+    - 仅收口 Usage 页现有 scan-first 空态可读性与扫描路径稳定性，不改 backend contract、不改 P6 指标语义、不扩展 dashboard 范围
+    - `ui-review-regressions` 同步新增最窄 guard，锁定 pre-run 容器、折叠提示文案与 scan-path 提示语
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P5 v1 offline artifact vs web runtime boundary wording is now contract-synced to landed runner/report facts (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`
