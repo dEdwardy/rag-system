@@ -2,6 +2,9 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
+const DEFAULT_LOCAL_LOGIN_EMAIL = "default-user@example.com";
+const DEFAULT_LOCAL_LOGIN_PASSWORD_HASH = "$2b$12$VbuJPLF.9KuI8KlHp4uVr.gVX1z/2gXQaYtoK3KmPfOILKYLgs7..";
+
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: {
@@ -25,7 +28,9 @@ async function main() {
     update: {
       tenantId: tenant.id,
       name: "Default User",
-      email: "default-user@example.com",
+      displayName: "Default User",
+      email: DEFAULT_LOCAL_LOGIN_EMAIL,
+      passwordHash: DEFAULT_LOCAL_LOGIN_PASSWORD_HASH,
       role: "owner",
       status: "active"
     },
@@ -33,7 +38,9 @@ async function main() {
       id: "default-user",
       tenantId: tenant.id,
       name: "Default User",
-      email: "default-user@example.com",
+      displayName: "Default User",
+      email: DEFAULT_LOCAL_LOGIN_EMAIL,
+      passwordHash: DEFAULT_LOCAL_LOGIN_PASSWORD_HASH,
       role: "owner",
       status: "active"
     }
