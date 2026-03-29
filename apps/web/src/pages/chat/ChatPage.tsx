@@ -2,13 +2,16 @@ import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAskAssistantStream,
   useAssistants,
   useConversationMessages,
   useConversations,
-  useConversationTraces
+  useConversationTraces,
+  useDocuments,
+  useKnowledgeBases
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { AskStreamEvent, AskStreamFinalData, Citation, Message } from "../../types/api";
@@ -193,6 +196,9 @@ export function ChatPage() {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const assistantsQuery = useAssistants();
+  const knowledgeBasesQuery = useKnowledgeBases();
+  const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb", activeKnowledgeBase != null);
   const conversationsQuery = useConversations();
   const activeAssistant = assistantsQuery.data?.[0] ?? null;
   const messagesQuery = useConversationMessages(activeConversationId);
@@ -284,6 +290,7 @@ export function ChatPage() {
   const activeConversation =
     conversationsQuery.data?.find(conversation => conversation.id === activeConversationId) ?? null;
   const conversationCount = conversationsQuery.data?.length ?? 0;
+  const documentCount = documentsQuery.data?.length ?? 0;
   const workspaceStatus = resolveWorkspaceStatus({
     copy: chatCopy,
     hasAssistant: activeAssistant != null,
@@ -425,6 +432,13 @@ export function ChatPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8" ref={transcriptRef}>
           <div className="flex flex-col gap-6">
+            <OauthWorkspaceWelcome
+              assistantCount={activeAssistant ? 1 : 0}
+              context="chat"
+              conversationCount={conversationCount}
+              documentCount={documentCount}
+            />
+
             <div className="workspace-chat-summary grid gap-3 md:grid-cols-3">
               <SummaryCard
                 hint={
