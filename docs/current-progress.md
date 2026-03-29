@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ owner-only ACL baseline closeout 已在 planning/status 文档明确收口（docs-only increment）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 基于已完成 `P2` queue items（`resource access matrix`、`access policy contract`、`kb document ownership checks`、`assistant conversation trace checks`、`default access policy`、`acl baseline docs`），在 `next_steps` 显式标记当前 `owner_only_v1 + deny_by_default` baseline 已收口
+    - 文档中同步明确本轮 intentionally deferred 范围不变：`member/viewer`、share/public 扩展、RBAC/ABAC、跨 tenant 协作
+    - 保持边界：仅做 planning/status closeout 同步，不新开 ACL wave，不调整 roadmap 顺序
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ document-run snapshot `issueHotspotSlice.dominantShift` selection now has an explicit deterministic tie-break contract for equal issue concentration/signal deltas
   - 变更文件：
     - `apps/api/src/modules/document-runs/document-runs.service.ts`

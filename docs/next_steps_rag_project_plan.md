@@ -430,6 +430,18 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 当前这组 `P2` queue-ready 项已按上述顺序整理，可直接写入 `.opencode/loop/queue.json` 继续单线推进。
 
+#### P2 owner-only ACL baseline closeout（2026-03-29）
+
+- ✅ 当前 `owner_only_v1 + deny_by_default` 基线可视为已收口（按既定 `P2` queue 顺序完成）
+  - 已完成：`resource access matrix`、`access policy contract`、`kb document ownership checks`、`assistant conversation trace checks`、`default access policy`、`acl baseline docs`
+  - 已落地语义：五类核心资源（knowledge base / document / assistant / conversation / trace）维持 owner-scoped private baseline，拒绝路径维持 `unauthenticated -> 401`、`owner-mismatch -> 403`
+- ⏸️ 本轮明确后置（保持不变，不在本次 closeout 内展开）：
+  - `member/viewer` 放权
+  - share/public 业务资源可见性扩展
+  - RBAC/ABAC 角色矩阵
+  - 跨 tenant 协作
+- 边界说明：本次仅标记 owner-only baseline closeout，不新开 ACL wave，不调整 roadmap 顺序（仍按 `P2 -> P3 -> P5 -> P6 -> P4` 串行推进）。
+
 建议直接用于 queue title 的短标题版：
 
 - `resource access matrix`
