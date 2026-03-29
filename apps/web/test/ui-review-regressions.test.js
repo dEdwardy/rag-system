@@ -179,6 +179,7 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /searchParams\.get\("assistantId"\)/);
   assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
   assert.match(reportCenterSource, /setSearchParams\(nextSearchParams, \{ replace: true \}\)/);
+  assert.match(reportCenterSource, /Start with one scan-first run|先跑一次 scan-first run/);
 });
 
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {

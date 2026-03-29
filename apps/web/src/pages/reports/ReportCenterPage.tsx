@@ -81,6 +81,7 @@ export function ReportCenterPage() {
 
   const regressionDrilldownItems = runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [];
   const runDiffSummary = runEvalMutation.data?.baselineComparison?.diffSummary;
+  const showPreRunGuidance = !runEvalMutation.data && !runEvalMutation.isError && !runEvalMutation.isPending;
 
   function getRegressionReasonLabel(reasonCode: string) {
     if (locale === "zh") {
@@ -217,6 +218,17 @@ export function ReportCenterPage() {
               }
               title={locale === "zh" ? "运行失败" : "Run failed"}
               tone="error"
+            />
+          ) : null}
+
+          {showPreRunGuidance ? (
+            <StatePanel
+              description={
+                locale === "zh"
+                  ? "先执行一次 question-set run，再从质量摘要、差异摘要和弱项列表开始 scan-first 复盘。"
+                  : "Run one question-set eval first, then scan quality summary, diff summary, and weakest items for replay."}
+              title={locale === "zh" ? "先跑一次 scan-first run" : "Start with one scan-first run"}
+              tone="empty"
             />
           ) : null}
         </Stack>
