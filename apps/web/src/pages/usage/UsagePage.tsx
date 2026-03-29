@@ -19,8 +19,13 @@ export function UsagePage() {
   const conversationsQuery = useConversations();
   const apiHealthQuery = useApiHealth();
   const auditEventsQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 5 });
+  const issueTrend1hQuery = useAuditEvents({ issueOnly: true, sinceHours: 1, limit: 100 });
+  const issueTrend6hQuery = useAuditEvents({ issueOnly: true, sinceHours: 6, limit: 100 });
+  const issueTrend24hQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 100 });
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
+  const runSummary1hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 1 });
+  const runSummary6hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 6 });
   const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 24 });
   const { locale } = useI18n();
 
@@ -83,9 +88,14 @@ export function UsagePage() {
   );
 
   const runSummary = runSummaryQuery.data;
+  const runSummary1h = runSummary1hQuery.data;
+  const runSummary6h = runSummary6hQuery.data;
   const pendingRunCount =
     (runSummary?.byStatus.pending ?? 0) + (runSummary?.byStatus.processing ?? 0);
   const recentIssueCount = auditEventsQuery.data?.length ?? 0;
+  const issueTrend1h = issueTrend1hQuery.data?.length ?? 0;
+  const issueTrend6h = issueTrend6hQuery.data?.length ?? 0;
+  const issueTrend24h = issueTrend24hQuery.data?.length ?? 0;
   const isApiHealthy = apiHealthQuery.data?.status === "ok";
   const retryableFailureCount = runSummary?.retryableFailures ?? 0;
   const nonRetryableFailureCount = runSummary?.nonRetryableFailures ?? 0;
@@ -254,6 +264,75 @@ export function UsagePage() {
     (runSummaryQuery.error instanceof Error && runSummaryQuery.error.message) ||
     (auditEventsQuery.error instanceof Error && auditEventsQuery.error.message) ||
     null;
+
+  const trendPanelErrorMessage =
+    (runSummary1hQuery.error instanceof Error && runSummary1hQuery.error.message) ||
+    (runSummary6hQuery.error instanceof Error && runSummary6hQuery.error.message) ||
+    (runSummaryQuery.error instanceof Error && runSummaryQuery.error.message) ||
+    (issueTrend1hQuery.error instanceof Error && issueTrend1hQuery.error.message) ||
+    (issueTrend6hQuery.error instanceof Error && issueTrend6hQuery.error.message) ||
+    (issueTrend24hQuery.error instanceof Error && issueTrend24hQuery.error.message) ||
+    null;
+
+  const trendMetrics = useMemo(
+    () => [
+      {
+        key: "failed-runs",
+        label: locale === "zh" ? "失败运行" : "Failed runs",
+        values: [runSummary1h?.byStatus.failed ?? 0, runSummary6h?.byStatus.failed ?? 0, runSummary?.byStatus.failed ?? 0]
+      },
+      {
+        key: "retryable-failures",
+        label: locale === "zh" ? "可重试失败" : "Retryable failures",
+        values: [runSummary1h?.retryableFailures ?? 0, runSummary6h?.retryableFailures ?? 0, runSummary?.retryableFailures ?? 0]
+      },
+      {
+        key: "non-retryable-failures",
+        label: locale === "zh" ? "不可重试失败" : "Non-retryable failures",
+        values: [runSummary1h?.nonRetryableFailures ?? 0, runSummary6h?.nonRetryableFailures ?? 0, runSummary?.nonRetryableFailures ?? 0]
+      },
+      {
+        key: "boundary-hits",
+        label: locale === "zh" ? "边界命中" : "Boundary hits",
+        values: [
+          runSummary1h?.boundaryStats.runsWithBoundaryHit ?? 0,
+          runSummary6h?.boundaryStats.runsWithBoundaryHit ?? 0,
+          runSummary?.boundaryStats.runsWithBoundaryHit ?? 0
+        ]
+      },
+      {
+        key: "issue-events",
+        label: locale === "zh" ? "问题事件" : "Issue events",
+        values: [issueTrend1h, issueTrend6h, issueTrend24h]
+      }
+    ],
+    [
+      issueTrend1h,
+      issueTrend24h,
+      issueTrend6h,
+      locale,
+      runSummary?.boundaryStats.runsWithBoundaryHit,
+      runSummary?.byStatus.failed,
+      runSummary?.nonRetryableFailures,
+      runSummary?.retryableFailures,
+      runSummary1h?.boundaryStats.runsWithBoundaryHit,
+      runSummary1h?.byStatus.failed,
+      runSummary1h?.nonRetryableFailures,
+      runSummary1h?.retryableFailures,
+      runSummary6h?.boundaryStats.runsWithBoundaryHit,
+      runSummary6h?.byStatus.failed,
+      runSummary6h?.nonRetryableFailures,
+      runSummary6h?.retryableFailures
+    ]
+  );
+
+  const isTrendLoading =
+    runSummary1hQuery.isLoading ||
+    runSummary6hQuery.isLoading ||
+    runSummaryQuery.isLoading ||
+    issueTrend1hQuery.isLoading ||
+    issueTrend6hQuery.isLoading ||
+    issueTrend24hQuery.isLoading;
 
   return (
     <div className="flex flex-col gap-4">
@@ -433,7 +512,37 @@ export function UsagePage() {
                 ))}
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="grid gap-4 xl:grid-cols-3">
+                <div className="workspace-subpanel rounded-[20px] p-4">
+                  <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 趋势视图" : "P6 v1 trend view"}</div>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                    {locale === "zh"
+                      ? "按 1h / 6h / 24h 时间窗查看关键健康与失败指标的变化。"
+                      : "Track how key health and failure metrics move across 1h / 6h / 24h windows."}
+                  </p>
+
+                  {trendPanelErrorMessage ? (
+                    <StatePanel
+                      description={trendPanelErrorMessage}
+                      title={locale === "zh" ? "趋势视图信号加载失败" : "Failed to load trend-view signals"}
+                      tone="error"
+                    />
+                  ) : isTrendLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : (
+                    <ul className="mt-3 flex flex-col gap-2 text-sm">
+                      {trendMetrics.map(metric => (
+                        <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={metric.key}>
+                          <div className="font-medium text-[var(--app-text)]">{metric.label}</div>
+                          <div className="mt-1 text-[var(--app-text-muted)]">
+                            1h: {metric.values[0]} · 6h: {metric.values[1]} · 24h: {metric.values[2]}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <div className="workspace-subpanel rounded-[20px] p-4">
                   <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 告警视图" : "P6 v1 alert view"}</div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
@@ -500,7 +609,7 @@ export function UsagePage() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2 xl:col-span-2 xl:flex-row">
+                <div className="flex flex-col gap-2 xl:col-span-3 xl:flex-row">
                   <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/traces" variant="light">
                     {locale === "zh" ? "查看 Trace" : "Open traces"}
                   </Button>

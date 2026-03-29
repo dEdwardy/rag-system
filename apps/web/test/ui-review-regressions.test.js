@@ -101,6 +101,15 @@ test("usage page exposes a single P6 v1 alert view for warnings and threshold is
   assert.match(usageSource, /issue-events-threshold/);
 });
 
+test("usage page exposes a P6 v1 trend view with 1h/6h/24h windows", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /P6 v1 trend view|P6 v1 趋势视图/);
+  assert.match(usageSource, /1h:\s*\{metric\.values\[0\]\} · 6h:\s*\{metric\.values\[1\]\} · 24h:\s*\{metric\.values\[2\]\}/);
+  assert.match(usageSource, /failed-runs/);
+  assert.match(usageSource, /issue-events/);
+});
+
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {
   const cssSource = readFileSync(globalCssPath, "utf8");
 

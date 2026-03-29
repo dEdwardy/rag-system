@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 usage page now includes a trend view to show how key health/failure metrics move over time
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - usage 页在 `P6 v1 health dashboard` 中新增 `P6 v1 trend view`，基于现有接口按 `1h / 6h / 24h` 三个时间窗展示关键指标走势
+    - 趋势指标覆盖 `failed runs`、`retryable failures`、`non-retryable failures`、`boundary hits`、`issue events`，仅做前端读模型聚合，不改后端契约
+    - 告警视图、最近事件列表与原有健康信号保留，趋势视图作为新增 scan-first 子面板并行呈现
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a P6 v1 trend view with 1h/6h/24h windows" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 usage now includes a dedicated alert view that aggregates important warnings and threshold issues in one place
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`
