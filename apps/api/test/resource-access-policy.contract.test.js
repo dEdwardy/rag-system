@@ -51,6 +51,11 @@ test("evaluateOwnerResourceAccess denies access when tenant does not match", () 
     reason: "tenant_mismatch",
     policy: "owner_only_v1"
   });
+
+  assert.equal(
+    buildResourceAccessDeniedHint(decision),
+    "Access blocked by owner_only_v1 policy (tenant_mismatch: request tenant does not match resource tenant)."
+  );
 });
 
 test("evaluateOwnerResourceAccess denies access when owner does not match", () => {
@@ -94,6 +99,11 @@ test("evaluateOwnerResourceAccess denies access when owner is missing", () => {
     reason: "owner_unassigned",
     policy: "owner_only_v1"
   });
+
+  assert.equal(
+    buildResourceAccessDeniedHint(decision),
+    "Access blocked by owner_only_v1 policy (owner_unassigned: resource has no assigned owner)."
+  );
 });
 
 test("evaluateOwnerResourceAccess denies access for unsupported action using conservative fallback", () => {
@@ -108,6 +118,11 @@ test("evaluateOwnerResourceAccess denies access for unsupported action using con
     reason: "unsupported_action",
     policy: "owner_only_v1"
   });
+
+  assert.equal(
+    buildResourceAccessDeniedHint(decision),
+    "Access blocked by owner_only_v1 policy (unsupported_action: requested action is not supported by the current policy baseline)."
+  );
 });
 
 test("evaluateOwnerResourceAccess denies access for unsupported resource kind using conservative fallback", () => {
@@ -127,6 +142,11 @@ test("evaluateOwnerResourceAccess denies access for unsupported resource kind us
     reason: "unsupported_resource_kind",
     policy: "owner_only_v1"
   });
+
+  assert.equal(
+    buildResourceAccessDeniedHint(decision),
+    "Access blocked by owner_only_v1 policy (unsupported_resource_kind: resource kind is not supported by the current policy baseline)."
+  );
 });
 
 test("resolveResourceVisibilityOnCreate defaults new resources to private", () => {
