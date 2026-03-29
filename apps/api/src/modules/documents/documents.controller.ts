@@ -15,6 +15,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import {
+  compareKnowledgeBaseDocumentRunsSchema,
   createDocumentSchema,
   createFeedDocumentSchema,
   listDocumentRunsSchema,
@@ -66,6 +67,18 @@ export class DocumentsController {
     const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
 
     return this.documentsService.getKnowledgeBaseDocumentRunSummary(knowledgeBaseId, input, authContext.identity);
+  }
+
+  @Get("knowledge-bases/:id/document-runs/comparison")
+  getKnowledgeBaseDocumentRunComparison(
+    @Param("id") knowledgeBaseId: string,
+    @Query() query: unknown,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const input = compareKnowledgeBaseDocumentRunsSchema.parse(query);
+    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+
+    return this.documentsService.getKnowledgeBaseDocumentRunComparison(knowledgeBaseId, input, authContext.identity);
   }
 
   @Post("knowledge-bases/:id/documents")

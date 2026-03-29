@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 now has a comparison report endpoint for run-vs-run or snapshot-vs-snapshot diagnostics
+  - 变更文件：
+    - `apps/api/src/modules/documents/document.schemas.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `GET /knowledge-bases/:id/document-runs/comparison`，支持两种输入模式：`leftRunId + rightRunId`（run 对比）或 `leftSinceHours + rightSinceHours`（snapshot 对比）
+    - run 对比会输出状态/失败阶段/失败码/可重试性/boundary-hit 等“有意义差异”
+    - snapshot 对比复用现有 run summary 聚合，输出 `totalRuns`、`failedRuns`、`retryableFailures`、`nonRetryableFailures`、`runsWithBoundaryHit` 的增减差异
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
 - ✅ P6 v1 usage page now includes a trend view to show how key health/failure metrics move over time
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`

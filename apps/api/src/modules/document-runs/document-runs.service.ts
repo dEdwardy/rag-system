@@ -4,9 +4,13 @@ import {
   DocumentRunTrigger,
   Prisma
 } from "@prisma/client";
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
-import { ListDocumentRunsInput, ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schemas";
+import {
+  CompareKnowledgeBaseDocumentRunsInput,
+  ListDocumentRunsInput,
+  ListKnowledgeBaseDocumentRunsInput
+} from "../documents/document.schemas";
 
 @Injectable()
 export class DocumentRunsService {
@@ -156,6 +160,229 @@ export class DocumentRunsService {
       latestSkipped: latestSkipped ? this.buildRunSummaryAnchor(latestSkipped) : null,
       latestFailure: latestFailure ? this.buildRunSummaryAnchor(latestFailure) : null
     };
+  }
+
+  async getKnowledgeBaseRunComparison(knowledgeBaseId: string, input: CompareKnowledgeBaseDocumentRunsInput) {
+    if (typeof input.leftRunId === "string" && typeof input.rightRunId === "string") {
+      const [leftRun, rightRun] = await Promise.all([
+        this.getKnowledgeBaseRunById(knowledgeBaseId, input.leftRunId),
+        this.getKnowledgeBaseRunById(knowledgeBaseId, input.rightRunId)
+      ]);
+      const leftSnapshot = this.buildRunComparisonSnapshot(leftRun);
+      const rightSnapshot = this.buildRunComparisonSnapshot(rightRun);
+
+      return {
+        mode: "run",
+        left: leftSnapshot,
+        right: rightSnapshot,
+        meaningfulDifferences: this.buildRunMeaningfulDifferences(leftSnapshot, rightSnapshot)
+      };
+    }
+
+    const leftSinceHours = input.leftSinceHours as number;
+    const rightSinceHours = input.rightSinceHours as number;
+    const summaryFilters = {
+      documentId: input.documentId,
+      sourceType: input.sourceType,
+      status: input.status,
+      trigger: input.trigger,
+      issueOnly: input.issueOnly
+    } as const;
+    const [leftSnapshot, rightSnapshot] = await Promise.all([
+      this.getKnowledgeBaseRunSummary(knowledgeBaseId, {
+        ...summaryFilters,
+        sinceHours: leftSinceHours
+      }),
+      this.getKnowledgeBaseRunSummary(knowledgeBaseId, {
+        ...summaryFilters,
+        sinceHours: rightSinceHours
+      })
+    ]);
+
+    return {
+      mode: "snapshot",
+      left: {
+        sinceHours: leftSinceHours,
+        summary: leftSnapshot
+      },
+      right: {
+        sinceHours: rightSinceHours,
+        summary: rightSnapshot
+      },
+      meaningfulDifferences: this.buildSummaryMeaningfulDifferences(leftSnapshot, rightSnapshot)
+    };
+  }
+
+  private async getKnowledgeBaseRunById(knowledgeBaseId: string, runId: string) {
+    const run = await this.prisma.documentRun.findFirst({
+      where: {
+        id: runId,
+        document: {
+          kbId: knowledgeBaseId
+        }
+      },
+      select: {
+        id: true,
+        documentId: true,
+        version: true,
+        trigger: true,
+        status: true,
+        failedStage: true,
+        diagnosticsJson: true,
+        startedAt: true,
+        finishedAt: true,
+        document: {
+          select: {
+            sourceType: true,
+            sourceName: true
+          }
+        }
+      }
+    });
+
+    if (!run) {
+      throw new NotFoundException(`Document run ${runId} not found.`);
+    }
+
+    return run;
+  }
+
+  private buildRunComparisonSnapshot(run: {
+    id: string;
+    documentId: string;
+    version: number;
+    trigger: DocumentRunTrigger;
+    status: DocumentRunStatus;
+    failedStage: DocumentRunFailedStage | null;
+    diagnosticsJson: Prisma.JsonValue | null;
+    startedAt: Date;
+    finishedAt: Date | null;
+    document: {
+      sourceType: string;
+      sourceName: string;
+    };
+  }) {
+    const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+    const boundarySummary = this.extractBoundarySummary(run.diagnosticsJson);
+
+    return {
+      runId: run.id,
+      documentId: run.documentId,
+      version: run.version,
+      trigger: run.trigger,
+      status: run.status,
+      failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
+      failureSummary,
+      sourceType: run.document.sourceType,
+      sourceName: run.document.sourceName,
+      boundarySummary,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt
+    };
+  }
+
+  private buildRunMeaningfulDifferences(
+    left: ReturnType<DocumentRunsService["buildRunComparisonSnapshot"]>,
+    right: ReturnType<DocumentRunsService["buildRunComparisonSnapshot"]>
+  ) {
+    const differences: Array<{
+      metric: string;
+      left: string | number | boolean | null;
+      right: string | number | boolean | null;
+      summary: string;
+    }> = [];
+
+    if (left.status !== right.status) {
+      differences.push({
+        metric: "status",
+        left: left.status,
+        right: right.status,
+        summary: `status changed from ${left.status} to ${right.status}`
+      });
+    }
+
+    if (left.failedStage !== right.failedStage) {
+      differences.push({
+        metric: "failedStage",
+        left: left.failedStage,
+        right: right.failedStage,
+        summary: `failed stage changed from ${left.failedStage ?? "none"} to ${right.failedStage ?? "none"}`
+      });
+    }
+
+    if ((left.failureSummary?.code ?? null) !== (right.failureSummary?.code ?? null)) {
+      differences.push({
+        metric: "failureCode",
+        left: left.failureSummary?.code ?? null,
+        right: right.failureSummary?.code ?? null,
+        summary: `failure code changed from ${left.failureSummary?.code ?? "none"} to ${right.failureSummary?.code ?? "none"}`
+      });
+    }
+
+    if ((left.failureSummary?.retryable ?? false) !== (right.failureSummary?.retryable ?? false)) {
+      differences.push({
+        metric: "retryable",
+        left: left.failureSummary?.retryable ?? false,
+        right: right.failureSummary?.retryable ?? false,
+        summary: `retryability changed from ${left.failureSummary?.retryable ?? false} to ${right.failureSummary?.retryable ?? false}`
+      });
+    }
+
+    const leftBoundaryHit = left.boundarySummary !== null;
+    const rightBoundaryHit = right.boundarySummary !== null;
+    if (leftBoundaryHit !== rightBoundaryHit) {
+      differences.push({
+        metric: "boundaryHit",
+        left: leftBoundaryHit,
+        right: rightBoundaryHit,
+        summary: `boundary-hit changed from ${leftBoundaryHit} to ${rightBoundaryHit}`
+      });
+    }
+
+    return differences;
+  }
+
+  private buildSummaryMeaningfulDifferences(
+    left: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    right: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>
+  ) {
+    const differences: Array<{
+      metric: string;
+      left: number;
+      right: number;
+      delta: number;
+      trend: "up" | "down";
+      summary: string;
+    }> = [];
+    const trackedMetrics = [
+      { metric: "totalRuns", left: left.totalRuns, right: right.totalRuns },
+      { metric: "failedRuns", left: left.byStatus.failed, right: right.byStatus.failed },
+      { metric: "retryableFailures", left: left.retryableFailures, right: right.retryableFailures },
+      { metric: "nonRetryableFailures", left: left.nonRetryableFailures, right: right.nonRetryableFailures },
+      {
+        metric: "runsWithBoundaryHit",
+        left: left.boundaryStats.runsWithBoundaryHit,
+        right: right.boundaryStats.runsWithBoundaryHit
+      }
+    ];
+
+    for (const item of trackedMetrics) {
+      const delta = item.right - item.left;
+      if (delta === 0) {
+        continue;
+      }
+
+      differences.push({
+        metric: item.metric,
+        left: item.left,
+        right: item.right,
+        delta,
+        trend: delta > 0 ? "up" : "down",
+        summary: `${item.metric} changed by ${delta > 0 ? "+" : ""}${delta} (${item.left} -> ${item.right})`
+      });
+    }
+
+    return differences;
   }
 
   async listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {

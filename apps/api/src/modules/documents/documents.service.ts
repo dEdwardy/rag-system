@@ -10,6 +10,7 @@ import { IngestionService } from "../ingestion/ingestion.service";
 import { IndexingService } from "../indexing/indexing.service";
 import { KnowledgeBasesService } from "../knowledge-bases/knowledge-bases.service";
 import {
+  CompareKnowledgeBaseDocumentRunsInput,
   CreateDocumentInput,
   CreateFeedDocumentInput,
   CreateSitemapDocumentInput,
@@ -90,6 +91,15 @@ export class DocumentsService {
   ) {
     await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
     return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId, input);
+  }
+
+  async getKnowledgeBaseDocumentRunComparison(
+    knowledgeBaseId: string,
+    input: CompareKnowledgeBaseDocumentRunsInput,
+    scope?: DocumentAccessScope | null
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    return this.documentRunsService.getKnowledgeBaseRunComparison(knowledgeBaseId, input);
   }
 
   async getDocument(id: string, scope?: DocumentAccessScope | null) {

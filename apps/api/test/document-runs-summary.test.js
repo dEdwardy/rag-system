@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { DocumentRunsService } = require("../src/modules/document-runs/document-runs.service.ts");
 const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
 const {
+  compareKnowledgeBaseDocumentRunsSchema,
   listConversationTracesSchema,
   listDocumentRunsSchema,
   listKnowledgeBaseDocumentRunsSchema,
@@ -24,6 +25,26 @@ test("operational list schemas keep explicit limit support while only bounded en
   assert.throws(() => listKnowledgeBaseDocumentsSchema.parse({ limit: "101" }));
   assert.throws(() => listDocumentRunsSchema.parse({ limit: "0" }));
   assert.throws(() => listConversationTracesSchema.parse({ limit: "101" }));
+});
+
+test("document-run comparison schema supports run-pair or snapshot-pair modes", () => {
+  assert.deepEqual(compareKnowledgeBaseDocumentRunsSchema.parse({ leftRunId: "run-a", rightRunId: "run-b" }), {
+    issueOnly: false,
+    leftRunId: "run-a",
+    rightRunId: "run-b"
+  });
+  assert.deepEqual(
+    compareKnowledgeBaseDocumentRunsSchema.parse({ leftSinceHours: "1", rightSinceHours: "24", issueOnly: "true" }),
+    {
+      issueOnly: true,
+      leftSinceHours: 1,
+      rightSinceHours: 24
+    }
+  );
+  assert.throws(() => compareKnowledgeBaseDocumentRunsSchema.parse({ leftRunId: "run-a" }));
+  assert.throws(() =>
+    compareKnowledgeBaseDocumentRunsSchema.parse({ leftRunId: "run-a", rightRunId: "run-b", leftSinceHours: 1, rightSinceHours: 24 })
+  );
 });
 
 test("DocumentsService listKnowledgeBaseDocuments applies bounded limit semantics", async () => {
@@ -58,6 +79,140 @@ test("DocumentsService listKnowledgeBaseDocuments applies bounded limit semantic
       }
     }
   ]);
+});
+
+test("DocumentRunsService run comparison highlights meaningful run-level differences", async () => {
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findFirst: async args => {
+          if (args.where.id === "run-left") {
+            return {
+              id: "run-left",
+              documentId: "doc-1",
+              version: 2,
+              trigger: "external_resync",
+              status: "failed",
+              failedStage: "source_fetch",
+              diagnosticsJson: {
+                code: "EXTERNAL_SOURCE_FETCH_FAILED",
+                failedStage: "source_fetch",
+                retryable: true,
+                message: "temporary upstream failure"
+              },
+              startedAt: new Date("2026-03-22T10:01:00.000Z"),
+              finishedAt: new Date("2026-03-22T10:02:00.000Z"),
+              document: {
+                sourceType: "web_page",
+                sourceName: "https://example.com/down"
+              }
+            };
+          }
+
+          return {
+            id: "run-right",
+            documentId: "doc-1",
+            version: 3,
+            trigger: "external_resync",
+            status: "ready",
+            failedStage: null,
+            diagnosticsJson: null,
+            startedAt: new Date("2026-03-22T10:03:00.000Z"),
+            finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+            document: {
+              sourceType: "web_page",
+              sourceName: "https://example.com/down"
+            }
+          };
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftRunId: "run-left",
+    rightRunId: "run-right",
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "run");
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "status"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "failureCode"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "retryable"));
+});
+
+test("DocumentRunsService snapshot comparison highlights summary metric deltas", async () => {
+  let callCount = 0;
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return [
+              {
+                documentId: "doc-1",
+                version: 2,
+                trigger: "external_resync",
+                status: "failed",
+                failedStage: "source_fetch",
+                diagnosticsJson: {
+                  code: "EXTERNAL_SOURCE_FETCH_FAILED",
+                  failedStage: "source_fetch",
+                  retryable: true,
+                  message: "temporary upstream failure"
+                },
+                startedAt: new Date("2026-03-22T10:01:00.000Z"),
+                finishedAt: new Date("2026-03-22T10:02:00.000Z"),
+                document: {
+                  sourceType: "web_page",
+                  sourceName: "https://example.com/down"
+                }
+              }
+            ];
+          }
+
+          return [
+            {
+              documentId: "doc-1",
+              version: 3,
+              trigger: "external_resync",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: {
+                code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+                failedStage: "source_fetch",
+                retryable: false,
+                boundaryHit: true,
+                boundaryReasons: ["MAX_ITEMS_LIMIT_REACHED"],
+                boundary: {
+                  droppedByLimitCount: 2
+                },
+                message: "partial"
+              },
+              startedAt: new Date("2026-03-22T10:03:00.000Z"),
+              finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+              document: {
+                sourceType: "feed",
+                sourceName: "https://example.com/feed.xml"
+              }
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftSinceHours: 1,
+    rightSinceHours: 24,
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "snapshot");
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "failedRuns"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "retryableFailures"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "runsWithBoundaryHit"));
 });
 
 test("DocumentRunsService summary exposes latest retryable failure and latest skipped run", async () => {
