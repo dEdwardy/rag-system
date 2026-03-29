@@ -226,10 +226,18 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /searchParams\.get\("assistantId"\)/);
   assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
   assert.match(reportCenterSource, /setSearchParams\(nextSearchParams, \{ replace: true \}\)/);
+  assert.match(reportCenterSource, /report-center-pre-run-path/);
+  assert.match(reportCenterSource, /scan path: Eval run \(trigger first run\) -> Report center \(review quality\/diff\/weakest items\)/);
   assert.match(reportCenterSource, /Start with one scan-first run|先跑一次 scan-first run/);
-  assert.match(reportCenterSource, /scan-first: no baseline linked for this run|scan-first：当前 run 未绑定 baseline/);
-  assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineSnapshotId\)/);
-  assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineVersion\)/);
+  assert.match(reportCenterSource, /scan-first: this run is not linked to a baseline snapshot|scan-first：本次 run 未绑定 baseline snapshot/);
+  assert.match(
+    reportCenterSource,
+    /scan-first: baseline version is unavailable until a baseline snapshot is linked|scan-first：baseline version 暂不可读（先绑定 baseline snapshot）/
+  );
+  assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineSnapshotId,/);
+  assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineVersion,/);
+  assert.match(reportCenterSource, /hasRunItems/);
+  assert.match(reportCenterSource, /This run has no eval items yet|本次 run 暂无题目结果/);
 });
 
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {

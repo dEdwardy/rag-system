@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ report center closeout wording/guard now tightens pre-run path hint, no-item empty state, and baseline metadata readability without changing eval contracts
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在既有 `Eval run` pre-run 空态上新增一条固定 scan-path 提示（`report-center-pre-run-path`），明确首轮 run 的最短扫读路径，不改 run 提交流程或 eval API
+    - 为“run 已完成但 items 为空”补一个显式 empty-state `StatePanel`，避免空表格读感；仅增强现有页面 guard，不新增报表类型或 dashboard 面板
+    - 将 baseline metadata 占位文案按字段拆分：`baselineSnapshotId` 与 `baselineVersion` 缺失时给出更可读的 scan-first 提示，保持 contract/source 与手动 baseline 流程边界不变
+    - `ui-review-regressions` 同步补充最窄 guard，锁定新 pre-run 路径提示、metadata 占位文案以及 no-item empty-state 文案
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ usage page pre-run empty state now includes a stable scan-path hint and explicit collapsed-panel wording for first-run readability (P6 closeout, narrow UI-only)
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`

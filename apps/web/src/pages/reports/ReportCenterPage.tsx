@@ -82,15 +82,21 @@ export function ReportCenterPage() {
   const regressionDrilldownItems = runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [];
   const runDiffSummary = runEvalMutation.data?.baselineComparison?.diffSummary;
   const showPreRunGuidance = !runEvalMutation.data && !runEvalMutation.isError && !runEvalMutation.isPending;
-  const baselineMetadataPlaceholder =
-    locale === "zh" ? "scan-first：当前 run 未绑定 baseline" : "scan-first: no baseline linked for this run";
+  const hasRunItems = (runEvalMutation.data?.items.length ?? 0) > 0;
+  const baselineSnapshotPlaceholder =
+    locale === "zh" ? "scan-first：本次 run 未绑定 baseline snapshot" : "scan-first: this run is not linked to a baseline snapshot";
+  const baselineVersionPlaceholder =
+    locale === "zh" ? "scan-first：baseline version 暂不可读（先绑定 baseline snapshot）" : "scan-first: baseline version is unavailable until a baseline snapshot is linked";
 
-  function formatBaselineMetadataValue(value: string | number | null | undefined) {
+  function formatBaselineMetadataValue(
+    value: string | number | null | undefined,
+    placeholder: string
+  ) {
     if (value == null) {
-      return baselineMetadataPlaceholder;
+      return placeholder;
     }
     const text = String(value).trim();
-    return text.length > 0 ? text : baselineMetadataPlaceholder;
+    return text.length > 0 ? text : placeholder;
   }
 
   function getRegressionReasonLabel(reasonCode: string) {
@@ -232,14 +238,21 @@ export function ReportCenterPage() {
           ) : null}
 
           {showPreRunGuidance ? (
-            <StatePanel
-              description={
-                locale === "zh"
-                  ? "先执行一次 question-set run，再从质量摘要、差异摘要和弱项列表开始 scan-first 复盘。"
-                  : "Run one question-set eval first, then scan quality summary, diff summary, and weakest items for replay."}
-              title={locale === "zh" ? "先跑一次 scan-first run" : "Start with one scan-first run"}
-              tone="empty"
-            />
+            <Stack gap={6}>
+              <StatePanel
+                description={
+                  locale === "zh"
+                    ? "先执行一次 question-set run，再从质量摘要、差异摘要和弱项列表开始 scan-first 复盘。"
+                    : "Run one question-set eval first, then scan quality summary, diff summary, and weakest items for replay."}
+                title={locale === "zh" ? "先跑一次 scan-first run" : "Start with one scan-first run"}
+                tone="empty"
+              />
+              <Text c="var(--app-text-muted)" data-testid="report-center-pre-run-path" size="xs">
+                {locale === "zh"
+                  ? "scan path: Eval run（触发首轮）→ Report center（查看质量/差异/弱项）"
+                  : "scan path: Eval run (trigger first run) -> Report center (review quality/diff/weakest items)"}
+              </Text>
+            </Stack>
           ) : null}
         </Stack>
       </Paper>
@@ -394,11 +407,15 @@ export function ReportCenterPage() {
             </div>
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">baselineSnapshotId</span>
-              <span className="workspace-meta-value">{formatBaselineMetadataValue(runEvalMutation.data.baselineSnapshotId)}</span>
+              <span className="workspace-meta-value">
+                {formatBaselineMetadataValue(runEvalMutation.data.baselineSnapshotId, baselineSnapshotPlaceholder)}
+              </span>
             </div>
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">baselineVersion</span>
-              <span className="workspace-meta-value">{formatBaselineMetadataValue(runEvalMutation.data.baselineVersion)}</span>
+              <span className="workspace-meta-value">
+                {formatBaselineMetadataValue(runEvalMutation.data.baselineVersion, baselineVersionPlaceholder)}
+              </span>
             </div>
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">assistantId</span>
@@ -457,96 +474,107 @@ export function ReportCenterPage() {
             </Stack>
           </Paper>
 
-          <div className="workspace-table-shell">
-            <Table.ScrollContainer minWidth={1040}>
-              <Table
-                className="workspace-table"
-                highlightOnHover
-                styles={{
-                  table: {
-                    color: "var(--app-text)"
-                  },
-                  thead: {
-                    background: "rgba(255,255,255,0.03)"
-                  },
-                  tr: {
-                    borderColor: "var(--app-border)"
-                  },
-                  th: {
-                    color: "var(--app-text-secondary)",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    fontSize: 12,
-                    letterSpacing: "0.04em"
-                  },
-                  td: {
-                    color: "var(--app-text)"
-                  }
-                }}
-              >
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>#</Table.Th>
-                    <Table.Th>{locale === "zh" ? "状态" : "Status"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "问题" : "Question"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "答案状态" : "Answer status"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "质量" : "Quality"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "主问题" : "Primary issue"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "引用数" : "Citations"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "Fallback" : "Fallback"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "Trace / 问题" : "Trace / issue"}</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {runEvalMutation.data.items.map(item => (
-                    <Table.Tr key={`${item.index}-${item.question}`}>
-                      <Table.Td>{item.index}</Table.Td>
-                      <Table.Td>
-                        <Badge color={item.status === "succeeded" ? "indigo" : "red"} radius="sm" variant="light">
-                          {item.status}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">{item.question}</Text>
-                      </Table.Td>
-                      <Table.Td>{item.answerStatus ?? "-"}</Table.Td>
-                      <Table.Td>{item.qualityOverall ?? "-"}</Table.Td>
-                      <Table.Td>{item.qualityPrimaryIssue ?? "-"}</Table.Td>
-                      <Table.Td>{item.citationCount}</Table.Td>
-                      <Table.Td>
-                        {item.usedFallback == null ? "-" : item.usedFallback ? (locale === "zh" ? "是" : "yes") : (locale === "zh" ? "否" : "no")}
-                      </Table.Td>
-                      <Table.Td>
-                        <Stack gap={4}>
-                          {item.traceId ? (
-                            <Button
-                              className="workspace-button"
-                              color="indigo"
-                              component={Link}
-                              radius="xl"
-                              size="xs"
-                              to={`/traces/${item.traceId}`}
-                              variant="light"
-                            >
-                              {item.traceId}
-                            </Button>
-                          ) : (
-                            <Text c="var(--app-text-muted)" size="xs">-</Text>
-                          )}
-                          {item.error?.message ? (
-                            <Text c="var(--app-text-secondary)" size="xs">
-                              {item.error.code ? `[${item.error.code}] ` : ""}
-                              {item.error.message}
-                            </Text>
-                          ) : null}
-                        </Stack>
-                      </Table.Td>
+          {hasRunItems ? (
+            <div className="workspace-table-shell">
+              <Table.ScrollContainer minWidth={1040}>
+                <Table
+                  className="workspace-table"
+                  highlightOnHover
+                  styles={{
+                    table: {
+                      color: "var(--app-text)"
+                    },
+                    thead: {
+                      background: "rgba(255,255,255,0.03)"
+                    },
+                    tr: {
+                      borderColor: "var(--app-border)"
+                    },
+                    th: {
+                      color: "var(--app-text-secondary)",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      fontSize: 12,
+                      letterSpacing: "0.04em"
+                    },
+                    td: {
+                      color: "var(--app-text)"
+                    }
+                  }}
+                >
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>#</Table.Th>
+                      <Table.Th>{locale === "zh" ? "状态" : "Status"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "问题" : "Question"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "答案状态" : "Answer status"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "质量" : "Quality"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "主问题" : "Primary issue"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "引用数" : "Citations"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "Fallback" : "Fallback"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "Trace / 问题" : "Trace / issue"}</Table.Th>
                     </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Table.ScrollContainer>
-          </div>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {runEvalMutation.data.items.map(item => (
+                      <Table.Tr key={`${item.index}-${item.question}`}>
+                        <Table.Td>{item.index}</Table.Td>
+                        <Table.Td>
+                          <Badge color={item.status === "succeeded" ? "indigo" : "red"} radius="sm" variant="light">
+                            {item.status}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm">{item.question}</Text>
+                        </Table.Td>
+                        <Table.Td>{item.answerStatus ?? "-"}</Table.Td>
+                        <Table.Td>{item.qualityOverall ?? "-"}</Table.Td>
+                        <Table.Td>{item.qualityPrimaryIssue ?? "-"}</Table.Td>
+                        <Table.Td>{item.citationCount}</Table.Td>
+                        <Table.Td>
+                          {item.usedFallback == null ? "-" : item.usedFallback ? (locale === "zh" ? "是" : "yes") : (locale === "zh" ? "否" : "no")}
+                        </Table.Td>
+                        <Table.Td>
+                          <Stack gap={4}>
+                            {item.traceId ? (
+                              <Button
+                                className="workspace-button"
+                                color="indigo"
+                                component={Link}
+                                radius="xl"
+                                size="xs"
+                                to={`/traces/${item.traceId}`}
+                                variant="light"
+                              >
+                                {item.traceId}
+                              </Button>
+                            ) : (
+                              <Text c="var(--app-text-muted)" size="xs">-</Text>
+                            )}
+                            {item.error?.message ? (
+                              <Text c="var(--app-text-secondary)" size="xs">
+                                {item.error.code ? `[${item.error.code}] ` : ""}
+                                {item.error.message}
+                              </Text>
+                            ) : null}
+                          </Stack>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
+            </div>
+          ) : (
+            <StatePanel
+              description={
+                locale === "zh"
+                  ? "当前 run 没有返回可展示题目。请先检查 question-set 输入，再执行一次 scan-first run。"
+                  : "This run did not return any displayable items. Verify the question-set input and run one scan-first eval again."}
+              title={locale === "zh" ? "本次 run 暂无题目结果" : "This run has no eval items yet"}
+              tone="empty"
+            />
+          )}
         </Stack>
       ) : null}
     </div>
