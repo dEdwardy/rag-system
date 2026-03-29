@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useState } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 export type ThemeColorMode = "constrained-light" | "creative-dark";
 export type ThemeLayoutMode = "default-app" | "workspace-app";
@@ -78,6 +78,23 @@ const ThemePreferencesContext = createContext<ThemePreferencesContextValue | nul
 export function ThemePreferencesProvider({ children }: { children: React.ReactNode }) {
   const [preferences, setPreferences] = useState<ThemePreferences>(getInitialThemePreferences);
 
+  const setThemeColor = useCallback((themeColor: ThemeColorMode) => {
+    setPreferences(current => (current.themeColor === themeColor ? current : { ...current, themeColor }));
+  }, []);
+
+  const setThemeLayout = useCallback((themeLayout: ThemeLayoutMode) => {
+    setPreferences(current => (current.themeLayout === themeLayout ? current : { ...current, themeLayout }));
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      ...preferences,
+      setThemeColor,
+      setThemeLayout
+    }),
+    [preferences, setThemeColor, setThemeLayout]
+  );
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       setStoredThemePreferences(window.localStorage, preferences);
@@ -89,11 +106,7 @@ export function ThemePreferencesProvider({ children }: { children: React.ReactNo
   return createElement(
     ThemePreferencesContext.Provider,
     {
-      value: {
-        ...preferences,
-        setThemeColor: themeColor => setPreferences(current => (current.themeColor === themeColor ? current : { ...current, themeColor })),
-        setThemeLayout: themeLayout => setPreferences(current => (current.themeLayout === themeLayout ? current : { ...current, themeLayout }))
-      }
+      value
     },
     children
   );
