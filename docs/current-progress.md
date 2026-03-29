@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 offline artifact vs web runtime boundary wording is now contract-synced to landed runner/report facts (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `eval:runner:p5-v1` 段补充“产物来源”边界：`storage/evals/p5-v1` 时间戳文件由 CLI runner（`apps/api/scripts/run-p5-v1-eval-runner.mjs`）离线写出，定位仍是回归证据归档面
+    - 明确 web `Report center` 的运行时契约边界继续锚定在线 eval API：`POST /eval/question-sets/:id/runs` 返回体（含 `reportExports`）用于页面读取/导出；不直接索引离线 artifact 目录
+    - 范围保持 docs/contract sync only：不改 runner/report/gate 行为，不新增手动 baseline 选择流，不新增评测/报表 family，不扩展产品 UX
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P3 source follow-up docs are now re-synced to one accepted stability boundary + deferred expansion decision + focused validation baseline (docs-only)
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`
