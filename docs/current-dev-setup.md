@@ -139,7 +139,7 @@ AUTH_SESSION_TTL_HOURS=168
     - no password reset / forgot-password / email verification in this wave
     - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
     - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
-  - auth `Phase 2/3/4` current landed snapshot (queue wave sync):
+  - auth `Phase 2/3/4 + real OIDC` current landed snapshot (queue wave sync):
     - `Phase 2` baseline is landed:
       - `AuthIdentityLink` skeleton is in Prisma (`provider + subject` unique boundary, plus `emailSnapshot` / `profileSnapshot` / `lastLoginAt`)
       - `authSource` contract reserves `local` / `github` / `google` / `oidc` / `session` / `dev_seed`
@@ -149,15 +149,19 @@ AUTH_SESSION_TTL_HOURS=168
       - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession` and writes `rag_session`
     - `Phase 4` Google flow is landed with the same backend pattern:
       - `/auth/oauth/google/start` and `/auth/oauth/google/callback` follow the same state + identity-link + local-session bridge semantics
+    - real `oidc` flow is now landed with the same backend identity-link/session bridge pattern:
+      - `/auth/oauth/oidc/start` resolves OIDC discovery metadata (`authorization_endpoint`) and redirects with the existing state-cookie guard
+      - `/auth/oauth/oidc/callback` resolves discovery metadata (`token_endpoint` + `userinfo_endpoint`), exchanges code, reads stable `sub`, then links/creates local user via `AuthIdentityLink(provider, subject)` and creates local `AuthSession`
     - runtime env requirements currently used by code paths above:
       - shared OAuth state controls: `AUTH_OAUTH_STATE_COOKIE_NAME` (default `rag_oauth_state`), `AUTH_OAUTH_STATE_TTL_SECONDS` (default `600`)
       - GitHub start/callback config: `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET`, `AUTH_GITHUB_REDIRECT_URI` (optional overrides: `AUTH_GITHUB_AUTHORIZE_URL`, `AUTH_GITHUB_TOKEN_URL`, `AUTH_GITHUB_USER_URL`, `AUTH_GITHUB_SCOPE`)
       - Google start/callback config: `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_GOOGLE_REDIRECT_URI` (optional overrides: `AUTH_GOOGLE_AUTHORIZE_URL`, `AUTH_GOOGLE_TOKEN_URL`, `AUTH_GOOGLE_USER_URL`, `AUTH_GOOGLE_SCOPE`)
+      - OIDC start/callback config: `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_REDIRECT_URI` (optional: `AUTH_OIDC_SCOPE`, default `openid email profile`)
       - optional default tenant for first-time OAuth auto-create path: `AUTH_DEFAULT_TENANT_ID` (fallback `default-tenant`)
-    - still reserved-only boundary in this wave:
-      - `oidc` provider remains explicit `NotImplemented` for both start/callback runtime handling
     - behavior boundary kept unchanged:
+      - `/auth/me` contract remains `{ identity, currentIdentity, loginProvenance }`; this wave does not change identity/session payload shape
       - local login + session-cookie flow remains active (`POST /auth/login` + `rag_session` + `GET /auth/me`)
+      - OAuth/OIDC callback still bridges into local persisted session (`AuthSession` + `rag_session`), not provider token session state on frontend
       - owner-only ACL behavior remains unchanged; this auth increment does not reopen ACL expansion
   - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
     - allow only when `tenantId` matches and `ownerId === userId`

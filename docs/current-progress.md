@@ -15,6 +15,41 @@
 
 补充进展（2026-03-29）：
 
+- ✅ real OIDC landed facts are now synced into current docs (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 已按当前后端实现对齐记录 real OIDC：`/auth/oauth/oidc/start` 现已通过 discovery `authorization_endpoint` 生成真实跳转；`/auth/oauth/oidc/callback` 现已通过 discovery `token_endpoint + userinfo_endpoint` 完成 code exchange，并沿用 `AuthIdentityLink(provider, subject) -> 本地 AuthSession(rag_session)` 的 session bridge
+    - 已同步 runtime config 要求（仅记录代码已落地项）：`AUTH_OIDC_ISSUER`、`AUTH_OIDC_CLIENT_ID`、`AUTH_OIDC_CLIENT_SECRET`、`AUTH_OIDC_REDIRECT_URI`，以及可选 `AUTH_OIDC_SCOPE`（默认 `openid email profile`）
+    - 已明确保持边界不变：`/auth/me` 仍返回 `{ identity, currentIdentity, loginProvenance }`；本地 session 路径仍为主锚点；owner-only ACL（`owner_only_v1 + deny_by_default`）语义不变
+    - 本次仅同步已落地事实：不宣称新增前端 OIDC provider UX，不重开 roadmap 排序，不修改运行时代码
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已为下一轮 auth wave 补充 real OIDC provider mini-plan，并准备按单独 wave 入队执行
+  - 变更文件：
+    - `.opencode/plan/auth-wave-real-oidc.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在原有四阶段 auth roadmap 已完成本地账号、identity-link 骨架、GitHub、Google 的基础上，把下一波 auth 方向收束为单独的 `real OIDC provider` wave，而不是继续混入本地账号管理、auth UX 或 ACL 升级
+    - 本轮 mini-plan 明确当前目标是把保留态 `oidc` 从 `NotImplemented` 变成真实 start/callback/provider-session bridge，同时保持 `/auth/me`、本地 `AuthSession`、`AuthIdentityLink`、owner-only ACL 语义不变
+    - 后续 queue 将只围绕 OIDC config/provider、OIDC start、OIDC callback、OIDC docs sync 四个最小增量展开
+  - focused validation：
+    - `git diff --check -- docs/current-progress.md`
+
+- ✅ 已按单独 wave 追加 real OIDC provider execution-ready queue items，避免与本地账号管理 / auth UX / ACL 升级混排
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 基于 `.opencode/plan/auth-wave-real-oidc.md`，当前只入队 OIDC config/provider、OIDC start flow、OIDC callback flow、OIDC docs sync 四个最小增量
+    - 明确保留边界：本轮只把 `oidc` 从 reserved-only `NotImplemented` 推进到真实 provider-session bridge，不扩展到本地账号管理、前端 provider UX 收口、signup/reset、RBAC/ABAC、team ACL 或 org/billing
+    - 新增 queue items：`auth-oidc-config-provider-051`、`auth-oidc-start-flow-052`、`auth-oidc-callback-flow-053`、`auth-oidc-docs-sync-054`
+    - `pnpm loop:start` 已重启 loop；当前首个 item `auth-oidc-config-provider-051` 已进入 `in_progress`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ web app-shell current identity card now surfaces `/auth/me.loginProvenance` with one compact session readability line (`local` vs `OAuth · <provider>`)
   - 变更文件：
     - `apps/web/src/app/AppShell.tsx`
