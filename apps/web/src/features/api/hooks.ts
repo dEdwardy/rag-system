@@ -85,10 +85,10 @@ export function useLogin() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload?: { userId?: string }) =>
+    mutationFn: (payload: { email: string; password: string }) =>
       apiRequest<{ identity: AuthMeResponse["currentIdentity"]; expiresAt: string }>("/auth/login", {
         method: "POST",
-        body: payload?.userId ? { userId: payload.userId } : {}
+        body: payload
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
