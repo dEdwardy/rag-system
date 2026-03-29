@@ -514,9 +514,20 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    - 要求：不把当前系统扩成 generic connector platform
    - 交付物：明确的保留/新增结论
 
+   P3 task 4 评估结论（2026-03-29）：**keep（当前不新增 source family）**。
+
+   - 结论口径：在当前稳定性项已收口前提下，继续保持现有 source family（`web` / `feed` / `sitemap` / `sitemapindex(一层)`），不进入新增 connector 扩面。
+   - 主要依据：
+     1) 当前 follow-up 的高优先缺口仍属于既有 family 内稳定性补强（边界语义与可观测性一致性），不是“缺少新 family 才能闭环”的阻塞。
+     2) 现有主链路已具备 re-sync / retry / timeout / run observability 的可复用基线，新增 family 会引入新的失败边界与回归成本，不符合本波次最小增量原则。
+     3) 当前阶段主线优先级仍在 auth/ACL 与既有能力收口，source 方向应保持 stabilization-first，而非 connector 平台化扩张。
+   - 触发重新评估（add）的最小前提：
+     - 现有 family 内稳定性缺口已全部收口并通过既定 focused baseline；
+     - 有明确、可复现的业务需求被当前 family 结构性阻塞，且无法通过现有 family 的最小增强解决。
+
 5. 同步 external source follow-up 文档与验证基线
-    - 目标：把后续 source wave 的边界、验证方式、未做项写清楚
-    - 交付物：文档同步 + 最小复用验证清单
+     - 目标：把后续 source wave 的边界、验证方式、未做项写清楚
+     - 交付物：文档同步 + 最小复用验证清单
 
     最小复用验证基线（P3 follow-up）建议保持：
 

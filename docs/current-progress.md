@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P3 `new source type review` now has a clear keep/add decision after source-family stability closeout: **keep existing family (no new source family in this wave)**
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `P3 task 4` 追加明确结论：当前波次保持 `web/feed/sitemap/sitemapindex(一层)`，不新增 source family
+    - 明确给出 keep 依据：现有缺口仍是既有 family 内稳定性补强，不需要通过新增 connector 才能闭环
+    - 追加 re-open 条件：仅在既有稳定性缺口收口且出现明确结构性需求阻塞时，才重新评估 add
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ P3 `source follow-up docs` now records a reproducible stability-boundary snapshot, intentionally deferred items, and minimal validation baseline
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`
