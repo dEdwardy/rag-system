@@ -1,11 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.schema.json",
-  // Model split rationale (kept as-is):
-  // - plan/review-risk use gpt-5.4 for higher planning/review quality on high-leverage decisions.
-  // - build stays on gpt-5.3-codex for implementation efficiency and repository-local execution.
+  // Model split rationale:
+  // - top-level interactive model stays on gpt-5.4 because manual prompting and queue decomposition are high leverage.
+  // - build stays on gpt-5.3-codex for implementation efficiency on narrow execution-ready tasks.
   // - explore stays on gpt-5.3-mini for low-cost, narrow retrieval/search tasks.
   // Revisit only when there is clear quality regression or sustained cost/latency pressure.
-  "model": "openai/gpt-5.3-mini",
+  "model": "openai/gpt-5.4",
   "small_model": "openai/gpt-5.3-mini",
   "default_agent": "rag-orchestrator",
   "command": {
@@ -13,13 +13,13 @@
       "agent": "rag-plan",
       "model": "openai/gpt-5.4",
       "description": "产出当前任务的最小可执行增量",
-      "template": "先阅读 AGENTS.md、docs/next_steps_rag_project_plan.md、docs/current-progress.md、docs/current-dev-setup.md、README.md。给出当前任务的最小计划。默认按 plan -> build 工作；若缺少对应 superpowers spec/plan，先补齐，再进入 build/实施。"
+      "template": "先阅读 AGENTS.md、docs/next_steps_rag_project_plan.md、docs/current-progress.md、docs/current-dev-setup.md、README.md。识别当前主线，给出最小、可直接执行的下一增量。默认按 plan -> build 工作；仅在任务属于高风险、跨模块、涉及 shared contract、schema/persistence、或 permission/policy boundary 变化时，才要求先补齐 spec/plan。若从现有上下文无法安全执行该任务，不要猜、不要扩 scope；该分支不要产出 queue item。"
     },
     "build": {
       "agent": "rag-build",
       "model": "openai/gpt-5.3-codex",
       "description": "按已确认计划实施并完成最小验证",
-      "template": "基于已确认的最小计划执行实现。优先 backend-first、小步增量、快验证；不做无关重构。TDD 不是默认流程，仅在行为语义、共享契约、source recovery 等改动时启用 light TDD。"
+      "template": "基于已确认的最小计划执行实现。先检查相关代码路径和现有模式，再做最小具体改动。优先 backend-first、小步增量、快验证；运行一个最相关验证，并明确报告改动文件和验证命令；不做无关重构。TDD 不是默认流程，仅在行为语义、共享契约、source recovery 等改动时启用 light TDD。若需求不清晰或存在冲突，不要猜；直接 fail fast 并报告不确定点。"
     },
     "explore": {
       "agent": "rag-explore",
@@ -27,11 +27,17 @@
       "model": "openai/gpt-5.3-mini",
       "template": "只做窄范围代码与文档检索、定位、对比与证据整理；不要扩展为完整实现任务。"
     },
+    "chat": {
+      "agent": "rag-orchestrator",
+      "model": "openai/gpt-5.3-mini",
+      "description": "日常问答与轻分析",
+      "template": "用于日常问答、轻分析、思路讨论和快速解释；不要默认进入完整实施流，不要自动扩展为 plan/build 执行任务。"
+    },
     "review-risk": {
       "agent": "rag-review",
       "model": "openai/gpt-5.4",
       "description": "仅用于高风险或合并前关键审查",
-      "template": "只审查高风险变更，如 retrieval、fallback、answering、citation、ingestion、source sync/recovery、schema、orchestrator、shared contract、streaming、persistence；不要把 review 作为默认步骤；config/docs/style 小改不默认触发 review。"
+      "template": "只审查高风险变更，如 ACL/permissions、policy boundary、retrieval、fallback、answering、citation、ingestion、source sync/recovery、schema、persistence、orchestrator、shared contract、streaming、以及重要 API boundary；不要把 review 作为默认步骤；config/docs/style 小改不默认触发 review。"
     }
   }
 }
