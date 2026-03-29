@@ -190,3 +190,84 @@ test("DocumentsService checks scoped knowledge-base access before listing docume
     }
   ]);
 });
+
+test("DocumentsService denies knowledge-base document list when owner scope check fails", async () => {
+  const listCalls = [];
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    knowledgeBasesService: {
+      getKnowledgeBase: async () => {
+        throw new Error("Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).");
+      }
+    },
+    prisma: {
+      document: {
+        findMany: async args => {
+          listCalls.push(args);
+          return [];
+        }
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "kb-1", {}, { tenantId: "tenant-auth", userId: "user-auth" }),
+    /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+  );
+  assert.deepEqual(listCalls, []);
+});
+
+test("DocumentsService denies document detail when owning knowledge-base access fails", async () => {
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findUnique: async () => ({ id: "document-1", kbId: "kb-1" })
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async () => {
+        throw new Error("Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).");
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.getDocument.call(fakeService, "document-1", { tenantId: "tenant-auth", userId: "user-auth" }),
+    /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+  );
+});
+
+test("DocumentsService denies document write create when owning knowledge-base access fails", async () => {
+  const createCalls = [];
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    knowledgeBasesService: {
+      getKnowledgeBase: async () => {
+        throw new Error("Access blocked by owner_only_v1 policy (owner_mismatch: resource owner does not match current user).");
+      }
+    },
+    prisma: {
+      document: {
+        create: async args => {
+          createCalls.push(args);
+          return { id: "document-1" };
+        }
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.createDocument.call(
+      fakeService,
+      "kb-1",
+      {
+        sourceType: "upload",
+        sourceName: "notes.txt",
+        title: "notes",
+        mimeType: "text/plain",
+        storageKey: "uploads/notes.txt"
+      },
+      { tenantId: "tenant-auth", userId: "user-auth" }
+    ),
+    /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+  );
+  assert.deepEqual(createCalls, []);
+});

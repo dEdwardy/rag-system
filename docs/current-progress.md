@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P2 `kb document ownership checks` denial baseline now covers list/detail/write rejection regressions for owner-mismatch paths
+  - 变更文件：
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `apps/api/test/kb-document-access.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - knowledge-base owner-only 拒绝回归新增 `update` 写入路径断言，确保 owner mismatch 时不会落库更新
+    - document owner-only 拒绝回归新增三条最小 denial 路径：knowledge-base 文档列表、document 详情读取、document 创建写入
+    - 仅补 ACL 拒绝路径回归守卫，不改现有 controller/service 访问语义
+  - focused validation：
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js test/kb-document-access.test.js`
+
 - ✅ P2 `access policy contract` now has a shared ACL contract baseline in `@rag-system/shared` with standardized policy input/output/deny reasons
   - 变更文件：
     - `packages/shared/src/access-policy-contracts.ts`

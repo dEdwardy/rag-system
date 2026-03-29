@@ -245,6 +245,31 @@ test("KnowledgeBasesService denies read detail when owner check fails", async ()
   );
 });
 
+test("KnowledgeBasesService denies write update when owner check fails", async () => {
+  const calls = {
+    update: []
+  };
+  const service = new KnowledgeBasesService({
+    knowledgeBase: {
+      findUnique: async () => ({
+        id: "kb-1",
+        tenantId: "tenant-auth",
+        ownerId: "user-other"
+      }),
+      update: async args => {
+        calls.update.push(args);
+        return { id: "kb-1" };
+      }
+    }
+  });
+
+  await assert.rejects(
+    service.updateKnowledgeBase("kb-1", { name: "should-not-update" }, { tenantId: "tenant-auth", userId: "user-auth" }),
+    /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
+  );
+  assert.deepEqual(calls.update, []);
+});
+
 test("DocumentsService verifies document read access through knowledge-base owner check", async () => {
   const calls = {
     documentGet: [],
