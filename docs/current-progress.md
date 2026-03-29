@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ document-run snapshot comparison now includes one focused issue-hotspot slice for faster issue concentration scanning across existing summary/comparison buckets
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `GET /knowledge-bases/:id/document-runs/comparison` 在 `snapshot` 模式下新增 additive 字段 `issueHotspotSlice`
+    - 该 slice 仅复用现有 `bySourceFamily` / `sourceFamilyDeltas` 数据，输出左右窗口各自 issue concentration hotspot（`issueSignalScore/issueConcentration`）与一个 `dominantShift`
+    - 不新增 endpoint、不改既有 summary/comparison 统计语义、不扩展 usage/dashboard 架构
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
 - ✅ trace detail now includes one in-page quick-jump scan path so operators can move between core trace sections with less friction
   - 变更文件：
     - `apps/web/src/pages/traces/TraceDetailPage.tsx`

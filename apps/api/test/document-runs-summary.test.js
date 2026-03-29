@@ -213,6 +213,29 @@ test("DocumentRunsService snapshot comparison highlights summary metric deltas",
   assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "failedRuns"));
   assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "retryableFailures"));
   assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "runsWithBoundaryHit"));
+  assert.deepEqual(result.issueHotspotSlice, {
+    leftHotspot: {
+      sourceFamily: "web",
+      totalRuns: 1,
+      issueSignalScore: 1,
+      issueConcentration: 1
+    },
+    rightHotspot: {
+      sourceFamily: "feed",
+      totalRuns: 1,
+      issueSignalScore: 2,
+      issueConcentration: 2
+    },
+    dominantShift: {
+      sourceFamily: "feed",
+      leftIssueSignalScore: 0,
+      rightIssueSignalScore: 2,
+      issueSignalDelta: 2,
+      leftIssueConcentration: 0,
+      rightIssueConcentration: 2,
+      issueConcentrationDelta: 2
+    }
+  });
   assert.deepEqual(result.sourceFamilyDeltas, [
     {
       sourceFamily: "feed",

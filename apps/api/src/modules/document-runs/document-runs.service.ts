@@ -226,6 +226,7 @@ export class DocumentRunsService {
         sinceHours: rightSinceHours
       })
     ]);
+    const sourceFamilyDeltas = this.buildSourceFamilyDeltas(leftSnapshot, rightSnapshot);
 
     return {
       mode: "snapshot",
@@ -238,7 +239,8 @@ export class DocumentRunsService {
         summary: rightSnapshot
       },
       meaningfulDifferences: this.buildSummaryMeaningfulDifferences(leftSnapshot, rightSnapshot),
-      sourceFamilyDeltas: this.buildSourceFamilyDeltas(leftSnapshot, rightSnapshot)
+      sourceFamilyDeltas,
+      issueHotspotSlice: this.buildIssueHotspotSlice(leftSnapshot, rightSnapshot, sourceFamilyDeltas)
     };
   }
 
@@ -461,6 +463,111 @@ export class DocumentRunsService {
           item.deltas.nonRetryableFailures !== 0 ||
           item.deltas.runsWithBoundaryHit !== 0
       );
+  }
+
+  private buildIssueHotspotSlice(
+    left: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    right: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    sourceFamilyDeltas: ReturnType<DocumentRunsService["buildSourceFamilyDeltas"]>
+  ) {
+    const leftHotspot = this.resolveTopIssueHotspot(left.bySourceFamily);
+    const rightHotspot = this.resolveTopIssueHotspot(right.bySourceFamily);
+
+    const dominantShift = sourceFamilyDeltas
+      .map(item => {
+        const leftIssueSignalScore = this.buildIssueSignalScore(item.left);
+        const rightIssueSignalScore = this.buildIssueSignalScore(item.right);
+        const leftIssueConcentration = this.buildIssueConcentration(item.left);
+        const rightIssueConcentration = this.buildIssueConcentration(item.right);
+
+        return {
+          sourceFamily: item.sourceFamily,
+          leftIssueSignalScore,
+          rightIssueSignalScore,
+          issueSignalDelta: rightIssueSignalScore - leftIssueSignalScore,
+          leftIssueConcentration,
+          rightIssueConcentration,
+          issueConcentrationDelta: rightIssueConcentration - leftIssueConcentration
+        };
+      })
+      .sort((a, b) => {
+        const concentrationDeltaGap = Math.abs(b.issueConcentrationDelta) - Math.abs(a.issueConcentrationDelta);
+        if (concentrationDeltaGap !== 0) {
+          return concentrationDeltaGap;
+        }
+
+        const issueSignalDeltaGap = Math.abs(b.issueSignalDelta) - Math.abs(a.issueSignalDelta);
+        if (issueSignalDeltaGap !== 0) {
+          return issueSignalDeltaGap;
+        }
+
+        return a.sourceFamily.localeCompare(b.sourceFamily);
+      })[0] ?? null;
+
+    return {
+      leftHotspot,
+      rightHotspot,
+      dominantShift
+    };
+  }
+
+  private resolveTopIssueHotspot(
+    bySourceFamily: Record<
+      string,
+      {
+        totalRuns: number;
+        failedRuns: number;
+        retryableFailures: number;
+        nonRetryableFailures: number;
+        runsWithBoundaryHit: number;
+      }
+    >
+  ) {
+    const candidates = Object.entries(bySourceFamily)
+      .map(([sourceFamily, bucket]) => {
+        const issueSignalScore = this.buildIssueSignalScore(bucket);
+        return {
+          sourceFamily,
+          totalRuns: bucket.totalRuns,
+          issueSignalScore,
+          issueConcentration: this.buildIssueConcentration(bucket)
+        };
+      })
+      .filter(item => item.issueSignalScore > 0)
+      .sort((a, b) => {
+        if (b.issueConcentration !== a.issueConcentration) {
+          return b.issueConcentration - a.issueConcentration;
+        }
+
+        if (b.issueSignalScore !== a.issueSignalScore) {
+          return b.issueSignalScore - a.issueSignalScore;
+        }
+
+        return a.sourceFamily.localeCompare(b.sourceFamily);
+      });
+
+    return candidates[0] ?? null;
+  }
+
+  private buildIssueSignalScore(bucket: {
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  }) {
+    return bucket.retryableFailures + bucket.nonRetryableFailures + bucket.runsWithBoundaryHit;
+  }
+
+  private buildIssueConcentration(bucket: {
+    totalRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  }) {
+    if (bucket.totalRuns <= 0) {
+      return 0;
+    }
+
+    return this.buildIssueSignalScore(bucket) / bucket.totalRuns;
   }
 
   async listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
