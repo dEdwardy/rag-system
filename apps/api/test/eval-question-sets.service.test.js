@@ -573,7 +573,41 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
   assert.equal(result.reportExports.markdown.format, "markdown");
   assert.equal(result.reportExports.json.format, "json");
   assert.equal(result.reportExports.html.format, "html");
+  const reportJson = JSON.parse(result.reportExports.json.content);
+  assert.deepEqual(Object.keys(reportJson), [
+    "schemaVersion",
+    "exportedAt",
+    "questionSetId",
+    "baselineSnapshotId",
+    "baselineVersion",
+    "assistantId",
+    "startedAt",
+    "finishedAt",
+    "totals",
+    "summary",
+    "qualityGate",
+    "baselineComparison",
+    "items"
+  ]);
+  assert.equal(reportJson.schemaVersion, "p5_v1_report_export_v1");
+  assert.equal(reportJson.exportedAt, result.finishedAt.toISOString());
+  assert.equal(reportJson.startedAt, result.startedAt.toISOString());
+  assert.equal(reportJson.finishedAt, result.finishedAt.toISOString());
+  assert.deepEqual(Object.keys(reportJson.items[0]), [
+    "index",
+    "question",
+    "status",
+    "traceId",
+    "conversationId",
+    "answerStatus",
+    "qualityOverall",
+    "qualityPrimaryIssue",
+    "citationCount",
+    "usedFallback",
+    "error"
+  ]);
   assert.match(result.reportExports.markdown.content, /# P5 v1 eval report/);
+  assert.match(result.reportExports.markdown.content, /\| # \| status \| question \| answerStatus \| qualityOverall \| primaryIssue \| citations \| usedFallback \| traceId \| errorCode \| errorMessage \|/);
   assert.match(result.reportExports.json.content, /"schemaVersion": "p5_v1_report_export_v1"/);
   assert.match(result.reportExports.html.content, /<!doctype html>/i);
   assert.deepEqual(
@@ -1167,6 +1201,50 @@ test("EvalQuestionSetsService runQuestionSet returns per-question failure drilld
       }
     ]
   });
+  assert.equal(result.reportExports.markdown.format, "markdown");
+  assert.equal(result.reportExports.json.format, "json");
+  assert.equal(result.reportExports.html.format, "html");
+  const reportJson = JSON.parse(result.reportExports.json.content);
+  assert.deepEqual(reportJson.baselineComparison.diffSummary.topRegressionReasons, [
+    {
+      reasonCode: "citations_decreased",
+      count: 2
+    },
+    {
+      reasonCode: "became_failed",
+      count: 1
+    },
+    {
+      reasonCode: "fallback_introduced",
+      count: 1
+    },
+    {
+      reasonCode: "quality_degraded",
+      count: 1
+    }
+  ]);
+  assert.deepEqual(
+    reportJson.baselineComparison.failureDrilldown.weakestItems.map(item => ({
+      index: item.index,
+      severity: item.severity,
+      reasonCodes: item.reasonCodes
+    })),
+    [
+      {
+        index: 1,
+        severity: "critical",
+        reasonCodes: ["became_failed", "citations_decreased"]
+      },
+      {
+        index: 2,
+        severity: "high",
+        reasonCodes: ["quality_degraded", "fallback_introduced", "citations_decreased"]
+      }
+    ]
+  );
+  assert.match(result.reportExports.markdown.content, /## Diff summary/);
+  assert.match(result.reportExports.markdown.content, /- topRegressionReasons: citations_decreased\(2\), became_failed\(1\), fallback_introduced\(1\), quality_degraded\(1\)/);
+  assert.match(result.reportExports.html.content, /<h2>Diff summary<\/h2>/);
 });
 
 test("EvalQuestionSetsService runQuestionSet marks baseline comparison as non-meaningful when question set drift is detected", async () => {

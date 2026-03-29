@@ -1213,7 +1213,7 @@ export class EvalQuestionSetsService {
   private buildRunReportExports(runResult: EvalQuestionSetRunResultPayload): EvalRunReportExports {
     const reportPayload = {
       schemaVersion: "p5_v1_report_export_v1",
-      exportedAt: new Date().toISOString(),
+      exportedAt: runResult.finishedAt.toISOString(),
       questionSetId: runResult.questionSetId,
       baselineSnapshotId: runResult.baselineSnapshotId,
       baselineVersion: runResult.baselineVersion,

@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 retrieval regression report export contract is now tightened for rerun-stable structure and trace-signal readability
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - report export metadata 中 `exportedAt` 现在对齐 `runResult.finishedAt`，避免报告导出时额外时钟漂移导致的无意义 diff
+    - focused regression 覆盖补齐 report JSON 顶层/题目字段顺序守卫，锁定当前 markdown/json/html 报告结构为可复盘的稳定合同
+    - 继续沿用现有 trace-derived 信号（`topRegressionReasons`、`failureDrilldown`、`qualityPrimaryIssue` 等），不扩展新指标家族或人工评判层
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P5 eval runner baseline ergonomics/failure handling is now hardened for CLI usage and trace-fetch resilience without changing the existing eval framework path
   - 变更文件：
     - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
