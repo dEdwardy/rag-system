@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 usage page now includes an anomaly clustering view so repeated failure patterns stand out in one grouped list
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 区块新增 `P6 v1 anomaly clustering view` 子面板
+    - 基于现有 `GET /knowledge-bases/:id/document-runs?issueOnly=true&sinceHours=24` 返回数据，按 `failedStage + failure code + retryable` 聚合失败模式并展示重复次数与 sourceType 分布
+    - 保持 backend contract 不变，仅补前端读模型聚合与扫描视图，不扩展新接口
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a P6 v1 anomaly clustering view for repeated failure patterns" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 document-run summary now includes source-family stats so source-specific issue hotspots are visible at a glance
   - 变更文件：
     - `apps/api/src/modules/document-runs/document-runs.service.ts`

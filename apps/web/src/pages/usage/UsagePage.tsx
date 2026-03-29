@@ -8,6 +8,7 @@ import {
   useAuditEvents,
   useConversations,
   useDocuments,
+  useKnowledgeBaseDocumentRuns,
   useKnowledgeBaseDocumentRunSummary,
   useKnowledgeBases
 } from "../../features/api/hooks";
@@ -27,6 +28,11 @@ export function UsagePage() {
   const runSummary1hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 1 });
   const runSummary6hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 6 });
   const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 24 });
+  const anomalyRunsQuery = useKnowledgeBaseDocumentRuns(activeKnowledgeBase?.id ?? null, {
+    issueOnly: true,
+    sinceHours: 24,
+    limit: 100
+  });
   const { locale } = useI18n();
 
   const documents = documentsQuery.data ?? [];
@@ -334,6 +340,79 @@ export function UsagePage() {
     issueTrend6hQuery.isLoading ||
     issueTrend24hQuery.isLoading;
 
+  const anomalyPanelErrorMessage =
+    (anomalyRunsQuery.error instanceof Error && anomalyRunsQuery.error.message) ||
+    null;
+
+  const anomalyClusters = useMemo(
+    () => {
+      const clusters = new Map<
+        string,
+        {
+          count: number;
+          failedStage: string;
+          code: string;
+          retryable: boolean;
+          sourceTypeCounts: Record<string, number>;
+          latestAt: string;
+          sampleMessage: string | null;
+        }
+      >();
+
+      for (const run of anomalyRunsQuery.data ?? []) {
+        const summary = run.failureSummary;
+        if (!summary) {
+          continue;
+        }
+
+        const failedStage = summary.failedStage ?? run.failedStage ?? "unknown";
+        const code = summary.code ?? "UNKNOWN_FAILURE";
+        const retryable = summary.retryable;
+        const sourceType = run.document.sourceType || "unknown";
+        const clusterKey = `${failedStage}::${code}::${retryable ? "retryable" : "non_retryable"}`;
+
+        const current = clusters.get(clusterKey);
+        const runAt = run.finishedAt ?? run.startedAt;
+        if (!current) {
+          clusters.set(clusterKey, {
+            count: 1,
+            failedStage,
+            code,
+            retryable,
+            sourceTypeCounts: { [sourceType]: 1 },
+            latestAt: runAt,
+            sampleMessage: summary.message ?? null
+          });
+          continue;
+        }
+
+        current.count += 1;
+        current.sourceTypeCounts[sourceType] = (current.sourceTypeCounts[sourceType] ?? 0) + 1;
+        if (runAt > current.latestAt) {
+          current.latestAt = runAt;
+        }
+        if (!current.sampleMessage && summary.message) {
+          current.sampleMessage = summary.message;
+        }
+      }
+
+      return Array.from(clusters.values())
+        .sort((left, right) => {
+          if (right.count !== left.count) {
+            return right.count - left.count;
+          }
+          return right.latestAt.localeCompare(left.latestAt);
+        })
+        .map(cluster => ({
+          ...cluster,
+          sourceTypes: Object.entries(cluster.sourceTypeCounts)
+            .sort((left, right) => right[1] - left[1])
+            .map(([sourceType, count]) => `${sourceType} (${count})`)
+        }));
+    },
+    [anomalyRunsQuery.data]
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -603,6 +682,61 @@ export function UsagePage() {
                           <span className="font-medium text-[var(--app-text)]">{event.event}</span>
                           {" · "}
                           {event.summary ?? event.entityId}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
+                  <div className="workspace-section-heading">
+                    {locale === "zh" ? "P6 v1 异常聚类视图" : "P6 v1 anomaly clustering view"}
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                    {locale === "zh"
+                      ? "按阶段与错误码聚合同类失败，让重复模式更容易被扫描出来。"
+                      : "Group related failures by stage and code so repeated patterns stand out quickly."}
+                  </p>
+
+                  {anomalyPanelErrorMessage ? (
+                    <StatePanel
+                      description={anomalyPanelErrorMessage}
+                      title={locale === "zh" ? "异常聚类信号加载失败" : "Failed to load anomaly clustering signals"}
+                      tone="error"
+                    />
+                  ) : anomalyRunsQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : anomalyClusters.length === 0 ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                      {locale === "zh" ? "最近 24 小时没有可聚类的失败模式。" : "No clusterable failure patterns in the last 24 hours."}
+                    </p>
+                  ) : (
+                    <ul className="mt-3 flex flex-col gap-2 text-sm">
+                      {anomalyClusters.slice(0, 6).map(cluster => (
+                        <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={`${cluster.failedStage}-${cluster.code}-${cluster.retryable ? "retryable" : "non-retryable"}`}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge color={cluster.retryable ? "yellow" : "red"} radius="sm" variant="light">
+                              {cluster.retryable
+                                ? locale === "zh"
+                                  ? "可重试"
+                                  : "retryable"
+                                : locale === "zh"
+                                  ? "不可重试"
+                                  : "non-retryable"}
+                            </Badge>
+                            <span className="font-medium text-[var(--app-text)]">{cluster.code}</span>
+                            <Badge color="indigo" radius="sm" variant="light">
+                              {locale === "zh"
+                                ? `重复 ${cluster.count} 次`
+                                : `${cluster.count} repeated runs`}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-[var(--app-text-muted)]" data-testid="failure-pattern-cluster">
+                            {locale === "zh"
+                              ? `阶段：${cluster.failedStage} · 来源：${cluster.sourceTypes.join("，")}`
+                              : `Stage: ${cluster.failedStage} · Sources: ${cluster.sourceTypes.join(", ")}`}
+                          </p>
+                          {cluster.sampleMessage ? <p className="mt-1 text-[var(--app-text-muted)]">{cluster.sampleMessage}</p> : null}
                         </li>
                       ))}
                     </ul>

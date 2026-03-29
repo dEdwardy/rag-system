@@ -110,6 +110,14 @@ test("usage page exposes a P6 v1 trend view with 1h/6h/24h windows", () => {
   assert.match(usageSource, /issue-events/);
 });
 
+test("usage page exposes a P6 v1 anomaly clustering view for repeated failure patterns", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /P6 v1 anomaly clustering view|P6 v1 异常聚类视图/);
+  assert.match(usageSource, /Group related failures by stage and code|按阶段与错误码聚合同类失败/);
+  assert.match(usageSource, /failure-pattern-cluster/);
+});
+
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {
   const cssSource = readFileSync(globalCssPath, "utf8");
 
