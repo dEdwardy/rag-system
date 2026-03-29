@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ report center now shows an explicit pre-run scan-first guidance empty state before the first eval run
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `Report center` 的 `Eval run` 面板中新增 pre-run 空态提示：当尚无本次运行结果且未处于 pending/error 时，显示一条 scan-first 引导，提示先执行一次 question-set run 再查看质量摘要/差异摘要/弱项复盘
+    - 保持现有运行中/失败/完成状态路径不变，不改 eval API 契约，不调整页面布局方向
+    - 在 `ui-review-regressions` 中补一条最窄 guard，锁定该 pre-run 引导文案存在
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ trace-detail / usage-snapshot / report-center wording-contract references are now re-aligned under the existing scan-first boundary (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`
