@@ -1475,7 +1475,7 @@ test("DocumentsService records external enqueue failures after finalize succeeds
   ]);
 });
 
-test("DocumentsService records a failed external_resync run when stored source config is invalid", async () => {
+test("DocumentsService records a failed external_resync run when stored source config is invalid and legacy identity cannot be recovered", async () => {
   const documentUpdates = [];
   const createdRuns = [];
   const failedRuns = [];
@@ -1485,7 +1485,7 @@ test("DocumentsService records a failed external_resync run when stored source c
     id: "existing-broken-feed-document",
     kbId: "default-kb",
     sourceType: "feed",
-    sourceName: "https://example.com/feed.xml",
+    sourceName: "not-a-valid-source-url",
     title: "Broken feed",
     mimeType: "text/plain",
     storageKey: "generated/feed.txt",
@@ -1604,6 +1604,549 @@ test("DocumentsService records a failed external_resync run when stored source c
   assert.deepEqual(enqueuedDocumentIds, []);
 });
 
+test("DocumentsService records a failed external_resync run when legacy sitemap identity cannot be recovered from missing source config", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const failedRuns = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-broken-sitemap-document",
+    kbId: "default-kb",
+    sourceType: "sitemap",
+    sourceName: "not-a-valid-sitemap-url",
+    title: "Broken sitemap",
+    mimeType: "text/plain",
+    storageKey: "generated/sitemap.txt",
+    sourceConfigJson: Prisma.JsonNull,
+    status: "ready",
+    processingStage: "completed",
+    version: 4,
+    chunkCount: 6,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("saveGeneratedTextFile should not be called when source config is invalid");
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {
+      fetchSitemap: async () => {
+        throw new Error("fetchSitemap should not be called when source config is invalid");
+      }
+    },
+    webPageService: {}
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
+    /External source config is missing/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "External source config is missing.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+          failedStage: "source_fetch",
+          retryable: false,
+          documentVersion: 5,
+          message: "External source config is missing."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 5,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 5,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: 5,
+        message: "External source config is missing."
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, []);
+});
+
+test("DocumentsService reindex recovers legacy feed config when sourceConfigJson is missing", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const fetchFeedCalls = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-legacy-feed-missing-config-document",
+    kbId: "default-kb",
+    sourceType: "feed",
+    sourceName: "https://Example.com/legacy-feed.xml#latest",
+    title: "Legacy feed",
+    mimeType: "text/plain",
+    storageKey: "generated/feed.txt",
+    sourceConfigJson: Prisma.JsonNull,
+    status: "ready",
+    processingStage: "completed",
+    version: 2,
+    chunkCount: 5,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    feedSourceService: {
+      fetchFeed: async options => {
+        fetchFeedCalls.push(options);
+        return {
+          title: "Fetched legacy feed",
+          content: "Updated legacy feed content"
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Updated legacy feed content");
+        return {
+          storageKey: "generated/feed-refreshed.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    sitemapSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 3,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(fetchFeedCalls, [
+    {
+      url: "https://example.com/legacy-feed.xml",
+      maxItems: 20
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Fetched legacy feed",
+        mimeType: "text/plain",
+        storageKey: "generated/feed-refreshed.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
+test("DocumentsService reindex recovers legacy sitemap config when sourceConfigJson is missing", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const fetchSitemapCalls = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-legacy-sitemap-missing-config-document",
+    kbId: "default-kb",
+    sourceType: "sitemap",
+    sourceName: "https://Example.com/legacy-sitemap.xml#root",
+    title: "Legacy sitemap",
+    mimeType: "text/plain",
+    storageKey: "generated/sitemap.txt",
+    sourceConfigJson: Prisma.JsonNull,
+    status: "ready",
+    processingStage: "completed",
+    version: 4,
+    chunkCount: 9,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    sitemapSourceService: {
+      fetchSitemap: async options => {
+        fetchSitemapCalls.push(options);
+        return {
+          content: "Updated legacy sitemap content",
+          diagnostics: null
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Updated legacy sitemap content");
+        return {
+          storageKey: "generated/sitemap-refreshed.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 5,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(fetchSitemapCalls, [
+    {
+      url: "https://example.com/legacy-sitemap.xml",
+      maxPages: 20
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Legacy sitemap",
+        mimeType: "text/plain",
+        storageKey: "generated/sitemap-refreshed.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
+test("DocumentsService reindex recovers legacy feed/sitemap config when sourceType casing differs and sourceConfigJson is missing", async () => {
+  const runRecoveryCase = async ({
+    existingDocument,
+    expectedFetchCall,
+    buildFakeService,
+    expectedVersion
+  }) => {
+    const createdRuns = [];
+    const enqueuedDocumentIds = [];
+
+    const fakeService = Object.assign(
+      Object.create(DocumentsService.prototype),
+      buildFakeService({ createdRuns, enqueuedDocumentIds, existingDocument })
+    );
+
+    const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+    assert.equal(result.id, existingDocument.id);
+    assert.deepEqual(createdRuns, [
+      {
+        documentId: existingDocument.id,
+        version: expectedVersion,
+        trigger: "external_resync"
+      }
+    ]);
+    assert.deepEqual(expectedFetchCall.calls, [expectedFetchCall.value]);
+    assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+  };
+
+  const feedFetchCalls = [];
+  await runRecoveryCase({
+    existingDocument: {
+      id: "existing-legacy-uppercase-feed-document",
+      kbId: "default-kb",
+      sourceType: "  FEED  ",
+      sourceName: "https://Example.com/legacy-feed-upper.xml#latest",
+      title: "Legacy uppercase feed",
+      mimeType: "text/plain",
+      storageKey: "generated/feed-upper.txt",
+      sourceConfigJson: Prisma.JsonNull,
+      status: "ready",
+      processingStage: "completed",
+      version: 2,
+      chunkCount: 3,
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    expectedVersion: 3,
+    expectedFetchCall: {
+      calls: feedFetchCalls,
+      value: {
+        url: "https://example.com/legacy-feed-upper.xml",
+        maxItems: 20
+      }
+    },
+    buildFakeService: ({ createdRuns, enqueuedDocumentIds, existingDocument }) => ({
+      getDocument: async documentId => {
+        assert.equal(documentId, existingDocument.id);
+        return existingDocument;
+      },
+      prisma: {
+        document: {
+          update: async args => ({
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          })
+        }
+      },
+      documentRunsService: {
+        createRun: async input => {
+          createdRuns.push(input);
+        }
+      },
+      feedSourceService: {
+        fetchFeed: async options => {
+          feedFetchCalls.push(options);
+          return {
+            title: "Recovered uppercase feed",
+            content: "Recovered uppercase feed content"
+          };
+        }
+      },
+      sitemapSourceService: {},
+      webPageService: {},
+      storageService: {
+        saveGeneratedTextFile: async () => ({
+          storageKey: "generated/feed-upper-recovered.txt"
+        })
+      },
+      ingestionService: {
+        enqueueDocument: async documentId => {
+          enqueuedDocumentIds.push(documentId);
+        }
+      }
+    })
+  });
+
+  const sitemapFetchCalls = [];
+  await runRecoveryCase({
+    existingDocument: {
+      id: "existing-legacy-uppercase-sitemap-document",
+      kbId: "default-kb",
+      sourceType: "SITEMAP",
+      sourceName: "https://Example.com/legacy-sitemap-upper.xml#root",
+      title: "Legacy uppercase sitemap",
+      mimeType: "text/plain",
+      storageKey: "generated/sitemap-upper.txt",
+      sourceConfigJson: Prisma.JsonNull,
+      status: "ready",
+      processingStage: "completed",
+      version: 4,
+      chunkCount: 8,
+      errorMessage: null,
+      diagnosticsJson: Prisma.JsonNull
+    },
+    expectedVersion: 5,
+    expectedFetchCall: {
+      calls: sitemapFetchCalls,
+      value: {
+        url: "https://example.com/legacy-sitemap-upper.xml",
+        maxPages: 20
+      }
+    },
+    buildFakeService: ({ createdRuns, enqueuedDocumentIds, existingDocument }) => ({
+      getDocument: async documentId => {
+        assert.equal(documentId, existingDocument.id);
+        return existingDocument;
+      },
+      prisma: {
+        document: {
+          update: async args => ({
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          })
+        }
+      },
+      documentRunsService: {
+        createRun: async input => {
+          createdRuns.push(input);
+        }
+      },
+      feedSourceService: {},
+      webPageService: {},
+      sitemapSourceService: {
+        fetchSitemap: async options => {
+          sitemapFetchCalls.push(options);
+          return {
+            content: "Recovered uppercase sitemap content",
+            diagnostics: null
+          };
+        }
+      },
+      storageService: {
+        saveGeneratedTextFile: async () => ({
+          storageKey: "generated/sitemap-upper-recovered.txt"
+        })
+      },
+      ingestionService: {
+        enqueueDocument: async documentId => {
+          enqueuedDocumentIds.push(documentId);
+        }
+      }
+    })
+  });
+});
+
 test("DocumentsService reindex recovers legacy feed config without maxItems by using default selection bound", async () => {
   const documentUpdates = [];
   const createdRuns = [];
@@ -1717,6 +2260,253 @@ test("DocumentsService reindex recovers legacy feed config without maxItems by u
         title: "Fetched feed",
         mimeType: "text/plain",
         storageKey: "generated/feed-refreshed.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
+test("DocumentsService reindex recovers from config-loss feed payload when legacy identity is available", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const fetchFeedCalls = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-legacy-feed-config-loss-document",
+    kbId: "default-kb",
+    sourceType: "feed",
+    sourceName: "https://Example.com/config-loss-feed.xml#latest",
+    title: "Legacy feed config-loss",
+    mimeType: "text/plain",
+    storageKey: "generated/feed.txt",
+    sourceConfigJson: {
+      kind: "feed",
+      maxItems: 8
+    },
+    status: "ready",
+    processingStage: "completed",
+    version: 9,
+    chunkCount: 6,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    feedSourceService: {
+      fetchFeed: async options => {
+        fetchFeedCalls.push(options);
+        return {
+          title: "Recovered feed",
+          content: "Recovered feed content"
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Recovered feed content");
+        return {
+          storageKey: "generated/feed-recovered.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    sitemapSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 10,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(fetchFeedCalls, [
+    {
+      url: "https://example.com/config-loss-feed.xml",
+      maxItems: 20
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Recovered feed",
+        mimeType: "text/plain",
+        storageKey: "generated/feed-recovered.txt",
+        status: "pending",
+        processingStage: "uploaded",
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
+test("DocumentsService reindex recovers from invalid sitemap maxPages payload via legacy identity fallback", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const fetchSitemapCalls = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-legacy-sitemap-invalid-bound-document",
+    kbId: "default-kb",
+    sourceType: "sitemap",
+    sourceName: "https://Example.com/config-loss-sitemap.xml#root",
+    title: "Legacy sitemap invalid bound",
+    mimeType: "text/plain",
+    storageKey: "generated/sitemap.txt",
+    sourceConfigJson: {
+      kind: "sitemap",
+      url: "https://example.com/config-loss-sitemap.xml",
+      maxPages: "20"
+    },
+    status: "ready",
+    processingStage: "completed",
+    version: 11,
+    chunkCount: 4,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    sitemapSourceService: {
+      fetchSitemap: async options => {
+        fetchSitemapCalls.push(options);
+        return {
+          content: "Recovered sitemap content",
+          diagnostics: null
+        };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Recovered sitemap content");
+        return {
+          storageKey: "generated/sitemap-recovered.txt"
+        };
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.equal(result.id, existingDocument.id);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 12,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(fetchSitemapCalls, [
+    {
+      url: "https://example.com/config-loss-sitemap.xml",
+      maxPages: 20
+    }
+  ]);
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        title: "Legacy sitemap invalid bound",
+        mimeType: "text/plain",
+        storageKey: "generated/sitemap-recovered.txt",
         status: "pending",
         processingStage: "uploaded",
         errorMessage: null,

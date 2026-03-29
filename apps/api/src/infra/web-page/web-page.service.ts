@@ -4,6 +4,15 @@ import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-w
 type FetchedWebPage = {
   title: string | null;
   content: string;
+  diagnostics: WebPageFetchDiagnostics | null;
+};
+
+type WebPageFetchDiagnostics = {
+  sourceKind: "web";
+  schemaVersion: 2;
+  contentTypeFallbackApplied: boolean;
+  upstreamContentType: string;
+  partial: boolean;
 };
 
 @Injectable()
@@ -31,6 +40,7 @@ export class WebPageService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    const diagnosticsContentType = this.normalizeDiagnosticsContentType(contentType);
     const payload = await response.text();
     const htmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeHtmlPayload(payload);
 
@@ -38,7 +48,20 @@ export class WebPageService {
       throw new BadRequestException(`Unsupported web page content type: ${contentType || "unknown"}.`);
     }
 
-    return this.extractFromHtml(payload);
+    const extracted = this.extractFromHtml(payload);
+
+    return {
+      ...extracted,
+      diagnostics: htmlPayloadByFallback
+        ? {
+            sourceKind: "web",
+            schemaVersion: 2,
+            contentTypeFallbackApplied: true,
+            upstreamContentType: diagnosticsContentType,
+            partial: true
+          }
+        : null
+    };
   }
 
   extractFromHtml(html: string): FetchedWebPage {
@@ -58,7 +81,8 @@ export class WebPageService {
 
     return {
       title: title || null,
-      content
+      content,
+      diagnostics: null
     };
   }
 
@@ -72,6 +96,18 @@ export class WebPageService {
 
   private looksLikeHtmlPayload(payload: string) {
     return /<!doctype\s+html\b|<html\b|<head\b|<body\b|<title\b/i.test(payload);
+  }
+
+  private normalizeDiagnosticsContentType(contentType: string) {
+    if (!contentType) {
+      return "unknown";
+    }
+
+    return contentType
+      .split(";")
+      .map(part => part.trim())
+      .filter(Boolean)
+      .join("; ");
   }
 
   private buildUpstreamFetchError(prefix: string, status: number) {

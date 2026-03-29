@@ -45,9 +45,17 @@ function normalizeLoopbackHostname(hostname: string) {
   return hostname === "127.0.0.1" ? "localhost" : hostname;
 }
 
+export function resolveApiUrl(path: string) {
+  return `${API_BASE_URL}${path}`;
+}
+
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
+};
+
+export type ApiRequestError = Error & {
+  status?: number;
 };
 
 type StreamErrorPayload = {
@@ -59,8 +67,9 @@ type StreamErrorPayload = {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     method: options.method ?? "GET",
+    credentials: "include",
     headers:
       options.body instanceof FormData
         ? undefined
@@ -85,7 +94,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
       // ignore parsing failures
     }
 
-    throw new Error(message);
+    const error = new Error(message) as ApiRequestError;
+    error.status = response.status;
+    throw error;
   }
 
   return (await response.json()) as T;
@@ -97,8 +108,9 @@ export async function apiStreamRequest<TEvent>(
     onEvent: (event: TEvent) => void;
   }
 ) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     method: options.method ?? "GET",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/x-ndjson"
@@ -116,7 +128,9 @@ export async function apiStreamRequest<TEvent>(
       // ignore parsing failures
     }
 
-    throw new Error(message);
+    const error = new Error(message) as ApiRequestError;
+    error.status = response.status;
+    throw error;
   }
 
   const reader = response.body.getReader();

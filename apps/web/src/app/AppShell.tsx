@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { useConversations, useDocuments, useKnowledgeBases } from "../features/api/hooks";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useConversations, useDocuments, useKnowledgeBases, useLogout } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
+import type { AuthIdentity, AuthMeResponse } from "../types/api";
 import { useThemePreferences } from "./theme-preferences";
 
 const APP_SHELL_THEME = {
@@ -10,7 +11,7 @@ const APP_SHELL_THEME = {
 } as const;
 
 type NavIconProps = {
-  type: "chat" | "documents" | "knowledge" | "assistant" | "trace" | "usage";
+  type: "chat" | "documents" | "knowledge" | "assistant" | "trace" | "usage" | "report";
 };
 
 type NavItem = {
@@ -37,6 +38,7 @@ const APP_SHELL_TEXT: Record<Locale, {
   assistant: string;
   traceLog: string;
   usage: string;
+  reportCenter: string;
   fallbackActiveLabel: string;
 }> = {
   zh: {
@@ -48,6 +50,7 @@ const APP_SHELL_TEXT: Record<Locale, {
     assistant: "助手配置",
     traceLog: "Trace 日志",
     usage: "使用统计",
+    reportCenter: "报告中心",
     fallbackActiveLabel: "对话"
   },
   en: {
@@ -59,6 +62,7 @@ const APP_SHELL_TEXT: Record<Locale, {
     assistant: "Assistant",
     traceLog: "Trace log",
     usage: "Usage",
+    reportCenter: "Report center",
     fallbackActiveLabel: "Chat"
   }
 };
@@ -80,7 +84,8 @@ function buildNavGroups(locale: Locale, badges: { documentBadge: string | null; 
       heading: text.tracingHeading,
       items: [
         { to: "/traces", label: text.traceLog, icon: "trace" },
-        { to: "/usage", label: text.usage, icon: "usage" }
+        { to: "/usage", label: text.usage, icon: "usage" },
+        { to: "/reports", label: text.reportCenter, icon: "report" }
       ]
     }
   ];
@@ -97,6 +102,10 @@ function isLinkActivePath(pathname: string, link: NavItem) {
 
   if (link.to === "/traces") {
     return pathname === "/traces" || pathname.startsWith("/traces/");
+  }
+
+  if (link.to === "/reports") {
+    return pathname === "/reports";
   }
 
   return pathname === link.to;
@@ -170,8 +179,15 @@ function ActionButton({ children, label }: { children: React.ReactNode; label: s
   );
 }
 
-export function AppShell() {
+type AppShellProps = {
+  currentIdentity: AuthIdentity;
+  loginProvenance: AuthMeResponse["loginProvenance"];
+};
+
+export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const logoutMutation = useLogout();
   const { locale, setLocale, t } = useI18n();
   const { themeLayout, setThemeLayout } = useThemePreferences();
   const [isHydrated, setIsHydrated] = useState(false);
@@ -201,7 +217,20 @@ export function AppShell() {
       switchToEnglish: t("appShell.copy.switchToEnglish"),
       closeNavigationMenu: t("appShell.copy.closeNavigationMenu"),
       mobileWorkspaceMenu: t("appShell.copy.mobileWorkspaceMenu"),
-      workspaceNavigation: t("appShell.copy.workspaceNavigation")
+      workspaceNavigation: t("appShell.copy.workspaceNavigation"),
+      reportCenter: t("appShell.copy.reportCenter"),
+      currentIdentityHeading: t("appShell.copy.currentIdentityHeading"),
+      currentIdentityDescription: t("appShell.copy.currentIdentityDescription"),
+      userIdLabel: t("appShell.copy.userIdLabel"),
+      tenantIdLabel: t("appShell.copy.tenantIdLabel"),
+      authSourceLabel: t("appShell.copy.authSourceLabel"),
+      loginSessionLabel: t("appShell.copy.loginSessionLabel"),
+      localSessionValue: t("appShell.copy.localSessionValue"),
+      oauthSessionPrefix: t("appShell.copy.oauthSessionPrefix"),
+      oauthProviderUnknown: t("appShell.copy.oauthProviderUnknown"),
+      sessionIdLabel: t("appShell.copy.sessionIdLabel"),
+      noSessionValue: t("appShell.copy.noSessionValue"),
+      logout: t("appShell.copy.logout")
     }),
     [t]
   );
@@ -248,6 +277,19 @@ export function AppShell() {
   );
 
   const activeLabel = getActiveLabel(location.pathname, links, localeKey);
+  const oauthProviderLabel = loginProvenance.oauthProvider?.toUpperCase() ?? appShellCopy.oauthProviderUnknown;
+  const loginSessionBadgeText =
+    loginProvenance.type === "oauth_session"
+      ? `${appShellCopy.oauthSessionPrefix} · ${oauthProviderLabel}`
+      : appShellCopy.localSessionValue;
+
+  function onLogoutClick() {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        navigate("/login", { replace: true });
+      }
+    });
+  }
 
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--app-bg)] font-sans text-[var(--app-text)]">
@@ -318,19 +360,51 @@ export function AppShell() {
           </nav>
 
           <div className="border-t border-[var(--app-border)] p-5">
-            <div className="flex items-center gap-3 rounded-[14px] bg-[var(--app-surface)] p-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-sm font-semibold text-white">
-                {activeKnowledgeBase?.name?.slice(0, 1).toUpperCase() ?? "K"}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
-                  {activeKnowledgeBase?.name ?? appShellCopy.noKnowledgeBase}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-[14px] bg-[var(--app-surface)] p-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-sm font-semibold text-white">
+                  {activeKnowledgeBase?.name?.slice(0, 1).toUpperCase() ?? "K"}
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
-                  {documentsQuery.isSuccess
-                    ? appShellCopy.documentCount(documentsQuery.data.length)
-                    : appShellCopy.loading}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
+                    {activeKnowledgeBase?.name ?? appShellCopy.noKnowledgeBase}
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
+                    {documentsQuery.isSuccess
+                      ? appShellCopy.documentCount(documentsQuery.data.length)
+                      : appShellCopy.loading}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-bg)]/80 p-3" data-testid="current-identity-card">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--app-text-secondary)]">
+                    {appShellCopy.currentIdentityHeading}
+                  </div>
+                  <div className="rounded-full border border-[var(--app-border)] px-2 py-0.5 text-[10px] text-[var(--app-text-muted)]">
+                    {appShellCopy.currentIdentityDescription}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1 text-[11px] leading-5">
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.userIdLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.userId}>{currentIdentity.userId}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.tenantIdLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.tenantId}>{currentIdentity.tenantId}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.authSourceLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.authSource}>{currentIdentity.authSource}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.loginSessionLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={loginSessionBadgeText}>{loginSessionBadgeText}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.sessionIdLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.sessionId ?? appShellCopy.noSessionValue}>
+                    {currentIdentity.sessionId ?? appShellCopy.noSessionValue}
+                  </span>
                 </div>
               </div>
             </div>
@@ -413,6 +487,14 @@ export function AppShell() {
                   EN
                 </button>
               </div>
+              <button
+                className="rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition duration-300 hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={logoutMutation.isPending}
+                onClick={onLogoutClick}
+                type="button"
+              >
+                {logoutMutation.isPending ? (locale === "zh" ? "退出中..." : "Logging out...") : appShellCopy.logout}
+              </button>
             </div>
           </header>
 

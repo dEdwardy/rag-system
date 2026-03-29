@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-28
+更新时间：2026-03-29
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -12,6 +12,1763 @@
 补充进展（2026-03-27）：
 
 补充进展（2026-03-28）：
+
+补充进展（2026-03-29）：
+
+- ✅ 12-item queue wave closeout 已完成并做最小收口记录：queue/progress/refinement 已对齐，queue 状态已整理为等待下一批人工批准 wave（未追加新工作）
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `docs/current-progress.md`
+    - `.opencode/loop/handoffs/20260329T125910Z-loop-queue-refresh-066.md`
+  - 完成内容（最小范围）：
+    - 先复核并对齐了本轮前置 11 项 handoff/result（055-065）与对应落地提交，再把 `loop-queue-refresh-066` 从 `in_progress` 收口为 `completed`
+    - 在 refinement plan 增补本轮 12 项已完成清单，明确 closeout 边界不变：不追加 queue item、不重开手动 `P5`、不触发 source-family/auth/dashboard 扩面
+    - 当前 queue 仅完成状态整理与落账，不启动新 feature wave，下一步保持“等待人工批准下一批 wave”
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/current-progress.md`
+
+- ✅ docs observability contract snapshot is now re-synced to landed scan-first Usage / Report center / Trace Detail surfaces, with deferred dashboard scope kept explicit (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 的 observability 快照区补齐 `Report center` 合同来源，明确其仍锚定 live eval API `POST /eval/question-sets/:id/runs`（含 `reportExports`）
+    - 对齐记录当前 scan-first 三面板边界：`Usage` 继续基于 summary/comparison/audit，`Trace Detail` 继续基于 traceSummary readability，`Report center` 继续基于 eval run/read/export；三者不互挪 payload
+    - 明确保留 deferred 范围不变：仅保留 scan-first 排障/复盘面，不扩展为通用 analytics/ops dashboard 平台，不重开 auth/ACL 或手动 P5 流程
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ trace-detail diagnostic summary slice now shows readable `primaryIssue` labels (instead of raw enum values) for faster first-pass scan
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `Trace Detail` 现有 `diagnostic summary slice` 中，为 `traceSummary.primaryIssue` 增加最窄可读映射（如 `no_retrieval_hits -> No retrieval hits/检索未命中`），避免首屏直接暴露原始枚举值
+    - 保持边界不变：不改 trace contract、不改 trace 语义、不改 quick-jump/section 结构、不耦合 usage/report payload
+    - `ui-review-regressions` 同步补一条最窄 guard，锁定 `primaryIssue` 可读映射 helper 与关键文案
+  - focused validation：
+    - `node --test --test-name-pattern "trace detail" apps/web/test/ui-review-regressions.test.js && node --test apps/web/test/trace-summary-contract.test.js`
+
+- ✅ report center closeout wording/guard now tightens pre-run path hint, no-item empty state, and baseline metadata readability without changing eval contracts
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在既有 `Eval run` pre-run 空态上新增一条固定 scan-path 提示（`report-center-pre-run-path`），明确首轮 run 的最短扫读路径，不改 run 提交流程或 eval API
+    - 为“run 已完成但 items 为空”补一个显式 empty-state `StatePanel`，避免空表格读感；仅增强现有页面 guard，不新增报表类型或 dashboard 面板
+    - 将 baseline metadata 占位文案按字段拆分：`baselineSnapshotId` 与 `baselineVersion` 缺失时给出更可读的 scan-first 提示，保持 contract/source 与手动 baseline 流程边界不变
+    - `ui-review-regressions` 同步补充最窄 guard，锁定新 pre-run 路径提示、metadata 占位文案以及 no-item empty-state 文案
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ usage page pre-run empty state now includes a stable scan-path hint and explicit collapsed-panel wording for first-run readability (P6 closeout, narrow UI-only)
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持现有 `showP6PreRunGuidance` 分支不变，仅在该分支下补一层稳定容器与 `scan path` 提示，明确首轮 run 完成前趋势/告警/热点面板保持收起，降低“零信号即健康”误读
+    - 仅收口 Usage 页现有 scan-first 空态可读性与扫描路径稳定性，不改 backend contract、不改 P6 指标语义、不扩展 dashboard 范围
+    - `ui-review-regressions` 同步新增最窄 guard，锁定 pre-run 容器、折叠提示文案与 scan-path 提示语
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P5 v1 offline artifact vs web runtime boundary wording is now contract-synced to landed runner/report facts (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `eval:runner:p5-v1` 段补充“产物来源”边界：`storage/evals/p5-v1` 时间戳文件由 CLI runner（`apps/api/scripts/run-p5-v1-eval-runner.mjs`）离线写出，定位仍是回归证据归档面
+    - 明确 web `Report center` 的运行时契约边界继续锚定在线 eval API：`POST /eval/question-sets/:id/runs` 返回体（含 `reportExports`）用于页面读取/导出；不直接索引离线 artifact 目录
+    - 范围保持 docs/contract sync only：不改 runner/report/gate 行为，不新增手动 baseline 选择流，不新增评测/报表 family，不扩展产品 UX
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ P3 source follow-up docs are now re-synced to one accepted stability boundary + deferred expansion decision + focused validation baseline (docs-only)
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确 `P3` 当前稳定性边界仍只覆盖既有 source family（`web/feed/sitemap/sitemapindex(一层)/external_resync`），并补充当前 wave 的 source-expansion 结论为 `keep`（不新增 source family）
+    - 明确保留 deferred 范围不变：不做 connector 扩面、不做 web JS 渲染抓取、不做跨 family 错误码体系重构、不做 source 平台化改造
+    - 在 dev setup 快照补齐当前 source follow-up wave 的 focused validation baseline 三条命令，仅做文档同步，不改运行时行为，不重开 auth/ACL 顺序
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ P3 source follow-up gap list has been minimally refreshed to match current implementation/tests (docs/planning sync only)
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 仅刷新 `P3 task 1` 的现有 source family gap 快照（`web page` / `feed` / `sitemap` / `external resync`），不新增 source family、不调整 retrieval/answering 语义、不重开 auth/ACL 波次
+    - 对齐当前已落地事实：`external_resync` 的 legacy config recovery 已覆盖 `web_page` / `feed` / `sitemap`（含缺失 config 与 feed/sitemap 选择上限回退）；将 gap 重点改为跨 family diagnostics/error-code 一致性收口
+    - 同步收敛最小 gap list 顺序为：`web/feed partial diagnostics consistency`、`sitemap nested-index + child-limit boundary policy`、`external resync diagnostics/error-code consistency`
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ next-wave docs are now aligned to the approved 12-item loop rebuild, and the execution-ready queue has been appended for automatic drain
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 已把当前 post-drain 状态从“queue 已跑空、待重建”推进到“approved 12-item wave 已入队”，顺序固定为 `P3 main queue -> P5/P6 closeout -> loop queue refresh`
+    - 已把 12 个 execution-ready items 追加进 `.opencode/loop/queue.json`，覆盖 `P3` 的 gap/diagnostics/resync/boundary/docs 收口、`P5/P6` 的 contract/readability/docs closeout、以及最后的 queue refresh closeout
+    - 已在 planning/refinement docs 中同步保留边界：不新增 source family、不把 `P5` 人工判断项塞进自动 loop、不重开 auth/ACL 扩面、不做 observability dashboard 平台化或大 UI 改版
+    - queue 追加完成后会直接重启 loop，让当前 wave 按既定顺序自动串行消费
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ roadmap/planning docs now reflect the landed post-auth state and the next-wave recommendation
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 已把 `next_steps` 中过期的“`P1` 完成后进入 `P2`”口径更新为当前真实状态：`P1 auth/login`、后续 `GitHub/Google/OIDC` provider wave、以及 `P2 owner-only ACL baseline` 都已收口
+    - 已同步 queue 状态：上一轮 `P5 -> P6 -> docs sync` auto-queue 已 drain，当前默认不再继续追加 auth/ACL closeout，而是把下一条主线重新收束为 `P3 external knowledge source follow-up`
+    - 同时保留既有边界：`P5` 的人工判断项继续留在自动 loop 外，`P4` 仍保持条件触发，不把 docs 对齐扩成新的功能波次
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ web login page now surfaces the landed OIDC start entry alongside existing GitHub/Google provider buttons
+  - 变更文件：
+    - `apps/web/src/pages/auth/LoginPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 先检查当前 web 登录入口模式：`LoginPage` 已按同一按钮样式暴露 `GitHub` / `Google` start entry，`apps/web/src/types/api.ts` 也已保留 `loginProvenance.oauthProvider: "github" | "google" | "oidc" | null` 的 OIDC 合同提及
+    - 现已按同一视觉与 wording 模式补出 `/auth/oauth/oidc/start` 登录入口，并把登录页提示语收口为“本地账号或 provider 登录”，让前端入口与已落地 backend OIDC start flow 对齐
+    - `ui-review-regressions` 新增最窄 guard，锁定登录页同时保留 GitHub / Google / OIDC 三个 provider entry；未改 backend auth 行为、未新增 provider 配置 UI、未重做登录页布局
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ real OIDC landed facts are now synced into current docs (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 已按当前后端实现对齐记录 real OIDC：`/auth/oauth/oidc/start` 现已通过 discovery `authorization_endpoint` 生成真实跳转；`/auth/oauth/oidc/callback` 现已通过 discovery `token_endpoint + userinfo_endpoint` 完成 code exchange，并沿用 `AuthIdentityLink(provider, subject) -> 本地 AuthSession(rag_session)` 的 session bridge
+    - 已同步 runtime config 要求（仅记录代码已落地项）：`AUTH_OIDC_ISSUER`、`AUTH_OIDC_CLIENT_ID`、`AUTH_OIDC_CLIENT_SECRET`、`AUTH_OIDC_REDIRECT_URI`，以及可选 `AUTH_OIDC_SCOPE`（默认 `openid email profile`）
+    - 已明确保持边界不变：`/auth/me` 仍返回 `{ identity, currentIdentity, loginProvenance }`；本地 session 路径仍为主锚点；owner-only ACL（`owner_only_v1 + deny_by_default`）语义不变
+    - 本次仅同步已落地事实：不宣称新增前端 OIDC provider UX，不重开 roadmap 排序，不修改运行时代码
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已为下一轮 auth wave 补充 real OIDC provider mini-plan，并准备按单独 wave 入队执行
+  - 变更文件：
+    - `.opencode/plan/auth-wave-real-oidc.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在原有四阶段 auth roadmap 已完成本地账号、identity-link 骨架、GitHub、Google 的基础上，把下一波 auth 方向收束为单独的 `real OIDC provider` wave，而不是继续混入本地账号管理、auth UX 或 ACL 升级
+    - 本轮 mini-plan 明确当前目标是把保留态 `oidc` 从 `NotImplemented` 变成真实 start/callback/provider-session bridge，同时保持 `/auth/me`、本地 `AuthSession`、`AuthIdentityLink`、owner-only ACL 语义不变
+    - 后续 queue 将只围绕 OIDC config/provider、OIDC start、OIDC callback、OIDC docs sync 四个最小增量展开
+  - focused validation：
+    - `git diff --check -- docs/current-progress.md`
+
+- ✅ 已按单独 wave 追加 real OIDC provider execution-ready queue items，避免与本地账号管理 / auth UX / ACL 升级混排
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 基于 `.opencode/plan/auth-wave-real-oidc.md`，当前只入队 OIDC config/provider、OIDC start flow、OIDC callback flow、OIDC docs sync 四个最小增量
+    - 明确保留边界：本轮只把 `oidc` 从 reserved-only `NotImplemented` 推进到真实 provider-session bridge，不扩展到本地账号管理、前端 provider UX 收口、signup/reset、RBAC/ABAC、team ACL 或 org/billing
+    - 新增 queue items：`auth-oidc-config-provider-051`、`auth-oidc-start-flow-052`、`auth-oidc-callback-flow-053`、`auth-oidc-docs-sync-054`
+    - `pnpm loop:start` 已重启 loop；当前首个 item `auth-oidc-config-provider-051` 已进入 `in_progress`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/current-progress.md`
+
+- ✅ web app-shell current identity card now surfaces `/auth/me.loginProvenance` with one compact session readability line (`local` vs `OAuth · <provider>`)
+  - 变更文件：
+    - `apps/web/src/app/AppShell.tsx`
+    - `apps/web/src/app/AuthenticatedAppShell.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `AuthenticatedAppShell` 继续复用既有 `/auth/me` 查询结果，仅把已存在的 `loginProvenance` 透传给 `AppShell`
+    - `current-identity-card` 新增一行紧凑会话可读信息：本地会话显示 `Local session/本地会话`，OAuth 会话显示 `OAuth · <provider>`
+    - 保持范围收敛：未改 backend contract、未改登录流程、未改整体布局结构
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ opencode loop auto-refill budget now persists across service restarts for the same queue wave
+  - 变更文件：
+    - `scripts/opencode-loop/planner.mjs`
+    - `scripts/opencode-loop/runtime.mjs`
+    - `scripts/opencode-loop/self-test.mjs`
+    - `scripts/opencode-loop.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 修复 auto-refill `cycles` 只存在进程内内存、导致 loop 服务重启后会把同一批 queue wave 再次当成“可补队列”的问题
+    - auto-refill 现在会把当前 manual queue scope 的 refill budget 持久化到 `.opencode/loop/queue.json`，所以同一批手动入队任务在已完成并触发过一次 refill 后，重启 loop 不会再次继续补新任务
+    - 同时把内置 systemd loop service 的 `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` 从 `2` 收紧为 `1`，避免单个 queue wave 在正常 drain 后继续追加第二轮 closeout follow-up
+    - 仍保持原边界：当 manual queue wave 真的发生变化（例如后续人工追加新的非 auto-refill items）时，下一轮仍可重新获得自己的 refill budget
+    - self-test 新增“同一 queue wave 重启后不重复 refill”的覆盖，避免再次回归成 endless follow-up append
+  - focused validation：
+    - `node scripts/opencode-loop.mjs --self-test`
+
+- ✅ loop session titles now distinguish auto-refill follow-up countdowns from the main manual-wave countdown
+  - 变更文件：
+    - `scripts/opencode-loop/runtime.mjs`
+    - `scripts/opencode-loop/self-test.mjs`
+    - `scripts/opencode-loop.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持主队列 session title 的 `X left` 语义不变，但对 `plannerSource="auto-refill"` 的生成任务改为显示 `refill X left`
+    - 这样在 session 列表里会看到“手动 wave 的 4/3/2/1”之后，planner 再启动一段独立的 “refill 2/1” 倒计数，不再像同一串数字回跳
+    - self-test 新增对 generated refill session title 的断言，避免以后又把 refill item 和 manual item 写成同样的标题形态
+  - focused validation：
+    - `node scripts/opencode-loop.mjs --self-test`
+
+- ✅ OAuth provider start/callback config-missing diagnostics now share a clearer boundary wording shape across GitHub and Google
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/github-oauth.provider.ts`
+    - `apps/api/src/modules/auth/google-oauth.provider.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `startOauthProvider` 对 GitHub/Google 的缺失配置错误统一为 `... OAuth start is not configured. Required env: ...`
+    - GitHub/Google callback provider 的缺失配置错误统一为 `... OAuth callback is not configured. Required env: ...`
+    - `auth-provider-boundary` 测试新增 callback 配置缺失可读性边界断言，并同步 start 断言到新 wording
+    - 保持范围收敛：未改成功登录语义、未新增 provider、未扩展 ACL 或前端流程
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ `GET /auth/me` now exposes additive login provenance (`local_session` vs `oauth_session`) while keeping existing identity fields unchanged
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.constants.ts`
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/auth.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /auth/login` 和 OAuth callback 现在与 session cookie 同步写入一个最小 provenance cookie，用于后续 `GET /auth/me` 判断当前登录来源
+    - `GET /auth/me` 在保留 `{ identity, currentIdentity }` 结构的同时，新增 `loginProvenance` 字段（最小区分 local-session / oauth-backed session）
+    - 保持范围收敛：未改 session 持久化模型、未改 ACL 语义、未改登录流程与前端流程
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ auth `Phase 2/3/4` docs closeout is now synced to landed code facts (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `Phase 2` skeleton baseline remains landed: `AuthIdentityLink`（含 `provider+subject` 唯一边界与 `emailSnapshot/profileSnapshot/lastLoginAt`）+ `authSource` 预留集合 + provider 路由形状（`/auth/oauth/:provider/start|callback`）
+    - `Phase 3` 已是真实 GitHub flow：`/auth/oauth/github/start` 与 `/auth/oauth/github/callback` 已落地，并走 `AuthIdentityLink(provider, subject)` + 本地 `AuthSession` + `rag_session` cookie 的 session-bridge
+    - `Phase 4` 已是真实 Google flow：`/auth/oauth/google/start` 与 `/auth/oauth/google/callback` 已落地，并复用与 GitHub 相同的 identity-link/session 闭环
+    - 仍保持预留边界：`oidc` start/callback 仍显式 `NotImplemented`（reserved-only）；未扩展 ACL、signup、password reset
+    - 同步记录仅覆盖代码中真实存在的 runtime 配置项（OAuth state/GitHub/Google/default-tenant env）
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ auth `Phase 4` backend increment now extends the landed GitHub identity-link/session pattern to Google OAuth start/callback (OIDC still reserved-only)
+  - 变更文件：
+    - `apps/api/src/modules/auth/google-oauth.provider.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/auth.module.ts`
+    - `apps/api/src/modules/auth/auth.constants.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `HttpGoogleOauthProvider`（code->token->userinfo）并通过 `GOOGLE_OAUTH_PROVIDER` 注入，保持与 GitHub provider 相同的 provider boundary 模式
+    - `startOauthProvider` / `completeOauthProviderCallback` 现在支持 `google`，沿用 `AuthIdentityLink(provider, subject)` + 本地 `AuthSession` + session cookie 闭环
+    - 保持范围收敛：`oidc` 仍显式 `NotImplemented`，未改 `/auth/me`、未改 ACL 语义、未接入前端按钮
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ auth `Phase 2` skeleton closeout facts are now synced into current docs (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确记录 `AuthIdentityLink` skeleton 已落地（含 `provider+subject` 唯一边界与预留字段 `emailSnapshot` / `profileSnapshot` / `lastLoginAt`）
+    - 明确记录 `authSource` 预留值集合（`local` / `github` / `google` / `oidc` / `session` / `dev_seed`）与 OAuth/OIDC 预留路由形状（`GET /auth/oauth/:provider/start`、`GET /auth/oauth/:provider/callback`）
+    - 明确保持不变：当前仍是本地 login + session-cookie 主路径；未实现真实 GitHub/Google/OIDC provider 登录集成；本次未重开 ACL 语义
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已按用户指定顺序补入 auth `Phase 2 -> Phase 3 -> Phase 4` 的剩余 execution-ready queue wave，并准备让 loop 串行消费
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 基于 `.opencode/plan/auth-roadmap-local-oidc-github-google.md` 与当前已落地代码状态，确认 `Phase 2` 的结构骨架已经基本完成，剩余项收束为 closeout docs；`Phase 3` 尚缺 GitHub start/callback/backend session-link/web button；`Phase 4` 尚缺 Google 对应 backend/web 增量与最终 docs sync
+    - 以短标题 + 内联 `promptText` 的现有 queue 风格，顺序追加 `auth-phase2-closeout-044`、`auth-github-start-045`、`auth-github-callback-046`、`auth-github-web-login-047`、`auth-google-backend-048`、`auth-google-web-login-049`、`auth-oauth-docs-sync-050`
+    - 这次是按用户明确要求组织的一次跨 `Phase 2/3/4` 串行 wave；仍保持单线 queue 执行，不把未实现事实提前写入 docs，也不扩展到 signup、password reset、RBAC/ABAC、team ACL、org/billing
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/current-progress.md`
+
+- ✅ auth contract now reserves Phase 2 OAuth/OIDC provider route shapes through a reusable provider schema boundary (contract-only)
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `apps/api/src/modules/auth/auth.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 auth schema 增加可复用 `oauthProvider` 边界（仅允许 `github` / `google` / `oidc`）与参数 schema，作为后续 `:provider` 路由段的合同保留
+    - 在 auth controller 增加未来 OAuth/OIDC 路由形状常量（`/auth/oauth/:provider/start`、`/auth/oauth/:provider/callback`），不新增实际 provider 登录/callback 处理
+    - 保持当前行为不变：`/auth/login`、`/auth/logout`、`/auth/me`、session-cookie 语义与 route policy 不变
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ `AuthIdentityLink` now includes the remaining Phase 2 future-link metadata fields (`emailSnapshot` / `profileSnapshot` / `lastLoginAt`) as an additive schema increment
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 `AuthIdentityLink` skeleton 上补齐 roadmap 已预留但尚缺失的字段：`emailSnapshot`（nullable string）、`profileSnapshot`（nullable json）、`lastLoginAt`（nullable datetime）
+    - 保持最小增量：未改 `AuthSession`/session-cookie 登录链路、未改 seed 行为、未改 owner-only ACL 语义
+    - 明确不做：不引入 OAuth endpoint/callback/provider 逻辑，不做 schema 清理或跨模型重构
+  - focused validation：
+    - `pnpm --filter @rag-system/api exec prisma validate`
+
+- ✅ auth persistence now includes a minimal `AuthIdentityLink` schema skeleton for future provider-linking (Phase 2 additive baseline)
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 Prisma schema 中新增 `AuthIdentityLink` model，包含最小字段 `id/userId/provider/subject/createdAt/updatedAt`
+    - 新增 `User.authIdentityLinks` 关系，并将 `AuthIdentityLink.user` 以 `userId -> User.id` 关联，保持 `onDelete: Cascade`
+    - 新增 `@@unique([provider, subject])` 以固定 provider-subject 全局唯一边界；同时加 `@@index([userId])` 支持按本地用户检索 link
+    - 明确保持不变：未引入 OAuth endpoint/callback、未改本地 login/session-cookie 路径、未改 seed 假设与 owner-only ACL 语义
+  - focused validation：
+    - `pnpm --filter @rag-system/api exec prisma validate`
+
+- ✅ auth identity contract now explicitly reserves Phase 2 planned `authSource` values while keeping current local-session behavior unchanged
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth-identity.contract.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `AuthSource` 合同中新增显式保留集合 `RESERVED_AUTH_SOURCES`（`local`、`github`、`google`、`oidc`、`session`、`dev_seed`），并通过 `ReservedAuthSource` 类型公开 Phase 2 及后续 provider 预留值
+    - 保持当前行为不变：现有 local-account 登录与 session-cookie 身份路径继续返回 `authSource: "session"`，开发默认身份继续使用 `authSource: "dev_seed"`
+    - 补一条 focused boundary regression，锁定 `resolveCurrentAuthIdentity` 对上述保留值的透传行为
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ 已完成 `Phase 1 local-account login baseline` 的文档对齐（docs-only sync）
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 对齐记录当前 `Phase 1` 已实现登录基线：`POST /auth/login` 按 `{ email, password }` 登录并沿用现有本地 session cookie 模型
+    - 明确本波次仍是 pre-created-user-only（seed/admin/manual bootstrap），不包含 signup、password reset、email verification
+    - 明确保持既有 owner-only ACL 边界（`owner_only_v1 + deny_by_default`）不变，不在此文档同步项扩展到 Phase 2+
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已基于本地 auth master plan 补入 `Phase 1: local account login v1` 的首批 execution-ready queue items
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `.opencode/plan/auth-roadmap-local-oidc-github-google.md` 已明确四阶段总路线图的前提下，本轮只把 `Phase 1` 拆成当前可自动消费的最小增量，覆盖 `User` 本地登录字段/seed、`POST /auth/login` 的 email-password 化、web 登录页切换、以及 docs sync
+    - 明确保留阶段闸门：`Phase 2` 的 `AuthIdentityLink` 骨架、`Phase 3` 的 GitHub 登录、`Phase 4` 的 Google 登录，当前都不入队，不让 loop 跨阶段自动推进
+    - 继续保持 auth wave 的边界不变：不做 signup、password reset、email verification、RBAC/ABAC、team ACL、org/billing，也不改当前 owner-only ACL 语义
+    - `pnpm loop:start` 已重新启动 loop；当前首个 `Phase 1` item `auth-local-schema-040`（`auth local user schema`）已进入 `in_progress`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/current-progress.md`
+
+- ✅ usage page now shows one explicit P6 pre-run scan-first guidance state when an active knowledge base exists but document-run history is still empty
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `UsagePage` 的 `P6 v1 health dashboard` 内新增一个 `showP6PreRunGuidance` 条件分支：当存在 active knowledge base 且 run summary 已加载但 `totalRuns=0` 时，优先显示一条 scan-first 预运行引导
+    - 该 no-run 分支提示先去 `Knowledge base` 触发一次文档扫描/重跑，再返回查看 P6 健康信号，避免首轮运行前页面读感误判为常规零信号健康态
+    - 保持 additive + behavior-preserving：不改 backend contract、不改查询参数形状、不改既有指标统计语义
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ Usage page no longer falls back to `default-kb` when there is no active knowledge base, and now shows one explicit scan-first guidance state instead of silent fallback loading
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `UsagePage` 的文档加载改为显式依赖 `hasActiveKnowledgeBase`，当无 active knowledge base 时停止 `useDocuments(activeKnowledgeBase?.id ?? "default-kb")` fallback 查询
+    - 新增一个明确的无知识库引导空态（scan-first）：提示先创建知识库，再查看语料状态与 P6 信号；并在无知识库时不渲染 P6 看板，避免误导性“零值即正常”读感
+    - 保持范围在前端读模型与空态守卫：不改 backend contract，不改 P6 既有面板内容和指标语义
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ report center now shows an explicit pre-run scan-first guidance empty state before the first eval run
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `Report center` 的 `Eval run` 面板中新增 pre-run 空态提示：当尚无本次运行结果且未处于 pending/error 时，显示一条 scan-first 引导，提示先执行一次 question-set run 再查看质量摘要/差异摘要/弱项复盘
+    - 保持现有运行中/失败/完成状态路径不变，不改 eval API 契约，不调整页面布局方向
+    - 在 `ui-review-regressions` 中补一条最窄 guard，锁定该 pre-run 引导文案存在
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ report center metadata baseline rows now use one explicit scan-first placeholder when baseline fields are absent
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `baselineSnapshotId` 与 `baselineVersion` 在 metadata 区块改为统一走 `formatBaselineMetadataValue`，当值为空/缺失时显示同一条 scan-first 占位文案，而不再呈现空白/undefined 读感
+    - 保持范围仅限 report-center metadata 可读性守卫：不改 eval API 契约，不改 run flow，不改 query-param 行为与布局方向
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ trace-detail / usage-snapshot / report-center wording-contract references are now re-aligned under the existing scan-first boundary (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 明确补齐三处 contract source 对齐：`Trace Detail` 继续锚定 `traceSummary` 读取面、`Usage snapshot window diff` 继续锚定 `document-runs/comparison(snapshot + issueHotspotSlice)`、`Report center` 继续锚定 live eval API 读取面
+    - 明确三者边界继续保持 scan-first：仅做 route/readability 对齐，不互相挪用 payload，不扩展为通用 dashboard/report 平台
+    - 保持本次范围为文档对齐，不改 endpoint、不新增 snapshot 指标、不改页面设计
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ Usage / Report center wording is now aligned to the existing scan-first positioning (wording-only increment)
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `Usage` 的 report-center 边界说明与 P6 健康看板说明补充 scan-first 语义，继续强调该页是排障扫读面而非通用 dashboard
+    - `Report center` 的 hero / run 区块文案补充 scan-first 回归复盘定位，并将表格列名从 `Trace / error` 调整为更一致的 `Trace / issue`
+    - 保持范围为 wording/readability 对齐：不改布局、不新增指标、不扩展页面模型
+  - focused validation：
+    - `node --test apps/web/test/ui-review-regressions.test.js apps/web/test/desktop-shell-consistency.test.js`
+
+- ✅ P6 scan-first observability closeout gap list is now recorded as docs-only accepted scope (no runtime change)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 补充当前 `P6` 下一步 accepted closeout gaps：仅围绕现有 `Usage` scan-first 面板与 `Report center` 既有评测流做读模型/空态/可读性收口
+    - 明确继续沿用现有 summary/comparison/audit 与 report-run/export 合同，不新增 backend 契约、不新增 report family
+    - 再次锁定边界：不重开 dashboard 平台化扩面，不把本波次扩展成通用 analytics/ops 能力建设
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ P5 planning/status 已按当前 runner/report/gate 落地状态重新对齐，并继续把人工判断项留在自动 loop 外（docs-only increment）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `next_steps` 的 `P5` 段新增“当前对齐”快照：明确自动化侧（eval runner、regression report、quality gate 固定阈值合同）已完成
+    - 同步明确 P5 仍待完成但需人工判断的事项：题集选择、标注、baseline 文档版本选择、demo case 取舍与 replay 验收
+    - 保持边界：仅做 planning/status 同步，不新增 queue wave，不调整现有 P5 运行时契约
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ P5 retrieval-regression artifact boundary wording now explicitly separates offline eval proof outputs from the web report-center surface (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 的 `eval:runner:p5-v1` 段补充边界说明：`storage/evals/p5-v1` 时间戳产物属于离线回归证据（archive/diff/replay-proof），不是 web runtime contract 面
+    - 同步明确 `Report center` 仍以在线 eval API 响应为页面读取/触发面，不直接消费或索引离线 artifact 文件目录
+    - 继续锁定本波次定位：`P5` 目标是 eval/regression proof 收口，而不是把 report/usage 扩展为通用 analytics dashboard
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ P5 v1 eval artifact layout + latest-artifact lookup convention are now documented in dev setup/progress docs (docs-only alignment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 对齐记录 `eval:runner:p5-v1` 默认产物布局：`storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.{json,md,html}`
+    - 补充当前实用约定：先按时间取最新 `.json` 产物，再用同一 basename 对应 `.md` / `.html`，避免手动猜测时间戳
+    - 范围仅限文档同步，不改 runner 行为、artifact schema 或持久化路径
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已为 post-drain next wave 追加第三批 execution-ready queue items，完成文档同步，并重新启动 loop 开始消费
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 queue 已完全消费、无 pending item 的状态下，补入第三批 execution-ready items，顺序改为先做 `P5` auto-safe closeout，再做 `P6` observability/report closeout，最后做 docs sync
+    - 这批不再继续拆 `P2/P3`：当前默认视 `P2` owner-only ACL baseline 已收口、`P3` source follow-up 已完成 accepted slices；`P4` 继续保持条件触发，不作为当前自动 queue 主线
+    - 继续把 `P5` 人工判断项留在自动 queue 外，只让 loop 消费适合自动执行的 contract/docs/readability 增量
+    - `pnpm loop:start` 已重新拉起 loop；第三批已按 `P5 -> P6 -> docs sync` 开始消费，当前 queue tail 在 docs 同步项 `docs-next-wave-sync-039`（`third-batch queue docs sync`）处于 `in_progress`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ owner-only ACL baseline closeout 已在 planning/status 文档明确收口（docs-only increment）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 基于已完成 `P2` queue items（`resource access matrix`、`access policy contract`、`kb document ownership checks`、`assistant conversation trace checks`、`default access policy`、`acl baseline docs`），在 `next_steps` 显式标记当前 `owner_only_v1 + deny_by_default` baseline 已收口
+    - 文档中同步明确本轮 intentionally deferred 范围不变：`member/viewer`、share/public 扩展、RBAC/ABAC、跨 tenant 协作
+    - 保持边界：仅做 planning/status closeout 同步，不新开 ACL wave，不调整 roadmap 顺序
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ document-run snapshot `issueHotspotSlice.dominantShift` selection now has an explicit deterministic tie-break contract for equal issue concentration/signal deltas
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `dominantShift` 选取逻辑收口为显式 comparator：先比 `|issueConcentrationDelta|`，再比 `|issueSignalDelta|`，再比右窗 `issueConcentration`、右窗 `issueSignalScore`，最后按 `sourceFamily` 字典序稳定兜底
+    - 补一条 focused regression，锁定在 issue concentration / issue signal 并列时仍可 deterministic 选中同一锚点，避免 usage scan-first 文案锚点随排序细节抖动
+    - 保持范围为 snapshot comparison additive contract 收口：不改 endpoint、不扩 dashboard、不引入新 source family 语义
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
+- ✅ planning docs follow-up sync：已明确记录“第一批 refined queue batch 已完成，第二批聚焦 closeout-style contract/guard 增量”
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `next_steps` 的“第二批 queue refinement note”补充状态句，显式标注上一批 refined queue 已完成消费
+    - 对照 `.opencode/loop/queue-refinement-plan-2026-03-29.md` 的既有目标边界（wave follow-up refinement），同步强调当前第二批是 contract/guard/docs closeout，而不是新 wave 扩面
+    - 仅做 planning/progress 文档同步，不改 queue runtime、不调整 roadmap 顺序
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md .opencode/loop/queue-refinement-plan-2026-03-29.md`
+
+- ✅ document-run snapshot comparison null/empty contract docs are now aligned for `issueHotspotSlice` (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 已补充 `GET /knowledge-bases/:id/document-runs/comparison` 的 snapshot 合同说明：`issueHotspotSlice` 为 additive 字段，包含 `leftHotspot` / `rightHotspot` / `dominantShift`
+    - 同步明确当前已验证的 null/empty 语义：当 comparison 属于 low-signal（无热点或无主变化项）时，以上 additive keys 仍保持稳定返回，并以显式 `null` 表达
+    - 范围仅限文档对齐，不改 backend/web 运行时行为
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ auth route-policy docs wording now explicitly matches the current authenticated owner-scoped controller baseline (docs-only sync)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 的 route-policy baseline 文案已明确对齐当前受保护面：`GET /auth/me`、`POST /auth/permissions/check`，以及已在代码中标注 `@AuthenticatedRoute()` 的 owner-scoped 业务控制器
+    - 同步明确 owner-scoped business controller 列表包含 `knowledge-bases`、`documents`、`assistants`、`conversations`、`traces`、`audit`、`retrieval-profiles`，保持知识库/文档访问面为显式 authenticated baseline
+    - 仅做文档对齐；不改运行时 route-policy guard 逻辑、不调整 queue/planning 结构
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已将第二批 11 个 execution-ready closeout items 追加到 loop queue，并同步第二批 refinement note
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在上一批 20 个细粒度 queue items 和其后续 auto-refill closeout items 全部跑完后，继续追加 11 个真正还未入队的第二批 items，方向聚焦 ACL contract/guard closeout、snapshot hotspot null-state closeout、以及最小 docs sync
+    - 第二批顺序按“主队列 5 个 + 扩展队列 6 个”写入 queue：先做 `acl visibility inheritance guard`、`acl deny-hint contract guard`、`usage hotspot null-state slice`、`web hotspot contract null guard`、`acl progress stale-warning sync`，再做 route-policy / trace-summary / wording / docs follow-up
+    - 计划文档已同步第二批 refinement note，继续明确 queue `title` 保持短标题，而真正执行边界仍以 queue `promptText` / `promptFile` 为准；`P5` 的 5 个人工项继续不进入自动 queue
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ queue refinement plan 已落到 `.opencode/loop`，用于归档本轮 queue 收束原则与入队范围
+  - 变更文件：
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将本轮 `P2 -> P3 -> P5 -> P6 -> P4` queue refinement 的目标、主队列/候补队列、自动 queue 排除项、文档同步边界与最小验证口径落成独立计划文件
+    - 该计划文件只负责归档“为什么这样拆、哪些进 queue、哪些不进”，不重复承载每个 queue item 的完整执行 prompt
+    - 保持与现有 `queue.json`、计划文档、进度文档一致，方便后续按批次追踪 queue 组织方式
+  - focused validation：
+    - `git diff --check -- .opencode/loop/queue-refinement-plan-2026-03-29.md docs/current-progress.md`
+
+- ✅ P6 v1 snapshot window diff panel now directly surfaces backend-provided `issueHotspotSlice` in the existing issue-window slice block
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - web comparison contract 对齐新增 `issueHotspotSlice`（left/right hotspot + dominant shift）类型，保持现有 comparison 查询与 endpoint 不变
+    - `P6 v1 snapshot window diff` 的现有 `issue-window slice` 子面板改为直接读取 backend 已返回的 `issueHotspotSlice`，展示左右窗口热点与主变化项
+    - 保持范围为 additive/readability 收口：不改 backend 语义、不新增接口、不扩展 usage dashboard 范围
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ observability + usage docs are now synced to the current scan-first surfaces, summary endpoints, and intentionally deferred dashboard scope (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 已补齐当前 scan-first observability surface 快照：明确 `Usage` / `Trace Detail` 仅复用现有 `document-runs summary/comparison` 与 `audit events` 读取面，不新增运行时契约
+    - 文档同步明确当前 dashboard 约束：保持 scan-first 排障面板，不扩展为通用 analytics/ops dashboard 平台
+    - 保持本次为纯文档收口，不改 API/持久化/行为语义
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ document-run snapshot comparison now includes one focused issue-hotspot slice for faster issue concentration scanning across existing summary/comparison buckets
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `GET /knowledge-bases/:id/document-runs/comparison` 在 `snapshot` 模式下新增 additive 字段 `issueHotspotSlice`
+    - 该 slice 仅复用现有 `bySourceFamily` / `sourceFamilyDeltas` 数据，输出左右窗口各自 issue concentration hotspot（`issueSignalScore/issueConcentration`）与一个 `dominantShift`
+    - 不新增 endpoint、不改既有 summary/comparison 统计语义、不扩展 usage/dashboard 架构
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
+- ✅ trace detail now includes one in-page quick-jump scan path so operators can move between core trace sections with less friction
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 `Execution summary` 区域新增 `Trace quick jumps` 子面板，提供直达 `retrieved chunks`、`citations`、`raw payload` 的锚点跳转
+    - 为现有对应区块补充稳定 section id 与滚动偏移，保持原有 trace 语义、页面结构与诊断文案不变
+    - 补一条 `ui-review-regressions` 守卫，锁定 quick-jump 文案与锚点链接路径
+  - focused validation：
+    - `node --test --test-name-pattern "trace detail" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ report center run form now persists submitted inputs in URL query params, so rerun/reload/share flow can carry the same eval context end to end without changing existing report contracts
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `ReportCenterPage` 改为读取并写回 `questionSetId`、`assistantId`、`baselineSnapshotId` 查询参数；提交 run 时将当前输入同步到 URL
+    - 保持现有 report 页面结构与 eval API contract 不变，不新增后端接口、不扩展 usage/report 架构
+    - 补一条 `ui-review-regressions` 守卫，锁定 report center 已接入 query-param carry-through 行为
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 snapshot window diff now includes one compact issue-window slice for faster 6h→24h scan of issue composition shifts
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 `P6 v1 snapshot window diff` 面板内复用同一份 snapshot comparison 响应，新增一条 `issue-window slice` 精简摘要
+    - 摘要固定输出 `failed / boundary / retryable / non-retryable` 的 `6h -> 24h` Δ，并给出本次窗口对比的主变化项，减少逐条阅读差异列表的扫描成本
+    - 不新增接口、不改 comparison contract、不扩展 usage 页为通用 dashboard
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ trace detail now includes one scan-first diagnostic summary slice to speed up first-pass troubleshooting without changing trace detail architecture
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在既有 `Execution summary` 内新增一个紧凑 `diagnostic summary slice`（问题线索 / 检索线索 / 回答线索三行），直接复用现有 `traceSummary` 可读字段与现有错误信息
+    - 范围严格限制在 trace 详情页 UI 读模型表达层，不新增后端接口、不改 trace 持久化结构、不重排页面主布局
+  - focused validation：
+    - `node --test apps/web/test/trace-summary-contract.test.js`
+
+- ✅ audit scan-first contract now includes explicit issue-oriented fields and summaries for faster operator triage in `GET /audit/events`
+  - 变更文件：
+    - `apps/api/src/modules/audit/audit.service.ts`
+    - `apps/api/test/audit.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持现有事件语义与过滤条件不变，在 audit 事件返回中新增 `issue` 与 `issueReadabilityLabel`（additive contract），让 issue 与非 issue 事件可直接扫读区分
+    - issue 事件的 `summary` 现在优先输出问题导向文案：trace 失败优先显示错误摘要，document run 失败/跳过显示状态与阶段（如 `failed at indexing`）
+    - 范围限制在现有 audit endpoint 的 read-model 可读性收口，不新增 endpoint、不改持久化、不扩展 ops 平台能力面
+  - focused validation：
+    - `pnpm test:api:file -- test/audit.service.test.js`
+
+- ✅ P5 eval run output now carries an explicit fixed-threshold contract in `qualityGate`, so automated consumers can apply the gate deterministically without inferring limits from prose or model judgment
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `qualityGate` 在现有 `limitVersion + breachedMetrics` 基础上新增 `thresholds`（固定五项：`successRate`、`groundedRate`、`strongRate`、`fallbackRate`、`averageCitationCount`），明确当前实际生效阈值合同
+    - 阈值来源继续复用既有 `P5_V1_QUALITY_GATE_LIMITS`，不引入新评测信号、不新增开放式模型裁决层
+    - 相关回归断言已收口：通过与 warning 两条路径都校验 `qualityGate.thresholds` 的固定结构与顺序
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
+- ✅ P5 v1 retrieval regression report export contract is now tightened for rerun-stable structure and trace-signal readability
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - report export metadata 中 `exportedAt` 现在对齐 `runResult.finishedAt`，避免报告导出时额外时钟漂移导致的无意义 diff
+    - focused regression 覆盖补齐 report JSON 顶层/题目字段顺序守卫，锁定当前 markdown/json/html 报告结构为可复盘的稳定合同
+    - 继续沿用现有 trace-derived 信号（`topRegressionReasons`、`failureDrilldown`、`qualityPrimaryIssue` 等），不扩展新指标家族或人工评判层
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
+- ✅ P5 eval runner baseline ergonomics/failure handling is now hardened for CLI usage and trace-fetch resilience without changing the existing eval framework path
+  - 变更文件：
+    - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - CLI 参数解析改为 fail-fast：unknown flag、缺失参数值、非法 `--quality-gate-mode` 会直接报错；同时支持 `--option=value` 写法
+    - 默认输出目录改为基于脚本位置锚定到仓库根目录 `storage/evals/p5-v1`，避免因执行目录不同导致路径漂移
+    - 运行结果增加最小 contract edge 守卫（`runResult.items` 必须是数组），并把单题 trace 拉取失败降级为 item 级错误字段（`traceFetchError`）而不是整次 runner 中断
+  - focused validation：
+    - `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
+- ✅ external source follow-up docs are now re-synced to the accepted stability boundary, queue-ready slices, and intentionally deferred expansion scope (docs-only increment)
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `next_steps` 的 P3 段新增 `queue-ready slices (accepted)`，把当前已接受的 5 个最小切片顺序固定为：`source follow-up gap list` → `source diagnostics consistency` → `source resync recovery guards` → `new source type review` → `source follow-up docs`
+    - `current-dev-setup` 增补 P3 快照：明确当前 stability boundary（现有 source family、nested sitemapindex fail-fast、`MAX_CHILD_SITEMAPS=20` 常量、静态 HTML 抓取边界）
+    - 同步标注本波次 intentionally deferred 扩展项（新 source family、JS 渲染抓取、跨 family 错误码重构、source 平台化）
+    - 仅做文档对齐，不改实现行为与运行时语义
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md`
+
+- ✅ web/feed source ingestion now records consistent partial diagnostics for content-type fallback sniffing, so scan-first troubleshooting keeps one readable partial envelope
+  - 变更文件：
+    - `apps/api/src/infra/web-page/web-page.service.ts`
+    - `apps/api/src/infra/feed-source/feed-source.service.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/parsing.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `WebPageService.fetchWebPage` 在 `text/plain/unknown` + HTML sniff fallback 成功时返回结构化 partial diagnostics（不改提取语义）
+    - `FeedSourceService.fetchFeed` 在同类 content-type fallback 成功时也补齐同口径 partial diagnostics，并保持 RSS/Atom 解析与去重语义不变
+    - `DocumentsService` 将 web/feed fallback partial 统一写入 `EXTERNAL_SOURCE_PARTIAL_SUCCESS` 包装，同时把 feed partial message 改为按失败/去重/边界/fallback 选择更可读文案
+  - focused validation：
+    - `pnpm test:api:file -- test/parsing.test.js`
+
+- ✅ sitemap nested-index + child-limit boundary behavior is now explicitly locked by focused parsing regressions
+  - 变更文件：
+    - `apps/api/test/parsing.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 sitemapindex child 为 nested sitemapindex 的回归守卫，明确当前行为仍是 fail-fast 拒绝（不做更深层 sitemap expansion）
+    - 新增 child sitemap 数量超过上限（20）时的边界回归守卫，锁定 `MAX_CHILD_SITEMAPS_REACHED`、`droppedChildSitemapCount` 与“仅处理前 20 个 child”行为
+    - 仅补 regression guard，不改现有 source family、抓取语义或边界常量
+  - focused validation：
+    - `pnpm test:api:file -- test/parsing.test.js`
+
+- ✅ external source re-sync now hardens legacy identity recovery for config-loss payload edges while keeping unrecoverable identity failures unchanged
+  - 变更文件：
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `parseExternalSourceConfig` 在 legacy identity 可恢复时，除完整缺失配置外，也会覆盖配置对象损坏场景（如 feed 缺失 `url`、sitemap `maxPages` 类型损坏）并继续走同一份 identity-based fallback
+    - recovery 仍严格受 identity 可恢复性约束：当 `sourceType + sourceName` 无法归一化为有效 URL 时，仍保持 `EXTERNAL_SOURCE_CONFIG_INVALID` 失败语义
+    - 仅补现有 source family（`web_page` / `feed` / `sitemap`）re-sync recovery guard，不改 fetch/retry/ingestion 主链路语义
+  - focused validation：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+
+- ✅ ACL closeout docs are now synced to the current owner-only baseline, validated denial paths, and intentionally deferred role/share expansions (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+    - `docs/next_steps_rag_project_plan.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 明确补齐当前 ACL closeout denial-path 快照：unauthenticated `401`、owner-mismatch `403`（含 ask/ask-stream pre-stream deny），以及 KB/document/trace 的 owner-scope 拒绝边界
+    - `next_steps` 的 P2 `acl baseline docs` 项补充 closeout 口径，明确“当前只同步 owner-only 基线与已验证拒绝路径，不扩角色/分享语义”
+    - 保持文档收口范围：仅同步文档语义与验证口径，不改运行时 ACL 行为
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md docs/next_steps_rag_project_plan.md`
+
+- ✅ ask / ask-stream denial contract is now aligned for auth-denial paths (`401` unauthenticated, `403` owner-mismatch) with explicit HTTP denial responses before stream start
+  - 变更文件：
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/test/assistants-api.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /assistants/:id/ask/stream` 现在仅在首个 stream event 写出时才启动 NDJSON 响应；若在 stream 启动前命中 auth denial（`401/403`），改为直接返回与 `ask` 对齐的 HTTP 拒绝响应
+    - 保持原有流式异常语义不变：非 auth-denial 或已启动 stream 后的失败仍通过 `type: "error"` NDJSON 事件返回
+    - `assistants-api` 回归用例同步收口：owner-mismatch 的 ask-stream 断言改为 `403`，并新增 unauthenticated ask/ask-stream 双路径 `401` 对齐守卫
+  - focused validation：
+    - `pnpm test:api:file -- test/assistants-api.test.js`
+
+- ✅ trace owner-scope access is now locked for both direct trace reads and conversation-linked trace list paths
+  - 变更文件：
+    - `apps/api/src/modules/traces/traces.service.ts`
+    - `apps/api/src/modules/conversations/conversations.controller.ts`
+    - `apps/api/test/traces.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `TracesService.listConversationTraces` 新增可选 identity scope，并在提供 scope 时按 `conversation(tenantId,userId)` 约束查询
+    - `ConversationsController.listConversationTraces` 现在将 current identity scope 透传给 trace 列表查询，和 direct `/traces/:id` 的 owner-scope 语义保持一致
+    - 新增 focused regression 用例，锁定 conversation-linked trace list 在提供 scope 时必须走 owner-scope where 条件
+  - focused validation：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+
+- ✅ 已将第二批 execution-ready follow-up queue items 追加到 loop queue，并同步 refined planning note
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有已完成的 wave-level queue items 之后，追加 20 个更细粒度、可直接消费的 follow-up items，顺序按 `P2 -> P3 -> P5 -> P6 -> P4` 排列，其中前 12 个作为主队列、后 8 个作为候补队列顺序入队
+    - 在计划文档中补充 queue refinement note：短标题继续保持简短，但真正执行边界统一由 queue `promptText` / `promptFile` 承载，不把整波主题直接塞成单个 queue item
+    - 明确保留 5 个不进入自动 queue 的 `P5` 人工项：`eval baseline question set`、`baseline annotations`、`baseline dataset version pin`、`demo case shortlist`、`demo replay baseline`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ P5 v1 now has a smallest repeatable retrieval regression report runner for fixed demo questions with reusable markdown/json/html outputs
+  - 变更文件：
+    - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
+    - `apps/api/package.json`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `pnpm --filter @rag-system/api eval:runner:p5-v1`：脚本先登录，再触发 `POST /eval/question-sets/demo-replays/p5-v1/run`，用于固定题集自动化回放
+    - 脚本按题抓取 `GET /traces/:id` 的 `traceSummary`，从已有 trace/answer metadata 汇总 `no-hit`、`fallback`、`low-score`、`citation-limit-hit`、`source-family-failure` 五类回归信号
+    - 默认产物一次落盘三种格式：`storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.{json,md,html}`，可直接用于存档/分享/回归对比
+    - 仍保持在现有评测路径内：复用 `runP5V1DemoReplay` + trace 读取，不引入新的评测框架或持久化契约
+  - focused validation：
+    - `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
+- ✅ P3 `new source type review` now has a clear keep/add decision after source-family stability closeout: **keep existing family (no new source family in this wave)**
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `P3 task 4` 追加明确结论：当前波次保持 `web/feed/sitemap/sitemapindex(一层)`，不新增 source family
+    - 明确给出 keep 依据：现有缺口仍是既有 family 内稳定性补强，不需要通过新增 connector 才能闭环
+    - 追加 re-open 条件：仅在既有稳定性缺口收口且出现明确结构性需求阻塞时，才重新评估 add
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ P3 `source follow-up docs` now records a reproducible stability-boundary snapshot, intentionally deferred items, and minimal validation baseline
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `P3: external knowledge source follow-up` 增补当前稳定性边界快照：仅覆盖既有 source family（`web/feed/sitemap/sitemapindex(一层)/external_resync`）及既有稳定性语义（retry/timeout、same-URL reuse+version、stale run guard、run observability）
+    - 明确本波次后置项：新 source family 扩展、web 动态渲染抓取、跨 family 错误码体系重构、source 平台化重构
+    - 在 P3 最小验证段补充复现前提（仓库根目录 + 沿用当前 API 测试环境依赖）并保留三条 focused baseline 命令
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ external source re-sync recovery is now hardened for legacy feed/sitemap config-loss identities, with boundary regression coverage for unrecoverable sitemap identity
+  - 变更文件：
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `resolveLegacyExternalSourceConfigFromDocumentIdentity` 现在对 `feed` / `sitemap` 与现有 `web_page` 一样支持从 `sourceType + sourceName` 恢复重同步配置，并复用 URL 归一化（去 hash）与默认边界（`maxItems/maxPages=20`）
+    - 对于无法解析为有效 URL 的 legacy identity，继续保持现有失败语义：记录 `EXTERNAL_SOURCE_CONFIG_INVALID`，不进入 source fetch
+    - 回归覆盖新增 sitemap unrecoverable 边界用例，确保 config-loss recovery 仅在可恢复身份下生效
+  - focused validation：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+
+- ✅ P2 `acl baseline docs` now records one reproducible owner-based ACL baseline snapshot for queue closeout
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确记录当前 `owner_only_v1` 已实现边界：authenticated route split、service policy deny reasons、以及五类核心资源（knowledge base / document / assistant / conversation / trace）的 owner-scoped落点
+    - 补充“明确不做”边界：member/viewer 放权、share/public 业务资源可见性、RBAC/ABAC 角色矩阵、跨 tenant 协作语义
+    - 文档仅做 ACL 基线收口，不改 API 行为与权限语义
+  - focused validation：
+    - `pnpm test:api:focus:acl`
+
+- ✅ P2 `default access policy` now has an explicit private/public + inheritance baseline aligned in shared contract and docs
+  - 变更文件：
+    - `packages/shared/src/access-policy-contracts.ts`
+    - `apps/api/src/modules/auth/resource-access-policy.contract.ts`
+    - `apps/api/test/resource-access-policy.contract.test.js`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 shared ACL contract 新增资源可见性基线：`private/public` 枚举、按资源类型默认可见性映射、以及创建时继承规则映射
+    - API ACL contract 新增 `resolveResourceVisibilityOnCreate`，用于统一“新资源默认 private + parent visibility 继承”的实现口径（当前 owner-only 基线下结果仍为 private）
+    - 文档同步明确：核心业务资源默认 private；public 仅保留在 auth/health 路由面，不代表业务资源可公开访问
+  - focused validation：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js`
+
+- ✅ P2 `kb document ownership checks` denial baseline now covers list/detail/write rejection regressions for owner-mismatch paths
+  - 变更文件：
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `apps/api/test/kb-document-access.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - knowledge-base owner-only 拒绝回归新增 `update` 写入路径断言，确保 owner mismatch 时不会落库更新
+    - document owner-only 拒绝回归新增三条最小 denial 路径：knowledge-base 文档列表、document 详情读取、document 创建写入
+    - 仅补 ACL 拒绝路径回归守卫，不改现有 controller/service 访问语义
+  - focused validation：
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js test/kb-document-access.test.js`
+
+- ✅ P2 `access policy contract` now has a shared ACL contract baseline in `@rag-system/shared` with standardized policy input/output/deny reasons
+  - 变更文件：
+    - `packages/shared/src/access-policy-contracts.ts`
+    - `packages/shared/src/index.ts`
+    - `apps/api/src/modules/auth/resource-access-policy.contract.ts`
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增共享 access-policy contract（`ResourceAccessPolicyInput` / `ResourceAccessDecision` / deny reasons），统一 owner-only ACL decision 输入输出和拒绝原因口径
+    - API 侧 `resource-access-policy.contract.ts` 改为复用 shared contract，并继续通过 `Pick<AuthIdentity, "tenantId" | "userId">` 与现有身份字段对齐
+    - `auth.schemas.ts` 的 permission-check `action/kind` 枚举改为复用 shared 常量，避免 service schema 与 policy contract 漂移
+    - 范围保持在 ACL 契约收口：不扩展角色矩阵，不改 owner-only 语义
+  - focused validation：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js`
+
+- ✅ P2 `resource access matrix` 已补齐 owner/member/viewer/public 的最小 ACL 边界矩阵（含 document 行）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 P2 task 1 补充五类核心资源（knowledge base / document / assistant / conversation / trace）的最小 ACL matrix
+    - 显式定义当前阶段四类可见性边界：owner（已实现）、member（planned-deny）、viewer（planned-deny）、public（核心业务资源不公开）
+    - 追加当前实现 gap、最小实现计划（concise）与 focused validation ideas；仅做文档收口，不改现有 ACL 行为语义
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ P2 ACL follow-up items have been整理并追加到 queue（按推荐顺序）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+    - `.opencode/loop/queue.json`
+  - 完成内容（最小范围）：
+    - 将 `P2: ACL / 文档权限` 的 queue-ready tasks 收束为 6 个短标题：`resource access matrix`、`access policy contract`、`kb document ownership checks`、`assistant conversation trace checks`、`default access policy`、`acl baseline docs`
+    - 这些条目已按推荐顺序写入 loop queue，后续可直接顺着 queue 单线推进
+    - 仅做计划/进度/queue 同步，不改 ACL 实现语义
+
+- ✅ P5 可自动化的 eval / regression follow-up 已追加到 queue
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+  - 完成内容（最小范围）：
+    - 先把 `P5: RAG 质量证明` 里能自动跑的两个任务写入 queue：`eval runner`、`regression report`
+    - 保留 `P5` 里需要人工介入的题集选择 / 标注 / demo case，不强行塞进自动 queue
+    - 仍保持 queue 串行推进，不改现有 P2 / P3 顺序
+
+- ✅ P6 v1 snapshot window diff panel now shows one concise source-family drilldown for the 6h vs 24h issue-window shift
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 snapshot diff 面板内继续复用现有 `GET /knowledge-bases/:id/document-runs/comparison` snapshot 响应，不新增 endpoint/hook
+    - 基于已有 comparison 响应中的 `sourceFamilyDeltas`，新增一条 `source-family driver` 精简钻取，说明哪一类 source family 在 `6h -> 24h` 的 issue-window 差异里贡献最大
+    - 仅收口该子面板读模型表达；未扩展 usage 页为通用 dashboard，未改 backend contract 语义
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 snapshot comparison now also returns source-family delta data derived from existing summary buckets
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `GET /knowledge-bases/:id/document-runs/comparison` 在 `snapshot` 模式下新增 `sourceFamilyDeltas` 字段
+    - 新字段直接基于已存在的 `bySourceFamily` 汇总桶计算差异（`totalRuns` / `failedRuns` / `retryableFailures` / `nonRetryableFailures` / `runsWithBoundaryHit`），不改 run-comparison 模式
+    - 现有 failure/boundary 统计口径与边界语义保持不变，仅做 additive 返回增强
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
+- ✅ P6 v1 usage page now includes one focused snapshot window diff subpanel for quick 6h vs 24h issue-window comparison
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 新增 `P6 v1 snapshot window diff` 子面板
+    - 复用已有 `GET /knowledge-bases/:id/document-runs/comparison` + 现有 hook 的 snapshot 参数模式（`leftSinceHours=6`、`rightSinceHours=24`，`issueOnly=true`），展示聚合指标差异
+    - 保持 backend contract 不变，不扩展页面为更大 analytics 面板
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 usage page now includes a scan-first source-family hotspot panel for failure/boundary concentration
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 新增 `P6 v1 source-family hotspot` 子面板
+    - 直接复用现有 `GET /knowledge-bases/:id/document-runs/summary` 的 `bySourceFamily` 聚合数据，按 `failedRuns` + `runsWithBoundaryHit` 的扫描优先级定位当前热点 source family
+    - 保持 backend/API 契约不变，不新增 endpoint，不做通用 dashboard 重构
+  - focused validation：
+    - `node --test --test-name-pattern "source-family hotspot" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 usage page now includes a regression diff view so operators can scan concise run-to-run changes for diagnosis
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/features/api/hooks.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 中新增 `P6 v1 regression diff view` 子面板
+    - 复用已有 `GET /knowledge-bases/:id/document-runs/comparison`，对最近两次 issue run 做 run-vs-run 差异展示（状态/失败阶段/失败码等有意义差异）
+    - 保持 backend contract 不变，仅补 web 类型、查询 hook 和简洁差异读模型展示
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a P6 v1 regression diff view for concise run-to-run diagnostics" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 usage page now includes an anomaly clustering view so repeated failure patterns stand out in one grouped list
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 区块新增 `P6 v1 anomaly clustering view` 子面板
+    - 基于现有 `GET /knowledge-bases/:id/document-runs?issueOnly=true&sinceHours=24` 返回数据，按 `failedStage + failure code + retryable` 聚合失败模式并展示重复次数与 sourceType 分布
+    - 保持 backend contract 不变，仅补前端读模型聚合与扫描视图，不扩展新接口
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a P6 v1 anomaly clustering view for repeated failure patterns" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 document-run summary now includes source-family stats so source-specific issue hotspots are visible at a glance
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `apps/web/src/types/api.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `GET /knowledge-bases/:id/document-runs/summary` 新增 `bySourceFamily` 聚合字段（`web` / `feed` / `sitemap` / `upload` / `other`）
+    - 每个 source family 现在提供最小观测计数：`totalRuns`、`failedRuns`、`retryableFailures`、`nonRetryableFailures`、`runsWithBoundaryHit`
+    - 计数口径保持与现有 summary 语义一致：failure/boundary 仍按每文档 latest completed run 统计，不改已有 failure 语义
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
+- ✅ P6 v1 now has a comparison report endpoint for run-vs-run or snapshot-vs-snapshot diagnostics
+  - 变更文件：
+    - `apps/api/src/modules/documents/document.schemas.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `GET /knowledge-bases/:id/document-runs/comparison`，支持两种输入模式：`leftRunId + rightRunId`（run 对比）或 `leftSinceHours + rightSinceHours`（snapshot 对比）
+    - run 对比会输出状态/失败阶段/失败码/可重试性/boundary-hit 等“有意义差异”
+    - snapshot 对比复用现有 run summary 聚合，输出 `totalRuns`、`failedRuns`、`retryableFailures`、`nonRetryableFailures`、`runsWithBoundaryHit` 的增减差异
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
+- ✅ P6 v1 usage page now includes a trend view to show how key health/failure metrics move over time
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - usage 页在 `P6 v1 health dashboard` 中新增 `P6 v1 trend view`，基于现有接口按 `1h / 6h / 24h` 三个时间窗展示关键指标走势
+    - 趋势指标覆盖 `failed runs`、`retryable failures`、`non-retryable failures`、`boundary hits`、`issue events`，仅做前端读模型聚合，不改后端契约
+    - 告警视图、最近事件列表与原有健康信号保留，趋势视图作为新增 scan-first 子面板并行呈现
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a P6 v1 trend view with 1h/6h/24h windows" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 usage now includes a dedicated alert view that aggregates important warnings and threshold issues in one place
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `P6 v1 health dashboard` 内新增 `P6 v1 alert view` 子面板，把 API 存活异常、run backlog 阈值、retryable/non-retryable 失败阈值、issue-event 阈值、boundary-hit 信号统一汇总为单列表
+    - 每条告警都带轻量级优先级（high/warning/watch）与跳转动作（traces 或 run summary），保持 scan-first 排障路径
+    - 保持现有后端 contract 与查询接口不变，仅在 web 侧复用已有健康/运行/审计信号做读模型聚合
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a single P6 v1 alert view" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 document run cards now include a compact run summary line so operators can scan outcomes quickly
+  - 变更文件：
+    - `apps/web/src/components/document-runs/document-run-observability.ts`
+    - `apps/web/src/components/document-runs/DocumentRunList.tsx`
+    - `apps/web/test/document-run-observability.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 document-run observability helper 新增 `buildRunSummaryText`，基于已有 `status + failedStage` 生成中英双语的一句话运行结果
+    - `DocumentRunList` 每条 run 卡片新增摘要行（位于 meta 区之后），优先提供“完成/失败/跳过/进行中”的可扫读结论
+    - 保持现有后端契约与 diagnostics 详情不变，仅补前端读模型表达层
+  - focused validation：
+    - `node --test apps/web/test/document-run-observability.test.js`
+
+- ✅ P6 v1 now exposes a minimal authenticated audit-event query endpoint for quick notable-event inspection
+  - 变更文件：
+    - `apps/api/src/modules/audit/audit.schemas.ts`
+    - `apps/api/src/modules/audit/audit.service.ts`
+    - `apps/api/src/modules/audit/audit.controller.ts`
+    - `apps/api/src/modules/audit/audit.module.ts`
+    - `apps/api/src/app.module.ts`
+    - `apps/api/test/audit.service.test.js`
+    - `apps/api/test/auth-surface-route-policy.test.js`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `GET /audit/events`（authenticated），支持 `source`（`all|trace|document_run`）、`issueOnly`、`sinceHours`、`query`、`limit` 的轻量查询参数
+    - 后端基于已持久化的 `AnswerTrace` 与 `DocumentRun` 生成统一事件流，按时间倒序聚合返回，避免新增持久化表或 schema 迁移
+    - identity scope 沿用现有边界：trace 按 `conversation(tenantId,userId)` 约束，document run 按 `knowledgeBase.tenantId` 约束
+  - focused validation：
+    - `pnpm test:api:file -- test/audit.service.test.js test/auth-surface-route-policy.test.js test/auth-provider-boundary.test.js`
+
+- ✅ P6 v1 trace detail now includes a failure taxonomy view to quickly classify no-hit / fallback / slow-path / timeout / source-failure cases
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - trace 详情页 `Execution summary` 新增 `Failure taxonomy (P6 v1)` 面板，按固定分类输出当前 trace 命中的失败标签（可多标签并存）
+    - 分类口径保持前端读模型内聚：`no-hit`（primary issue/insufficient reason/0 chunks）、`fallback`（strategy/answer fallback）、`slow-path`（`latencyMs >= 10000`）、`timeout`（失败诊断包含 timeout/abort 关键词）、`source-failure`（失败诊断包含 source/fetch/feed/sitemap 等关键词）
+    - 不改后端契约与 trace persistence，仅补前端可读排障视图和最小回归守卫
+  - focused validation：
+    - `node --test apps/web/test/ui-review-regressions.test.js`
+
+- ✅ P6 v1 trace detail page now surfaces essential request, response, and step-level execution context in one view
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - trace 详情页新增 `Request / response / steps` 组合面板，把请求文本、响应文本、以及三段式执行步骤摘要（query prep / retrieval / answer）放到同一视图顶部
+    - 响应文本通过现有会话消息接口按 `assistantMessageId`（含 `traceId` 回退）读取，避免新增后端契约
+    - 原有 trace 评分、引用、raw payload 诊断区保持不变，仅补齐 P6 v1 的“单页先看核心信息”阅读路径
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ P6 v1 trace workspace now supports scoped keyword search via the authenticated `/traces` list endpoint
+  - 变更文件：
+    - `apps/api/src/modules/documents/document.schemas.ts`
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/src/modules/traces/traces.service.ts`
+    - `apps/api/test/traces.service.test.js`
+    - `apps/web/src/features/api/hooks.ts`
+    - `apps/web/src/pages/traces/TraceListPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `GET /traces`（authenticated）查询入口，支持 `query + limit`，并沿用 owner-scope identity 约束，确保仅返回当前身份可见 trace
+    - trace 列表查询在 service 层增加关键词匹配（`trace id / userQuery / rewrittenQuery`）并复用既有精简字段选择与 `traceSummary` 附加逻辑
+    - Trace 列表页改为直接消费 `/traces`，新增关键词输入框，实现快速搜索并移除按会话逐个拉取 trace 的 `N+1` 请求路径
+  - focused validation：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+
+- ✅ P6 v1 usage page now includes a lightweight health dashboard to surface core operational status without expanding into a generic ops platform
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/features/api/hooks.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - usage 页面新增 `P6 v1 health dashboard` 面板，聚合 `GET /health`、`GET /knowledge-bases/:id/document-runs/summary?sinceHours=24`、`GET /audit/events?issueOnly=true&sinceHours=24&limit=5` 三类已有信号
+    - 面板仅展示 4 个核心健康读数（API、run backlog、24h issue events、failed runs）和最近问题事件简表，保持“快速态势感知”而非完整运维平台
+    - 保持 backend contract 不变，仅在 web 侧补充轻量 hooks 与已有数据投影
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ auth v1 owner-scope ACL denials now expose explicit permission-denied hints so blocked access returns a clear rejection state
+  - 变更文件：
+    - `apps/api/src/modules/auth/resource-access-policy.contract.ts`
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts`
+    - `apps/api/src/modules/assistants/assistants.service.ts`
+    - `apps/api/test/resource-access-policy.contract.test.js`
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `apps/api/test/assistants-api.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `buildResourceAccessDeniedHint`，把 owner-only v1 deny reason 映射为可读拒绝提示（包含 policy + reason + hint）
+    - knowledge-base / assistant 的 owner-scope 拒绝路径从“伪装 not found”改为 `403 Forbidden`，并复用同一拒绝提示文案
+    - ask-stream 被 owner-scope 拒绝时，stream error event 现在也会带出同样的明确拒绝提示
+  - focused validation：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js test/knowledge-bases-auth-write-path.test.js`
+
+- ✅ auth v1 now has ACL guard hook attachment points reserved for future document/resource permission enforcement
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth-acl-guard-hook.contract.ts`
+    - `apps/api/src/modules/auth/auth-route-policy.ts`
+    - `apps/api/src/modules/auth/auth-route-policy.guard.ts`
+    - `apps/api/src/modules/auth/auth.module.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - route policy guard 现在支持可注入 ACL hook（默认 no-op），为后续资源权限判定预留统一执行落点
+    - 新增 `DocumentPermissionHook` / `ResourcePermissionHook` 元数据装饰器（`read|write`），用于后续在具体控制器方法上挂载 ACL 附加语义
+    - 当前增量保持 auth v1 行为不变：未扩展 RBAC/ABAC 规则、未引入新的资源权限判定逻辑
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ auth v1 web startup now bootstraps auth state by preloading `/auth/me` at app mount so existing sessions recover cleanly across refresh/navigation
+  - 变更文件：
+    - `apps/web/src/app/App.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `QueryClientProvider` 内新增轻量 `AuthStateBootstrap`，应用启动即触发 `useAuthMe()` 查询
+    - 复用既有 `['auth','me']` 查询缓存；`AuthenticatedAppShell` / `LoginPage` 继续消费同一身份数据，不新增并行 auth 状态语义
+    - 范围保持在 web auth bootstrap 预加载：不改 backend contract、不改路由策略、不改 UI 结构
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ auth v1 now supports default-user dev mode on the request-auth context path while preserving the auth identity contract
+  - 变更文件：
+    - `.env.example`
+    - `apps/api/src/modules/auth/auth.constants.ts`
+    - `apps/api/src/modules/auth/auth-context.middleware.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `AUTH_DEV_DEFAULT_USER_MODE` 开关（显式 true/false，未设置时默认在非 `production` 环境启用），用于控制未登录请求是否注入 seeded default identity
+    - `AuthContextMiddleware` 在 provider 未解析到 session identity 时，按上述开关决定是否回落到 `dev_seed` identity；`currentIdentity` 字段形状保持不变
+    - 该增量保持 auth v1 合约不扩展：`AuthIdentity` 字段与 `/auth/me` 返回结构不变，仅收口本地开发默认身份来源
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ auth v1 retrieval-profile ownership now uses explicit tenant assignment and owner-scoped access
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `apps/api/prisma/migrations/20260329213000_add_retrieval_profile_ownership_scope/migration.sql`
+    - `apps/api/prisma/seed.js`
+    - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.controller.ts`
+    - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.service.ts`
+    - `apps/api/src/modules/assistants/assistants.service.ts`
+    - `apps/api/test/retrieval-profiles-auth-scope.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `RetrievalProfile` 持久化模型补齐并强制 `tenantId` / `ownerId`；migration 优先从 `assistant -> knowledgeBase` 回填，未关联记录回落到最早用户，确保 tenant ownership assignment 显式可追踪
+    - seed 默认 retrieval-profile 同步按默认 identity 写入 `tenantId/ownerId`，避免新环境出现无归属 profile
+    - retrieval-profile controller 统一向 service 透传当前 request identity；service 的 list/get/update 路径按 `tenantId + ownerId` 约束访问，create 路径强制以当前 identity 写入 owner 归属
+    - assistant 更新时校验 `retrievalProfileId` 也改为 owner-scoped 查询，避免跨 owner 绑定 retrieval profile
+  - focused validation：
+    - `pnpm test:api:file -- test/retrieval-profiles-auth-scope.test.js`
+
+- ✅ auth v1 now exposes a minimal permission-check API for owner-only resource access decisions
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth.controller.ts`
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `POST /auth/permissions/check`（`authenticated`），输入 `action + resource(kind/resourceId/tenantId/ownerId)`，输出当前 identity 与 owner-only v1 access decision（`allowed/reason/policy`）
+    - 复用现有 `evaluateOwnerResourceAccess` 合约，不扩展 ACL 语义、不引入角色矩阵、不改持久化 schema
+    - 现有 `POST /auth/login` / `POST /auth/logout` / `GET /auth/me` 路径与行为保持不变
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ auth v1 now includes a minimal persisted user-role model (`owner`/`member`) and projects role into auth identity for future RBAC-ready contracts
+  - 变更文件：
+    - `apps/api/prisma/schema.prisma`
+    - `apps/api/prisma/migrations/20260329193000_add_user_role_model/migration.sql`
+    - `apps/api/prisma/seed.js`
+    - `apps/api/src/modules/auth/auth-identity.contract.ts`
+    - `apps/api/src/modules/auth/auth.service.ts`
+    - `apps/api/src/modules/auth/session-cookie-auth.provider.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `apps/web/src/types/api.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - Prisma 新增 `UserRole` 枚举（`owner` / `member`）并在 `User.role` 落地默认 `owner`，只提供最小角色基线，不扩展 ACL/RBAC 决策矩阵
+    - auth 登录与 session provider 现在统一读取并返回 `identity.role`，使 `/auth/login` 与 `/auth/me` 身份契约具备最小角色语义
+    - identity 解析对旧 shape 保持兼容：当请求上下文缺少 `role` 时回落到 `owner`，避免现有 auth v1 路径回归
+    - web 侧 `AuthIdentity` 类型同步对齐新增 `role` 字段
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ auth v1 route policy baseline now also protects retrieval-profile APIs under the authenticated surface split
+  - 变更文件：
+    - `apps/api/src/modules/retrieval-profiles/retrieval-profiles.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `apps/api/test/auth-surface-route-policy.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `RetrievalProfilesController` now carries class-level `@AuthenticatedRoute()` metadata, so retrieval-profile endpoints join the authenticated route surface in auth v1
+    - route-policy coverage tests now include retrieval-profile controller metadata checks to keep public/authenticated separation explicit
+    - scope remains route-protection baseline only: no retrieval-profile service semantics change, no ACL matrix expansion, no guard-logic redesign
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js test/auth-surface-route-policy.test.js`
+
+- ✅ auth v1 session provider now includes minimal lifecycle management (activity touch + invalidation-on-read)
+  - 变更文件：
+    - `apps/api/src/modules/auth/session-cookie-auth.provider.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - valid session identity resolution now updates `AuthSession.lastSeenAt` so the active session can be observed as recently used
+    - expired or inactive-user sessions are now proactively revoked (`revokedAt`) during provider resolution before returning unauthenticated
+    - scope stays on auth v1 session lifecycle baseline only: no auth contract/schema expansion, no route-policy redesign, no ACL semantic change
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+  - 实测结果：passed (`12/12`)
+
+- ✅ auth v1 wave now shows a compact current identity card in the desktop app shell
+  - 变更文件：
+    - `apps/web/src/app/AuthenticatedAppShell.tsx`
+    - `apps/web/src/app/AppShell.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `AuthenticatedAppShell` now passes resolved `currentIdentity` into `AppShell`, so shell-level identity display uses the already-bootstrapped auth context
+    - desktop left sidebar adds one compact `current identity` card (`userId` / `tenantId` / `authSource` / `sessionId`) to make active auth context directly readable during auth v1 usage
+    - scope remains app-shell readout only: no auth contract change, no route-policy change, no page-level redesign
+  - focused validation：
+    - `node --test apps/web/test/desktop-shell-consistency.test.js`
+  - 实测结果：passed (`4/4`)
+
+- ✅ P5 v1 eval run now includes a core-quality threshold gate with warn/fail modes
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-set.schemas.ts`
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/features/api/hooks.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 请求新增可选 `qualityGateMode`（`warn` 默认 / `fail`）
+    - run 结果新增 `qualityGate`，对五个核心指标（`successRate` / `groundedRate` / `strongRate` / `fallbackRate` / `averageCitationCount`）按固定阈值评估并输出 breach 明细
+    - `fail` 模式下若阈值越界将返回 `409`（`EVAL_QUALITY_GATE_FAILED`），并携带当前 run 结果用于定位；`warn` 模式继续返回成功结果
+    - markdown/html/json report export 同步包含 quality gate 信息，便于离线复盘
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/eval-question-sets.service.test.js`
+
+- ✅ P5 v1 eval baseline comparison now includes a scan-first diff summary for quick regression review
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 的 `baselineComparison` 新增可选 `diffSummary`，汇总回归/改进/不变指标数量、回归指标明细、回归题目数和高频回归原因，便于快速扫描
+    - markdown/html report export 新增 `Diff summary` 区块，离线复盘时可直接查看 headline + metric/reason 聚合
+    - Report center 新增 `Run diff summary` 展示卡片，优先呈现 headline 和 top regression reasons，减少逐条查看 weakest items 的前置成本
+    - 范围保持在 P5 v1 结果可读性增强：不改 schema、不改 retrieval/answer 行为语义、不扩展新评测框架
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/eval-question-sets.service.test.js`
+
+- ✅ P5 v1 eval run now includes per-question failure drilldown so regression review can focus on weakest items first
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 在 `baselineComparison` 下新增可选 `failureDrilldown`，按题目给出回归原因码（如 `became_failed` / `quality_degraded` / `fallback_introduced`），并输出按严重程度排序的 `weakestItems`
+    - pinned baseline 结果在首次初始化时改为持久化 `summary + items`，用于后续 run 的题目级回归对照；旧版仅 summary 的 baseline 仍兼容（仅不返回 drilldown）
+    - markdown/html 报告导出新增 `Failure drilldown` 区块，便于离线 review 时直接聚焦最弱题目
+    - Report center 新增 `Regression weakest items` 展示区，优先呈现题目级回归原因，帮助人工复盘快速定位
+    - 范围保持在 P5 v1 评测诊断增强：不改 schema、不改 ask/retrieval 行为语义、不扩展新评测框架
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
+- ✅ P5 v1 eval run now detects question-set drift and marks baseline deltas as meaningful/non-meaningful accordingly
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 的 `baselineComparison` 新增 `comparisonMeaningful` 与 `questionSetDrift`（`hasDrift` + 题集差异计数），用于显式识别当前 question set 与 baseline snapshot 是否漂移
+    - 当检测到题集漂移时，run 结果会抑制 `baselineComparison.deltas`，避免输出可能误导的 baseline 指标差异
+    - markdown/html 报告导出同步包含上述漂移与可比性字段，便于离线复盘时判断该次对比是否可直接解读
+    - 范围保持在 P5 v1 eval 可比性守卫，不改 persistence schema、不扩展新评测框架
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
+- ✅ P5 v1 eval run output now includes reusable report exports in `markdown/json/html` for storage and sharing
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /eval/question-sets/:id/runs` 返回值新增 `reportExports`，一次性提供 `markdown` / `json` / `html` 三种可复用报告内容（含 `fileName`、`mimeType`、`content`）
+    - 导出内容使用同一份 run payload（metadata/totals/summary/items + baseline comparison），避免前端再拼装不同格式语义
+    - Report center 在 run 完成后新增三种导出按钮，可直接下载并用于存档/分享
+    - 范围保持在 P5 v1 报告导出，不扩展新 persistence schema、不引入额外报表平台能力
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
+- ✅ P5 v1 report center is now a dedicated route that groups eval outputs and quality summaries in one place (without expanding usage into a generic dashboard)
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/src/app/router.tsx`
+    - `apps/web/src/app/AppShell.tsx`
+    - `apps/web/test/trace-router.test.js`
+    - `apps/web/test/desktop-shell-consistency.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `/reports`（Report center）页面，集中承载 P5 v1 eval run 触发、题目级输出列表、以及质量汇总读数（成功率/grounded/strong/fallback/平均引用 + quality distribution）
+    - `Usage` 页面保留 workspace usage 统计，并改为指向 report center 的入口，避免将该页继续演进为通用仪表盘平台
+    - 左侧导航新增 `Report center` 路由入口，保持 trace/usage/report 三者并列
+  - focused validation：
+    - `node --test apps/web/test/trace-router.test.js apps/web/test/desktop-shell-consistency.test.js`
+
+- ✅ route policy baseline now marks owner-scoped business controllers as authenticated while keeping auth/health public
+  - 变更文件：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.controller.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/src/modules/conversations/conversations.controller.ts`
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 同步内容（最小范围）：
+    - knowledge-base / document / assistant / conversation / trace / audit / retrieval-profile controllers now carry class-level `authenticated` route policy metadata
+    - public auth/health exceptions remain unchanged, including `AuthController` class-level public policy and `GET /auth/me` authenticated policy
+    - `docs/current-dev-setup.md` now reflects the authenticated business-route baseline
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
+- ✅ opencode loop session titles now show remaining queue work and omit the year
+  - `scripts/opencode-loop/runtime.mjs` titles now read like `loop #N · X left · <item-id> · MM-DD HH:mm:ss`
+  - `scripts/opencode-loop/planner.mjs` titles now use the same no-year session time format
+  - `scripts/opencode-loop/queue.mjs` adds a shared `formatSessionTitleTime()` helper for loop session titles
+  - `scripts/opencode-loop/self-test.mjs` now checks the clearer title shape
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+
+- ✅ ACL docs and focused regression baseline are now aligned to the implemented owner-only access rules
+  - 变更文件：
+    - `package.json`
+    - `apps/api/package.json`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - repo root now exposes `pnpm test:api:focus:acl`
+    - API package now exposes `pnpm test:focus:acl` with the current ACL-ready regression set:
+      - `test/auth-provider-boundary.test.js`
+      - `test/resource-access-policy.contract.test.js`
+      - `test/knowledge-bases-auth-write-path.test.js`
+      - `test/kb-document-access.test.js`
+    - the baseline is intentionally limited to already-implemented owner-scoped rules and does not broaden into assistant/trace ACL expansion
+    - `docs/current-dev-setup.md` now records both the current `owner_only_v1` deny-by-default stance and the narrow regression baseline coverage
+    - scope remains docs + validation-baseline sync only: no ACL policy expansion, no new resource access semantics
+  - focused validation：
+    - `pnpm test:api:focus:acl`
+
+- ✅ knowledge-base read/detail now applies owner-only ACL policy evaluation at the service read boundary (and kb-scoped document read entrypoints already reusing this codepath inherit it)
+  - 变更文件：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `KnowledgeBasesService.getKnowledgeBase` now reads by `id` then evaluates `evaluateOwnerResourceAccess` with `action: "read"` and `kind: "knowledge_base"`
+    - `DocumentsService.getDocument` now reuses `knowledgeBasesService.getKnowledgeBase(document.kbId, scope)` when scope is present, so `documents/:id` and related read entrypoints inherit the same owner-only read policy codepath
+    - deny decision keeps existing behavior-preserving `NotFound` response semantics
+    - no RBAC/share expansion, no route-policy redesign, no unrelated refactor
+  - focused validation：
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js`
+  - 实测结果：passed (`6/6`)
+
+- ✅ knowledge base / document read-write paths now enforce owner-based access checks via request identity (ACL baseline increment)
+  - 变更文件：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.controller.ts`
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/knowledge-bases-auth-write-path.test.js`
+    - `apps/api/test/kb-document-access.test.js`
+  - 完成内容（最小范围）：
+    - knowledge-base `list/get/update` 现在统一从 request identity 进入 owner scope，并在 service 层按 `tenantId + ownerId` 收口
+    - knowledge-base 绑定的 document read/write 入口（`knowledge-bases/:id/*` + `documents/:id/*`）现在统一传入 current identity 做 ownership 检查
+    - scope 仅收口 owner-based ACL baseline；未引入 RBAC/share 扩展，未改 schema/persistence
+  - focused validation：
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js test/kb-document-access.test.js`
+  - 实测结果：passed (`8/8`)
+
+- ✅ external source re-sync recovery boundary now covers legacy missing-config paths for feed/sitemap (in addition to web-page), with normalized URL fallback from source identity
+  - 变更文件：
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-dev-setup.md`
+  - 完成内容（最小范围）：
+    - `DocumentsService.resolveLegacyExternalSourceConfigFromDocumentIdentity` now recovers `feed` / `sitemap` from `sourceType + sourceName` when `sourceConfigJson` is missing, using the same default bound fallback (`maxItems/maxPages=20`) and URL normalization (hash stripped)
+    - unrecoverable legacy identities (for example invalid `sourceName` URL) still keep the existing `EXTERNAL_SOURCE_CONFIG_INVALID` failure path, preserving run-history failure visibility
+    - scope remains existing source families only (`web_page` / `feed` / `sitemap`); no new connector expansion, no retry-policy rewrite, no schema changes
+  - focused validation：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - 实测结果：focused external-source sync tests passed (`27/27`)
+
+- ✅ direct trace read (`GET /traces/:id`) now follows the same current-identity ownership baseline as conversation-scoped trace reads (owner-only ACL baseline)
+  - 变更文件：
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/src/modules/traces/traces.service.ts`
+    - `apps/api/test/traces.service.test.js`
+  - 最小行为改动（收口范围）：
+    - `TracesController.getTrace` 现在与 conversation 路径一致，先解析 request current identity，再将 identity scope 传给 trace 读取
+    - `TracesService.getTrace` 在提供 identity scope 时改为按 `trace.id + trace.conversation(tenantId,userId)` 读取；不在 scope 内时保持 `NotFoundException`
+    - `traceSummary` 生成语义保持不变；未引入新策略框架，未扩展 assistant ACL 或 schema/contract redesign
+  - focused validation：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+  - 实测结果：passed (`28/28`)
+
+- ✅ P2 `assistant conversation trace checks` implemented one focused ACL increment for assistant ownership scoping (owner-only baseline, no RBAC/share expansion)
+  - 变更文件：
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/src/modules/assistants/assistants.service.ts`
+    - `apps/api/src/modules/assistants/ask-assistant.service.ts`
+    - `apps/api/test/assistants-api.test.js`
+  - 完成内容（最小范围）：
+    - assistant `list/get/update` 现在统一从 request identity 进入 owner-only scope，并复用现有 knowledge-base ownership 口径（`owner_only_v1`）做可见性收口
+    - ask / ask-stream 在 assistant 解析阶段也改为按 current identity 做同一 owner-only 校验；仅收口 assistant 访问边界，不改 retrieval/answering 行为语义
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/assistants-api.test.js`
+  - 历史环境备注：当时在缺少 `DATABASE_URL` 的环境中执行失败（seed 阶段报 `Environment variable not found: DATABASE_URL`）。后续 owner-scope 与 denial-path 关闭项已在具备环境下完成并记录于上方 ACL closeout 条目。
+
+- ✅ P2 `resource access matrix` 已完成第一版 ACL 边界盘点（聚焦 knowledge base / assistant / conversation / trace）
+  - 变更文件：`docs/next_steps_rag_project_plan.md`
+  - 盘点基于当前代码路径：
+    - `apps/api/src/modules/knowledge-bases/knowledge-bases.controller.ts`
+    - `apps/api/src/modules/documents/documents.controller.ts`（knowledge-base 相关入口）
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/src/modules/assistants/ask-assistant.service.ts`
+    - `apps/api/src/modules/conversations/conversations.controller.ts`
+    - `apps/api/src/modules/conversations/conversations.service.ts`
+    - `apps/api/src/modules/traces/traces.controller.ts`
+    - `apps/api/src/modules/auth/auth-route-policy.guard.ts`
+  - 结论（最小范围）：
+    - conversation 面已具备 `tenantId + userId` owner-based baseline
+    - knowledge base / assistant / direct trace read 仍存在按 id 可读写入口，待后续 ACL 收口
+    - route policy 当前仅对显式 `authenticated` 路由生效，业务路由默认仍未统一收口
+  - 新增 / 更新验证：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ ACL baseline now has a minimal resource-access policy contract aligned with auth identity shape (owner-only, no role matrix expansion)
+  - `apps/api/src/modules/auth/resource-access-policy.contract.ts` adds one small service-layer ACL contract (`ResourceAccessPolicyInput` / `ResourceAccessDecision`) with owner-only v1 decision reasons (`owner_match`, `tenant_mismatch`, `owner_mismatch`, `owner_unassigned`)
+  - contract identity is intentionally aligned to existing auth identity fields (`tenantId`, `userId`) via `Pick<AuthIdentity, "tenantId" | "userId">`
+  - `apps/api/test/resource-access-policy.contract.test.js` adds focused coverage for allow/deny reason paths under this owner-only baseline
+  - scope remains ACL contract baseline only: no controller guard expansion, no resource wiring changes, no RBAC/ABAC enterprise policy design
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js`
+  - 实测结果：focused ACL contract tests passed (`4/4`)
+
+- ✅ web auth state now bootstraps from `GET /auth/me` and protects app routes with a minimal login gate
+  - `apps/web/src/lib/api.ts` now sends `credentials: "include"` for API and stream requests, and surfaces HTTP status on request errors so auth bootstrap can distinguish `401`
+  - `apps/web/src/types/api.ts` adds minimal `AuthIdentity` / `AuthMeResponse` types aligned with the backend auth contract
+  - `apps/web/src/features/api/hooks.ts` adds minimal auth hooks (`useAuthMe`, `useLogin`, `useLogout`) and keeps auth bootstrap query key scoped to `['auth','me']`
+  - `apps/web/src/app/AuthenticatedAppShell.tsx` now bootstraps login state from `/auth/me` and redirects unauthenticated users to `/login`
+  - `apps/web/src/app/router.tsx` now registers `/login` and wraps existing app routes behind `AuthenticatedAppShell`
+  - `apps/web/src/pages/auth/LoginPage.tsx` adds a minimal login form that calls `POST /auth/login` and redirects to `/` on success
+  - scope remains web auth bootstrap/plumbing only: no backend contract changes, no UI redesign, no ACL expansion
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/web build`
+  - 实测结果：web build passed
+
+- ✅ auth route policy baseline now distinguishes public routes from authenticated routes with a minimal guard/decorator contract
+  - `apps/api/src/modules/auth/auth-route-policy.ts` adds a tiny route-policy metadata contract (`public` / `authenticated`)
+  - `apps/api/src/modules/auth/auth-route-policy.guard.ts` adds a global guard that enforces only `authenticated` routes and checks real session identity (`request.authContext.identity`) instead of dev fallback identity
+  - `apps/api/src/modules/auth/auth.module.ts` now wires the guard as `APP_GUARD`
+  - `apps/api/src/common/health.controller.ts` marks health as `public`; `apps/api/src/modules/auth/auth.controller.ts` keeps auth controller public but marks `GET /auth/me` as `authenticated`
+  - focused guard regressions added in `apps/api/test/auth-provider-boundary.test.js`
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+  - 实测结果：focused auth boundary tests passed (`9/9`)
+
+- ✅ conversation read/write paths now scope by current identity (ACL-ready baseline, behavior-preserving by default dev identity)
+  - `apps/api/src/modules/conversations/conversations.controller.ts` now resolves request auth context for all conversation routes and scopes list/detail reads to current identity
+  - conversation messages/traces route reads now verify scoped conversation ownership first (`getConversation` within identity scope) before listing related records
+  - `apps/api/src/modules/conversations/conversations.service.ts` now supports optional identity-scoped list/get (`tenantId + userId`), while preserving legacy unscoped behavior when scope is omitted
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now scopes existing-conversation lookup in both ask and ask-stream paths using current identity before writing new messages/traces
+  - focused regressions added:
+    - `apps/api/test/conversations.service.test.js`
+    - `apps/api/test/ask-success.test.js`
+    - `apps/api/test/ask-stream-service.test.js`
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/conversations.service.test.js test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused API tests passed (`54/54`)
+
+- ✅ auth/login wave docs are now synced to implemented status with a focused validation baseline note
+  - `docs/next_steps_rag_project_plan.md` now records P1 (`鉴权 / 用户登录`) as implemented/closed for tasks `1~12` and adds a reusable focused validation baseline for the auth/login wave
+  - this file (`docs/current-progress.md`) now aligns the old "未开始"/"下一步" status blocks with the already-implemented auth/login baseline and keeps ACL as the next mainline
+  - 新增 / 更新验证：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+  - 实测结果：diff check passed
+
+- ✅ opencode loop now has small strategy hooks and an ordered auth/ACL/source queue wave
+  - `scripts/opencode-loop/strategy.mjs` adds a minimal strategy normalization layer with callbacks for next-item selection, run eligibility, failure handling, and completion hooks
+  - `scripts/opencode-loop/runtime.mjs` now accepts an optional `strategy` object, supports inline `promptText` queue items, and lets queue failures with `failureMode: "defer"` continue later items in the same run while keeping the deferred item for the next loop invocation
+  - `.opencode/loop/queue.json` now carries the ordered `P1/P2/P3` auth/login → ACL → external-source follow-up wave as pending queue items
+  - `scripts/opencode-loop/self-test.mjs` adds focused coverage for predicate-based item selection, deferred-item handling, inline promptText items, and the failure-defer path
+  - `scripts/opencode-loop.md` now documents the strategy hook and inline promptText / failureMode queue metadata
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test passed
+
+- 📝 RAG 质量证明方向已整理为后续可执行清单（暂未进入 queue）
+  - 已在 `docs/next_steps_rag_project_plan.md` 新增 `P5：RAG 质量证明（eval / regression / demo）`
+  - 这一波次明确拆分了两类工作：
+    - **可自动化**：固定题集执行、指标采集、regression report、demo 回放
+    - **需要人工**：题集挑选、期望答案 / 期望引用标注、基线文档集版本确认、开放式答案验收
+  - 当前仍保持“先记录、后进入 queue”的方式，等抽空再把该波次拆成可执行 queue item
+
+- ✅ source-fetch redirect diagnostics now keep a bounded raw redirect target in invalid/non-HTTP redirect-follow errors
+   - `apps/api/src/infra/http/fetch-with-retry.ts` now appends bounded raw `Location` text (`...<truncated>` when long) on two existing redirect-follow failure paths: invalid redirect location and non-`http(s)` redirect target
+   - `apps/api/test/fetch-with-retry.test.js` adds one focused regression for long non-`http(s)` redirect target diagnostics so raw target visibility remains readable but bounded
+   - 新增 superpowers scoped note:
+     - `docs/superpowers/specs/2026-03-28-source-fetch-redirect-target-diagnostics-design.md`
+     - `docs/superpowers/plans/2026-03-28-source-fetch-redirect-target-diagnostics-plan.md`
+   - scope remains diagnostics-only for redirect-follow error wording: no retry-policy rewrite, no source-family expansion, no ingestion/persistence behavior changes
+   - 新增 / 更新验证：
+     - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+   - 实测结果：focused fetch-with-retry tests passed (`13/13`)
+
+- ✅ source-fetch timeout/abort diagnostics now keep the source URL and surface the abort reason text
+  - `apps/api/src/infra/http/fetch-with-retry.ts` now preserves the existing retry path but includes the normalized abort/timeout reason after the source URL and timeout boundary
+  - `apps/api/test/fetch-with-retry.test.js` updates the focused timeout regression to lock the clearer timeout wording
+  - scope remains diagnostics-only for source fetch timeout/abort wording: no retry-policy rewrite, no source-family expansion, no ingestion/persistence behavior changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+
+- ✅ embedding runtime now fails fast on malformed/non-HTTP base URL config for Ollama/OpenAI embedding providers
+  - `apps/api/src/infra/embedding/embedding-runtime-config.ts` now validates configured `OLLAMA_BASE_URL` and `OPENAI_BASE_URL` with explicit `EmbeddingRuntimeConfigError` diagnostics when URL parsing fails or protocol is not `http(s)`
+  - `apps/api/test/embedding-runtime-config.test.js` adds focused regressions for malformed `OPENAI_BASE_URL` and non-HTTP `OLLAMA_BASE_URL`
+  - unsupported OpenAI embedding model diagnostics now also include the resolved embedding endpoint so the error carries one more already-resolved context value on that path
+  - 新增 superpowers scoped note:
+    - `docs/superpowers/specs/2026-03-28-embedding-base-url-guardrail-design.md`
+    - `docs/superpowers/plans/2026-03-28-embedding-base-url-guardrail-plan.md`
+  - scope remains one embedding config guardrail only: no provider-order changes, no retrieval behavior changes, no embedding redesign
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/embedding-runtime-config.test.js`
+  - 实测结果：focused embedding runtime config tests passed (`16/16`)
+
+- ✅ opencode loop now retries up to three fresh sessions after assistant-wait timeout
+  - `scripts/opencode-loop/runtime.mjs` now treats the `180000ms` assistant-wait expiry as a typed timeout path, logs `message:timeout-retry`, clears stale session/message state for the item, and retries up to three times with fresh sessions before failing the loop
+  - when the final retry still times out, the queue item is now reset back to `pending` with stale runtime metadata cleared, so the next loop start does not get pinned to a dead `in_progress` session
+  - resumed items still keep the existing resume behavior when a reply eventually arrives, but no longer stay pinned to a dead session after a no-reply timeout
+  - resumed long sessions now still complete even when the baseline assistant message falls out of the latest `limit=200` window, because the runtime treats a missing baseline as "use the latest different assistant reply" instead of timing out forever
+  - `scripts/opencode-loop/runtime.mjs` now also forwards `afterMessageId` in the `POST /session/:id/message` body and records lock ownership with Linux process identity (`/proc/<pid>/stat` + `/proc/<pid>/cmdline`) so stale lock directories are less likely to block a new loop after PID reuse
+  - `scripts/opencode-loop/planner.mjs` now dedupes auto-refill proposals against existing queue prompt contents when the prompt file is available, instead of fingerprinting only the prompt file path
+  - `scripts/opencode-loop/self-test.mjs` adds focused coverage for successful timeout fresh-session retry, final-timeout reset-to-pending behavior, long-session resume window rollover, stale-lock recovery, and planner dedupe against an already-materialized generated prompt
+  - scope remains loop-runtime / planner robustness only: no queue schema expansion, no task-generation policy changes
+  - 新增 / 更新验证：
+    - `node scripts/opencode-loop.mjs --self-test`
+  - 实测结果：self-test passed, including deferred recovery, resume window rollover, stale-lock recovery, and timeout fresh-session retry coverage
+
+- ✅ ask / ask-stream final payload now expose additive top-level `rewriteReadabilityLabel` aligned with trace-summary wording
+  - `apps/api/src/modules/retrieval/strategy-readability.ts` now centralizes existing rewrite readability sentence builder (`rewrite <enabled|disabled>; rewrite applied: <yes|no>; rewrite fallback: <yes|no|unknown>; rewrite prompt: <id|unknown>.`) for shared projection reuse
+  - `apps/api/src/modules/traces/traces.service.ts` now reuses the shared helper so trace-summary wording/semantics remain unchanged while avoiding duplicated builder logic
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes top-level `rewriteReadabilityLabel` in both one-shot ask and ask-stream final payloads using existing `strategySummary` rewrite metadata
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` add focused assertions for the new top-level field on representative rewrite-enabled and rewrite-disabled paths
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `rewriteReadabilityLabel`; `apps/web/test/ask-answering-metadata-contract.test.js` now guards the field in the existing web contract check
+  - `docs/current-dev-setup.md` ask response metadata semantics list is aligned
+  - scope remains additive contract/readability convergence only: no retrieval/answering behavior semantics changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused ask tests passed (`48/48`)
+
+- ✅ ask/trace docs contract note is refreshed after ask top-level metadata surface expansion
+  - `docs/current-dev-setup.md` now explicitly notes that the `current ask response metadata semantics` top-level field list is kept aligned with `apps/web/test/ask-answering-metadata-contract.test.js`
+  - scope remains docs-only alignment: no backend/web runtime changes, no shared contract changes, no retrieval/answering semantics changes
+
+- ✅ ask/trace contract docs were tightened to match the currently shipped ask top-level metadata surface
+  - `docs/current-dev-setup.md` `current ask response metadata semantics` now lists the already-shipped top-level ask provenance/readability fields for attribution/evidence/text-source/status-source/provenance sentences, so it stays aligned with the existing web ask metadata contract guard
+  - scope is docs-only alignment: no backend/web runtime changes, no shared contract changes, no retrieval/answering semantics changes
+
+- ✅ ask / ask-stream final payload now expose additive top-level `missingInformationProvenanceSentence` aligned with trace-summary wording
+  - `apps/api/src/modules/answering/missing-information-provenance.ts` now centralizes existing missing-information provenance sentence wording (`Missing-information source is <...>; insufficient-context reason is <...>; missing-information count is <...>.`)
+  - `apps/api/src/modules/traces/traces.service.ts` now reuses that helper so trace-summary wording path remains unchanged while shared with ask-path projection
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes top-level `missingInformationProvenanceSentence` in both one-shot ask and ask-stream final payloads using existing resolved missing-information source / insufficient-context reason / count metadata
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` add focused assertions for the new top-level field on representative `none` and `model` missing-information source paths
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `missingInformationProvenanceSentence`; `apps/web/test/ask-answering-metadata-contract.test.js` now guards the field in the existing web contract check
+  - `docs/current-dev-setup.md` ask response metadata semantics list is aligned
+  - scope remains additive contract/readability convergence only: no retrieval/answering behavior semantics changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused ask tests passed (`48/48`)
+
+- ✅ trace summary now exposes additive `missingInformationSourceReadabilityLabel` for easier missing-information provenance scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `missingInformationSourceReadabilityLabel: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this label from existing missing-information source metadata, with readable wording for `none` / `model` / `deterministic_default` / `suppressed_by_policy` and raw-value fallback for unknown legacy values
+  - `apps/api/test/traces.service.test.js` updates baseline trace-summary snapshots and adds one legacy fallback assertion for missing source metadata; `apps/web/test/trace-summary-contract.test.js` now also guards the new shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `retrievalModeProvenanceSentence` for clearer retrieval-mode fallback provenance scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `retrievalModeProvenanceSentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing resolved `retrievalMode`, `strategySummary.usedFallback`, and `fallbackReason`
+  - `apps/api/test/traces.service.test.js` updates baseline summary snapshots and adds one legacy regression assertion for the `usedFallback=true + fallbackReason missing` wording path
+  - `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field; `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `citationCountReadabilitySentence` for faster citation-budget scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `citationCountReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing citation count readability label (`Citation count summary: <label>.`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary snapshots to guard the new field; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `contextReadabilitySentence` for easier prompt-context composition scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `contextReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing context metadata (`contextMode`, `promptContextCount`, `inputChunkCount`, `contextGroupCount`, `retrievedChunkCount`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary snapshots to guard the new field; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ 当前 queue 已重排
+  - 本次只调整现有 queue 的执行顺序，本次整理不新增也不删除任务
+  - 排序规则：先阻塞项，再收尾项，最后优化项
+  - 当前顺序：`packages/shared` 契约收口 → 验证分层 → read-model 派生层收拢 → 兼容逻辑治理 → 外部输入标准化 → 本地环境摩擦下降
+
+- ✅ trace summary now exposes additive `candidateCountReadabilitySentence` for easier final candidate-flow scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `candidateCountReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing candidate flow counts (`ranked`, `merged`, `vector`, `lexical`, `candidateLimit`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary snapshots to guard the new field; `apps/web/test/trace-summary-contract.test.js` now also guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `answerProvenanceReadabilitySentence` for easier final-answer provenance scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerProvenanceReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this sentence from existing answer text/status readability labels plus `answerAttributionReadabilitySentence`
+  - `apps/api/test/traces.service.test.js` adds focused assertions for both baseline and legacy-fallback trace summary paths; `apps/web/test/trace-summary-contract.test.js` now guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `failureReadabilitySentence` for easier failed-stage + message scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `failureReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits the sentence from existing `failedStageReadabilityLabel` + `failureMessage` (`<stage label>; message: <message>.`), with `message unavailable` fallback when no message exists
+  - `apps/api/test/traces.service.test.js` adds focused assertions for known-stage, unknown-stage(raw), and no-message paths; `apps/web/test/trace-summary-contract.test.js` guards the shared contract field
+  - `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `answerTextSourceReadabilitySentence` for easier final-answer text-source scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerTextSourceReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence directly from existing text-source label (`Answer text source is <label>.`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary snapshots and legacy/raw-source checks to guard the new sentence
+  - `apps/web/test/trace-summary-contract.test.js` now guards the shared contract field; `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `answerStatusSourceReadabilitySentence` for easier final-answer status-source scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerStatusSourceReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence from existing status-source label (`Answer status source is <label>.`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary expectation snapshots for unknown and retrieval-inferred status-source paths
+  - `apps/web/test/trace-summary-contract.test.js` now guards the new shared trace-summary field; `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ trace summary now exposes additive `answerEvidenceSourceReadabilitySentence` for easier final-answer evidence-source scanning
+  - `packages/shared/src/trace-contracts.ts` extends `TraceSummary` with `answerEvidenceSourceReadabilitySentence: string`
+  - `apps/api/src/modules/traces/traces.service.ts` now emits this one-line sentence directly from existing evidence-source label (`Answer evidence source is <label>.`)
+  - `apps/api/test/traces.service.test.js` updates both baseline trace-summary expectation snapshots for unknown and heuristic evidence-source paths
+  - `apps/web/test/trace-summary-contract.test.js` now guards the new shared trace-summary field; `docs/current-dev-setup.md` trace-summary field list is aligned
+  - scope remains additive/readability-only trace metadata: no retrieval execution semantics, source-family behavior, or persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm --filter @rag-system/api test:file -- test/traces.service.test.js`
+
+- ✅ ask / ask-stream / trace summary now expose additive top-level `answerAttributionReadabilitySentence`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now reuses `answerAttributionSummary` in one-shot and stream final payloads, and adds `answerAttributionReadabilitySentence` from summary readability text
+  - `apps/api/src/modules/traces/traces.service.ts` now projects the same readability sentence into `traceSummary.answerAttributionReadabilitySentence` for top-level trace readability access
+  - `packages/shared/src/trace-contracts.ts` and `apps/web/src/types/api.ts` are aligned with the additive field (`TraceSummary.answerAttributionReadabilitySentence` + optional `AskResponse.answerAttributionReadabilitySentence`)
+  - focused tests updated in `apps/api/test/traces.service.test.js`, `apps/api/test/ask-success.test.js`, and `apps/api/test/ask-stream-service.test.js`
+  - scope remains readability-only contract convergence: no retrieval behavior changes, no source expansion changes, no persistence/schema semantics changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/traces.service.test.js test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused API tests passed (`74/74`)
 
 - ✅ trace detail execution summary now surfaces trace-summary provenance readability rows
   - `apps/web/src/pages/traces/TraceDetailPage.tsx` now adds two additive execution-summary rows bound to existing trace-summary fields: `answerProvenanceSentence` and `missingInformationProvenanceSentence`
@@ -45,6 +1802,24 @@
   - 新增 / 更新验证：
     - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
   - 实测结果：focused ask tests passed (`48/48`)
+
+- ✅ ask / ask-stream final payload now expose additive top-level `retrievalModeProvenanceSentence` aligned with trace-summary wording
+  - `apps/api/src/modules/retrieval/strategy-readability.ts` now exports `buildRetrievalModeProvenanceSentence(...)` using the existing trace-summary wording variants, and `apps/api/src/modules/traces/traces.service.ts` now reuses this shared helper
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes `retrievalModeProvenanceSentence` in both one-shot ask and stream final payloads from existing `retrievalMetadata.strategySummary` fields (`retrievalMode`, `usedFallback`, `fallbackReason`)
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `retrievalModeProvenanceSentence` to keep web-side contract typing aligned
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` add focused assertions for one-shot and stream final payloads
+  - scope remains additive/readability-only contract alignment: no retrieval behavior changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
+  - 实测结果：focused ask tests passed (`48/48`)
+
+- ✅ ask / ask-stream final payload now expose additive top-level missing-information source readability fields aligned with trace-summary wording
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now includes `missingInformationSource` and `missingInformationSourceReadabilityLabel` in both one-shot ask and stream final payloads, derived directly from existing `answeringMetadata.missingInformationSource`
+  - `apps/web/src/types/api.ts` `AskResponse` now includes optional `missingInformationSource` + `missingInformationSourceReadabilityLabel` to keep web-side contract typing aligned
+  - `apps/api/test/ask-success.test.js` and `apps/api/test/ask-stream-service.test.js` now assert these fields on one-shot and stream final paths (`none` and `model` source cases)
+  - scope remains additive/readability-only contract alignment: no retrieval behavior changes, no persistence/schema changes
+  - 新增 / 更新验证：
+    - `pnpm test:api:file -- test/ask-success.test.js test/ask-stream-service.test.js`
 
 - ✅ feed Atom canonical alternate-link extraction now accepts mixed-case multi-token `rel` values containing `alternate`
   - `apps/api/src/infra/feed-source/feed-source.service.ts` now treats Atom `<link rel>` as tokenized (case-insensitive) and continues preferring canonical alternate href when any `rel` token is `alternate`
@@ -2162,12 +3937,22 @@
 
 ---
 
-## 5. 暂未开始且不属于当前主优先级
+## 5. 暂未开始方向
 
-- [ ] 鉴权
-- [ ] 用户登录
-- [ ] 多租户隔离
+### 5.1 当前下一主线
+
+- [x] 鉴权
+- [x] 用户登录
+
+说明：
+
+- `P1: 鉴权 / 用户登录` 最小闭环已按既定范围完成（backend-first、最小 session/identity contract、web 最小登录态承载）
+- 当前下一条主线为 `ACL / 文档权限`
+
+### 5.2 暂未开始且排在后面
+
 - [ ] ACL / 文档权限
+- [ ] 多租户隔离
 - [ ] 企业级审计与治理能力
 
 ---
@@ -2234,6 +4019,9 @@
     - choose a new backend-first direction
     - do not reopen UI refactor
     - do not expand into a generic connector / source-center platform rewrite
+- [x] `鉴权 / 用户登录`
+  - 最小 auth/login 闭环已收口（见本文件 `2026-03-29` auth 相关完成记录）
+  - 当前按计划进入下一主线：`ACL / 文档权限`
 - 后续自动推进时，默认继续保持严格串行执行，避免本地机器在验证阶段卡死
 
 ### 8.3 后续再往后
@@ -2244,8 +4032,16 @@
 - ✅ retrieval / answering 更系统化演进
 - [ ] 外部知识源扩展
 - [ ] 更细的移动端适配
-- [ ] auth / 多租户 / ACL
+- [ ] ACL / 多租户 / 企业化后续能力
 - [ ] 企业能力
+
+### 2026-03-29
+
+- ✅ 后续主线文档顺序已调整为先做 `鉴权 / 用户登录`
+  - `docs/next_steps_rag_project_plan.md` 现已把 `鉴权 / 用户登录` 明确为 `P1` 当前主线，`ACL / 文档权限` 作为下一条主线，external knowledge source follow-up 后移为后续独立波次
+  - `docs/current-progress.md` 同步区分了“当前下一主线”和“排在后面的未开始方向”，避免继续把 auth/login 归类为“非当前主优先级”
+  - 本次仅更新计划/进度文档，不改 `apps/api` / `apps/web` / `packages/shared` 实现
+  - 验证：`git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
 
 ---
 

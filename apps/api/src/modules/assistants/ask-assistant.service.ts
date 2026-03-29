@@ -7,11 +7,23 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
+import {
+  buildAnswerSourceReadability,
+  buildAnswerProvenanceReadabilitySentence,
+  buildAnswerProvenanceSentence
+} from "../answering/answer-source-readability";
+import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
+import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
+import { resolveRequestAuthContext, type RequestAuthContext } from "../auth/auth-identity.contract";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
-import { buildStrategyReadabilityLabel } from "../retrieval/strategy-readability";
+import {
+  buildRewriteReadabilityLabel,
+  buildRetrievalModeProvenanceSentence,
+  buildStrategyReadabilityLabel
+} from "../retrieval/strategy-readability";
 import {
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -26,7 +38,8 @@ import type {
   TraceAnswerAttributionSummary,
   RetrievalStrategySummary,
   TraceCitationAttribution,
-  TraceCitationSelectionSource
+  TraceCitationSelectionSource,
+  TraceSummary
 } from "@rag-system/shared";
 
 type AskResultChunk = {
@@ -61,18 +74,26 @@ export class AskAssistantService {
     private readonly llmService: LlmService
   ) {}
 
-  async askAssistant(input: { assistantId: string; question: string; conversationId?: string }) {
-    const assistant = await this.assistantsService.getAssistant(input.assistantId);
+  async askAssistant(input: {
+    assistantId: string;
+    question: string;
+    conversationId?: string;
+    authContext?: RequestAuthContext | null;
+  }) {
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext
+    });
+    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
 
     const conversation =
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId)
+        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
         : await this.conversationsService.createConversation({
-            tenantId: assistant.tenantId,
-            userId: "default-user",
+            tenantId: authContext.identity.tenantId,
+            userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
@@ -143,6 +164,17 @@ export class AskAssistantService {
       fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
       strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
     });
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+    });
+    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
+      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
+    });
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -179,7 +211,7 @@ export class AskAssistantService {
       });
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id);
+      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
@@ -194,7 +226,55 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+        answerEvidenceSourceReadabilityLabel
+      );
+      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+          : null
+      );
+      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+          : null
+      );
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = this.buildAnswerProvenanceFields({
+        answerTextSource,
+        answerStatusSource,
+        answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
+        answerTextSourceReadabilityLabel,
+        answerStatusSourceReadabilityLabel,
+        answerAttributionReadabilitySentence
+      });
+      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
+        missingInformationSource,
+        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
+        missingInformationCount: this.resolveMissingInformationCount({
+          answeringMetadata: resolvedAnswerResult.answeringMetadata,
+          missingInformation: resolvedAnswerResult.missingInformation
+        })
+      });
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -206,12 +286,29 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
+        rewriteReadabilityLabel,
+        retrievalModeProvenanceSentence,
         retrievalMetadata,
-        answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence,
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence,
+        answerProvenanceSentence,
+        answerProvenanceReadabilitySentence,
+        missingInformationSource,
+        missingInformationProvenanceSentence,
+        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
+          missingInformationSource
+        }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -247,6 +344,7 @@ export class AskAssistantService {
     assistantId: string;
     question: string;
     conversationId?: string;
+    authContext?: RequestAuthContext | null;
     onEvent: (
       event:
         | { type: "status"; phase: "started" | "retrieving" | "generating" }
@@ -254,25 +352,28 @@ export class AskAssistantService {
         | { type: "final"; data: Record<string, unknown> }
     ) => void | Promise<void>;
   }) {
-    await input.onEvent({
-      type: "status",
-      phase: "started"
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext
     });
-
-    const assistant = await this.assistantsService.getAssistant(input.assistantId);
+    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
 
     const conversation =
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId)
+        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
         : await this.conversationsService.createConversation({
-            tenantId: assistant.tenantId,
-            userId: "default-user",
+            tenantId: authContext.identity.tenantId,
+            userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
+
+    await input.onEvent({
+      type: "status",
+      phase: "started"
+    });
 
     const userMessage = await this.messagesService.createMessage({
       conversationId: conversation.id,
@@ -345,6 +446,17 @@ export class AskAssistantService {
       retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
       fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
       strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+    });
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+    });
+    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
+      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
     });
 
     const trace = await this.tracesService.createTrace({
@@ -421,7 +533,7 @@ export class AskAssistantService {
       });
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id);
+      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
@@ -436,7 +548,55 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+        answerEvidenceSourceReadabilityLabel
+      );
+      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+          : null
+      );
+      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+          : null
+      );
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = this.buildAnswerProvenanceFields({
+        answerTextSource,
+        answerStatusSource,
+        answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
+        answerTextSourceReadabilityLabel,
+        answerStatusSourceReadabilityLabel,
+        answerAttributionReadabilitySentence
+      });
+      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
+        missingInformationSource,
+        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
+        missingInformationCount: this.resolveMissingInformationCount({
+          answeringMetadata: resolvedAnswerResult.answeringMetadata,
+          missingInformation: resolvedAnswerResult.missingInformation
+        })
+      });
       const finalResult = {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -448,12 +608,29 @@ export class AskAssistantService {
         contextGroups: resolvedAnswerResult.contextGroups,
         strategySummary: retrievalMetadata.strategySummary,
         strategyReadabilityLabel,
+        rewriteReadabilityLabel,
+        retrievalModeProvenanceSentence,
         retrievalMetadata,
-        answerAttributionSummary: this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence,
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel: buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource),
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence,
+        answerProvenanceSentence,
+        answerProvenanceReadabilitySentence,
+        missingInformationSource,
+        missingInformationProvenanceSentence,
+        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
+          missingInformationSource
+        }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -532,6 +709,94 @@ export class AskAssistantService {
       attribution: this.resolveAnswerAttribution(answeringMetadata),
       source: this.resolveAnswerAttributionSource(answeringMetadata)
     });
+  }
+
+  private resolveAnswerTextSource(answeringMetadata: unknown): TraceSummary["answerTextSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).answerTextSource;
+    return source === "model" || source === "deterministic_policy" ? source : null;
+  }
+
+  private resolveAnswerStatusSource(answeringMetadata: unknown): TraceSummary["answerStatusSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).answerStatusSource;
+    return source === "model" || source === "inferred_from_retrieval" || source === "deterministic_policy"
+      ? source
+      : null;
+  }
+
+  private readString(value: unknown): string | null {
+    return typeof value === "string" ? value : null;
+  }
+
+  private buildAnswerEvidenceSourceReadabilitySentence(
+    answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
+  ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
+    return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
+  }
+
+  private buildAnswerProvenanceFields(input: {
+    answerTextSource: TraceSummary["answerTextSource"];
+    answerStatusSource: TraceSummary["answerStatusSource"];
+    answerAttributionReadabilityResolvedLabel: TraceAnswerAttributionSummary["readabilityResolvedLabel"];
+    answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"];
+    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"];
+    answerAttributionReadabilitySentence: TraceSummary["answerAttributionReadabilitySentence"];
+  }): Pick<TraceSummary, "answerProvenanceSentence" | "answerProvenanceReadabilitySentence"> {
+    return {
+      answerProvenanceSentence: buildAnswerProvenanceSentence({
+        answerTextSource: input.answerTextSource,
+        answerStatusSource: input.answerStatusSource,
+        answerAttributionReadabilityResolvedLabel: input.answerAttributionReadabilityResolvedLabel
+      }),
+      answerProvenanceReadabilitySentence: buildAnswerProvenanceReadabilitySentence({
+        answerTextSourceReadabilityLabel: input.answerTextSourceReadabilityLabel,
+        answerStatusSourceReadabilityLabel: input.answerStatusSourceReadabilityLabel,
+        answerAttributionReadabilitySentence: input.answerAttributionReadabilitySentence
+      })
+    };
+  }
+
+  private resolveMissingInformationSource(answeringMetadata: unknown): TraceSummary["missingInformationSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).missingInformationSource;
+    return source === "none" || source === "model" || source === "deterministic_default" || source === "suppressed_by_policy"
+      ? source
+      : null;
+  }
+
+  private resolveInsufficientContextReason(answeringMetadata: unknown): TraceSummary["insufficientContextReason"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const reason = (answeringMetadata as Record<string, unknown>).insufficientContextReason;
+    return reason === "no_retrieval_hits" || reason === "retrieved_context_insufficient"
+      ? reason
+      : null;
+  }
+
+  private resolveMissingInformationCount(input: {
+    answeringMetadata: unknown;
+    missingInformation: unknown;
+  }) {
+    if (typeof input.answeringMetadata === "object" && input.answeringMetadata !== null) {
+      const count = (input.answeringMetadata as Record<string, unknown>).missingInformationCount;
+      if (typeof count === "number") {
+        return count;
+      }
+    }
+
+    return Array.isArray(input.missingInformation) ? input.missingInformation.length : 0;
   }
 
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {

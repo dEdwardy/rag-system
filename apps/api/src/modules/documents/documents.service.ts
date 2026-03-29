@@ -10,6 +10,7 @@ import { IngestionService } from "../ingestion/ingestion.service";
 import { IndexingService } from "../indexing/indexing.service";
 import { KnowledgeBasesService } from "../knowledge-bases/knowledge-bases.service";
 import {
+  CompareKnowledgeBaseDocumentRunsInput,
   CreateDocumentInput,
   CreateFeedDocumentInput,
   CreateSitemapDocumentInput,
@@ -34,6 +35,11 @@ type ExternalSourcePartialDiagnostics = Record<string, Prisma.InputJsonValue> & 
   partial: boolean;
 };
 
+type DocumentAccessScope = {
+  tenantId: string;
+  userId: string;
+};
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -48,8 +54,12 @@ export class DocumentsService {
     private readonly indexingService: IndexingService
   ) {}
 
-  async listKnowledgeBaseDocuments(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentsInput) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+  async listKnowledgeBaseDocuments(
+    knowledgeBaseId: string,
+    input: ListKnowledgeBaseDocumentsInput,
+    scope?: DocumentAccessScope | null
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
 
     return this.prisma.document.findMany({
       where: {
@@ -64,9 +74,10 @@ export class DocumentsService {
 
   async listKnowledgeBaseDocumentRuns(
     knowledgeBaseId: string,
-    input: ListKnowledgeBaseDocumentRunsInput
+    input: ListKnowledgeBaseDocumentRunsInput,
+    scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
     return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId, input);
   }
 
@@ -75,26 +86,42 @@ export class DocumentsService {
     input?: Pick<
       ListKnowledgeBaseDocumentRunsInput,
       "documentId" | "sourceType" | "status" | "trigger" | "issueOnly" | "sinceHours"
-    >
+    >,
+    scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
     return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId, input);
   }
 
-  async getDocument(id: string) {
+  async getKnowledgeBaseDocumentRunComparison(
+    knowledgeBaseId: string,
+    input: CompareKnowledgeBaseDocumentRunsInput,
+    scope?: DocumentAccessScope | null
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    return this.documentRunsService.getKnowledgeBaseRunComparison(knowledgeBaseId, input);
+  }
+
+  async getDocument(id: string, scope?: DocumentAccessScope | null) {
     const document = await this.prisma.document.findUnique({
-      where: { id }
+      where: {
+        id
+      }
     });
 
     if (!document) {
       throw new NotFoundException(`Document ${id} not found.`);
     }
 
+    if (scope) {
+      await this.knowledgeBasesService.getKnowledgeBase(document.kbId, scope);
+    }
+
     return document;
   }
 
-  async listDocumentChunks(id: string) {
-    await this.getDocument(id);
+  async listDocumentChunks(id: string, scope?: DocumentAccessScope | null) {
+    await this.getDocument(id, scope);
 
     return this.prisma.documentChunk.findMany({
       where: {
@@ -106,13 +133,13 @@ export class DocumentsService {
     });
   }
 
-  async listDocumentRuns(id: string, input: ListDocumentRunsInput) {
-    await this.getDocument(id);
+  async listDocumentRuns(id: string, input: ListDocumentRunsInput, scope?: DocumentAccessScope | null) {
+    await this.getDocument(id, scope);
     return this.documentRunsService.listDocumentRuns(id, input);
   }
 
-  async createDocument(knowledgeBaseId: string, input: CreateDocumentInput) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+  async createDocument(knowledgeBaseId: string, input: CreateDocumentInput, scope?: DocumentAccessScope | null) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
 
     return this.prisma.document.create({
       data: {
@@ -136,20 +163,25 @@ export class DocumentsService {
       buffer: Buffer;
       originalname: string;
       mimetype: string;
-    }
+    },
+    scope?: DocumentAccessScope | null
   ) {
     const storedFile = await this.storageService.saveUploadedFile({
       buffer: file.buffer,
       originalName: file.originalname
     });
 
-    const document = await this.createDocument(knowledgeBaseId, {
+    const document = await this.createDocument(
+      knowledgeBaseId,
+      {
       sourceType: "upload",
       sourceName: file.originalname,
       title: file.originalname,
       mimeType: file.mimetype || "application/octet-stream",
       storageKey: storedFile.storageKey
-    });
+      },
+      scope
+    );
 
     await this.documentRunsService.createRun({
       documentId: document.id,
@@ -161,9 +193,15 @@ export class DocumentsService {
     return document;
   }
 
-  async createWebPageDocument(knowledgeBaseId: string, input: CreateWebPageDocumentInput) {
+  async createWebPageDocument(
+    knowledgeBaseId: string,
+    input: CreateWebPageDocumentInput,
+    scope?: DocumentAccessScope | null
+  ) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+    const reservedDocument = await this.reserveExternalDocument(
+      knowledgeBaseId,
+      {
       sourceType: "web_page",
       sourceName: normalizedUrl,
       title: input.title ?? null,
@@ -171,7 +209,9 @@ export class DocumentsService {
         kind: "web_page",
         url: normalizedUrl
       }
-    });
+      },
+      scope
+    );
     await this.documentRunsService.createRun({
       documentId: reservedDocument.id,
       version: reservedDocument.version,
@@ -194,7 +234,14 @@ export class DocumentsService {
       return this.finalizeExternalDocument(reservedDocument, {
         title: input.title ?? fetchedPage.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
         mimeType: "text/plain",
-        storageKey: storedFile.storageKey
+        storageKey: storedFile.storageKey,
+        diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+          reservedDocument.version,
+          fetchedPage.diagnostics,
+          "Web page source completed with content-type fallback sniffing.",
+          false,
+          "web"
+        )
       });
     });
 
@@ -205,9 +252,11 @@ export class DocumentsService {
     return finalizedDocument.document;
   }
 
-  async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput) {
+  async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput, scope?: DocumentAccessScope | null) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+    const reservedDocument = await this.reserveExternalDocument(
+      knowledgeBaseId,
+      {
       sourceType: "feed",
       sourceName: normalizedUrl,
       title: input.title ?? null,
@@ -216,7 +265,9 @@ export class DocumentsService {
         url: normalizedUrl,
         maxItems: input.maxItems
       }
-    });
+      },
+      scope
+    );
     await this.documentRunsService.createRun({
       documentId: reservedDocument.id,
       version: reservedDocument.version,
@@ -245,7 +296,7 @@ export class DocumentsService {
         diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
           reservedDocument.version,
           fetchedFeed.diagnostics,
-          "Feed source completed with partial entry validation failures.",
+          this.buildFeedPartialDiagnosticsMessage(fetchedFeed.diagnostics),
           false,
           "feed"
         )
@@ -259,9 +310,15 @@ export class DocumentsService {
     return finalizedDocument.document;
   }
 
-  async createSitemapDocument(knowledgeBaseId: string, input: CreateSitemapDocumentInput) {
+  async createSitemapDocument(
+    knowledgeBaseId: string,
+    input: CreateSitemapDocumentInput,
+    scope?: DocumentAccessScope | null
+  ) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
-    const reservedDocument = await this.reserveExternalDocument(knowledgeBaseId, {
+    const reservedDocument = await this.reserveExternalDocument(
+      knowledgeBaseId,
+      {
       sourceType: "sitemap",
       sourceName: normalizedUrl,
       title: input.title ?? null,
@@ -270,7 +327,9 @@ export class DocumentsService {
         url: normalizedUrl,
         maxPages: input.maxPages
       }
-    });
+      },
+      scope
+    );
     await this.documentRunsService.createRun({
       documentId: reservedDocument.id,
       version: reservedDocument.version,
@@ -313,8 +372,8 @@ export class DocumentsService {
     return finalizedDocument.document;
   }
 
-  async reindexDocument(id: string) {
-    const document = await this.getDocument(id);
+  async reindexDocument(id: string, scope?: DocumentAccessScope | null) {
+    const document = await this.getDocument(id, scope);
 
     if (this.isExternalSourceType(document.sourceType)) {
       return this.resyncExternalDocument(document);
@@ -344,8 +403,8 @@ export class DocumentsService {
     return this.getDocument(id);
   }
 
-  async deleteDocument(id: string) {
-    const document = await this.getDocument(id);
+  async deleteDocument(id: string, scope?: DocumentAccessScope | null) {
+    const document = await this.getDocument(id, scope);
     await this.indexingService.deleteDocumentIndex(document.id);
     await this.prisma.document.delete({
       where: { id }
@@ -369,9 +428,10 @@ export class DocumentsService {
       sourceName: string;
       title: string | null;
       sourceConfig: ExternalSourceConfig;
-    }
+    },
+    scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
 
     const existingDocument = await this.prisma.document.findFirst({
       where: {
@@ -694,13 +754,22 @@ export class DocumentsService {
                    "sitemap"
                  ) ??
                 null)
-             : sourceConfig.kind === "feed"
+              : sourceConfig.kind === "feed"
+                ? (this.buildExternalSourcePartialDiagnostics(
+                    queuedDocument.version,
+                    fetchedSource.diagnostics ?? null,
+                    this.buildFeedPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
+                    false,
+                    "feed"
+                  ) ??
+                null)
+             : sourceConfig.kind === "web_page"
                ? (this.buildExternalSourcePartialDiagnostics(
                    queuedDocument.version,
                    fetchedSource.diagnostics ?? null,
-                   "Feed source completed with partial entry validation failures.",
+                   "Web page source completed with content-type fallback sniffing.",
                    false,
-                   "feed"
+                   "web"
                  ) ??
                null)
              : null
@@ -888,6 +957,10 @@ export class DocumentsService {
       }
     }
 
+    if (legacyFallbackConfig) {
+      return legacyFallbackConfig;
+    }
+
     throw new Error("External source config is invalid.");
   }
 
@@ -895,14 +968,44 @@ export class DocumentsService {
     sourceType?: string;
     sourceName?: string;
   }): ExternalSourceConfig | null {
-    if (!identity || identity.sourceType !== "web_page" || typeof identity.sourceName !== "string") {
+    if (!identity || typeof identity.sourceName !== "string") {
       return null;
     }
 
-    return {
-      kind: "web_page",
-      url: identity.sourceName
-    };
+    const normalizedSourceType =
+      typeof identity.sourceType === "string" ? identity.sourceType.trim().toLowerCase() : undefined;
+
+    let normalizedSourceName: string;
+    try {
+      normalizedSourceName = this.normalizeRemoteSourceUrl(identity.sourceName);
+    } catch {
+      return null;
+    }
+
+    if (normalizedSourceType === "web_page") {
+      return {
+        kind: "web_page",
+        url: normalizedSourceName
+      };
+    }
+
+    if (normalizedSourceType === "feed") {
+      return {
+        kind: "feed",
+        url: normalizedSourceName,
+        maxItems: 20
+      };
+    }
+
+    if (normalizedSourceType === "sitemap") {
+      return {
+        kind: "sitemap",
+        url: normalizedSourceName,
+        maxPages: 20
+      };
+    }
+
+    return null;
   }
 
   private async fetchExternalSourceFromConfig(sourceConfig: ExternalSourceConfig): Promise<FetchedExternalSource> {
@@ -930,7 +1033,8 @@ export class DocumentsService {
   }
 
   private isExternalSourceType(sourceType: string) {
-    return sourceType === "web_page" || sourceType === "feed" || sourceType === "sitemap";
+    const normalizedSourceType = sourceType.trim().toLowerCase();
+    return normalizedSourceType === "web_page" || normalizedSourceType === "feed" || normalizedSourceType === "sitemap";
   }
 
   private isRetryableExternalSourceError(error: unknown) {
@@ -942,7 +1046,7 @@ export class DocumentsService {
     diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
     message: string,
     retryable: boolean,
-    sourceKind: "feed" | "sitemap"
+    sourceKind: "feed" | "sitemap" | "web"
   ) {
     if (!diagnostics?.partial) {
       return null;
@@ -950,11 +1054,13 @@ export class DocumentsService {
 
     const retryableFailureCount = this.getNumericDiagnosticField(diagnostics, "retryableFailureCount");
     const nonRetryableFailureCount = this.getNumericDiagnosticField(diagnostics, "nonRetryableFailureCount");
+    const contentTypeFallbackApplied = diagnostics.contentTypeFallbackApplied === true;
     const partialFailureCount =
       this.getNumericDiagnosticField(diagnostics, "failedEntryCount") +
       this.getNumericDiagnosticField(diagnostics, "failedPageCount") +
       this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount") +
       this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
+    const partialSignalCount = partialFailureCount + (contentTypeFallbackApplied ? 1 : 0);
     const boundaryHit = diagnostics.boundaryHit === true;
     const boundaryReasons = Array.isArray(diagnostics.boundaryReasons)
       ? diagnostics.boundaryReasons.filter((reason): reason is string => typeof reason === "string")
@@ -975,7 +1081,7 @@ export class DocumentsService {
       sourceKind,
       schemaVersion: 2,
       category: "external_source_partial",
-      partialFailureCount,
+      partialFailureCount: partialSignalCount,
       retryableFailureCount,
       nonRetryableFailureCount,
       boundaryHit,
@@ -988,6 +1094,7 @@ export class DocumentsService {
   private buildSitemapPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
     const failedPageCount = this.getNumericDiagnosticField(diagnostics, "failedPageCount");
     const failedChildSitemapCount = this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount");
+    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
 
     if (failedPageCount > 0 && failedChildSitemapCount > 0) {
       return "Sitemap source completed with partial child sitemap and page fetch failures.";
@@ -997,7 +1104,36 @@ export class DocumentsService {
       return "Sitemap source completed with partial child sitemap fetch failures.";
     }
 
+    if (contentTypeFallbackApplied) {
+      return "Sitemap source completed with content-type fallback sniffing.";
+    }
+
     return "Sitemap source completed with partial page fetch failures.";
+  }
+
+  private buildFeedPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
+    const failedEntryCount = this.getNumericDiagnosticField(diagnostics, "failedEntryCount");
+    const skippedDuplicateEntryCount = this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
+    const boundaryHit = diagnostics?.boundaryHit === true;
+    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
+
+    if (failedEntryCount > 0) {
+      return "Feed source completed with partial entry validation failures.";
+    }
+
+    if (skippedDuplicateEntryCount > 0) {
+      return "Feed source completed with duplicate entries skipped.";
+    }
+
+    if (boundaryHit) {
+      return "Feed source completed with max-items boundary truncation.";
+    }
+
+    if (contentTypeFallbackApplied) {
+      return "Feed source completed with content-type fallback sniffing.";
+    }
+
+    return "Feed source completed with partial diagnostics.";
   }
 
   private getNumericDiagnosticField(

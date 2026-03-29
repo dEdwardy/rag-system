@@ -113,6 +113,94 @@ SOURCE_FETCH_RETRY_ATTEMPTS=2
 ```
 
 - current defaults preserve the existing behavior: `10s` timeout and `2` total fetch attempts for `web page` / `feed` / `sitemap` source HTTP requests
+- auth/session runtime now also supports:
+
+```text
+AUTH_SESSION_COOKIE_NAME=rag_session
+AUTH_LOGIN_PROVENANCE_COOKIE_NAME=rag_login_provenance
+AUTH_SESSION_TTL_HOURS=168
+```
+
+- current auth cookie/session defaults:
+  - cookie name default is `rag_session`
+  - login session TTL default is `168` hours (`7` days)
+  - route policy baseline now distinguishes public and authenticated API routes:
+    - public: `GET /health`, `POST /auth/login`, `POST /auth/logout`
+    - authenticated: `GET /auth/me`, `POST /auth/permissions/check`, plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, and `retrieval-profiles`
+    - `GET /auth/me` and the owner-scoped business routes require an authenticated session cookie and return `401` when unauthenticated
+  - backend now exposes minimal auth loop endpoints:
+    - `POST /auth/login` (Phase 1 local-account baseline: accepts `{ email, password }`, sets session cookie, returns identity)
+    - `POST /auth/logout` (revokes current session when present, clears cookie)
+    - `GET /auth/me` (returns `{ identity, currentIdentity, loginProvenance }`)
+      - `loginProvenance.type`: `local_session` or `oauth_session`
+      - `loginProvenance.oauthProvider`: `github` / `google` / `oidc` / `null` (null for local session)
+  - current local-account login baseline (`Phase 1`) scope:
+    - pre-created users only (seed/admin/manual bootstrap); no public signup in this wave
+    - no password reset / forgot-password / email verification in this wave
+    - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
+    - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
+  - auth `Phase 2/3/4 + real OIDC` current landed snapshot (queue wave sync):
+    - `Phase 2` baseline is landed:
+      - `AuthIdentityLink` skeleton is in Prisma (`provider + subject` unique boundary, plus `emailSnapshot` / `profileSnapshot` / `lastLoginAt`)
+      - `authSource` contract reserves `local` / `github` / `google` / `oidc` / `session` / `dev_seed`
+      - reserved provider route shape remains `GET /auth/oauth/:provider/start` + `GET /auth/oauth/:provider/callback`
+    - `Phase 3` GitHub flow is landed in backend runtime:
+      - `/auth/oauth/github/start` builds redirect URL + state cookie
+      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession` and writes `rag_session`
+    - `Phase 4` Google flow is landed with the same backend pattern:
+      - `/auth/oauth/google/start` and `/auth/oauth/google/callback` follow the same state + identity-link + local-session bridge semantics
+    - real `oidc` flow is now landed with the same backend identity-link/session bridge pattern:
+      - `/auth/oauth/oidc/start` resolves OIDC discovery metadata (`authorization_endpoint`) and redirects with the existing state-cookie guard
+      - `/auth/oauth/oidc/callback` resolves discovery metadata (`token_endpoint` + `userinfo_endpoint`), exchanges code, reads stable `sub`, then links/creates local user via `AuthIdentityLink(provider, subject)` and creates local `AuthSession`
+    - runtime env requirements currently used by code paths above:
+      - shared OAuth state controls: `AUTH_OAUTH_STATE_COOKIE_NAME` (default `rag_oauth_state`), `AUTH_OAUTH_STATE_TTL_SECONDS` (default `600`)
+      - GitHub start/callback config: `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET`, `AUTH_GITHUB_REDIRECT_URI` (optional overrides: `AUTH_GITHUB_AUTHORIZE_URL`, `AUTH_GITHUB_TOKEN_URL`, `AUTH_GITHUB_USER_URL`, `AUTH_GITHUB_SCOPE`)
+      - Google start/callback config: `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_GOOGLE_REDIRECT_URI` (optional overrides: `AUTH_GOOGLE_AUTHORIZE_URL`, `AUTH_GOOGLE_TOKEN_URL`, `AUTH_GOOGLE_USER_URL`, `AUTH_GOOGLE_SCOPE`)
+      - OIDC start/callback config: `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_REDIRECT_URI` (optional: `AUTH_OIDC_SCOPE`, default `openid email profile`)
+      - optional default tenant for first-time OAuth auto-create path: `AUTH_DEFAULT_TENANT_ID` (fallback `default-tenant`)
+    - behavior boundary kept unchanged:
+      - `/auth/me` contract remains `{ identity, currentIdentity, loginProvenance }`; this wave does not change identity/session payload shape
+      - local login + session-cookie flow remains active (`POST /auth/login` + `rag_session` + `GET /auth/me`)
+      - OAuth/OIDC callback still bridges into local persisted session (`AuthSession` + `rag_session`), not provider token session state on frontend
+      - owner-only ACL behavior remains unchanged; this auth increment does not reopen ACL expansion
+  - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
+    - allow only when `tenantId` matches and `ownerId === userId`
+    - deny when tenant mismatches, owner mismatches, or owner is unassigned
+    - conservative fallback: unsupported access action or unsupported resource kind is denied explicitly (`unsupported_action` / `unsupported_resource_kind`)
+    - default resource visibility stance in this ACL wave:
+      - private-by-default resources: `knowledge_base`, `document`, `assistant`, `conversation`, `trace`
+      - public surface remains route-level only (`/health`, `/auth/login`, `/auth/logout`), not business-resource visibility
+      - new-resource visibility inheritance baseline:
+        - `knowledge_base` / `conversation`: `explicit_private`
+        - `document` / `assistant`: inherit from parent knowledge-base visibility
+        - `trace`: inherit from parent conversation visibility
+      - because current parent resources are private in `owner_only_v1`, effective visibility for newly created resources currently stays private
+    - ACL owner-based wave (`owner_only_v1`) implemented boundaries snapshot:
+      - route boundary: business routes are authenticated (`knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, `retrieval-profiles`)
+      - policy boundary: service-layer owner check uses `evaluateOwnerResourceAccess` with explicit deny reasons (`tenant_mismatch`, `owner_mismatch`, `owner_unassigned`, plus unsupported action/resource guards)
+      - resource boundary (implemented):
+        - `knowledge_base`: owner-scoped list/get/update
+        - `document`: owner-scoped access via parent knowledge-base ownership checks (list/detail/write/reindex/delete)
+        - `assistant`: owner-scoped list/get/update and ask/ask-stream assistant resolution
+        - `conversation`: owner-scoped list/detail/messages/traces via `tenantId + userId`
+        - `trace`: owner-scoped `/traces` list and direct `/traces/:id` read via conversation ownership
+      - default visibility boundary: all five resources remain private-by-default in this wave
+      - validated denial-path baseline (current closeout snapshot):
+        - unauthenticated requests to authenticated routes return `401` (including `GET /auth/me`, owner-scoped business routes, and assistant ask/ask-stream)
+        - owner-mismatch requests are denied by owner policy (`403`), including assistant ask + ask-stream pre-stream denial paths
+        - knowledge-base/document owner-mismatch denial regressions are covered for list/detail/write boundaries (no implicit cross-owner read/write fallback)
+        - trace reads remain owner-scoped in both direct `/traces/:id` and conversation-linked `/conversations/:id/traces` paths
+    - intentionally unsupported ACL expansions in the current owner-based wave:
+      - no member/viewer allow rules (both stay planned-deny)
+      - no share/public business-resource visibility expansion
+      - no RBAC/ABAC matrix or role-derived policy branching in service decisions
+      - no cross-tenant collaboration semantics
+    - focused ACL/access-control closeout validation command (repro baseline):
+      - `pnpm test:api:focus:acl`
+  - web auth bootstrap now calls `GET /auth/me` at app-shell entry and redirects unauthenticated users to `/login`
+  - web app shell now exposes a minimal `Logout` action that calls `POST /auth/logout`, clears auth-scoped cached query state, and returns to `/login`
+  - web API requests now include credentials by default so the auth session cookie is sent for protected API routes
+  - when the web app runs on `5174`, Vite now proxies `/api` to `http://localhost:3000` so browser requests still reach the backend instead of Vite returning `index.html`
 - LLM runtime now also supports a small set of explicit operational overrides:
 
 ```text
@@ -169,6 +257,21 @@ LLM_REWRITE_TEMPERATURE=0
   - the field is present for both one-shot ask responses and native streaming final payload / trace persistence
 - current ask response metadata semantics:
   - `AskResponse.strategySummary` now exposes the same additive resolved retrieval strategy summary used by trace/read-model surfaces
+  - ask one-shot responses and ask-stream `final` payloads now also expose additive top-level readability/provenance fields derived from existing metadata:
+    - `strategyReadabilityLabel`
+    - `retrievalModeProvenanceSentence`
+    - `rewriteReadabilityLabel`
+    - `answerAttributionSummary`
+    - `answerAttributionReadabilitySentence`
+    - `answerAttribution` / `answerAttributionSource`
+    - `answerEvidenceSource` / `answerEvidenceSourceReadabilityLabel`
+    - `answerEvidenceSourceReadabilitySentence`
+    - `answerTextSource` / `answerTextSourceReadabilityLabel` / `answerTextSourceReadabilitySentence`
+    - `answerStatusSource` / `answerStatusSourceReadabilityLabel` / `answerStatusSourceReadabilitySentence`
+    - `answerProvenanceSentence` / `answerProvenanceReadabilitySentence`
+    - `missingInformationProvenanceSentence`
+    - `missingInformationSource` / `missingInformationSourceReadabilityLabel`
+  - this top-level ask metadata list is intentionally kept aligned with the web contract guard in `apps/web/test/ask-answering-metadata-contract.test.js`
   - the ask response still keeps `retrievalMetadata` and `answeringMetadata` for lower-level inspection, but the top-level summary makes the resolved retrieval provenance easier to read
 - current trace read semantics:
   - `GET /traces/:id` and `GET /conversations/:id/traces` now also return additive `traceSummary`
@@ -181,6 +284,7 @@ LLM_REWRITE_TEMPERATURE=0
     - `retrievalMode`
     - `retrievalQuerySource`
     - `strategyReadabilityLabel` (one-line retrieval/fallback summary)
+    - `retrievalModeProvenanceSentence` (one-line resolved retrieval-mode + fallback-usage provenance)
     - `rewriteReadabilityLabel` (one-line rewrite execution summary)
     - `strategySummary`
       - `retrievalMode`
@@ -212,27 +316,34 @@ LLM_REWRITE_TEMPERATURE=0
     - `answerAttributionSource`
     - `answerEvidenceSource` (same source value as `citationSelectionSource`)
     - `answerEvidenceSourceReadabilityLabel` (`<kind> evidence source` readability label)
+    - `answerEvidenceSourceReadabilitySentence` (one-line evidence-source provenance sentence)
     - `citationAttribution`
     - `citationSelectionSource`
     - `missingInformationCount`
     - `missingInformationCountReadabilityLabel` (count readability label)
     - `missingInformationSource`
+    - `missingInformationSourceReadabilityLabel` (missing-information source readability label)
     - `insufficientContextReason`
     - `missingInformationProvenanceSentence` (one-line missing-information provenance)
     - `answerTextSource`
     - `answerTextSourceReadabilityLabel` (answer text source readability label)
+    - `answerTextSourceReadabilitySentence` (one-line answer text source provenance)
     - `answerStatusSource`
     - `answerStatusSourceReadabilityLabel` (answer status source readability label)
+    - `answerStatusSourceReadabilitySentence` (one-line answer status source provenance)
+    - `answerProvenanceReadabilitySentence` (one-line answer provenance with readability labels)
     - `answerProvenanceSentence` (one-line answer provenance)
     - `failedStage`
     - `failedStageReadabilityLabel` (failed-stage readability label)
     - `failureMessage`
+    - `failureReadabilitySentence` (one-line failed-stage + message readability summary)
     - `candidateLimit`
     - `vectorCandidateCount`
     - `lexicalCandidateCount`
     - `mergedCandidateCount`
     - `rankedCandidateCount`
     - `candidateCountReadabilityLabel` (candidate-flow count readability label)
+    - `candidateCountReadabilitySentence` (one-line candidate-flow readability sentence)
     - `vectorCandidateLimitHit`
     - `lexicalCandidateLimitHit`
     - `rankingTopKHit`
@@ -242,8 +353,10 @@ LLM_REWRITE_TEMPERATURE=0
     - `inputChunkCount`
     - `promptContextCount`
     - `contextGroupCount`
+    - `contextReadabilitySentence` (one-line prompt-context composition sentence)
     - `citationCount`
     - `citationCountReadabilityLabel` (citation count readability label)
+    - `citationCountReadabilitySentence` (one-line citation count readability sentence)
     - `citationCountBeforeLimit`
     - `citationLimitHit`
     - `usedFallback`
@@ -312,6 +425,8 @@ LLM_REWRITE_TEMPERATURE=0
   - current `traceSummary` readability field examples (derived from `apps/api/src/modules/traces/traces.service.ts`):
     - `strategyReadabilityLabel` example:
       - `hybrid retrieval via rewritten; fallback: none; fallback used: no.`
+    - `retrievalModeProvenanceSentence` example:
+      - `Resolved retrieval mode is hybrid; fallback was not used.`
     - `rewriteReadabilityLabel` example:
       - `rewrite enabled; rewrite applied: yes; rewrite fallback: no; rewrite prompt: rewrite-query.v1.`
     - `answerAttributionSummary.readability` example values:
@@ -469,6 +584,26 @@ pnpm test:api:file -- apps/api/test/prompt-manager.test.js
 
 `test:api:file` now auto-selects `Vitest` for fast-lane files and keeps the current build-aware runner for heavier integration or E2E files.
 
+P5 v1 fixed-question eval runner (automation-first baseline capture):
+
+```bash
+pnpm --filter @rag-system/api eval:runner:p5-v1
+```
+
+- default target: `http://127.0.0.1:3000`
+- output artifacts:
+  - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.json`
+  - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.md`
+  - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.html`
+- practical latest-artifact lookup convention (timestamped triplet):
+  - latest JSON: `ls -1t storage/evals/p5-v1/p5-v1-retrieval-regression-*.json | sed -n '1p'`
+  - latest Markdown/HTML: use the same basename and swap extension to `.md` / `.html`
+- report summarizes retrieval regression signals from existing eval item metadata + `traceSummary`, including: `no-hit`, `fallback`, `low-score`, `citation-limit-hit`, and `source-family-failure` (with source-family breakdown)
+- boundary note (P5 v1): timestamped files under `storage/evals/p5-v1` are **offline regression artifacts** for replay-proof/archive/diff workflows; they are not a web runtime contract surface
+- boundary note (artifact producer): offline files under `storage/evals/p5-v1` are produced by the CLI runner path (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) after calling `POST /eval/question-sets/demo-replays/p5-v1/run`
+- boundary note (report-center contract): web `Report center` keeps using live eval API response contracts (`POST /eval/question-sets/:id/runs` + `reportExports`) for in-app read/trigger/export flows, and does not directly consume or index offline files under `storage/evals/p5-v1`
+- current wave scope guard: this wave stays on eval/regression proof closeout; do not expand `Report center`/`Usage` into a generic analytics or ops dashboard platform
+
 Focused API integration entrypoint:
 
 ```bash
@@ -519,6 +654,8 @@ Recommended API test entrypoints by change type:
   - `pnpm test:api:file -- test/<name>.test.js`
 - assistant API patch / retrieval-profile API behavior:
   - `pnpm test:api:integration`
+- auth/ACL owner-scoped access-control baseline:
+  - `pnpm test:api:focus:acl`
 - assistant API config work plus ask-path regression coverage:
   - `pnpm test:api:focus:api-config`
 - document / ask main flow closeout:
@@ -630,6 +767,7 @@ For day-to-day backend work in the current repository, prefer a lighter feedback
 - default local development path:
   - implement one small but complete increment first
   - then run `typecheck` plus only the 1..3 most relevant focused tests
+  - when picking the next queue item, use dependency/blocking order first; do not use creation order as the default
 - use stricter TDD mainly for:
   - pure logic
   - schema normalization
@@ -719,19 +857,57 @@ Notes:
 - external source HTTP fetches now share a small retry guard: one automatic retry for transient `408` / `429` / `5xx` upstream responses before surfacing the failure
 - external source creation now reserves a `Document` record before remote fetch, so when `web page` / `feed` / `sitemap` source fetch fails the failure is still visible later through `GET /knowledge-bases/:id/documents` and `GET /documents/:id`
 - external source documents now persist `sourceConfigJson`, and `POST /documents/:id/reindex` for `web_page` / `feed` / `sitemap` performs a true remote re-sync using the stored source config instead of only re-parsing the previous generated text artifact
-- if an external source document later loses a valid `sourceConfigJson`, `POST /documents/:id/reindex` now still creates a new `external_resync` run/version and then records a structured non-retryable failure instead of failing before run history is written
+- if an external source document later loses a valid `sourceConfigJson`, `POST /documents/:id/reindex` now first attempts legacy recovery from document identity (`sourceType + sourceName`) for `web_page` / `feed` / `sitemap` (with default `maxItems/maxPages=20` for feed/sitemap); only unrecoverable cases still record a structured non-retryable config failure after writing the new run/version
 - when an external source re-sync does not yield a new source-level title, the backend now preserves the document's current `title` instead of overwriting it with the normalized URL fallback
 - the same title-preservation rule now also applies when posting the same external source URL again and the backend reuses the existing document record for a fresh sync
 - external source fetch diagnostics now distinguish retryability at the source-fetch boundary:
   - upstream / transient fetch failures remain `retryable: true`
   - invalid payload / unsupported content type style failures now persist as `retryable: false`
+- external source follow-up（P3）当前 accepted stability boundary / queue slices 快照：
+  - stability boundary（保持不变）：
+    - source family 仅限 `web page` / `feed` / `sitemap urlset` / `sitemapindex(一层)` + `external_resync`
+    - source-expansion decision（当前波次）：`keep`（不新增 source family）
+    - nested sitemapindex 仍按不支持处理（保持当前失败语义）
+    - `MAX_CHILD_SITEMAPS=20` 仍为实现常量（本波次不做 per-source 动态配置）
+    - web page 仍按静态 HTML 提取，不引入 JS 渲染抓取
+  - queue-ready slices（按顺序）：
+    1) `source follow-up gap list`
+    2) `source diagnostics consistency`
+    3) `source resync recovery guards`
+    4) `new source type review`
+    5) `source follow-up docs`
+  - intentionally deferred（本波次明确后置）：
+    - 新 source family 扩展（connector 扩面）
+    - web page JS 渲染抓取能力
+    - 跨 source family 的全面错误码体系重构
+    - source 平台化/插件化重构
+  - focused validation baseline（current source follow-up wave）：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+    - `pnpm test:api:file -- test/parsing.test.js`
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`
+- backend now also exposes one scan-first comparison summary endpoint for recent-window diagnostics through `GET /knowledge-bases/:id/document-runs/comparison` (run-vs-run or snapshot-vs-snapshot)
+- in `snapshot` mode, the comparison payload now also includes additive `issueHotspotSlice` (`leftHotspot` / `rightHotspot` / `dominantShift`) for quick issue-concentration scan
+- snapshot comparison null/empty contract (validated baseline): low-signal windows still keep these additive `issueHotspotSlice` keys stable and explicit, with `null` values when no hotspot or meaningful dominant shift exists (instead of omitting keys)
+- backend now also exposes one minimal authenticated issue-event scan endpoint through `GET /audit/events`
 - the current PC Web now minimally consumes these run observability endpoints in existing pages:
 - `Knowledge Base` shows recent source/document runs plus a small recent-run summary and latest failure context
 - `Knowledge Base` recent runs now also support a minimal status filter (`all` / `failed` / `processing`), direct jump to the related document, and one-item reindex for failed/skipped runs
 - `Document Detail` shows per-document run history with status, trigger, source timing, and minimal diagnostics expansion
+- `Usage` keeps a scan-first `P6 v1 health dashboard` surface (alerts, trend, hotspot, anomaly clustering, regression diff, snapshot window diff) by reusing existing summary/comparison/audit endpoints
+  - usage snapshot window diff contract source: `GET /knowledge-bases/:id/document-runs/comparison` in `snapshot` mode (including additive `issueHotspotSlice`); this remains a scan-first troubleshooting slice, not a generic metric/report surface
+- `Report center` keeps a scan-first `P5 v1` eval replay surface (pre-run guidance, quality/diff/weakest-item scan, run metadata, export) and stays on live eval API contracts
+  - report-center contract source: `POST /eval/question-sets/:id/runs` response payload (including `reportExports`); this route does not consume usage snapshot payloads or offline `storage/evals/p5-v1` artifacts
+- `Trace Detail` keeps a scan-first execution-summary surface (diagnostic summary slice, failure taxonomy, quick-jump anchors) and does not require new backend contracts
+  - trace-detail contract source: existing `GET /traces/:id` / `GET /conversations/:id/traces` `traceSummary` readability fields; no coupling to usage snapshot comparison payloads or report-center run payloads
+- dashboard scope is intentionally constrained in this wave: keep `Usage`/`Trace Detail` scan-first troubleshooting panels plus `Report center` scan-first eval replay only, and defer generic analytics/ops-platform expansion
+- next accepted P6 closeout gaps (scan-first surface only, docs snapshot):
+  - keep `Usage` closeout focused on existing panel readability/empty-state consistency over current summary/comparison/audit payloads (no new metric families)
+  - keep `Report center` closeout focused on existing P5 eval run/read/export flow and parameter carry-through (`questionSetId` / `assistantId` / `baselineSnapshotId`), without adding new report families
+  - keep `Report center` contract source on live eval API responses (plus trace-summary-derived eval readability already included in those responses), and do not repurpose usage snapshot payloads as report contracts
+  - keep `Usage` ↔ `Report center` boundary as route-level navigation/readability only, without reopening dashboard platform expansion or new backend contracts
 - the knowledge-base scoped run list currently supports minimal query filters:
   - `documentId`
   - `sourceType`

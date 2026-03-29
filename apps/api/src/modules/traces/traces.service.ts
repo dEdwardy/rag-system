@@ -6,8 +6,19 @@ import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
-import { buildStrategyReadabilityLabel } from "../retrieval/strategy-readability";
-import { ListConversationTracesInput } from "../documents/document.schemas";
+import {
+  buildAnswerSourceReadability,
+  buildAnswerProvenanceReadabilitySentence,
+  buildAnswerProvenanceSentence
+} from "../answering/answer-source-readability";
+import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
+import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
+import {
+  buildRewriteReadabilityLabel,
+  buildRetrievalModeProvenanceSentence,
+  buildStrategyReadabilityLabel
+} from "../retrieval/strategy-readability";
+import { ListConversationTracesInput, ListTracesInput } from "../documents/document.schemas";
 
 type PersistedTrace = Awaited<ReturnType<PrismaService["answerTrace"]["findUnique"]>>;
 
@@ -31,10 +42,42 @@ const TRACE_ANSWER_STATUS_SOURCE_VALUES = new Set<NonNullable<TraceSummary["answ
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  getTrace(id: string) {
-    return this.prisma.answerTrace.findUnique({
-      where: { id }
-    }).then((trace) => {
+  private readonly traceListSelect = {
+    id: true,
+    conversationId: true,
+    assistantId: true,
+    userMessageId: true,
+    assistantMessageId: true,
+    userQuery: true,
+    rewrittenQuery: true,
+    retrievedChunkIdsJson: true,
+    retrievalMetadataJson: true,
+    citationsJson: true,
+    answeringMetadataJson: true,
+    qualityEvaluationJson: true,
+    modelName: true,
+    latencyMs: true,
+    status: true,
+    errorMessage: true,
+    createdAt: true
+  } satisfies Prisma.AnswerTraceSelect;
+
+  getTrace(id: string, scope?: { tenantId: string; userId: string } | null) {
+    const traceLookup = scope != null
+      ? this.prisma.answerTrace.findFirst({
+          where: {
+            id,
+            conversation: {
+              tenantId: scope.tenantId,
+              userId: scope.userId
+            }
+          }
+        })
+      : this.prisma.answerTrace.findUnique({
+          where: { id }
+        });
+
+    return traceLookup.then((trace) => {
       if (!trace) {
         throw new NotFoundException(`Trace ${id} not found.`);
       }
@@ -43,29 +86,69 @@ export class TracesService {
     });
   }
 
-  listConversationTraces(conversationId: string, input: ListConversationTracesInput) {
+  listConversationTraces(
+    conversationId: string,
+    input: ListConversationTracesInput,
+    scope?: { tenantId: string; userId: string } | null
+  ) {
     return this.prisma.answerTrace.findMany({
-      where: { conversationId },
+      where: scope != null
+        ? {
+            conversationId,
+            conversation: {
+              tenantId: scope.tenantId,
+              userId: scope.userId
+            }
+          }
+        : { conversationId },
       take: input.limit,
-      select: {
-        id: true,
-        conversationId: true,
-        assistantId: true,
-        userMessageId: true,
-        assistantMessageId: true,
-        userQuery: true,
-        rewrittenQuery: true,
-        retrievedChunkIdsJson: true,
-        retrievalMetadataJson: true,
-        citationsJson: true,
-        answeringMetadataJson: true,
-        qualityEvaluationJson: true,
-        modelName: true,
-        latencyMs: true,
-        status: true,
-        errorMessage: true,
-        createdAt: true
+      select: this.traceListSelect,
+      orderBy: {
+        createdAt: "desc"
+      }
+    }).then(traces => traces.map(trace => this.attachTraceListSummary(trace)));
+  }
+
+  listTraces(input: ListTracesInput, scope?: { tenantId: string; userId: string } | null) {
+    const normalizedQuery = input.query?.trim() ?? null;
+
+    return this.prisma.answerTrace.findMany({
+      where: {
+        ...(scope != null
+          ? {
+              conversation: {
+                tenantId: scope.tenantId,
+                userId: scope.userId
+              }
+            }
+          : {}),
+        ...(normalizedQuery != null
+          ? {
+              OR: [
+                {
+                  id: {
+                    contains: normalizedQuery,
+                    mode: "insensitive"
+                  }
+                },
+                {
+                  userQuery: {
+                    contains: normalizedQuery,
+                    mode: "insensitive"
+                  }
+                },
+                {
+                  rewrittenQuery: {
+                    contains: normalizedQuery,
+                    mode: "insensitive"
+                  }
+                }
+              ]
+            }
+          : {})
       },
+      take: input.limit,
+      select: this.traceListSelect,
       orderBy: {
         createdAt: "desc"
       }
@@ -246,6 +329,11 @@ export class TracesService {
       ?? this.readNullableBoolean(strategySummary?.usedFallback)
       ?? this.readNullableBoolean(retrievalMetadata?.usedFallback)
       ?? (fallbackReason != null ? true : null);
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
+      retrievalMode,
+      strategyUsedFallback,
+      fallbackReason
+    });
     const answerAttributionSummary = buildAnswerAttributionSummary({
       attribution: citationAttribution,
       source: citationSelectionSource
@@ -254,6 +342,7 @@ export class TracesService {
     const answerTextSource = this.readTraceAnswerTextSource(answeringMetadata?.answerTextSource);
     const rawAnswerStatusSource = this.readString(answeringMetadata?.answerStatusSource);
     const answerStatusSource = this.readTraceAnswerStatusSource(answeringMetadata?.answerStatusSource);
+    const rawMissingInformationSource = this.readString(answeringMetadata?.missingInformationSource);
     const missingInformationSource = this.readStringAs<NonNullable<TraceSummary["missingInformationSource"]>>(answeringMetadata?.missingInformationSource);
     const insufficientContextReason = this.readStringAs<NonNullable<TraceSummary["insufficientContextReason"]>>(answeringMetadata?.insufficientContextReason);
     const missingInformationCount = this.readNumber(answeringMetadata?.missingInformationCount) ?? 0;
@@ -265,27 +354,52 @@ export class TracesService {
       citationCountBeforeLimit,
       citationLimitHit
     });
-    const missingInformationProvenanceSentence = this.buildMissingInformationProvenanceSentence({
+    const citationCountReadabilitySentence = this.buildCitationCountReadabilitySentence(
+      citationCountReadabilityLabel
+    );
+    const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
       missingInformationSource,
       insufficientContextReason,
       missingInformationCount
     });
-    const answerProvenanceSentence = this.buildAnswerProvenanceSentence({
+    const missingInformationSourceReadabilityLabel = buildMissingInformationSourceReadabilityLabel({
+      missingInformationSource,
+      rawMissingInformationSource
+    });
+    const answerAttributionReadabilitySentence = answerAttributionSummary.readabilitySentence
+      ?? "Answer attribution is unknown; source evidence is unknown.";
+    const {
+      answerTextSourceReadabilityLabel,
+      answerTextSourceReadabilitySentence,
+      answerStatusSourceReadabilityLabel,
+      answerStatusSourceReadabilitySentence
+    } = buildAnswerSourceReadability({
+      answerTextSource,
+      rawAnswerTextSource,
+      answerStatusSource,
+      rawAnswerStatusSource
+    });
+    const answerProvenanceSentence = buildAnswerProvenanceSentence({
       answerTextSource,
       answerStatusSource,
       answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
     });
-    const answerTextSourceReadabilityLabel = this.buildAnswerTextSourceReadabilityLabel({
-      answerTextSource,
-      rawAnswerTextSource
-    });
-    const answerStatusSourceReadabilityLabel = this.buildAnswerStatusSourceReadabilityLabel({
-      answerStatusSource,
-      rawAnswerStatusSource
+    const answerProvenanceReadabilitySentence = buildAnswerProvenanceReadabilitySentence({
+      answerTextSourceReadabilityLabel,
+      answerStatusSourceReadabilityLabel,
+      answerAttributionReadabilitySentence
     });
     const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerEvidenceSource);
+    const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+      answerEvidenceSourceReadabilityLabel
+    );
     const rawFailedStage = this.readString(retrievalFailure?.stage);
     const failedStage = this.readTraceFailedStage(rawFailedStage);
+    const failedStageReadabilityLabel = this.buildFailedStageReadabilityLabel({
+      failedStage,
+      rawFailedStage
+    });
+    const failureMessage = this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null;
     const candidateLimit = this.readNumber(retrievalExecution?.candidateLimit) ?? 0;
     const vectorCandidateCount = this.readNumber(retrievalExecution?.vectorCandidateCount) ?? 0;
     const lexicalCandidateCount = this.readNumber(retrievalExecution?.lexicalCandidateCount) ?? 0;
@@ -297,6 +411,20 @@ export class TracesService {
       lexicalCandidateCount,
       mergedCandidateCount,
       rankedCandidateCount
+    });
+    const candidateCountReadabilitySentence = this.buildCandidateCountReadabilitySentence({
+      candidateLimit,
+      vectorCandidateCount,
+      lexicalCandidateCount,
+      mergedCandidateCount,
+      rankedCandidateCount
+    });
+    const contextReadabilitySentence = this.buildContextReadabilitySentence({
+      contextMode,
+      inputChunkCount,
+      promptContextCount,
+      contextGroupCount,
+      retrievedChunkCount
     });
 
     return {
@@ -312,7 +440,8 @@ export class TracesService {
         fallbackReason,
         strategyUsedFallback
       }),
-      rewriteReadabilityLabel: this.buildRewriteReadabilityLabel({
+      retrievalModeProvenanceSentence,
+      rewriteReadabilityLabel: buildRewriteReadabilityLabel({
         rewriteEnabled,
         rewriteApplied,
         rewriteUsedFallback,
@@ -336,34 +465,42 @@ export class TracesService {
       fallbackReason,
       resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
       answerAttributionSummary,
+      answerAttributionReadabilitySentence,
       answerAttribution: citationAttribution,
       answerAttributionSource: citationSelectionSource,
       answerEvidenceSource,
       answerEvidenceSourceReadabilityLabel,
+      answerEvidenceSourceReadabilitySentence,
       citationAttribution,
       citationSelectionSource,
       missingInformationCount,
       missingInformationCountReadabilityLabel,
       missingInformationSource,
+      missingInformationSourceReadabilityLabel,
       insufficientContextReason,
       missingInformationProvenanceSentence,
       answerTextSource,
       answerTextSourceReadabilityLabel,
+      answerTextSourceReadabilitySentence,
       answerStatusSource,
       answerStatusSourceReadabilityLabel,
+      answerStatusSourceReadabilitySentence,
+      answerProvenanceReadabilitySentence,
       answerProvenanceSentence,
       failedStage,
-      failedStageReadabilityLabel: this.buildFailedStageReadabilityLabel({
-        failedStage,
-        rawFailedStage
+      failedStageReadabilityLabel,
+      failureMessage,
+      failureReadabilitySentence: this.buildFailureReadabilitySentence({
+        failedStageReadabilityLabel,
+        failureMessage
       }),
-      failureMessage: this.readString(retrievalFailure?.message) ?? trace.errorMessage ?? null,
       candidateLimit,
       vectorCandidateCount,
       lexicalCandidateCount,
       mergedCandidateCount,
       rankedCandidateCount,
       candidateCountReadabilityLabel,
+      candidateCountReadabilitySentence,
       vectorCandidateLimitHit: this.readBoolean(retrievalExecution?.vectorCandidateLimitHit),
       lexicalCandidateLimitHit: this.readBoolean(retrievalExecution?.lexicalCandidateLimitHit),
       rankingTopKHit: this.readBoolean(retrievalExecution?.rankingTopKHit),
@@ -373,8 +510,10 @@ export class TracesService {
       inputChunkCount,
       promptContextCount,
       contextGroupCount,
+      contextReadabilitySentence,
       citationCount,
       citationCountReadabilityLabel,
+      citationCountReadabilitySentence,
       citationCountBeforeLimit,
       citationLimitHit,
       usedFallback: this.readBoolean(answeringMetadata?.usedFallback)
@@ -439,43 +578,10 @@ export class TracesService {
     return typeof value === "number" ? value : null;
   }
 
-  private buildAnswerProvenanceSentence(input: {
-    answerTextSource: TraceSummary["answerTextSource"];
-    answerStatusSource: TraceSummary["answerStatusSource"];
-    answerAttributionReadabilityResolvedLabel: TraceSummary["answerAttributionSummary"]["readabilityResolvedLabel"];
-  }): TraceSummary["answerProvenanceSentence"] {
-    const textSourceValue = input.answerTextSource ?? "unknown";
-    const statusSourceValue = input.answerStatusSource ?? "unknown";
-    return `Answer text source is ${textSourceValue}; status source is ${statusSourceValue}; attribution summary is ${input.answerAttributionReadabilityResolvedLabel}.`;
-  }
-
-  private buildAnswerTextSourceReadabilityLabel(input: {
-    answerTextSource: TraceSummary["answerTextSource"];
-    rawAnswerTextSource: string | null;
-  }): TraceSummary["answerTextSourceReadabilityLabel"] {
-    if (input.answerTextSource === "model") {
-      return "model-generated answer text";
-    }
-
-    if (input.answerTextSource === "deterministic_policy") {
-      return "deterministic policy answer text";
-    }
-
-    if (input.rawAnswerTextSource != null) {
-      return `unknown answer text source (${input.rawAnswerTextSource})`;
-    }
-
-    return "unknown answer text source";
-  }
-
-  private buildMissingInformationProvenanceSentence(input: {
-    missingInformationSource: TraceSummary["missingInformationSource"];
-    insufficientContextReason: TraceSummary["insufficientContextReason"];
-    missingInformationCount: number;
-  }): TraceSummary["missingInformationProvenanceSentence"] {
-    const sourceValue = input.missingInformationSource ?? "unknown";
-    const insufficientReasonValue = input.insufficientContextReason ?? "none";
-    return `Missing-information source is ${sourceValue}; insufficient-context reason is ${insufficientReasonValue}; missing-information count is ${input.missingInformationCount}.`;
+  private buildAnswerEvidenceSourceReadabilitySentence(
+    answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
+  ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
+    return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
   }
 
   private buildMissingInformationCountReadabilityLabel(
@@ -516,6 +622,12 @@ export class TracesService {
     return `${input.citationCount} citations shown (${input.citationCountBeforeLimit} before limit)`;
   }
 
+  private buildCitationCountReadabilitySentence(
+    citationCountReadabilityLabel: TraceSummary["citationCountReadabilityLabel"]
+  ): TraceSummary["citationCountReadabilitySentence"] {
+    return `Citation count summary: ${citationCountReadabilityLabel}.`;
+  }
+
   private buildCandidateCountReadabilityLabel(input: {
     candidateLimit: TraceSummary["candidateLimit"];
     vectorCandidateCount: TraceSummary["vectorCandidateCount"];
@@ -526,27 +638,25 @@ export class TracesService {
     return `vector ${input.vectorCandidateCount}, lexical ${input.lexicalCandidateCount}, merged ${input.mergedCandidateCount}, ranked ${input.rankedCandidateCount} (candidate limit ${input.candidateLimit})`;
   }
 
-  private buildAnswerStatusSourceReadabilityLabel(input: {
-    answerStatusSource: TraceSummary["answerStatusSource"];
-    rawAnswerStatusSource: string | null;
-  }): TraceSummary["answerStatusSourceReadabilityLabel"] {
-    if (input.answerStatusSource === "model") {
-      return "model-decided answer status";
-    }
+  private buildCandidateCountReadabilitySentence(input: {
+    candidateLimit: TraceSummary["candidateLimit"];
+    vectorCandidateCount: TraceSummary["vectorCandidateCount"];
+    lexicalCandidateCount: TraceSummary["lexicalCandidateCount"];
+    mergedCandidateCount: TraceSummary["mergedCandidateCount"];
+    rankedCandidateCount: TraceSummary["rankedCandidateCount"];
+  }): TraceSummary["candidateCountReadabilitySentence"] {
+    return `Candidate flow produced ${input.rankedCandidateCount} ranked candidates from ${input.mergedCandidateCount} merged candidates (${input.vectorCandidateCount} vector, ${input.lexicalCandidateCount} lexical) with candidate limit ${input.candidateLimit}.`;
+  }
 
-    if (input.answerStatusSource === "inferred_from_retrieval") {
-      return "retrieval-inferred answer status";
-    }
-
-    if (input.answerStatusSource === "deterministic_policy") {
-      return "deterministic policy answer status";
-    }
-
-    if (input.rawAnswerStatusSource != null) {
-      return `unknown answer status source (${input.rawAnswerStatusSource})`;
-    }
-
-    return "unknown answer status source";
+  private buildContextReadabilitySentence(input: {
+    contextMode: TraceSummary["contextMode"];
+    inputChunkCount: TraceSummary["inputChunkCount"];
+    promptContextCount: TraceSummary["promptContextCount"];
+    contextGroupCount: TraceSummary["contextGroupCount"];
+    retrievedChunkCount: TraceSummary["retrievedChunkCount"];
+  }): TraceSummary["contextReadabilitySentence"] {
+    const contextModeLabel = input.contextMode ?? "unknown";
+    return `Prompt context used ${input.promptContextCount} items via ${contextModeLabel} mode (${input.inputChunkCount} input chunks, ${input.contextGroupCount} context groups, ${input.retrievedChunkCount} retrieved chunks).`;
   }
 
   private buildFailedStageReadabilityLabel(input: {
@@ -568,20 +678,24 @@ export class TracesService {
     return "unknown failed stage";
   }
 
-  private buildRewriteReadabilityLabel(input: {
-    rewriteEnabled: TraceSummary["strategySummary"]["rewriteEnabled"];
-    rewriteApplied: TraceSummary["strategySummary"]["rewriteApplied"];
-    rewriteUsedFallback: TraceSummary["strategySummary"]["rewriteUsedFallback"];
-    rewritePromptId: TraceSummary["strategySummary"]["rewritePromptId"];
-  }): TraceSummary["rewriteReadabilityLabel"] {
-    const rewriteEnabledLabel = input.rewriteEnabled ? "enabled" : "disabled";
-    const rewriteAppliedLabel = input.rewriteApplied ? "yes" : "no";
-    const rewriteFallbackLabel = input.rewriteUsedFallback == null
-      ? "unknown"
-      : input.rewriteUsedFallback
-        ? "yes"
-        : "no";
-    const rewritePromptLabel = input.rewritePromptId ?? "unknown";
-    return `rewrite ${rewriteEnabledLabel}; rewrite applied: ${rewriteAppliedLabel}; rewrite fallback: ${rewriteFallbackLabel}; rewrite prompt: ${rewritePromptLabel}.`;
+  private buildFailureReadabilitySentence(input: {
+    failedStageReadabilityLabel: TraceSummary["failedStageReadabilityLabel"];
+    failureMessage: TraceSummary["failureMessage"];
+  }): TraceSummary["failureReadabilitySentence"] {
+    if (input.failureMessage == null) {
+      return `${input.failedStageReadabilityLabel}; message unavailable.`;
+    }
+
+    const trimmedFailureMessage = input.failureMessage.trim();
+    if (trimmedFailureMessage.length === 0) {
+      return `${input.failedStageReadabilityLabel}; message unavailable.`;
+    }
+
+    if (/[.!?]$/.test(trimmedFailureMessage)) {
+      return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}`;
+    }
+
+    return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}.`;
   }
+
 }

@@ -332,7 +332,7 @@ export const messages = {
       queryRewriteEnabled: "Enable query rewrite",
       rerankStrategyEnabled: "Enable strategy rerank override",
       retrievalStrategyDefaultNote:
-        "When disabled, the backend derives retrieval strategy from the existing topK, enableHybrid, and enableRerank fields.",
+        "When disabled, the backend derives retrieval strategy from the existing topK and other retrieval settings.",
       retrievalFiltersSection: "Retrieval filters",
       filterHelp: "Use commas or new lines for list filters. Leaving every field empty clears the stored filters.",
       listFieldHint: "Separate values with commas or new lines.",
@@ -730,7 +730,7 @@ export const messages = {
       queryRewriteEnabled: "启用 query rewrite",
       rerankStrategyEnabled: "启用策略级 rerank 覆盖",
       retrievalStrategyDefaultNote:
-        "关闭时，后端会继续根据现有的 topK、enableHybrid 和 enableRerank 字段推导检索策略。",
+        "关闭时，后端会继续根据现有的 topK 和其他检索配置推导检索策略。",
       retrievalFiltersSection: "检索过滤器",
       filterHelp: "列表类字段可用逗号或换行分隔。全部留空时会清空已存储的过滤条件。",
       listFieldHint: "请用逗号或换行分隔多个值。",

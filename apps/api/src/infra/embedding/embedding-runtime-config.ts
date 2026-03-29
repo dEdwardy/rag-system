@@ -167,7 +167,7 @@ export function resolveProviderResponseDimensions(
 }
 
 function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbeddingRuntimeConfig | null {
-  const baseUrl = normalizeBaseUrl(readOptionalString(env.OLLAMA_BASE_URL));
+  const baseUrl = normalizeConfiguredBaseUrl(readOptionalString(env.OLLAMA_BASE_URL), "OLLAMA_BASE_URL");
   const embeddingModel = readOptionalString(env.OLLAMA_EMBEDDING_MODEL);
   const fallbackModel = readOptionalString(env.OLLAMA_MODEL);
   const expectedDimensions = readOptionalPositiveInteger(env.OLLAMA_EMBEDDING_DIMENSIONS, "OLLAMA_EMBEDDING_DIMENSIONS");
@@ -208,7 +208,9 @@ function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbe
   const apiKey = readOptionalString(env.OPENAI_API_KEY);
   const explicitModel = readOptionalString(env.OPENAI_EMBEDDING_MODEL);
   const configuredBaseUrl = readOptionalString(env.OPENAI_BASE_URL);
-  const openAiBaseUrl = normalizeBaseUrl(configuredBaseUrl ?? DEFAULT_OPENAI_BASE_URL);
+  const openAiBaseUrl = configuredBaseUrl
+    ? normalizeConfiguredBaseUrl(configuredBaseUrl, "OPENAI_BASE_URL")
+    : DEFAULT_OPENAI_BASE_URL;
 
   if (!apiKey && !explicitModel) {
     return null;
@@ -226,8 +228,10 @@ function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbe
   const expectedDimensions = OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL[model];
 
   if (!expectedDimensions) {
+    const endpointHint = ` Resolved OpenAI embedding endpoint: ${openAiBaseUrl}/embeddings.`;
+
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported. Supported values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.`
+      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported. Supported values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.${endpointHint}`
     );
   }
 
@@ -294,8 +298,29 @@ function readOptionalPositiveInteger(value: string | undefined, envName: string)
   return parsed;
 }
 
-function normalizeBaseUrl(value: string | null) {
-  return value ? value.replace(/\/$/, "") : null;
+function normalizeConfiguredBaseUrl(value: string | null, envName: "OPENAI_BASE_URL" | "OLLAMA_BASE_URL") {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.replace(/\/$/, "");
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new EmbeddingRuntimeConfigError(
+      `Invalid embedding config: ${envName} must be a valid http(s) URL when configured (current ${envName}="${normalized}").`
+    );
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new EmbeddingRuntimeConfigError(
+      `Invalid embedding config: ${envName} must use http:// or https:// when configured (current ${envName}="${normalized}").`
+    );
+  }
+
+  return normalized;
 }
 
 function formatProviderLabel(provider: Exclude<EmbeddingProvider, "fallback">) {

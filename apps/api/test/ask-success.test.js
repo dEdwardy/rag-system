@@ -244,7 +244,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
 
   assert.deepEqual(createConversationCalls, [
     {
-      tenantId: "tenant-1",
+      tenantId: "default-tenant",
       userId: "default-user",
       assistantId: "assistant-1",
       title: "where is the marker?"
@@ -448,6 +448,14 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     result.strategyReadabilityLabel,
     "hybrid retrieval via rewritten; fallback: none; fallback used: no."
   );
+  assert.equal(
+    result.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is hybrid; fallback was not used."
+  );
+  assert.equal(
+    result.rewriteReadabilityLabel,
+    "rewrite enabled; rewrite applied: yes; rewrite fallback: yes; rewrite prompt: rewrite-query.v1."
+  );
   assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "explicit",
@@ -460,10 +468,32 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     readabilityResolvedLabel: "explicit attribution via structured evidence source",
     readabilitySentence: "Answer attribution is explicit; source evidence is structured."
   });
+  assert.equal(result.answerAttributionReadabilitySentence, "Answer attribution is explicit; source evidence is structured.");
   assert.equal(result.answerAttribution, "explicit");
   assert.equal(result.answerAttributionSource, "structured");
   assert.equal(result.answerEvidenceSource, "structured");
   assert.equal(result.answerEvidenceSourceReadabilityLabel, "structured evidence source");
+  assert.equal(result.answerEvidenceSourceReadabilitySentence, "Answer evidence source is structured evidence source.");
+  assert.equal(result.answerTextSource, "model");
+  assert.equal(result.answerTextSourceReadabilityLabel, "model-generated answer text");
+  assert.equal(result.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
+  assert.equal(result.answerStatusSource, "model");
+  assert.equal(result.answerStatusSourceReadabilityLabel, "model-decided answer status");
+  assert.equal(result.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(
+    result.answerProvenanceSentence,
+    "Answer text source is model; status source is model; attribution summary is explicit attribution via structured evidence source."
+  );
+  assert.equal(
+    result.answerProvenanceReadabilitySentence,
+    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is explicit; source evidence is structured."
+  );
+  assert.equal(result.missingInformationSource, "none");
+  assert.equal(
+    result.missingInformationProvenanceSentence,
+    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+  );
+  assert.equal(result.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,
@@ -507,6 +537,94 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     flags: [],
     summary: "Answer is grounded in cited sources with no reported gaps."
   });
+});
+
+test("AskAssistantService uses request auth context identity when creating a new conversation", async () => {
+  const createConversationCalls = [];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      tenantId: "assistant-tenant"
+    }),
+    conversations: {
+      createConversation: async input => {
+        createConversationCalls.push(input);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "Who am I?",
+    authContext: {
+      identity: {
+        userId: "user-42",
+        tenantId: "tenant-42",
+        sessionId: "session-42",
+        authSource: "session"
+      }
+    }
+  });
+
+  assert.deepEqual(createConversationCalls, [
+    {
+      tenantId: "tenant-42",
+      userId: "user-42",
+      assistantId: "assistant-1",
+      title: "Who am I?"
+    }
+  ]);
+});
+
+test("AskAssistantService scopes existing conversation lookup to current identity", async () => {
+  const getConversationCalls = [];
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async () => {
+        throw new Error("should not create a new conversation in this test");
+      },
+      getConversation: async (...args) => {
+        getConversationCalls.push(args);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  await service.askAssistant({
+    assistantId: "assistant-1",
+    question: "Use existing conversation",
+    conversationId: "conversation-1",
+    authContext: {
+      identity: {
+        userId: "user-99",
+        tenantId: "tenant-99",
+        sessionId: "session-99",
+        authSource: "session"
+      }
+    }
+  });
+
+  assert.deepEqual(getConversationCalls, [
+    [
+      "conversation-1",
+      {
+        userId: "user-99",
+        tenantId: "tenant-99",
+        sessionId: "session-99",
+        authSource: "session"
+      }
+    ]
+  ]);
 });
 
 test("AskAssistantService can disable query rewrite and forwards resolved retrieval strategy", async () => {
@@ -785,6 +903,14 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     result.strategyReadabilityLabel,
     "lexical retrieval via original_disabled; fallback: none; fallback used: no."
   );
+  assert.equal(
+    result.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is lexical; fallback was not used."
+  );
+  assert.equal(
+    result.rewriteReadabilityLabel,
+    "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+  );
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "none",
     source: "none",
@@ -800,6 +926,27 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   assert.equal(result.answerAttributionSource, "none");
   assert.equal(result.answerEvidenceSource, "none");
   assert.equal(result.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(result.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(result.answerTextSource, "deterministic_policy");
+  assert.equal(result.answerTextSourceReadabilityLabel, "deterministic policy answer text");
+  assert.equal(
+    result.answerTextSourceReadabilitySentence,
+    "Answer text source is deterministic policy answer text."
+  );
+  assert.equal(result.answerStatusSource, "deterministic_policy");
+  assert.equal(result.answerStatusSourceReadabilityLabel, "deterministic policy answer status");
+  assert.equal(
+    result.answerStatusSourceReadabilitySentence,
+    "Answer status source is deterministic policy answer status."
+  );
+  assert.equal(
+    result.answerProvenanceSentence,
+    "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    result.answerProvenanceReadabilitySentence,
+    "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
+  );
   assert.deepEqual(result.answeringMetadata, {
     promptId: "answer.v2",
     usedFallback: true,
@@ -934,6 +1081,17 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answeringMetadata.usedFallback, true);
   assert.equal(result.answerStatus, "insufficient_context");
+  assert.equal(result.answerEvidenceSource, null);
+  assert.equal(result.answerEvidenceSourceReadabilityLabel, "unknown evidence source");
+  assert.equal(result.answerEvidenceSourceReadabilitySentence, "Answer evidence source is unknown evidence source.");
+  assert.equal(
+    result.answerProvenanceSentence,
+    "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source."
+  );
+  assert.equal(
+    result.answerProvenanceReadabilitySentence,
+    "Answer text source is unknown answer text source; answer status source is unknown answer status source; Answer attribution is unknown; source evidence is unknown."
+  );
   assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
   assert.deepEqual(result.qualityEvaluation, {
     overall: "weak",
@@ -1116,6 +1274,12 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
   assert.equal(result.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
   assert.equal(result.answeringMetadata.answerStatusSource, "model");
   assert.equal(result.answeringMetadata.missingInformationSource, "model");
+  assert.equal(result.missingInformationSource, "model");
+  assert.equal(
+    result.missingInformationProvenanceSentence,
+    "Missing-information source is model; insufficient-context reason is no_retrieval_hits; missing-information count is 1."
+  );
+  assert.equal(result.missingInformationSourceReadabilityLabel, "model-reported missing-information items");
 });
 
 test("AskAssistantService localizes one-shot deterministic no-hit answers for Chinese questions", async () => {

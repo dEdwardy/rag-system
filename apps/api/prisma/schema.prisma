@@ -17,6 +17,11 @@ enum UserStatus {
   inactive
 }
 
+enum UserRole {
+  owner
+  member
+}
+
 enum KnowledgeBaseStatus {
   active
   inactive
@@ -80,6 +85,12 @@ enum DocumentRunFailedStage {
   stale_guard
 }
 
+enum EvalQuestionSetStatus {
+  draft
+  locked
+  archived
+}
+
 model Tenant {
   id        String         @id @default(cuid())
   name      String
@@ -88,21 +99,114 @@ model Tenant {
   updatedAt DateTime       @updatedAt
   users     User[]
   knowledgeBases KnowledgeBase[]
+  retrievalProfiles RetrievalProfile[]
   assistants Assistant[]
   conversations Conversation[]
+  evalQuestionSets EvalQuestionSet[]
+  evalQuestionSetBaselineSnapshots EvalQuestionSetBaselineSnapshot[]
 }
 
 model User {
   id             String          @id @default(cuid())
   tenantId       String
   name           String
+  displayName    String?
   email          String?         @unique
+  passwordHash   String?
+  role           UserRole        @default(owner)
   status         UserStatus      @default(active)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   knowledgeBases KnowledgeBase[]
+  retrievalProfiles RetrievalProfile[]
   conversations  Conversation[]
+  authSessions   AuthSession[]
+  authIdentityLinks AuthIdentityLink[]
+  evalQuestionSets EvalQuestionSet[]
+  evalQuestionSetBaselineSnapshots EvalQuestionSetBaselineSnapshot[]
+}
+
+model EvalQuestionSet {
+  id               String                          @id @default(cuid())
+  tenantId         String
+  ownerId          String
+  name             String
+  description      String?
+  questionsJson    Json
+  currentVersion   Int                             @default(1)
+  baselineSnapshotId String?
+  baselineChosenAt DateTime?
+  pinnedBaselineResultJson Json?
+  pinnedBaselineCapturedAt DateTime?
+  latestEvalResultSummaryJson Json?
+  latestEvalRanAt DateTime?
+  status           EvalQuestionSetStatus           @default(draft)
+  lockedAt         DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+  tenant           Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner            User                            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  snapshots        EvalQuestionSetBaselineSnapshot[] @relation("EvalQuestionSetSnapshots")
+  baselineSnapshot EvalQuestionSetBaselineSnapshot?  @relation("EvalQuestionSetChosenBaseline", fields: [baselineSnapshotId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([baselineSnapshotId])
+}
+
+model EvalQuestionSetBaselineSnapshot {
+  id            String          @id @default(cuid())
+  tenantId      String
+  ownerId       String
+  questionSetId String
+  version       Int
+  name          String
+  description   String?
+  questionsJson Json
+  createdAt     DateTime        @default(now())
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  questionSet   EvalQuestionSet @relation("EvalQuestionSetSnapshots", fields: [questionSetId], references: [id], onDelete: Cascade)
+  chosenByQuestionSets EvalQuestionSet[] @relation("EvalQuestionSetChosenBaseline")
+
+  @@unique([questionSetId, version])
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([questionSetId])
+}
+
+model AuthSession {
+  id         String   @id @default(cuid())
+  userId     String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model AuthIdentityLink {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String
+  subject   String
+  emailSnapshot   String?
+  profileSnapshot Json?
+  lastLoginAt     DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@index([userId])
 }
 
 model KnowledgeBase {
@@ -184,6 +288,8 @@ model DocumentChunk {
 
 model RetrievalProfile {
   id             String      @id @default(cuid())
+  tenantId       String
+  ownerId        String
   name           String
   topK           Int         @default(3)
   chunkWindow    Int         @default(0)
@@ -194,7 +300,12 @@ model RetrievalProfile {
   strategyJson   Json?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner          User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   assistants     Assistant[]
+
+  @@index([tenantId])
+  @@index([ownerId])
 }
 
 model Assistant {

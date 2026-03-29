@@ -32,8 +32,9 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `scripts/opencode-loop/jsonc.mjs` - lightweight JSONC comment-stripping helper for repo config
 - `scripts/opencode-loop/runtime.mjs` - queue, lock, and OpenCode API logic
 - `scripts/opencode-loop/self-test.mjs` - self-test harness and mock server
+- `scripts/opencode-loop/strategy.mjs` - small strategy/callback normalization layer for selection and failure handling
 
-Session titles use the shape `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS` so the active queue item is easier to identify at a glance.
+Session titles use the shape `loop #<queue-index> · <remaining> left · <item-id> · MM-DD HH:MM:SS`. Auto-refill follow-up items are labeled as `refill <remaining> left` so a second mini-countdown after the planner run is visually distinguishable from the manual wave countdown.
 
 ## Environment
 
@@ -42,7 +43,7 @@ Session titles use the shape `loop #<queue-index> <item-id> YYYY-MM-DD HH:MM:SS`
 - `OPENCODE_SERVER_PASSWORD` - basic auth password when needed
 - `OPENCODE_LOOP_MESSAGE_WAIT_MS` - max wait for an assistant message
 - `OPENCODE_LOOP_POLL_MS` - polling interval while waiting
-- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` - max planner refill passes per run; default `1`, `0` disables refill
+- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` - max planner refill passes per queue wave; default `1`, `0` disables refill. The bundled systemd service also pins this to `1` for a conservative one-closeout-pass policy.
 - `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS` - max new queue items each refill pass may append; default `2`
 
 ## Commands
@@ -92,6 +93,8 @@ Interrupted items may stay in `in_progress` until the next run resumes them.
 The harness keeps running until the queue has no pending or recoverable items left.
 Generated refill items materialize their own execution prompt files under `.opencode/loop/prompts/generated/` before the loop continues.
 Queue items may also provide an optional `model` override; otherwise the harness falls back to `opencode.jsonc` `command.build.model` when present.
+Queue items may also provide inline `promptText` instead of `promptFile` when the task prompt is best stored directly in the queue.
+The runtime accepts an optional `strategy` object with small callbacks for item selection and failure handling; the default strategy keeps current behavior but can defer items whose queue metadata sets `failureMode: "defer"`.
 
 ## Notes
 
@@ -105,7 +108,8 @@ Queue items may also provide an optional `model` override; otherwise the harness
 - Prefer push/PR at wave closeout or other natural handoff points, not mid-increment.
 - The runtime execution directive follows the same rule so the loop prompt itself keeps push/PR timing conservative.
 - Prompt delivery is execution-oriented: the harness prepends a small execution directive and the repository `command.build.template` before the task-specific prompt, so the session is biased toward implementation instead of search-only output.
-- Auto-refill stays intentionally conservative: by default it runs at most one planner pass per invocation and appends at most two new items.
+- Auto-refill stays intentionally conservative: by default it runs at most one planner pass per queue wave and appends at most two new items.
+- The refill budget is persisted in `.opencode/loop/queue.json`, so restarting the service does not silently unlock another planner refill for the same already-drained manual wave.
 - Planner output is audited with a dedicated `planner-auto-refill` handoff file next to normal queue handoffs.
 - Terminal output now prints concise Chinese status lines with the key fields first, so item/session/result information is easy to scan at a glance.
 - If the immediate `POST /session/:id/message` response is empty or is not an assistant message yet, it falls back to `GET /session/:id/message` and waits for the assistant reply before marking the item complete.

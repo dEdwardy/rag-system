@@ -53,6 +53,8 @@ type FeedFetchDiagnostics = {
   };
   failedEntriesTruncated: boolean;
   failedEntriesOmittedCount: number;
+  contentTypeFallbackApplied?: boolean;
+  upstreamContentType?: string;
   partial: boolean;
 };
 
@@ -97,6 +99,7 @@ export class FeedSourceService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    const diagnosticsContentType = this.normalizeDiagnosticsContentType(contentType);
     const payload = await response.text();
     const xmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeFeedXmlPayload(payload);
 
@@ -104,7 +107,23 @@ export class FeedSourceService {
       throw new BadRequestException(`Unsupported feed content type: ${contentType || "unknown"}.`);
     }
 
-    return this.extractFromXml(payload, options);
+    const extracted = this.extractFromXml(payload, options);
+
+    if (!xmlPayloadByFallback) {
+      return extracted;
+    }
+
+    return {
+      ...extracted,
+      diagnostics: {
+        ...(extracted.diagnostics ?? this.buildEmptyPartialDiagnostics()),
+        sourceKind: "feed",
+        schemaVersion: 2,
+        contentTypeFallbackApplied: true,
+        upstreamContentType: diagnosticsContentType,
+        partial: true
+      }
+    };
   }
 
   extractFromXml(xml: string, options: ExtractFeedOptions): FetchedFeed {
@@ -389,6 +408,35 @@ export class FeedSourceService {
     };
   }
 
+  private buildEmptyPartialDiagnostics(): FeedFetchDiagnostics {
+    return {
+      sourceKind: "feed",
+      schemaVersion: 2,
+      attemptedEntryCount: 0,
+      succeededEntryCount: 0,
+      failedEntryCount: 0,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 0,
+      failedEntryRefs: [],
+      failedEntries: [],
+      skippedDuplicateEntryCount: 0,
+      skippedDuplicateEntryRefs: [],
+      skippedDuplicatesTruncated: false,
+      skippedDuplicatesOmittedCount: 0,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxItems: 0,
+        totalExtractedEntryCount: 0,
+        selectedEntryCount: 0,
+        droppedByLimitCount: 0
+      },
+      failedEntriesTruncated: false,
+      failedEntriesOmittedCount: 0,
+      partial: true
+    };
+  }
+
   private isSupportedFeedContentType(contentType: string) {
     return (
       contentType.startsWith("application/rss+xml") ||
@@ -404,6 +452,18 @@ export class FeedSourceService {
 
   private looksLikeFeedXmlPayload(payload: string) {
     return /<rss\b|<feed\b/i.test(payload);
+  }
+
+  private normalizeDiagnosticsContentType(contentType: string) {
+    if (!contentType) {
+      return "unknown";
+    }
+
+    return contentType
+      .split(";")
+      .map(part => part.trim())
+      .filter(Boolean)
+      .join("; ");
   }
 
   private buildUpstreamFetchError(prefix: string, status: number) {

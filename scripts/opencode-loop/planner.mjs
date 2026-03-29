@@ -1,12 +1,26 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
-import { appendQueueItems, formatDisplayTime, writeQueue } from "./queue.mjs";
+import { appendQueueItems, formatDisplayTime, formatSessionTitleTime, writeQueue } from "./queue.mjs";
 
 export const DEFAULT_PLANNER_PROMPT_PATH = "prompts/plan-next.md";
 export const DEFAULT_PLANNER_PROMPT_FILE_NAME = "plan-next.md";
 export const DEFAULT_AUTO_REFILL_MAX_CYCLES = 1;
 export const DEFAULT_AUTO_REFILL_MAX_ITEMS = 2;
+
+export function initializeAutoRefillState(queue, options = {}) {
+  const maxCycles = normalizeNonNegativeInteger(options.maxCycles, DEFAULT_AUTO_REFILL_MAX_CYCLES);
+  const maxItems = normalizePositiveInteger(options.maxItems, DEFAULT_AUTO_REFILL_MAX_ITEMS);
+  const scopeKey = buildAutoRefillScopeKey(queue);
+  const persisted = normalizePersistedAutoRefill(queue?.autoRefill, scopeKey);
+
+  return {
+    cycles: persisted.cycles,
+    maxCycles,
+    maxItems,
+    scopeKey
+  };
+}
 
 export async function maybeAutoRefillQueue({
   api,
@@ -20,6 +34,8 @@ export async function maybeAutoRefillQueue({
   logStatus,
   extractAssistantText
 }) {
+  syncAutoRefillScope(queue, autoRefillState);
+
   if ((autoRefillState?.maxCycles ?? 0) <= 0) {
     return { queue, generatedItems: [], plannerSessionId: null, plannerMessageId: null, handoffPath: null };
   }
@@ -51,7 +67,7 @@ export async function maybeAutoRefillQueue({
 
   const plannedAt = new Date().toISOString();
   const session = await api.createSession({
-    title: `loop planner #${autoRefillState.cycles + 1} ${formatDisplayTime(plannedAt)}`
+    title: `loop planner #${autoRefillState.cycles + 1} · ${formatSessionTitleTime(plannedAt)}`
   });
   const message = await api.sendMessage({
     sessionId: session.id,
@@ -66,7 +82,7 @@ export async function maybeAutoRefillQueue({
   const generatedPromptsDir = resolve(loopRoot, "prompts", "generated");
   mkdirSync(generatedPromptsDir, { recursive: true });
 
-  const existingFingerprints = buildExistingFingerprintSet(queue);
+  const existingFingerprints = buildExistingFingerprintSet(queue, loopRoot);
   const generatedItems = [];
 
   for (const proposal of proposals) {
@@ -116,13 +132,15 @@ export async function maybeAutoRefillQueue({
 
   if (generatedItems.length === 0) {
     autoRefillState.cycles += 1;
+    const persistedQueue = withPersistedAutoRefillState(queue, autoRefillState, generatedAt);
+    writeQueue(queuePath, persistedQueue);
     logStatus("refill:skip", {
       plannerSessionId: session.id,
       plannerMessageId: message.info?.id ?? "unknown",
       handoffPath: relative(repoRoot, plannerHandoffPath).replace(/\\/g, "/")
     });
     return {
-      queue,
+      queue: persistedQueue,
       generatedItems,
       plannerSessionId: session.id,
       plannerMessageId: message.info?.id ?? null,
@@ -130,9 +148,10 @@ export async function maybeAutoRefillQueue({
     };
   }
 
-  const updatedQueue = appendQueueItems(queue, generatedItems, generatedAt);
-  writeQueue(queuePath, updatedQueue);
+  const appendedQueue = appendQueueItems(queue, generatedItems, generatedAt);
   autoRefillState.cycles += 1;
+  const updatedQueue = withPersistedAutoRefillState(appendedQueue, autoRefillState, generatedAt);
+  writeQueue(queuePath, updatedQueue);
 
   logStatus("refill", {
     plannerSessionId: session.id,
@@ -149,6 +168,66 @@ export async function maybeAutoRefillQueue({
     plannerMessageId: message.info?.id ?? null,
     handoffPath: relative(repoRoot, plannerHandoffPath).replace(/\\/g, "/")
   };
+}
+
+export function buildAutoRefillScopeKey(queue) {
+  const manualItems = Array.isArray(queue?.items)
+    ? queue.items.filter(item => item && item.plannerSource !== "auto-refill")
+    : [];
+
+  return JSON.stringify(
+    manualItems.map(item => ({
+      id: item.id ?? null,
+      title: item.title ?? null,
+      promptFile: item.promptFile ?? null,
+      promptText: item.promptText ?? null,
+      agent: item.agent ?? null,
+      model: item.model ?? null
+    }))
+  );
+}
+
+function normalizePersistedAutoRefill(autoRefill, scopeKey) {
+  if (!autoRefill || typeof autoRefill !== "object" || Array.isArray(autoRefill)) {
+    return { cycles: 0 };
+  }
+
+  if (autoRefill.scopeKey !== scopeKey) {
+    return { cycles: 0 };
+  }
+
+  return {
+    cycles: normalizeNonNegativeInteger(autoRefill.cycles, 0)
+  };
+}
+
+function syncAutoRefillScope(queue, autoRefillState) {
+  const scopeKey = buildAutoRefillScopeKey(queue);
+  if (autoRefillState.scopeKey === scopeKey) {
+    return;
+  }
+
+  autoRefillState.scopeKey = scopeKey;
+  autoRefillState.cycles = 0;
+}
+
+function withPersistedAutoRefillState(queue, autoRefillState, updatedAt) {
+  return {
+    ...queue,
+    autoRefill: {
+      scopeKey: autoRefillState.scopeKey,
+      cycles: normalizeNonNegativeInteger(autoRefillState.cycles, 0)
+    },
+    updatedAt
+  };
+}
+
+function normalizeNonNegativeInteger(value, fallback) {
+  return Number.isInteger(value) && value >= 0 ? value : fallback;
+}
+
+function normalizePositiveInteger(value, fallback) {
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 function composePlannerPrompt({ plannerPromptTemplate, queue, repoRoot, handoffsDir, maxItems }) {
@@ -209,6 +288,7 @@ function buildQueueSummary(queue) {
   let pending = 0;
   let completed = 0;
   let inProgress = 0;
+  let deferred = 0;
 
   for (const item of items) {
     if (item?.status === "pending") {
@@ -217,6 +297,8 @@ function buildQueueSummary(queue) {
       completed += 1;
     } else if (item?.status === "in_progress") {
       inProgress += 1;
+    } else if (item?.status === "deferred") {
+      deferred += 1;
     }
   }
 
@@ -225,6 +307,7 @@ function buildQueueSummary(queue) {
       total: items.length,
       pending,
       completed,
+      deferred,
       inProgress,
       cursor: Number.isInteger(queue?.cursor) ? queue.cursor : null
     },
@@ -291,17 +374,34 @@ function sanitizeFamily(value) {
   return normalized || "build";
 }
 
-function buildExistingFingerprintSet(queue) {
+function buildExistingFingerprintSet(queue, loopRoot) {
   const items = Array.isArray(queue?.items) ? queue.items : [];
   const fingerprints = new Set();
 
   for (const item of items) {
     const title = typeof item?.title === "string" ? item.title : item?.id ?? "";
-    const prompt = typeof item?.promptFile === "string" ? item.promptFile : "";
+    const prompt = readQueueItemPromptFingerprintSource(item, loopRoot);
     fingerprints.add(fingerprintQueueItem(title, prompt));
   }
 
   return fingerprints;
+}
+
+function readQueueItemPromptFingerprintSource(item, loopRoot) {
+  const promptFile = typeof item?.promptFile === "string" ? item.promptFile.trim() : "";
+  if (!promptFile) {
+    return "";
+  }
+
+  if (loopRoot) {
+    try {
+      return readFileSync(resolve(loopRoot, promptFile), "utf8").trim();
+    } catch {
+      // Fall back to the path string when the prompt file is unavailable.
+    }
+  }
+
+  return promptFile;
 }
 
 function fingerprintQueueItem(title, prompt) {

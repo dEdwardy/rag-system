@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { Link, useParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { useTrace } from "../../features/api/hooks";
+import { useConversationMessages, useTrace } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { Citation, JsonValue } from "../../types/api";
 
@@ -32,6 +32,178 @@ type RetrievalScoreRecord = {
 };
 
 type RankedEntry = RetrievalScoreRecord;
+
+type FailureTaxonomyKey = "no_hit" | "fallback" | "slow_path" | "timeout" | "source_failure";
+
+type TraceDiagnosticSummarySlice = {
+  issueLine: string;
+  retrievalLine: string;
+  answerLine: string;
+};
+
+const SLOW_PATH_LATENCY_MS = 10_000;
+
+const TRACE_DETAIL_SECTION_IDS = {
+  retrievedChunks: "trace-detail-retrieved-chunks",
+  citations: "trace-detail-citations",
+  rawPayload: "trace-detail-raw-payload"
+} as const;
+
+function buildFailureTaxonomy(trace: {
+  status: "success" | "failed";
+  latencyMs: number | null;
+  errorMessage: string | null;
+  traceSummary?: {
+    primaryIssue: string | null;
+    insufficientContextReason: string | null;
+    usedFallback: boolean;
+    strategySummary: {
+      usedFallback: boolean | null;
+    };
+    retrievedChunkCount: number;
+    failureMessage: string | null;
+    failureReadabilitySentence: string;
+  } | null;
+}): FailureTaxonomyKey[] {
+  const taxonomy: FailureTaxonomyKey[] = [];
+  const summary = trace.traceSummary ?? null;
+  const diagnosticsText = [trace.errorMessage, summary?.failureMessage, summary?.failureReadabilitySentence]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+
+  const noHitDetected =
+    summary?.primaryIssue === "no_retrieval_hits" ||
+    summary?.insufficientContextReason === "no_retrieval_hits" ||
+    summary?.retrievedChunkCount === 0;
+  if (noHitDetected) {
+    taxonomy.push("no_hit");
+  }
+
+  const fallbackDetected = Boolean(summary?.usedFallback || summary?.strategySummary.usedFallback || summary?.primaryIssue === "fallback_generation");
+  if (fallbackDetected) {
+    taxonomy.push("fallback");
+  }
+
+  const slowPathDetected = (trace.latencyMs ?? 0) >= SLOW_PATH_LATENCY_MS;
+  if (slowPathDetected) {
+    taxonomy.push("slow_path");
+  }
+
+  const timeoutDetected =
+    trace.status === "failed" &&
+    ["timeout", "timed out", "abort", "aborted", "deadline exceeded"].some(keyword => diagnosticsText.includes(keyword));
+  if (timeoutDetected) {
+    taxonomy.push("timeout");
+  }
+
+  const sourceFailureDetected =
+    trace.status === "failed" &&
+    ["source", "fetch", "web page", "feed", "sitemap", "content-type", "redirect", "external"].some(keyword =>
+      diagnosticsText.includes(keyword)
+    );
+  if (sourceFailureDetected) {
+    taxonomy.push("source_failure");
+  }
+
+  return taxonomy;
+}
+
+function getFailureTaxonomyLabel(key: FailureTaxonomyKey, locale: "zh" | "en") {
+  if (key === "no_hit") {
+    return locale === "zh" ? "无命中检索（no-hit）" : "No-hit retrieval";
+  }
+  if (key === "fallback") {
+    return locale === "zh" ? "回退路径（fallback）" : "Fallback path";
+  }
+  if (key === "slow_path") {
+    return locale === "zh" ? "慢路径（slow-path）" : "Slow path";
+  }
+  if (key === "timeout") {
+    return locale === "zh" ? "超时（timeout）" : "Timeout";
+  }
+
+  return locale === "zh" ? "来源失败（source-failure）" : "Source failure";
+}
+
+function getFailureTaxonomyColor(key: FailureTaxonomyKey) {
+  if (key === "no_hit") {
+    return "gray";
+  }
+  if (key === "fallback") {
+    return "yellow";
+  }
+  if (key === "slow_path") {
+    return "orange";
+  }
+  if (key === "timeout") {
+    return "red";
+  }
+
+  return "pink";
+}
+
+function getPrimaryIssueReadabilityLabel(primaryIssue: string, locale: "zh" | "en") {
+  if (primaryIssue === "no_retrieval_hits") {
+    return locale === "zh" ? "检索未命中" : "No retrieval hits";
+  }
+  if (primaryIssue === "insufficient_context") {
+    return locale === "zh" ? "检索上下文不足" : "Retrieved context is insufficient";
+  }
+  if (primaryIssue === "missing_information") {
+    return locale === "zh" ? "回答缺失关键信息" : "Missing key information";
+  }
+  if (primaryIssue === "low_retrieval_score") {
+    return locale === "zh" ? "检索置信度偏低" : "Low retrieval confidence";
+  }
+  if (primaryIssue === "fallback_generation") {
+    return locale === "zh" ? "回答走了回退生成路径" : "Fallback generation path";
+  }
+  if (primaryIssue === "other") {
+    return locale === "zh" ? "其他问题" : "Other issue";
+  }
+
+  return primaryIssue;
+}
+
+function buildTraceDiagnosticSummarySlice(
+  trace: {
+    status: "success" | "failed";
+    errorMessage: string | null;
+    traceSummary?: {
+      primaryIssue: string | null;
+      retrievalModeProvenanceSentence: string;
+      failureReadabilitySentence: string;
+      answerStatusSourceReadabilitySentence: string;
+      missingInformationProvenanceSentence: string;
+    } | null;
+  },
+  locale: "zh" | "en"
+): TraceDiagnosticSummarySlice {
+  const summary = trace.traceSummary ?? null;
+  const issueSource =
+    trace.status === "failed"
+      ? summary?.failureReadabilitySentence || trace.errorMessage || (locale === "zh" ? "执行失败，需继续查看下方诊断。" : "Execution failed. Continue with diagnostics below.")
+      : summary?.primaryIssue && summary.primaryIssue !== "none"
+        ? `${locale === "zh" ? "主要问题" : "Primary issue"}: ${getPrimaryIssueReadabilityLabel(summary.primaryIssue, locale)}`
+        : locale === "zh"
+          ? "未发现阻断性主问题。"
+          : "No blocking primary issue detected.";
+
+  const retrievalLine =
+    summary?.retrievalModeProvenanceSentence ||
+    (locale === "zh" ? "暂无检索来源诊断摘要。" : "No retrieval-source diagnostic summary available.");
+
+  const answerLine =
+    summary?.answerStatusSourceReadabilitySentence || summary?.missingInformationProvenanceSentence ||
+    (locale === "zh" ? "暂无回答状态溯源摘要。" : "No answer-status provenance summary available.");
+
+  return {
+    issueLine: issueSource,
+    retrievalLine,
+    answerLine
+  };
+}
 
 function formatJson(value: JsonValue | unknown) {
   if (value == null) {
@@ -170,6 +342,8 @@ export function TraceDetailPage() {
   const { traceId = null } = useParams();
   const traceQuery = useTrace(traceId);
   const trace = traceQuery.data;
+  const conversationMessagesQuery = useConversationMessages(trace?.conversationId ?? null);
+  const conversationMessages = conversationMessagesQuery.data ?? [];
   const retrievedChunkIds = normalizeChunkIds(trace?.retrievedChunkIdsJson);
   const scores = normalizeScores(trace?.retrievalScoresJson);
   const citations = normalizeCitations(trace?.citationsJson);
@@ -178,6 +352,36 @@ export function TraceDetailPage() {
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
   const hasRewrite = Boolean(trace?.rewrittenQuery);
   const traceSummary = trace?.traceSummary ?? null;
+  const diagnosticSummarySlice = trace
+    ? buildTraceDiagnosticSummarySlice(
+        {
+          status: trace.status,
+          errorMessage: trace.errorMessage,
+          traceSummary
+        },
+        locale
+      )
+    : null;
+  const failureTaxonomy = trace
+    ? buildFailureTaxonomy({
+        status: trace.status,
+        latencyMs: trace.latencyMs,
+        errorMessage: trace.errorMessage,
+        traceSummary
+      })
+    : [];
+  const userRequestText =
+    (trace?.userMessageId
+      ? conversationMessages.find(message => message.id === trace.userMessageId)?.content
+      : null) ??
+    trace?.userQuery ??
+    "";
+  const assistantResponseText =
+    (trace?.assistantMessageId
+      ? conversationMessages.find(message => message.id === trace.assistantMessageId)?.content
+      : null) ??
+    conversationMessages.find(message => message.role === "assistant" && message.traceId === trace?.id)?.content ??
+    null;
 
   return (
     <Stack gap="md">
@@ -232,6 +436,113 @@ export function TraceDetailPage() {
 
       {trace ? (
         <>
+          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+            <Stack gap="md">
+              <Group justify="space-between" wrap="nowrap">
+                <div>
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "请求 / 响应 / 步骤" : "Request / response / steps"}
+                  </Text>
+                  <Text className="workspace-section-copy">
+                    {locale === "zh"
+                      ? "在一个视图里先看用户请求、最终响应，再快速扫过本轮检索与回答步骤。"
+                      : "Start with the user request and final response, then scan retrieval/answering steps in one view."}
+                  </Text>
+                </div>
+                <Badge color={trace.status === "success" ? "teal" : "red"} variant="light">
+                  {trace.status === "success"
+                    ? locale === "zh"
+                      ? "完整链路"
+                      : "Full chain"
+                    : locale === "zh"
+                      ? "失败链路"
+                      : "Failed chain"}
+                </Badge>
+              </Group>
+
+              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">{locale === "zh" ? "请求" : "Request"}</Text>
+                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {userRequestText || (locale === "zh" ? "未记录用户请求。" : "No user request captured.")}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === "zh" ? "改写查询" : "Rewrite query"}
+                    </Text>
+                    <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {trace.rewrittenQuery ?? (locale === "zh" ? "与原问题一致" : "Same as original question")}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">{locale === "zh" ? "响应" : "Response"}</Text>
+                    <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {assistantResponseText
+                        ? assistantResponseText
+                        : conversationMessagesQuery.isLoading
+                          ? locale === "zh"
+                            ? "正在加载响应正文..."
+                            : "Loading response text..."
+                          : locale === "zh"
+                            ? "未记录响应正文（可继续查看下方溯源摘要与引用）。"
+                            : "No response text captured. Use provenance and citations below for diagnostics."}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === "zh" ? "回答状态" : "Answer status"}
+                    </Text>
+                    <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {traceSummary?.answerStatus ?? (trace.status === "success" ? "grounded" : "insufficient_context")}
+                    </Text>
+                  </Stack>
+                </Paper>
+
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">{locale === "zh" ? "步骤" : "Steps"}</Text>
+                    <div className="workspace-meta-list">
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 1：查询准备" : "Step 1: query prep"}</span>
+                        <span className="workspace-meta-value">
+                          {traceSummary?.rewriteReadabilityLabel ??
+                            (hasRewrite
+                              ? locale === "zh"
+                                ? "已执行 query rewrite"
+                                : "query rewrite applied"
+                              : locale === "zh"
+                                ? "未执行 query rewrite"
+                                : "query rewrite not applied")}
+                        </span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 2：检索" : "Step 2: retrieval"}</span>
+                        <span className="workspace-meta-value">
+                          {traceSummary?.strategyReadabilityLabel ??
+                            (locale === "zh" ? "暂无检索策略摘要。" : "No retrieval strategy summary.")}
+                        </span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "步骤 3：回答" : "Step 3: answer"}</span>
+                        <span className="workspace-meta-value">
+                          {traceSummary?.answerProvenanceSentence ??
+                            (locale === "zh" ? "暂无回答溯源摘要。" : "No answer provenance summary.")}
+                        </span>
+                      </div>
+                      {traceSummary?.failureReadabilitySentence ? (
+                        <div className="workspace-meta-row">
+                          <span className="workspace-meta-label">{locale === "zh" ? "失败诊断" : "Failure"}</span>
+                          <span className="workspace-meta-value">{traceSummary.failureReadabilitySentence}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </Stack>
+                </Paper>
+              </SimpleGrid>
+            </Stack>
+          </Paper>
+
           <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
             <Stack gap="md">
               <Group justify="space-between" wrap="nowrap">
@@ -306,6 +617,87 @@ export function TraceDetailPage() {
                   </Text>
                 </Paper>
               </div>
+
+              <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                <Stack gap="xs">
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "失败分类（P6 v1）" : "Failure taxonomy (P6 v1)"}
+                  </Text>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    {locale === "zh"
+                      ? "按 no-hit / fallback / slow-path / timeout / source-failure 归类当前 trace，便于快速定位问题类型。"
+                      : "Categorizes this trace into no-hit, fallback, slow-path, timeout, and source-failure for faster triage."}
+                  </Text>
+                  {failureTaxonomy.length > 0 ? (
+                    <Group gap="xs">
+                      {failureTaxonomy.map(category => (
+                        <Badge color={getFailureTaxonomyColor(category)} key={category} variant="light">
+                          {getFailureTaxonomyLabel(category, locale)}
+                        </Badge>
+                      ))}
+                    </Group>
+                  ) : (
+                    <Text c="var(--app-text-secondary)" size="sm">
+                      {locale === "zh"
+                        ? "当前 trace 未命中以上失败分类。"
+                        : "No failure taxonomy category was detected for this trace."}
+                    </Text>
+                  )}
+                </Stack>
+              </Paper>
+
+              {diagnosticSummarySlice ? (
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text className="workspace-section-heading">
+                      {locale === "zh" ? "诊断摘要切片（scan-first）" : "Diagnostic summary slice (scan-first)"}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === "zh"
+                        ? "先看一条问题线索 + 一条检索线索 + 一条回答线索，快速决定下一步排查方向。"
+                        : "Scan one issue line, one retrieval line, and one answer line before drilling into raw detail."}
+                    </Text>
+                    <div className="workspace-meta-list">
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "问题线索" : "Issue signal"}</span>
+                        <span className="workspace-meta-value">{diagnosticSummarySlice.issueLine}</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "检索线索" : "Retrieval signal"}</span>
+                        <span className="workspace-meta-value">{diagnosticSummarySlice.retrievalLine}</span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{locale === "zh" ? "回答线索" : "Answer signal"}</span>
+                        <span className="workspace-meta-value">{diagnosticSummarySlice.answerLine}</span>
+                      </div>
+                    </div>
+                  </Stack>
+                </Paper>
+              ) : null}
+
+              <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                <Stack gap="xs">
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "Trace 快速跳转" : "Trace quick jumps"}
+                  </Text>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    {locale === "zh"
+                      ? "在当前详情页内快速切换到 chunk、引用或原始载荷区。"
+                      : "Move through chunk, citation, and raw-payload sections without leaving this detail view."}
+                  </Text>
+                  <Group gap="xs">
+                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`} size="sm">
+                      {locale === "zh" ? "查看命中 Chunk" : "Go to retrieved chunks"}
+                    </Anchor>
+                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.citations}`} size="sm">
+                      {locale === "zh" ? "查看引用" : "Go to citations"}
+                    </Anchor>
+                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.rawPayload}`} size="sm">
+                      {locale === "zh" ? "查看原始载荷" : "Go to raw payload"}
+                    </Anchor>
+                  </Group>
+                </Stack>
+              </Paper>
 
               {traceSummary ? (
                 <div className="workspace-meta-list">
@@ -418,7 +810,13 @@ export function TraceDetailPage() {
 
           <div className="workspace-page-main-stack">
             <Stack gap="md">
-              <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+              <Paper
+                className="workspace-panel-hover workspace-panel-strong"
+                id={TRACE_DETAIL_SECTION_IDS.retrievedChunks}
+                p="lg"
+                radius="xl"
+                style={{ scrollMarginTop: "96px" }}
+              >
                 <Stack gap="md">
                   <Group justify="space-between">
                     <div>
@@ -542,7 +940,13 @@ export function TraceDetailPage() {
               </Paper>
 
               <div className="workspace-detail-secondary-grid">
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  id={TRACE_DETAIL_SECTION_IDS.citations}
+                  p="lg"
+                  radius="xl"
+                  style={{ scrollMarginTop: "96px" }}
+                >
                   <Stack gap="md">
                     <Group justify="space-between">
                       <Text className="workspace-section-heading">{t("trace.citations")}</Text>
@@ -595,7 +999,7 @@ export function TraceDetailPage() {
                 </Paper>
 
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-                  <details>
+                  <details id={TRACE_DETAIL_SECTION_IDS.rawPayload} style={{ scrollMarginTop: "96px" }}>
                     <summary className="workspace-collapsible-summary">
                       <span>{t("common.fields.rawPayload")}</span>
                       <span className="workspace-inline-chip">

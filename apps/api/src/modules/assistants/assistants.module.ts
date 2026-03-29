@@ -24,6 +24,6 @@ import { AssistantsService } from "./assistants.service";
   ],
   controllers: [AssistantsController],
   providers: [AssistantsService, AskAssistantService],
-  exports: [AssistantsService]
+  exports: [AssistantsService, AskAssistantService]
 })
 export class AssistantsModule {}

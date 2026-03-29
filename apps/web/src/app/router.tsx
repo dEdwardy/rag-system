@@ -1,10 +1,18 @@
 import { createBrowserRouter } from "react-router-dom";
-import { AppShell } from "./AppShell";
+import { AuthenticatedAppShell } from "./AuthenticatedAppShell";
 
 export const router = createBrowserRouter([
   {
+    path: "/login",
+    lazy: async () => {
+      const { LoginPage } = await import("../pages/auth/LoginPage");
+
+      return { Component: LoginPage };
+    }
+  },
+  {
     path: "/",
-    element: <AppShell />,
+    element: <AuthenticatedAppShell />,
     children: [
       {
         index: true,
@@ -44,6 +52,14 @@ export const router = createBrowserRouter([
           const { UsagePage } = await import("../pages/usage/UsagePage");
 
           return { Component: UsagePage };
+        }
+      },
+      {
+        path: "reports",
+        lazy: async () => {
+          const { ReportCenterPage } = await import("../pages/reports/ReportCenterPage");
+
+          return { Component: ReportCenterPage };
         }
       },
       {

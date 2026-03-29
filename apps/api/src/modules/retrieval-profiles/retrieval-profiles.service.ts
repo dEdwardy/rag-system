@@ -6,22 +6,43 @@ import {
   UpdateRetrievalProfileInput
 } from "./retrieval-profile.schemas";
 
+type RetrievalProfileAccessScope = {
+  tenantId: string;
+  userId: string;
+};
+
 @Injectable()
 export class RetrievalProfilesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listRetrievalProfiles() {
+  listRetrievalProfiles(scope?: RetrievalProfileAccessScope | null) {
     return this.prisma.retrievalProfile.findMany({
+      ...(scope
+        ? {
+            where: {
+              tenantId: scope.tenantId,
+              ownerId: scope.userId
+            }
+          }
+        : {}),
       orderBy: {
         createdAt: "desc"
       }
     });
   }
 
-  async getRetrievalProfile(id: string) {
-    const retrievalProfile = await this.prisma.retrievalProfile.findUnique({
-      where: { id }
-    });
+  async getRetrievalProfile(id: string, scope?: RetrievalProfileAccessScope | null) {
+    const retrievalProfile = scope
+      ? await this.prisma.retrievalProfile.findFirst({
+          where: {
+            id,
+            tenantId: scope.tenantId,
+            ownerId: scope.userId
+          }
+        })
+      : await this.prisma.retrievalProfile.findUnique({
+          where: { id }
+        });
 
     if (!retrievalProfile) {
       throw new NotFoundException(`Retrieval profile ${id} not found.`);
@@ -30,9 +51,11 @@ export class RetrievalProfilesService {
     return retrievalProfile;
   }
 
-  createRetrievalProfile(input: CreateRetrievalProfileInput) {
+  createRetrievalProfile(input: CreateRetrievalProfileInput, scope: RetrievalProfileAccessScope) {
     return this.prisma.retrievalProfile.create({
       data: {
+        tenantId: scope.tenantId,
+        ownerId: scope.userId,
         name: input.name,
         topK: input.topK,
         chunkWindow: input.chunkWindow,
@@ -54,8 +77,8 @@ export class RetrievalProfilesService {
     });
   }
 
-  async updateRetrievalProfile(id: string, input: UpdateRetrievalProfileInput) {
-    await this.getRetrievalProfile(id);
+  async updateRetrievalProfile(id: string, input: UpdateRetrievalProfileInput, scope?: RetrievalProfileAccessScope | null) {
+    await this.getRetrievalProfile(id, scope);
 
     return this.prisma.retrievalProfile.update({
       where: { id },

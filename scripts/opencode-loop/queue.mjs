@@ -10,6 +10,9 @@ export const DEFAULT_QUEUE_ITEM = {
   status: "pending"
 };
 
+const RECOVERABLE_QUEUE_STATUSES = new Set(["deferred"]);
+const RECOVERABLE_QUEUE_ITEM_FIELDS = ["startedAt", "sessionId", "messageId", "messageReceivedAt", "resumedAt", "runId"];
+
 export function readQueue(queuePath) {
   const queueRaw = readFileSync(queuePath, "utf8");
   const queue = JSON.parse(queueRaw);
@@ -37,7 +40,11 @@ export function writeQueue(queuePath, queue) {
   }
 }
 
-export function pickNextItem(queue) {
+export function pickNextItem(queue, shouldRunItem = () => true) {
+  return pickNextItemWithPredicate(queue, shouldRunItem);
+}
+
+export function pickNextItemWithPredicate(queue, shouldRunItem) {
   const recoveryIndex = findItemIndexByStatus(queue.items, "in_progress");
   if (recoveryIndex !== -1) {
     return { index: recoveryIndex, item: queue.items[recoveryIndex] };
@@ -45,8 +52,8 @@ export function pickNextItem(queue) {
 
   const cursorResolution = resolveQueueCursor(queue);
   const startIndex = cursorResolution.cursor;
-  const forwardIndex = findPendingIndex(queue.items, startIndex);
-  const fallbackIndex = forwardIndex === -1 ? findPendingIndex(queue.items, 0) : -1;
+  const forwardIndex = findPendingIndex(queue.items, startIndex, shouldRunItem);
+  const fallbackIndex = forwardIndex === -1 ? findPendingIndex(queue.items, 0, shouldRunItem) : -1;
   const index = forwardIndex !== -1 ? forwardIndex : fallbackIndex;
 
   if (index === -1) {
@@ -146,6 +153,31 @@ export function completeQueueItem({ queue, index, sessionId, messageId, handoffP
   };
 }
 
+export function deferQueueItem({ queue, index, deferredAt = new Date().toISOString() }) {
+  const updatedItems = queue.items.map((queueItem, queueIndex) => {
+    if (queueIndex !== index) {
+      return queueItem;
+    }
+
+    return {
+      ...queueItem,
+      status: "deferred",
+      runId: undefined,
+      sessionId: undefined,
+      messageId: undefined,
+      messageReceivedAt: undefined,
+      resumedAt: undefined
+    };
+  });
+
+  return {
+    ...queue,
+    items: updatedItems,
+    cursor: computeNextCursor(updatedItems, index + 1),
+    updatedAt: deferredAt
+  };
+}
+
 export function appendQueueItems(queue, items, updatedAt = new Date().toISOString()) {
   const nextItems = Array.isArray(items) ? items.filter(Boolean) : [];
 
@@ -166,7 +198,95 @@ export function appendQueueItems(queue, items, updatedAt = new Date().toISOStrin
   };
 }
 
-function computeNextCursor(items, start) {
+export function normalizeQueueForExecution(queue, updatedAt = new Date().toISOString(), options = {}) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  const preserveDeferredIds = options?.preserveDeferredIds instanceof Set ? options.preserveDeferredIds : new Set();
+  let normalizedCount = 0;
+  const normalizedItemIds = [];
+
+  const normalizedItems = items.map(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return item;
+    }
+
+    if (!RECOVERABLE_QUEUE_STATUSES.has(item.status)) {
+      return item;
+    }
+
+    if (item.status === "deferred" && typeof item.id === "string" && preserveDeferredIds.has(item.id)) {
+      return item;
+    }
+
+    normalizedCount += 1;
+    if (typeof item.id === "string" && item.id.trim()) {
+      normalizedItemIds.push(item.id.trim());
+    }
+
+    const nextItem = {
+      ...item,
+      status: "pending"
+    };
+
+    for (const field of RECOVERABLE_QUEUE_ITEM_FIELDS) {
+      delete nextItem[field];
+    }
+
+    return nextItem;
+  });
+
+  if (normalizedCount === 0) {
+    return {
+      queue,
+      normalizedCount: 0,
+      normalizedItemIds: []
+    };
+  }
+
+  return {
+    queue: {
+      ...queue,
+      items: normalizedItems,
+      updatedAt
+    },
+    normalizedCount,
+    normalizedItemIds
+  };
+}
+
+export function countQueueWork(queue) {
+  const items = Array.isArray(queue?.items) ? queue.items : [];
+  let pendingCount = 0;
+  let completedCount = 0;
+  let inProgressCount = 0;
+  let deferredCount = 0;
+
+  for (const item of items) {
+    if (item?.status === "pending") {
+      pendingCount += 1;
+    } else if (item?.status === "completed") {
+      completedCount += 1;
+    } else if (item?.status === "in_progress") {
+      inProgressCount += 1;
+    } else if (item?.status === "deferred") {
+      deferredCount += 1;
+    }
+  }
+
+  return {
+    pendingCount,
+    completedCount,
+    inProgressCount,
+    deferredCount,
+    totalCount: items.length
+  };
+}
+
+export function countRemainingQueueWork(queue) {
+  const { pendingCount, inProgressCount, deferredCount } = countQueueWork(queue);
+  return pendingCount + inProgressCount + deferredCount;
+}
+
+export function computeNextCursor(items, start) {
   const nextIndex = findPendingIndex(items, start);
   if (nextIndex !== -1) {
     return nextIndex;
@@ -180,9 +300,9 @@ function computeNextCursor(items, start) {
   return items.length;
 }
 
-function findPendingIndex(items, start) {
+function findPendingIndex(items, start, shouldRunItem = () => true) {
   for (let index = start; index < items.length; index += 1) {
-    if (items[index]?.status === "pending") {
+    if (items[index]?.status === "pending" && shouldRunItem(items[index], index, items)) {
       return index;
     }
   }
@@ -270,6 +390,22 @@ function formatDisplayTime(value) {
   const second = String(date.getSeconds()).padStart(2, "0");
 
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+export function formatSessionTitleTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "invalid-date";
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+
+  return `${month}-${day} ${hour}:${minute}:${second}`;
 }
 
 export { formatDisplayTime };

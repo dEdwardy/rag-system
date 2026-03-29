@@ -6,6 +6,18 @@ const { resolve } = require("node:path");
 test("web trace summary type guards current backend summary field set", async () => {
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
   const sharedSource = await readFile(resolve(__dirname, "../../../packages/shared/src/trace-contracts.ts"), "utf8");
+  const traceSummaryMatch = sharedSource.match(/export type TraceSummary = \{([\s\S]*?)\n\};/);
+
+  assert.ok(traceSummaryMatch, "TraceSummary type block should exist in shared contracts");
+
+  const traceSummaryBody = traceSummaryMatch[1];
+
+  // Guard the scan-first diagnostic slice inputs against backend drift.
+  assert.match(traceSummaryBody, /primaryIssue:\s*TracePrimaryIssue \| null;/);
+  assert.match(traceSummaryBody, /retrievalModeProvenanceSentence:\s*string;/);
+  assert.match(traceSummaryBody, /failureReadabilitySentence:\s*string;/);
+  assert.match(traceSummaryBody, /answerStatusSourceReadabilitySentence:\s*string;/);
+  assert.match(traceSummaryBody, /missingInformationProvenanceSentence:\s*string;/);
 
   assert.match(source, /from\s+"@rag-system\/shared"/);
   assert.match(source, /traceSummary:\s*TraceSummary;/);
@@ -43,32 +55,41 @@ test("web trace summary type guards current backend summary field set", async ()
   assert.match(sharedSource, /readabilityHint:\s*string \| null;/);
   assert.match(sharedSource, /readabilitySentence:\s*string \| null;/);
   assert.match(sharedSource, /answerAttributionSummary:\s*TraceAnswerAttributionSummary;/);
+  assert.match(sharedSource, /answerAttributionReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /answerProvenanceSentence:\s*string;/);
   assert.match(sharedSource, /strategyReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /retrievalModeProvenanceSentence:\s*string;/);
   assert.match(sharedSource, /answerAttribution:\s*TraceCitationAttribution \| null;/);
   assert.match(sharedSource, /answerAttributionSource:\s*TraceCitationSelectionSource \| null;/);
   assert.match(sharedSource, /answerEvidenceSource:\s*TraceCitationSelectionSource \| null;/);
   assert.match(sharedSource, /answerEvidenceSourceReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /answerEvidenceSourceReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /citationAttribution:\s*TraceCitationAttribution \| null;/);
   assert.match(sharedSource, /citationSelectionSource:\s*TraceCitationSelectionSource \| null;/);
   assert.match(sharedSource, /missingInformationCount:\s*number;/);
   assert.match(sharedSource, /answerTextSourceReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /answerTextSourceReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /answerTextSource:\s*TraceAnswerTextSource \| null;/);
   assert.match(sharedSource, /answerStatusSourceReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /answerStatusSourceReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /answerStatusSource:\s*TraceAnswerStatusSource \| null;/);
+  assert.match(sharedSource, /answerProvenanceReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /missingInformationCountReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /missingInformationSource:\s*TraceMissingInformationSource \| null;/);
+  assert.match(sharedSource, /missingInformationSourceReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /insufficientContextReason:\s*TraceInsufficientContextReason \| null;/);
   assert.match(sharedSource, /missingInformationProvenanceSentence:\s*string;/);
   assert.match(sharedSource, /failedStage:\s*TraceFailedStage \| null;/);
   assert.match(sharedSource, /failedStageReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /failureMessage:\s*string \| null;/);
+  assert.match(sharedSource, /failureReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /candidateLimit:\s*number;/);
   assert.match(sharedSource, /vectorCandidateCount:\s*number;/);
   assert.match(sharedSource, /lexicalCandidateCount:\s*number;/);
   assert.match(sharedSource, /mergedCandidateCount:\s*number;/);
   assert.match(sharedSource, /rankedCandidateCount:\s*number;/);
   assert.match(sharedSource, /candidateCountReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /candidateCountReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /vectorCandidateLimitHit:\s*boolean;/);
   assert.match(sharedSource, /lexicalCandidateLimitHit:\s*boolean;/);
   assert.match(sharedSource, /rankingTopKHit:\s*boolean;/);
@@ -78,8 +99,10 @@ test("web trace summary type guards current backend summary field set", async ()
   assert.match(sharedSource, /inputChunkCount:\s*number;/);
   assert.match(sharedSource, /promptContextCount:\s*number;/);
   assert.match(sharedSource, /contextGroupCount:\s*number;/);
+  assert.match(sharedSource, /contextReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /citationCount:\s*number;/);
   assert.match(sharedSource, /citationCountReadabilityLabel:\s*string;/);
+  assert.match(sharedSource, /citationCountReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /citationCountBeforeLimit:\s*number;/);
   assert.match(sharedSource, /citationLimitHit:\s*boolean;/);
   assert.match(sharedSource, /usedFallback:\s*boolean;/);
