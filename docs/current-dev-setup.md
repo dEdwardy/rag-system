@@ -136,16 +136,25 @@ AUTH_SESSION_TTL_HOURS=168
     - no password reset / forgot-password / email verification in this wave
     - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
     - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
-  - auth `Phase 2` skeleton closeout snapshot (docs sync):
-    - `AuthIdentityLink` skeleton is now landed in Prisma with reserved future-link fields (`provider + subject` uniqueness, plus `emailSnapshot` / `profileSnapshot` / `lastLoginAt`)
-    - `authSource` contract now reserves `local` / `github` / `google` / `oidc` / `session` / `dev_seed`
-    - future OAuth/OIDC route shapes are reserved as contract/controller constants only:
-      - `GET /auth/oauth/:provider/start`
-      - `GET /auth/oauth/:provider/callback`
-    - behavior boundary in the current auth wave:
-      - local login + session-cookie flow remains the active runtime path (`POST /auth/login` + `rag_session` + `GET /auth/me`)
-      - backend OAuth provider start/callback is now implemented for `github` and `google` using the same `AuthIdentityLink + AuthSession` session-bridge pattern
-      - `oidc` stays reserved-only (`NotImplemented`) in this wave
+  - auth `Phase 2/3/4` current landed snapshot (queue wave sync):
+    - `Phase 2` baseline is landed:
+      - `AuthIdentityLink` skeleton is in Prisma (`provider + subject` unique boundary, plus `emailSnapshot` / `profileSnapshot` / `lastLoginAt`)
+      - `authSource` contract reserves `local` / `github` / `google` / `oidc` / `session` / `dev_seed`
+      - reserved provider route shape remains `GET /auth/oauth/:provider/start` + `GET /auth/oauth/:provider/callback`
+    - `Phase 3` GitHub flow is landed in backend runtime:
+      - `/auth/oauth/github/start` builds redirect URL + state cookie
+      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession` and writes `rag_session`
+    - `Phase 4` Google flow is landed with the same backend pattern:
+      - `/auth/oauth/google/start` and `/auth/oauth/google/callback` follow the same state + identity-link + local-session bridge semantics
+    - runtime env requirements currently used by code paths above:
+      - shared OAuth state controls: `AUTH_OAUTH_STATE_COOKIE_NAME` (default `rag_oauth_state`), `AUTH_OAUTH_STATE_TTL_SECONDS` (default `600`)
+      - GitHub start/callback config: `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET`, `AUTH_GITHUB_REDIRECT_URI` (optional overrides: `AUTH_GITHUB_AUTHORIZE_URL`, `AUTH_GITHUB_TOKEN_URL`, `AUTH_GITHUB_USER_URL`, `AUTH_GITHUB_SCOPE`)
+      - Google start/callback config: `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_GOOGLE_REDIRECT_URI` (optional overrides: `AUTH_GOOGLE_AUTHORIZE_URL`, `AUTH_GOOGLE_TOKEN_URL`, `AUTH_GOOGLE_USER_URL`, `AUTH_GOOGLE_SCOPE`)
+      - optional default tenant for first-time OAuth auto-create path: `AUTH_DEFAULT_TENANT_ID` (fallback `default-tenant`)
+    - still reserved-only boundary in this wave:
+      - `oidc` provider remains explicit `NotImplemented` for both start/callback runtime handling
+    - behavior boundary kept unchanged:
+      - local login + session-cookie flow remains active (`POST /auth/login` + `rag_session` + `GET /auth/me`)
       - owner-only ACL behavior remains unchanged; this auth increment does not reopen ACL expansion
   - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
     - allow only when `tenantId` matches and `ownerId === userId`

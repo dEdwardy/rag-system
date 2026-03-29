@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth `Phase 2/3/4` docs closeout is now synced to landed code facts (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `Phase 2` skeleton baseline remains landed: `AuthIdentityLink`（含 `provider+subject` 唯一边界与 `emailSnapshot/profileSnapshot/lastLoginAt`）+ `authSource` 预留集合 + provider 路由形状（`/auth/oauth/:provider/start|callback`）
+    - `Phase 3` 已是真实 GitHub flow：`/auth/oauth/github/start` 与 `/auth/oauth/github/callback` 已落地，并走 `AuthIdentityLink(provider, subject)` + 本地 `AuthSession` + `rag_session` cookie 的 session-bridge
+    - `Phase 4` 已是真实 Google flow：`/auth/oauth/google/start` 与 `/auth/oauth/google/callback` 已落地，并复用与 GitHub 相同的 identity-link/session 闭环
+    - 仍保持预留边界：`oidc` start/callback 仍显式 `NotImplemented`（reserved-only）；未扩展 ACL、signup、password reset
+    - 同步记录仅覆盖代码中真实存在的 runtime 配置项（OAuth state/GitHub/Google/default-tenant env）
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ auth `Phase 4` backend increment now extends the landed GitHub identity-link/session pattern to Google OAuth start/callback (OIDC still reserved-only)
   - 变更文件：
     - `apps/api/src/modules/auth/google-oauth.provider.ts`
