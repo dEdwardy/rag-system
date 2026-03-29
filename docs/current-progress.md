@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P3 follow-up micro-wave extra batch queue closeout 已完成：queue/progress/refinement 已对齐，队列状态已整理为等待下一批人工批准 wave（未追加新工作）
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 先复核并对齐了本轮前置 5 项 handoff/result（067-071）与对应落地结果，再把 `loop-queue-refresh-072` 从 `in_progress` 收口为 `completed`
+    - 在 refinement plan 增补本轮 micro-wave（067-072）已完成清单，明确 closeout 边界不变：不追加 queue item、不重开手动 `P5`、不触发 source-family/auth/dashboard 扩面
+    - 当前 queue 仅做状态整理与落账，不启动新 feature wave，下一步保持“等待人工批准下一批 wave”
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/current-progress.md`
+
 - ✅ P3 follow-up micro-wave extra batch 已做最小 docs sync：补齐本批剩余 safe gaps 覆盖范围与 focused validation baseline（docs-only）
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`
