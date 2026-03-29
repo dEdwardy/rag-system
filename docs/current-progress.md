@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 document-run summary now includes source-family stats so source-specific issue hotspots are visible at a glance
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `apps/web/src/types/api.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `GET /knowledge-bases/:id/document-runs/summary` 新增 `bySourceFamily` 聚合字段（`web` / `feed` / `sitemap` / `upload` / `other`）
+    - 每个 source family 现在提供最小观测计数：`totalRuns`、`failedRuns`、`retryableFailures`、`nonRetryableFailures`、`runsWithBoundaryHit`
+    - 计数口径保持与现有 summary 语义一致：failure/boundary 仍按每文档 latest completed run 统计，不改已有 failure 语义
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
 - ✅ P6 v1 now has a comparison report endpoint for run-vs-run or snapshot-vs-snapshot diagnostics
   - 变更文件：
     - `apps/api/src/modules/documents/document.schemas.ts`

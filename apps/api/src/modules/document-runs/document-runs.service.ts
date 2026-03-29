@@ -70,6 +70,16 @@ export class DocumentRunsService {
       external_resync: 0
     };
     const bySourceType: Record<string, number> = {};
+    const bySourceFamily: Record<
+      string,
+      {
+        totalRuns: number;
+        failedRuns: number;
+        retryableFailures: number;
+        nonRetryableFailures: number;
+        runsWithBoundaryHit: number;
+      }
+    > = {};
     const failureByStage: Record<string, number> = {};
     const boundaryStats = {
       runsWithBoundaryHit: 0,
@@ -83,12 +93,26 @@ export class DocumentRunsService {
     const latestCompletedRuns = this.getLatestCompletedRunsByDocument(filteredRuns);
 
     for (const run of filteredRuns) {
+      const sourceFamily = this.resolveSourceFamily(run.document.sourceType);
       byStatus[run.status] += 1;
       byTrigger[run.trigger] += 1;
       bySourceType[run.document.sourceType] = (bySourceType[run.document.sourceType] ?? 0) + 1;
+      bySourceFamily[sourceFamily] ??= {
+        totalRuns: 0,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      };
+      bySourceFamily[sourceFamily].totalRuns += 1;
+
+      if (run.status === DocumentRunStatus.failed) {
+        bySourceFamily[sourceFamily].failedRuns += 1;
+      }
     }
 
     for (const run of latestCompletedRuns) {
+      const sourceFamily = this.resolveSourceFamily(run.document.sourceType);
       const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
 
       if (!this.shouldCountFailureSummary(run.status, failureSummary) || !failureSummary) {
@@ -101,13 +125,16 @@ export class DocumentRunsService {
 
       if (failureSummary.retryable) {
         retryableFailures += 1;
+        bySourceFamily[sourceFamily].retryableFailures += 1;
       } else {
         nonRetryableFailures += 1;
+        bySourceFamily[sourceFamily].nonRetryableFailures += 1;
       }
 
       const boundarySummary = this.extractBoundarySummary(run.diagnosticsJson);
       if (boundarySummary) {
         boundaryStats.runsWithBoundaryHit += 1;
+        bySourceFamily[sourceFamily].runsWithBoundaryHit += 1;
         boundaryStats.droppedPageUrlCount += boundarySummary.droppedPageUrlCount;
         boundaryStats.droppedChildSitemapCount += boundarySummary.droppedChildSitemapCount;
         boundaryStats.droppedFeedEntryCount += boundarySummary.droppedFeedEntryCount;
@@ -150,6 +177,7 @@ export class DocumentRunsService {
       byStatus,
       byTrigger,
       bySourceType,
+      bySourceFamily,
       retryableFailures,
       nonRetryableFailures,
       failureByStage,
@@ -980,5 +1008,25 @@ export class DocumentRunsService {
     return {
       gte: cutoff
     } satisfies Prisma.DateTimeFilter;
+  }
+
+  private resolveSourceFamily(sourceType: string) {
+    if (sourceType === "web_page") {
+      return "web";
+    }
+
+    if (sourceType === "feed") {
+      return "feed";
+    }
+
+    if (sourceType === "sitemap") {
+      return "sitemap";
+    }
+
+    if (sourceType === "upload") {
+      return "upload";
+    }
+
+    return "other";
   }
 }

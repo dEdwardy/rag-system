@@ -556,6 +556,29 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
     droppedChildSitemapCount: 0,
     droppedFeedEntryCount: 2
   });
+  assert.deepEqual(summary.bySourceFamily, {
+    feed: {
+      totalRuns: 1,
+      failedRuns: 0,
+      retryableFailures: 0,
+      nonRetryableFailures: 1,
+      runsWithBoundaryHit: 1
+    },
+    web: {
+      totalRuns: 1,
+      failedRuns: 1,
+      retryableFailures: 1,
+      nonRetryableFailures: 0,
+      runsWithBoundaryHit: 0
+    },
+    upload: {
+      totalRuns: 1,
+      failedRuns: 0,
+      retryableFailures: 0,
+      nonRetryableFailures: 0,
+      runsWithBoundaryHit: 0
+    }
+  });
 });
 
 test("DocumentRunsService summary counts partial ready runs as failure summaries", async () => {
@@ -1200,6 +1223,15 @@ test("DocumentRunsService summary applies narrow run filters before aggregating 
   });
   assert.deepEqual(summary.bySourceType, {
     feed: 1
+  });
+  assert.deepEqual(summary.bySourceFamily, {
+    feed: {
+      totalRuns: 1,
+      failedRuns: 1,
+      retryableFailures: 1,
+      nonRetryableFailures: 0,
+      runsWithBoundaryHit: 0
+    }
   });
   assert.deepEqual(summary.latestFailure, {
     documentId: "doc-feed-failed",

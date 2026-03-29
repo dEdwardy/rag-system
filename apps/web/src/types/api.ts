@@ -262,6 +262,16 @@ export type KnowledgeBaseDocumentRunSummary = {
   byStatus: Record<DocumentRunStatus, number>;
   byTrigger: Record<DocumentRunTrigger, number>;
   bySourceType: Record<string, number>;
+  bySourceFamily: Record<
+    string,
+    {
+      totalRuns: number;
+      failedRuns: number;
+      retryableFailures: number;
+      nonRetryableFailures: number;
+      runsWithBoundaryHit: number;
+    }
+  >;
   retryableFailures: number;
   nonRetryableFailures: number;
   failureByStage: Record<string, number>;
