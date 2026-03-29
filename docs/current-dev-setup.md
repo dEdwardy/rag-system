@@ -547,6 +547,16 @@ pnpm test:api:file -- apps/api/test/prompt-manager.test.js
 
 `test:api:file` now auto-selects `Vitest` for fast-lane files and keeps the current build-aware runner for heavier integration or E2E files.
 
+P5 v1 fixed-question eval runner (automation-first baseline capture):
+
+```bash
+pnpm --filter @rag-system/api eval:runner:p5-v1
+```
+
+- default target: `http://127.0.0.1:3000`
+- output artifact: `storage/evals/p5-v1/p5-v1-eval-<timestamp>.json`
+- output includes per-question `answerStatus` / `qualityOverall` plus top-k (`candidateLimit` + `rankingTopKHit`) and fallback/no-hit signals (`usedFallback` / `noHitSignal`) for regression comparison
+
 Focused API integration entrypoint:
 
 ```bash

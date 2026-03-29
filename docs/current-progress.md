@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 now has a smallest repeatable baseline eval runner for fixed demo questions with structured regression output
+  - 变更文件：
+    - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
+    - `apps/api/package.json`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `pnpm --filter @rag-system/api eval:runner:p5-v1`：脚本先登录，再触发 `POST /eval/question-sets/demo-replays/p5-v1/run`，用于固定题集自动化回放
+    - 脚本按题抓取 `GET /traces/:id` 的 `traceSummary`，把 `answerStatus`、`qualityOverall`、top-k（`candidateLimit` / `rankingTopKHit`）、fallback/no-hit（`usedFallback` / `noHitSignal`）收敛到同一份结构化 JSON
+    - 默认产物落盘到 `storage/evals/p5-v1/p5-v1-eval-<timestamp>.json`，便于后续做 run-to-run regression 对比；范围保持自动化基线，不扩展人工标注流程
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P3 `new source type review` now has a clear keep/add decision after source-family stability closeout: **keep existing family (no new source family in this wave)**
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`
