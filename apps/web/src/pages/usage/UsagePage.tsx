@@ -520,35 +520,10 @@ export function UsagePage() {
       return null;
     }
 
-    const leftSummary = snapshotWindowDiffQuery.data.left.summary;
-    const rightSummary = snapshotWindowDiffQuery.data.right.summary;
-    const failedDelta = (rightSummary.byStatus.failed ?? 0) - (leftSummary.byStatus.failed ?? 0);
-    const boundaryDelta =
-      (rightSummary.boundaryStats.runsWithBoundaryHit ?? 0) -
-      (leftSummary.boundaryStats.runsWithBoundaryHit ?? 0);
-    const retryableDelta =
-      (rightSummary.retryableFailures ?? 0) -
-      (leftSummary.retryableFailures ?? 0);
-    const nonRetryableDelta =
-      (rightSummary.nonRetryableFailures ?? 0) -
-      (leftSummary.nonRetryableFailures ?? 0);
-
-    const primaryIssueDelta = [
-      { key: "failed-runs", delta: failedDelta },
-      { key: "boundary-hits", delta: boundaryDelta },
-      { key: "retryable", delta: retryableDelta },
-      { key: "non-retryable", delta: nonRetryableDelta }
-    ].sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))[0];
-
     return {
       leftWindowLabel: snapshotWindowDiffQuery.data.left.sinceHours,
       rightWindowLabel: snapshotWindowDiffQuery.data.right.sinceHours,
-      failedDelta,
-      boundaryDelta,
-      retryableDelta,
-      nonRetryableDelta,
-      primaryIssueMetric: primaryIssueDelta.key,
-      primaryIssueDelta: primaryIssueDelta.delta
+      slice: snapshotWindowDiffQuery.data.issueHotspotSlice ?? null
     };
   }, [snapshotWindowDiffQuery.data]);
 
@@ -993,7 +968,7 @@ export function UsagePage() {
                         </div>
                       ) : null}
 
-                      {snapshotWindowIssueSlice ? (
+                      {snapshotWindowIssueSlice?.slice ? (
                         <div
                           className="mt-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3 text-sm text-[var(--app-text-muted)]"
                           data-testid="snapshot-window-issue-slice"
@@ -1001,9 +976,30 @@ export function UsagePage() {
                           <span className="font-medium text-[var(--app-text)]">
                             {locale === "zh" ? "issue-window 切片" : "issue-window slice"}
                           </span>
-                          {locale === "zh"
-                            ? `：${snapshotWindowIssueSlice.leftWindowLabel}h → ${snapshotWindowIssueSlice.rightWindowLabel}h，failed Δ ${snapshotWindowIssueSlice.failedDelta}，boundary Δ ${snapshotWindowIssueSlice.boundaryDelta}，retryable Δ ${snapshotWindowIssueSlice.retryableDelta}，non-retryable Δ ${snapshotWindowIssueSlice.nonRetryableDelta}；主变化项 ${snapshotWindowIssueSlice.primaryIssueMetric} (Δ ${snapshotWindowIssueSlice.primaryIssueDelta})。`
-                            : `: ${snapshotWindowIssueSlice.leftWindowLabel}h → ${snapshotWindowIssueSlice.rightWindowLabel}h with failed Δ ${snapshotWindowIssueSlice.failedDelta}, boundary Δ ${snapshotWindowIssueSlice.boundaryDelta}, retryable Δ ${snapshotWindowIssueSlice.retryableDelta}, and non-retryable Δ ${snapshotWindowIssueSlice.nonRetryableDelta}; dominant shift ${snapshotWindowIssueSlice.primaryIssueMetric} (Δ ${snapshotWindowIssueSlice.primaryIssueDelta}).`}
+
+                          {snapshotWindowIssueSlice.slice.leftHotspot ? (
+                            <div className="mt-1" data-testid="snapshot-window-issue-left-hotspot">
+                              {locale === "zh"
+                                ? `左窗口 (${snapshotWindowIssueSlice.leftWindowLabel}h) 热点：${snapshotWindowIssueSlice.slice.leftHotspot.sourceFamily}，issue signal ${snapshotWindowIssueSlice.slice.leftHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.leftHotspot.totalRuns}。`
+                                : `Left window (${snapshotWindowIssueSlice.leftWindowLabel}h) hotspot: ${snapshotWindowIssueSlice.slice.leftHotspot.sourceFamily} with issue signal ${snapshotWindowIssueSlice.slice.leftHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.leftHotspot.totalRuns}.`}
+                            </div>
+                          ) : null}
+
+                          {snapshotWindowIssueSlice.slice.rightHotspot ? (
+                            <div className="mt-1" data-testid="snapshot-window-issue-right-hotspot">
+                              {locale === "zh"
+                                ? `右窗口 (${snapshotWindowIssueSlice.rightWindowLabel}h) 热点：${snapshotWindowIssueSlice.slice.rightHotspot.sourceFamily}，issue signal ${snapshotWindowIssueSlice.slice.rightHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.rightHotspot.totalRuns}。`
+                                : `Right window (${snapshotWindowIssueSlice.rightWindowLabel}h) hotspot: ${snapshotWindowIssueSlice.slice.rightHotspot.sourceFamily} with issue signal ${snapshotWindowIssueSlice.slice.rightHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.rightHotspot.totalRuns}.`}
+                            </div>
+                          ) : null}
+
+                          {snapshotWindowIssueSlice.slice.dominantShift ? (
+                            <div className="mt-1" data-testid="snapshot-window-issue-dominant-shift">
+                              {locale === "zh"
+                                ? `主变化项：${snapshotWindowIssueSlice.slice.dominantShift.sourceFamily}，issue concentration Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueConcentrationDelta.toFixed(2)}，issue signal Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueSignalDelta}。`
+                                : `Dominant shift: ${snapshotWindowIssueSlice.slice.dominantShift.sourceFamily}, issue concentration Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueConcentrationDelta.toFixed(2)}, issue signal Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueSignalDelta}.`}
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </>

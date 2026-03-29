@@ -341,6 +341,29 @@ export type KnowledgeBaseDocumentRunComparisonSourceFamilyDelta = {
   };
 };
 
+export type KnowledgeBaseDocumentRunIssueHotspot = {
+  sourceFamily: string;
+  totalRuns: number;
+  issueSignalScore: number;
+  issueConcentration: number;
+};
+
+export type KnowledgeBaseDocumentRunIssueHotspotShift = {
+  sourceFamily: string;
+  leftIssueSignalScore: number;
+  rightIssueSignalScore: number;
+  issueSignalDelta: number;
+  leftIssueConcentration: number;
+  rightIssueConcentration: number;
+  issueConcentrationDelta: number;
+};
+
+export type KnowledgeBaseDocumentRunIssueHotspotSlice = {
+  leftHotspot: KnowledgeBaseDocumentRunIssueHotspot | null;
+  rightHotspot: KnowledgeBaseDocumentRunIssueHotspot | null;
+  dominantShift: KnowledgeBaseDocumentRunIssueHotspotShift | null;
+};
+
 export type KnowledgeBaseDocumentRunComparison =
   | {
       mode: "run";
@@ -360,6 +383,7 @@ export type KnowledgeBaseDocumentRunComparison =
       };
       meaningfulDifferences: KnowledgeBaseDocumentRunComparisonSnapshotDifference[];
       sourceFamilyDeltas?: KnowledgeBaseDocumentRunComparisonSourceFamilyDelta[];
+      issueHotspotSlice?: KnowledgeBaseDocumentRunIssueHotspotSlice;
     };
 
 export type DocumentChunk = {

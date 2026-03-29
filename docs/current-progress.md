@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 snapshot window diff panel now directly surfaces backend-provided `issueHotspotSlice` in the existing issue-window slice block
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - web comparison contract 对齐新增 `issueHotspotSlice`（left/right hotspot + dominant shift）类型，保持现有 comparison 查询与 endpoint 不变
+    - `P6 v1 snapshot window diff` 的现有 `issue-window slice` 子面板改为直接读取 backend 已返回的 `issueHotspotSlice`，展示左右窗口热点与主变化项
+    - 保持范围为 additive/readability 收口：不改 backend 语义、不新增接口、不扩展 usage dashboard 范围
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ observability + usage docs are now synced to the current scan-first surfaces, summary endpoints, and intentionally deferred dashboard scope (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`

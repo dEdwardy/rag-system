@@ -150,9 +150,13 @@ test("usage page exposes a focused snapshot window diff (6h vs 24h) for issue sn
   assert.match(usageSource, /rightSinceHours:\s*24/);
   assert.match(usageSource, /snapshot-window-diff-row/);
   assert.match(usageSource, /sourceFamilyDeltas/);
+  assert.match(usageSource, /issueHotspotSlice/);
   assert.match(usageSource, /snapshot-window-source-family-drilldown/);
   assert.match(usageSource, /issue-window slice|issue-window 切片/);
   assert.match(usageSource, /snapshot-window-issue-slice/);
+  assert.match(usageSource, /snapshot-window-issue-left-hotspot/);
+  assert.match(usageSource, /snapshot-window-issue-right-hotspot/);
+  assert.match(usageSource, /snapshot-window-issue-dominant-shift/);
 });
 
 test("report center keeps run inputs in query params for carry-through reruns", () => {
