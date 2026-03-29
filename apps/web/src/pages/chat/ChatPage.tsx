@@ -60,7 +60,12 @@ function buildDisplayedMessages(
 }
 
 function resolveStreamStatusLabel(
-  locale: string,
+  copy: {
+    answerFailed: string;
+    preparingAnswer: string;
+    retrievingContext: string;
+    generatingAnswer: string;
+  },
   activeStreamTurn: ActiveStreamTurn | null
 ): string | null {
   if (activeStreamTurn == null) {
@@ -68,37 +73,41 @@ function resolveStreamStatusLabel(
   }
 
   if (activeStreamTurn.assistantMessage.status === "error") {
-    return locale === "zh" ? "本轮回答失败" : "Answer failed";
+    return copy.answerFailed;
   }
 
   if (activeStreamTurn.phase === "started") {
-    return locale === "zh" ? "正在准备回答" : "Preparing answer";
+    return copy.preparingAnswer;
   }
 
   if (activeStreamTurn.phase === "retrieving") {
-    return locale === "zh" ? "正在检索上下文" : "Retrieving context";
+    return copy.retrievingContext;
   }
 
-  return locale === "zh" ? "正在生成回答" : "Generating answer";
+  return copy.generatingAnswer;
 }
 
 function resolveWorkspaceStatus(input: {
-  locale: string;
+  copy: {
+    assistantUnavailable: string;
+    inProgress: string;
+    readyToAsk: string;
+  };
   hasAssistant: boolean;
   hasActiveStreamTurn: boolean;
   streamStatusLabel: string | null;
 }): string {
-  const { locale, hasAssistant, hasActiveStreamTurn, streamStatusLabel } = input;
+  const { copy, hasAssistant, hasActiveStreamTurn, streamStatusLabel } = input;
 
   if (!hasAssistant) {
-    return locale === "zh" ? "助手不可用" : "Assistant unavailable";
+    return copy.assistantUnavailable;
   }
 
   if (hasActiveStreamTurn) {
-    return streamStatusLabel ?? (locale === "zh" ? "处理中" : "In progress");
+    return streamStatusLabel ?? copy.inProgress;
   }
 
-  return locale === "zh" ? "准备提问" : "Ready to ask";
+  return copy.readyToAsk;
 }
 
 function resolveCitationItems(
@@ -191,6 +200,42 @@ export function ChatPage() {
   const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "default-assistant");
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
+  const chatCopy = useMemo(
+    () => ({
+      heroTitle: t("chat.copy.heroTitle"),
+      heroSubtitle: t("chat.copy.heroSubtitle"),
+      moreActionsHint: t("chat.copy.moreActionsHint"),
+      moreActions: t("chat.copy.moreActions"),
+      currentWorkspaceHintHasConversation: t("chat.copy.currentWorkspaceHintHasConversation"),
+      currentWorkspaceHintNewConversation: t("chat.copy.currentWorkspaceHintNewConversation"),
+      currentWorkspace: t("chat.copy.currentWorkspace"),
+      newConversationDraft: t("chat.copy.newConversationDraft"),
+      askStatusHintHasAssistant: t("chat.copy.askStatusHintHasAssistant"),
+      askStatusHintNoAssistant: t("chat.copy.askStatusHintNoAssistant"),
+      askStatus: t("chat.copy.askStatus"),
+      citationsAndTrace: t("chat.copy.citationsAndTrace"),
+      waitingForNextTrace: t("chat.copy.waitingForNextTrace"),
+      inputSection: t("chat.copy.inputSection"),
+      inputHelpCanAsk: t("chat.copy.inputHelpCanAsk"),
+      inputHelpDisabled: t("chat.copy.inputHelpDisabled"),
+      askInputPlaceholder: t("chat.copy.askInputPlaceholder"),
+      fileUploadComingSoon: t("chat.copy.fileUploadComingSoon"),
+      enterHint: t("chat.copy.enterHint"),
+      history: t("chat.copy.history"),
+      newChat: t("chat.copy.newChat"),
+      conversationLabel: t("chat.copy.conversationLabel"),
+      currentCitations: t("chat.copy.currentCitations"),
+      viewTrace: t("chat.copy.viewTrace"),
+      answerFailed: t("chat.copy.answerFailed"),
+      preparingAnswer: t("chat.copy.preparingAnswer"),
+      retrievingContext: t("chat.copy.retrievingContext"),
+      generatingAnswer: t("chat.copy.generatingAnswer"),
+      assistantUnavailable: t("chat.copy.assistantUnavailable"),
+      inProgress: t("chat.copy.inProgress"),
+      readyToAsk: t("chat.copy.readyToAsk")
+    }),
+    [t]
+  );
 
   const latestTrace = tracesQuery.data?.[0] ?? null;
   const latestModelName = activeStreamTurn?.latestResult?.modelName ?? latestTrace?.modelName ?? null;
@@ -232,7 +277,7 @@ export function ChatPage() {
     target.scrollTop = target.scrollHeight;
   }, [displayedMessages]);
 
-  const streamStatusLabel = resolveStreamStatusLabel(locale, activeStreamTurn);
+  const streamStatusLabel = resolveStreamStatusLabel(chatCopy, activeStreamTurn);
 
   const citationItems: Citation[] = resolveCitationItems(activeStreamTurn, latestTrace?.citationsJson);
   const activeTraceId = activeStreamTurn?.assistantMessage.traceId ?? latestTrace?.id ?? null;
@@ -240,7 +285,7 @@ export function ChatPage() {
     conversationsQuery.data?.find(conversation => conversation.id === activeConversationId) ?? null;
   const conversationCount = conversationsQuery.data?.length ?? 0;
   const workspaceStatus = resolveWorkspaceStatus({
-    locale,
+    copy: chatCopy,
     hasAssistant: activeAssistant != null,
     hasActiveStreamTurn: activeStreamTurn != null,
     streamStatusLabel
@@ -351,12 +396,10 @@ export function ChatPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold tracking-[-0.02em] text-[var(--app-text)]">
-                {locale === "zh" ? "智能问答助手" : "Intelligent answer assistant"}
+                {chatCopy.heroTitle}
               </h2>
               <p className="mt-0.5 text-xs text-[var(--app-text-muted)]">
-                {locale === "zh"
-                  ? "基于知识库的智能问答与溯源"
-                  : "Knowledge-grounded answers with citations and traces"}
+                {chatCopy.heroSubtitle}
               </p>
             </div>
           </div>
@@ -368,8 +411,8 @@ export function ChatPage() {
               </span>
             ) : null}
             <IconButton
-              disabledHint={locale === "zh" ? "更多操作即将支持" : "More actions coming soon"}
-              label={locale === "zh" ? "更多操作" : "More actions"}
+              disabledHint={chatCopy.moreActionsHint}
+              label={chatCopy.moreActions}
             >
               <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" fill="currentColor" r="1" />
@@ -386,42 +429,35 @@ export function ChatPage() {
               <SummaryCard
                 hint={
                   activeConversation
-                    ? locale === "zh"
-                      ? "当前会话会继承最新引用和 Trace 视图。"
-                      : "The active conversation drives the latest citations and trace view."
-                    : locale === "zh"
-                      ? "新问题会自动创建新的会话记录。"
-                      : "A new question will start a fresh conversation."
+                    ? chatCopy.currentWorkspaceHintHasConversation
+                    : chatCopy.currentWorkspaceHintNewConversation
                 }
-                label={locale === "zh" ? "当前工作区" : "Current workspace"}
+                label={chatCopy.currentWorkspace}
                 value={
                   activeConversation?.title ??
-                  (locale === "zh" ? "新会话草稿" : "New conversation draft")
+                  chatCopy.newConversationDraft
                 }
               />
               <SummaryCard
                 hint={
                   activeAssistant
-                    ? locale === "zh"
-                      ? "默认助手已绑定，可以直接发起提问。"
-                      : "The default assistant is bound and ready for questions."
-                    : locale === "zh"
-                      ? "需要先恢复助手配置。"
-                      : "Restore assistant configuration before sending questions."
+                    ? chatCopy.askStatusHintHasAssistant
+                    : chatCopy.askStatusHintNoAssistant
                 }
-                label={locale === "zh" ? "提问状态" : "Ask status"}
+                label={chatCopy.askStatus}
                 value={workspaceStatus}
               />
               <SummaryCard
                 hint={
-                  locale === "zh"
-                    ? `${conversationCount} 个会话，${citationItems.length} 条当前引用。`
-                    : `${conversationCount} conversations, ${citationItems.length} current citations.`
+                  t("chat.copy.citationsCount", {
+                    conversationCount,
+                    citationCount: citationItems.length
+                  })
                 }
-                label={locale === "zh" ? "引用与溯源" : "Citations and trace"}
+                label={chatCopy.citationsAndTrace}
                 value={
                   activeTraceId ??
-                  (locale === "zh" ? "等待本轮 Trace" : "Waiting for next trace")
+                  chatCopy.waitingForNextTrace
                 }
               />
             </div>
@@ -526,16 +562,10 @@ export function ChatPage() {
             <div className="mb-3 flex items-center justify-between px-1">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-muted)]">
-                  {locale === "zh" ? "提问输入区" : "Ask composer"}
+                  {chatCopy.inputSection}
                 </div>
                 <div className="mt-1 text-xs text-[var(--app-text-secondary)]">
-                  {canAsk
-                    ? locale === "zh"
-                      ? "按 Enter 直接发送，引用和 Trace 结果会保留在右侧。"
-                      : "Press Enter to send. Citations and trace results stay visible on the right."
-                    : locale === "zh"
-                      ? "当前助手不可用，输入区已暂时禁用。"
-                      : "The assistant is unavailable, so the composer is temporarily disabled."}
+                  {canAsk ? chatCopy.inputHelpCanAsk : chatCopy.inputHelpDisabled}
                 </div>
               </div>
               <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1 text-[11px] text-[var(--app-text-secondary)]">
@@ -555,16 +585,16 @@ export function ChatPage() {
                       void submitQuestion();
                     }
                   }}
-                  placeholder={locale === "zh" ? "输入问题，按 Enter 发送..." : "Ask a question and press Enter..."}
+                  placeholder={chatCopy.askInputPlaceholder}
                   rows={1}
                   value={composerValue}
                 />
                 <div className="flex items-center gap-2 pr-1">
                   <button
-                    aria-label={locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}
+                    aria-label={chatCopy.fileUploadComingSoon}
                     className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] opacity-65"
                     disabled
-                    title={locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}
+                    title={chatCopy.fileUploadComingSoon}
                     type="button"
                   >
                     <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
@@ -585,8 +615,8 @@ export function ChatPage() {
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between px-2 text-[11px] text-[var(--app-text-muted)]">
-              <span>{locale === "zh" ? "回车发送，Shift + Enter 换行" : "Press Enter to send, Shift + Enter for a new line"}</span>
-              <span>{locale === "zh" ? "文件上传即将支持" : "File upload coming soon"}</span>
+              <span>{chatCopy.enterHint}</span>
+              <span>{chatCopy.fileUploadComingSoon}</span>
             </div>
           </form>
         </div>
@@ -597,7 +627,7 @@ export function ChatPage() {
           <section className="mb-6">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-[0.5px] text-[var(--app-text-muted)]">
-                {locale === "zh" ? "历史会话" : "History"}
+                {chatCopy.history}
               </span>
               <button
                 className="inline-flex items-center gap-1.5 rounded-full border border-[var(--app-border-strong)] px-3 py-1.5 text-[11px] font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
@@ -611,7 +641,7 @@ export function ChatPage() {
                   <line stroke="currentColor" strokeWidth="2" x1="12" x2="12" y1="5" y2="19" />
                   <line stroke="currentColor" strokeWidth="2" x1="5" x2="19" y1="12" y2="12" />
                 </svg>
-                {locale === "zh" ? "新会话" : "New chat"}
+                {chatCopy.newChat}
               </button>
             </div>
 
@@ -652,7 +682,7 @@ export function ChatPage() {
                           {formatConversationUpdatedAt(conversation.updatedAt, locale)}
                         </span>
                         <span className="max-w-[140px] truncate text-[11px] text-[var(--app-text-muted)]">
-                          {locale === "zh" ? "会话记录" : "Conversation"}
+                          {chatCopy.conversationLabel}
                         </span>
                       </div>
                     </button>
@@ -670,11 +700,11 @@ export function ChatPage() {
           <section>
             <div className="mb-3 flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-[0.5px] text-[var(--app-text-muted)]">
-                {locale === "zh" ? "当前引用" : "Current citations"}
+                {chatCopy.currentCitations}
               </span>
               {activeTraceId ? (
                 <Link className="text-[11px] text-[#818cf8] transition hover:text-white" to={`/traces/${activeTraceId}`}>
-                  {locale === "zh" ? "查看 Trace" : "View trace"}
+                  {chatCopy.viewTrace}
                 </Link>
               ) : null}
             </div>

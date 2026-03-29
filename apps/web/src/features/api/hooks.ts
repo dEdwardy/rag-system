@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
   AuditEventRecord,
@@ -373,6 +373,35 @@ export function useConversationTraces(conversationId: string | null) {
     queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces`),
     enabled: conversationId != null
   });
+}
+
+export function useLatestConversationTraces(conversationIds: string[], enabled = true) {
+  const traceQueries = useQueries({
+    queries: conversationIds.map(conversationId => ({
+      queryKey: ["conversation-traces", conversationId],
+      queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces`),
+      select: (traces: TraceRecord[]) => traces[0] ?? null,
+      enabled
+    }))
+  });
+
+  const latestTraceByConversationId = conversationIds.reduce<Record<string, TraceRecord | null>>((acc, conversationId, index) => {
+    acc[conversationId] = traceQueries[index]?.data ?? null;
+    return acc;
+  }, {});
+
+  const isLoading = traceQueries.some(query => query.isLoading);
+  const isError = traceQueries.some(query => query.isError);
+  const failedConversationCount = traceQueries.filter(query => query.isError).length;
+  const error = traceQueries.find(query => query.isError)?.error ?? null;
+
+  return {
+    latestTraceByConversationId,
+    isLoading,
+    isError,
+    failedConversationCount,
+    error
+  };
 }
 
 export function useTrace(traceId: string | null) {

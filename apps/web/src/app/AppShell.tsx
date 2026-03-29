@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useConversations, useDocuments, useKnowledgeBases, useLogout } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
@@ -40,17 +40,6 @@ const APP_SHELL_TEXT: Record<Locale, {
   usage: string;
   reportCenter: string;
   fallbackActiveLabel: string;
-  currentIdentityHeading: string;
-  currentIdentityDescription: string;
-  userIdLabel: string;
-  tenantIdLabel: string;
-  authSourceLabel: string;
-  loginSessionLabel: string;
-  localSessionValue: string;
-  oauthSessionPrefix: string;
-  oauthProviderUnknown: string;
-  sessionIdLabel: string;
-  noSessionValue: string;
 }> = {
   zh: {
     mainHeading: "主要功能",
@@ -62,18 +51,7 @@ const APP_SHELL_TEXT: Record<Locale, {
     traceLog: "Trace 日志",
     usage: "使用统计",
     reportCenter: "报告中心",
-    fallbackActiveLabel: "对话",
-    currentIdentityHeading: "当前身份",
-    currentIdentityDescription: "登录态上下文",
-    userIdLabel: "用户",
-    tenantIdLabel: "租户",
-    authSourceLabel: "来源",
-    loginSessionLabel: "登录会话",
-    localSessionValue: "本地会话",
-    oauthSessionPrefix: "OAuth",
-    oauthProviderUnknown: "提供方未知",
-    sessionIdLabel: "会话",
-    noSessionValue: "无"
+    fallbackActiveLabel: "对话"
   },
   en: {
     mainHeading: "Main",
@@ -85,18 +63,7 @@ const APP_SHELL_TEXT: Record<Locale, {
     traceLog: "Trace log",
     usage: "Usage",
     reportCenter: "Report center",
-    fallbackActiveLabel: "Chat",
-    currentIdentityHeading: "Current identity",
-    currentIdentityDescription: "Active auth context",
-    userIdLabel: "User",
-    tenantIdLabel: "Tenant",
-    authSourceLabel: "Source",
-    loginSessionLabel: "Login session",
-    localSessionValue: "Local session",
-    oauthSessionPrefix: "OAuth",
-    oauthProviderUnknown: "Unknown provider",
-    sessionIdLabel: "Session",
-    noSessionValue: "None"
+    fallbackActiveLabel: "Chat"
   }
 };
 
@@ -185,20 +152,11 @@ function NavIcon({ type }: NavIconProps) {
               ? (
                 <path d="M22 12h-4l-3 9-6-18-3 9H2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
               )
-              : type === "usage"
-                ? (
-                  <>
-                    <line x1="18" x2="18" y1="20" y2="10" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                    <line x1="12" x2="12" y1="20" y2="4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                    <line x1="6" x2="6" y1="20" y2="14" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                  </>
-                )
-                : (
+              : (
                 <>
-                  <path d="M4 4h16v16H4z" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" />
-                  <path d="M8 8h8" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                  <path d="M8 12h8" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                  <path d="M8 16h5" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <line x1="18" x2="18" y1="20" y2="10" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <line x1="12" x2="12" y1="20" y2="4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <line x1="6" x2="6" y1="20" y2="14" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
                 </>
               );
 
@@ -229,31 +187,86 @@ type AppShellProps = {
 export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { locale, setLocale } = useI18n();
-  const { themeColor, themeLayout, setThemeColor, setThemeLayout } = useThemePreferences();
   const logoutMutation = useLogout();
+  const { locale, setLocale, t } = useI18n();
+  const { themeLayout, setThemeLayout } = useThemePreferences();
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const mobileNavToggleRef = useRef<HTMLButtonElement | null>(null);
+  const firstMobileNavLinkRef = useRef<HTMLAnchorElement | null>(null);
   const knowledgeBasesQuery = useKnowledgeBases(isHydrated);
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb", isHydrated);
   const conversationsQuery = useConversations(isHydrated);
   const isChatRoute = location.pathname === "/";
   const localeKey = locale === "zh" ? "zh" : "en";
-  const text = APP_SHELL_TEXT[localeKey];
+  const appShellCopy = useMemo(
+    () => ({
+      primaryNavigation: t("appShell.copy.primaryNavigation"),
+      intelligentWorkspace: t("appShell.copy.intelligentWorkspace"),
+      workspaceMenu: t("appShell.copy.workspaceMenu"),
+      noKnowledgeBase: t("appShell.copy.noKnowledgeBase"),
+      loading: t("appShell.copy.loading"),
+      documentCount: (count: number) => t("appShell.copy.documentCount", { count }),
+      openNavigationMenu: t("appShell.copy.openNavigationMenu"),
+      currentKnowledgeBase: t("appShell.copy.currentKnowledgeBase"),
+      loadingKnowledgeBase: t("appShell.copy.loadingKnowledgeBase"),
+      search: t("appShell.copy.search"),
+      notifications: t("appShell.copy.notifications"),
+      switchToChinese: t("appShell.copy.switchToChinese"),
+      switchToEnglish: t("appShell.copy.switchToEnglish"),
+      closeNavigationMenu: t("appShell.copy.closeNavigationMenu"),
+      mobileWorkspaceMenu: t("appShell.copy.mobileWorkspaceMenu"),
+      workspaceNavigation: t("appShell.copy.workspaceNavigation"),
+      reportCenter: t("appShell.copy.reportCenter"),
+      currentIdentityHeading: t("appShell.copy.currentIdentityHeading"),
+      currentIdentityDescription: t("appShell.copy.currentIdentityDescription"),
+      userIdLabel: t("appShell.copy.userIdLabel"),
+      tenantIdLabel: t("appShell.copy.tenantIdLabel"),
+      authSourceLabel: t("appShell.copy.authSourceLabel"),
+      loginSessionLabel: t("appShell.copy.loginSessionLabel"),
+      localSessionValue: t("appShell.copy.localSessionValue"),
+      oauthSessionPrefix: t("appShell.copy.oauthSessionPrefix"),
+      oauthProviderUnknown: t("appShell.copy.oauthProviderUnknown"),
+      sessionIdLabel: t("appShell.copy.sessionIdLabel"),
+      noSessionValue: t("appShell.copy.noSessionValue"),
+      logout: t("appShell.copy.logout")
+    }),
+    [t]
+  );
 
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (themeColor !== APP_SHELL_THEME.color) {
-      setThemeColor(APP_SHELL_THEME.color);
-    }
-
     if (themeLayout !== APP_SHELL_THEME.layout) {
       setThemeLayout(APP_SHELL_THEME.layout);
     }
-  }, [setThemeColor, setThemeLayout, themeColor, themeLayout]);
+  }, [setThemeLayout, themeLayout]);
+
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isMobileNavOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusTimeoutId = window.setTimeout(() => {
+      firstMobileNavLinkRef.current?.focus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(focusTimeoutId);
+      document.body.style.overflow = previousOverflow;
+      mobileNavToggleRef.current?.focus();
+    };
+  }, [isMobileNavOpen]);
 
   const documentBadge = documentsQuery.isSuccess ? String(documentsQuery.data.length) : null;
   const conversationBadge = conversationsQuery.isSuccess ? String(conversationsQuery.data.length) : null;
@@ -264,10 +277,11 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   );
 
   const activeLabel = getActiveLabel(location.pathname, links, localeKey);
-  const oauthProviderLabel = loginProvenance.oauthProvider?.toUpperCase() ?? text.oauthProviderUnknown;
-  const loginSessionBadgeText = loginProvenance.type === "oauth_session"
-    ? `${text.oauthSessionPrefix} · ${oauthProviderLabel}`
-    : text.localSessionValue;
+  const oauthProviderLabel = loginProvenance.oauthProvider?.toUpperCase() ?? appShellCopy.oauthProviderUnknown;
+  const loginSessionBadgeText =
+    loginProvenance.type === "oauth_session"
+      ? `${appShellCopy.oauthSessionPrefix} · ${oauthProviderLabel}`
+      : appShellCopy.localSessionValue;
 
   function onLogoutClick() {
     logoutMutation.mutate(undefined, {
@@ -289,7 +303,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
       />
 
       <div className="relative z-10 flex h-full">
-        <aside aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
+        <aside aria-label={appShellCopy.primaryNavigation} className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] lg:flex">
           <div className="border-b border-[var(--app-border)] px-6 py-6">
             <div className="flex items-center gap-3.5">
               <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-lg font-bold text-white shadow-[0_4px_20px_var(--app-accent-glow)]">
@@ -300,13 +314,13 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                   RAG System
                 </h1>
                 <p className="mt-0.5 text-[11px] text-[var(--app-text-muted)]">
-                  {locale === "zh" ? "智能知识库问答工作台" : "Intelligent knowledge workspace"}
+                  {appShellCopy.intelligentWorkspace}
                 </p>
               </div>
             </div>
           </div>
 
-          <nav aria-label={locale === "zh" ? "工作区菜单" : "Workspace menu"} className="flex-1 px-4 py-5">
+          <nav aria-label={appShellCopy.workspaceMenu} className="flex-1 px-4 py-5">
             {links.map(group => (
               <div className="mb-6" key={group.heading}>
                 <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
@@ -353,17 +367,13 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
-                    {activeKnowledgeBase?.name ?? (locale === "zh" ? "未选择知识库" : "No knowledge base")}
+                    {activeKnowledgeBase?.name ?? appShellCopy.noKnowledgeBase}
                   </div>
                   <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
                     {documentsQuery.isSuccess
-                      ? locale === "zh"
-                        ? `${documentsQuery.data.length} 个文档`
-                        : `${documentsQuery.data.length} documents`
-                      : locale === "zh"
-                        ? "加载中"
-                        : "Loading"}
+                      ? appShellCopy.documentCount(documentsQuery.data.length)
+                      : appShellCopy.loading}
                   </div>
                 </div>
               </div>
@@ -371,29 +381,29 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
               <div className="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-bg)]/80 p-3" data-testid="current-identity-card">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--app-text-secondary)]">
-                    {text.currentIdentityHeading}
+                    {appShellCopy.currentIdentityHeading}
                   </div>
                   <div className="rounded-full border border-[var(--app-border)] px-2 py-0.5 text-[10px] text-[var(--app-text-muted)]">
-                    {text.currentIdentityDescription}
+                    {appShellCopy.currentIdentityDescription}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1 text-[11px] leading-5">
-                  <span className="text-[var(--app-text-muted)]">{text.userIdLabel}</span>
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.userIdLabel}</span>
                   <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.userId}>{currentIdentity.userId}</span>
 
-                  <span className="text-[var(--app-text-muted)]">{text.tenantIdLabel}</span>
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.tenantIdLabel}</span>
                   <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.tenantId}>{currentIdentity.tenantId}</span>
 
-                  <span className="text-[var(--app-text-muted)]">{text.authSourceLabel}</span>
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.authSourceLabel}</span>
                   <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.authSource}>{currentIdentity.authSource}</span>
 
-                  <span className="text-[var(--app-text-muted)]">{text.loginSessionLabel}</span>
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.loginSessionLabel}</span>
                   <span className="truncate font-medium text-[var(--app-text)]" title={loginSessionBadgeText}>{loginSessionBadgeText}</span>
 
-                  <span className="text-[var(--app-text-muted)]">{text.sessionIdLabel}</span>
-                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.sessionId ?? text.noSessionValue}>
-                    {currentIdentity.sessionId ?? text.noSessionValue}
+                  <span className="text-[var(--app-text-muted)]">{appShellCopy.sessionIdLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.sessionId ?? appShellCopy.noSessionValue}>
+                    {currentIdentity.sessionId ?? appShellCopy.noSessionValue}
                   </span>
                 </div>
               </div>
@@ -404,6 +414,22 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden" id="workspace-main">
           <header className="sticky top-0 z-50 flex h-[70px] items-center justify-between border-b border-[var(--app-border)] bg-[rgba(22,22,29,0.8)] px-4 backdrop-blur-xl md:px-8">
             <div className="flex min-w-0 items-center gap-4">
+              <button
+                aria-controls="mobile-nav-drawer"
+                aria-expanded={isMobileNavOpen}
+                aria-label={appShellCopy.openNavigationMenu}
+                className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)] transition duration-300 hover:border-[var(--app-accent)] hover:text-[var(--app-accent)] lg:hidden"
+                data-testid="mobile-nav-toggle"
+                onClick={() => setIsMobileNavOpen(current => !current)}
+                ref={mobileNavToggleRef}
+                type="button"
+              >
+                <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <line x1="4" x2="20" y1="7" y2="7" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <line x1="4" x2="20" y1="12" y2="12" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                  <line x1="4" x2="20" y1="17" y2="17" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                </svg>
+              </button>
               <div className="flex items-center gap-2 text-[13px]">
                 <span className="text-[var(--app-text-muted)]">RAG System</span>
                 <span className="text-[var(--app-text-muted)]/50">/</span>
@@ -412,10 +438,10 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
               <div
                 aria-hidden="true"
                 className="hidden items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--app-text-secondary)] md:flex"
-                title={locale === "zh" ? "当前知识库" : "Current knowledge base"}
+                title={appShellCopy.currentKnowledgeBase}
               >
                 <span className="h-2 w-2 rounded-full bg-[#10b981]" />
-                {activeKnowledgeBase?.name ?? (locale === "zh" ? "知识库加载中" : "Loading knowledge base")}
+                {activeKnowledgeBase?.name ?? appShellCopy.loadingKnowledgeBase}
                 <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
                   <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
                 </svg>
@@ -423,13 +449,13 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
             </div>
 
             <div className="flex items-center gap-3">
-              <ActionButton label={locale === "zh" ? "搜索" : "Search"}>
+              <ActionButton label={appShellCopy.search}>
                 <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
                   <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
                   <line stroke="currentColor" strokeWidth="2" x1="21" x2="16.65" y1="21" y2="16.65" />
                 </svg>
               </ActionButton>
-              <ActionButton label={locale === "zh" ? "通知" : "Notifications"}>
+              <ActionButton label={appShellCopy.notifications}>
                 <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" />
                   <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" />
@@ -437,7 +463,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
               </ActionButton>
               <div className="flex rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-[3px]">
                 <button
-                  aria-label={locale === "zh" ? "切换中文" : "Switch to Chinese"}
+                  aria-label={appShellCopy.switchToChinese}
                   aria-pressed={locale === "zh"}
                   className={[
                     "rounded-md px-3 py-1.5 text-xs font-medium transition duration-300",
@@ -449,7 +475,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                   中
                 </button>
                 <button
-                  aria-label={locale === "en" ? "Switch to English" : "切换到英文"}
+                  aria-label={appShellCopy.switchToEnglish}
                   aria-pressed={locale === "en"}
                   className={[
                     "rounded-md px-3 py-1.5 text-xs font-medium transition duration-300",
@@ -467,10 +493,98 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                 onClick={onLogoutClick}
                 type="button"
               >
-                {logoutMutation.isPending ? (locale === "zh" ? "退出中..." : "Logging out...") : locale === "zh" ? "退出登录" : "Logout"}
+                {logoutMutation.isPending ? (locale === "zh" ? "退出中..." : "Logging out...") : appShellCopy.logout}
               </button>
             </div>
           </header>
+
+          {isMobileNavOpen ? (
+            <div className="fixed inset-0 z-[60] lg:hidden">
+              <button
+                aria-label={appShellCopy.closeNavigationMenu}
+                className="absolute inset-0 bg-[rgba(7,10,18,0.72)]"
+                onClick={() => setIsMobileNavOpen(false)}
+                type="button"
+              />
+
+              <div
+                aria-label={appShellCopy.mobileWorkspaceMenu}
+                className="absolute inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.45)]"
+                data-testid="mobile-nav-drawer"
+                id="mobile-nav-drawer"
+                onKeyDown={event => {
+                  if (event.key === "Escape") {
+                    setIsMobileNavOpen(false);
+                  }
+                }}
+                role="dialog"
+              >
+                <div className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-5">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--app-text)]">
+                      {appShellCopy.workspaceNavigation}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--app-text-muted)]">
+                      {activeKnowledgeBase?.name ?? appShellCopy.loadingKnowledgeBase}
+                    </div>
+                  </div>
+
+                  <button
+                    aria-label={appShellCopy.closeNavigationMenu}
+                    className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] text-[var(--app-text)] transition duration-300 hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
+                    onClick={() => setIsMobileNavOpen(false)}
+                    type="button"
+                  >
+                    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <line x1="6" x2="18" y1="6" y2="18" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                      <line x1="18" x2="6" y1="6" y2="18" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                    </svg>
+                  </button>
+                </div>
+
+                <nav aria-label={appShellCopy.mobileWorkspaceMenu} className="flex-1 overflow-y-auto px-4 py-5">
+                  {links.map((group, groupIndex) => (
+                    <div className="mb-6" key={`mobile-${group.heading}`}>
+                      <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
+                        {group.heading}
+                      </div>
+                      {group.items.map((item, itemIndex) => {
+                        const isActive = isLinkActivePath(location.pathname, item);
+
+                        return (
+                          <NavLink
+                            className={[
+                              "group relative mb-1 flex items-center gap-3 rounded-[10px] px-3.5 py-3 text-sm font-medium transition duration-300 ease-out hover:-translate-y-0.5",
+                              isActive
+                                ? "bg-[linear-gradient(135deg,rgba(99,102,241,0.15)_0%,rgba(99,102,241,0.05)_100%)] text-[#818cf8]"
+                                : "text-[var(--app-text-secondary)] hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+                            ].join(" ")}
+                            key={`mobile-${item.to}-${item.label}`}
+                            onClick={() => setIsMobileNavOpen(false)}
+                            ref={groupIndex === 0 && itemIndex === 0 ? firstMobileNavLinkRef : undefined}
+                            to={item.to}
+                          >
+                            {isActive ? (
+                              <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-[3px] bg-[var(--app-accent)]" />
+                            ) : null}
+                            <span className={isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"}>
+                              <NavIcon type={item.icon} />
+                            </span>
+                            <span>{item.label}</span>
+                            {item.badge ? (
+                              <span className="ml-auto rounded-full bg-[var(--app-surface-muted)] px-2 py-0.5 text-[11px] font-semibold text-[var(--app-text-muted)]">
+                                {item.badge}
+                              </span>
+                            ) : null}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </nav>
+              </div>
+            </div>
+          ) : null}
 
           <div className={isChatRoute ? "flex min-h-0 flex-1 overflow-hidden" : "flex-1 overflow-auto p-4 md:p-6"}>
             <Outlet />

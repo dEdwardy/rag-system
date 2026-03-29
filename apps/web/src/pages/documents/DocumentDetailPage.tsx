@@ -5,13 +5,14 @@ import {
   Button,
   Divider,
   Group,
+  Modal,
   Paper,
   Stack,
   Text,
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
 import { StatePanel } from "../../components/StatePanel";
@@ -50,7 +51,8 @@ export function DocumentDetailPage() {
   const deleteMutation = useDeleteDocument();
   const document = documentQuery.data;
   const chunkRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const { formatDateTime, t, locale } = useI18n();
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const { formatDateTime, t } = useI18n();
 
   useEffect(() => {
     if (!focusedChunkId || !chunksQuery.data) {
@@ -74,6 +76,72 @@ export function DocumentDetailPage() {
 
   return (
     <Stack gap="md">
+      <Modal
+        centered
+        closeOnClickOutside={!deleteMutation.isPending}
+        closeOnEscape={!deleteMutation.isPending}
+        data-testid="document-delete-confirmation"
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setIsDeleteConfirmOpen(false);
+          }
+        }}
+        opened={isDeleteConfirmOpen}
+        title={t("documents.detail.deleteDialogTitle")}
+      >
+        <Stack gap="md">
+          <Text c="var(--app-text-secondary)" size="sm">
+            {document
+              ? t("documents.detail.deleteDialogDescriptionWithTitle", { title: document.title })
+              : t("documents.detail.deleteDialogDescriptionFallback")}
+          </Text>
+
+          <Group justify="flex-end">
+            <Button
+              data-testid="document-delete-cancel"
+              disabled={deleteMutation.isPending}
+              onClick={() => setIsDeleteConfirmOpen(false)}
+              radius="xl"
+              type="button"
+              variant="default"
+            >
+              {t("documents.detail.deleteCancel")}
+            </Button>
+            <Button
+              color="red"
+              data-testid="document-delete-confirm"
+              loading={deleteMutation.isPending}
+              onClick={async () => {
+                if (!document) {
+                  return;
+                }
+
+                try {
+                  await deleteMutation.mutateAsync({
+                    documentId: document.id
+                  });
+                  setIsDeleteConfirmOpen(false);
+                  notifications.show({
+                    color: "indigo",
+                    message: t("documents.detail.deleteSuccess", { title: document.title })
+                  });
+                  navigate("/documents");
+                } catch (error) {
+                  notifications.show({
+                    color: "red",
+                    message: error instanceof Error ? error.message : t("documents.detail.deleteError")
+                  });
+                }
+              }}
+              radius="xl"
+              type="button"
+            >
+              {t("common.actions.delete")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Paper className="workspace-hero" p="lg" radius="xl">
         <Stack gap={10}>
           <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/documents">
@@ -84,7 +152,7 @@ export function DocumentDetailPage() {
               <Box className="workspace-hero-icon">DOC</Box>
               <div className="workspace-hero-copy">
                 <Text className="workspace-hero-kicker">
-                  {locale === "zh" ? "文档详情" : "Document detail"}
+                  {t("documents.detail.kicker")}
                 </Text>
                 <Title
                   order={3}
@@ -113,9 +181,7 @@ export function DocumentDetailPage() {
                   </Badge>
                 </Group>
                 <Text className="workspace-hero-sidecopy" ta="right">
-                  {locale === "zh"
-                    ? "保留现有 trace 深链和 chunk 聚焦能力，只继续收紧信息层级、状态分区和阅读密度。"
-                    : "Keep the same trace deep-link flow and tighten hierarchy, focus states, and reading density only."}
+                  {t("documents.detail.detailHeroCopy")}
                 </Text>
               </Stack>
             ) : null}
@@ -145,7 +211,7 @@ export function DocumentDetailPage() {
                   <Stack gap="md">
                     <Group justify="space-between" wrap="nowrap">
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "文档状态" : "Document status"}
+                        {t("documents.detail.documentStatus")}
                       </Text>
                       <Badge
                         color={document.status === "ready" ? "indigo" : document.status === "failed" ? "red" : "yellow"}
@@ -186,24 +252,9 @@ export function DocumentDetailPage() {
                       <Button
                         className="workspace-button"
                         color="red"
+                        data-testid="document-delete-trigger"
                         loading={deleteMutation.isPending}
-                        onClick={async () => {
-                          try {
-                            await deleteMutation.mutateAsync({
-                              documentId: document.id
-                            });
-                            notifications.show({
-                              color: "indigo",
-                              message: t("documents.detail.deleteSuccess", { title: document.title })
-                            });
-                            navigate("/documents");
-                          } catch (error) {
-                            notifications.show({
-                              color: "red",
-                              message: error instanceof Error ? error.message : t("documents.detail.deleteError")
-                            });
-                          }
-                        }}
+                        onClick={() => setIsDeleteConfirmOpen(true)}
                         radius="xl"
                         size="xs"
                         variant="light"
@@ -259,12 +310,10 @@ export function DocumentDetailPage() {
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                   <Stack gap="sm">
                     <Text className="workspace-section-heading">
-                      {locale === "zh" ? "存储与诊断" : "Storage and diagnostics"}
+                      {t("documents.detail.storageAndDiagnostics")}
                     </Text>
                     <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "保留底层存储标识和错误信息，但降为次级信息区。"
-                        : "Keep the storage key and error details available, but treat them as secondary diagnostics."}
+                      {t("documents.detail.storageAndDiagnosticsCopy")}
                     </Text>
                     <pre className="workspace-code-block workspace-code-block-scroll">{document.storageKey}</pre>
                     {document.errorMessage ? (
@@ -279,25 +328,15 @@ export function DocumentDetailPage() {
                   <Alert color="red" radius="xl" variant="light">
                     {runsQuery.error instanceof Error
                       ? runsQuery.error.message
-                      : locale === "zh"
-                        ? "加载文档 runs 失败。"
-                        : "Failed to load document runs."}
+                      : t("documents.detail.runsLoadError")}
                   </Alert>
                 ) : (
                   <DocumentRunList
-                    title={locale === "zh" ? "文档 runs" : "Document runs"}
-                    description={
-                      locale === "zh"
-                        ? "按版本和时间查看该文档的 upload / reindex / external resync 历史。"
-                        : "Review the upload, reindex, and external resync history for this document by version and time."
-                    }
+                    title={t("documents.detail.runsTitle")}
+                    description={t("documents.detail.runsDescription")}
                     runs={runsQuery.data ?? []}
-                    emptyTitle={locale === "zh" ? "暂无文档 runs" : "No document runs yet"}
-                    emptyDescription={
-                      locale === "zh"
-                        ? "当前文档还没有可展示的执行历史。"
-                        : "This document does not have execution history yet."
-                    }
+                    emptyTitle={t("documents.detail.runsEmptyTitle")}
+                    emptyDescription={t("documents.detail.runsEmptyDescription")}
                   />
                 )}
               </Stack>
@@ -311,9 +350,7 @@ export function DocumentDetailPage() {
                   <div>
                     <Text className="workspace-section-heading">{t("documents.detail.chunksTitle")}</Text>
                     <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "Chunk 列表逻辑不变，只继续压缩间距、聚焦态和来自 trace 的定位信息。"
-                        : "The chunk list keeps its logic unchanged and only tightens hierarchy, focus state, and density."}
+                      {t("documents.detail.chunkListCopy")}
                     </Text>
                   </div>
                   <Badge color="indigo" variant="light">

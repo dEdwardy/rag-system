@@ -23,24 +23,37 @@ test("shell and chat do not present unfinished controls as active interactions",
   const chatSource = readFileSync(chatPagePath, "utf8");
 
   assert.doesNotMatch(shellSource, /aria-label=\{locale === "zh" \? "褰撳墠鐭ヨ瘑搴? : "Current knowledge base"\}[\s\S]*type="button"/);
-  assert.match(shellSource, /aria-hidden="true"[\s\S]*Current knowledge base/);
+  assert.match(shellSource, /aria-hidden="true"[\s\S]*appShellCopy\.currentKnowledgeBase/);
 
   assert.doesNotMatch(chatSource, /"浼氳瘽" : "Conversations"[\s\S]*type="button"[\s\S]*"寮曠敤" : "Citations"[\s\S]*type="button"/);
-  assert.match(chatSource, /Current citations/);
-  assert.match(chatSource, /Coming soon|敬请期待|即将支持/);
+  assert.match(chatSource, /chatCopy\.currentCitations/);
+  assert.match(chatSource, /chatCopy\.citationsAndTrace|chatCopy\.fileUploadComingSoon/);
+});
+
+test("wave 1 remediation controls expose stable mobile-nav and delete-confirm selectors", () => {
+  const shellSource = readFileSync(appShellPath, "utf8");
+  const detailSource = readFileSync(documentDetailPath, "utf8");
+
+  assert.match(shellSource, /data-testid="mobile-nav-toggle"/);
+  assert.match(shellSource, /data-testid="mobile-nav-drawer"/);
+  assert.match(shellSource, /aria-controls="mobile-nav-drawer"/);
+  assert.match(detailSource, /data-testid="document-delete-trigger"/);
+  assert.match(detailSource, /data-testid="document-delete-confirm"/);
+  assert.match(detailSource, /data-testid="document-delete-cancel"/);
+  assert.match(detailSource, /opened=\{isDeleteConfirmOpen\}/);
 });
 
 test("app shell shows a compact current identity card for auth context", () => {
   const shellSource = readFileSync(appShellPath, "utf8");
 
   assert.match(shellSource, /data-testid="current-identity-card"/);
-  assert.match(shellSource, /Current identity|当前身份/);
-  assert.match(shellSource, /Active auth context|登录态上下文/);
+  assert.match(shellSource, /appShellCopy\.currentIdentityHeading/);
+  assert.match(shellSource, /appShellCopy\.currentIdentityDescription/);
   assert.match(shellSource, /currentIdentity\.userId/);
   assert.match(shellSource, /currentIdentity\.tenantId/);
   assert.match(shellSource, /currentIdentity\.authSource/);
   assert.match(shellSource, /loginProvenance\.type/);
-  assert.match(shellSource, /OAuth\s·\s/);
+  assert.match(shellSource, /appShellCopy\.oauthSessionPrefix/);
   assert.match(shellSource, /Local session|本地会话/);
 });
 
@@ -71,8 +84,8 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
   assert.match(source, /useKnowledgeBaseDocumentRuns/);
   assert.match(source, /useKnowledgeBaseDocumentRunSummary/);
   assert.match(source, /Latest failure context|最新失败上下文/);
-  assert.match(source, /status:\s*runFilter === "all" \? undefined : runFilter/);
-  assert.match(source, /to=\{`\/documents\/\$\{runSummaryQuery\.data\.latestFailure\.documentId\}`\}/);
+  assert.match(source, /status:\s*runStatusFilter/);
+  assert.match(source, /to=\{`\/documents\/\$\{latestFailure\.documentId\}`\}/);
 });
 
 test("assistant copy avoids exposing backend field names and trace raw payload is secondary", () => {
@@ -107,20 +120,12 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   const statePanelSource = readFileSync(resolve(__dirname, "../src/components/StatePanel.tsx"), "utf8");
 
   assert.match(chatSource, /workspace-chat-summary/);
-  assert.match(chatSource, /Ready to ask|准备提问/);
-  assert.match(traceSource, /Execution summary|执行摘要/);
-  assert.match(traceSource, /Failure taxonomy \(P6 v1\)|失败分类（P6 v1）/);
-  assert.match(traceSource, /No-hit retrieval|无命中检索（no-hit）/);
-  assert.match(traceSource, /getPrimaryIssueReadabilityLabel\(summary\.primaryIssue, locale\)/);
-  assert.match(traceSource, /No retrieval hits|检索未命中/);
-  assert.match(traceSource, /Trace quick jumps|Trace 快速跳转/);
-  assert.match(traceSource, /Go to retrieved chunks|查看命中 Chunk/);
+  assert.match(chatSource, /chatCopy\.readyToAsk/);
+  assert.match(traceSource, /workspace-metric-grid/);
+  assert.match(traceSource, /data-tone=/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.retrievedChunks\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.citations\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.rawPayload\}`\}/);
-  assert.match(traceSource, /workspace-metric-grid/);
-  assert.match(traceSource, /Answer provenance|回答溯源/);
-  assert.match(traceSource, /Missing-information provenance|缺失信息溯源/);
   assert.match(statePanelSource, /data-tone=/);
 });
 

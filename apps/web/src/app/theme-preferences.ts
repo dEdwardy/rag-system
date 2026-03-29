@@ -19,9 +19,14 @@ export const DEFAULT_THEME_PREFERENCES: ThemePreferences = {
 type StorageLike = Pick<Storage, "getItem">;
 type StorageWriterLike = Pick<Storage, "setItem">;
 
+export function getThemeColorScheme(themeColor: ThemeColorMode): "light" | "dark" {
+  return themeColor === "constrained-light" ? "light" : "dark";
+}
+
 function applyThemeDataset(preferences: ThemePreferences) {
   document.documentElement.dataset.themeColor = preferences.themeColor;
   document.documentElement.dataset.themeLayout = preferences.themeLayout;
+  document.documentElement.style.colorScheme = getThemeColorScheme(preferences.themeColor);
 }
 
 export function normalizeThemeColor(value: string | null | undefined): ThemeColorMode {
