@@ -482,6 +482,161 @@ test("AuthController oauthProviderStart sets state cookie and redirects to GitHu
   }
 });
 
+test("AuthService completeOauthProviderCallback reuses local user by email, creates identity link, and creates session", async () => {
+  const calls = {
+    linkLookup: null,
+    userLookup: null,
+    linkCreate: null,
+    sessionCreate: null
+  };
+
+  const authService = new AuthService(
+    {
+      authIdentityLink: {
+        findUnique: async ({ where }) => {
+          calls.linkLookup = where;
+          return null;
+        },
+        create: async ({ data }) => {
+          calls.linkCreate = data;
+          return { id: "link-1" };
+        }
+      },
+      user: {
+        findUnique: async ({ where }) => {
+          calls.userLookup = where;
+          return {
+            id: "user-existing",
+            tenantId: "tenant-1",
+            role: "member",
+            status: "active"
+          };
+        }
+      },
+      authSession: {
+        create: async ({ data }) => {
+          calls.sessionCreate = data;
+          return { id: "session-github-1" };
+        }
+      }
+    },
+    {
+      exchangeCodeForIdentity: async ({ code }) => {
+        assert.equal(code, "github-code-123");
+        return {
+          subject: "github-subject-123",
+          email: "existing@example.com",
+          profileSnapshot: {
+            id: 123,
+            login: "existing-user"
+          }
+        };
+      }
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: "github",
+    code: "github-code-123",
+    state: "state-1",
+    expectedState: "state-1"
+  });
+
+  assert.equal(result.identity.userId, "user-existing");
+  assert.equal(result.identity.tenantId, "tenant-1");
+  assert.equal(result.identity.sessionId, "session-github-1");
+  assert.equal(result.identity.authSource, "session");
+  assert.deepEqual(calls.linkLookup, {
+    provider_subject: {
+      provider: "github",
+      subject: "github-subject-123"
+    }
+  });
+  assert.deepEqual(calls.userLookup, { email: "existing@example.com" });
+  assert.equal(calls.linkCreate.userId, "user-existing");
+  assert.equal(calls.linkCreate.provider, "github");
+  assert.equal(calls.linkCreate.subject, "github-subject-123");
+  assert.equal(calls.linkCreate.emailSnapshot, "existing@example.com");
+  assert.ok(calls.linkCreate.lastLoginAt instanceof Date);
+  assert.equal(calls.sessionCreate.userId, "user-existing");
+  assert.ok(calls.sessionCreate.lastSeenAt instanceof Date);
+});
+
+test("AuthController oauthProviderCallback validates state cookie and writes oauth/session cookies", async () => {
+  const cookies = [];
+  const callbackCalls = [];
+  const controller = new AuthController({
+    completeOauthProviderCallback: async (input) => {
+      callbackCalls.push(input);
+      return {
+        identity: {
+          userId: "user-1",
+          tenantId: "tenant-1",
+          role: "owner",
+          sessionId: "session-1",
+          authSource: "session"
+        },
+        expiresAt: "2030-01-01T00:00:00.000Z"
+      };
+    }
+  });
+
+  const result = await controller.oauthProviderCallback(
+    {
+      provider: "github"
+    },
+    {
+      code: "callback-code-1",
+      state: "state-cookie-1"
+    },
+    {
+      headers: {
+        cookie: "other=1; rag_oauth_state=state-cookie-1"
+      }
+    },
+    {
+      setHeader: (name, value) => {
+        if (name === "Set-Cookie") {
+          cookies.push(value);
+        }
+      }
+    }
+  );
+
+  assert.equal(result.identity.sessionId, "session-1");
+  assert.deepEqual(callbackCalls, [
+    {
+      provider: "github",
+      code: "callback-code-1",
+      state: "state-cookie-1",
+      expectedState: "state-cookie-1"
+    }
+  ]);
+  assert.equal(cookies.length, 1);
+  assert.ok(Array.isArray(cookies[0]));
+  assert.match(cookies[0][0], /^rag_oauth_state=;/);
+  assert.match(cookies[0][1], /^rag_session=session-1/);
+});
+
+test("AuthService completeOauthProviderCallback rejects mismatched state", async () => {
+  const authService = new AuthService({}, {
+    exchangeCodeForIdentity: async () => {
+      throw new Error("should not exchange when state is invalid");
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      authService.completeOauthProviderCallback({
+        provider: "github",
+        code: "callback-code-2",
+        state: "state-a",
+        expectedState: "state-b"
+      }),
+    /Invalid OAuth state/
+  );
+});
+
 test("AuthService login creates session identity and logout revokes session", async () => {
   const loginEmail = "default-user@example.com";
   const loginPassword = "local-password-1";

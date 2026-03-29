@@ -1,8 +1,16 @@
-import { Injectable, NotImplementedException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  NotImplementedException,
+  ServiceUnavailableException,
+  UnauthorizedException
+} from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { compare } from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "../../infra/database/prisma.service";
 import {
+  DEFAULT_DEV_TENANT_ID,
   DEFAULT_AUTH_SESSION_TTL_HOURS,
   DEFAULT_GITHUB_OAUTH_AUTHORIZE_URL,
   DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS,
@@ -15,10 +23,19 @@ import {
 } from "./auth-identity.contract";
 import { evaluateOwnerResourceAccess, type ResourceAccessPolicyInput } from "./resource-access-policy.contract";
 import type { OauthProvider } from "./auth.schemas";
+import {
+  GITHUB_OAUTH_PROVIDER,
+  HttpGithubOauthProvider,
+  type GithubOauthProvider
+} from "./github-oauth.provider";
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(GITHUB_OAUTH_PROVIDER)
+    private readonly githubOauthProvider: GithubOauthProvider = new HttpGithubOauthProvider()
+  ) {}
 
   startOauthProvider(input: {
     provider: OauthProvider;
@@ -78,29 +95,143 @@ export class AuthService {
       throw new UnauthorizedException("Invalid email or password.");
     }
 
-    const now = Date.now();
-    const expiresAt = new Date(now + this.resolveSessionTtlMs());
-    const session = await this.prisma.authSession.create({
-      data: {
-        userId: user.id,
-        expiresAt,
-        lastSeenAt: new Date(now)
+    return this.createSessionResultForUser({
+      userId: user.id,
+      tenantId: user.tenantId,
+      role: user.role
+    });
+  }
+
+  async completeOauthProviderCallback(input: {
+    provider: OauthProvider;
+    code: string;
+    state: string;
+    expectedState: string | null;
+  }): Promise<{ identity: AuthIdentity; expiresAt: string }> {
+    if (input.provider !== "github") {
+      throw new NotImplementedException(`OAuth provider '${input.provider}' is not implemented yet.`);
+    }
+
+    if (input.expectedState == null || input.expectedState !== input.state) {
+      throw new UnauthorizedException("Invalid OAuth state.");
+    }
+
+    const githubIdentity = await this.githubOauthProvider.exchangeCodeForIdentity({
+      code: input.code
+    });
+    const profileSnapshot = githubIdentity.profileSnapshot as Prisma.InputJsonValue;
+
+    const normalizedEmail = typeof githubIdentity.email === "string" ? this.normalizeEmail(githubIdentity.email) : "";
+    const now = new Date();
+
+    const existingLink = await this.prisma.authIdentityLink.findUnique({
+      where: {
+        provider_subject: {
+          provider: "github",
+          subject: githubIdentity.subject
+        }
       },
       select: {
-        id: true
+        id: true,
+        userId: true,
+        user: {
+          select: {
+            id: true,
+            tenantId: true,
+            role: true,
+            status: true
+          }
+        }
       }
     });
 
-    return {
-      identity: {
-        userId: user.id,
-        tenantId: user.tenantId,
-        role: user.role,
-        sessionId: session.id,
-        authSource: "session"
-      },
-      expiresAt: expiresAt.toISOString()
-    };
+    let user = existingLink?.user ?? null;
+    if (user != null && user.status !== "active") {
+      throw new UnauthorizedException("Linked account is inactive.");
+    }
+
+    if (user == null && normalizedEmail.length > 0) {
+      user = await this.prisma.user.findUnique({
+        where: {
+          email: normalizedEmail
+        },
+        select: {
+          id: true,
+          tenantId: true,
+          role: true,
+          status: true
+        }
+      });
+
+      if (user != null && user.status !== "active") {
+        throw new UnauthorizedException("Account is inactive.");
+      }
+    }
+
+    if (user == null) {
+      const tenantId = this.resolveOauthDefaultTenantId();
+      const tenant = await this.prisma.tenant.findUnique({
+        where: {
+          id: tenantId
+        },
+        select: {
+          id: true
+        }
+      });
+
+      if (tenant == null) {
+        throw new ServiceUnavailableException("Default tenant is not available for OAuth login.");
+      }
+
+      const displayName = this.resolveGithubDisplayName(githubIdentity.profileSnapshot);
+      user = await this.prisma.user.create({
+        data: {
+          tenantId,
+          name: displayName ?? `github-${githubIdentity.subject}`,
+          displayName,
+          email: normalizedEmail.length > 0 ? normalizedEmail : null,
+          status: "active"
+        },
+        select: {
+          id: true,
+          tenantId: true,
+          role: true,
+          status: true
+        }
+      });
+    }
+
+    if (existingLink == null) {
+      await this.prisma.authIdentityLink.create({
+        data: {
+          userId: user.id,
+          provider: "github",
+          subject: githubIdentity.subject,
+          emailSnapshot: normalizedEmail.length > 0 ? normalizedEmail : null,
+          profileSnapshot,
+          lastLoginAt: now
+        }
+      });
+    } else {
+      await this.prisma.authIdentityLink.update({
+        where: {
+          id: existingLink.id
+        },
+        data: {
+          userId: user.id,
+          emailSnapshot: normalizedEmail.length > 0 ? normalizedEmail : null,
+          profileSnapshot,
+          lastLoginAt: now
+        }
+      });
+    }
+
+    return this.createSessionResultForUser({
+      userId: user.id,
+      tenantId: user.tenantId,
+      role: user.role,
+      now
+    });
   }
 
   async logout(input: { sessionId?: string | null }): Promise<{ ok: true }> {
@@ -166,6 +297,52 @@ export class AuthService {
     }
 
     return parsed * 60 * 60 * 1000;
+  }
+
+  private async createSessionResultForUser(input: {
+    userId: string;
+    tenantId: string;
+    role: AuthIdentity["role"];
+    now?: Date;
+  }): Promise<{ identity: AuthIdentity; expiresAt: string }> {
+    const now = input.now ?? new Date();
+    const expiresAt = new Date(now.getTime() + this.resolveSessionTtlMs());
+    const session = await this.prisma.authSession.create({
+      data: {
+        userId: input.userId,
+        expiresAt,
+        lastSeenAt: now
+      },
+      select: {
+        id: true
+      }
+    });
+
+    return {
+      identity: {
+        userId: input.userId,
+        tenantId: input.tenantId,
+        role: input.role,
+        sessionId: session.id,
+        authSource: "session"
+      },
+      expiresAt: expiresAt.toISOString()
+    };
+  }
+
+  private resolveOauthDefaultTenantId(): string {
+    const configured = (process.env.AUTH_DEFAULT_TENANT_ID ?? "").trim();
+    return configured.length > 0 ? configured : DEFAULT_DEV_TENANT_ID;
+  }
+
+  private resolveGithubDisplayName(profileSnapshot: Record<string, unknown>): string | null {
+    const fromName = typeof profileSnapshot.name === "string" ? profileSnapshot.name.trim() : "";
+    if (fromName.length > 0) {
+      return fromName;
+    }
+
+    const fromLogin = typeof profileSnapshot.login === "string" ? profileSnapshot.login.trim() : "";
+    return fromLogin.length > 0 ? fromLogin : null;
   }
 
   private resolveGithubOauthConfig(): {

@@ -5,6 +5,7 @@ import { AUTH_ACL_GUARD_HOOK, NOOP_AUTH_ACL_GUARD_HOOK } from "./auth-acl-guard-
 import { AuthContextMiddleware } from "./auth-context.middleware";
 import { AUTH_IDENTITY_PROVIDER } from "./auth-provider.contract";
 import { AuthController } from "./auth.controller";
+import { GITHUB_OAUTH_PROVIDER, HttpGithubOauthProvider } from "./github-oauth.provider";
 import { AuthRoutePolicyGuard } from "./auth-route-policy.guard";
 import { AuthService } from "./auth.service";
 import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
@@ -14,10 +15,15 @@ import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
   controllers: [AuthController],
   providers: [
     SessionCookieAuthProvider,
+    HttpGithubOauthProvider,
     AuthService,
     {
       provide: AUTH_IDENTITY_PROVIDER,
       useExisting: SessionCookieAuthProvider
+    },
+    {
+      provide: GITHUB_OAUTH_PROVIDER,
+      useExisting: HttpGithubOauthProvider
     },
     {
       provide: APP_GUARD,

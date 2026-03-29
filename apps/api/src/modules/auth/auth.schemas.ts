@@ -14,8 +14,14 @@ export const oauthProviderParamSchema = z.object({
   provider: oauthProviderSchema
 });
 
+export const oauthCallbackQuerySchema = z.object({
+  code: z.string().trim().min(1),
+  state: z.string().trim().min(1)
+});
+
 export type OauthProvider = z.infer<typeof oauthProviderSchema>;
 export type OauthProviderParamInput = z.infer<typeof oauthProviderParamSchema>;
+export type OauthCallbackQueryInput = z.infer<typeof oauthCallbackQuerySchema>;
 
 const permissionActionSchema = z.enum(RESOURCE_ACCESS_ACTION_VALUES);
 const permissionResourceKindSchema = z.enum(RESOURCE_KIND_VALUES);
