@@ -10,6 +10,7 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const githubOauthStartUrl = resolveApiUrl("/auth/oauth/github/start");
+  const googleOauthStartUrl = resolveApiUrl("/auth/oauth/google/start");
 
   if (authMeQuery.data?.identity != null) {
     return <Navigate replace to="/" />;
@@ -74,11 +75,13 @@ export function LoginPage() {
             Continue with GitHub
           </button>
           <button
-            className="w-full rounded-md border border-[var(--app-border)] px-4 py-2 text-sm text-[var(--app-text-muted)] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled
+            className="w-full rounded-md border border-[var(--app-border)] px-4 py-2 text-sm text-[var(--app-text)] hover:bg-[var(--app-surface)]"
+            onClick={() => {
+              window.location.assign(googleOauthStartUrl);
+            }}
             type="button"
           >
-            Continue with Google (coming soon)
+            Continue with Google
           </button>
         </div>
 
