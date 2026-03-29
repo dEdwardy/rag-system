@@ -2,7 +2,8 @@ import { z } from "zod";
 import { RESOURCE_ACCESS_ACTION_VALUES, RESOURCE_KIND_VALUES } from "@rag-system/shared";
 
 export const loginSchema = z.object({
-  userId: z.string().min(1).optional()
+  email: z.string().trim().email(),
+  password: z.string().min(1)
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { compare } from "bcryptjs";
 import { PrismaService } from "../../infra/database/prisma.service";
 import {
-  DEFAULT_AUTH_SESSION_TTL_HOURS,
-  DEFAULT_DEV_USER_ID
+  DEFAULT_AUTH_SESSION_TTL_HOURS
 } from "./auth.constants";
 import {
   resolveCurrentAuthIdentity,
@@ -15,22 +15,32 @@ import { evaluateOwnerResourceAccess, type ResourceAccessPolicyInput } from "./r
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async login(input: { userId?: string | null }): Promise<{ identity: AuthIdentity; expiresAt: string }> {
-    const userId = this.resolveLoginUserId(input.userId);
+  async login(input: { email: string; password: string }): Promise<{ identity: AuthIdentity; expiresAt: string }> {
+    const email = this.normalizeEmail(input.email);
+    if (email.length === 0 || input.password.length === 0) {
+      throw new UnauthorizedException("Invalid email or password.");
+    }
+
     const user = await this.prisma.user.findUnique({
       where: {
-        id: userId
+        email
       },
       select: {
         id: true,
         tenantId: true,
         role: true,
-        status: true
+        status: true,
+        passwordHash: true
       }
     });
 
-    if (user == null || user.status !== "active") {
-      throw new UnauthorizedException("Invalid login identity.");
+    if (user == null || user.status !== "active" || typeof user.passwordHash !== "string" || user.passwordHash.length === 0) {
+      throw new UnauthorizedException("Invalid email or password.");
+    }
+
+    const passwordMatched = await compare(input.password, user.passwordHash);
+    if (!passwordMatched) {
+      throw new UnauthorizedException("Invalid email or password.");
     }
 
     const now = Date.now();
@@ -109,13 +119,8 @@ export class AuthService {
     };
   }
 
-  private resolveLoginUserId(userId?: string | null): string {
-    if (typeof userId !== "string") {
-      return DEFAULT_DEV_USER_ID;
-    }
-
-    const trimmed = userId.trim();
-    return trimmed.length > 0 ? trimmed : DEFAULT_DEV_USER_ID;
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
   }
 
   private resolveSessionTtlMs(): number {

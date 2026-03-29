@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 require("reflect-metadata");
+const { hashSync } = require("bcryptjs");
 
 const { AuthController } = require("../src/modules/auth/auth.controller.ts");
 const { AuthContextMiddleware } = require("../src/modules/auth/auth-context.middleware.ts");
@@ -307,18 +308,26 @@ test("resolveRequestAuthContext returns stable default current identity when req
 });
 
 test("AuthService login creates session identity and logout revokes session", async () => {
+  const loginEmail = "default-user@example.com";
+  const loginPassword = "local-password-1";
+  const loginPasswordHash = hashSync(loginPassword, 4);
   const calls = {
+    userLookup: null,
     created: null,
     revoked: null
   };
   const authService = new AuthService({
     user: {
-      findUnique: async ({ where }) => ({
-        id: where.id,
-        tenantId: "tenant-1",
-        role: "member",
-        status: "active"
-      })
+      findUnique: async ({ where }) => {
+        calls.userLookup = where;
+        return {
+          id: "default-user",
+          tenantId: "tenant-1",
+          role: "member",
+          status: "active",
+          passwordHash: loginPasswordHash
+        };
+      }
     },
     authSession: {
       create: async ({ data }) => {
@@ -332,13 +341,17 @@ test("AuthService login creates session identity and logout revokes session", as
     }
   });
 
-  const login = await authService.login({ userId: "default-user" });
+  const login = await authService.login({
+    email: loginEmail,
+    password: loginPassword
+  });
   assert.equal(login.identity.sessionId, "session-1");
   assert.equal(login.identity.userId, "default-user");
   assert.equal(login.identity.tenantId, "tenant-1");
   assert.equal(login.identity.authSource, "session");
   assert.equal(login.identity.role, "member");
   assert.ok(typeof login.expiresAt === "string");
+  assert.deepEqual(calls.userLookup, { email: loginEmail });
   assert.equal(calls.created.userId, "default-user");
 
   const logout = await authService.logout({ sessionId: "session-1" });
@@ -346,6 +359,72 @@ test("AuthService login creates session identity and logout revokes session", as
   assert.equal(calls.revoked.where.id, "session-1");
   assert.equal(calls.revoked.where.revokedAt, null);
   assert.ok(calls.revoked.data.revokedAt instanceof Date);
+});
+
+test("AuthService login rejects invalid email/password edges", async () => {
+  const loginPasswordHash = hashSync("local-password-1", 4);
+  const authService = new AuthService({
+    user: {
+      findUnique: async ({ where }) => {
+        if (where.email === "inactive-user@example.com") {
+          return {
+            id: "user-inactive",
+            tenantId: "tenant-1",
+            role: "member",
+            status: "inactive",
+            passwordHash: loginPasswordHash
+          };
+        }
+
+        if (where.email === "active-user@example.com") {
+          return {
+            id: "user-active",
+            tenantId: "tenant-1",
+            role: "member",
+            status: "active",
+            passwordHash: loginPasswordHash
+          };
+        }
+
+        return null;
+      }
+    },
+    authSession: {
+      create: async () => {
+        throw new Error("should not create session for failed login");
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      authService.login({
+        email: "active-user@example.com",
+        password: "wrong-password"
+      }),
+    /Invalid email or password/,
+    "wrong password should fail"
+  );
+
+  await assert.rejects(
+    () =>
+      authService.login({
+        email: "missing-user@example.com",
+        password: "local-password-1"
+      }),
+    /Invalid email or password/,
+    "missing user should fail"
+  );
+
+  await assert.rejects(
+    () =>
+      authService.login({
+        email: "inactive-user@example.com",
+        password: "local-password-1"
+      }),
+    /Invalid email or password/,
+    "inactive user should fail"
+  );
 });
 
 test("AuthService checkPermission evaluates owner-only resource access for current identity", () => {
@@ -414,22 +493,29 @@ test("AuthService checkPermission evaluates owner-only resource access for curre
 
 test("AuthController sets and clears session cookie around login and logout", async () => {
   const cookies = [];
+  const loginCalls = [];
   const controller = new AuthController({
-    login: async () => ({
-      identity: {
-        userId: "default-user",
-        tenantId: "default-tenant",
-        role: "owner",
-        sessionId: "session-xyz",
-        authSource: "session"
-      },
-      expiresAt: "2030-01-01T00:00:00.000Z"
-    }),
+    login: async (input) => {
+      loginCalls.push(input);
+      return {
+        identity: {
+          userId: "default-user",
+          tenantId: "default-tenant",
+          role: "owner",
+          sessionId: "session-xyz",
+          authSource: "session"
+        },
+        expiresAt: "2030-01-01T00:00:00.000Z"
+      };
+    },
     logout: async () => ({ ok: true }),
     getMe: () => ({ identity: null, currentIdentity: null })
   });
 
-  const loginResult = await controller.login({}, {
+  const loginResult = await controller.login({
+    email: "default-user@example.com",
+    password: "local-password-1"
+  }, {
     setHeader: (name, value) => {
       if (name === "Set-Cookie") {
         cookies.push(value);
@@ -438,6 +524,7 @@ test("AuthController sets and clears session cookie around login and logout", as
   });
 
   assert.equal(loginResult.identity.sessionId, "session-xyz");
+  assert.deepEqual(loginCalls, [{ email: "default-user@example.com", password: "local-password-1" }]);
   assert.match(cookies[0], /rag_session=session-xyz/);
 
   const logoutResult = await controller.logout(

@@ -17,7 +17,8 @@ export class AuthController {
   ) {
     const input = loginSchema.parse(body);
     const result = await this.authService.login({
-      userId: input.userId
+      email: input.email,
+      password: input.password
     });
 
     this.setSessionCookie(response, result.identity.sessionId, result.expiresAt);
