@@ -17,6 +17,16 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 demo replay usage docs now explicitly point to the approved shortlist-pinned replay entrypoint
+  - 变更文件：
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确 replay 运行入口：`pnpm --filter @rag-system/api eval:runner:p5-v1`（可按需要附带 `--quality-gate-mode=warn|fail`）
+    - 明确入口边界：该命令会经由 `apps/api/scripts/p5-demo-shortlist.json` 锁定 approved shortlist（`p5-demo-shortlist-4plus1`）中的 `demo-eval-report-replay -> eval-report-replay -> /eval/question-sets/demo-replays/p5-v1/run` 映射
+    - 明确 demo scope：保持 4+1 shortlist（4 个 selected + 1 个 candidate）作为展示范围，但自动 replay 入口只收敛在上述已批准回放路径，不扩展新 demo/showcase 平台
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P5 demo replay now has one narrow shortlist-pinned entrypoint on the existing eval runner path
   - 变更文件：
     - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
