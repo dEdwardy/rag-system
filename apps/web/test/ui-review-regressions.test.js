@@ -127,6 +127,14 @@ test("usage page exposes a P6 v1 regression diff view for concise run-to-run dia
   assert.match(usageSource, /regression-diff-row/);
 });
 
+test("usage page exposes a source-family hotspot panel from bySourceFamily summary data", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /P6 v1 source-family hotspot|P6 v1 source-family 热点/);
+  assert.match(usageSource, /bySourceFamily summary data|bySourceFamily 摘要/);
+  assert.match(usageSource, /source-family-hotspot-row/);
+});
+
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {
   const cssSource = readFileSync(globalCssPath, "utf8");
 

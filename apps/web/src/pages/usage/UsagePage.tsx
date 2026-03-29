@@ -436,6 +436,33 @@ export function UsagePage() {
     [anomalyRunsQuery.data]
   );
 
+  const sourceFamilyHotspot = useMemo(() => {
+    const sourceFamilyEntries = Object.entries(runSummary?.bySourceFamily ?? {}).filter(
+      ([, stats]) => stats.failedRuns > 0 || stats.runsWithBoundaryHit > 0
+    );
+
+    if (sourceFamilyEntries.length === 0) {
+      return null;
+    }
+
+    const [family, stats] = sourceFamilyEntries.sort((left, right) => {
+      if (right[1].failedRuns !== left[1].failedRuns) {
+        return right[1].failedRuns - left[1].failedRuns;
+      }
+
+      if (right[1].runsWithBoundaryHit !== left[1].runsWithBoundaryHit) {
+        return right[1].runsWithBoundaryHit - left[1].runsWithBoundaryHit;
+      }
+
+      return right[1].totalRuns - left[1].totalRuns;
+    })[0];
+
+    return {
+      family,
+      stats
+    };
+  }, [runSummary?.bySourceFamily]);
+
   return (
     <div className="flex flex-col gap-4">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -815,6 +842,44 @@ export function UsagePage() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                </div>
+
+                <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
+                  <div className="workspace-section-heading">
+                    {locale === "zh" ? "P6 v1 source-family 热点" : "P6 v1 source-family hotspot"}
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                    {locale === "zh"
+                      ? "基于 bySourceFamily 摘要，优先标出当前失败/边界命中最高的 source family。"
+                      : "Use bySourceFamily summary data to highlight the source family with the highest failure/boundary-hit pressure."}
+                  </p>
+
+                  {runSummaryQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : !sourceFamilyHotspot ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]" data-testid="source-family-hotspot-row">
+                      {locale === "zh"
+                        ? "最近 24 小时未发现 source-family 级失败或边界命中热点。"
+                        : "No source-family hotspot for failures or boundary hits in the last 24 hours."}
+                    </p>
+                  ) : (
+                    <div
+                      className="mt-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3 text-sm"
+                      data-testid="source-family-hotspot-row"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge color="orange" radius="sm" variant="light">
+                          {locale === "zh" ? "当前热点" : "current hotspot"}
+                        </Badge>
+                        <span className="font-medium text-[var(--app-text)]">{sourceFamilyHotspot.family}</span>
+                      </div>
+                      <p className="mt-1 text-[var(--app-text-muted)]">
+                        {locale === "zh"
+                          ? `失败 ${sourceFamilyHotspot.stats.failedRuns} · 边界命中 ${sourceFamilyHotspot.stats.runsWithBoundaryHit} · 总运行 ${sourceFamilyHotspot.stats.totalRuns}`
+                          : `Failed runs ${sourceFamilyHotspot.stats.failedRuns} · Boundary hits ${sourceFamilyHotspot.stats.runsWithBoundaryHit} · Total runs ${sourceFamilyHotspot.stats.totalRuns}`}
+                      </p>
+                    </div>
                   )}
                 </div>
 

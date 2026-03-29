@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 usage page now includes a scan-first source-family hotspot panel for failure/boundary concentration
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 新增 `P6 v1 source-family hotspot` 子面板
+    - 直接复用现有 `GET /knowledge-bases/:id/document-runs/summary` 的 `bySourceFamily` 聚合数据，按 `failedRuns` + `runsWithBoundaryHit` 的扫描优先级定位当前热点 source family
+    - 保持 backend/API 契约不变，不新增 endpoint，不做通用 dashboard 重构
+  - focused validation：
+    - `node --test --test-name-pattern "source-family hotspot" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 usage page now includes a regression diff view so operators can scan concise run-to-run changes for diagnosis
   - 变更文件：
     - `apps/web/src/types/api.ts`
