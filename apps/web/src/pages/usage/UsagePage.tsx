@@ -132,6 +132,7 @@ export function UsagePage() {
   const retryableFailureCount = runSummary?.retryableFailures ?? 0;
   const nonRetryableFailureCount = runSummary?.nonRetryableFailures ?? 0;
   const hasRecentFailure = retryableFailureCount + nonRetryableFailureCount > 0;
+  const hasDocumentRunHistory = (runSummary?.totalRuns ?? 0) > 0;
   const boundaryHitCount = runSummary?.boundaryStats.runsWithBoundaryHit ?? 0;
   const healthSignals = useMemo(
     () => [
@@ -296,6 +297,11 @@ export function UsagePage() {
     (runSummaryQuery.error instanceof Error && runSummaryQuery.error.message) ||
     (auditEventsQuery.error instanceof Error && auditEventsQuery.error.message) ||
     null;
+  const showP6PreRunGuidance =
+    !healthPanelErrorMessage &&
+    !runSummaryQuery.isLoading &&
+    runSummary != null &&
+    !hasDocumentRunHistory;
 
   const trendPanelErrorMessage =
     (runSummary1hQuery.error instanceof Error && runSummary1hQuery.error.message) ||
@@ -720,20 +726,36 @@ export function UsagePage() {
                 />
               ) : null}
 
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {healthSignals.map(signal => (
-                  <div className="workspace-subpanel rounded-[20px] p-4" key={signal.label}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="workspace-section-heading">{signal.label}</div>
-                      <Badge color={signal.tone} radius="sm" variant="light">
-                        {signal.value}
-                      </Badge>
-                    </div>
+              {showP6PreRunGuidance ? (
+                <StatePanel
+                  action={
+                    <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+                      {locale === "zh" ? "先跑一次扫描" : "Start with one scan-first run"}
+                    </Button>
+                  }
+                  description={
+                    locale === "zh"
+                      ? "当前知识库还没有文档运行记录。先在 Knowledge base 页触发一次文档扫描/重跑，再回到这里查看 P6 健康信号。"
+                      : "This knowledge base has no document-run history yet. Trigger one document scan/re-run in the knowledge base page before reading P6 health signals here."
+                  }
+                  title={locale === "zh" ? "P6 预运行引导（scan-first）" : "P6 pre-run guidance (scan-first)"}
+                />
+              ) : (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {healthSignals.map(signal => (
+                      <div className="workspace-subpanel rounded-[20px] p-4" key={signal.label}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="workspace-section-heading">{signal.label}</div>
+                          <Badge color={signal.tone} radius="sm" variant="light">
+                            {signal.value}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              <div className="grid gap-4 xl:grid-cols-3">
+                  <div className="grid gap-4 xl:grid-cols-3">
                 <div className="workspace-subpanel rounded-[20px] p-4">
                   <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 趋势视图" : "P6 v1 trend view"}</div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
@@ -1105,7 +1127,9 @@ export function UsagePage() {
                     {locale === "zh" ? "查看运行摘要" : "Open run summary"}
                   </Button>
                 </div>
-              </div>
+                  </div>
+                </>
+              )}
             </Paper>
           ) : null}
         </>

@@ -180,6 +180,16 @@ test("usage page keeps a no-knowledge-base guidance state and avoids default-kb 
   assert.doesNotMatch(usageSource, /useDocuments\(activeKnowledgeBase\?\.id \?\? "default-kb"\)/);
 });
 
+test("usage page keeps one explicit P6 pre-run guidance state when run history is still empty", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /showP6PreRunGuidance/);
+  assert.match(usageSource, /P6 pre-run guidance \(scan-first\)|P6 预运行引导（scan-first）/);
+  assert.match(usageSource, /Start with one scan-first run|先跑一次扫描/);
+  assert.match(usageSource, /has no document-run history yet|还没有文档运行记录/);
+  assert.match(usageSource, /Trigger one document scan\/re-run|触发一次文档扫描\/重跑/);
+});
+
 test("report center keeps run inputs in query params for carry-through reruns", () => {
   const reportCenterSource = readFileSync(reportCenterPath, "utf8");
 

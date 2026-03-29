@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ usage page now shows one explicit P6 pre-run scan-first guidance state when an active knowledge base exists but document-run history is still empty
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `UsagePage` 的 `P6 v1 health dashboard` 内新增一个 `showP6PreRunGuidance` 条件分支：当存在 active knowledge base 且 run summary 已加载但 `totalRuns=0` 时，优先显示一条 scan-first 预运行引导
+    - 该 no-run 分支提示先去 `Knowledge base` 触发一次文档扫描/重跑，再返回查看 P6 健康信号，避免首轮运行前页面读感误判为常规零信号健康态
+    - 保持 additive + behavior-preserving：不改 backend contract、不改查询参数形状、不改既有指标统计语义
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ Usage page no longer falls back to `default-kb` when there is no active knowledge base, and now shows one explicit scan-first guidance state instead of silent fallback loading
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`
