@@ -8,6 +8,7 @@ const chatPagePath = resolve(__dirname, "../src/pages/chat/ChatPage.tsx");
 const documentsPath = resolve(__dirname, "../src/pages/documents/DocumentsPage.tsx");
 const documentDetailPath = resolve(__dirname, "../src/pages/documents/DocumentDetailPage.tsx");
 const knowledgeBasePath = resolve(__dirname, "../src/pages/knowledge-base/KnowledgeBasePage.tsx");
+const usagePath = resolve(__dirname, "../src/pages/usage/UsagePage.tsx");
 const traceListPath = resolve(__dirname, "../src/pages/traces/TraceListPage.tsx");
 const traceDetailPath = resolve(__dirname, "../src/pages/traces/TraceDetailPage.tsx");
 const globalCssPath = resolve(__dirname, "../src/styles/global.css");
@@ -89,6 +90,15 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   assert.match(traceSource, /Answer provenance|回答溯源/);
   assert.match(traceSource, /Missing-information provenance|缺失信息溯源/);
   assert.match(statePanelSource, /data-tone=/);
+});
+
+test("usage page exposes a single P6 v1 alert view for warnings and threshold issues", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /P6 v1 alert view|P6 v1 告警视图/);
+  assert.match(usageSource, /important warnings and threshold issues|重要 warning 与阈值问题/);
+  assert.match(usageSource, /run-backlog-threshold/);
+  assert.match(usageSource, /issue-events-threshold/);
 });
 
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {

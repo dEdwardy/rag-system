@@ -87,7 +87,10 @@ export function UsagePage() {
     (runSummary?.byStatus.pending ?? 0) + (runSummary?.byStatus.processing ?? 0);
   const recentIssueCount = auditEventsQuery.data?.length ?? 0;
   const isApiHealthy = apiHealthQuery.data?.status === "ok";
-  const hasRecentFailure = (runSummary?.retryableFailures ?? 0) + (runSummary?.nonRetryableFailures ?? 0) > 0;
+  const retryableFailureCount = runSummary?.retryableFailures ?? 0;
+  const nonRetryableFailureCount = runSummary?.nonRetryableFailures ?? 0;
+  const hasRecentFailure = retryableFailureCount + nonRetryableFailureCount > 0;
+  const boundaryHitCount = runSummary?.boundaryStats.runsWithBoundaryHit ?? 0;
   const healthSignals = useMemo(
     () => [
       {
@@ -119,7 +122,7 @@ export function UsagePage() {
         label: locale === "zh" ? "失败运行" : "Failed runs",
         tone: hasRecentFailure ? "red" : "green",
         value: hasRecentFailure
-          ? `${runSummary?.retryableFailures ?? 0} / ${runSummary?.nonRetryableFailures ?? 0}`
+          ? `${retryableFailureCount} / ${nonRetryableFailureCount}`
           : locale === "zh"
             ? "无"
             : "none"
@@ -132,8 +135,117 @@ export function UsagePage() {
       locale,
       pendingRunCount,
       recentIssueCount,
-      runSummary?.nonRetryableFailures,
-      runSummary?.retryableFailures
+      nonRetryableFailureCount,
+      retryableFailureCount
+    ]
+  );
+
+  const alertItems = useMemo(
+    () => {
+      const alerts: Array<{
+        id: string;
+        tone: "red" | "orange" | "yellow";
+        title: string;
+        detail: string;
+        actionLabel: string;
+        actionTo: string;
+      }> = [];
+
+      if (!apiHealthQuery.isLoading && !isApiHealthy) {
+        alerts.push({
+          id: "api-unhealthy",
+          tone: "red",
+          title: locale === "zh" ? "API 不可用" : "API unavailable",
+          detail:
+            locale === "zh"
+              ? "健康探针未返回 ok，优先检查 API 进程与基础依赖。"
+              : "Health probe is not ok; check API process and dependencies first.",
+          actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
+          actionTo: "/traces"
+        });
+      }
+
+      if (nonRetryableFailureCount > 0) {
+        alerts.push({
+          id: "non-retryable-failures",
+          tone: "red",
+          title: locale === "zh" ? "存在不可重试失败" : "Non-retryable failures detected",
+          detail:
+            locale === "zh"
+              ? `最近 24h 有 ${nonRetryableFailureCount} 条不可重试失败运行。`
+              : `${nonRetryableFailureCount} non-retryable failed runs in the last 24h.`,
+          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+          actionTo: "/knowledge-base"
+        });
+      }
+
+      if (pendingRunCount >= 3) {
+        alerts.push({
+          id: "run-backlog-threshold",
+          tone: pendingRunCount >= 10 ? "orange" : "yellow",
+          title: locale === "zh" ? "运行积压触发阈值" : "Run backlog threshold reached",
+          detail:
+            locale === "zh"
+              ? `当前积压 ${pendingRunCount} 条（阈值 >= 3）。`
+              : `Current backlog is ${pendingRunCount} (threshold >= 3).`,
+          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+          actionTo: "/knowledge-base"
+        });
+      }
+
+      if (retryableFailureCount >= 3) {
+        alerts.push({
+          id: "retryable-failure-threshold",
+          tone: "orange",
+          title: locale === "zh" ? "可重试失败超过阈值" : "Retryable-failure threshold reached",
+          detail:
+            locale === "zh"
+              ? `最近 24h 可重试失败 ${retryableFailureCount} 条（阈值 >= 3）。`
+              : `${retryableFailureCount} retryable failed runs in the last 24h (threshold >= 3).`,
+          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+          actionTo: "/knowledge-base"
+        });
+      }
+
+      if (recentIssueCount >= 5) {
+        alerts.push({
+          id: "issue-events-threshold",
+          tone: "orange",
+          title: locale === "zh" ? "问题事件超过阈值" : "Issue-event threshold reached",
+          detail:
+            locale === "zh"
+              ? `最近 24h 问题事件 ${recentIssueCount} 条（阈值 >= 5）。`
+              : `${recentIssueCount} issue events in the last 24h (threshold >= 5).`,
+          actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
+          actionTo: "/traces"
+        });
+      }
+
+      if (boundaryHitCount > 0) {
+        alerts.push({
+          id: "boundary-hit",
+          tone: "yellow",
+          title: locale === "zh" ? "检测到边界截断" : "Boundary truncation observed",
+          detail:
+            locale === "zh"
+              ? `最近 24h 有 ${boundaryHitCount} 次 source 边界命中。`
+              : `${boundaryHitCount} source boundary-hit runs in the last 24h.`,
+          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+          actionTo: "/knowledge-base"
+        });
+      }
+
+      return alerts;
+    },
+    [
+      apiHealthQuery.isLoading,
+      boundaryHitCount,
+      isApiHealthy,
+      locale,
+      nonRetryableFailureCount,
+      pendingRunCount,
+      recentIssueCount,
+      retryableFailureCount
     ]
   );
 
@@ -323,6 +435,49 @@ export function UsagePage() {
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
                 <div className="workspace-subpanel rounded-[20px] p-4">
+                  <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 告警视图" : "P6 v1 alert view"}</div>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                    {locale === "zh"
+                      ? "把重要 warning 与阈值问题收敛在一个列表里，便于快速排查。"
+                      : "Keep important warnings and threshold issues in one scan-first list."}
+                  </p>
+                  {runSummaryQuery.isLoading || apiHealthQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : alertItems.length === 0 ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                      {locale === "zh" ? "当前没有活跃告警。" : "No active alerts right now."}
+                    </p>
+                  ) : (
+                    <ul className="mt-3 flex flex-col gap-2 text-sm">
+                      {alertItems.map(alert => (
+                        <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={alert.id}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge color={alert.tone} radius="sm" variant="light">
+                              {alert.tone === "red"
+                                ? locale === "zh"
+                                  ? "高优先级"
+                                  : "high"
+                                : alert.tone === "orange"
+                                  ? locale === "zh"
+                                    ? "警告"
+                                    : "warning"
+                                  : locale === "zh"
+                                    ? "关注"
+                                    : "watch"}
+                            </Badge>
+                            <span className="font-medium text-[var(--app-text)]">{alert.title}</span>
+                          </div>
+                          <p className="mt-1 text-[var(--app-text-muted)]">{alert.detail}</p>
+                          <Link className="mt-1 inline-block text-[13px] font-medium text-[var(--app-accent)]" to={alert.actionTo}>
+                            {alert.actionLabel}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="workspace-subpanel rounded-[20px] p-4">
                   <div className="workspace-section-heading">
                     {locale === "zh" ? "最近问题事件（24h）" : "Recent issue events (24h)"}
                   </div>
@@ -345,7 +500,7 @@ export function UsagePage() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 xl:col-span-2 xl:flex-row">
                   <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/traces" variant="light">
                     {locale === "zh" ? "查看 Trace" : "Open traces"}
                   </Button>

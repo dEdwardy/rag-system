@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 usage now includes a dedicated alert view that aggregates important warnings and threshold issues in one place
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `P6 v1 health dashboard` 内新增 `P6 v1 alert view` 子面板，把 API 存活异常、run backlog 阈值、retryable/non-retryable 失败阈值、issue-event 阈值、boundary-hit 信号统一汇总为单列表
+    - 每条告警都带轻量级优先级（high/warning/watch）与跳转动作（traces 或 run summary），保持 scan-first 排障路径
+    - 保持现有后端 contract 与查询接口不变，仅在 web 侧复用已有健康/运行/审计信号做读模型聚合
+  - focused validation：
+    - `node --test --test-name-pattern "usage page exposes a single P6 v1 alert view" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 document run cards now include a compact run summary line so operators can scan outcomes quickly
   - 变更文件：
     - `apps/web/src/components/document-runs/document-run-observability.ts`
