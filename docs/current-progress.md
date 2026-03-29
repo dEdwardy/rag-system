@@ -15,6 +15,35 @@
 
 补充进展（2026-03-29）：
 
+- ✅ web app-shell current identity card now surfaces `/auth/me.loginProvenance` with one compact session readability line (`local` vs `OAuth · <provider>`)
+  - 变更文件：
+    - `apps/web/src/app/AppShell.tsx`
+    - `apps/web/src/app/AuthenticatedAppShell.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `AuthenticatedAppShell` 继续复用既有 `/auth/me` 查询结果，仅把已存在的 `loginProvenance` 透传给 `AppShell`
+    - `current-identity-card` 新增一行紧凑会话可读信息：本地会话显示 `Local session/本地会话`，OAuth 会话显示 `OAuth · <provider>`
+    - 保持范围收敛：未改 backend contract、未改登录流程、未改整体布局结构
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
+- ✅ opencode loop auto-refill budget now persists across service restarts for the same queue wave
+  - 变更文件：
+    - `scripts/opencode-loop/planner.mjs`
+    - `scripts/opencode-loop/runtime.mjs`
+    - `scripts/opencode-loop/self-test.mjs`
+    - `scripts/opencode-loop.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 修复 auto-refill `cycles` 只存在进程内内存、导致 loop 服务重启后会把同一批 queue wave 再次当成“可补队列”的问题
+    - auto-refill 现在会把当前 manual queue scope 的 refill budget 持久化到 `.opencode/loop/queue.json`，所以同一批手动入队任务在已完成并触发过一次 refill 后，重启 loop 不会再次继续补新任务
+    - 同时把内置 systemd loop service 的 `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` 从 `2` 收紧为 `1`，避免单个 queue wave 在正常 drain 后继续追加第二轮 closeout follow-up
+    - 仍保持原边界：当 manual queue wave 真的发生变化（例如后续人工追加新的非 auto-refill items）时，下一轮仍可重新获得自己的 refill budget
+    - self-test 新增“同一 queue wave 重启后不重复 refill”的覆盖，避免再次回归成 endless follow-up append
+  - focused validation：
+    - `node scripts/opencode-loop.mjs --self-test`
+
 - ✅ OAuth provider start/callback config-missing diagnostics now share a clearer boundary wording shape across GitHub and Google
   - 变更文件：
     - `apps/api/src/modules/auth/auth.service.ts`

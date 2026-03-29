@@ -26,7 +26,7 @@ export function AuthenticatedAppShell() {
     return <Navigate replace to="/login" />;
   }
 
-  return <AppShell currentIdentity={authMeQuery.data.currentIdentity} />;
+  return <AppShell currentIdentity={authMeQuery.data.currentIdentity} loginProvenance={authMeQuery.data.loginProvenance} />;
 }
 
 function isUnauthorized(error: unknown) {

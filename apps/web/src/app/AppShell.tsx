@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useConversations, useDocuments, useKnowledgeBases, useLogout } from "../features/api/hooks";
 import { useI18n } from "../i18n/I18nProvider";
-import type { AuthIdentity } from "../types/api";
+import type { AuthIdentity, AuthMeResponse } from "../types/api";
 import { useThemePreferences } from "./theme-preferences";
 
 const APP_SHELL_THEME = {
@@ -45,6 +45,10 @@ const APP_SHELL_TEXT: Record<Locale, {
   userIdLabel: string;
   tenantIdLabel: string;
   authSourceLabel: string;
+  loginSessionLabel: string;
+  localSessionValue: string;
+  oauthSessionPrefix: string;
+  oauthProviderUnknown: string;
   sessionIdLabel: string;
   noSessionValue: string;
 }> = {
@@ -64,6 +68,10 @@ const APP_SHELL_TEXT: Record<Locale, {
     userIdLabel: "用户",
     tenantIdLabel: "租户",
     authSourceLabel: "来源",
+    loginSessionLabel: "登录会话",
+    localSessionValue: "本地会话",
+    oauthSessionPrefix: "OAuth",
+    oauthProviderUnknown: "提供方未知",
     sessionIdLabel: "会话",
     noSessionValue: "无"
   },
@@ -83,6 +91,10 @@ const APP_SHELL_TEXT: Record<Locale, {
     userIdLabel: "User",
     tenantIdLabel: "Tenant",
     authSourceLabel: "Source",
+    loginSessionLabel: "Login session",
+    localSessionValue: "Local session",
+    oauthSessionPrefix: "OAuth",
+    oauthProviderUnknown: "Unknown provider",
     sessionIdLabel: "Session",
     noSessionValue: "None"
   }
@@ -211,9 +223,10 @@ function ActionButton({ children, label }: { children: React.ReactNode; label: s
 
 type AppShellProps = {
   currentIdentity: AuthIdentity;
+  loginProvenance: AuthMeResponse["loginProvenance"];
 };
 
-export function AppShell({ currentIdentity }: AppShellProps) {
+export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { locale, setLocale } = useI18n();
@@ -251,6 +264,10 @@ export function AppShell({ currentIdentity }: AppShellProps) {
   );
 
   const activeLabel = getActiveLabel(location.pathname, links, localeKey);
+  const oauthProviderLabel = loginProvenance.oauthProvider?.toUpperCase() ?? text.oauthProviderUnknown;
+  const loginSessionBadgeText = loginProvenance.type === "oauth_session"
+    ? `${text.oauthSessionPrefix} · ${oauthProviderLabel}`
+    : text.localSessionValue;
 
   function onLogoutClick() {
     logoutMutation.mutate(undefined, {
@@ -370,6 +387,9 @@ export function AppShell({ currentIdentity }: AppShellProps) {
 
                   <span className="text-[var(--app-text-muted)]">{text.authSourceLabel}</span>
                   <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.authSource}>{currentIdentity.authSource}</span>
+
+                  <span className="text-[var(--app-text-muted)]">{text.loginSessionLabel}</span>
+                  <span className="truncate font-medium text-[var(--app-text)]" title={loginSessionBadgeText}>{loginSessionBadgeText}</span>
 
                   <span className="text-[var(--app-text-muted)]">{text.sessionIdLabel}</span>
                   <span className="truncate font-medium text-[var(--app-text)]" title={currentIdentity.sessionId ?? text.noSessionValue}>

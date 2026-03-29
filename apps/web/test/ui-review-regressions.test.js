@@ -38,6 +38,9 @@ test("app shell shows a compact current identity card for auth context", () => {
   assert.match(shellSource, /currentIdentity\.userId/);
   assert.match(shellSource, /currentIdentity\.tenantId/);
   assert.match(shellSource, /currentIdentity\.authSource/);
+  assert.match(shellSource, /loginProvenance\.type/);
+  assert.match(shellSource, /OAuth\s·\s/);
+  assert.match(shellSource, /Local session|本地会话/);
 });
 
 test("web auth me contract includes additive login provenance shape", () => {
