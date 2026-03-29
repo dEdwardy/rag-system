@@ -983,7 +983,13 @@ export function UsagePage() {
                                 ? `左窗口 (${snapshotWindowIssueSlice.leftWindowLabel}h) 热点：${snapshotWindowIssueSlice.slice.leftHotspot.sourceFamily}，issue signal ${snapshotWindowIssueSlice.slice.leftHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.leftHotspot.totalRuns}。`
                                 : `Left window (${snapshotWindowIssueSlice.leftWindowLabel}h) hotspot: ${snapshotWindowIssueSlice.slice.leftHotspot.sourceFamily} with issue signal ${snapshotWindowIssueSlice.slice.leftHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.leftHotspot.totalRuns}.`}
                             </div>
-                          ) : null}
+                          ) : (
+                            <div className="mt-1" data-testid="snapshot-window-issue-left-hotspot-empty">
+                              {locale === "zh"
+                                ? `左窗口 (${snapshotWindowIssueSlice.leftWindowLabel}h) 未检测到热点。`
+                                : `No left-window hotspot detected for ${snapshotWindowIssueSlice.leftWindowLabel}h.`}
+                            </div>
+                          )}
 
                           {snapshotWindowIssueSlice.slice.rightHotspot ? (
                             <div className="mt-1" data-testid="snapshot-window-issue-right-hotspot">
@@ -991,7 +997,13 @@ export function UsagePage() {
                                 ? `右窗口 (${snapshotWindowIssueSlice.rightWindowLabel}h) 热点：${snapshotWindowIssueSlice.slice.rightHotspot.sourceFamily}，issue signal ${snapshotWindowIssueSlice.slice.rightHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.rightHotspot.totalRuns}。`
                                 : `Right window (${snapshotWindowIssueSlice.rightWindowLabel}h) hotspot: ${snapshotWindowIssueSlice.slice.rightHotspot.sourceFamily} with issue signal ${snapshotWindowIssueSlice.slice.rightHotspot.issueSignalScore} / total ${snapshotWindowIssueSlice.slice.rightHotspot.totalRuns}.`}
                             </div>
-                          ) : null}
+                          ) : (
+                            <div className="mt-1" data-testid="snapshot-window-issue-right-hotspot-empty">
+                              {locale === "zh"
+                                ? `右窗口 (${snapshotWindowIssueSlice.rightWindowLabel}h) 未检测到热点。`
+                                : `No right-window hotspot detected for ${snapshotWindowIssueSlice.rightWindowLabel}h.`}
+                            </div>
+                          )}
 
                           {snapshotWindowIssueSlice.slice.dominantShift ? (
                             <div className="mt-1" data-testid="snapshot-window-issue-dominant-shift">
@@ -999,7 +1011,13 @@ export function UsagePage() {
                                 ? `主变化项：${snapshotWindowIssueSlice.slice.dominantShift.sourceFamily}，issue concentration Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueConcentrationDelta.toFixed(2)}，issue signal Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueSignalDelta}。`
                                 : `Dominant shift: ${snapshotWindowIssueSlice.slice.dominantShift.sourceFamily}, issue concentration Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueConcentrationDelta.toFixed(2)}, issue signal Δ ${snapshotWindowIssueSlice.slice.dominantShift.issueSignalDelta}.`}
                             </div>
-                          ) : null}
+                          ) : (
+                            <div className="mt-1" data-testid="snapshot-window-issue-dominant-shift-empty">
+                              {locale === "zh"
+                                ? "当前窗口未形成可读主变化项。"
+                                : "No readable dominant shift is available for this window pair."}
+                            </div>
+                          )}
                         </div>
                       ) : null}
                     </>

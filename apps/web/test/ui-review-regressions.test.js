@@ -157,6 +157,12 @@ test("usage page exposes a focused snapshot window diff (6h vs 24h) for issue sn
   assert.match(usageSource, /snapshot-window-issue-left-hotspot/);
   assert.match(usageSource, /snapshot-window-issue-right-hotspot/);
   assert.match(usageSource, /snapshot-window-issue-dominant-shift/);
+  assert.match(usageSource, /snapshot-window-issue-left-hotspot-empty/);
+  assert.match(usageSource, /snapshot-window-issue-right-hotspot-empty/);
+  assert.match(usageSource, /snapshot-window-issue-dominant-shift-empty/);
+  assert.match(usageSource, /No left-window hotspot detected|未检测到热点/);
+  assert.match(usageSource, /No right-window hotspot detected|未检测到热点/);
+  assert.match(usageSource, /No readable dominant shift is available|未形成可读主变化项/);
 });
 
 test("report center keeps run inputs in query params for carry-through reruns", () => {
