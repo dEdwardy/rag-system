@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 planning/status 已按当前 runner/report/gate 落地状态重新对齐，并继续把人工判断项留在自动 loop 外（docs-only increment）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `next_steps` 的 `P5` 段新增“当前对齐”快照：明确自动化侧（eval runner、regression report、quality gate 固定阈值合同）已完成
+    - 同步明确 P5 仍待完成但需人工判断的事项：题集选择、标注、baseline 文档版本选择、demo case 取舍与 replay 验收
+    - 保持边界：仅做 planning/status 同步，不新增 queue wave，不调整现有 P5 运行时契约
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P5 retrieval-regression artifact boundary wording now explicitly separates offline eval proof outputs from the web report-center surface (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`

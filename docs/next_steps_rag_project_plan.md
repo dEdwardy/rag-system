@@ -639,8 +639,21 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 6. 做 3–5 个端到端 demo case
    - 目标：把“系统好用”做成可展示、可复跑的固定案例
    - 建议覆盖：本地 PDF 问答、混合 web/feed/sitemap 问答、no-hit / insufficient-context 受控行为、trace detail 排障
-   - 需要人工：选 demo 场景、确认预期输出、验收展示效果
-   - 交付物：demo case 清单 + 一键回放入口
+    - 需要人工：选 demo 场景、确认预期输出、验收展示效果
+    - 交付物：demo case 清单 + 一键回放入口
+
+#### P5 当前对齐（2026-03-29）
+
+- ✅ 已完成（自动化与契约收口）：
+  - 固定题集 `P5 v1` eval runner 已落地并可复用导出 `markdown/json/html` regression artifacts
+  - regression report 汇总链路已落地（含 trace-derived 回归信号与 diff/failure drilldown）
+  - quality gate 固定阈值合同已落地（含 `warn/fail` 模式与阈值明细）
+- ⏸️ 仍待完成（人工判断项，继续留在自动 loop 外）：
+  - baseline 题集的人工选择与取舍（真实问题覆盖范围）
+  - baseline 标注（期望答案要点 / 引用期望）
+  - baseline 文档集版本选择与冻结
+  - demo case 取舍与 replay 验收结论
+- 边界说明：本次仅做 P5 planning/status 对齐，不新增 queue wave，不改现有 runner/report/gate 运行时契约。
 
 ### 当前阶段推荐大类顺序
 
