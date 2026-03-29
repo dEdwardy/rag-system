@@ -15,6 +15,29 @@
 
 补充进展（2026-03-29）：
 
+- ✅ 已将第二批 11 个 execution-ready closeout items 追加到 loop queue，并同步第二批 refinement note
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在上一批 20 个细粒度 queue items 和其后续 auto-refill closeout items 全部跑完后，继续追加 11 个真正还未入队的第二批 items，方向聚焦 ACL contract/guard closeout、snapshot hotspot null-state closeout、以及最小 docs sync
+    - 第二批顺序按“主队列 5 个 + 扩展队列 6 个”写入 queue：先做 `acl visibility inheritance guard`、`acl deny-hint contract guard`、`usage hotspot null-state slice`、`web hotspot contract null guard`、`acl progress stale-warning sync`，再做 route-policy / trace-summary / wording / docs follow-up
+    - 计划文档已同步第二批 refinement note，继续明确 queue `title` 保持短标题，而真正执行边界仍以 queue `promptText` / `promptFile` 为准；`P5` 的 5 个人工项继续不进入自动 queue
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ queue refinement plan 已落到 `.opencode/loop`，用于归档本轮 queue 收束原则与入队范围
+  - 变更文件：
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将本轮 `P2 -> P3 -> P5 -> P6 -> P4` queue refinement 的目标、主队列/候补队列、自动 queue 排除项、文档同步边界与最小验证口径落成独立计划文件
+    - 该计划文件只负责归档“为什么这样拆、哪些进 queue、哪些不进”，不重复承载每个 queue item 的完整执行 prompt
+    - 保持与现有 `queue.json`、计划文档、进度文档一致，方便后续按批次追踪 queue 组织方式
+  - focused validation：
+    - `git diff --check -- .opencode/loop/queue-refinement-plan-2026-03-29.md docs/current-progress.md`
+
 - ✅ P6 v1 snapshot window diff panel now directly surfaces backend-provided `issueHotspotSlice` in the existing issue-window slice block
   - 变更文件：
     - `apps/web/src/types/api.ts`
@@ -923,7 +946,7 @@
     - `pnpm test:api:file -- test/traces.service.test.js`
   - 实测结果：passed (`28/28`)
 
-- ⚠️ P2 `assistant conversation trace checks` implemented one focused ACL increment for assistant ownership scoping (owner-only baseline, no RBAC/share expansion)
+- ✅ P2 `assistant conversation trace checks` implemented one focused ACL increment for assistant ownership scoping (owner-only baseline, no RBAC/share expansion)
   - 变更文件：
     - `apps/api/src/modules/assistants/assistants.controller.ts`
     - `apps/api/src/modules/assistants/assistants.service.ts`
@@ -934,7 +957,7 @@
     - ask / ask-stream 在 assistant 解析阶段也改为按 current identity 做同一 owner-only 校验；仅收口 assistant 访问边界，不改 retrieval/answering 行为语义
   - 新增 / 更新验证：
     - `pnpm test:api:file -- test/assistants-api.test.js`
-  - 实测结果：当前环境失败（`DATABASE_URL` 未设置，seed 阶段报 `Environment variable not found: DATABASE_URL`），需在具备 DB 环境变量后复跑同一命令
+  - 历史环境备注：当时在缺少 `DATABASE_URL` 的环境中执行失败（seed 阶段报 `Environment variable not found: DATABASE_URL`）。后续 owner-scope 与 denial-path 关闭项已在具备环境下完成并记录于上方 ACL closeout 条目。
 
 - ✅ P2 `resource access matrix` 已完成第一版 ACL 边界盘点（聚焦 knowledge base / assistant / conversation / trace）
   - 变更文件：`docs/next_steps_rag_project_plan.md`
