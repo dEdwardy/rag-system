@@ -37,4 +37,12 @@ test("web snapshot comparison type keeps additive sourceFamilyDeltas and issueHo
     source,
     /export type KnowledgeBaseDocumentRunIssueHotspotSlice = \{[\s\S]*dominantShift: KnowledgeBaseDocumentRunIssueHotspotShift \| null;/
   );
+  assert.match(
+    source,
+    /export type KnowledgeBaseDocumentRunIssueHotspot = \{[\s\S]*sourceFamily: string;[\s\S]*totalRuns: number;[\s\S]*issueSignalScore: number;[\s\S]*issueConcentration: number;/
+  );
+  assert.match(
+    source,
+    /export type KnowledgeBaseDocumentRunIssueHotspotShift = \{[\s\S]*sourceFamily: string;[\s\S]*leftIssueSignalScore: number;[\s\S]*rightIssueSignalScore: number;[\s\S]*issueSignalDelta: number;[\s\S]*leftIssueConcentration: number;[\s\S]*rightIssueConcentration: number;[\s\S]*issueConcentrationDelta: number;/
+  );
 });
