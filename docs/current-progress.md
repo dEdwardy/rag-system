@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P2 `acl baseline docs` now records one reproducible owner-based ACL baseline snapshot for queue closeout
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确记录当前 `owner_only_v1` 已实现边界：authenticated route split、service policy deny reasons、以及五类核心资源（knowledge base / document / assistant / conversation / trace）的 owner-scoped落点
+    - 补充“明确不做”边界：member/viewer 放权、share/public 业务资源可见性、RBAC/ABAC 角色矩阵、跨 tenant 协作语义
+    - 文档仅做 ACL 基线收口，不改 API 行为与权限语义
+  - focused validation：
+    - `pnpm test:api:focus:acl`
+
 - ✅ P2 `default access policy` now has an explicit private/public + inheritance baseline aligned in shared contract and docs
   - 变更文件：
     - `packages/shared/src/access-policy-contracts.ts`

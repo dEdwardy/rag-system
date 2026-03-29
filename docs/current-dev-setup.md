@@ -143,14 +143,23 @@ AUTH_SESSION_TTL_HOURS=168
         - `document` / `assistant`: inherit from parent knowledge-base visibility
         - `trace`: inherit from parent conversation visibility
       - because current parent resources are private in `owner_only_v1`, effective visibility for newly created resources currently stays private
-    - the current focused ACL/access-control regression baseline is:
+    - ACL owner-based wave (`owner_only_v1`) implemented boundaries snapshot:
+      - route boundary: business routes are authenticated (`knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`)
+      - policy boundary: service-layer owner check uses `evaluateOwnerResourceAccess` with explicit deny reasons (`tenant_mismatch`, `owner_mismatch`, `owner_unassigned`, plus unsupported action/resource guards)
+      - resource boundary (implemented):
+        - `knowledge_base`: owner-scoped list/get/update
+        - `document`: owner-scoped access via parent knowledge-base ownership checks (list/detail/write/reindex/delete)
+        - `assistant`: owner-scoped list/get/update and ask/ask-stream assistant resolution
+        - `conversation`: owner-scoped list/detail/messages/traces via `tenantId + userId`
+        - `trace`: owner-scoped `/traces` list and direct `/traces/:id` read via conversation ownership
+      - default visibility boundary: all five resources remain private-by-default in this wave
+    - intentionally unsupported ACL expansions in the current owner-based wave:
+      - no member/viewer allow rules (both stay planned-deny)
+      - no share/public business-resource visibility expansion
+      - no RBAC/ABAC matrix or role-derived policy branching in service decisions
+      - no cross-tenant collaboration semantics
+    - focused ACL/access-control closeout validation command (repro baseline):
       - `pnpm test:api:focus:acl`
-      - coverage stays intentionally narrow to the implemented owner-scoped access rules:
-        - auth route-policy/session boundary guard
-        - owner-only access-policy contract decisions
-        - knowledge-base owner-scoped read/write paths
-        - document + knowledge-base scoped document access paths
-      - the baseline currently avoids assistant/trace ACL expansion and stays tied to the rules already implemented in this wave
   - web auth bootstrap now calls `GET /auth/me` at app-shell entry and redirects unauthenticated users to `/login`
   - web app shell now exposes a minimal `Logout` action that calls `POST /auth/logout`, clears auth-scoped cached query state, and returns to `/login`
   - web API requests now include credentials by default so the auth session cookie is sent for protected API routes
