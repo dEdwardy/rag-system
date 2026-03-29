@@ -948,14 +948,41 @@ export class DocumentsService {
     sourceType?: string;
     sourceName?: string;
   }): ExternalSourceConfig | null {
-    if (!identity || identity.sourceType !== "web_page" || typeof identity.sourceName !== "string") {
+    if (!identity || typeof identity.sourceName !== "string") {
       return null;
     }
 
-    return {
-      kind: "web_page",
-      url: identity.sourceName
-    };
+    let normalizedSourceName: string;
+    try {
+      normalizedSourceName = this.normalizeRemoteSourceUrl(identity.sourceName);
+    } catch {
+      return null;
+    }
+
+    if (identity.sourceType === "web_page") {
+      return {
+        kind: "web_page",
+        url: normalizedSourceName
+      };
+    }
+
+    if (identity.sourceType === "feed") {
+      return {
+        kind: "feed",
+        url: normalizedSourceName,
+        maxItems: 20
+      };
+    }
+
+    if (identity.sourceType === "sitemap") {
+      return {
+        kind: "sitemap",
+        url: normalizedSourceName,
+        maxPages: 20
+      };
+    }
+
+    return null;
   }
 
   private async fetchExternalSourceFromConfig(sourceConfig: ExternalSourceConfig): Promise<FetchedExternalSource> {

@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ external source re-sync recovery is now hardened for legacy feed/sitemap config-loss identities, with boundary regression coverage for unrecoverable sitemap identity
+  - 变更文件：
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `resolveLegacyExternalSourceConfigFromDocumentIdentity` 现在对 `feed` / `sitemap` 与现有 `web_page` 一样支持从 `sourceType + sourceName` 恢复重同步配置，并复用 URL 归一化（去 hash）与默认边界（`maxItems/maxPages=20`）
+    - 对于无法解析为有效 URL 的 legacy identity，继续保持现有失败语义：记录 `EXTERNAL_SOURCE_CONFIG_INVALID`，不进入 source fetch
+    - 回归覆盖新增 sitemap unrecoverable 边界用例，确保 config-loss recovery 仅在可恢复身份下生效
+  - focused validation：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+
 - ✅ P2 `acl baseline docs` now records one reproducible owner-based ACL baseline snapshot for queue closeout
   - 变更文件：
     - `docs/current-dev-setup.md`

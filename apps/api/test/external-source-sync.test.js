@@ -1604,6 +1604,135 @@ test("DocumentsService records a failed external_resync run when stored source c
   assert.deepEqual(enqueuedDocumentIds, []);
 });
 
+test("DocumentsService records a failed external_resync run when legacy sitemap identity cannot be recovered from missing source config", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const failedRuns = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-broken-sitemap-document",
+    kbId: "default-kb",
+    sourceType: "sitemap",
+    sourceName: "not-a-valid-sitemap-url",
+    title: "Broken sitemap",
+    mimeType: "text/plain",
+    storageKey: "generated/sitemap.txt",
+    sourceConfigJson: Prisma.JsonNull,
+    status: "ready",
+    processingStage: "completed",
+    version: 4,
+    chunkCount: 6,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("saveGeneratedTextFile should not be called when source config is invalid");
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {
+      fetchSitemap: async () => {
+        throw new Error("fetchSitemap should not be called when source config is invalid");
+      }
+    },
+    webPageService: {}
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
+    /External source config is missing/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "External source config is missing.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+          failedStage: "source_fetch",
+          retryable: false,
+          documentVersion: 5,
+          message: "External source config is missing."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 5,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 5,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: 5,
+        message: "External source config is missing."
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, []);
+});
+
 test("DocumentsService reindex recovers legacy feed config when sourceConfigJson is missing", async () => {
   const documentUpdates = [];
   const createdRuns = [];
