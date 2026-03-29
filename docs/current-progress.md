@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 usage page now includes one focused snapshot window diff subpanel for quick 6h vs 24h issue-window comparison
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 usage 页 `P6 v1 health dashboard` 新增 `P6 v1 snapshot window diff` 子面板
+    - 复用已有 `GET /knowledge-bases/:id/document-runs/comparison` + 现有 hook 的 snapshot 参数模式（`leftSinceHours=6`、`rightSinceHours=24`，`issueOnly=true`），展示聚合指标差异
+    - 保持 backend contract 不变，不扩展页面为更大 analytics 面板
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 usage page now includes a scan-first source-family hotspot panel for failure/boundary concentration
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`

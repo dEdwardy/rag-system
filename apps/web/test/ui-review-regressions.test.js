@@ -135,6 +135,16 @@ test("usage page exposes a source-family hotspot panel from bySourceFamily summa
   assert.match(usageSource, /source-family-hotspot-row/);
 });
 
+test("usage page exposes a focused snapshot window diff (6h vs 24h) for issue snapshots", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /P6 v1 snapshot window diff|P6 v1 快照窗口差异/);
+  assert.match(usageSource, /6h vs 24h issue snapshots|6h 与 24h 的 issue snapshot/);
+  assert.match(usageSource, /leftSinceHours:\s*6/);
+  assert.match(usageSource, /rightSinceHours:\s*24/);
+  assert.match(usageSource, /snapshot-window-diff-row/);
+});
+
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {
   const cssSource = readFileSync(globalCssPath, "utf8");
 

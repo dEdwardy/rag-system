@@ -53,6 +53,11 @@ export function UsagePage() {
     },
     latestIssueRunPair != null
   );
+  const snapshotWindowDiffQuery = useKnowledgeBaseDocumentRunComparison(activeKnowledgeBase?.id ?? null, {
+    issueOnly: true,
+    leftSinceHours: 6,
+    rightSinceHours: 24
+  });
   const { locale } = useI18n();
 
   const documents = documentsQuery.data ?? [];
@@ -365,6 +370,9 @@ export function UsagePage() {
     null;
   const runDiffPanelErrorMessage =
     (runDiffQuery.error instanceof Error && runDiffQuery.error.message) ||
+    null;
+  const snapshotWindowDiffPanelErrorMessage =
+    (snapshotWindowDiffQuery.error instanceof Error && snapshotWindowDiffQuery.error.message) ||
     null;
 
   const anomalyClusters = useMemo(
@@ -838,6 +846,52 @@ export function UsagePage() {
                             {locale === "zh"
                               ? `指标：${diff.metric} · ${String(diff.left)} → ${String(diff.right)}`
                               : `Metric: ${diff.metric} · ${String(diff.left)} → ${String(diff.right)}`}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
+                  <div className="workspace-section-heading">
+                    {locale === "zh" ? "P6 v1 快照窗口差异" : "P6 v1 snapshot window diff"}
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                    {locale === "zh"
+                      ? "对比最近 6h 与 24h 的 issue snapshot，快速识别失败与边界趋势变化。"
+                      : "Compare 6h vs 24h issue snapshots to quickly spot failure and boundary trend shifts."}
+                  </p>
+
+                  {snapshotWindowDiffPanelErrorMessage ? (
+                    <StatePanel
+                      description={snapshotWindowDiffPanelErrorMessage}
+                      title={locale === "zh" ? "快照窗口差异信号加载失败" : "Failed to load snapshot-window diff signals"}
+                      tone="error"
+                    />
+                  ) : snapshotWindowDiffQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
+                  ) : snapshotWindowDiffQuery.data?.mode !== "snapshot" ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]" data-testid="snapshot-window-diff-row">
+                      {locale === "zh"
+                        ? "当前差异视图仅展示快照对比模式。"
+                        : "This view currently renders snapshot comparison mode only."}
+                    </p>
+                  ) : snapshotWindowDiffQuery.data.meaningfulDifferences.length === 0 ? (
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]" data-testid="snapshot-window-diff-row">
+                      {locale === "zh"
+                        ? "最近 6h 与 24h 快照未检测到关键差异。"
+                        : "No meaningful differences detected between 6h and 24h snapshots."}
+                    </p>
+                  ) : (
+                    <ul className="mt-3 flex flex-col gap-2 text-sm">
+                      {snapshotWindowDiffQuery.data.meaningfulDifferences.slice(0, 5).map(diff => (
+                        <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={diff.metric}>
+                          <div className="font-medium text-[var(--app-text)]">{diff.summary}</div>
+                          <div className="mt-1 text-[var(--app-text-muted)]" data-testid="snapshot-window-diff-row">
+                            {locale === "zh"
+                              ? `指标：${diff.metric} · Δ ${diff.delta} (${diff.left} → ${diff.right})`
+                              : `Metric: ${diff.metric} · Δ ${diff.delta} (${diff.left} → ${diff.right})`}
                           </div>
                         </li>
                       ))}
