@@ -39,6 +39,17 @@
   - focused validation：
     - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
 
+- ✅ report center metadata baseline rows now use one explicit scan-first placeholder when baseline fields are absent
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `baselineSnapshotId` 与 `baselineVersion` 在 metadata 区块改为统一走 `formatBaselineMetadataValue`，当值为空/缺失时显示同一条 scan-first 占位文案，而不再呈现空白/undefined 读感
+    - 保持范围仅限 report-center metadata 可读性守卫：不改 eval API 契约，不改 run flow，不改 query-param 行为与布局方向
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ trace-detail / usage-snapshot / report-center wording-contract references are now re-aligned under the existing scan-first boundary (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`

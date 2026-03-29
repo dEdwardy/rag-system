@@ -189,6 +189,9 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
   assert.match(reportCenterSource, /setSearchParams\(nextSearchParams, \{ replace: true \}\)/);
   assert.match(reportCenterSource, /Start with one scan-first run|先跑一次 scan-first run/);
+  assert.match(reportCenterSource, /scan-first: no baseline linked for this run|scan-first：当前 run 未绑定 baseline/);
+  assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineSnapshotId\)/);
+  assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineVersion\)/);
 });
 
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {

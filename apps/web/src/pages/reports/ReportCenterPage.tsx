@@ -82,6 +82,16 @@ export function ReportCenterPage() {
   const regressionDrilldownItems = runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [];
   const runDiffSummary = runEvalMutation.data?.baselineComparison?.diffSummary;
   const showPreRunGuidance = !runEvalMutation.data && !runEvalMutation.isError && !runEvalMutation.isPending;
+  const baselineMetadataPlaceholder =
+    locale === "zh" ? "scan-first：当前 run 未绑定 baseline" : "scan-first: no baseline linked for this run";
+
+  function formatBaselineMetadataValue(value: string | number | null | undefined) {
+    if (value == null) {
+      return baselineMetadataPlaceholder;
+    }
+    const text = String(value).trim();
+    return text.length > 0 ? text : baselineMetadataPlaceholder;
+  }
 
   function getRegressionReasonLabel(reasonCode: string) {
     if (locale === "zh") {
@@ -384,11 +394,11 @@ export function ReportCenterPage() {
             </div>
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">baselineSnapshotId</span>
-              <span className="workspace-meta-value">{runEvalMutation.data.baselineSnapshotId}</span>
+              <span className="workspace-meta-value">{formatBaselineMetadataValue(runEvalMutation.data.baselineSnapshotId)}</span>
             </div>
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">baselineVersion</span>
-              <span className="workspace-meta-value">{runEvalMutation.data.baselineVersion}</span>
+              <span className="workspace-meta-value">{formatBaselineMetadataValue(runEvalMutation.data.baselineVersion)}</span>
             </div>
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">assistantId</span>
