@@ -471,6 +471,50 @@ export function UsagePage() {
     };
   }, [runSummary?.bySourceFamily]);
 
+  const snapshotWindowSourceFamilyDrilldown = useMemo(() => {
+    if (snapshotWindowDiffQuery.data?.mode !== "snapshot") {
+      return null;
+    }
+
+    const deltas = snapshotWindowDiffQuery.data.sourceFamilyDeltas ?? [];
+    if (deltas.length === 0) {
+      return null;
+    }
+
+    const [driver] = [...deltas].sort((left, right) => {
+      const leftImpact =
+        Math.abs(left.deltas.failedRuns) +
+        Math.abs(left.deltas.runsWithBoundaryHit) +
+        Math.abs(left.deltas.retryableFailures) +
+        Math.abs(left.deltas.nonRetryableFailures);
+      const rightImpact =
+        Math.abs(right.deltas.failedRuns) +
+        Math.abs(right.deltas.runsWithBoundaryHit) +
+        Math.abs(right.deltas.retryableFailures) +
+        Math.abs(right.deltas.nonRetryableFailures);
+
+      if (rightImpact !== leftImpact) {
+        return rightImpact - leftImpact;
+      }
+
+      return Math.abs(right.deltas.totalRuns) - Math.abs(left.deltas.totalRuns);
+    });
+
+    if (!driver) {
+      return null;
+    }
+
+    return {
+      sourceFamily: driver.sourceFamily,
+      failedDelta: driver.deltas.failedRuns,
+      boundaryDelta: driver.deltas.runsWithBoundaryHit,
+      retryableDelta: driver.deltas.retryableFailures,
+      nonRetryableDelta: driver.deltas.nonRetryableFailures,
+      leftWindowLabel: snapshotWindowDiffQuery.data.left.sinceHours,
+      rightWindowLabel: snapshotWindowDiffQuery.data.right.sinceHours
+    };
+  }, [snapshotWindowDiffQuery.data]);
+
   return (
     <div className="flex flex-col gap-4">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -884,18 +928,34 @@ export function UsagePage() {
                         : "No meaningful differences detected between 6h and 24h snapshots."}
                     </p>
                   ) : (
-                    <ul className="mt-3 flex flex-col gap-2 text-sm">
-                      {snapshotWindowDiffQuery.data.meaningfulDifferences.slice(0, 5).map(diff => (
-                        <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={diff.metric}>
-                          <div className="font-medium text-[var(--app-text)]">{diff.summary}</div>
-                          <div className="mt-1 text-[var(--app-text-muted)]" data-testid="snapshot-window-diff-row">
-                            {locale === "zh"
-                              ? `指标：${diff.metric} · Δ ${diff.delta} (${diff.left} → ${diff.right})`
-                              : `Metric: ${diff.metric} · Δ ${diff.delta} (${diff.left} → ${diff.right})`}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="mt-3 flex flex-col gap-2 text-sm">
+                        {snapshotWindowDiffQuery.data.meaningfulDifferences.slice(0, 5).map(diff => (
+                          <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={diff.metric}>
+                            <div className="font-medium text-[var(--app-text)]">{diff.summary}</div>
+                            <div className="mt-1 text-[var(--app-text-muted)]" data-testid="snapshot-window-diff-row">
+                              {locale === "zh"
+                                ? `指标：${diff.metric} · Δ ${diff.delta} (${diff.left} → ${diff.right})`
+                                : `Metric: ${diff.metric} · Δ ${diff.delta} (${diff.left} → ${diff.right})`}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {snapshotWindowSourceFamilyDrilldown ? (
+                        <div
+                          className="mt-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3 text-sm text-[var(--app-text-muted)]"
+                          data-testid="snapshot-window-source-family-drilldown"
+                        >
+                          <span className="font-medium text-[var(--app-text)]">
+                            {locale === "zh" ? "source-family 驱动" : "source-family driver"}
+                          </span>
+                          {locale === "zh"
+                            ? `：${snapshotWindowSourceFamilyDrilldown.sourceFamily}（${snapshotWindowSourceFamilyDrilldown.leftWindowLabel}h → ${snapshotWindowSourceFamilyDrilldown.rightWindowLabel}h）失败 Δ ${snapshotWindowSourceFamilyDrilldown.failedDelta}，边界命中 Δ ${snapshotWindowSourceFamilyDrilldown.boundaryDelta}，可重试 Δ ${snapshotWindowSourceFamilyDrilldown.retryableDelta}，不可重试 Δ ${snapshotWindowSourceFamilyDrilldown.nonRetryableDelta}。`
+                            : `: ${snapshotWindowSourceFamilyDrilldown.sourceFamily} (${snapshotWindowSourceFamilyDrilldown.leftWindowLabel}h → ${snapshotWindowSourceFamilyDrilldown.rightWindowLabel}h) with failed-runs Δ ${snapshotWindowSourceFamilyDrilldown.failedDelta}, boundary-hits Δ ${snapshotWindowSourceFamilyDrilldown.boundaryDelta}, retryable Δ ${snapshotWindowSourceFamilyDrilldown.retryableDelta}, and non-retryable Δ ${snapshotWindowSourceFamilyDrilldown.nonRetryableDelta}.`}
+                        </div>
+                      ) : null}
+                    </>
                   )}
                 </div>
 

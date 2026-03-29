@@ -316,6 +316,31 @@ export type KnowledgeBaseDocumentRunComparisonSnapshotDifference = {
   summary: string;
 };
 
+export type KnowledgeBaseDocumentRunComparisonSourceFamilyDelta = {
+  sourceFamily: string;
+  left: {
+    totalRuns: number;
+    failedRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  };
+  right: {
+    totalRuns: number;
+    failedRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  };
+  deltas: {
+    totalRuns: number;
+    failedRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  };
+};
+
 export type KnowledgeBaseDocumentRunComparison =
   | {
       mode: "run";
@@ -334,6 +359,7 @@ export type KnowledgeBaseDocumentRunComparison =
         summary: KnowledgeBaseDocumentRunSummary;
       };
       meaningfulDifferences: KnowledgeBaseDocumentRunComparisonSnapshotDifference[];
+      sourceFamilyDeltas?: KnowledgeBaseDocumentRunComparisonSourceFamilyDelta[];
     };
 
 export type DocumentChunk = {

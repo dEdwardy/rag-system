@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 snapshot window diff panel now shows one concise source-family drilldown for the 6h vs 24h issue-window shift
+  - 变更文件：
+    - `apps/web/src/types/api.ts`
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 snapshot diff 面板内继续复用现有 `GET /knowledge-bases/:id/document-runs/comparison` snapshot 响应，不新增 endpoint/hook
+    - 基于已有 comparison 响应中的 `sourceFamilyDeltas`，新增一条 `source-family driver` 精简钻取，说明哪一类 source family 在 `6h -> 24h` 的 issue-window 差异里贡献最大
+    - 仅收口该子面板读模型表达；未扩展 usage 页为通用 dashboard，未改 backend contract 语义
+  - focused validation：
+    - `node --test --test-name-pattern "snapshot window diff" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 v1 snapshot comparison now also returns source-family delta data derived from existing summary buckets
   - 变更文件：
     - `apps/api/src/modules/document-runs/document-runs.service.ts`
