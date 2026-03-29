@@ -350,6 +350,138 @@ test("AuthController reserves oauth provider route shapes without implementing c
   });
 });
 
+test("AuthService startOauthProvider resolves GitHub start redirect with CSRF state", () => {
+  const previousClientId = process.env.AUTH_GITHUB_CLIENT_ID;
+  const previousRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
+  const previousScope = process.env.AUTH_GITHUB_SCOPE;
+
+  process.env.AUTH_GITHUB_CLIENT_ID = "github-client-id";
+  process.env.AUTH_GITHUB_REDIRECT_URI = "http://localhost:3000/auth/oauth/github/callback";
+  process.env.AUTH_GITHUB_SCOPE = "read:user user:email";
+
+  try {
+    const authService = new AuthService({});
+    const result = authService.startOauthProvider({ provider: "github" });
+    const redirectUrl = new URL(result.redirectUrl);
+
+    assert.equal(result.provider, "github");
+    assert.equal(result.stateCookieName, "rag_oauth_state");
+    assert.ok(result.state.length > 0);
+    assert.equal(result.stateTtlSeconds, 600);
+    assert.equal(redirectUrl.origin + redirectUrl.pathname, "https://github.com/login/oauth/authorize");
+    assert.equal(redirectUrl.searchParams.get("client_id"), "github-client-id");
+    assert.equal(redirectUrl.searchParams.get("redirect_uri"), "http://localhost:3000/auth/oauth/github/callback");
+    assert.equal(redirectUrl.searchParams.get("scope"), "read:user user:email");
+    assert.equal(redirectUrl.searchParams.get("state"), result.state);
+  } finally {
+    if (previousClientId == null) {
+      delete process.env.AUTH_GITHUB_CLIENT_ID;
+    } else {
+      process.env.AUTH_GITHUB_CLIENT_ID = previousClientId;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_GITHUB_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GITHUB_REDIRECT_URI = previousRedirectUri;
+    }
+
+    if (previousScope == null) {
+      delete process.env.AUTH_GITHUB_SCOPE;
+    } else {
+      process.env.AUTH_GITHUB_SCOPE = previousScope;
+    }
+  }
+});
+
+test("AuthService startOauthProvider fails clearly when GitHub OAuth config is missing", () => {
+  const previousClientId = process.env.AUTH_GITHUB_CLIENT_ID;
+  const previousRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
+
+  delete process.env.AUTH_GITHUB_CLIENT_ID;
+  delete process.env.AUTH_GITHUB_REDIRECT_URI;
+
+  try {
+    const authService = new AuthService({});
+    assert.throws(
+      () => authService.startOauthProvider({ provider: "github" }),
+      /GitHub OAuth is not configured/i
+    );
+  } finally {
+    if (previousClientId == null) {
+      delete process.env.AUTH_GITHUB_CLIENT_ID;
+    } else {
+      process.env.AUTH_GITHUB_CLIENT_ID = previousClientId;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_GITHUB_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GITHUB_REDIRECT_URI = previousRedirectUri;
+    }
+  }
+});
+
+test("AuthService startOauthProvider keeps google and oidc unimplemented", () => {
+  const authService = new AuthService({});
+
+  assert.throws(() => authService.startOauthProvider({ provider: "google" }), /not implemented/i);
+  assert.throws(() => authService.startOauthProvider({ provider: "oidc" }), /not implemented/i);
+});
+
+test("AuthController oauthProviderStart sets state cookie and redirects to GitHub", () => {
+  const previousClientId = process.env.AUTH_GITHUB_CLIENT_ID;
+  const previousRedirectUri = process.env.AUTH_GITHUB_REDIRECT_URI;
+
+  process.env.AUTH_GITHUB_CLIENT_ID = "github-client-id";
+  process.env.AUTH_GITHUB_REDIRECT_URI = "http://localhost:3000/auth/oauth/github/callback";
+
+  try {
+    const cookies = [];
+    const redirects = [];
+    const controller = new AuthController(new AuthService({}));
+
+    controller.oauthProviderStart(
+      {
+        provider: "github"
+      },
+      {
+        setHeader: (name, value) => {
+          if (name === "Set-Cookie") {
+            cookies.push(value);
+          }
+        },
+        redirect: (statusCode, url) => {
+          redirects.push({ statusCode, url });
+        }
+      }
+    );
+
+    assert.equal(cookies.length, 1);
+    assert.match(cookies[0], /^rag_oauth_state=/);
+    assert.match(cookies[0], /HttpOnly/);
+    assert.match(cookies[0], /SameSite=Lax/);
+    assert.match(cookies[0], /Max-Age=600/);
+    assert.equal(redirects.length, 1);
+    assert.equal(redirects[0].statusCode, 302);
+    assert.match(redirects[0].url, /^https:\/\/github\.com\/login\/oauth\/authorize\?/);
+    assert.match(redirects[0].url, /client_id=github-client-id/);
+    assert.match(redirects[0].url, /state=/);
+  } finally {
+    if (previousClientId == null) {
+      delete process.env.AUTH_GITHUB_CLIENT_ID;
+    } else {
+      process.env.AUTH_GITHUB_CLIENT_ID = previousClientId;
+    }
+
+    if (previousRedirectUri == null) {
+      delete process.env.AUTH_GITHUB_REDIRECT_URI;
+    } else {
+      process.env.AUTH_GITHUB_REDIRECT_URI = previousRedirectUri;
+    }
+  }
+});
+
 test("AuthService login creates session identity and logout revokes session", async () => {
   const loginEmail = "default-user@example.com";
   const loginPassword = "local-password-1";

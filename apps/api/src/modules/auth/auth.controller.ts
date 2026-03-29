@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Req, Res } from "@nestjs/common";
 import { DEFAULT_AUTH_SESSION_COOKIE_NAME } from "./auth.constants";
 import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
 import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
-import { loginSchema, permissionCheckSchema } from "./auth.schemas";
+import { loginSchema, oauthProviderParamSchema, permissionCheckSchema } from "./auth.schemas";
 import { AuthService } from "./auth.service";
 
 export const AUTH_OAUTH_PROVIDER_ROUTE_SHAPES = {
@@ -47,6 +47,27 @@ export class AuthController {
     return {
       ok: true
     };
+  }
+
+  @Get("oauth/:provider/start")
+  oauthProviderStart(
+    @Param() params: unknown,
+    @Res() response: {
+      setHeader: (name: string, value: string | string[]) => void;
+      redirect: (statusCode: number, url: string) => void;
+    }
+  ) {
+    const input = oauthProviderParamSchema.parse(params);
+    const start = this.authService.startOauthProvider({
+      provider: input.provider
+    });
+
+    const safeState = encodeURIComponent(start.state);
+    response.setHeader(
+      "Set-Cookie",
+      `${start.stateCookieName}=${safeState}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${start.stateTtlSeconds}`
+    );
+    response.redirect(302, start.redirectUrl);
   }
 
   @Get("me")
