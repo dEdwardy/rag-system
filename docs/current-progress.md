@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 eval run output now carries an explicit fixed-threshold contract in `qualityGate`, so automated consumers can apply the gate deterministically without inferring limits from prose or model judgment
+  - 变更文件：
+    - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`
+    - `apps/api/test/eval-question-sets.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `qualityGate` 在现有 `limitVersion + breachedMetrics` 基础上新增 `thresholds`（固定五项：`successRate`、`groundedRate`、`strongRate`、`fallbackRate`、`averageCitationCount`），明确当前实际生效阈值合同
+    - 阈值来源继续复用既有 `P5_V1_QUALITY_GATE_LIMITS`，不引入新评测信号、不新增开放式模型裁决层
+    - 相关回归断言已收口：通过与 warning 两条路径都校验 `qualityGate.thresholds` 的固定结构与顺序
+  - focused validation：
+    - `pnpm test:api:file -- test/eval-question-sets.service.test.js`
+
 - ✅ P5 v1 retrieval regression report export contract is now tightened for rerun-stable structure and trace-signal readability
   - 变更文件：
     - `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts`

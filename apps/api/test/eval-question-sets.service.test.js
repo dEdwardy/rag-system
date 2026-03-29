@@ -552,6 +552,33 @@ test("EvalQuestionSetsService runQuestionSet uses selected baseline snapshot que
     mode: "warn",
     status: "passed",
     limitVersion: "p5_v1_core_quality_gate_v1",
+    thresholds: [
+      {
+        metric: "successRate",
+        limitType: "min",
+        limit: 0.8
+      },
+      {
+        metric: "groundedRate",
+        limitType: "min",
+        limit: 0.75
+      },
+      {
+        metric: "strongRate",
+        limitType: "min",
+        limit: 0.6
+      },
+      {
+        metric: "fallbackRate",
+        limitType: "max",
+        limit: 0.35
+      },
+      {
+        metric: "averageCitationCount",
+        limitType: "min",
+        limit: 0.8
+      }
+    ],
     breachedMetricCount: 0,
     breachedMetrics: [],
     message: "All core quality metrics are within P5 v1 limits."
@@ -716,6 +743,33 @@ test("EvalQuestionSetsService runQuestionSet allows baseline override and captur
     mode: "warn",
     status: "warning",
     limitVersion: "p5_v1_core_quality_gate_v1",
+    thresholds: [
+      {
+        metric: "successRate",
+        limitType: "min",
+        limit: 0.8
+      },
+      {
+        metric: "groundedRate",
+        limitType: "min",
+        limit: 0.75
+      },
+      {
+        metric: "strongRate",
+        limitType: "min",
+        limit: 0.6
+      },
+      {
+        metric: "fallbackRate",
+        limitType: "max",
+        limit: 0.35
+      },
+      {
+        metric: "averageCitationCount",
+        limitType: "min",
+        limit: 0.8
+      }
+    ],
     breachedMetricCount: 4,
     breachedMetrics: [
       {

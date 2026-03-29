@@ -51,6 +51,12 @@ type EvalRunQualityGateMetricLimit =
       limit: number;
     };
 
+type EvalRunQualityGateThreshold = {
+  metric: EvalRunQualityGateMetricKey;
+  limitType: "min" | "max";
+  limit: number;
+};
+
 type EvalRunQualityGateBreach = {
   metric: EvalRunQualityGateMetricKey;
   limitType: "min" | "max";
@@ -63,6 +69,7 @@ type EvalRunQualityGate = {
   mode: EvalRunQualityGateMode;
   status: "passed" | "warning" | "failed";
   limitVersion: string;
+  thresholds: EvalRunQualityGateThreshold[];
   breachedMetricCount: number;
   breachedMetrics: EvalRunQualityGateBreach[];
   message: string;
@@ -776,6 +783,11 @@ export class EvalQuestionSetsService {
   }
 
   private evaluateQualityGate(summary: EvalRunSummary, mode: EvalRunQualityGateMode): EvalRunQualityGate {
+    const thresholds: EvalRunQualityGateThreshold[] = P5_V1_QUALITY_GATE_LIMITS.map(limit => ({
+      metric: limit.metric,
+      limitType: limit.limitType,
+      limit: limit.limit
+    }));
     const breachedMetrics: EvalRunQualityGateBreach[] = [];
 
     for (const limit of P5_V1_QUALITY_GATE_LIMITS) {
@@ -809,6 +821,7 @@ export class EvalQuestionSetsService {
         mode,
         status: "passed",
         limitVersion: P5_V1_QUALITY_GATE_LIMIT_VERSION,
+        thresholds,
         breachedMetricCount: 0,
         breachedMetrics,
         message: "All core quality metrics are within P5 v1 limits."
@@ -819,6 +832,7 @@ export class EvalQuestionSetsService {
       mode,
       status: mode === "fail" ? "failed" : "warning",
       limitVersion: P5_V1_QUALITY_GATE_LIMIT_VERSION,
+      thresholds,
       breachedMetricCount: breachedMetrics.length,
       breachedMetrics,
       message: `${breachedMetrics.length} core quality metric(s) crossed P5 v1 limits.`
