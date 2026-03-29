@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ trace detail now includes one in-page quick-jump scan path so operators can move between core trace sections with less friction
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 `Execution summary` 区域新增 `Trace quick jumps` 子面板，提供直达 `retrieved chunks`、`citations`、`raw payload` 的锚点跳转
+    - 为现有对应区块补充稳定 section id 与滚动偏移，保持原有 trace 语义、页面结构与诊断文案不变
+    - 补一条 `ui-review-regressions` 守卫，锁定 quick-jump 文案与锚点链接路径
+  - focused validation：
+    - `node --test --test-name-pattern "trace detail" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ report center run form now persists submitted inputs in URL query params, so rerun/reload/share flow can carry the same eval context end to end without changing existing report contracts
   - 变更文件：
     - `apps/web/src/pages/reports/ReportCenterPage.tsx`

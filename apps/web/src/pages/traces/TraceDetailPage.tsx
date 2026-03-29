@@ -43,6 +43,12 @@ type TraceDiagnosticSummarySlice = {
 
 const SLOW_PATH_LATENCY_MS = 10_000;
 
+const TRACE_DETAIL_SECTION_IDS = {
+  retrievedChunks: "trace-detail-retrieved-chunks",
+  citations: "trace-detail-citations",
+  rawPayload: "trace-detail-raw-payload"
+} as const;
+
 function buildFailureTaxonomy(trace: {
   status: "success" | "failed";
   latencyMs: number | null;
@@ -646,6 +652,30 @@ export function TraceDetailPage() {
                 </Paper>
               ) : null}
 
+              <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                <Stack gap="xs">
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "Trace 快速跳转" : "Trace quick jumps"}
+                  </Text>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    {locale === "zh"
+                      ? "在当前详情页内快速切换到 chunk、引用或原始载荷区。"
+                      : "Move through chunk, citation, and raw-payload sections without leaving this detail view."}
+                  </Text>
+                  <Group gap="xs">
+                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`} size="sm">
+                      {locale === "zh" ? "查看命中 Chunk" : "Go to retrieved chunks"}
+                    </Anchor>
+                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.citations}`} size="sm">
+                      {locale === "zh" ? "查看引用" : "Go to citations"}
+                    </Anchor>
+                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.rawPayload}`} size="sm">
+                      {locale === "zh" ? "查看原始载荷" : "Go to raw payload"}
+                    </Anchor>
+                  </Group>
+                </Stack>
+              </Paper>
+
               {traceSummary ? (
                 <div className="workspace-meta-list">
                   <div className="workspace-meta-row">
@@ -757,7 +787,13 @@ export function TraceDetailPage() {
 
           <div className="workspace-page-main-stack">
             <Stack gap="md">
-              <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+              <Paper
+                className="workspace-panel-hover workspace-panel-strong"
+                id={TRACE_DETAIL_SECTION_IDS.retrievedChunks}
+                p="lg"
+                radius="xl"
+                style={{ scrollMarginTop: "96px" }}
+              >
                 <Stack gap="md">
                   <Group justify="space-between">
                     <div>
@@ -881,7 +917,13 @@ export function TraceDetailPage() {
               </Paper>
 
               <div className="workspace-detail-secondary-grid">
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  id={TRACE_DETAIL_SECTION_IDS.citations}
+                  p="lg"
+                  radius="xl"
+                  style={{ scrollMarginTop: "96px" }}
+                >
                   <Stack gap="md">
                     <Group justify="space-between">
                       <Text className="workspace-section-heading">{t("trace.citations")}</Text>
@@ -934,7 +976,7 @@ export function TraceDetailPage() {
                 </Paper>
 
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-                  <details>
+                  <details id={TRACE_DETAIL_SECTION_IDS.rawPayload} style={{ scrollMarginTop: "96px" }}>
                     <summary className="workspace-collapsible-summary">
                       <span>{t("common.fields.rawPayload")}</span>
                       <span className="workspace-inline-chip">
