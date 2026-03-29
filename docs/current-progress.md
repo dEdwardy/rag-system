@@ -15,6 +15,29 @@
 
 补充进展（2026-03-29）：
 
+- ✅ 已完成 `Phase 1 local-account login baseline` 的文档对齐（docs-only sync）
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 对齐记录当前 `Phase 1` 已实现登录基线：`POST /auth/login` 按 `{ email, password }` 登录并沿用现有本地 session cookie 模型
+    - 明确本波次仍是 pre-created-user-only（seed/admin/manual bootstrap），不包含 signup、password reset、email verification
+    - 明确保持既有 owner-only ACL 边界（`owner_only_v1 + deny_by_default`）不变，不在此文档同步项扩展到 Phase 2+
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已基于本地 auth master plan 补入 `Phase 1: local account login v1` 的首批 execution-ready queue items
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `.opencode/plan/auth-roadmap-local-oidc-github-google.md` 已明确四阶段总路线图的前提下，本轮只把 `Phase 1` 拆成当前可自动消费的最小增量，覆盖 `User` 本地登录字段/seed、`POST /auth/login` 的 email-password 化、web 登录页切换、以及 docs sync
+    - 明确保留阶段闸门：`Phase 2` 的 `AuthIdentityLink` 骨架、`Phase 3` 的 GitHub 登录、`Phase 4` 的 Google 登录，当前都不入队，不让 loop 跨阶段自动推进
+    - 继续保持 auth wave 的边界不变：不做 signup、password reset、email verification、RBAC/ABAC、team ACL、org/billing，也不改当前 owner-only ACL 语义
+    - `pnpm loop:start` 已重新启动 loop；当前首个 `Phase 1` item `auth-local-schema-040`（`auth local user schema`）已进入 `in_progress`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ usage page now shows one explicit P6 pre-run scan-first guidance state when an active knowledge base exists but document-run history is still empty
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`

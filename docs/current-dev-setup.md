@@ -128,9 +128,14 @@ AUTH_SESSION_TTL_HOURS=168
     - authenticated: `GET /auth/me`, `POST /auth/permissions/check`, plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, and `retrieval-profiles`
     - `GET /auth/me` and the owner-scoped business routes require an authenticated session cookie and return `401` when unauthenticated
   - backend now exposes minimal auth loop endpoints:
-    - `POST /auth/login` (sets session cookie, returns identity)
+    - `POST /auth/login` (Phase 1 local-account baseline: accepts `{ email, password }`, sets session cookie, returns identity)
     - `POST /auth/logout` (revokes current session when present, clears cookie)
     - `GET /auth/me` (returns `{ identity, currentIdentity }`)
+  - current local-account login baseline (`Phase 1`) scope:
+    - pre-created users only (seed/admin/manual bootstrap); no public signup in this wave
+    - no password reset / forgot-password / email verification in this wave
+    - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
+    - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
   - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
     - allow only when `tenantId` matches and `ownerId === userId`
     - deny when tenant mismatches, owner mismatches, or owner is unassigned
