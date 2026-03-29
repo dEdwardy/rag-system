@@ -114,6 +114,9 @@ type ResolvedSitemapPages = {
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
 const MAX_CHILD_SITEMAPS = 20;
 const MAX_FAILURE_SUMMARY_ITEMS = 10;
+const SITEMAP_BOUNDARY_REASON_MAX_PAGES_REACHED = "MAX_PAGES_REACHED";
+const SITEMAP_BOUNDARY_REASON_MAX_CHILD_SITEMAPS_REACHED = "MAX_CHILD_SITEMAPS_REACHED";
+const NESTED_SITEMAP_INDEX_UNSUPPORTED_MESSAGE = "Nested sitemap indexes are not supported.";
 const URLSET_TAG_PATTERN = /<(?:[a-z0-9_-]+:)?urlset\b/i;
 const SITEMAP_INDEX_TAG_PATTERN = /<(?:[a-z0-9_-]+:)?sitemapindex\b/i;
 const SITEMAP_URL_ENTRY_PATTERN =
@@ -228,7 +231,7 @@ export class SitemapSourceService {
                     }
                   : {}),
                 boundaryHit,
-                boundaryReasons: boundaryHit ? ["MAX_PAGES_REACHED"] : [],
+                boundaryReasons: boundaryHit ? [SITEMAP_BOUNDARY_REASON_MAX_PAGES_REACHED] : [],
                 boundary: {
                   maxPages: options.maxPages,
                   maxChildSitemaps: MAX_CHILD_SITEMAPS,
@@ -295,7 +298,8 @@ export class SitemapSourceService {
       const normalizedChildXml = childXml.trim();
 
       if (SITEMAP_INDEX_TAG_PATTERN.test(normalizedChildXml)) {
-        throw new BadRequestException("Nested sitemap indexes are not supported.");
+        // Keep nested sitemapindex payloads as an explicit unsupported boundary (one-level only).
+        throw new BadRequestException(NESTED_SITEMAP_INDEX_UNSUPPORTED_MESSAGE);
       }
 
       const extractedChildPageUrls = this.extractPageUrlsWithStats(normalizedChildXml, {
@@ -339,8 +343,8 @@ export class SitemapSourceService {
     const nonRetryableFailureCount = childSitemapFailures.length - retryableFailureCount;
     const boundaryHit = droppedChildSitemapCount > 0 || maxPagesLimitReached;
     const boundaryReasons = [
-      ...(maxPagesLimitReached ? ["MAX_PAGES_REACHED"] : []),
-      ...(droppedChildSitemapCount > 0 ? ["MAX_CHILD_SITEMAPS_REACHED"] : [])
+      ...(maxPagesLimitReached ? [SITEMAP_BOUNDARY_REASON_MAX_PAGES_REACHED] : []),
+      ...(droppedChildSitemapCount > 0 ? [SITEMAP_BOUNDARY_REASON_MAX_CHILD_SITEMAPS_REACHED] : [])
     ];
 
     return {

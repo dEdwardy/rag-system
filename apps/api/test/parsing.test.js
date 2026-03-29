@@ -1516,6 +1516,80 @@ test("SitemapSourceService reports child-sitemap boundary when sitemap index exc
   }
 });
 
+test("SitemapSourceService keeps combined sitemapindex boundary reasons in stable order", async () => {
+  const originalFetch = global.fetch;
+  const service = new SitemapSourceService(new WebPageService());
+  const childSitemapUrls = Array.from({ length: 21 }, (_, index) => `https://example.com/sitemaps/${index + 1}.xml`);
+
+  global.fetch = async url => {
+    const normalizedUrl = String(url);
+
+    if (normalizedUrl === "https://example.com/sitemap-index.xml") {
+      const entries = childSitemapUrls.map(childUrl => `<sitemap><loc>${childUrl}</loc></sitemap>`).join("");
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</sitemapindex>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    const childMatch = normalizedUrl.match(/^https:\/\/example\.com\/sitemaps\/(\d+)\.xml$/);
+    if (childMatch) {
+      const childIndex = Number(childMatch[1]);
+      if (childIndex > 20) {
+        throw new Error(`Unexpected child sitemap fetch beyond boundary: ${normalizedUrl}`);
+      }
+
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url><loc>https://example.com/pages/${childIndex}</loc></url>
+        </urlset>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    const pageMatch = normalizedUrl.match(/^https:\/\/example\.com\/pages\/(\d+)$/);
+    if (pageMatch) {
+      return new Response(
+        `<html><head><title>Page ${pageMatch[1]}</title></head><body><main><p>Combined boundary marker.</p></main></body></html>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const extracted = await service.fetchSitemap({
+      url: "https://example.com/sitemap-index.xml",
+      maxPages: 2
+    });
+
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/1/);
+    assert.match(extracted.content, /https:\/\/example\.com\/pages\/2/);
+    assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/pages\/3/);
+    assert.deepEqual(extracted.diagnostics?.boundaryReasons, ["MAX_PAGES_REACHED", "MAX_CHILD_SITEMAPS_REACHED"]);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("SitemapSourceService treats hash-only page URL variants as duplicates across sitemap index children", async () => {
   const originalFetch = global.fetch;
   const service = new SitemapSourceService(new WebPageService());
