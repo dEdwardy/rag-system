@@ -865,6 +865,7 @@ Notes:
 - external source follow-up（P3）当前 accepted stability boundary / queue slices 快照：
   - stability boundary（保持不变）：
     - source family 仅限 `web page` / `feed` / `sitemap urlset` / `sitemapindex(一层)` + `external_resync`
+    - source-expansion decision（当前波次）：`keep`（不新增 source family）
     - nested sitemapindex 仍按不支持处理（保持当前失败语义）
     - `MAX_CHILD_SITEMAPS=20` 仍为实现常量（本波次不做 per-source 动态配置）
     - web page 仍按静态 HTML 提取，不引入 JS 渲染抓取
@@ -879,6 +880,10 @@ Notes:
     - web page JS 渲染抓取能力
     - 跨 source family 的全面错误码体系重构
     - source 平台化/插件化重构
+  - focused validation baseline（current source follow-up wave）：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+    - `pnpm test:api:file -- test/parsing.test.js`
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`

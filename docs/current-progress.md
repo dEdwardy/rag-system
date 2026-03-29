@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P3 source follow-up docs are now re-synced to one accepted stability boundary + deferred expansion decision + focused validation baseline (docs-only)
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确 `P3` 当前稳定性边界仍只覆盖既有 source family（`web/feed/sitemap/sitemapindex(一层)/external_resync`），并补充当前 wave 的 source-expansion 结论为 `keep`（不新增 source family）
+    - 明确保留 deferred 范围不变：不做 connector 扩面、不做 web JS 渲染抓取、不做跨 family 错误码体系重构、不做 source 平台化改造
+    - 在 dev setup 快照补齐当前 source follow-up wave 的 focused validation baseline 三条命令，仅做文档同步，不改运行时行为，不重开 auth/ACL 顺序
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P3 source follow-up gap list has been minimally refreshed to match current implementation/tests (docs/planning sync only)
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`

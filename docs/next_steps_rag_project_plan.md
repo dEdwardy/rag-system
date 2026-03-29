@@ -476,6 +476,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 当前 external source follow-up wave 以“现有 source family 稳定性补强”为边界，不扩展新能力面：
 
 - in-scope source family（保持不变）：`web page`、`feed (RSS/Atom)`、`sitemap/urlset`、`sitemapindex(一层)`、以及对应 `external_resync`
+- source-expansion decision（当前波次）：`keep`（不新增 source family；仅在现有稳定性基线收口并通过 focused baseline 后再重评）
 - in-scope 稳定性语义（保持不变）：
   - source fetch `timeout + retry` 基线
   - same-URL document reuse + version 递增
