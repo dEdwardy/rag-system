@@ -898,9 +898,11 @@ Notes:
 - `Document Detail` shows per-document run history with status, trigger, source timing, and minimal diagnostics expansion
 - `Usage` keeps a scan-first `P6 v1 health dashboard` surface (alerts, trend, hotspot, anomaly clustering, regression diff, snapshot window diff) by reusing existing summary/comparison/audit endpoints
   - usage snapshot window diff contract source: `GET /knowledge-bases/:id/document-runs/comparison` in `snapshot` mode (including additive `issueHotspotSlice`); this remains a scan-first troubleshooting slice, not a generic metric/report surface
+- `Report center` keeps a scan-first `P5 v1` eval replay surface (pre-run guidance, quality/diff/weakest-item scan, run metadata, export) and stays on live eval API contracts
+  - report-center contract source: `POST /eval/question-sets/:id/runs` response payload (including `reportExports`); this route does not consume usage snapshot payloads or offline `storage/evals/p5-v1` artifacts
 - `Trace Detail` keeps a scan-first execution-summary surface (diagnostic summary slice, failure taxonomy, quick-jump anchors) and does not require new backend contracts
   - trace-detail contract source: existing `GET /traces/:id` / `GET /conversations/:id/traces` `traceSummary` readability fields; no coupling to usage snapshot comparison payloads or report-center run payloads
-- dashboard scope is intentionally constrained in this wave: keep scan-first troubleshooting panels only, and defer generic analytics/ops-platform expansion
+- dashboard scope is intentionally constrained in this wave: keep `Usage`/`Trace Detail` scan-first troubleshooting panels plus `Report center` scan-first eval replay only, and defer generic analytics/ops-platform expansion
 - next accepted P6 closeout gaps (scan-first surface only, docs snapshot):
   - keep `Usage` closeout focused on existing panel readability/empty-state consistency over current summary/comparison/audit payloads (no new metric families)
   - keep `Report center` closeout focused on existing P5 eval run/read/export flow and parameter carry-through (`questionSetId` / `assistantId` / `baselineSnapshotId`), without adding new report families

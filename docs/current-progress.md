@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ docs observability contract snapshot is now re-synced to landed scan-first Usage / Report center / Trace Detail surfaces, with deferred dashboard scope kept explicit (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 的 observability 快照区补齐 `Report center` 合同来源，明确其仍锚定 live eval API `POST /eval/question-sets/:id/runs`（含 `reportExports`）
+    - 对齐记录当前 scan-first 三面板边界：`Usage` 继续基于 summary/comparison/audit，`Trace Detail` 继续基于 traceSummary readability，`Report center` 继续基于 eval run/read/export；三者不互挪 payload
+    - 明确保留 deferred 范围不变：仅保留 scan-first 排障/复盘面，不扩展为通用 analytics/ops dashboard 平台，不重开 auth/ACL 或手动 P5 流程
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ trace-detail diagnostic summary slice now shows readable `primaryIssue` labels (instead of raw enum values) for faster first-pass scan
   - 变更文件：
     - `apps/web/src/pages/traces/TraceDetailPage.tsx`
