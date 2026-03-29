@@ -861,6 +861,10 @@ Notes:
 - `Usage` keeps a scan-first `P6 v1 health dashboard` surface (alerts, trend, hotspot, anomaly clustering, regression diff, snapshot window diff) by reusing existing summary/comparison/audit endpoints
 - `Trace Detail` keeps a scan-first execution-summary surface (diagnostic summary slice, failure taxonomy, quick-jump anchors) and does not require new backend contracts
 - dashboard scope is intentionally constrained in this wave: keep scan-first troubleshooting panels only, and defer generic analytics/ops-platform expansion
+- next accepted P6 closeout gaps (scan-first surface only, docs snapshot):
+  - keep `Usage` closeout focused on existing panel readability/empty-state consistency over current summary/comparison/audit payloads (no new metric families)
+  - keep `Report center` closeout focused on existing P5 eval run/read/export flow and parameter carry-through (`questionSetId` / `assistantId` / `baselineSnapshotId`), without adding new report families
+  - keep `Usage` ↔ `Report center` boundary as route-level navigation/readability only, without reopening dashboard platform expansion or new backend contracts
 - the knowledge-base scoped run list currently supports minimal query filters:
   - `documentId`
   - `sourceType`

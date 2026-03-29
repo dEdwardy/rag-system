@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 scan-first observability closeout gap list is now recorded as docs-only accepted scope (no runtime change)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 补充当前 `P6` 下一步 accepted closeout gaps：仅围绕现有 `Usage` scan-first 面板与 `Report center` 既有评测流做读模型/空态/可读性收口
+    - 明确继续沿用现有 summary/comparison/audit 与 report-run/export 合同，不新增 backend 契约、不新增 report family
+    - 再次锁定边界：不重开 dashboard 平台化扩面，不把本波次扩展成通用 analytics/ops 能力建设
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P5 planning/status 已按当前 runner/report/gate 落地状态重新对齐，并继续把人工判断项留在自动 loop 外（docs-only increment）
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`
