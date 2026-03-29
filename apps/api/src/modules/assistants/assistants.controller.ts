@@ -60,13 +60,16 @@ export class AssistantsController {
     @Req() request?: ApiRequestWithAuthContext
   ) {
     const input = askAssistantSchema.parse(body);
-
-    response.status(200);
-    response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
-    response.setHeader("Cache-Control", "no-cache, no-transform");
-    response.setHeader("Connection", "keep-alive");
+    let streamStarted = false;
 
     const writeEvent = (event: Record<string, unknown>) => {
+      if (!streamStarted) {
+        streamStarted = true;
+        response.status(200);
+        response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("Connection", "keep-alive");
+      }
       response.write(`${JSON.stringify(event)}\n`);
     };
 
@@ -81,6 +84,19 @@ export class AssistantsController {
         }
       });
     } catch (error) {
+      if (!streamStarted && this.isAuthDenialHttpException(error)) {
+        const payload = error.getResponse();
+        response.status(error.getStatus());
+        if (typeof payload === "string") {
+          response.json({
+            message: payload
+          });
+        } else {
+          response.json(payload);
+        }
+        return;
+      }
+
       const diagnostics = this.buildStreamErrorDiagnostics(error);
       writeEvent({
         type: "error",
@@ -89,6 +105,10 @@ export class AssistantsController {
     } finally {
       response.end();
     }
+  }
+
+  private isAuthDenialHttpException(error: unknown): error is HttpException {
+    return error instanceof HttpException && (error.getStatus() === 401 || error.getStatus() === 403);
   }
 
   private buildStreamErrorDiagnostics(error: unknown) {

@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ ask / ask-stream denial contract is now aligned for auth-denial paths (`401` unauthenticated, `403` owner-mismatch) with explicit HTTP denial responses before stream start
+  - 变更文件：
+    - `apps/api/src/modules/assistants/assistants.controller.ts`
+    - `apps/api/test/assistants-api.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `POST /assistants/:id/ask/stream` 现在仅在首个 stream event 写出时才启动 NDJSON 响应；若在 stream 启动前命中 auth denial（`401/403`），改为直接返回与 `ask` 对齐的 HTTP 拒绝响应
+    - 保持原有流式异常语义不变：非 auth-denial 或已启动 stream 后的失败仍通过 `type: "error"` NDJSON 事件返回
+    - `assistants-api` 回归用例同步收口：owner-mismatch 的 ask-stream 断言改为 `403`，并新增 unauthenticated ask/ask-stream 双路径 `401` 对齐守卫
+  - focused validation：
+    - `pnpm test:api:file -- test/assistants-api.test.js`
+
 - ✅ trace owner-scope access is now locked for both direct trace reads and conversation-linked trace list paths
   - 变更文件：
     - `apps/api/src/modules/traces/traces.service.ts`

@@ -202,14 +202,10 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
         question: "Should fail by owner ACL before retrieval"
       })
     });
-    assert.equal(foreignAskStreamResponse.status, 200);
-    const streamPayload = await foreignAskStreamResponse.text();
-    const streamEvents = parseNdjsonEvents(streamPayload);
-    assert.equal(streamEvents.length, 1);
-    const [firstEvent] = streamEvents;
-    assert.equal(firstEvent.type, "error");
+    assert.equal(foreignAskStreamResponse.status, 403);
+    const foreignAskStreamPayload = await foreignAskStreamResponse.json();
     assert.match(
-      String(firstEvent.message ?? ""),
+      String(foreignAskStreamPayload.message ?? ""),
       /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
     );
 
@@ -224,6 +220,59 @@ test("Assistant API scopes list/get/update and ask routes to current owner ident
     await prisma.assistant.deleteMany({ where: { id: foreignAssistantId } }).catch(() => {});
     await prisma.knowledgeBase.deleteMany({ where: { id: foreignKbId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: foreignUserId } }).catch(() => {});
+  }
+});
+
+test("Assistant ask and ask-stream both return explicit 401 denial when unauthenticated", async () => {
+  await resetTestState();
+
+  const port = 3113;
+  const queuePrefix = `test-assistants-unauth-${randomUUID()}`;
+
+  const server = spawn(process.execPath, [apiDistEntry], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      QUEUE_PREFIX: queuePrefix,
+      AUTH_DEV_DEFAULT_USER_MODE: "false"
+    },
+    stdio: "ignore"
+  });
+
+  try {
+    await waitForHealth(port, 20000);
+
+    const askResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: "Should fail without auth identity"
+      })
+    });
+    assert.equal(askResponse.status, 401);
+    const askPayload = await askResponse.json();
+    assert.match(String(askPayload.message ?? ""), /Authentication required\./);
+
+    const askStreamResponse = await fetch(`http://localhost:${port}/assistants/default-assistant/ask/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        question: "Should fail without auth identity"
+      })
+    });
+    assert.equal(askStreamResponse.status, 401);
+    const askStreamPayload = await askStreamResponse.json();
+    assert.match(String(askStreamPayload.message ?? ""), /Authentication required\./);
+
+    const deniedConversationCount = await prisma.conversation.count();
+    assert.equal(deniedConversationCount, 0);
+  } finally {
+    server.kill("SIGTERM");
   }
 });
 
@@ -455,12 +504,4 @@ function resolveBuiltApiEntry() {
   }
 
   return resolve(repoRoot, "apps/api/dist/main.js");
-}
-
-function parseNdjsonEvents(payload) {
-  return payload
-    .split("\n")
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => JSON.parse(line));
 }
