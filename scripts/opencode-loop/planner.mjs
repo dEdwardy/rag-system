@@ -8,6 +8,20 @@ export const DEFAULT_PLANNER_PROMPT_FILE_NAME = "plan-next.md";
 export const DEFAULT_AUTO_REFILL_MAX_CYCLES = 1;
 export const DEFAULT_AUTO_REFILL_MAX_ITEMS = 2;
 
+export function initializeAutoRefillState(queue, options = {}) {
+  const maxCycles = normalizeNonNegativeInteger(options.maxCycles, DEFAULT_AUTO_REFILL_MAX_CYCLES);
+  const maxItems = normalizePositiveInteger(options.maxItems, DEFAULT_AUTO_REFILL_MAX_ITEMS);
+  const scopeKey = buildAutoRefillScopeKey(queue);
+  const persisted = normalizePersistedAutoRefill(queue?.autoRefill, scopeKey);
+
+  return {
+    cycles: persisted.cycles,
+    maxCycles,
+    maxItems,
+    scopeKey
+  };
+}
+
 export async function maybeAutoRefillQueue({
   api,
   repoRoot,
@@ -20,6 +34,8 @@ export async function maybeAutoRefillQueue({
   logStatus,
   extractAssistantText
 }) {
+  syncAutoRefillScope(queue, autoRefillState);
+
   if ((autoRefillState?.maxCycles ?? 0) <= 0) {
     return { queue, generatedItems: [], plannerSessionId: null, plannerMessageId: null, handoffPath: null };
   }
@@ -116,13 +132,15 @@ export async function maybeAutoRefillQueue({
 
   if (generatedItems.length === 0) {
     autoRefillState.cycles += 1;
+    const persistedQueue = withPersistedAutoRefillState(queue, autoRefillState, generatedAt);
+    writeQueue(queuePath, persistedQueue);
     logStatus("refill:skip", {
       plannerSessionId: session.id,
       plannerMessageId: message.info?.id ?? "unknown",
       handoffPath: relative(repoRoot, plannerHandoffPath).replace(/\\/g, "/")
     });
     return {
-      queue,
+      queue: persistedQueue,
       generatedItems,
       plannerSessionId: session.id,
       plannerMessageId: message.info?.id ?? null,
@@ -130,9 +148,10 @@ export async function maybeAutoRefillQueue({
     };
   }
 
-  const updatedQueue = appendQueueItems(queue, generatedItems, generatedAt);
-  writeQueue(queuePath, updatedQueue);
+  const appendedQueue = appendQueueItems(queue, generatedItems, generatedAt);
   autoRefillState.cycles += 1;
+  const updatedQueue = withPersistedAutoRefillState(appendedQueue, autoRefillState, generatedAt);
+  writeQueue(queuePath, updatedQueue);
 
   logStatus("refill", {
     plannerSessionId: session.id,
@@ -149,6 +168,66 @@ export async function maybeAutoRefillQueue({
     plannerMessageId: message.info?.id ?? null,
     handoffPath: relative(repoRoot, plannerHandoffPath).replace(/\\/g, "/")
   };
+}
+
+export function buildAutoRefillScopeKey(queue) {
+  const manualItems = Array.isArray(queue?.items)
+    ? queue.items.filter(item => item && item.plannerSource !== "auto-refill")
+    : [];
+
+  return JSON.stringify(
+    manualItems.map(item => ({
+      id: item.id ?? null,
+      title: item.title ?? null,
+      promptFile: item.promptFile ?? null,
+      promptText: item.promptText ?? null,
+      agent: item.agent ?? null,
+      model: item.model ?? null
+    }))
+  );
+}
+
+function normalizePersistedAutoRefill(autoRefill, scopeKey) {
+  if (!autoRefill || typeof autoRefill !== "object" || Array.isArray(autoRefill)) {
+    return { cycles: 0 };
+  }
+
+  if (autoRefill.scopeKey !== scopeKey) {
+    return { cycles: 0 };
+  }
+
+  return {
+    cycles: normalizeNonNegativeInteger(autoRefill.cycles, 0)
+  };
+}
+
+function syncAutoRefillScope(queue, autoRefillState) {
+  const scopeKey = buildAutoRefillScopeKey(queue);
+  if (autoRefillState.scopeKey === scopeKey) {
+    return;
+  }
+
+  autoRefillState.scopeKey = scopeKey;
+  autoRefillState.cycles = 0;
+}
+
+function withPersistedAutoRefillState(queue, autoRefillState, updatedAt) {
+  return {
+    ...queue,
+    autoRefill: {
+      scopeKey: autoRefillState.scopeKey,
+      cycles: normalizeNonNegativeInteger(autoRefillState.cycles, 0)
+    },
+    updatedAt
+  };
+}
+
+function normalizeNonNegativeInteger(value, fallback) {
+  return Number.isInteger(value) && value >= 0 ? value : fallback;
+}
+
+function normalizePositiveInteger(value, fallback) {
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 function composePlannerPrompt({ plannerPromptTemplate, queue, repoRoot, handoffsDir, maxItems }) {

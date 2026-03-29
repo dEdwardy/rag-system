@@ -24,6 +24,7 @@ export async function runSelfTest() {
   let timeoutRetryRoot = null;
   let timeoutExhaustedRoot = null;
   let plannerDedupeRoot = null;
+  let refillPersistRoot = null;
   let resumeWindowRoot = null;
   let staleLockRoot = null;
   const sessions = [];
@@ -35,6 +36,7 @@ export async function runSelfTest() {
   const lastPostPayloadBySessionId = new Map();
   let nextMessageNumber = 1;
   let plannerResponsesRemaining = 1;
+  let plannerPersistentSequence = 0;
   let failureDeferOnceTriggered = false;
   let failureDeferTargetSessionId = null;
 
@@ -74,7 +76,20 @@ export async function runSelfTest() {
       const sessionId = request.url.split("/")[2];
       lastPostPayloadBySessionId.set(sessionId, payload);
       const promptText = payload.parts?.[0]?.text ?? "";
-      const assistantText = promptText.includes("planner dedupe self-test")
+      const assistantText = promptText.includes("planner persistent budget self-test")
+        ? JSON.stringify(
+            [
+              {
+                title: `Persistent follow-up task ${plannerPersistentSequence + 1}`,
+                family: "trace",
+                prompt: `Run persistent refill follow-up ${++plannerPersistentSequence}.`,
+                agent: "rag-build"
+              }
+            ],
+            null,
+            2
+          )
+        : promptText.includes("planner dedupe self-test")
         ? JSON.stringify(
             [
               {
@@ -570,6 +585,76 @@ export async function runSelfTest() {
       throw new Error("Self-test planner handoff did not record the generated follow-up task.");
     }
 
+    refillPersistRoot = mkdtempSync(join(tmpdir(), "opencode-loop-refill-persist-"));
+    mkdirSync(resolve(refillPersistRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(refillPersistRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(refillPersistRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      ["Run a generated refill task.", "Keep the run narrow and finish the generated item."].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(refillPersistRoot, ".opencode", "loop", "prompts", DEFAULT_PLANNER_PROMPT_FILE_NAME),
+      "planner persistent budget self-test\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(refillPersistRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: []
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const refillPersistFirstResult = await runLoop({
+      repoRoot: refillPersistRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 1,
+      autoRefillMaxItems: 1
+    });
+
+    if (refillPersistFirstResult.processedCount !== 1) {
+      throw new Error(
+        `Self-test refill persistence path expected one processed item on first run, got ${refillPersistFirstResult.processedCount}.`
+      );
+    }
+
+    const refillPersistSecondResult = await runLoop({
+      repoRoot: refillPersistRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 1,
+      autoRefillMaxItems: 1
+    });
+
+    const refillPersistQueue = readQueue(resolve(refillPersistRoot, ".opencode", "loop", "queue.json"));
+
+    if (refillPersistSecondResult.processedCount !== 0) {
+      throw new Error(
+        `Self-test refill persistence path expected zero processed items on second run, got ${refillPersistSecondResult.processedCount}.`
+      );
+    }
+
+    if (refillPersistQueue.items.length !== 1 || refillPersistQueue.autoRefill?.cycles !== 1) {
+      throw new Error(
+        `Self-test refill persistence path failed to preserve refill budget: ${JSON.stringify(refillPersistQueue)}`
+      );
+    }
+
     deferredRoot = mkdtempSync(join(tmpdir(), "opencode-loop-deferred-"));
     mkdirSync(resolve(deferredRoot, ".opencode", "loop", "prompts"), { recursive: true });
     mkdirSync(resolve(deferredRoot, ".opencode", "loop", "handoffs"), { recursive: true });
@@ -1035,6 +1120,9 @@ export async function runSelfTest() {
     }
     if (plannerDedupeRoot) {
       rmSync(plannerDedupeRoot, { recursive: true, force: true });
+    }
+    if (refillPersistRoot) {
+      rmSync(refillPersistRoot, { recursive: true, force: true });
     }
     if (resumeWindowRoot) {
       rmSync(resumeWindowRoot, { recursive: true, force: true });

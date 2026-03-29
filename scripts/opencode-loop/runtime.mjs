@@ -21,6 +21,7 @@ import {
   DEFAULT_AUTO_REFILL_MAX_CYCLES,
   DEFAULT_AUTO_REFILL_MAX_ITEMS,
   DEFAULT_PLANNER_PROMPT_FILE_NAME,
+  initializeAutoRefillState,
   maybeAutoRefillQueue
 } from "./planner.mjs";
 import { normalizeLoopStrategy } from "./strategy.mjs";
@@ -71,11 +72,10 @@ export async function runLoop(options) {
     );
 
       const processedItems = [];
-      const autoRefillState = {
-        cycles: 0,
+      const autoRefillState = initializeAutoRefillState(readQueue(queuePath), {
         maxCycles: normalizeNonNegativeInteger(options.autoRefillMaxCycles, DEFAULT_AUTO_REFILL_MAX_CYCLES),
         maxItems: normalizePositiveInteger(options.autoRefillMaxItems, DEFAULT_AUTO_REFILL_MAX_ITEMS)
-      };
+      });
 
       for (;;) {
       let queue = readQueue(queuePath);
@@ -125,6 +125,7 @@ export async function runLoop(options) {
           logStatus,
           extractAssistantText
         });
+        queue = refillResult.queue;
 
         if (refillResult.generatedItems.length > 0) {
           continue;
