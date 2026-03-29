@@ -1,5 +1,10 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
+import {
+  fetchWithRetry,
+  isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
+  resolveSourceFetchRuntimeConfig
+} from "../http/fetch-with-retry";
 
 type FetchFeedOptions = {
   url: string;
@@ -90,8 +95,7 @@ export class FeedSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch feed: ${message}`);
+      throw this.buildFetchException("Failed to fetch feed", error);
     }
 
     if (!response.ok) {
@@ -471,6 +475,15 @@ export class FeedSourceService {
     return this.isRetryableUpstreamStatus(status)
       ? new BadGatewayException(message)
       : new BadRequestException(message);
+  }
+
+  private buildFetchException(prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    const normalizedMessage = normalizeSourceFetchFailureMessage(message);
+    const wrappedMessage = `${prefix}: ${normalizedMessage}`;
+    const retryable = error instanceof Error ? isRetryableFetchException(error) : true;
+
+    return retryable ? new BadGatewayException(wrappedMessage) : new BadRequestException(wrappedMessage);
   }
 
   private isRetryableUpstreamStatus(status: number) {

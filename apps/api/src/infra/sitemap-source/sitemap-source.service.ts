@@ -1,5 +1,10 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
+import {
+  fetchWithRetry,
+  isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
+  resolveSourceFetchRuntimeConfig
+} from "../http/fetch-with-retry";
 import { WebPageService } from "../web-page/web-page.service";
 
 type FetchSitemapOptions = {
@@ -142,8 +147,7 @@ export class SitemapSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+      throw this.buildFetchException("Failed to fetch sitemap", error);
     }
 
     if (!response.ok) {
@@ -610,8 +614,7 @@ export class SitemapSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+      throw this.buildFetchException("Failed to fetch sitemap", error);
     }
 
     if (!response.ok) {
@@ -651,6 +654,15 @@ export class SitemapSourceService {
     return this.isRetryableUpstreamStatus(status)
       ? new BadGatewayException(message)
       : new BadRequestException(message);
+  }
+
+  private buildFetchException(prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    const normalizedMessage = normalizeSourceFetchFailureMessage(message);
+    const wrappedMessage = `${prefix}: ${normalizedMessage}`;
+    const retryable = error instanceof Error ? isRetryableFetchException(error) : true;
+
+    return retryable ? new BadGatewayException(wrappedMessage) : new BadRequestException(wrappedMessage);
   }
 
   private isRetryableUpstreamStatus(status: number) {

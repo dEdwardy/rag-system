@@ -7,6 +7,7 @@ type FetchWithRetryInput = {
 
 const MAX_FOLLOW_REDIRECTS = 5;
 const MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH = 160;
+const FETCH_URL_PREFIX_PATTERN = /^Failed to fetch\s+\S+:\s*/i;
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "ECONNRESET",
   "ECONNREFUSED",
@@ -49,7 +50,7 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
     } catch (error) {
       const normalizedError = normalizeFetchError(error, input.url, input.timeoutMs);
       lastError = normalizedError;
-      if (attempt === attempts || !shouldRetryFetchException(error)) {
+      if (attempt === attempts || !isRetryableFetchException(error)) {
         throw withRetryAttemptContext(normalizedError, attempt);
       }
     }
@@ -60,6 +61,11 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
   }
 
   throw lastError instanceof Error ? lastError : new Error("Unknown fetch error.");
+}
+
+export function normalizeSourceFetchFailureMessage(message: string) {
+  const trimmedMessage = message.trim();
+  return trimmedMessage.replace(FETCH_URL_PREFIX_PATTERN, "");
 }
 
 function withRetryAttemptContext(error: unknown, attempt: number) {
@@ -186,7 +192,7 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
 
 }
 
-function shouldRetryFetchException(error: unknown) {
+export function isRetryableFetchException(error: unknown) {
   if (!(error instanceof Error)) {
     return false;
   }

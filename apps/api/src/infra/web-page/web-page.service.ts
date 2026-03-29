@@ -1,5 +1,10 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
+import {
+  fetchWithRetry,
+  isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
+  resolveSourceFetchRuntimeConfig
+} from "../http/fetch-with-retry";
 
 type FetchedWebPage = {
   title: string | null;
@@ -31,8 +36,7 @@ export class WebPageService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch web page: ${message}`);
+      throw this.buildFetchException("Failed to fetch web page", error);
     }
 
     if (!response.ok) {
@@ -115,6 +119,15 @@ export class WebPageService {
     return this.isRetryableUpstreamStatus(status)
       ? new BadGatewayException(message)
       : new BadRequestException(message);
+  }
+
+  private buildFetchException(prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    const normalizedMessage = normalizeSourceFetchFailureMessage(message);
+    const wrappedMessage = `${prefix}: ${normalizedMessage}`;
+    const retryable = error instanceof Error ? isRetryableFetchException(error) : true;
+
+    return retryable ? new BadGatewayException(wrappedMessage) : new BadRequestException(wrappedMessage);
   }
 
   private isRetryableUpstreamStatus(status: number) {
