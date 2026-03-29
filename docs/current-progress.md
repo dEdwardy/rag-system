@@ -15,6 +15,19 @@
 
 补充进展（2026-03-29）：
 
+- ✅ 12-item queue wave closeout 已完成并做最小收口记录：queue/progress/refinement 已对齐，queue 状态已整理为等待下一批人工批准 wave（未追加新工作）
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `docs/current-progress.md`
+    - `.opencode/loop/handoffs/20260329T125910Z-loop-queue-refresh-066.md`
+  - 完成内容（最小范围）：
+    - 先复核并对齐了本轮前置 11 项 handoff/result（055-065）与对应落地提交，再把 `loop-queue-refresh-066` 从 `in_progress` 收口为 `completed`
+    - 在 refinement plan 增补本轮 12 项已完成清单，明确 closeout 边界不变：不追加 queue item、不重开手动 `P5`、不触发 source-family/auth/dashboard 扩面
+    - 当前 queue 仅完成状态整理与落账，不启动新 feature wave，下一步保持“等待人工批准下一批 wave”
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/current-progress.md`
+
 - ✅ docs observability contract snapshot is now re-synced to landed scan-first Usage / Report center / Trace Detail surfaces, with deferred dashboard scope kept explicit (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`
