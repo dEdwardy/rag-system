@@ -563,6 +563,9 @@ pnpm --filter @rag-system/api eval:runner:p5-v1
   - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.json`
   - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.md`
   - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.html`
+- practical latest-artifact lookup convention (timestamped triplet):
+  - latest JSON: `ls -1t storage/evals/p5-v1/p5-v1-retrieval-regression-*.json | sed -n '1p'`
+  - latest Markdown/HTML: use the same basename and swap extension to `.md` / `.html`
 - report summarizes retrieval regression signals from existing eval item metadata + `traceSummary`, including: `no-hit`, `fallback`, `low-score`, `citation-limit-hit`, and `source-family-failure` (with source-family breakdown)
 
 Focused API integration entrypoint:

@@ -15,6 +15,31 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 v1 eval artifact layout + latest-artifact lookup convention are now documented in dev setup/progress docs (docs-only alignment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 对齐记录 `eval:runner:p5-v1` 默认产物布局：`storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.{json,md,html}`
+    - 补充当前实用约定：先按时间取最新 `.json` 产物，再用同一 basename 对应 `.md` / `.html`，避免手动猜测时间戳
+    - 范围仅限文档同步，不改 runner 行为、artifact schema 或持久化路径
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已为 post-drain next wave 追加第三批 execution-ready queue items，完成文档同步，并重新启动 loop 开始消费
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 queue 已完全消费、无 pending item 的状态下，补入第三批 execution-ready items，顺序改为先做 `P5` auto-safe closeout，再做 `P6` observability/report closeout，最后做 docs sync
+    - 这批不再继续拆 `P2/P3`：当前默认视 `P2` owner-only ACL baseline 已收口、`P3` source follow-up 已完成 accepted slices；`P4` 继续保持条件触发，不作为当前自动 queue 主线
+    - 继续把 `P5` 人工判断项留在自动 queue 外，只让 loop 消费适合自动执行的 contract/docs/readability 增量
+    - `pnpm loop:start` 已重新拉起 loop；当前首个 item `p5-eval-artifact-index-033` 已进入 `in_progress`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ owner-only ACL baseline closeout 已在 planning/status 文档明确收口（docs-only increment）
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`
