@@ -6,6 +6,18 @@ const { resolve } = require("node:path");
 test("web trace summary type guards current backend summary field set", async () => {
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
   const sharedSource = await readFile(resolve(__dirname, "../../../packages/shared/src/trace-contracts.ts"), "utf8");
+  const traceSummaryMatch = sharedSource.match(/export type TraceSummary = \{([\s\S]*?)\n\};/);
+
+  assert.ok(traceSummaryMatch, "TraceSummary type block should exist in shared contracts");
+
+  const traceSummaryBody = traceSummaryMatch[1];
+
+  // Guard the scan-first diagnostic slice inputs against backend drift.
+  assert.match(traceSummaryBody, /primaryIssue:\s*TracePrimaryIssue \| null;/);
+  assert.match(traceSummaryBody, /retrievalModeProvenanceSentence:\s*string;/);
+  assert.match(traceSummaryBody, /failureReadabilitySentence:\s*string;/);
+  assert.match(traceSummaryBody, /answerStatusSourceReadabilitySentence:\s*string;/);
+  assert.match(traceSummaryBody, /missingInformationProvenanceSentence:\s*string;/);
 
   assert.match(source, /from\s+"@rag-system\/shared"/);
   assert.match(source, /traceSummary:\s*TraceSummary;/);
