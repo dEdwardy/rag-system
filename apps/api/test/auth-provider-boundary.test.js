@@ -12,7 +12,10 @@ const {
   ResourcePermissionHook
 } = require("../src/modules/auth/auth-route-policy.ts");
 const { AuthRoutePolicyGuard } = require("../src/modules/auth/auth-route-policy.guard.ts");
-const { resolveRequestAuthContext } = require("../src/modules/auth/auth-identity.contract.ts");
+const {
+  resolveCurrentAuthIdentity,
+  resolveRequestAuthContext
+} = require("../src/modules/auth/auth-identity.contract.ts");
 const { AuthService } = require("../src/modules/auth/auth.service.ts");
 const { SessionCookieAuthProvider } = require("../src/modules/auth/session-cookie-auth.provider.ts");
 const { HealthController } = require("../src/common/health.controller.ts");
@@ -305,6 +308,24 @@ test("resolveRequestAuthContext returns stable default current identity when req
       authSource: "dev_seed"
     }
   });
+});
+
+test("resolveCurrentAuthIdentity keeps reserved authSource values for phase-2 provider skeleton", () => {
+  const reservedAuthSources = ["local", "github", "google", "oidc", "session", "dev_seed"];
+
+  for (const authSource of reservedAuthSources) {
+    const resolved = resolveCurrentAuthIdentity({
+      identity: {
+        userId: `user-${authSource}`,
+        tenantId: `tenant-${authSource}`,
+        role: "owner",
+        sessionId: null,
+        authSource
+      }
+    });
+
+    assert.equal(resolved.authSource, authSource);
+  }
 });
 
 test("AuthService login creates session identity and logout revokes session", async () => {

@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth identity contract now explicitly reserves Phase 2 planned `authSource` values while keeping current local-session behavior unchanged
+  - 变更文件：
+    - `apps/api/src/modules/auth/auth-identity.contract.ts`
+    - `apps/api/test/auth-provider-boundary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `AuthSource` 合同中新增显式保留集合 `RESERVED_AUTH_SOURCES`（`local`、`github`、`google`、`oidc`、`session`、`dev_seed`），并通过 `ReservedAuthSource` 类型公开 Phase 2 及后续 provider 预留值
+    - 保持当前行为不变：现有 local-account 登录与 session-cookie 身份路径继续返回 `authSource: "session"`，开发默认身份继续使用 `authSource: "dev_seed"`
+    - 补一条 focused boundary regression，锁定 `resolveCurrentAuthIdentity` 对上述保留值的透传行为
+  - focused validation：
+    - `pnpm test:api:file -- test/auth-provider-boundary.test.js`
+
 - ✅ 已完成 `Phase 1 local-account login baseline` 的文档对齐（docs-only sync）
   - 变更文件：
     - `docs/current-dev-setup.md`

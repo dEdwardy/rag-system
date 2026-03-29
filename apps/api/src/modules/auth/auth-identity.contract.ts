@@ -1,6 +1,9 @@
 import { DEFAULT_DEV_AUTH_SOURCE, DEFAULT_DEV_TENANT_ID, DEFAULT_DEV_USER_ID } from "./auth.constants";
 
-export type AuthSource = "session" | "dev_seed" | (string & {});
+export const RESERVED_AUTH_SOURCES = ["local", "github", "google", "oidc", "session", "dev_seed"] as const;
+
+export type ReservedAuthSource = (typeof RESERVED_AUTH_SOURCES)[number];
+export type AuthSource = ReservedAuthSource | (string & {});
 
 export type AuthRole = "owner" | "member" | (string & {});
 
