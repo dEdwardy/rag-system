@@ -27,6 +27,17 @@
   - focused validation：
     - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
 
+- ✅ P5 baseline manifest now has an explicit v1 schema/storage shape file for later runner wiring
+  - 变更文件：
+    - `apps/api/scripts/p5-baseline-manifest.v1.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增 `apps/api/scripts/p5-baseline-manifest.v1.json`，先固定 machine-readable 顶层结构：`questionSet`、`annotationLayers`、`baselineSource`
+    - 存储位置明确收敛为仓库内脚本目录（`apps/api/scripts`），并在 manifest 的 `storage.boundary` 中显式声明“repo-tracked baseline manifest，不引入新运行时存储层”
+    - 本次仅完成 schema/storage shape 定义，不提前做 runner contract 改写，也不展开 web/report-center 侧改造
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ P5 demo replay now has one narrow shortlist-pinned entrypoint on the existing eval runner path
   - 变更文件：
     - `apps/api/scripts/run-p5-v1-eval-runner.mjs`

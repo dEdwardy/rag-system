@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "p5-baseline-manifest.v1",
+  "waveId": "p5-baseline-manifest-wave",
+  "status": "schema_storage_shape_only",
+  "storage": {
+    "canonicalPath": "apps/api/scripts/p5-baseline-manifest.v1.json",
+    "boundary": "repo-tracked baseline manifest; not a new runtime storage layer"
+  },
+  "baselineSource": {
+    "declarationId": "p5-engineering-baseline-v1-source",
+    "sourceType": "to_be_materialized",
+    "sourceVersion": "to_be_materialized",
+    "sourceSnapshotRef": "to_be_materialized"
+  },
+  "questionSet": {
+    "id": "p5-engineering-baseline-v1",
+    "version": "v1",
+    "questions": []
+  },
+  "annotationLayers": {
+    "defaultLayerRequired": [
+      "intent",
+      "expectedAnswerPoints",
+      "mustNotMiss",
+      "acceptableExpressionRange"
+    ],
+    "criticalEvidenceLayerOptional": {
+      "field": "criticalEvidenceExpectation",
+      "requiredFieldsWhenPresent": [
+        "expectedEvidenceType",
+        "minimumRequiredFactClass",
+        "failureWhenEvidenceMissing"
+      ]
+    }
+  },
+  "questionShape": {
+    "id": "question-id",
+    "question": "question text",
+    "capabilitySurfaceId": "capability-surface",
+    "annotations": {
+      "intent": "...",
+      "expectedAnswerPoints": [],
+      "mustNotMiss": [],
+      "acceptableExpressionRange": [],
+      "criticalEvidenceExpectation": null
+    }
+  }
+}
