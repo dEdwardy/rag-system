@@ -211,7 +211,7 @@ export class AskAssistantService {
       });
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id);
+      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
@@ -533,7 +533,7 @@ export class AskAssistantService {
       });
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id);
+      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,

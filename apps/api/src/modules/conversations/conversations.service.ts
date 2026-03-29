@@ -10,32 +10,24 @@ export class ConversationsService {
     updatedAt: "desc" as const
   };
 
-  listConversations(scope?: { tenantId: string; userId: string } | null) {
+  listConversations(scope: { tenantId: string; userId: string }) {
     return this.prisma.conversation.findMany({
-      where:
-        scope != null
-          ? {
-              tenantId: scope.tenantId,
-              userId: scope.userId
-            }
-          : undefined,
+      where: {
+        tenantId: scope.tenantId,
+        userId: scope.userId
+      },
       orderBy: this.defaultOrderBy
     });
   }
 
-  async getConversation(id: string, scope?: { tenantId: string; userId: string } | null) {
-    const conversation =
-      scope != null
-        ? await this.prisma.conversation.findFirst({
-            where: {
-              id,
-              tenantId: scope.tenantId,
-              userId: scope.userId
-            }
-          })
-        : await this.prisma.conversation.findUnique({
-            where: { id }
-          });
+  async getConversation(id: string, scope: { tenantId: string; userId: string }) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id,
+        tenantId: scope.tenantId,
+        userId: scope.userId
+      }
+    });
 
     if (!conversation) {
       throw new NotFoundException(`Conversation ${id} not found.`);
@@ -53,7 +45,8 @@ export class ConversationsService {
     });
   }
 
-  touchConversation(id: string) {
+  async touchConversation(id: string, scope: { tenantId: string; userId: string }) {
+    await this.getConversation(id, scope);
     return this.prisma.conversation.update({
       where: { id },
       data: {
