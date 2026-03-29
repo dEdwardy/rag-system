@@ -1547,7 +1547,7 @@ test("DocumentsService records a failed external_resync run when stored source c
 
   await assert.rejects(
     DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
-    /External source config is missing/
+    /External feed source config is missing/
   );
 
   assert.deepEqual(documentUpdates, [
@@ -1569,13 +1569,13 @@ test("DocumentsService records a failed external_resync run when stored source c
       data: {
         status: "failed",
         processingStage: "failed",
-        errorMessage: "External source config is missing.",
+        errorMessage: "External feed source config is missing.",
         diagnosticsJson: {
           code: "EXTERNAL_SOURCE_CONFIG_INVALID",
           failedStage: "source_fetch",
           retryable: false,
           documentVersion: 3,
-          message: "External source config is missing."
+          message: "External feed source config is missing."
         }
       }
     }
@@ -1597,7 +1597,7 @@ test("DocumentsService records a failed external_resync run when stored source c
         failedStage: "source_fetch",
         retryable: false,
         documentVersion: 3,
-        message: "External source config is missing."
+        message: "External feed source config is missing."
       }
     }
   ]);
@@ -1676,7 +1676,7 @@ test("DocumentsService records a failed external_resync run when legacy sitemap 
 
   await assert.rejects(
     DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
-    /External source config is missing/
+    /External sitemap source config is missing/
   );
 
   assert.deepEqual(documentUpdates, [
@@ -1698,13 +1698,13 @@ test("DocumentsService records a failed external_resync run when legacy sitemap 
       data: {
         status: "failed",
         processingStage: "failed",
-        errorMessage: "External source config is missing.",
+        errorMessage: "External sitemap source config is missing.",
         diagnosticsJson: {
           code: "EXTERNAL_SOURCE_CONFIG_INVALID",
           failedStage: "source_fetch",
           retryable: false,
           documentVersion: 5,
-          message: "External source config is missing."
+          message: "External sitemap source config is missing."
         }
       }
     }
@@ -1726,7 +1726,136 @@ test("DocumentsService records a failed external_resync run when legacy sitemap 
         failedStage: "source_fetch",
         retryable: false,
         documentVersion: 5,
-        message: "External source config is missing."
+        message: "External sitemap source config is missing."
+      }
+    }
+  ]);
+  assert.deepEqual(enqueuedDocumentIds, []);
+});
+
+test("DocumentsService records a failed external_resync run when legacy web-page identity cannot be recovered from missing source config", async () => {
+  const documentUpdates = [];
+  const createdRuns = [];
+  const failedRuns = [];
+  const enqueuedDocumentIds = [];
+
+  const existingDocument = {
+    id: "existing-broken-web-page-document",
+    kbId: "default-kb",
+    sourceType: "web_page",
+    sourceName: "not-a-valid-web-page-url",
+    title: "Broken web page",
+    mimeType: "text/plain",
+    storageKey: "generated/web-page.txt",
+    sourceConfigJson: Prisma.JsonNull,
+    status: "ready",
+    processingStage: "completed",
+    version: 6,
+    chunkCount: 4,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      },
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("saveGeneratedTextFile should not be called when source config is invalid");
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {},
+    webPageService: {
+      fetchWebPage: async () => {
+        throw new Error("fetchWebPage should not be called when source config is invalid");
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id),
+    /External web page source config is missing/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "pending",
+        processingStage: "uploaded",
+        chunkCount: 0,
+        errorMessage: null,
+        diagnosticsJson: Prisma.JsonNull,
+        version: {
+          increment: 1
+        }
+      }
+    },
+    {
+      where: { id: existingDocument.id },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "External web page source config is missing.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+          failedStage: "source_fetch",
+          retryable: false,
+          documentVersion: 7,
+          message: "External web page source config is missing."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(createdRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 7,
+      trigger: "external_resync"
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: existingDocument.id,
+      version: 7,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_CONFIG_INVALID",
+        failedStage: "source_fetch",
+        retryable: false,
+        documentVersion: 7,
+        message: "External web page source config is missing."
       }
     }
   ]);

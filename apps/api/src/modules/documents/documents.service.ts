@@ -787,6 +787,7 @@ export class DocumentsService {
     document: {
       id: string;
       version: number;
+      sourceType?: string | null;
     },
     value: Prisma.JsonValue | null,
     legacyExternalIdentity?: {
@@ -797,7 +798,10 @@ export class DocumentsService {
     try {
       return this.parseExternalSourceConfig(value, legacyExternalIdentity);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "External source config is invalid.";
+      const message =
+        error instanceof Error
+          ? error.message
+          : this.buildExternalSourceConfigErrorMessage("invalid", document.sourceType ?? undefined);
       const diagnostics = {
         code: "EXTERNAL_SOURCE_CONFIG_INVALID",
         failedStage: "source_fetch",
@@ -917,13 +921,17 @@ export class DocumentsService {
     const legacyFallbackConfig = this.resolveLegacyExternalSourceConfigFromDocumentIdentity(
       legacyExternalIdentity
     );
+    const sourceTypeHint =
+      (value && typeof value === "object" && !Array.isArray(value) && typeof value.kind === "string"
+        ? value.kind
+        : undefined) ?? legacyExternalIdentity?.sourceType;
 
     if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") {
       if (legacyFallbackConfig) {
         return legacyFallbackConfig;
       }
 
-      throw new Error("External source config is missing.");
+      throw new Error(this.buildExternalSourceConfigErrorMessage("missing", sourceTypeHint));
     }
 
     if (value.kind === "web_page" && typeof value.url === "string") {
@@ -961,7 +969,35 @@ export class DocumentsService {
       return legacyFallbackConfig;
     }
 
-    throw new Error("External source config is invalid.");
+    throw new Error(this.buildExternalSourceConfigErrorMessage("invalid", sourceTypeHint));
+  }
+
+  private buildExternalSourceConfigErrorMessage(
+    reason: "missing" | "invalid",
+    sourceType?: string
+  ) {
+    const sourceFamilyLabel = this.resolveExternalSourceFamilyReadabilityLabel(sourceType);
+    return sourceFamilyLabel
+      ? `External ${sourceFamilyLabel} source config is ${reason}.`
+      : `External source config is ${reason}.`;
+  }
+
+  private resolveExternalSourceFamilyReadabilityLabel(sourceType?: string) {
+    if (typeof sourceType !== "string") {
+      return null;
+    }
+
+    const normalized = sourceType.trim().toLowerCase();
+
+    if (normalized === "web_page") {
+      return "web page";
+    }
+
+    if (normalized === "feed" || normalized === "sitemap") {
+      return normalized;
+    }
+
+    return null;
   }
 
   private resolveLegacyExternalSourceConfigFromDocumentIdentity(identity?: {
