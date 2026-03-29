@@ -47,6 +47,6 @@ export class ConversationsController {
     });
     await this.conversationsService.getConversation(id, authContext.identity);
     const input = listConversationTracesSchema.parse(query);
-    return this.tracesService.listConversationTraces(id, input);
+    return this.tracesService.listConversationTraces(id, input, authContext.identity);
   }
 }

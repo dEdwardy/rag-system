@@ -86,9 +86,21 @@ export class TracesService {
     });
   }
 
-  listConversationTraces(conversationId: string, input: ListConversationTracesInput) {
+  listConversationTraces(
+    conversationId: string,
+    input: ListConversationTracesInput,
+    scope?: { tenantId: string; userId: string } | null
+  ) {
     return this.prisma.answerTrace.findMany({
-      where: { conversationId },
+      where: scope != null
+        ? {
+            conversationId,
+            conversation: {
+              tenantId: scope.tenantId,
+              userId: scope.userId
+            }
+          }
+        : { conversationId },
       take: input.limit,
       select: this.traceListSelect,
       orderBy: {

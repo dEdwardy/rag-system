@@ -79,6 +79,84 @@ test("TracesService scopes direct trace reads by current identity when scope is 
   assert.equal(findUniqueCalls.length, 0);
 });
 
+test("TracesService scopes conversation-linked trace lists by current identity when scope is provided", async () => {
+  const findManyCalls = [];
+  const persistedTrace = {
+    id: "trace-conversation-owned",
+    conversationId: "conversation-owned",
+    assistantId: "assistant-owned",
+    userMessageId: null,
+    assistantMessageId: null,
+    userQuery: "owned conversation trace",
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: null,
+    citationsJson: [],
+    answeringMetadataJson: null,
+    qualityEvaluationJson: null,
+    modelName: null,
+    latencyMs: null,
+    status: "success",
+    errorMessage: null,
+    createdAt: new Date("2026-03-29T00:00:00.000Z")
+  };
+
+  const prisma = {
+    answerTrace: {
+      findMany: async args => {
+        findManyCalls.push(args);
+        return [persistedTrace];
+      }
+    }
+  };
+
+  const service = new TracesService(prisma);
+  await service.listConversationTraces(
+    "conversation-owned",
+    { limit: 5 },
+    {
+      tenantId: "tenant-42",
+      userId: "user-42"
+    }
+  );
+
+  assert.deepEqual(findManyCalls, [
+    {
+      where: {
+        conversationId: "conversation-owned",
+        conversation: {
+          tenantId: "tenant-42",
+          userId: "user-42"
+        }
+      },
+      take: 5,
+      select: {
+        id: true,
+        conversationId: true,
+        assistantId: true,
+        userMessageId: true,
+        assistantMessageId: true,
+        userQuery: true,
+        rewrittenQuery: true,
+        retrievedChunkIdsJson: true,
+        retrievalMetadataJson: true,
+        citationsJson: true,
+        answeringMetadataJson: true,
+        qualityEvaluationJson: true,
+        modelName: true,
+        latencyMs: true,
+        status: true,
+        errorMessage: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    }
+  ]);
+});
+
 test("TracesService exposes failedStage and failureMessage in traceSummary for failed traces", async () => {
   const persistedTrace = {
     id: "trace-1",

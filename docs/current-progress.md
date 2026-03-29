@@ -15,6 +15,31 @@
 
 补充进展（2026-03-29）：
 
+- ✅ trace owner-scope access is now locked for both direct trace reads and conversation-linked trace list paths
+  - 变更文件：
+    - `apps/api/src/modules/traces/traces.service.ts`
+    - `apps/api/src/modules/conversations/conversations.controller.ts`
+    - `apps/api/test/traces.service.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `TracesService.listConversationTraces` 新增可选 identity scope，并在提供 scope 时按 `conversation(tenantId,userId)` 约束查询
+    - `ConversationsController.listConversationTraces` 现在将 current identity scope 透传给 trace 列表查询，和 direct `/traces/:id` 的 owner-scope 语义保持一致
+    - 新增 focused regression 用例，锁定 conversation-linked trace list 在提供 scope 时必须走 owner-scope where 条件
+  - focused validation：
+    - `pnpm test:api:file -- test/traces.service.test.js`
+
+- ✅ 已将第二批 execution-ready follow-up queue items 追加到 loop queue，并同步 refined planning note
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有已完成的 wave-level queue items 之后，追加 20 个更细粒度、可直接消费的 follow-up items，顺序按 `P2 -> P3 -> P5 -> P6 -> P4` 排列，其中前 12 个作为主队列、后 8 个作为候补队列顺序入队
+    - 在计划文档中补充 queue refinement note：短标题继续保持简短，但真正执行边界统一由 queue `promptText` / `promptFile` 承载，不把整波主题直接塞成单个 queue item
+    - 明确保留 5 个不进入自动 queue 的 `P5` 人工项：`eval baseline question set`、`baseline annotations`、`baseline dataset version pin`、`demo case shortlist`、`demo replay baseline`
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ P5 v1 now has a smallest repeatable retrieval regression report runner for fixed demo questions with reusable markdown/json/html outputs
   - 变更文件：
     - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
