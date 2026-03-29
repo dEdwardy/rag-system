@@ -213,6 +213,56 @@ test("DocumentRunsService snapshot comparison highlights summary metric deltas",
   assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "failedRuns"));
   assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "retryableFailures"));
   assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "runsWithBoundaryHit"));
+  assert.deepEqual(result.sourceFamilyDeltas, [
+    {
+      sourceFamily: "feed",
+      left: {
+        totalRuns: 0,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      right: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 1,
+        runsWithBoundaryHit: 1
+      },
+      deltas: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 1,
+        runsWithBoundaryHit: 1
+      }
+    },
+    {
+      sourceFamily: "web",
+      left: {
+        totalRuns: 1,
+        failedRuns: 1,
+        retryableFailures: 1,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      right: {
+        totalRuns: 0,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      deltas: {
+        totalRuns: -1,
+        failedRuns: -1,
+        retryableFailures: -1,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      }
+    }
+  ]);
 });
 
 test("DocumentRunsService summary exposes latest retryable failure and latest skipped run", async () => {

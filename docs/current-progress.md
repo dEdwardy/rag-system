@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P6 v1 snapshot comparison now also returns source-family delta data derived from existing summary buckets
+  - 变更文件：
+    - `apps/api/src/modules/document-runs/document-runs.service.ts`
+    - `apps/api/test/document-runs-summary.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `GET /knowledge-bases/:id/document-runs/comparison` 在 `snapshot` 模式下新增 `sourceFamilyDeltas` 字段
+    - 新字段直接基于已存在的 `bySourceFamily` 汇总桶计算差异（`totalRuns` / `failedRuns` / `retryableFailures` / `nonRetryableFailures` / `runsWithBoundaryHit`），不改 run-comparison 模式
+    - 现有 failure/boundary 统计口径与边界语义保持不变，仅做 additive 返回增强
+  - focused validation：
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+
 - ✅ P6 v1 usage page now includes one focused snapshot window diff subpanel for quick 6h vs 24h issue-window comparison
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`

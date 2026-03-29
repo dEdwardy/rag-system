@@ -237,7 +237,8 @@ export class DocumentRunsService {
         sinceHours: rightSinceHours,
         summary: rightSnapshot
       },
-      meaningfulDifferences: this.buildSummaryMeaningfulDifferences(leftSnapshot, rightSnapshot)
+      meaningfulDifferences: this.buildSummaryMeaningfulDifferences(leftSnapshot, rightSnapshot),
+      sourceFamilyDeltas: this.buildSourceFamilyDeltas(leftSnapshot, rightSnapshot)
     };
   }
 
@@ -411,6 +412,55 @@ export class DocumentRunsService {
     }
 
     return differences;
+  }
+
+  private buildSourceFamilyDeltas(
+    left: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    right: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>
+  ) {
+    const sourceFamilies = Array.from(
+      new Set([...Object.keys(left.bySourceFamily), ...Object.keys(right.bySourceFamily)])
+    ).sort((a, b) => a.localeCompare(b));
+
+    return sourceFamilies
+      .map(sourceFamily => {
+        const leftBucket = left.bySourceFamily[sourceFamily] ?? {
+          totalRuns: 0,
+          failedRuns: 0,
+          retryableFailures: 0,
+          nonRetryableFailures: 0,
+          runsWithBoundaryHit: 0
+        };
+        const rightBucket = right.bySourceFamily[sourceFamily] ?? {
+          totalRuns: 0,
+          failedRuns: 0,
+          retryableFailures: 0,
+          nonRetryableFailures: 0,
+          runsWithBoundaryHit: 0
+        };
+        const deltas = {
+          totalRuns: rightBucket.totalRuns - leftBucket.totalRuns,
+          failedRuns: rightBucket.failedRuns - leftBucket.failedRuns,
+          retryableFailures: rightBucket.retryableFailures - leftBucket.retryableFailures,
+          nonRetryableFailures: rightBucket.nonRetryableFailures - leftBucket.nonRetryableFailures,
+          runsWithBoundaryHit: rightBucket.runsWithBoundaryHit - leftBucket.runsWithBoundaryHit
+        };
+
+        return {
+          sourceFamily,
+          left: leftBucket,
+          right: rightBucket,
+          deltas
+        };
+      })
+      .filter(
+        item =>
+          item.deltas.totalRuns !== 0 ||
+          item.deltas.failedRuns !== 0 ||
+          item.deltas.retryableFailures !== 0 ||
+          item.deltas.nonRetryableFailures !== 0 ||
+          item.deltas.runsWithBoundaryHit !== 0
+      );
   }
 
   async listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
