@@ -15,6 +15,31 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P3 follow-up minimal gap list 已按当前 source wave 剩余 safe gaps 刷新，并与 planning/setup 文档对齐（docs/planning only）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `next_steps` 的 `P3 task 1` 快照中，把“最小 follow-up gap list”收敛为当前 micro-wave 仍需收口的 3 项：`source retry/timeout diagnostics consistency`、`web page body-quality diagnostics`、`external resync diagnostics/error-code consistency`
+    - 在 `current-dev-setup` 的 `P3 accepted stability boundary` 快照中同步同一组 remaining safe follow-up gaps，避免 queue/planning 与 setup 文档口径漂移
+    - 保持边界不变：仅做 docs/planning 同步；不改运行时行为、不扩展 source family、不重开 auth/ACL 或 dashboard scope
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ P3 follow-up micro-wave 已追加到 queue：在 12-item core wave 收口后，又补进了当前仍然适合自动 loop 消费的剩余 safe gaps（retry/timeout diagnostics、web body-quality diagnostics、external resync error-code consistency、docs sync、queue refresh）
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持既有 12-item core wave 作为历史 closeout 记录不动，仅在其后追加一条更小的 P3 follow-up micro-wave
+    - 这批 micro-wave 继续只覆盖现有 source family 的稳定性收口：retry/timeout 诊断一致性、正文质量信号、external resync error-code/readability 一致性，以及对应 docs sync
+    - 仍然不新增 source family、不重开 auth/ACL、不把自动 queue 扩成 dashboard 平台化或手动 baseline 流程
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json .opencode/loop/queue-refinement-plan-2026-03-29.md docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ 12-item queue wave closeout 已完成并做最小收口记录：queue/progress/refinement 已对齐，queue 状态已整理为等待下一批人工批准 wave（未追加新工作）
   - 变更文件：
     - `.opencode/loop/queue.json`

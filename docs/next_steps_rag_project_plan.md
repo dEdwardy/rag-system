@@ -522,21 +522,21 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    | sitemap / sitemapindex | `urlset` + 一层 `sitemapindex`、子 sitemap 与 page 级 partial diagnostics、maxPages/maxChildSitemaps 边界与 dedup 已具备 | 1) 明确不支持 nested sitemapindex（子项再指向 index 会失败）；2) `MAX_CHILD_SITEMAPS=20` 当前是代码常量，不支持按 source 配置细粒度调节 |
    | external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备；legacy config recovery 已覆盖 `web_page` / `feed` / `sitemap`（含 config 丢失与 feed/sitemap 边界默认值回退） | 1) 对不可恢复配置异常仍统一落到 `EXTERNAL_SOURCE_CONFIG_INVALID`，跨 family 的错误 code/readability 映射口径仍可继续收敛；2) source-level diagnostics 字段在跨 family 对齐上仍有细粒度差异 |
 
-   稳定性补强（现有 source family 内，优先）：
+   稳定性补强（现有 source family 内，当前剩余 safe gaps 优先）：
 
-   1) web/feed：收口 partial diagnostics 粒度一致性，优先补“可观测性不足”而不是改抓取语义
-   2) sitemap：明确 nested sitemapindex 与 child-limit 的边界策略（保持当前失败语义或做最小可控放宽）
-   3) external re-sync：收口不可恢复配置异常在跨 family 的 diagnostics / error-code 可读性一致性
+   1) source fetch：收口 retry / timeout diagnostics 一致性（不改抓取语义）
+   2) web page：补最小正文质量/正文缺失可读信号（不引入 JS 渲染抓取）
+   3) external re-sync：收口跨 family 的 diagnostics / error-code 可读性一致性
 
    扩面候选（后置，非当前最小缺口）：
 
    - 新增 source family（在上面稳定性项收口前不启动）
    - web page 动态渲染抓取能力（属于能力扩展，不是现有 baseline 稳定性修补）
 
-   最小 follow-up gap list（P3 task 1 交付版）：
+   最小 follow-up gap list（按当前 micro-wave 剩余 safe gaps 刷新）：
 
-   - `web/feed partial diagnostics consistency`
-   - `sitemap nested-index + child-limit boundary policy`
+   - `source retry/timeout diagnostics consistency`
+   - `web page body-quality diagnostics`
    - `external resync diagnostics/error-code consistency`
 
 2. 补 source retry / timeout / diagnostics 一致性
@@ -677,6 +677,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 #### 当前 queue refinement note（2026-03-29）
 
 - `P1`、`P2` 与上一轮 `P5 -> P6 -> docs sync` auto-queue 已收口；当前已按批准范围重建一条新的 12-item 执行队列，主线固定为 `P3` 稳定性补强，随后接 `P5/P6` closeout，最后做 queue closeout refresh。
+- 在这批 12-item core wave 之外，当前又追加了一条更小的 `P3` follow-up micro-wave，用来收口仍在波次边界内的 retry/timeout、正文质量与外部重同步可读性差异。
 - queue `title` 可以继续保持短标题；真正的执行边界、涉及文件、focused validation 统一放在 queue item 的 `promptText` / `promptFile`。
 - 当前批准顺序：`p3-source-gaplist-refresh -> p3-source-diagnostics-consistency -> p3-source-resync-recovery-guards -> p3-sitemap-boundary-guard -> p3-web-feed-partial-diagnostics -> p3-source-followup-docs-sync -> p5-runner-report-contract-sync -> p6-usage-scan-first-closeout -> p6-report-center-closeout -> p6-trace-detail-closeout -> p6-observability-docs-sync -> loop-queue-refresh`。
 - `P5` 里需要人工判断的任务（题集选择、标注、baseline 文档版本、demo case 取舍、demo replay 验收）仍留在自动 queue 外，避免把主观评审混进自动 build loop。
@@ -692,8 +693,15 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 #### 第三批 post-drain queue note（2026-03-29）
 
 - post-drain 第三批 queue（`P5 -> P6 -> docs sync`）现已消费完成；该段继续保留为 closeout 记录。
-- 在该 drain 之后，当前已重建一条新的 execution-ready 12-item 队列：先完成 `P3 external knowledge source follow-up` 的 gap/diagnostics/resync/boundary/docs 收口，再接 `P5/P6` 已落地能力的 contract/readability/docs closeout，最后做 queue refresh closeout。
+- 在该 drain 之后，先重建了一条新的 execution-ready 12-item core queue：完成 `P3 external knowledge source follow-up` 的 gap/diagnostics/resync/boundary/docs 收口，再接 `P5/P6` 已落地能力的 contract/readability/docs closeout，最后做 queue refresh closeout。
+- 在这条 core queue 收口后，又追加了一条更小的 `P3 follow-up micro-wave`，把当前仍然适合自动 loop 的剩余 safe gaps 继续收口起来：retry / timeout diagnostics、一层正文质量信号、external resync error-code/readability 一致性，以及对应 docs sync。
 - 本轮继续保持边界不变：不新增 source family、不把 `P5` 人工判断项塞进自动 loop、不重开 auth/ACL 扩面、不把 Usage / Report center / Trace Detail 扩成 dashboard 平台化或大 UI 改版。
+
+#### P3 follow-up micro-wave（2026-03-29）
+
+- 当前追加的 micro-wave 只覆盖仍在当前稳定性边界内、且适合自动 loop 消费的剩余 follow-up：`retry / timeout diagnostics`、`web page body-quality diagnostics`、`external resync error-code consistency`、`source follow-up docs sync`，最后以 queue refresh 收口。
+- 固定顺序：`p3-source-gaplist-refresh -> p3-source-retry-timeout-diagnostics -> p3-web-body-quality-diagnostics -> p3-external-resync-error-code-consistency -> p3-source-followup-docs-sync -> loop-queue-refresh`。
+- 继续保持同一条边界：不新增 source family、不重开 auth/ACL、不把自动 queue 扩成 dashboard 平台化或手动 baseline 流程。
 
 ### 边界说明：产品核心 vs 第三方集成
 

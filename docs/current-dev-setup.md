@@ -876,6 +876,10 @@ Notes:
     3) `source resync recovery guards`
     4) `new source type review`
     5) `source follow-up docs`
+  - remaining safe follow-up gaps（current source wave，docs/planning snapshot）：
+    - `source retry/timeout diagnostics consistency`
+    - `web page body-quality diagnostics`
+    - `external resync diagnostics/error-code consistency`
   - intentionally deferred（本波次明确后置）：
     - 新 source family 扩展（connector 扩面）
     - web page JS 渲染抓取能力
