@@ -171,6 +171,15 @@ test("usage page exposes a focused snapshot window diff (6h vs 24h) for issue sn
   assert.match(usageSource, /No readable dominant shift is available|未形成可读主变化项/);
 });
 
+test("usage page keeps a no-knowledge-base guidance state and avoids default-kb fallback loading", () => {
+  const usageSource = readFileSync(usagePath, "utf8");
+
+  assert.match(usageSource, /No active knowledge base to scan|还没有可扫描的知识库/);
+  assert.match(usageSource, /Create a knowledge base first|先创建知识库/);
+  assert.match(usageSource, /useDocuments\(activeKnowledgeBase\?\.id \?\? "", hasActiveKnowledgeBase\)/);
+  assert.doesNotMatch(usageSource, /useDocuments\(activeKnowledgeBase\?\.id \?\? "default-kb"\)/);
+});
+
 test("report center keeps run inputs in query params for carry-through reruns", () => {
   const reportCenterSource = readFileSync(reportCenterPath, "utf8");
 

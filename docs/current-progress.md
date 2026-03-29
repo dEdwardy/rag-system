@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ Usage page no longer falls back to `default-kb` when there is no active knowledge base, and now shows one explicit scan-first guidance state instead of silent fallback loading
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `UsagePage` 的文档加载改为显式依赖 `hasActiveKnowledgeBase`，当无 active knowledge base 时停止 `useDocuments(activeKnowledgeBase?.id ?? "default-kb")` fallback 查询
+    - 新增一个明确的无知识库引导空态（scan-first）：提示先创建知识库，再查看语料状态与 P6 信号；并在无知识库时不渲染 P6 看板，避免误导性“零值即正常”读感
+    - 保持范围在前端读模型与空态守卫：不改 backend contract，不改 P6 既有面板内容和指标语义
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ report center now shows an explicit pre-run scan-first guidance empty state before the first eval run
   - 变更文件：
     - `apps/web/src/pages/reports/ReportCenterPage.tsx`

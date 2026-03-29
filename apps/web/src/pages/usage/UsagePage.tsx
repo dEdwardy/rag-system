@@ -25,7 +25,8 @@ export function UsagePage() {
   const issueTrend6hQuery = useAuditEvents({ issueOnly: true, sinceHours: 6, limit: 100 });
   const issueTrend24hQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 100 });
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
+  const hasActiveKnowledgeBase = activeKnowledgeBase != null;
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
   const runSummary1hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 1 });
   const runSummary6hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 6 });
   const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 24 });
@@ -601,34 +602,60 @@ export function UsagePage() {
             ))}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
-              <div className="flex flex-col gap-4">
-                <div>
-                  <div className="workspace-section-heading">{locale === "zh" ? "当前语料状态" : "Current corpus state"}</div>
-                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">
-                    {locale === "zh"
-                      ? "使用当前知识库下的真实文档状态，帮助判断桌面端工作区是否处于可检索状态。"
-                      : "Use the real document states under the current knowledge base to understand desktop workspace readiness."}
-                  </p>
-                </div>
+          {!hasActiveKnowledgeBase ? (
+            <StatePanel
+              action={
+                <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+                  {locale === "zh" ? "先创建知识库" : "Create a knowledge base first"}
+                </Button>
+              }
+              description={
+                locale === "zh"
+                  ? "当前没有可用知识库，Usage 页保持 scan-first：请先在 Knowledge base 页面创建一个知识库，再查看语料状态与 P6 信号。"
+                  : "No active knowledge base yet. Usage stays scan-first: create one in the knowledge base page before scanning corpus state and P6 signals."
+              }
+              title={locale === "zh" ? "还没有可扫描的知识库" : "No active knowledge base to scan"}
+            />
+          ) : null}
 
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="workspace-subpanel rounded-[20px] p-4">
-                    <div className="workspace-section-heading">{locale === "zh" ? "就绪" : "Ready"}</div>
-                    <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{readyDocuments}</div>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+            {hasActiveKnowledgeBase ? (
+              <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <div className="workspace-section-heading">{locale === "zh" ? "当前语料状态" : "Current corpus state"}</div>
+                    <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                      {locale === "zh"
+                        ? "使用当前知识库下的真实文档状态，帮助判断桌面端工作区是否处于可检索状态。"
+                        : "Use the real document states under the current knowledge base to understand desktop workspace readiness."}
+                    </p>
                   </div>
-                  <div className="workspace-subpanel rounded-[20px] p-4">
-                    <div className="workspace-section-heading">{locale === "zh" ? "处理中" : "Processing"}</div>
-                    <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{processingDocuments}</div>
-                  </div>
-                  <div className="workspace-subpanel rounded-[20px] p-4">
-                    <div className="workspace-section-heading">{locale === "zh" ? "失败" : "Failed"}</div>
-                    <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{failedDocuments}</div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="workspace-subpanel rounded-[20px] p-4">
+                      <div className="workspace-section-heading">{locale === "zh" ? "就绪" : "Ready"}</div>
+                      <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{readyDocuments}</div>
+                    </div>
+                    <div className="workspace-subpanel rounded-[20px] p-4">
+                      <div className="workspace-section-heading">{locale === "zh" ? "处理中" : "Processing"}</div>
+                      <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{processingDocuments}</div>
+                    </div>
+                    <div className="workspace-subpanel rounded-[20px] p-4">
+                      <div className="workspace-section-heading">{locale === "zh" ? "失败" : "Failed"}</div>
+                      <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{failedDocuments}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Paper>
+              </Paper>
+            ) : (
+              <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <div className="flex h-full items-center justify-center text-center text-sm text-[var(--app-text-muted)]">
+                  {locale === "zh"
+                    ? "创建知识库后，这里会显示当前语料状态。"
+                    : "Current corpus state will appear here after a knowledge base is created."}
+                </div>
+              </Paper>
+            )}
 
             <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
               <div className="flex flex-col gap-4">
@@ -662,8 +689,9 @@ export function UsagePage() {
             </div>
           </Paper>
 
-          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
-            <div className="flex flex-col gap-4">
+          {hasActiveKnowledgeBase ? (
+            <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+              <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 健康看板" : "P6 v1 health dashboard"}</div>
@@ -1078,8 +1106,8 @@ export function UsagePage() {
                   </Button>
                 </div>
               </div>
-            </div>
-          </Paper>
+            </Paper>
+          ) : null}
         </>
       ) : null}
     </div>
