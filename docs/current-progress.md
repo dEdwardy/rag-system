@@ -17,6 +17,19 @@
 
 补充进展（2026-03-30）：
 
+- ✅ loop runtime now has a weak-network hardening v1 for VPN / flaky connectivity
+  - 变更文件：
+    - `.opencode/loop/harness/runtime.mjs`
+    - `.opencode/loop/harness/self-test.mjs`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 为 loop runtime 的底层 OpenCode HTTP 请求增加统一网络重试：`fetch failed` 与常见临时状态码 `408/425/429/500/502/503/504` 会经过统一 retry + 简单指数退避，而不是只在部分路径零散兜底
+    - 保留原有 assistant timeout fresh-session retry，同时把 `createSession / sendMessage / listMessages` 都纳入同一层请求级容错，更适合 VPN/弱网环境下的短时抖动
+    - 修正 runtime 中残留的旧 resume 提示命令，统一改成 `.opencode/loop/cli.mjs --resume-item ...`
+    - self-test 新增临时 `503` 与 session create/message send 抖动恢复场景，确认弱网增强不会破坏现有 loop 主路径
+  - focused validation：
+    - `node .opencode/loop/cli.mjs --self-test`
+
 - ✅ backlog materializer can now append a wave directly into the live loop queue
   - 变更文件：
     - `.opencode/loop/harness/materialize.mjs`

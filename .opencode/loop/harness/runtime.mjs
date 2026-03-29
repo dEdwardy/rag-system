@@ -40,6 +40,8 @@ export const DEFAULT_PROMPT_FILE_NAME = "build.md";
 export const DEFAULT_READ_MODEL_METADATA_PROMPT_FILE_NAME = "read-model-metadata-build.md";
 export const DEFAULT_LOCK_DIR_NAME = "loop.lock";
 export const DEFAULT_ASSISTANT_TIMEOUT_RETRY_COUNT = 3;
+export const DEFAULT_NETWORK_RETRY_COUNT = 3;
+export const DEFAULT_NETWORK_RETRY_BASE_DELAY_MS = 1000;
 export const DEFAULT_EXECUTION_DIRECTIVE = [
   "Execution mode: implement the requested repository increment now.",
   "Do not stop at search-only or analysis-only output.",
@@ -752,28 +754,28 @@ function buildResumeGuidanceForSuspendedItem({ item, reviewStatus, reviewReason 
     return {
       resumeWhen:
         "Resume after the missing credential, external dependency, or environment blocker is fixed and the same verifier/build path can run again.",
-      resumeHint: `After unblocking, rerun with \`node scripts/opencode-loop.mjs --resume-item ${item?.id ?? "<item-id>"}\` to put the item back into the pending lane.`
+      resumeHint: `After unblocking, rerun with \`node .opencode/loop/cli.mjs --resume-item ${item?.id ?? "<item-id>"}\` to put the item back into the pending lane.`
     };
   }
 
   if (reviewReason === "pre_run_review_required" || item?.reviewRequired === true) {
     return {
       resumeWhen: "Resume only after a human reviewer explicitly approves running this item unattended.",
-      resumeHint: `Use \`node scripts/opencode-loop.mjs --resume-item ${item?.id ?? "<item-id>"} --resume-note \"approved\"\` after review.`
+      resumeHint: `Use \`node .opencode/loop/cli.mjs --resume-item ${item?.id ?? "<item-id>"} --resume-note \"approved\"\` after review.`
     };
   }
 
   if (reviewReason === "credentials_or_access_required") {
     return {
       resumeWhen: "Resume after the required credential, access grant, or secret is available in the runtime environment.",
-      resumeHint: `After access is restored, run \`node scripts/opencode-loop.mjs --resume-item ${item?.id ?? "<item-id>"}\` to retry the same task.`
+      resumeHint: `After access is restored, run \`node .opencode/loop/cli.mjs --resume-item ${item?.id ?? "<item-id>"}\` to retry the same task.`
     };
   }
 
   return {
     resumeWhen:
       "Resume after a human has reviewed the failure evidence and decided the same task should continue in the autonomous lane.",
-    resumeHint: `Use \`node scripts/opencode-loop.mjs --resume-item ${item?.id ?? "<item-id>"} --resume-note \"why it is safe to continue\"\` once the review is complete.`
+    resumeHint: `Use \`node .opencode/loop/cli.mjs --resume-item ${item?.id ?? "<item-id>"} --resume-note \"why it is safe to continue\"\` once the review is complete.`
   };
 }
 
@@ -1897,15 +1899,48 @@ function findAssistantMessageAfter(messages, afterMessageId) {
 }
 
 async function requestJson({ method, url, headers, body }) {
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  });
+  return await retryJsonRequest({ method, url, headers, body });
+}
+
+async function retryJsonRequest({ method, url, headers, body }) {
+  const maxAttempts = DEFAULT_NETWORK_RETRY_COUNT + 1;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await requestJsonOnce({ method, url, headers, body });
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetryNetworkRequest(error) || attempt >= maxAttempts) {
+        throw error;
+      }
+
+      await sleep(computeNetworkRetryDelayMs(attempt));
+    }
+  }
+
+  throw lastError ?? new Error(`OpenCode request failed unexpectedly: ${method} ${url}`);
+}
+
+async function requestJsonOnce({ method, url, headers, body }) {
+  let response;
+
+  try {
+    response = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (error) {
+    throw normalizeNetworkRequestError(error, { method, url });
+  }
 
   const raw = await response.text();
   if (!response.ok) {
-    throw new Error(`OpenCode request failed: ${method} ${url} -> ${response.status} ${raw}`);
+    const requestError = new Error(`OpenCode request failed: ${method} ${url} -> ${response.status} ${raw}`);
+    requestError.statusCode = response.status;
+    requestError.responseBody = raw;
+    throw requestError;
   }
 
   if (!raw) {
@@ -1917,6 +1952,42 @@ async function requestJson({ method, url, headers, body }) {
   } catch {
     throw new Error(`OpenCode 为 ${method} ${url} 返回了非 JSON 内容。`);
   }
+}
+
+function shouldRetryNetworkRequest(error) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (isFetchFailedError(error)) {
+    return true;
+  }
+
+  const statusCode = Number.isInteger(error.statusCode) ? error.statusCode : null;
+  if (statusCode && [408, 425, 429, 500, 502, 503, 504].includes(statusCode)) {
+    return true;
+  }
+
+  return false;
+}
+
+function computeNetworkRetryDelayMs(attempt) {
+  const exponent = Math.max(0, attempt - 1);
+  return DEFAULT_NETWORK_RETRY_BASE_DELAY_MS * 2 ** exponent;
+}
+
+function normalizeNetworkRequestError(error, { method, url }) {
+  if (error instanceof Error) {
+    if (isFetchFailedError(error)) {
+      error.requestMethod = method;
+      error.requestUrl = url;
+      return error;
+    }
+
+    return new Error(`${method} ${url} failed: ${error.message}`);
+  }
+
+  return new Error(`${method} ${url} failed: ${String(error)}`);
 }
 
 function extractAssistantText(parts) {

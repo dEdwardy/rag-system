@@ -24,6 +24,7 @@ export async function runSelfTest() {
   let failureDeferRoot = null;
   let timeoutRetryRoot = null;
   let timeoutExhaustedRoot = null;
+  let post500RetryRoot = null;
   let plannerDedupeRoot = null;
   let refillPersistRoot = null;
   let reviewPromotionRoot = null;
@@ -53,6 +54,9 @@ export async function runSelfTest() {
   let failureDeferTargetSessionId = null;
   let failureReviewOnceTriggered = false;
   let failureReviewTargetSessionId = null;
+  const transientSessionCreateFailureTitles = new Set(["network-create-retry-001"]);
+  const sessionCreateFailuresTriggered = new Set();
+  const transientPost500BySessionId = new Set();
 
   const server = createServer(async (request, response) => {
     if (!request.url) {
@@ -62,9 +66,18 @@ export async function runSelfTest() {
     }
 
     if (request.method === "POST" && request.url === "/session") {
-      const id = `ses_${sessions.length + 1}`;
       const raw = await readIncomingBody(request);
       const payload = JSON.parse(raw || "{}");
+      const title = payload.title ?? null;
+      if (transientSessionCreateFailureTitles.has(title) && !sessionCreateFailuresTriggered.has(title)) {
+        sessionCreateFailuresTriggered.add(title);
+        response.statusCode = 503;
+        response.setHeader("content-type", "text/plain");
+        response.end("simulated create session outage");
+        return;
+      }
+
+      const id = `ses_${sessions.length + 1}`;
       sessions.push({ id, title: payload.title ?? null });
       messagesBySessionId.set(id, []);
       if ((payload.title ?? "").includes("timeout-retry-001") && timeoutOnceSessionIds.size === 0) {
@@ -81,6 +94,9 @@ export async function runSelfTest() {
       }
       if (id === "ses_2") {
         transientPostFailureBySessionId.add(id);
+      }
+      if ((payload.title ?? "").includes("network-post-500-retry-001")) {
+        transientPost500BySessionId.add(id);
       }
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ id, title: "mock" }));
@@ -146,9 +162,18 @@ export async function runSelfTest() {
         return;
       }
 
+      if (transientPost500BySessionId.has(sessionId)) {
+        transientPost500BySessionId.delete(sessionId);
+        pendingAssistantBySessionId.set(sessionId, assistantText);
+        response.statusCode = 503;
+        response.setHeader("content-type", "text/plain");
+        response.end("simulated transient post outage");
+        return;
+      }
+
       if (sessionId === failureDeferTargetSessionId && !failureDeferOnceTriggered) {
         failureDeferOnceTriggered = true;
-        response.statusCode = 500;
+        response.statusCode = 400;
         response.setHeader("content-type", "text/plain");
         response.end("simulated defer failure");
         return;
@@ -156,7 +181,7 @@ export async function runSelfTest() {
 
       if (sessionId === failureReviewTargetSessionId && !failureReviewOnceTriggered) {
         failureReviewOnceTriggered = true;
-        response.statusCode = 500;
+        response.statusCode = 400;
         response.setHeader("content-type", "text/plain");
         response.end("simulated review failure");
         return;
@@ -2007,6 +2032,70 @@ export async function runSelfTest() {
       throw new Error("Self-test timeout-exhausted path left stale session metadata behind.");
     }
 
+    post500RetryRoot = mkdtempSync(join(tmpdir(), "opencode-loop-post500-retry-"));
+    mkdirSync(resolve(post500RetryRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(post500RetryRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(post500RetryRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Recover from transient network or 5xx errors during session create and message send.",
+        "Complete the item after retries succeed."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(post500RetryRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              id: "network-post-500-retry-001",
+              title: "Retry transient create and post 5xx errors",
+              agent: "rag-build",
+              promptFile: DEFAULT_PROMPT_PATH,
+              status: "pending"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const sessionsBeforePost500Retry = sessions.length;
+    const post500RetryResult = await runLoop({
+      repoRoot: post500RetryRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      messageWaitMs: 50,
+      pollIntervalMs: 5,
+      autoRefillMaxCycles: 0
+    });
+
+    const post500RetryQueue = readQueue(resolve(post500RetryRoot, ".opencode", "loop", "queue.json"));
+    const post500RetryItem = post500RetryQueue.items[0];
+    const post500RetrySessions = sessions.slice(sessionsBeforePost500Retry);
+
+    if (post500RetryResult.processedCount !== 1) {
+      throw new Error(`Self-test post-500-retry path expected one processed item, got ${post500RetryResult.processedCount}.`);
+    }
+
+    if (post500RetrySessions.length !== 1) {
+      throw new Error(`Self-test post-500-retry path expected one surviving session, got ${post500RetrySessions.length}.`);
+    }
+
+    if (post500RetryItem?.status !== "completed") {
+      throw new Error("Self-test post-500-retry path did not complete the retried item.");
+    }
+
     plannerDedupeRoot = mkdtempSync(join(tmpdir(), "opencode-loop-planner-dedupe-"));
     mkdirSync(resolve(plannerDedupeRoot, ".opencode", "loop", "prompts", "generated"), { recursive: true });
     mkdirSync(resolve(plannerDedupeRoot, ".opencode", "loop", "handoffs"), { recursive: true });
@@ -2163,6 +2252,9 @@ export async function runSelfTest() {
     }
     if (timeoutExhaustedRoot) {
       rmSync(timeoutExhaustedRoot, { recursive: true, force: true });
+    }
+    if (post500RetryRoot) {
+      rmSync(post500RetryRoot, { recursive: true, force: true });
     }
     if (plannerDedupeRoot) {
       rmSync(plannerDedupeRoot, { recursive: true, force: true });
