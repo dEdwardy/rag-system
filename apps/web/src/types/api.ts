@@ -31,6 +31,10 @@ export type AuthIdentity = {
 export type AuthMeResponse = {
   identity: AuthIdentity | null;
   currentIdentity: AuthIdentity;
+  loginProvenance: {
+    type: "local_session" | "oauth_session";
+    oauthProvider: "github" | "google" | "oidc" | null;
+  };
 };
 
 export type HealthResponse = {

@@ -14,6 +14,7 @@ const traceDetailPath = resolve(__dirname, "../src/pages/traces/TraceDetailPage.
 const reportCenterPath = resolve(__dirname, "../src/pages/reports/ReportCenterPage.tsx");
 const globalCssPath = resolve(__dirname, "../src/styles/global.css");
 const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
+const apiTypesPath = resolve(__dirname, "../src/types/api.ts");
 const indexHtmlPath = resolve(__dirname, "../index.html");
 
 test("shell and chat do not present unfinished controls as active interactions", () => {
@@ -37,6 +38,14 @@ test("app shell shows a compact current identity card for auth context", () => {
   assert.match(shellSource, /currentIdentity\.userId/);
   assert.match(shellSource, /currentIdentity\.tenantId/);
   assert.match(shellSource, /currentIdentity\.authSource/);
+});
+
+test("web auth me contract includes additive login provenance shape", () => {
+  const apiTypesSource = readFileSync(apiTypesPath, "utf8");
+
+  assert.match(apiTypesSource, /loginProvenance:\s*\{/);
+  assert.match(apiTypesSource, /type:\s*"local_session"\s*\|\s*"oauth_session"/);
+  assert.match(apiTypesSource, /oauthProvider:\s*"github"\s*\|\s*"google"\s*\|\s*"oidc"\s*\|\s*null/);
 });
 
 test("knowledge base page uses a compact metric grid instead of a long side rail", () => {
