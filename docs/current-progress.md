@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P3 `source follow-up docs` now records a reproducible stability-boundary snapshot, intentionally deferred items, and minimal validation baseline
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `P3: external knowledge source follow-up` 增补当前稳定性边界快照：仅覆盖既有 source family（`web/feed/sitemap/sitemapindex(一层)/external_resync`）及既有稳定性语义（retry/timeout、same-URL reuse+version、stale run guard、run observability）
+    - 明确本波次后置项：新 source family 扩展、web 动态渲染抓取、跨 family 错误码体系重构、source 平台化重构
+    - 在 P3 最小验证段补充复现前提（仓库根目录 + 沿用当前 API 测试环境依赖）并保留三条 focused baseline 命令
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ external source re-sync recovery is now hardened for legacy feed/sitemap config-loss identities, with boundary regression coverage for unrecoverable sitemap identity
   - 变更文件：
     - `apps/api/src/modules/documents/documents.service.ts`

@@ -446,6 +446,28 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - auth/login 与后续 ACL 更直接影响系统边界与后续可扩展性
 - external source 后续扩展更适合在身份边界稳定后继续推进
 
+#### P3 stability boundary snapshot（repro baseline）
+
+当前 external source follow-up wave 以“现有 source family 稳定性补强”为边界，不扩展新能力面：
+
+- in-scope source family（保持不变）：`web page`、`feed (RSS/Atom)`、`sitemap/urlset`、`sitemapindex(一层)`、以及对应 `external_resync`
+- in-scope 稳定性语义（保持不变）：
+  - source fetch `timeout + retry` 基线
+  - same-URL document reuse + version 递增
+  - stale run skip guard
+  - run history/list/summary observability（含 failure/retryable/boundary anchors）
+- 明确保持当前失败边界：
+  - nested sitemapindex 仍按不支持处理（保持当前失败语义）
+  - `MAX_CHILD_SITEMAPS=20` 仍是实现常量（本波次不做 per-source 动态配置）
+  - web page 仍按静态 HTML 提取，不引入动态渲染抓取
+
+#### P3 intentionally deferred（本波次明确后置）
+
+- 新 source family 扩展（connector 扩面）
+- web page JS 渲染抓取能力
+- 跨 source family 的全面错误码体系重构
+- source 平台化/插件化重构（保持现有主链路与契约）
+
 #### P3 queue-ready tasks
 
 1. 盘点当前 source family 的后续缺口
@@ -493,14 +515,16 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    - 交付物：明确的保留/新增结论
 
 5. 同步 external source follow-up 文档与验证基线
-   - 目标：把后续 source wave 的边界、验证方式、未做项写清楚
-   - 交付物：文档同步 + 最小复用验证清单
+    - 目标：把后续 source wave 的边界、验证方式、未做项写清楚
+    - 交付物：文档同步 + 最小复用验证清单
 
-   最小复用验证基线（P3 follow-up）建议保持：
+    最小复用验证基线（P3 follow-up）建议保持：
 
-   - `pnpm test:api:file -- test/external-source-sync.test.js`
-   - `pnpm test:api:file -- test/fetch-with-retry.test.js`
-   - `pnpm test:api:file -- test/parsing.test.js`
+    - 运行前提（最小）：在仓库根目录执行，且 API 测试环境依赖可用（沿用当前 dev setup）
+
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+    - `pnpm test:api:file -- test/parsing.test.js`
 
    回归确认口径（P3 follow-up）
 
