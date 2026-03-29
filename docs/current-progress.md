@@ -15,6 +15,28 @@
 
 补充进展（2026-03-29）：
 
+- ✅ auth `Phase 2` skeleton closeout facts are now synced into current docs (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确记录 `AuthIdentityLink` skeleton 已落地（含 `provider+subject` 唯一边界与预留字段 `emailSnapshot` / `profileSnapshot` / `lastLoginAt`）
+    - 明确记录 `authSource` 预留值集合（`local` / `github` / `google` / `oidc` / `session` / `dev_seed`）与 OAuth/OIDC 预留路由形状（`GET /auth/oauth/:provider/start`、`GET /auth/oauth/:provider/callback`）
+    - 明确保持不变：当前仍是本地 login + session-cookie 主路径；未实现真实 GitHub/Google/OIDC provider 登录集成；本次未重开 ACL 语义
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ 已按用户指定顺序补入 auth `Phase 2 -> Phase 3 -> Phase 4` 的剩余 execution-ready queue wave，并准备让 loop 串行消费
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 基于 `.opencode/plan/auth-roadmap-local-oidc-github-google.md` 与当前已落地代码状态，确认 `Phase 2` 的结构骨架已经基本完成，剩余项收束为 closeout docs；`Phase 3` 尚缺 GitHub start/callback/backend session-link/web button；`Phase 4` 尚缺 Google 对应 backend/web 增量与最终 docs sync
+    - 以短标题 + 内联 `promptText` 的现有 queue 风格，顺序追加 `auth-phase2-closeout-044`、`auth-github-start-045`、`auth-github-callback-046`、`auth-github-web-login-047`、`auth-google-backend-048`、`auth-google-web-login-049`、`auth-oauth-docs-sync-050`
+    - 这次是按用户明确要求组织的一次跨 `Phase 2/3/4` 串行 wave；仍保持单线 queue 执行，不把未实现事实提前写入 docs，也不扩展到 signup、password reset、RBAC/ABAC、team ACL、org/billing
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ auth contract now reserves Phase 2 OAuth/OIDC provider route shapes through a reusable provider schema boundary (contract-only)
   - 变更文件：
     - `apps/api/src/modules/auth/auth.schemas.ts`

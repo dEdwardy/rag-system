@@ -136,6 +136,16 @@ AUTH_SESSION_TTL_HOURS=168
     - no password reset / forgot-password / email verification in this wave
     - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
     - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
+  - auth `Phase 2` skeleton closeout snapshot (docs sync):
+    - `AuthIdentityLink` skeleton is now landed in Prisma with reserved future-link fields (`provider + subject` uniqueness, plus `emailSnapshot` / `profileSnapshot` / `lastLoginAt`)
+    - `authSource` contract now reserves `local` / `github` / `google` / `oidc` / `session` / `dev_seed`
+    - future OAuth/OIDC route shapes are reserved as contract/controller constants only:
+      - `GET /auth/oauth/:provider/start`
+      - `GET /auth/oauth/:provider/callback`
+    - behavior boundary remains unchanged in this closeout:
+      - local login + session-cookie flow remains the active runtime path (`POST /auth/login` + `rag_session` + `GET /auth/me`)
+      - real GitHub/Google/OIDC provider integration and callback exchange logic are still out of scope in current phase
+      - owner-only ACL behavior remains unchanged; this closeout does not reopen ACL expansion
   - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
     - allow only when `tenantId` matches and `ownerId === userId`
     - deny when tenant mismatches, owner mismatches, or owner is unassigned
