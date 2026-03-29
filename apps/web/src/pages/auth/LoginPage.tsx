@@ -11,6 +11,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const githubOauthStartUrl = resolveApiUrl("/auth/oauth/github/start");
   const googleOauthStartUrl = resolveApiUrl("/auth/oauth/google/start");
+  const oidcOauthStartUrl = resolveApiUrl("/auth/oauth/oidc/start");
 
   if (authMeQuery.data?.identity != null) {
     return <Navigate replace to="/" />;
@@ -36,7 +37,7 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4">
       <form className="w-full max-w-md rounded-xl border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-6" onSubmit={onSubmit}>
         <h1 className="text-xl font-semibold text-[var(--app-text)]">Login</h1>
-        <p className="mt-2 text-sm text-[var(--app-text-muted)]">Sign in with your local account.</p>
+        <p className="mt-2 text-sm text-[var(--app-text-muted)]">Sign in with your local account or continue with a provider.</p>
 
         <label className="mt-5 block text-sm text-[var(--app-text-secondary)]" htmlFor="email">
           Email
@@ -82,6 +83,15 @@ export function LoginPage() {
             type="button"
           >
             Continue with Google
+          </button>
+          <button
+            className="w-full rounded-md border border-[var(--app-border)] px-4 py-2 text-sm text-[var(--app-text)] hover:bg-[var(--app-surface)]"
+            onClick={() => {
+              window.location.assign(oidcOauthStartUrl);
+            }}
+            type="button"
+          >
+            Continue with OIDC
           </button>
         </div>
 

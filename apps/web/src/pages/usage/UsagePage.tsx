@@ -1130,6 +1130,7 @@ export function UsagePage() {
                   </div>
                 </>
               )}
+              </div>
             </Paper>
           ) : null}
         </>

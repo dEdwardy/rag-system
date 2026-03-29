@@ -12,6 +12,7 @@ const usagePath = resolve(__dirname, "../src/pages/usage/UsagePage.tsx");
 const traceListPath = resolve(__dirname, "../src/pages/traces/TraceListPage.tsx");
 const traceDetailPath = resolve(__dirname, "../src/pages/traces/TraceDetailPage.tsx");
 const reportCenterPath = resolve(__dirname, "../src/pages/reports/ReportCenterPage.tsx");
+const loginPagePath = resolve(__dirname, "../src/pages/auth/LoginPage.tsx");
 const globalCssPath = resolve(__dirname, "../src/styles/global.css");
 const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
 const apiTypesPath = resolve(__dirname, "../src/types/api.ts");
@@ -49,6 +50,17 @@ test("web auth me contract includes additive login provenance shape", () => {
   assert.match(apiTypesSource, /loginProvenance:\s*\{/);
   assert.match(apiTypesSource, /type:\s*"local_session"\s*\|\s*"oauth_session"/);
   assert.match(apiTypesSource, /oauthProvider:\s*"github"\s*\|\s*"google"\s*\|\s*"oidc"\s*\|\s*null/);
+});
+
+test("login page keeps provider-entry parity for GitHub Google and OIDC", () => {
+  const loginPageSource = readFileSync(loginPagePath, "utf8");
+
+  assert.match(loginPageSource, /resolveApiUrl\("\/auth\/oauth\/github\/start"\)/);
+  assert.match(loginPageSource, /resolveApiUrl\("\/auth\/oauth\/google\/start"\)/);
+  assert.match(loginPageSource, /resolveApiUrl\("\/auth\/oauth\/oidc\/start"\)/);
+  assert.match(loginPageSource, /Continue with GitHub/);
+  assert.match(loginPageSource, /Continue with Google/);
+  assert.match(loginPageSource, /Continue with OIDC/);
 });
 
 test("knowledge base page uses a compact metric grid instead of a long side rail", () => {

@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ web login page now surfaces the landed OIDC start entry alongside existing GitHub/Google provider buttons
+  - 变更文件：
+    - `apps/web/src/pages/auth/LoginPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 先检查当前 web 登录入口模式：`LoginPage` 已按同一按钮样式暴露 `GitHub` / `Google` start entry，`apps/web/src/types/api.ts` 也已保留 `loginProvenance.oauthProvider: "github" | "google" | "oidc" | null` 的 OIDC 合同提及
+    - 现已按同一视觉与 wording 模式补出 `/auth/oauth/oidc/start` 登录入口，并把登录页提示语收口为“本地账号或 provider 登录”，让前端入口与已落地 backend OIDC start flow 对齐
+    - `ui-review-regressions` 新增最窄 guard，锁定登录页同时保留 GitHub / Google / OIDC 三个 provider entry；未改 backend auth 行为、未新增 provider 配置 UI、未重做登录页布局
+  - focused validation：
+    - `pnpm --filter @rag-system/web build`
+
 - ✅ real OIDC landed facts are now synced into current docs (docs-only increment)
   - 变更文件：
     - `docs/current-dev-setup.md`
