@@ -460,14 +460,24 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    | web page | 单 URL 抓取、重试/超时、redirect 跟随与诊断、`text/plain/unknown + html sniff` 容错已具备 | 1) 仍是纯静态 HTML 提取（`WebPageService.extractFromHtml`），JS 渲染内容为空时会直接失败；2) 目前无页面级 partial diagnostics（只有整体成功/失败），排查“部分正文缺失”信息粒度不足 |
    | feed (RSS/Atom) | RSS/Atom 抓取、entry 级 partial failure/duplicate diagnostics、content-type fallback、重试与 dedup 已具备 | 1) 仅支持 RSS/Atom XML（`Unsupported feed format`），不支持其他 feed 表达；2) 当 entry 无 link 时，dedup 仍退化到 `title+publishedAt+summary`，metadata 漂移下仍可能重复入库 |
    | sitemap / sitemapindex | `urlset` + 一层 `sitemapindex`、子 sitemap 与 page 级 partial diagnostics、maxPages/maxChildSitemaps 边界与 dedup 已具备 | 1) 明确不支持 nested sitemapindex（子项再指向 index 会失败）；2) `MAX_CHILD_SITEMAPS=20` 当前是代码常量，不支持按 source 配置细粒度调节 |
-| external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备；legacy config recovery 已覆盖 `web_page`（config 丢失）和 `feed/sitemap`（缺失 `maxItems/maxPages`） | 1) `feed/sitemap` 在 `sourceConfigJson` 完整缺失时仍会直接 `EXTERNAL_SOURCE_CONFIG_INVALID`；2) source fetch diagnostics 已有 retryable 标记，但跨 family 的错误 code 映射口径仍不完全统一（后续可收敛） |
+   | external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备；legacy config recovery 已覆盖 `web_page`（config 丢失）和 `feed/sitemap`（缺失 `maxItems/maxPages`） | 1) `feed/sitemap` 在 `sourceConfigJson` 完整缺失时仍会直接 `EXTERNAL_SOURCE_CONFIG_INVALID`；2) source fetch diagnostics 已有 retryable 标记，但跨 family 的错误 code 映射口径仍不完全统一（后续可收敛） |
 
-   建议的 P3 follow-up 顺序（仍保持小步增量）：
+   稳定性补强（现有 source family 内，优先）：
 
-   1) 先补 re-sync recovery 缺口（`feed/sitemap` 丢配置恢复）
-   2) 再收口 sitemap nested-index / child-limit 边界策略
-   3) 再做 web/feed 诊断粒度补强（partial diagnostics 一致性）
-   4) 最后再评估是否需要新增 source family
+   1) external re-sync：补齐 `feed/sitemap` 在 `sourceConfigJson` 完整缺失时的 identity-based recovery（当前仅 `web_page` 已覆盖）
+   2) sitemap：明确 nested sitemapindex 与 child-limit 的边界策略（保持当前失败语义或做最小可控放宽）
+   3) web/feed：收口 partial diagnostics 粒度一致性，优先补“可观测性不足”而不是改抓取语义
+
+   扩面候选（后置，非当前最小缺口）：
+
+   - 新增 source family（在上面稳定性项收口前不启动）
+   - web page 动态渲染抓取能力（属于能力扩展，不是现有 baseline 稳定性修补）
+
+   最小 follow-up gap list（P3 task 1 交付版）：
+
+   - `re-sync identity recovery for feed/sitemap missing full config`
+   - `sitemap nested-index + child-limit boundary policy`
+   - `web/feed partial diagnostics consistency`
 
 2. 补 source retry / timeout / diagnostics 一致性
    - 目标：继续优先做 execution boundary、重试、错误可读性，而不是先铺新 connector
