@@ -143,6 +143,29 @@ function getFailureTaxonomyColor(key: FailureTaxonomyKey) {
   return "pink";
 }
 
+function getPrimaryIssueReadabilityLabel(primaryIssue: string, locale: "zh" | "en") {
+  if (primaryIssue === "no_retrieval_hits") {
+    return locale === "zh" ? "检索未命中" : "No retrieval hits";
+  }
+  if (primaryIssue === "insufficient_context") {
+    return locale === "zh" ? "检索上下文不足" : "Retrieved context is insufficient";
+  }
+  if (primaryIssue === "missing_information") {
+    return locale === "zh" ? "回答缺失关键信息" : "Missing key information";
+  }
+  if (primaryIssue === "low_retrieval_score") {
+    return locale === "zh" ? "检索置信度偏低" : "Low retrieval confidence";
+  }
+  if (primaryIssue === "fallback_generation") {
+    return locale === "zh" ? "回答走了回退生成路径" : "Fallback generation path";
+  }
+  if (primaryIssue === "other") {
+    return locale === "zh" ? "其他问题" : "Other issue";
+  }
+
+  return primaryIssue;
+}
+
 function buildTraceDiagnosticSummarySlice(
   trace: {
     status: "success" | "failed";
@@ -162,7 +185,7 @@ function buildTraceDiagnosticSummarySlice(
     trace.status === "failed"
       ? summary?.failureReadabilitySentence || trace.errorMessage || (locale === "zh" ? "执行失败，需继续查看下方诊断。" : "Execution failed. Continue with diagnostics below.")
       : summary?.primaryIssue && summary.primaryIssue !== "none"
-        ? `${locale === "zh" ? "主要问题" : "Primary issue"}: ${summary.primaryIssue}`
+        ? `${locale === "zh" ? "主要问题" : "Primary issue"}: ${getPrimaryIssueReadabilityLabel(summary.primaryIssue, locale)}`
         : locale === "zh"
           ? "未发现阻断性主问题。"
           : "No blocking primary issue detected.";

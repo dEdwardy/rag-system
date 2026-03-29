@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ trace-detail diagnostic summary slice now shows readable `primaryIssue` labels (instead of raw enum values) for faster first-pass scan
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `Trace Detail` 现有 `diagnostic summary slice` 中，为 `traceSummary.primaryIssue` 增加最窄可读映射（如 `no_retrieval_hits -> No retrieval hits/检索未命中`），避免首屏直接暴露原始枚举值
+    - 保持边界不变：不改 trace contract、不改 trace 语义、不改 quick-jump/section 结构、不耦合 usage/report payload
+    - `ui-review-regressions` 同步补一条最窄 guard，锁定 `primaryIssue` 可读映射 helper 与关键文案
+  - focused validation：
+    - `node --test --test-name-pattern "trace detail" apps/web/test/ui-review-regressions.test.js && node --test apps/web/test/trace-summary-contract.test.js`
+
 - ✅ report center closeout wording/guard now tightens pre-run path hint, no-item empty state, and baseline metadata readability without changing eval contracts
   - 变更文件：
     - `apps/web/src/pages/reports/ReportCenterPage.tsx`

@@ -111,6 +111,8 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   assert.match(traceSource, /Execution summary|执行摘要/);
   assert.match(traceSource, /Failure taxonomy \(P6 v1\)|失败分类（P6 v1）/);
   assert.match(traceSource, /No-hit retrieval|无命中检索（no-hit）/);
+  assert.match(traceSource, /getPrimaryIssueReadabilityLabel\(summary\.primaryIssue, locale\)/);
+  assert.match(traceSource, /No retrieval hits|检索未命中/);
   assert.match(traceSource, /Trace quick jumps|Trace 快速跳转/);
   assert.match(traceSource, /Go to retrieved chunks|查看命中 Chunk/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.retrievedChunks\}`\}/);
