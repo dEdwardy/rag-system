@@ -1,6 +1,6 @@
 import { Badge, Button, Paper, Select, Stack, Table, Text, TextInput } from "@mantine/core";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -9,9 +9,10 @@ export function ReportCenterPage() {
   const assistantsQuery = useAssistants();
   const runEvalMutation = useRunEvalQuestionSet();
   const { locale, formatDateTime } = useI18n();
-  const [questionSetId, setQuestionSetId] = useState("");
-  const [assistantId, setAssistantId] = useState("");
-  const [baselineSnapshotId, setBaselineSnapshotId] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [questionSetId, setQuestionSetId] = useState(() => searchParams.get("questionSetId") ?? "");
+  const [assistantId, setAssistantId] = useState(() => searchParams.get("assistantId") ?? "");
+  const [baselineSnapshotId, setBaselineSnapshotId] = useState(() => searchParams.get("baselineSnapshotId") ?? "");
 
   const assistantOptions = useMemo(
     () =>
@@ -101,14 +102,26 @@ export function ReportCenterPage() {
 
   async function onRunEvalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!questionSetId.trim() || !assistantId.trim()) {
+    const trimmedQuestionSetId = questionSetId.trim();
+    const trimmedAssistantId = assistantId.trim();
+    const trimmedBaselineSnapshotId = baselineSnapshotId.trim();
+
+    if (!trimmedQuestionSetId || !trimmedAssistantId) {
       return;
     }
 
+    const nextSearchParams = new URLSearchParams();
+    nextSearchParams.set("questionSetId", trimmedQuestionSetId);
+    nextSearchParams.set("assistantId", trimmedAssistantId);
+    if (trimmedBaselineSnapshotId) {
+      nextSearchParams.set("baselineSnapshotId", trimmedBaselineSnapshotId);
+    }
+    setSearchParams(nextSearchParams, { replace: true });
+
     await runEvalMutation.mutateAsync({
-      questionSetId: questionSetId.trim(),
-      assistantId: assistantId.trim(),
-      ...(baselineSnapshotId.trim() ? { baselineSnapshotId: baselineSnapshotId.trim() } : {})
+      questionSetId: trimmedQuestionSetId,
+      assistantId: trimmedAssistantId,
+      ...(trimmedBaselineSnapshotId ? { baselineSnapshotId: trimmedBaselineSnapshotId } : {})
     });
   }
 

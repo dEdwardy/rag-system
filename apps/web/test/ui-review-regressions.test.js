@@ -11,6 +11,7 @@ const knowledgeBasePath = resolve(__dirname, "../src/pages/knowledge-base/Knowle
 const usagePath = resolve(__dirname, "../src/pages/usage/UsagePage.tsx");
 const traceListPath = resolve(__dirname, "../src/pages/traces/TraceListPage.tsx");
 const traceDetailPath = resolve(__dirname, "../src/pages/traces/TraceDetailPage.tsx");
+const reportCenterPath = resolve(__dirname, "../src/pages/reports/ReportCenterPage.tsx");
 const globalCssPath = resolve(__dirname, "../src/styles/global.css");
 const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
 const indexHtmlPath = resolve(__dirname, "../index.html");
@@ -147,6 +148,16 @@ test("usage page exposes a focused snapshot window diff (6h vs 24h) for issue sn
   assert.match(usageSource, /snapshot-window-source-family-drilldown/);
   assert.match(usageSource, /issue-window slice|issue-window 切片/);
   assert.match(usageSource, /snapshot-window-issue-slice/);
+});
+
+test("report center keeps run inputs in query params for carry-through reruns", () => {
+  const reportCenterSource = readFileSync(reportCenterPath, "utf8");
+
+  assert.match(reportCenterSource, /useSearchParams/);
+  assert.match(reportCenterSource, /searchParams\.get\("questionSetId"\)/);
+  assert.match(reportCenterSource, /searchParams\.get\("assistantId"\)/);
+  assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
+  assert.match(reportCenterSource, /setSearchParams\(nextSearchParams, \{ replace: true \}\)/);
 });
 
 test("shared secondary text contrast is lifted above the previous dim baseline", () => {

@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ report center run form now persists submitted inputs in URL query params, so rerun/reload/share flow can carry the same eval context end to end without changing existing report contracts
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `ReportCenterPage` 改为读取并写回 `questionSetId`、`assistantId`、`baselineSnapshotId` 查询参数；提交 run 时将当前输入同步到 URL
+    - 保持现有 report 页面结构与 eval API contract 不变，不新增后端接口、不扩展 usage/report 架构
+    - 补一条 `ui-review-regressions` 守卫，锁定 report center 已接入 query-param carry-through 行为
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ P6 snapshot window diff now includes one compact issue-window slice for faster 6h→24h scan of issue composition shifts
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`
