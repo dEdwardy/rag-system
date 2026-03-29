@@ -68,7 +68,7 @@ function withRetryAttemptContext(error: unknown, attempt: number) {
   }
 
   const message = error.message.trim();
-  if (!message.startsWith("Fetch request failed for") && !message.startsWith("Fetch request timed out for")) {
+  if (!message.startsWith("Failed to fetch ")) {
     return error;
   }
 
@@ -154,7 +154,7 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
   if (error.name === "AbortError" || error.name === "TimeoutError") {
     const timeoutMessage = error.message.trim().replace(/[.]+$/, "");
     return new Error(
-      `Fetch request timed out for ${sourceUrl} after ${timeoutMs}ms${timeoutMessage ? `: ${timeoutMessage}` : ""}.`
+      `Failed to fetch ${sourceUrl}: request timed out after ${timeoutMs}ms${timeoutMessage ? `: ${timeoutMessage}` : ""}.`
     );
   }
 
@@ -179,7 +179,7 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
     return error;
   }
 
-  return new Error(`Fetch request failed for ${sourceUrl}: ${normalizedMessage}`);
+  return new Error(`Failed to fetch ${sourceUrl}: ${normalizedMessage}`);
 
 }
 

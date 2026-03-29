@@ -374,7 +374,7 @@ test("fetchWithRetry includes source URL in network failure error", async () => 
           attempts: 1
         }),
       error => {
-        assert.equal(error.message, "Fetch request failed for https://example.com/source.xml: fetch failed (after 1 attempt).");
+        assert.equal(error.message, "Failed to fetch https://example.com/source.xml: fetch failed (after 1 attempt).");
         return true;
       }
     );
@@ -405,7 +405,7 @@ test("fetchWithRetry includes source URL and timeout boundary for timeout failur
       error => {
         assert.equal(
           error.message,
-          "Fetch request timed out for https://example.com/timeout.xml after 2500ms: The operation was aborted. (after 1 attempt)."
+          "Failed to fetch https://example.com/timeout.xml: request timed out after 2500ms: The operation was aborted. (after 1 attempt)."
         );
         return true;
       }
@@ -474,7 +474,7 @@ test("fetchWithRetry includes retry-attempt context when transient failures exha
       error => {
         assert.equal(
           error.message,
-          "Fetch request failed for https://example.com/source.xml: fetch failed (after 2 attempts)."
+          "Failed to fetch https://example.com/source.xml: fetch failed (after 2 attempts)."
         );
         return true;
       }
