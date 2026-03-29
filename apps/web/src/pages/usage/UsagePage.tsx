@@ -652,8 +652,8 @@ export function UsagePage() {
                 <div className="workspace-section-heading">{locale === "zh" ? "P5 v1 报告中心" : "P5 v1 report center"}</div>
                 <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                   {locale === "zh"
-                    ? "评测输出和质量汇总已收敛到独立报告页，避免把使用统计扩展成通用仪表盘。"
-                    : "Eval outputs and quality summaries now live in a dedicated report page, not a generic dashboard surface."}
+                    ? "评测输出和质量汇总已收敛到独立报告页，保持这里的 scan-first 使用页边界，避免扩展成通用仪表盘。"
+                    : "Eval outputs and quality summaries now live in a dedicated report page, keeping this usage route scan-first instead of becoming a generic dashboard surface."}
                 </p>
               </div>
               <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/reports" variant="light">
@@ -669,8 +669,8 @@ export function UsagePage() {
                   <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 健康看板" : "P6 v1 health dashboard"}</div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
-                      ? "聚合 API 存活、文档运行摘要和问题事件，快速判断当前工作区是否可继续运行。"
-                      : "Combine API heartbeat, document-run summary, and issue events for a quick workspace-operational check."}
+                      ? "聚合 API 存活、文档运行摘要和问题事件，提供 scan-first 的工作区可运行性快速判断。"
+                      : "Combine API heartbeat, document-run summary, and issue events into one scan-first operational check for workspace readiness."}
                   </p>
                 </div>
                 <Badge color={healthPanelErrorMessage ? "red" : "indigo"} radius="sm" variant="light">

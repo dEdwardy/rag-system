@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ Usage / Report center wording is now aligned to the existing scan-first positioning (wording-only increment)
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `Usage` 的 report-center 边界说明与 P6 健康看板说明补充 scan-first 语义，继续强调该页是排障扫读面而非通用 dashboard
+    - `Report center` 的 hero / run 区块文案补充 scan-first 回归复盘定位，并将表格列名从 `Trace / error` 调整为更一致的 `Trace / issue`
+    - 保持范围为 wording/readability 对齐：不改布局、不新增指标、不扩展页面模型
+  - focused validation：
+    - `node --test apps/web/test/ui-review-regressions.test.js apps/web/test/desktop-shell-consistency.test.js`
+
 - ✅ P6 scan-first observability closeout gap list is now recorded as docs-only accepted scope (no runtime change)
   - 变更文件：
     - `docs/current-dev-setup.md`

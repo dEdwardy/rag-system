@@ -155,8 +155,8 @@ export function ReportCenterPage() {
             </h1>
             <p className="mt-2 text-sm text-[var(--app-text-muted)]">
               {locale === "zh"
-                ? "把评测输出和质量汇总集中在同一页面，便于回归和演示复盘。"
-                : "Keep eval outputs and quality summaries in one place for regression checks and demo replay."}
+                ? "把评测输出和质量汇总集中在同一页面，维持 scan-first 的回归与 Trace 复盘路径。"
+                : "Keep eval outputs and quality summaries in one scan-first page for regression checks and trace-guided replay."}
             </p>
           </div>
           <Badge color={evalRunStatusColor} radius="sm" variant="light">
@@ -171,8 +171,8 @@ export function ReportCenterPage() {
             <div className="workspace-section-heading">{locale === "zh" ? "评测执行" : "Eval run"}</div>
             <p className="mt-2 text-sm text-[var(--app-text-muted)]">
               {locale === "zh"
-                ? "固定 P5 v1 输入参数并触发一次 question-set run。"
-                : "Run one question-set eval with fixed P5 v1 inputs."}
+                ? "固定 P5 v1 输入参数并触发一次 question-set run，保持可扫读的对比上下文。"
+                : "Run one question-set eval with fixed P5 v1 inputs to keep comparisons scan-first and consistent."}
             </p>
           </div>
 
@@ -472,7 +472,7 @@ export function ReportCenterPage() {
                     <Table.Th>{locale === "zh" ? "主问题" : "Primary issue"}</Table.Th>
                     <Table.Th>{locale === "zh" ? "引用数" : "Citations"}</Table.Th>
                     <Table.Th>{locale === "zh" ? "Fallback" : "Fallback"}</Table.Th>
-                    <Table.Th>{locale === "zh" ? "Trace / 错误" : "Trace / error"}</Table.Th>
+                    <Table.Th>{locale === "zh" ? "Trace / 问题" : "Trace / issue"}</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
