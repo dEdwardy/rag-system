@@ -85,7 +85,10 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
 
   global.fetch = async () =>
     new Response("<html><head><title>Fallback Title</title></head><body><main><p>Fallback marker.</p></main></body></html>", {
-      status: 200
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      }
     });
 
   try {
@@ -96,7 +99,7 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
       sourceKind: "web",
       schemaVersion: 2,
       contentTypeFallbackApplied: true,
-      upstreamContentType: "text/plain;charset=utf-8",
+      upstreamContentType: "text/plain; charset=utf-8",
       partial: true
     });
   } finally {
@@ -124,7 +127,7 @@ test("FeedSourceService accepts RSS payload when upstream content-type is text/p
       {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          "Content-Type": "text/plain;charset=utf-8"
         }
       }
     );

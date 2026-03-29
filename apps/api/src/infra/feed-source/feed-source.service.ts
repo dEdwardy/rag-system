@@ -99,6 +99,7 @@ export class FeedSourceService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    const diagnosticsContentType = this.normalizeDiagnosticsContentType(contentType);
     const payload = await response.text();
     const xmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeFeedXmlPayload(payload);
 
@@ -119,7 +120,7 @@ export class FeedSourceService {
         sourceKind: "feed",
         schemaVersion: 2,
         contentTypeFallbackApplied: true,
-        upstreamContentType: contentType || "unknown",
+        upstreamContentType: diagnosticsContentType,
         partial: true
       }
     };
@@ -451,6 +452,18 @@ export class FeedSourceService {
 
   private looksLikeFeedXmlPayload(payload: string) {
     return /<rss\b|<feed\b/i.test(payload);
+  }
+
+  private normalizeDiagnosticsContentType(contentType: string) {
+    if (!contentType) {
+      return "unknown";
+    }
+
+    return contentType
+      .split(";")
+      .map(part => part.trim())
+      .filter(Boolean)
+      .join("; ");
   }
 
   private buildUpstreamFetchError(prefix: string, status: number) {

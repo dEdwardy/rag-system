@@ -40,6 +40,7 @@ export class WebPageService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    const diagnosticsContentType = this.normalizeDiagnosticsContentType(contentType);
     const payload = await response.text();
     const htmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeHtmlPayload(payload);
 
@@ -56,7 +57,7 @@ export class WebPageService {
             sourceKind: "web",
             schemaVersion: 2,
             contentTypeFallbackApplied: true,
-            upstreamContentType: contentType || "unknown",
+            upstreamContentType: diagnosticsContentType,
             partial: true
           }
         : null
@@ -95,6 +96,18 @@ export class WebPageService {
 
   private looksLikeHtmlPayload(payload: string) {
     return /<!doctype\s+html\b|<html\b|<head\b|<body\b|<title\b/i.test(payload);
+  }
+
+  private normalizeDiagnosticsContentType(contentType: string) {
+    if (!contentType) {
+      return "unknown";
+    }
+
+    return contentType
+      .split(";")
+      .map(part => part.trim())
+      .filter(Boolean)
+      .join("; ");
   }
 
   private buildUpstreamFetchError(prefix: string, status: number) {
