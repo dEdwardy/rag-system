@@ -418,6 +418,16 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    - 交付物：文档同步 + focused regression 命令
    - 对应 queue title：`acl baseline docs`
 
+   ACL closeout 文档口径（当前快照）应继续保持：
+
+   - owner-only baseline 作为当前唯一已实现访问语义：`owner_only_v1 + deny_by_default`。
+   - denial paths 记录为“已验证且可复现”的最小集合：
+     - unauthenticated → `401`（含 owner-scoped business routes 与 assistant ask/ask-stream）
+     - owner-mismatch → `403`（含 ask/ask-stream 在 stream 启动前的拒绝返回）
+     - KB/document 与 trace 关联路径继续按 owner scope 拒绝非 owner 访问
+   - 明确后置项保持不变：member/viewer 放权、share/public 业务资源可见性、RBAC/ABAC 角色矩阵、跨 tenant 协作。
+   - 范围仅限文档和验证基线同步，不改变运行时 ACL 行为。
+
 当前这组 `P2` queue-ready 项已按上述顺序整理，可直接写入 `.opencode/loop/queue.json` 继续单线推进。
 
 建议直接用于 queue title 的短标题版：
@@ -623,6 +633,13 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 执行方式仍保持：**主线串行推进，局部低耦合项再小范围并行，不做 7 类全面并行。**
 
+#### 当前 queue refinement note（2026-03-29）
+
+- `P1` 最小闭环已收口，当前自动队列主顺序按 `P2 -> P3 -> P5 -> P6 -> P4` 推进。
+- queue `title` 可以继续保持短标题；真正的执行边界、涉及文件、focused validation 统一放在 queue item 的 `promptText` / `promptFile`。
+- 本轮新追加的 queue items 以“可一次消费的最小工程增量”为准，不再把 `P2/P3/P5/P6/P4` 整波直接写成单个 queue item。
+- `P5` 里需要人工判断的任务（题集选择、标注、baseline 文档版本、demo case 取舍、demo replay 验收）仍留在自动 queue 外，避免把主观评审混进自动 build loop。
+
 ### 边界说明：产品核心 vs 第三方集成
 
 - 当前产品核心不是“自研所有底层组件”，而是：稳定的 orchestration、可读可追踪的 trace/read-model、可预期的 fallback 语义、以及可复用的 regression 基线。
@@ -678,4 +695,4 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 ## 5. 一句话结论
 
-**`P0` 已完成；当前更合适的下一最小增量是先做 `鉴权 / 用户登录` 的最小闭环，再进入 `ACL / 文档权限`，并继续保持单线推进、小步增量、每轮收口。**
+**`P0` 与 `P1` 已完成；当前更合适的下一最小增量是先做 `P2: ACL / 文档权限` 收口，再按 `P3 -> P5 -> P6 -> P4` 继续单线推进、小步增量、每轮收口。**

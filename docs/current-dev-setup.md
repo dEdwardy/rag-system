@@ -153,6 +153,11 @@ AUTH_SESSION_TTL_HOURS=168
         - `conversation`: owner-scoped list/detail/messages/traces via `tenantId + userId`
         - `trace`: owner-scoped `/traces` list and direct `/traces/:id` read via conversation ownership
       - default visibility boundary: all five resources remain private-by-default in this wave
+      - validated denial-path baseline (current closeout snapshot):
+        - unauthenticated requests to authenticated routes return `401` (including `GET /auth/me`, owner-scoped business routes, and assistant ask/ask-stream)
+        - owner-mismatch requests are denied by owner policy (`403`), including assistant ask + ask-stream pre-stream denial paths
+        - knowledge-base/document owner-mismatch denial regressions are covered for list/detail/write boundaries (no implicit cross-owner read/write fallback)
+        - trace reads remain owner-scoped in both direct `/traces/:id` and conversation-linked `/conversations/:id/traces` paths
     - intentionally unsupported ACL expansions in the current owner-based wave:
       - no member/viewer allow rules (both stay planned-deny)
       - no share/public business-resource visibility expansion

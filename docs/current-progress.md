@@ -15,6 +15,18 @@
 
 补充进展（2026-03-29）：
 
+- ✅ ACL closeout docs are now synced to the current owner-only baseline, validated denial paths, and intentionally deferred role/share expansions (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+    - `docs/next_steps_rag_project_plan.md`
+  - 完成内容（最小范围）：
+    - `current-dev-setup` 明确补齐当前 ACL closeout denial-path 快照：unauthenticated `401`、owner-mismatch `403`（含 ask/ask-stream pre-stream deny），以及 KB/document/trace 的 owner-scope 拒绝边界
+    - `next_steps` 的 P2 `acl baseline docs` 项补充 closeout 口径，明确“当前只同步 owner-only 基线与已验证拒绝路径，不扩角色/分享语义”
+    - 保持文档收口范围：仅同步文档语义与验证口径，不改运行时 ACL 行为
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md docs/next_steps_rag_project_plan.md`
+
 - ✅ ask / ask-stream denial contract is now aligned for auth-denial paths (`401` unauthenticated, `403` owner-mismatch) with explicit HTTP denial responses before stream start
   - 变更文件：
     - `apps/api/src/modules/assistants/assistants.controller.ts`
