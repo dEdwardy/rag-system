@@ -554,8 +554,11 @@ pnpm --filter @rag-system/api eval:runner:p5-v1
 ```
 
 - default target: `http://127.0.0.1:3000`
-- output artifact: `storage/evals/p5-v1/p5-v1-eval-<timestamp>.json`
-- output includes per-question `answerStatus` / `qualityOverall` plus top-k (`candidateLimit` + `rankingTopKHit`) and fallback/no-hit signals (`usedFallback` / `noHitSignal`) for regression comparison
+- output artifacts:
+  - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.json`
+  - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.md`
+  - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.html`
+- report summarizes retrieval regression signals from existing eval item metadata + `traceSummary`, including: `no-hit`, `fallback`, `low-score`, `citation-limit-hit`, and `source-family-failure` (with source-family breakdown)
 
 Focused API integration entrypoint:
 
