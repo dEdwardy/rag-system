@@ -6,11 +6,15 @@ const { AUTH_ROUTE_POLICY_KEY } = require("../src/modules/auth/auth-route-policy
 const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
 const { AuditController } = require("../src/modules/audit/audit.controller.ts");
 const { ConversationsController } = require("../src/modules/conversations/conversations.controller.ts");
+const { DocumentsController } = require("../src/modules/documents/documents.controller.ts");
+const { KnowledgeBasesController } = require("../src/modules/knowledge-bases/knowledge-bases.controller.ts");
 const { RetrievalProfilesController } = require("../src/modules/retrieval-profiles/retrieval-profiles.controller.ts");
 const { TracesController } = require("../src/modules/traces/traces.controller.ts");
 
-test("assistant, audit, conversation, trace, and retrieval-profile controllers require authenticated routes", () => {
+test("business controllers require authenticated routes", () => {
   const protectedControllers = [
+    KnowledgeBasesController,
+    DocumentsController,
     AssistantsController,
     AuditController,
     ConversationsController,
