@@ -25,4 +25,16 @@ test("web snapshot comparison type keeps additive sourceFamilyDeltas and issueHo
     source,
     /mode: "snapshot";[\s\S]*issueHotspotSlice\?: KnowledgeBaseDocumentRunIssueHotspotSlice;/
   );
+  assert.match(
+    source,
+    /export type KnowledgeBaseDocumentRunIssueHotspotSlice = \{[\s\S]*leftHotspot: KnowledgeBaseDocumentRunIssueHotspot \| null;/
+  );
+  assert.match(
+    source,
+    /export type KnowledgeBaseDocumentRunIssueHotspotSlice = \{[\s\S]*rightHotspot: KnowledgeBaseDocumentRunIssueHotspot \| null;/
+  );
+  assert.match(
+    source,
+    /export type KnowledgeBaseDocumentRunIssueHotspotSlice = \{[\s\S]*dominantShift: KnowledgeBaseDocumentRunIssueHotspotShift \| null;/
+  );
 });
