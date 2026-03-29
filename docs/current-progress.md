@@ -15,6 +15,21 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P2 `access policy contract` now has a shared ACL contract baseline in `@rag-system/shared` with standardized policy input/output/deny reasons
+  - 变更文件：
+    - `packages/shared/src/access-policy-contracts.ts`
+    - `packages/shared/src/index.ts`
+    - `apps/api/src/modules/auth/resource-access-policy.contract.ts`
+    - `apps/api/src/modules/auth/auth.schemas.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增共享 access-policy contract（`ResourceAccessPolicyInput` / `ResourceAccessDecision` / deny reasons），统一 owner-only ACL decision 输入输出和拒绝原因口径
+    - API 侧 `resource-access-policy.contract.ts` 改为复用 shared contract，并继续通过 `Pick<AuthIdentity, "tenantId" | "userId">` 与现有身份字段对齐
+    - `auth.schemas.ts` 的 permission-check `action/kind` 枚举改为复用 shared 常量，避免 service schema 与 policy contract 漂移
+    - 范围保持在 ACL 契约收口：不扩展角色矩阵，不改 owner-only 语义
+  - focused validation：
+    - `pnpm test:api:file -- test/resource-access-policy.contract.test.js`
+
 - ✅ P2 `resource access matrix` 已补齐 owner/member/viewer/public 的最小 ACL 边界矩阵（含 document 行）
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`

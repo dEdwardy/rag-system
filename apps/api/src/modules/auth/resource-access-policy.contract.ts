@@ -1,43 +1,26 @@
 import type { AuthIdentity } from "./auth-identity.contract";
+import {
+  RESOURCE_ACCESS_ACTION_VALUES,
+  RESOURCE_ACCESS_DEFAULT_STANCE_VALUES,
+  RESOURCE_ACCESS_POLICY_VERSION_VALUES,
+  RESOURCE_KIND_VALUES,
+  type ResourceAccessDecision,
+  type ResourceAccessDecisionReason,
+  type ResourceAccessDenyReason,
+  type ResourceAccessPolicyInput as SharedResourceAccessPolicyInput,
+  type ResourceAccessPolicyVersion
+} from "@rag-system/shared";
 
-export type ResourceAccessPolicyVersion = "owner_only_v1";
+export type { ResourceAccessDecision, ResourceAccessDecisionReason, ResourceAccessPolicyVersion };
 
-export type ResourceAccessDefaultStance = "deny_by_default";
-
-export type ResourceAccessAction = "read" | "write";
-
-export type ResourceKind = "knowledge_base" | "document" | "assistant" | "conversation" | "trace";
+export type ResourceAccessDefaultStance = (typeof RESOURCE_ACCESS_DEFAULT_STANCE_VALUES)[number];
 
 export type ResourceAccessIdentity = Pick<AuthIdentity, "tenantId" | "userId">;
-
-export type ResourceAccessTarget = {
-  kind: ResourceKind;
-  resourceId: string;
-  tenantId: string;
-  ownerId: string | null;
-};
-
-export type ResourceAccessPolicyInput = {
+export type ResourceAccessPolicyInput = Omit<SharedResourceAccessPolicyInput, "identity"> & {
   identity: ResourceAccessIdentity;
-  action: ResourceAccessAction;
-  resource: ResourceAccessTarget;
 };
 
-export type ResourceAccessDecisionReason =
-  | "owner_match"
-  | "tenant_mismatch"
-  | "owner_mismatch"
-  | "owner_unassigned"
-  | "unsupported_action"
-  | "unsupported_resource_kind";
-
-export type ResourceAccessDecision = {
-  allowed: boolean;
-  reason: ResourceAccessDecisionReason;
-  policy: ResourceAccessPolicyVersion;
-};
-
-const RESOURCE_ACCESS_DENIED_REASON_HINTS: Record<Exclude<ResourceAccessDecisionReason, "owner_match">, string> = {
+const RESOURCE_ACCESS_DENIED_REASON_HINTS: Record<ResourceAccessDenyReason, string> = {
   tenant_mismatch: "request tenant does not match resource tenant",
   owner_mismatch: "resource owner does not match current user",
   owner_unassigned: "resource has no assigned owner",
@@ -45,17 +28,11 @@ const RESOURCE_ACCESS_DENIED_REASON_HINTS: Record<Exclude<ResourceAccessDecision
   unsupported_resource_kind: "resource kind is not supported by the current policy baseline"
 };
 
-const OWNER_ONLY_POLICY: ResourceAccessPolicyVersion = "owner_only_v1";
+const OWNER_ONLY_POLICY: ResourceAccessPolicyVersion = RESOURCE_ACCESS_POLICY_VERSION_VALUES[0];
 export const RESOURCE_ACCESS_DEFAULT_STANCE: ResourceAccessDefaultStance = "deny_by_default";
 
-const SUPPORTED_RESOURCE_ACCESS_ACTIONS = new Set<ResourceAccessAction>(["read", "write"]);
-const SUPPORTED_RESOURCE_KINDS = new Set<ResourceKind>([
-  "knowledge_base",
-  "document",
-  "assistant",
-  "conversation",
-  "trace"
-]);
+const SUPPORTED_RESOURCE_ACCESS_ACTIONS = new Set<ResourceAccessPolicyInput["action"]>(RESOURCE_ACCESS_ACTION_VALUES);
+const SUPPORTED_RESOURCE_KINDS = new Set<ResourceAccessPolicyInput["resource"]["kind"]>(RESOURCE_KIND_VALUES);
 
 export function evaluateOwnerResourceAccess(input: ResourceAccessPolicyInput): ResourceAccessDecision {
   if (!SUPPORTED_RESOURCE_ACCESS_ACTIONS.has(input.action)) {
@@ -108,10 +85,6 @@ export function evaluateOwnerResourceAccess(input: ResourceAccessPolicyInput): R
 export function buildResourceAccessDeniedHint(decision: ResourceAccessDecision): string {
   if (decision.allowed) {
     return `Access allowed by ${decision.policy} policy.`;
-  }
-
-  if (decision.reason === "owner_match") {
-    return `Access blocked by ${decision.policy} policy.`;
   }
 
   const reasonHint = RESOURCE_ACCESS_DENIED_REASON_HINTS[decision.reason];

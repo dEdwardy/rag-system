@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RESOURCE_ACCESS_ACTION_VALUES, RESOURCE_KIND_VALUES } from "@rag-system/shared";
 
 export const loginSchema = z.object({
   userId: z.string().min(1).optional()
@@ -6,8 +7,8 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-const permissionActionSchema = z.enum(["read", "write"]);
-const permissionResourceKindSchema = z.enum(["knowledge_base", "document", "assistant", "conversation", "trace"]);
+const permissionActionSchema = z.enum(RESOURCE_ACCESS_ACTION_VALUES);
+const permissionResourceKindSchema = z.enum(RESOURCE_KIND_VALUES);
 
 export const permissionCheckSchema = z.object({
   action: permissionActionSchema,
