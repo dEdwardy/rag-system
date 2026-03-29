@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ trace-detail / usage-snapshot / report-center wording-contract references are now re-aligned under the existing scan-first boundary (docs-only increment)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 明确补齐三处 contract source 对齐：`Trace Detail` 继续锚定 `traceSummary` 读取面、`Usage snapshot window diff` 继续锚定 `document-runs/comparison(snapshot + issueHotspotSlice)`、`Report center` 继续锚定 live eval API 读取面
+    - 明确三者边界继续保持 scan-first：仅做 route/readability 对齐，不互相挪用 payload，不扩展为通用 dashboard/report 平台
+    - 保持本次范围为文档对齐，不改 endpoint、不新增 snapshot 指标、不改页面设计
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ Usage / Report center wording is now aligned to the existing scan-first positioning (wording-only increment)
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`

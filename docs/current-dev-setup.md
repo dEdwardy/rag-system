@@ -859,11 +859,14 @@ Notes:
 - `Knowledge Base` recent runs now also support a minimal status filter (`all` / `failed` / `processing`), direct jump to the related document, and one-item reindex for failed/skipped runs
 - `Document Detail` shows per-document run history with status, trigger, source timing, and minimal diagnostics expansion
 - `Usage` keeps a scan-first `P6 v1 health dashboard` surface (alerts, trend, hotspot, anomaly clustering, regression diff, snapshot window diff) by reusing existing summary/comparison/audit endpoints
+  - usage snapshot window diff contract source: `GET /knowledge-bases/:id/document-runs/comparison` in `snapshot` mode (including additive `issueHotspotSlice`); this remains a scan-first troubleshooting slice, not a generic metric/report surface
 - `Trace Detail` keeps a scan-first execution-summary surface (diagnostic summary slice, failure taxonomy, quick-jump anchors) and does not require new backend contracts
+  - trace-detail contract source: existing `GET /traces/:id` / `GET /conversations/:id/traces` `traceSummary` readability fields; no coupling to usage snapshot comparison payloads or report-center run payloads
 - dashboard scope is intentionally constrained in this wave: keep scan-first troubleshooting panels only, and defer generic analytics/ops-platform expansion
 - next accepted P6 closeout gaps (scan-first surface only, docs snapshot):
   - keep `Usage` closeout focused on existing panel readability/empty-state consistency over current summary/comparison/audit payloads (no new metric families)
   - keep `Report center` closeout focused on existing P5 eval run/read/export flow and parameter carry-through (`questionSetId` / `assistantId` / `baselineSnapshotId`), without adding new report families
+  - keep `Report center` contract source on live eval API responses (plus trace-summary-derived eval readability already included in those responses), and do not repurpose usage snapshot payloads as report contracts
   - keep `Usage` ↔ `Report center` boundary as route-level navigation/readability only, without reopening dashboard platform expansion or new backend contracts
 - the knowledge-base scoped run list currently supports minimal query filters:
   - `documentId`
