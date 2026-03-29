@@ -2,9 +2,20 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(SCRIPT_DIR, "../../..");
 const DEFAULT_BASE_URL = process.env.RAG_EVAL_BASE_URL ?? "http://127.0.0.1:3000";
-const DEFAULT_OUTPUT_DIR = path.resolve(process.cwd(), "../../storage/evals/p5-v1");
+const DEFAULT_OUTPUT_DIR = path.join(REPO_ROOT, "storage/evals/p5-v1");
+
+function readOptionValue(argv, index, optionName) {
+  const next = argv[index + 1];
+  if (!next || next.startsWith("-")) {
+    throw new Error(`Missing value for ${optionName}.`);
+  }
+  return next;
+}
 
 function parseArgs(argv) {
   const options = {
@@ -17,36 +28,65 @@ function parseArgs(argv) {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg.startsWith("--base-url=")) {
+      options.baseUrl = arg.slice("--base-url=".length);
+      continue;
+    }
+
+    if (arg.startsWith("--output=")) {
+      options.outputPath = arg.slice("--output=".length);
+      continue;
+    }
+
+    if (arg.startsWith("--quality-gate-mode=")) {
+      const mode = arg.slice("--quality-gate-mode=".length);
+      if (mode !== "warn" && mode !== "fail") {
+        throw new Error(`Invalid --quality-gate-mode: ${mode}. Expected warn|fail.`);
+      }
+      options.qualityGateMode = mode;
+      continue;
+    }
+
+    if (arg.startsWith("--user-id=")) {
+      options.userId = arg.slice("--user-id=".length);
+      continue;
+    }
+
     if (arg === "--help" || arg === "-h") {
       options.help = true;
       continue;
     }
 
     if (arg === "--base-url") {
-      options.baseUrl = argv[i + 1] ?? options.baseUrl;
+      options.baseUrl = readOptionValue(argv, i, "--base-url");
       i += 1;
       continue;
     }
 
     if (arg === "--output") {
-      options.outputPath = argv[i + 1] ?? options.outputPath;
+      options.outputPath = readOptionValue(argv, i, "--output");
       i += 1;
       continue;
     }
 
     if (arg === "--quality-gate-mode") {
-      const next = argv[i + 1];
+      const next = readOptionValue(argv, i, "--quality-gate-mode");
       if (next === "warn" || next === "fail") {
         options.qualityGateMode = next;
+      } else {
+        throw new Error(`Invalid --quality-gate-mode: ${next}. Expected warn|fail.`);
       }
       i += 1;
       continue;
     }
 
     if (arg === "--user-id") {
-      options.userId = argv[i + 1] ?? options.userId;
+      options.userId = readOptionValue(argv, i, "--user-id");
       i += 1;
+      continue;
     }
+
+    throw new Error(`Unknown option: ${arg}. Run with --help for usage.`);
   }
 
   return options;
@@ -58,6 +98,7 @@ function usage() {
     "",
     "Usage:",
     "  pnpm --filter @rag-system/api eval:runner:p5-v1 [--base-url <url>] [--output <file>] [--quality-gate-mode warn|fail] [--user-id <id>]",
+    "  pnpm --filter @rag-system/api eval:runner:p5-v1 --base-url=http://127.0.0.1:3000 --quality-gate-mode=fail",
     "",
     "Defaults:",
     `  --base-url ${DEFAULT_BASE_URL}`,
@@ -67,7 +108,11 @@ function usage() {
     "Output files:",
     "  <output>.json",
     "  <output>.md",
-    "  <output>.html"
+    "  <output>.html",
+    "",
+    "Notes:",
+    "  - unknown flags and missing option values fail fast",
+    "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default"
   ].join("\n");
 }
 
@@ -153,6 +198,16 @@ async function fetchTrace(baseUrl, cookieHeader, traceId) {
   }
 
   return parseJson(response);
+}
+
+function assertRunResultContract(runResult) {
+  if (!runResult || typeof runResult !== "object") {
+    throw new Error("Replay response contract edge: expected run result object.");
+  }
+
+  if (!Array.isArray(runResult.items)) {
+    throw new Error("Replay response contract edge: expected runResult.items to be an array.");
+  }
 }
 
 function buildOutputPath(explicitPath) {
@@ -517,6 +572,7 @@ async function main() {
 
   const cookieHeader = await login(options.baseUrl, options.userId);
   const runResult = await runReplay(options.baseUrl, cookieHeader, options.qualityGateMode);
+  assertRunResultContract(runResult);
 
   const itemDetails = await Promise.all(
     (runResult.items ?? []).map(async item => {
@@ -546,7 +602,14 @@ async function main() {
         };
       }
 
-      const trace = await fetchTrace(options.baseUrl, cookieHeader, item.traceId);
+      let trace = null;
+      let traceFetchError = null;
+      try {
+        trace = await fetchTrace(options.baseUrl, cookieHeader, item.traceId);
+      } catch (error) {
+        traceFetchError = error instanceof Error ? error.message : String(error);
+      }
+
       const traceSummary = trace?.traceSummary ?? null;
       const tracePrimaryIssue = traceSummary?.primaryIssue ?? null;
       const noHitSignal = detectNoHitSignal(item, traceSummary);
@@ -566,6 +629,7 @@ async function main() {
         sourceFamilyFailureSignal: sourceFamilyFailure.isSourceFailure,
         sourceFamilyFailureFamily: sourceFamilyFailure.family,
         sourceFamilyFailureReason: sourceFamilyFailure.reason,
+        traceFetchError,
         tracePrimaryIssue,
         signalFlags: {
           noHit: noHitSignal,
@@ -627,6 +691,7 @@ async function main() {
       sourceFamilyFailureSignal: item.sourceFamilyFailureSignal,
       sourceFamilyFailureFamily: item.sourceFamilyFailureFamily,
       sourceFamilyFailureReason: item.sourceFamilyFailureReason,
+      traceFetchError: item.traceFetchError ?? null,
       signalFlags: item.signalFlags,
       tracePrimaryIssue: item.tracePrimaryIssue,
       citationCount: item.citationCount,

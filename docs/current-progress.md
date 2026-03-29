@@ -15,6 +15,17 @@
 
 补充进展（2026-03-29）：
 
+- ✅ P5 eval runner baseline ergonomics/failure handling is now hardened for CLI usage and trace-fetch resilience without changing the existing eval framework path
+  - 变更文件：
+    - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - CLI 参数解析改为 fail-fast：unknown flag、缺失参数值、非法 `--quality-gate-mode` 会直接报错；同时支持 `--option=value` 写法
+    - 默认输出目录改为基于脚本位置锚定到仓库根目录 `storage/evals/p5-v1`，避免因执行目录不同导致路径漂移
+    - 运行结果增加最小 contract edge 守卫（`runResult.items` 必须是数组），并把单题 trace 拉取失败降级为 item 级错误字段（`traceFetchError`）而不是整次 runner 中断
+  - focused validation：
+    - `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
 - ✅ external source follow-up docs are now re-synced to the accepted stability boundary, queue-ready slices, and intentionally deferred expansion scope (docs-only increment)
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`
