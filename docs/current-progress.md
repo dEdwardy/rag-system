@@ -17,6 +17,17 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 baseline manifest now materializes approved baseline v1 decisions in one parseable machine-readable source
+  - 变更文件：
+    - `apps/api/scripts/p5-baseline-manifest.v1.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 `p5-baseline-manifest.v1.json` 从 schema-only 占位升级为已物化的 baseline v1 内容：补齐 `baselineSource` 声明、baseline questions、默认注解层字段，以及关键题 evidence 规则
+    - baseline questions 当前对齐既有 `p5-v1 demo replay` 固定题集来源，并在 manifest 内以 `id + capabilitySurfaceId + annotations` 结构化存储
+    - 保持边界不变：未改 eval runner 合同、未改 report center、未重构评测框架
+  - focused validation：
+    - `node --input-type=module -e "import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');" apps/api/scripts/p5-baseline-manifest.v1.json`
+
 - ✅ P5 demo replay usage docs now explicitly point to the approved shortlist-pinned replay entrypoint
   - 变更文件：
     - `docs/current-progress.md`
