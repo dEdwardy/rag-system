@@ -238,7 +238,7 @@ export class DocumentsService {
         diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
           reservedDocument.version,
           fetchedPage.diagnostics,
-          "Web page source completed with content-type fallback sniffing.",
+          this.buildWebPartialDiagnosticsMessage(fetchedPage.diagnostics),
           false,
           "web"
         )
@@ -764,13 +764,13 @@ export class DocumentsService {
                   ) ??
                 null)
              : sourceConfig.kind === "web_page"
-               ? (this.buildExternalSourcePartialDiagnostics(
-                   queuedDocument.version,
-                   fetchedSource.diagnostics ?? null,
-                   "Web page source completed with content-type fallback sniffing.",
-                   false,
-                   "web"
-                 ) ??
+                ? (this.buildExternalSourcePartialDiagnostics(
+                    queuedDocument.version,
+                    fetchedSource.diagnostics ?? null,
+                    this.buildWebPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
+                    false,
+                    "web"
+                  ) ??
                null)
              : null
       });
@@ -1055,12 +1055,15 @@ export class DocumentsService {
     const retryableFailureCount = this.getNumericDiagnosticField(diagnostics, "retryableFailureCount");
     const nonRetryableFailureCount = this.getNumericDiagnosticField(diagnostics, "nonRetryableFailureCount");
     const contentTypeFallbackApplied = diagnostics.contentTypeFallbackApplied === true;
+    const bodyMissing = diagnostics.bodyMissing === true;
+    const bodyQualityLow = diagnostics.bodyQualityLow === true;
     const partialFailureCount =
       this.getNumericDiagnosticField(diagnostics, "failedEntryCount") +
       this.getNumericDiagnosticField(diagnostics, "failedPageCount") +
       this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount") +
       this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
-    const partialSignalCount = partialFailureCount + (contentTypeFallbackApplied ? 1 : 0);
+    const partialSignalCount =
+      partialFailureCount + (contentTypeFallbackApplied ? 1 : 0) + (bodyMissing ? 1 : 0) + (bodyQualityLow ? 1 : 0);
     const boundaryHit = diagnostics.boundaryHit === true;
     const boundaryReasons = Array.isArray(diagnostics.boundaryReasons)
       ? diagnostics.boundaryReasons.filter((reason): reason is string => typeof reason === "string")
@@ -1134,6 +1137,34 @@ export class DocumentsService {
     }
 
     return "Feed source completed with partial diagnostics.";
+  }
+
+  private buildWebPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
+    const bodyMissing = diagnostics?.bodyMissing === true;
+    const bodyQualityLow = diagnostics?.bodyQualityLow === true;
+    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
+
+    if (bodyMissing && contentTypeFallbackApplied) {
+      return "Web page source completed with content-type fallback sniffing and body-missing diagnostics.";
+    }
+
+    if (bodyMissing) {
+      return "Web page source completed with body-missing diagnostics.";
+    }
+
+    if (bodyQualityLow && contentTypeFallbackApplied) {
+      return "Web page source completed with content-type fallback sniffing and low body-quality diagnostics.";
+    }
+
+    if (bodyQualityLow) {
+      return "Web page source completed with low body-quality diagnostics.";
+    }
+
+    if (contentTypeFallbackApplied) {
+      return "Web page source completed with content-type fallback sniffing.";
+    }
+
+    return "Web page source completed with partial diagnostics.";
   }
 
   private getNumericDiagnosticField(
