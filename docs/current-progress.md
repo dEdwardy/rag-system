@@ -19,6 +19,17 @@
 
 补充进展（2026-03-31）：
 
+- ✅ documents source-entry UX guard docs stay explicitly scoped to the current field-validation / success-feedback / empty-busy closeout
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 的 documents page focused guard 说明里补一句当前 UX follow-up 的明确边界：只围绕字段校验、成功反馈、以及空态/忙碌态一致性，仍然限定在 `web page` / `feed` / `sitemap` 三个既有入口
+    - 在 `current-progress` 里记录这次 docs sync，继续把 Documents source-entry 维持在现有 backend contract 与 narrow intake surface 内，不扩展为更宽的 source-management 工作区
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+    - result: pass (no output, exit `0`)
+
 - ✅ documents source-entry busy/empty copy is now aligned to a single source-intake tone across the current workspace
   - 变更文件：
     - `apps/web/src/i18n/messages.ts`

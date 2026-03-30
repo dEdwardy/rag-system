@@ -794,6 +794,7 @@ node --test apps/web/test/ui-review-regressions.test.js
 ```
 
 - documents page source-entry (`web page` / `feed` / `sitemap`) contract parity + single-submit guard are currently locked by the `ui-review-regressions` source check:
+  - this focused check stays limited to the current Documents source-entry UX follow-up: field validation, success feedback, and empty/busy-state consistency for the existing three intake entrypoints
 
 ```bash
 node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js
