@@ -1,7 +1,13 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
 const {
+  DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
+  DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS,
+  DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS,
   DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS,
+  DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
+  DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
+  DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS,
   DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
   fetchWithRetry,
   resolveSourceFetchRuntimeConfig
@@ -12,32 +18,167 @@ test("resolveSourceFetchRuntimeConfig preserves current defaults", () => {
 
   assert.deepEqual(config, {
     timeoutMs: DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
-    attempts: DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS
+    attempts: DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS,
+    domainMinIntervalMs: DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS,
+    crawlBudgetWindowMs: DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS,
+    crawlBudgetMaxRequests: DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
+    retryBackoffBaseMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
+    retryBackoffMaxMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
+    retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS
   });
 });
 
 test("resolveSourceFetchRuntimeConfig accepts explicit env overrides", () => {
   const config = resolveSourceFetchRuntimeConfig({
     SOURCE_FETCH_TIMEOUT_MS: "2500",
-    SOURCE_FETCH_RETRY_ATTEMPTS: "4"
+    SOURCE_FETCH_RETRY_ATTEMPTS: "4",
+    SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "5",
+    SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "2000",
+    SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "6",
+    SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "11",
+    SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "77",
+    SOURCE_FETCH_RETRY_JITTER_MS: "13"
   });
 
   assert.deepEqual(config, {
     timeoutMs: 2500,
-    attempts: 4
+    attempts: 4,
+    domainMinIntervalMs: 5,
+    crawlBudgetWindowMs: 2000,
+    crawlBudgetMaxRequests: 6,
+    retryBackoffBaseMs: 11,
+    retryBackoffMaxMs: 77,
+    retryJitterMs: 13
   });
 });
 
 test("resolveSourceFetchRuntimeConfig ignores invalid env overrides", () => {
   const config = resolveSourceFetchRuntimeConfig({
     SOURCE_FETCH_TIMEOUT_MS: "0",
-    SOURCE_FETCH_RETRY_ATTEMPTS: "not-a-number"
+    SOURCE_FETCH_RETRY_ATTEMPTS: "not-a-number",
+    SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "-5",
+    SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "0",
+    SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "0",
+    SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "nope",
+    SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "-10",
+    SOURCE_FETCH_RETRY_JITTER_MS: "bad"
   });
 
   assert.deepEqual(config, {
     timeoutMs: DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
-    attempts: DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS
+    attempts: DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS,
+    domainMinIntervalMs: DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS,
+    crawlBudgetWindowMs: DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS,
+    crawlBudgetMaxRequests: DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
+    retryBackoffBaseMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
+    retryBackoffMaxMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
+    retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS
   });
+});
+
+test("fetchWithRetry applies bounded retry backoff before the next attempt", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+  const requestTimestamps = [];
+
+  try {
+    global.fetch = async () => {
+      requestCount += 1;
+      requestTimestamps.push(Date.now());
+      if (requestCount === 1) {
+        throw new TypeError("fetch failed");
+      }
+
+      return new Response("ok", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    };
+
+    await withTemporarySourceFetchEnv(
+      {
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "30",
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "30",
+        SOURCE_FETCH_RETRY_JITTER_MS: "0"
+      },
+      async () => {
+        const response = await fetchWithRetry({
+          url: "https://backoff-check.example/source.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 10000,
+          attempts: 2
+        });
+
+        assert.equal(response.status, 200);
+        assert.equal(await response.text(), "ok");
+        assert.equal(requestCount, 2);
+        assert.ok(
+          requestTimestamps[1] - requestTimestamps[0] >= 25,
+          `Expected at least ~30ms retry backoff, got ${requestTimestamps[1] - requestTimestamps[0]}ms.`
+        );
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry enforces a bounded per-domain crawl budget", async () => {
+  const originalFetch = global.fetch;
+
+  try {
+    global.fetch = async () =>
+      new Response("ok", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+
+    await withTemporarySourceFetchEnv(
+      {
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "1",
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
+        SOURCE_FETCH_RETRY_JITTER_MS: "0"
+      },
+      async () => {
+        await fetchWithRetry({
+          url: "https://crawl-budget-check.example/first",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+
+        await assert.rejects(
+          () =>
+            fetchWithRetry({
+              url: "https://crawl-budget-check.example/second",
+              headers: {
+                Accept: "text/plain"
+              },
+              timeoutMs: 10000,
+              attempts: 1
+            }),
+          error => {
+            assert.match(error.message, /domain crawl budget exceeded/i);
+            return true;
+          }
+        );
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("fetchWithRetry retries once after a transient 5xx response", async () => {
@@ -484,3 +625,26 @@ test("fetchWithRetry includes retry-attempt context when transient failures exha
     global.fetch = originalFetch;
   }
 });
+
+async function withTemporarySourceFetchEnv(overrides, run) {
+  const previousValues = {};
+
+  for (const [key, value] of Object.entries(overrides)) {
+    previousValues[key] = process.env[key];
+    process.env[key] = value;
+  }
+
+  try {
+    return await run();
+  } finally {
+    for (const key of Object.keys(overrides)) {
+      const previousValue = previousValues[key];
+      if (typeof previousValue === "undefined") {
+        delete process.env[key];
+        continue;
+      }
+
+      process.env[key] = previousValue;
+    }
+  }
+}

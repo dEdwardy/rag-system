@@ -22,17 +22,49 @@ const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "ETIMEDOUT"
 ]);
 
+type DomainFetchState = {
+  requestTimestamps: number[];
+  nextAllowedAt: number;
+};
+
+const domainFetchStates = new Map<string, DomainFetchState>();
+
 export const DEFAULT_SOURCE_FETCH_TIMEOUT_MS = 10000;
 export const DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS = 2;
+export const DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS = 80;
+export const DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS = 10000;
+export const DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS = 40;
+export const DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS = 250;
+export const DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS = 2000;
+export const DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS = 120;
 
 export function resolveSourceFetchRuntimeConfig(env: NodeJS.ProcessEnv = process.env) {
   return {
     timeoutMs: readPositiveInteger(env.SOURCE_FETCH_TIMEOUT_MS, DEFAULT_SOURCE_FETCH_TIMEOUT_MS),
-    attempts: readPositiveInteger(env.SOURCE_FETCH_RETRY_ATTEMPTS, DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS)
+    attempts: readPositiveInteger(env.SOURCE_FETCH_RETRY_ATTEMPTS, DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS),
+    domainMinIntervalMs: readNonNegativeInteger(
+      env.SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS,
+      DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS
+    ),
+    crawlBudgetWindowMs: readPositiveInteger(
+      env.SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS,
+      DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS
+    ),
+    crawlBudgetMaxRequests: readPositiveInteger(
+      env.SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
+      DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS
+    ),
+    retryBackoffBaseMs: readNonNegativeInteger(
+      env.SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
+      DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS
+    ),
+    retryBackoffMaxMs: readNonNegativeInteger(env.SOURCE_FETCH_RETRY_BACKOFF_MAX_MS, DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS),
+    retryJitterMs: readNonNegativeInteger(env.SOURCE_FETCH_RETRY_JITTER_MS, DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS)
   };
 }
 
 export async function fetchWithRetry(input: FetchWithRetryInput) {
+  const runtimeConfig = resolveSourceFetchRuntimeConfig();
   const attempts = Math.max(1, input.attempts ?? DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS);
   let lastError: unknown;
   let lastResponse: Response | undefined;
@@ -42,19 +74,22 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
       const response = await fetchWithFollowRedirects(input.url, {
         signal: AbortSignal.timeout(input.timeoutMs),
         headers: input.headers
-      });
+      }, runtimeConfig);
 
       if (!shouldRetryResponse(response.status) || attempt === attempts) {
         return response;
       }
 
       lastResponse = response;
+      await waitForRetryBackoff(attempt, runtimeConfig);
     } catch (error) {
       const normalizedError = normalizeFetchError(error, input.url, input.timeoutMs);
       lastError = normalizedError;
       if (attempt === attempts || !isRetryableFetchException(error)) {
         throw withRetryAttemptContext(normalizedError, attempt);
       }
+
+      await waitForRetryBackoff(attempt, runtimeConfig);
     }
   }
 
@@ -71,6 +106,8 @@ export async function assertRobotsAllowUrl(url: string) {
     return;
   }
 
+  const runtimeConfig = resolveSourceFetchRuntimeConfig();
+
   let response: Response;
   try {
     response = await fetchWithFollowRedirects(robotsUrl, {
@@ -78,7 +115,7 @@ export async function assertRobotsAllowUrl(url: string) {
       headers: {
         Accept: "text/plain"
       }
-    });
+    }, runtimeConfig);
   } catch {
     return;
   }
@@ -144,10 +181,15 @@ function shouldRetryResponse(status: number) {
   return status === 408 || status === 429 || status >= 500;
 }
 
-async function fetchWithFollowRedirects(url: string, init: RequestInit) {
+async function fetchWithFollowRedirects(
+  url: string,
+  init: RequestInit,
+  runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>
+) {
   let currentUrl = url;
 
   for (let redirectCount = 0; redirectCount <= MAX_FOLLOW_REDIRECTS; redirectCount += 1) {
+    await enforceDomainCrawlBudget(currentUrl, runtimeConfig);
     const response = await fetch(currentUrl, {
       ...init,
       redirect: "manual"
@@ -219,6 +261,78 @@ function formatRedirectTargetForDiagnostics(target: string) {
   }
 
   return `${target.slice(0, MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH)}...<truncated>`;
+}
+
+async function waitForRetryBackoff(attempt: number, runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>) {
+  const exponentialDelay =
+    runtimeConfig.retryBackoffBaseMs > 0
+      ? Math.min(runtimeConfig.retryBackoffMaxMs, runtimeConfig.retryBackoffBaseMs * 2 ** Math.max(0, attempt - 1))
+      : 0;
+  const jitter = runtimeConfig.retryJitterMs > 0 ? Math.floor(Math.random() * (runtimeConfig.retryJitterMs + 1)) : 0;
+  const delayMs = exponentialDelay + jitter;
+
+  if (delayMs <= 0) {
+    return;
+  }
+
+  await sleep(delayMs);
+}
+
+async function enforceDomainCrawlBudget(
+  url: string,
+  runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>
+) {
+  const domain = readDomainFromUrl(url);
+  if (!domain) {
+    return;
+  }
+
+  const state =
+    domainFetchStates.get(domain) ?? {
+      requestTimestamps: [],
+      nextAllowedAt: 0
+    };
+  const now = Date.now();
+
+  pruneOutdatedRequests(state.requestTimestamps, now, runtimeConfig.crawlBudgetWindowMs);
+
+  if (state.requestTimestamps.length >= runtimeConfig.crawlBudgetMaxRequests) {
+    throw new Error(
+      `Failed to fetch ${url}: domain crawl budget exceeded for ${domain} (${runtimeConfig.crawlBudgetMaxRequests} requests/${runtimeConfig.crawlBudgetWindowMs}ms).`
+    );
+  }
+
+  const waitMs = Math.max(0, state.nextAllowedAt - now);
+  if (waitMs > 0) {
+    await sleep(waitMs);
+  }
+
+  const stampedAt = Date.now();
+  pruneOutdatedRequests(state.requestTimestamps, stampedAt, runtimeConfig.crawlBudgetWindowMs);
+  state.requestTimestamps.push(stampedAt);
+  state.nextAllowedAt = stampedAt + runtimeConfig.domainMinIntervalMs;
+  domainFetchStates.set(domain, state);
+}
+
+function readDomainFromUrl(url: string) {
+  try {
+    return new URL(url).hostname.trim().toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function pruneOutdatedRequests(requestTimestamps: number[], now: number, windowMs: number) {
+  const oldestAllowedTimestamp = now - windowMs;
+  while (requestTimestamps.length > 0 && requestTimestamps[0] <= oldestAllowedTimestamp) {
+    requestTimestamps.shift();
+  }
+}
+
+function sleep(durationMs: number) {
+  return new Promise(resolve => {
+    setTimeout(resolve, durationMs);
+  });
 }
 
 function buildRobotsUrl(url: string) {
@@ -405,6 +519,19 @@ function readPositiveInteger(value: string | undefined, fallback: number) {
 
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function readNonNegativeInteger(value: string | undefined, fallback: number) {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
     return fallback;
   }
 
