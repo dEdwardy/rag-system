@@ -185,6 +185,14 @@ export const messages = {
       emptyDescription: "Upload a document to start parsing, chunking, indexing, and retrieval.",
       reindexRequested: "Reindex requested for {title}",
       reindexError: "Reindex failed.",
+      webPage: {
+        sectionTitle: "Web page",
+        sectionDescription: "Submit one direct URL into the active knowledge base.",
+        inputPlaceholder: "https://example.com/page",
+        submitAction: "Submit web page",
+        submitSuccess: "Web page submitted: {url}",
+        submitError: "Web page submission failed."
+      },
       detail: {
         title: "Document Detail",
         kicker: "Document detail",
@@ -584,6 +592,14 @@ export const messages = {
       emptyDescription: "上传文档后即可开始解析、切块、索引与检索。",
       reindexRequested: "已请求重新索引：{title}",
       reindexError: "重新索引失败。",
+      webPage: {
+        sectionTitle: "网页",
+        sectionDescription: "提交一个直达 URL 到当前知识库。",
+        inputPlaceholder: "https://example.com/page",
+        submitAction: "提交网页",
+        submitSuccess: "已提交网页：{url}",
+        submitError: "提交网页失败。"
+      },
       detail: {
         title: "文档详情",
         kicker: "文档详情",

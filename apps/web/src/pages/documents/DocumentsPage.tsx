@@ -8,15 +8,17 @@ import {
   Paper,
   Stack,
   Table,
+  TextInput,
   Text,
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useDocuments,
+  useCreateWebPageDocument,
   useKnowledgeBases,
   useReindexDocument,
   useUploadDocument
@@ -28,8 +30,10 @@ export function DocumentsPage() {
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
+  const createWebPageMutation = useCreateWebPageDocument(activeKnowledgeBase?.id ?? "default-kb");
   const reindexMutation = useReindexDocument();
   const { t, locale, formatDateTime } = useI18n();
+  const [webPageUrl, setWebPageUrl] = useState("");
 
   const documents = documentsQuery.data ?? [];
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
@@ -143,6 +147,31 @@ export function DocumentsPage() {
     [reindexMutation, t]
   );
 
+  const handleCreateWebPage = useCallback(async () => {
+    if (!activeKnowledgeBase) {
+      return;
+    }
+
+    const normalizedUrl = webPageUrl.trim();
+    if (!normalizedUrl) {
+      return;
+    }
+
+    try {
+      await createWebPageMutation.mutateAsync({ url: normalizedUrl });
+      setWebPageUrl("");
+      notifications.show({
+        color: "indigo",
+        message: t("documents.webPage.submitSuccess", { url: normalizedUrl })
+      });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: error instanceof Error ? error.message : t("documents.webPage.submitError")
+      });
+    }
+  }, [activeKnowledgeBase, createWebPageMutation, t, webPageUrl]);
+
   return (
     <Stack gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -180,29 +209,55 @@ export function DocumentsPage() {
             </div>
           </Group>
 
-          <Stack align="flex-end" gap={10}>
-            <Text className="workspace-hero-sidecopy" ta="right">
-              {locale === "zh"
-                ? "上传、状态查看、详情跳转和重建索引仍然保留在同一工作台，只把首屏层级和密度收紧。"
-                : "Keep upload, status review, detail navigation, and reindex in one tighter workspace surface."}
-            </Text>
-            <FileButton
-              onChange={handleUploadFile}
-            >
-              {props => (
+            <Stack align="flex-end" gap={10}>
+              <Text className="workspace-hero-sidecopy" ta="right">
+                {locale === "zh"
+                  ? "上传、状态查看、详情跳转和重建索引仍然保留在同一工作台，只把首屏层级和密度收紧。"
+                  : "Keep upload, status review, detail navigation, and reindex in one tighter workspace surface."}
+              </Text>
+              <FileButton onChange={handleUploadFile}>
+                {props => (
+                  <Button
+                    {...props}
+                    className="workspace-button"
+                    color="indigo"
+                    loading={uploadMutation.isPending}
+                    radius="xl"
+                  >
+                    {t("common.actions.uploadDocument")}
+                  </Button>
+                )}
+              </FileButton>
+              <Stack className="w-full" gap={6} maw={360}>
+                <Text c="var(--app-text-secondary)" fw={600} size="xs">
+                  {t("documents.webPage.sectionTitle")}
+                </Text>
+                <Text c="var(--app-text-muted)" size="xs">
+                  {t("documents.webPage.sectionDescription")}
+                </Text>
+                <TextInput
+                  onChange={event => {
+                    setWebPageUrl(event.currentTarget.value);
+                  }}
+                  placeholder={t("documents.webPage.inputPlaceholder")}
+                  radius="xl"
+                  type="url"
+                  value={webPageUrl}
+                />
                 <Button
-                  {...props}
                   className="workspace-button"
                   color="indigo"
-                  loading={uploadMutation.isPending}
+                  disabled={!activeKnowledgeBase || webPageUrl.trim().length === 0}
+                  loading={createWebPageMutation.isPending}
+                  onClick={handleCreateWebPage}
                   radius="xl"
+                  variant="light"
                 >
-                  {t("common.actions.uploadDocument")}
+                  {t("documents.webPage.submitAction")}
                 </Button>
-              )}
-            </FileButton>
-          </Stack>
-        </div>
+              </Stack>
+            </Stack>
+          </div>
       </Paper>
 
       {knowledgeBasesQuery.isError ? (
@@ -222,6 +277,13 @@ export function DocumentsPage() {
       {uploadMutation.isError ? (
         <Alert color="red" radius="xl" variant="light">
           {uploadMutation.error instanceof Error ? uploadMutation.error.message : t("documents.uploadError")}
+        </Alert>
+      ) : null}
+      {createWebPageMutation.isError ? (
+        <Alert color="red" radius="xl" variant="light">
+          {createWebPageMutation.error instanceof Error
+            ? createWebPageMutation.error.message
+            : t("documents.webPage.submitError")}
         </Alert>
       ) : null}
       {hasProcessingDocuments ? (

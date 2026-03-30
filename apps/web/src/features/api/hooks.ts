@@ -579,6 +579,23 @@ export function useUploadDocument(knowledgeBaseId: string) {
   });
 }
 
+export function useCreateWebPageDocument(knowledgeBaseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { url: string; title?: string }) =>
+      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/web-page`, {
+        method: "POST",
+        body: payload
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+    }
+  });
+}
+
 export function useReindexDocument() {
   const queryClient = useQueryClient();
 
