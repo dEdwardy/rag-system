@@ -590,8 +590,9 @@ export function ChatPage() {
             <div className="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-2 transition duration-300 focus-within:border-[var(--app-accent)] focus-within:shadow-[0_0_0_3px_var(--app-accent-glow)]">
               <div className="flex items-end gap-3">
                 <textarea
-                  className="min-h-6 max-h-[120px] flex-1 resize-none bg-transparent px-4 py-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-muted)]"
+                  className="min-h-6 max-h-[120px] flex-1 resize-none bg-transparent px-4 py-3 text-sm text-[var(--app-text)] placeholder:text-[var(--app-text-muted)]"
                   disabled={!canAsk}
+                  name="question"
                   onChange={event => setComposerValue(event.target.value)}
                   onKeyDown={event => {
                     if (event.key === "Enter" && !event.shiftKey) {
@@ -601,6 +602,7 @@ export function ChatPage() {
                   }}
                   placeholder={chatCopy.askInputPlaceholder}
                   rows={1}
+                  spellCheck
                   value={composerValue}
                 />
                 <div className="flex items-center gap-2 pr-1">

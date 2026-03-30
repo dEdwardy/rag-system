@@ -501,10 +501,31 @@ export function DocumentsPage() {
             </div>
           ) : documents.length ? (
             <div className="workspace-table-shell">
+              <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3">
+                <Text className="workspace-table-hint">
+                  {locale === "zh"
+                    ? "表头保持固定；优先扫状态、Chunk 数和最近更新时间。"
+                    : "The header stays pinned; scan status, chunk count, and latest update first."}
+                </Text>
+                <Badge color={failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
+                  {failedCount > 0
+                    ? locale === "zh"
+                      ? `${failedCount} 个待处理`
+                      : `${failedCount} need review`
+                    : hasProcessingDocuments
+                      ? locale === "zh"
+                        ? `${processingCount} 个处理中`
+                        : `${processingCount} processing`
+                      : locale === "zh"
+                        ? "列表已就绪"
+                        : "List ready"}
+                </Badge>
+              </div>
               <Table.ScrollContainer minWidth={760}>
                 <Table
                   className="workspace-table"
                   highlightOnHover
+                  striped="odd"
                   styles={{
                     table: {
                       color: "var(--app-text)"
@@ -542,50 +563,60 @@ export function DocumentsPage() {
                     {documents.map(document => (
                       <Table.Tr key={document.id}>
                         <Table.Td>
-                          <Stack gap={2}>
-                            <Text fw={600} size="sm">
+                          <Stack className="workspace-table-cell-title" gap={2}>
+                            <Text className="workspace-table-cell-title-main" lineClamp={2}>
                               {document.title}
                             </Text>
-                            <Text c="var(--app-text-muted)" size="xs">
-                              {document.sourceName}
+                            <Text className="workspace-table-cell-meta" lineClamp={1}>
+                              {document.sourceType} · {document.sourceName}
                             </Text>
+                            {document.errorMessage ? (
+                              <Text className="workspace-table-cell-copy" lineClamp={2}>
+                                {document.errorMessage}
+                              </Text>
+                            ) : null}
                           </Stack>
                         </Table.Td>
                         <Table.Td>
-                          <Badge
-                            color={
-                              document.status === "ready"
-                                ? "indigo"
-                                : document.status === "failed"
-                                  ? "red"
-                                  : "yellow"
-                            }
-                            variant="light"
-                          >
-                            {t(`common.status.${document.status}`)}
-                          </Badge>
+                          <div className="workspace-table-badge-stack">
+                            <Badge
+                              color={
+                                document.status === "ready"
+                                  ? "indigo"
+                                  : document.status === "failed"
+                                    ? "red"
+                                    : "yellow"
+                              }
+                              variant="light"
+                            >
+                              {t(`common.status.${document.status}`)}
+                            </Badge>
+                            <Text className="workspace-table-cell-meta">
+                              v{document.version}
+                            </Text>
+                          </div>
                         </Table.Td>
                         <Table.Td>
-                          <Text c="var(--app-text-secondary)" size="sm">
+                          <Text className="workspace-table-cell-copy">
                             {t(`common.processingStage.${document.processingStage}`)}
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Text fw={600} size="sm">
+                          <Text className="workspace-table-number" fw={600} size="sm">
                             {document.chunkCount}
                           </Text>
                         </Table.Td>
                         <Table.Td>
                           <Stack gap={2}>
-                            <Text c="var(--app-text-secondary)" size="sm">
+                            <Text className="workspace-table-cell-copy workspace-table-number">
                               {formatDateTime(document.updatedAt)}
                             </Text>
-                            <Text c="var(--app-text-muted)" lineClamp={1} size="xs">
-                              {locale === "zh" ? "来源" : "Source"}: {document.sourceName}
+                            <Text className="workspace-table-cell-meta" lineClamp={1}>
+                              ID: {document.id}
                             </Text>
                           </Stack>
                         </Table.Td>
-                        <Table.Td>
+                        <Table.Td className="workspace-table-action">
                           <Button
                             className="workspace-button"
                             component={Link}
@@ -598,7 +629,7 @@ export function DocumentsPage() {
                             {t("common.actions.viewDetails")}
                           </Button>
                         </Table.Td>
-                        <Table.Td>
+                        <Table.Td className="workspace-table-action">
                           <Button
                             className="workspace-button"
                             color="indigo"

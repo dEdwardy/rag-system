@@ -1,7 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  // Keep OMO frontend-only by loading it from apps/web.
-  // Root and apps/api sessions should continue using the lean global config.
   // This file also carries the frontend-local command templates.
   // Model split rationale (kept as-is):
   // - plan/review-risk keep gpt-5.4 for UI contract/planning quality on higher-risk decisions.
@@ -32,8 +30,5 @@
       "description": "仅用于高风险或合并前关键审查",
       "template": "只审查高风险变更，如 UI contract、shared types、app shell、routing、state boot、smoke 流程、以及任何会影响 backend contracts 的改动；不要把 review 作为默认步骤；config/docs/style 小改不默认触发 review。"
     }
-  },
-  "plugin": [
-    "oh-my-opencode"
-  ]
+  }
 }

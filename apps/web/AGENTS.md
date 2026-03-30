@@ -54,6 +54,6 @@ Default validation policy:
 
 ## OpenCode Plugin Note
 
-- `apps/web/opencode.jsonc` enables `oh-my-opencode` only when OpenCode is started inside `apps/web`
-- starting OpenCode from the repo root or `apps/api` should not load `oh-my-opencode`
+- `apps/web/opencode.jsonc` keeps the web-local OpenCode command templates scoped to `apps/web`
+- starting OpenCode from the repo root or `apps/api` uses the shared config and does not depend on the web-local command templates
 - root `AGENTS.md` is still discovered when starting inside `apps/web` because OpenCode traverses upward for rules files

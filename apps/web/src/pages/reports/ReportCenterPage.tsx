@@ -304,7 +304,7 @@ export function ReportCenterPage() {
               {qualitySummaryRows.length > 0 ? (
                 <div className="grid gap-2 md:grid-cols-3">
                   {qualitySummaryRows.map(row => (
-                    <div className="workspace-meta-row" key={row.quality}>
+                    <div className="workspace-meta-row workspace-table-number" key={row.quality}>
                       <span className="workspace-meta-label">{row.quality}</span>
                       <span className="workspace-meta-value">{row.count}</span>
                     </div>
@@ -476,10 +476,23 @@ export function ReportCenterPage() {
 
           {hasRunItems ? (
             <div className="workspace-table-shell">
+              <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3">
+                <Text className="workspace-table-hint">
+                  {locale === "zh"
+                    ? "按题逐行扫状态、质量和主问题；Trace 列保留直接跳转。"
+                    : "Scan each row by status, quality, and primary issue; the trace column keeps a direct jump."}
+                </Text>
+                <Badge color={runEvalMutation.isError ? "red" : "indigo"} radius="sm" variant="light">
+                  {locale === "zh"
+                    ? `${runEvalMutation.data.items.length} 条结果`
+                    : `${runEvalMutation.data.items.length} results`}
+                </Badge>
+              </div>
               <Table.ScrollContainer minWidth={1040}>
                 <Table
                   className="workspace-table"
                   highlightOnHover
+                  striped="odd"
                   styles={{
                     table: {
                       color: "var(--app-text)"
@@ -518,23 +531,42 @@ export function ReportCenterPage() {
                   <Table.Tbody>
                     {runEvalMutation.data.items.map(item => (
                       <Table.Tr key={`${item.index}-${item.question}`}>
-                        <Table.Td>{item.index}</Table.Td>
                         <Table.Td>
-                          <Badge color={item.status === "succeeded" ? "indigo" : "red"} radius="sm" variant="light">
-                            {item.status}
-                          </Badge>
+                          <Text className="workspace-table-number" fw={600} size="sm">
+                            {item.index}
+                          </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="sm">{item.question}</Text>
-                        </Table.Td>
-                        <Table.Td>{item.answerStatus ?? "-"}</Table.Td>
-                        <Table.Td>{item.qualityOverall ?? "-"}</Table.Td>
-                        <Table.Td>{item.qualityPrimaryIssue ?? "-"}</Table.Td>
-                        <Table.Td>{item.citationCount}</Table.Td>
-                        <Table.Td>
-                          {item.usedFallback == null ? "-" : item.usedFallback ? (locale === "zh" ? "是" : "yes") : (locale === "zh" ? "否" : "no")}
+                          <div className="workspace-table-badge-stack">
+                            <Badge color={item.status === "succeeded" ? "indigo" : "red"} radius="sm" variant="light">
+                              {item.status}
+                            </Badge>
+                            {item.error?.code ? <Text className="workspace-table-cell-meta">{item.error.code}</Text> : null}
+                          </div>
                         </Table.Td>
                         <Table.Td>
+                          <Text className="workspace-table-cell-title-main" lineClamp={3} size="sm">
+                            {item.question}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text className="workspace-table-cell-copy">{item.answerStatus ?? "-"}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text className="workspace-table-cell-copy">{item.qualityOverall ?? "-"}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text className="workspace-table-cell-copy" lineClamp={2}>{item.qualityPrimaryIssue ?? "-"}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text className="workspace-table-number" fw={600} size="sm">{item.citationCount}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text className="workspace-table-cell-copy">
+                            {item.usedFallback == null ? "-" : item.usedFallback ? (locale === "zh" ? "是" : "yes") : (locale === "zh" ? "否" : "no")}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td className="workspace-table-action">
                           <Stack gap={4}>
                             {item.traceId ? (
                               <Button
@@ -546,14 +578,14 @@ export function ReportCenterPage() {
                                 to={`/traces/${item.traceId}`}
                                 variant="light"
                               >
-                                {item.traceId}
+                                {locale === "zh" ? "打开 Trace" : "Open trace"}
                               </Button>
                             ) : (
                               <Text c="var(--app-text-muted)" size="xs">-</Text>
                             )}
+                            {item.traceId ? <Text className="workspace-table-cell-meta">{item.traceId}</Text> : null}
                             {item.error?.message ? (
-                              <Text c="var(--app-text-secondary)" size="xs">
-                                {item.error.code ? `[${item.error.code}] ` : ""}
+                              <Text className="workspace-table-cell-copy" lineClamp={3} size="xs">
                                 {item.error.message}
                               </Text>
                             ) : null}
