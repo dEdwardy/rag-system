@@ -7,9 +7,8 @@ import {
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
 import {
+  buildAnswerProvenanceFields,
   buildAnswerSourceReadability,
-  buildAnswerProvenanceReadabilitySentence,
-  buildAnswerProvenanceSentence
 } from "../answering/answer-source-readability";
 import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
@@ -379,12 +378,10 @@ export class TracesService {
       answerStatusSource,
       rawAnswerStatusSource
     });
-    const answerProvenanceSentence = buildAnswerProvenanceSentence({
+    const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = buildAnswerProvenanceFields({
       answerTextSource,
       answerStatusSource,
-      answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel
-    });
-    const answerProvenanceReadabilitySentence = buildAnswerProvenanceReadabilitySentence({
+      answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
       answerTextSourceReadabilityLabel,
       answerStatusSourceReadabilityLabel,
       answerAttributionReadabilitySentence

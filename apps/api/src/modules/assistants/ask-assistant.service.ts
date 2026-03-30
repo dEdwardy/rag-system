@@ -8,9 +8,8 @@ import {
   buildAnswerAttributionSummary
 } from "../answering/answer-attribution-summary";
 import {
+  buildAnswerProvenanceFields,
   buildAnswerSourceReadability,
-  buildAnswerProvenanceReadabilitySentence,
-  buildAnswerProvenanceSentence
 } from "../answering/answer-source-readability";
 import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
 import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
@@ -258,7 +257,7 @@ export class AskAssistantService {
       } = answerSourceReadability;
       const answerAttributionReadabilitySentence =
         answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
-      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = this.buildAnswerProvenanceFields({
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = buildAnswerProvenanceFields({
         answerTextSource,
         answerStatusSource,
         answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
@@ -580,7 +579,7 @@ export class AskAssistantService {
       } = answerSourceReadability;
       const answerAttributionReadabilitySentence =
         answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
-      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = this.buildAnswerProvenanceFields({
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = buildAnswerProvenanceFields({
         answerTextSource,
         answerStatusSource,
         answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
@@ -739,28 +738,6 @@ export class AskAssistantService {
     answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
   ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
     return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
-  }
-
-  private buildAnswerProvenanceFields(input: {
-    answerTextSource: TraceSummary["answerTextSource"];
-    answerStatusSource: TraceSummary["answerStatusSource"];
-    answerAttributionReadabilityResolvedLabel: TraceAnswerAttributionSummary["readabilityResolvedLabel"];
-    answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"];
-    answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"];
-    answerAttributionReadabilitySentence: TraceSummary["answerAttributionReadabilitySentence"];
-  }): Pick<TraceSummary, "answerProvenanceSentence" | "answerProvenanceReadabilitySentence"> {
-    return {
-      answerProvenanceSentence: buildAnswerProvenanceSentence({
-        answerTextSource: input.answerTextSource,
-        answerStatusSource: input.answerStatusSource,
-        answerAttributionReadabilityResolvedLabel: input.answerAttributionReadabilityResolvedLabel
-      }),
-      answerProvenanceReadabilitySentence: buildAnswerProvenanceReadabilitySentence({
-        answerTextSourceReadabilityLabel: input.answerTextSourceReadabilityLabel,
-        answerStatusSourceReadabilityLabel: input.answerStatusSourceReadabilityLabel,
-        answerAttributionReadabilitySentence: input.answerAttributionReadabilitySentence
-      })
-    };
   }
 
   private resolveMissingInformationSource(answeringMetadata: unknown): TraceSummary["missingInformationSource"] {

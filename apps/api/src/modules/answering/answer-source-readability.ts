@@ -99,3 +99,25 @@ export function buildAnswerProvenanceReadabilitySentence(input: {
 }): TraceSummary["answerProvenanceReadabilitySentence"] {
   return `Answer text source is ${input.answerTextSourceReadabilityLabel}; answer status source is ${input.answerStatusSourceReadabilityLabel}; ${input.answerAttributionReadabilitySentence}`;
 }
+
+export function buildAnswerProvenanceFields(input: {
+  answerTextSource: TraceSummary["answerTextSource"];
+  answerStatusSource: TraceSummary["answerStatusSource"];
+  answerAttributionReadabilityResolvedLabel: TraceSummary["answerAttributionSummary"]["readabilityResolvedLabel"];
+  answerTextSourceReadabilityLabel: TraceSummary["answerTextSourceReadabilityLabel"];
+  answerStatusSourceReadabilityLabel: TraceSummary["answerStatusSourceReadabilityLabel"];
+  answerAttributionReadabilitySentence: TraceSummary["answerAttributionReadabilitySentence"];
+}): Pick<TraceSummary, "answerProvenanceSentence" | "answerProvenanceReadabilitySentence"> {
+  return {
+    answerProvenanceSentence: buildAnswerProvenanceSentence({
+      answerTextSource: input.answerTextSource,
+      answerStatusSource: input.answerStatusSource,
+      answerAttributionReadabilityResolvedLabel: input.answerAttributionReadabilityResolvedLabel
+    }),
+    answerProvenanceReadabilitySentence: buildAnswerProvenanceReadabilitySentence({
+      answerTextSourceReadabilityLabel: input.answerTextSourceReadabilityLabel,
+      answerStatusSourceReadabilityLabel: input.answerStatusSourceReadabilityLabel,
+      answerAttributionReadabilitySentence: input.answerAttributionReadabilitySentence
+    })
+  };
+}
