@@ -19,6 +19,18 @@
 
 补充进展（2026-03-31）：
 
+- ✅ documents source-entry success feedback is now trimmed to a shared lightweight submit line across web page / feed / sitemap
+  - 变更文件：
+    - `apps/web/src/i18n/messages.ts`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 Documents source-entry 的三类提交成功提示收短为同一条轻量成功反馈，保留现有通知流与提交后状态刷新边界不变
+    - 继续保持 `web page` / `feed` / `sitemap` 三入口、单提交 guard 和现有 backend contract 不变
+  - focused validation：
+    - `node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js`
+    - result: pass (`1` test, `0` fail)
+
 - ✅ documents source-entry field-error follow-up now uses clearer source-field wording without changing the backend contract
   - 变更文件：
     - `apps/web/src/i18n/messages.ts`

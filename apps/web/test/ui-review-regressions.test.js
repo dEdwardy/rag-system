@@ -136,6 +136,12 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(messagesSource, /sourceEntryInlineErrorInvalidHttpUrl: "Enter a valid http\(s\) URL for this source field\."/);
   assert.match(messagesSource, /sourceEntryInlineErrorRequired: "请先在此来源输入框中填入 URL 再提交。"/);
   assert.match(messagesSource, /sourceEntryInlineErrorInvalidHttpUrl: "请输入合法的 http\(s\) 来源 URL。"/);
+  assert.match(messagesSource, /webPage:\s*\{[^]*submitSuccess: "Source URL submitted: \{url\}\."/);
+  assert.match(messagesSource, /feed:\s*\{[^]*submitSuccess: "Source URL submitted: \{url\}\."/);
+  assert.match(messagesSource, /sitemap:\s*\{[^]*submitSuccess: "Source URL submitted: \{url\}\."/);
+  assert.match(messagesSource, /webPage:\s*\{[^]*submitSuccess: "已提交来源 URL：\{url\}。"/);
+  assert.match(messagesSource, /feed:\s*\{[^]*submitSuccess: "已提交来源 URL：\{url\}。"/);
+  assert.match(messagesSource, /sitemap:\s*\{[^]*submitSuccess: "已提交来源 URL：\{url\}。"/);
   assert.match(documentsSource, /resolveSourceEntryStatus/);
   assert.match(documentsSource, /documents\.sourceEntryStatusEmpty/);
   assert.match(documentsSource, /documents\.sourceEntryStatusReady/);
