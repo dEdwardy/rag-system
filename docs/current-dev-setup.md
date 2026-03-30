@@ -110,12 +110,22 @@ Notes:
 ```text
 SOURCE_FETCH_TIMEOUT_MS=10000
 SOURCE_FETCH_RETRY_ATTEMPTS=2
+SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS=80
+SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS=10000
+SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS=40
+SOURCE_FETCH_RETRY_BACKOFF_BASE_MS=250
+SOURCE_FETCH_RETRY_BACKOFF_MAX_MS=2000
+SOURCE_FETCH_RETRY_JITTER_MS=120
 SOURCE_FETCH_BREAKER_PAUSE_MS=15000
 SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD=2
 SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
 ```
 
 - current defaults preserve the existing behavior: `10s` timeout and `2` total fetch attempts for `web page` / `feed` / `sitemap` source HTTP requests
+- source fetch now also applies a narrow domain-level courtesy pacing baseline:
+  - same-domain minimum interval pacing (`SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS`)
+  - bounded rolling crawl budget pacing (`SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS` + `SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS`)
+  - retry exponential backoff + jitter (`SOURCE_FETCH_RETRY_BACKOFF_BASE_MS` / `SOURCE_FETCH_RETRY_BACKOFF_MAX_MS` / `SOURCE_FETCH_RETRY_JITTER_MS`)
 - source fetch now also applies a narrow breaker pause on domain pressure signals to avoid hammering target sites:
   - immediate pause on `429`
   - pause after repeated `5xx` responses on the same domain (`threshold=2` by default)

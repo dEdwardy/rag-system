@@ -325,18 +325,16 @@ async function enforceDomainCrawlBudget(
 
   const state =
     domainFetchStates.get(domain) ?? createDomainFetchState();
-  const now = Date.now();
+  for (;;) {
+    const now = Date.now();
+    pruneOutdatedRequests(state.requestTimestamps, now, runtimeConfig.crawlBudgetWindowMs);
 
-  pruneOutdatedRequests(state.requestTimestamps, now, runtimeConfig.crawlBudgetWindowMs);
+    const crawlBudgetWaitMs = readCrawlBudgetWaitMs(state, now, runtimeConfig);
+    const waitMs = Math.max(0, state.nextAllowedAt - now, state.breakerPausedUntil - now, crawlBudgetWaitMs);
+    if (waitMs <= 0) {
+      break;
+    }
 
-  if (state.requestTimestamps.length >= runtimeConfig.crawlBudgetMaxRequests) {
-    throw new Error(
-      `Failed to fetch ${url}: domain crawl budget exceeded for ${domain} (${runtimeConfig.crawlBudgetMaxRequests} requests/${runtimeConfig.crawlBudgetWindowMs}ms).`
-    );
-  }
-
-  const waitMs = Math.max(0, state.nextAllowedAt - now, state.breakerPausedUntil - now);
-  if (waitMs > 0) {
     await sleep(waitMs);
   }
 
@@ -345,6 +343,19 @@ async function enforceDomainCrawlBudget(
   state.requestTimestamps.push(stampedAt);
   state.nextAllowedAt = stampedAt + runtimeConfig.domainMinIntervalMs;
   domainFetchStates.set(domain, state);
+}
+
+function readCrawlBudgetWaitMs(
+  state: DomainFetchState,
+  now: number,
+  runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>
+) {
+  if (state.requestTimestamps.length < runtimeConfig.crawlBudgetMaxRequests) {
+    return 0;
+  }
+
+  const oldestTimestamp = state.requestTimestamps[0];
+  return Math.max(0, oldestTimestamp + runtimeConfig.crawlBudgetWindowMs - now);
 }
 
 function createDomainFetchState(): DomainFetchState {

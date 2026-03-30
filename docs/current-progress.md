@@ -58,6 +58,19 @@
   - focused validation：
     - `pnpm test:api:file -- test/fetch-with-retry.test.js`
 
+- ✅ source fetch crawl budget guard now paces same-domain requests instead of hard-failing when the rolling window is saturated
+  - 变更文件：
+    - `apps/api/src/infra/http/fetch-with-retry.ts`
+    - `apps/api/test/fetch-with-retry.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 保持既有 `timeout + retry attempts` 基线不变，把 rolling crawl budget 保护收口为礼貌节流：预算窗口满载时等待窗口释放后继续请求，而不是直接抛出失败
+    - 同域最小间隔、retry backoff/jitter、breaker pause 语义保持不变；未引入 scheduler、未改 source persistence、未改 source-family contract
+    - `fetch-with-retry` focused test 同步改为断言预算窗口 pacing 延迟（而非预算超限异常）
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js`
+
 - ✅ P3 external-source legality/crawl-courtesy baseline wording is now synced as docs/policy-only constraints
   - 变更文件：
     - `docs/next_steps_rag_project_plan.md`

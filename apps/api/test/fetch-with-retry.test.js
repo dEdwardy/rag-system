@@ -366,29 +366,34 @@ test("fetchWithRetry applies bounded retry backoff before the next attempt", asy
   }
 });
 
-test("fetchWithRetry enforces a bounded per-domain crawl budget", async () => {
+test("fetchWithRetry keeps per-domain crawl budget bounded via courtesy pacing", async () => {
   const originalFetch = global.fetch;
+  let requestCount = 0;
+  const requestTimestamps = [];
 
   try {
-    global.fetch = async () =>
-      new Response("ok", {
+    global.fetch = async () => {
+      requestCount += 1;
+      requestTimestamps.push(Date.now());
+      return new Response("ok", {
         status: 200,
         headers: {
           "Content-Type": "text/plain; charset=utf-8"
         }
       });
+    };
 
     await withTemporarySourceFetchEnv(
       {
         SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
-        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "40",
         SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "1",
         SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
         SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
         SOURCE_FETCH_RETRY_JITTER_MS: "0"
       },
       async () => {
-        await fetchWithRetry({
+        const first = await fetchWithRetry({
           url: "https://crawl-budget-check.example/first",
           headers: {
             Accept: "text/plain"
@@ -396,21 +401,22 @@ test("fetchWithRetry enforces a bounded per-domain crawl budget", async () => {
           timeoutMs: 10000,
           attempts: 1
         });
+        assert.equal(first.status, 200);
 
-        await assert.rejects(
-          () =>
-            fetchWithRetry({
-              url: "https://crawl-budget-check.example/second",
-              headers: {
-                Accept: "text/plain"
-              },
-              timeoutMs: 10000,
-              attempts: 1
-            }),
-          error => {
-            assert.match(error.message, /domain crawl budget exceeded/i);
-            return true;
-          }
+        const second = await fetchWithRetry({
+          url: "https://crawl-budget-check.example/second",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+
+        assert.equal(second.status, 200);
+        assert.equal(requestCount, 2);
+        assert.ok(
+          requestTimestamps[1] - requestTimestamps[0] >= 30,
+          `Expected crawl budget pacing delay, got ${requestTimestamps[1] - requestTimestamps[0]}ms.`
         );
       }
     );
