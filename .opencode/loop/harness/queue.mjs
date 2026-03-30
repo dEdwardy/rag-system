@@ -1,6 +1,13 @@
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
+import {
+  QUEUE_STATUS,
+  SUSPENDED_QUEUE_STATUSES,
+  assertQueueStatusTransition,
+  normalizeVerificationVerdictStatus
+} from "./state-machine.mjs";
+
 export const LOOP_SCHEMA_VERSION = 1;
 export const DEFAULT_QUEUE_ITEM = {
   id: "build-001",
@@ -22,7 +29,7 @@ export const DEFAULT_QUEUE_ITEM = {
 };
 
 const RECOVERABLE_QUEUE_STATUSES = new Set(["deferred"]);
-const REVIEW_QUEUE_STATUSES = new Set(["needs_review", "blocked_external"]);
+const REVIEW_QUEUE_STATUSES = SUSPENDED_QUEUE_STATUSES;
 const TERMINAL_SUCCESS_QUEUE_STATUSES = new Set(["completed", "succeeded"]);
 const RECOVERABLE_QUEUE_ITEM_FIELDS = ["startedAt", "sessionId", "messageId", "messageReceivedAt", "resumedAt", "runId"];
 
@@ -219,8 +226,9 @@ export function completeQueueItem({ queue, index, sessionId, messageId, handoffP
 
 export function markQueueItemVerifying({ queue, index, verificationStartedAt = new Date().toISOString() }) {
   return updateQueueItem(queue, index, queueItem => ({
+    ...assertStatusChange(queueItem, QUEUE_STATUS.verifying, "mark-verifying"),
     ...queueItem,
-    status: "verifying",
+    status: QUEUE_STATUS.verifying,
     verificationStartedAt
   }));
 }
@@ -236,10 +244,12 @@ export function finalizeQueueItemVerification({
 }) {
   const normalizedVerdict =
     typeof verdict === "string" && verdict.trim() ? verdict.trim() : "failed";
+  const nextStatus = normalizeVerificationVerdictStatus(normalizedVerdict);
 
   return updateQueueItem(queue, index, queueItem => ({
+    ...assertStatusChange(queueItem, nextStatus, "finalize-verification"),
     ...queueItem,
-    status: normalizedVerdict === "succeeded" ? "completed" : normalizedVerdict,
+    status: nextStatus,
     verificationVerdict: normalizedVerdict,
     verificationArtifactPath,
     verificationSummary,
@@ -263,8 +273,9 @@ export function deferQueueItem({ queue, index, deferredAt = new Date().toISOStri
     }
 
     return {
+      ...assertStatusChange(queueItem, QUEUE_STATUS.deferred, "defer-item"),
       ...queueItem,
-      status: "deferred",
+      status: QUEUE_STATUS.deferred,
       runId: undefined,
       sessionId: undefined,
       messageId: undefined,
@@ -298,6 +309,7 @@ export function markQueueItemNeedsReview({
     }
 
     return {
+      ...assertStatusChange(queueItem, normalizedReviewStatus, "mark-needs-review"),
       ...queueItem,
       status: normalizedReviewStatus,
       reviewReason: typeof reviewReason === "string" && reviewReason.trim() ? reviewReason.trim() : "manual_review_required",
@@ -334,8 +346,9 @@ export function resumeQueueItem({
     }
 
     return {
+      ...assertStatusChange(queueItem, QUEUE_STATUS.pending, "resume-item"),
       ...queueItem,
-      status: "pending",
+      status: QUEUE_STATUS.pending,
       reviewRequired: false,
       lastSuspendedStatus: queueItem?.status,
       resumeApprovedAt: resumedAt,
@@ -350,6 +363,15 @@ export function resumeQueueItem({
     cursor: computeNextCursor(updatedItems, index),
     updatedAt: resumedAt
   };
+}
+
+function assertStatusChange(queueItem, nextStatus, context) {
+  assertQueueStatusTransition({
+    from: queueItem?.status,
+    to: nextStatus,
+    context
+  });
+  return {};
 }
 
 export function appendQueueItems(queue, items, updatedAt = new Date().toISOString()) {

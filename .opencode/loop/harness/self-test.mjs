@@ -15,8 +15,23 @@ import {
 } from "./queue.mjs";
 import { DEFAULT_PLANNER_PROMPT_FILE_NAME } from "./planner.mjs";
 import { DEFAULT_PROMPT_FILE_NAME, DEFAULT_PROMPT_PATH, runLoop } from "./runtime.mjs";
+import { QUEUE_STATUS, VERIFICATION_VERDICT, assertQueueStatusTransition, normalizeVerificationVerdictStatus } from "./state-machine.mjs";
 
 export async function runSelfTest() {
+  assertQueueStatusTransition({ from: QUEUE_STATUS.pending, to: QUEUE_STATUS.inProgress, context: "self-test-valid" });
+  if (normalizeVerificationVerdictStatus(VERIFICATION_VERDICT.succeeded) !== QUEUE_STATUS.completed) {
+    throw new Error("Self-test state machine verdict normalization failed.");
+  }
+  let invalidTransitionCaught = false;
+  try {
+    assertQueueStatusTransition({ from: QUEUE_STATUS.completed, to: QUEUE_STATUS.verifying, context: "self-test-invalid" });
+  } catch {
+    invalidTransitionCaught = true;
+  }
+  if (!invalidTransitionCaught) {
+    throw new Error("Self-test state machine accepted an invalid completed -> verifying transition.");
+  }
+
   const root = mkdtempSync(join(tmpdir(), "opencode-loop-"));
   let resumeRoot = null;
   let refillRoot = null;
@@ -1377,6 +1392,7 @@ export async function runSelfTest() {
       verifierExhaustedQueue.items[0]?.verificationVerdict !== "failed" ||
       verifierExhaustedQueue.items[0]?.verificationResult?.failureCategory !== "replan_budget" ||
       verifierExhaustedQueue.items[0]?.verificationResult?.failureCode !== "max_attempts_exhausted" ||
+      verifierExhaustedQueue.items[0]?.verificationResult?.routingReason !== "explicit_retry_policy" ||
       !String(verifierExhaustedQueue.items[0]?.verificationSummary ?? "").includes("maxAttempts exhausted")
     ) {
       throw new Error(
@@ -1463,7 +1479,8 @@ export async function runSelfTest() {
 
     if (
       verifierCommandFailureQueue.items[0]?.verificationResult?.failureCategory !== "verification_command" ||
-      verifierCommandFailureQueue.items[0]?.verificationResult?.failureCode !== "command_exit_nonzero"
+      verifierCommandFailureQueue.items[0]?.verificationResult?.failureCode !== "command_exit_nonzero" ||
+      verifierCommandFailureQueue.items[0]?.verificationResult?.routingReason !== "default_fallback"
     ) {
       throw new Error(
         `Self-test verifier-command-failure path did not persist command failure taxonomy: ${JSON.stringify(verifierCommandFailureQueue.items[0])}`
@@ -1534,7 +1551,8 @@ export async function runSelfTest() {
       verifierCommandDefaultBlockedResult.processedCount !== 1 ||
       verifierCommandDefaultBlockedQueue.items[0]?.status !== "blocked_external" ||
       verifierCommandDefaultBlockedQueue.items[0]?.verificationVerdict !== "blocked_external" ||
-      verifierCommandDefaultBlockedQueue.items[0]?.verificationResult?.routingReason !== "inferred_external_dependency_or_credentials"
+      verifierCommandDefaultBlockedQueue.items[0]?.verificationResult?.routingReason !== "inferred_external_dependency_or_credentials" ||
+      !String(verifierCommandDefaultBlockedQueue.items[0]?.resumeHint ?? "").includes("node .opencode/loop/cli.mjs --resume-item")
     ) {
       throw new Error(
         `Self-test verifier-command-default-blocked path did not infer blocked_external: ${JSON.stringify(verifierCommandDefaultBlockedQueue.items[0])}`
@@ -1694,7 +1712,8 @@ export async function runSelfTest() {
     if (
       verifierArtifactReviewResult.processedCount !== 1 ||
       verifierArtifactReviewQueue.items[0]?.status !== "needs_review" ||
-      verifierArtifactReviewQueue.items[0]?.verificationVerdict !== "needs_review"
+      verifierArtifactReviewQueue.items[0]?.verificationVerdict !== "needs_review" ||
+      !String(verifierArtifactReviewQueue.items[0]?.resumeWhen ?? "").includes("human has reviewed")
     ) {
       throw new Error(
         `Self-test verifier-artifact-review path did not suspend into needs_review: ${JSON.stringify(verifierArtifactReviewQueue.items[0])}`
@@ -1823,7 +1842,7 @@ export async function runSelfTest() {
               reviewRequired: true,
               reviewReason: "pre_run_review_required",
               resumeWhen: "Resume after a human reviewer approves unattended execution.",
-              resumeHint: "Use node scripts/opencode-loop.mjs --resume-item manual-resume-review-001 after approval."
+              resumeHint: "Use node .opencode/loop/cli.mjs --resume-item manual-resume-review-001 after approval."
             },
             {
               id: "manual-resume-blocked-002",
@@ -1833,7 +1852,7 @@ export async function runSelfTest() {
               status: "blocked_external",
               reviewReason: "external_dependency_blocked",
               resumeWhen: "Resume after credentials have been restored.",
-              resumeHint: "Use node scripts/opencode-loop.mjs --resume-item manual-resume-blocked-002 after the fix."
+              resumeHint: "Use node .opencode/loop/cli.mjs --resume-item manual-resume-blocked-002 after the fix."
             }
           ]
         },

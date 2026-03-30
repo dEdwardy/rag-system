@@ -17,6 +17,26 @@
 
 补充进展（2026-03-30）：
 
+- ✅ loop harness runtime is now split into smaller review / verification / handoff / OpenCode API helpers, with explicit status-transition docs and stronger suspended-path self-tests
+  - 变更文件：
+    - `.opencode/loop/harness/state-machine.mjs`
+    - `.opencode/loop/harness/runtime.mjs`
+    - `.opencode/loop/harness/review.mjs`
+    - `.opencode/loop/harness/verification.mjs`
+    - `.opencode/loop/harness/handoff.mjs`
+    - `.opencode/loop/harness/opencode-api.mjs`
+    - `.opencode/loop/harness/self-test.mjs`
+    - `.opencode/loop/README.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 把原先堆在 `runtime.mjs` 里的 review suspension、verifier/replan、handoff rendering、OpenCode session API 逻辑拆到窄 helper 文件，降低单文件复杂度并保留现有运行边界
+    - 新增 `state-machine.mjs` 作为 queue status / verifier verdict 的单一来源，并让 `queue`、`runtime`、`review`、`verification` 在关键状态切换点显式校验允许迁移，减少后续状态漂移风险
+    - verifier failure routing 进一步收成表驱动：每类 failure family 现在显式声明 policy key、fallback policy key、默认 verdict 和 inferred matcher，减少 `verification.mjs` 里继续堆 if/else 的压力
+    - 在 loop README 里补一张 queue status transition 表，并明确 handoff / verification artifact 采用统一命名模式，方便排障和人工扫读
+    - self-test 继续锁住 suspended/resume 路径：补充 resume hint / resumeWhen 断言、状态机合法/非法迁移断言，并把旧的 `scripts/opencode-loop.mjs` 恢复提示同步到当前 `.opencode/loop/cli.mjs` 入口
+  - focused validation：
+    - `node .opencode/loop/cli.mjs --self-test`
+
 - ✅ loop queue P5 manifest/demo false-failure state is now repaired, and backlog materialization now rejects unresolved verifier placeholders before they reach live queue execution
   - 变更文件：
     - `.opencode/loop/queue.json`
@@ -755,6 +775,43 @@
     - 保持边界：仅做 planning/status 同步，不新增 queue wave，不调整现有 P5 运行时契约
   - focused validation：
     - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-dev-setup.md docs/current-progress.md`
+
+- ✅ P5 baseline/demo human-late decisions are now approved and aligned to the current manifest-backed engineering baseline v1 (docs-only increment)
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 记录人工已批准的 baseline question set：沿用 `apps/api/scripts/p5-baseline-manifest.v1.json` 中当前 3 题，继续作为最小 `engineering baseline v1`
+    - 记录人工已批准的 annotations / dataset pin：继续沿用当前分层标注规则，并固定 `p5-v1-demo-replay.questions.v1` + `P5_V1_DEMO_REPLAY_QUESTIONS` snapshot ref
+    - 记录人工已批准的 demo shortlist / replay baseline：沿用当前 `4+1` shortlist，并把 `demo-eval-report-replay` 明确为工程证明型 demo，而不是面向普通用户的主展示项
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ approved P5 baseline/demo decisions are now turned into one queue-ready closeout batch for autonomous follow-up
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue.json`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 `p5-baseline-question-set`、`p5-baseline-annotations`、`p5-baseline-dataset-pin`、`p5-demo-case-selection` 从 backlog 的待确认态收口为已批准完成态，并明确后续剩余工作已切到 auto-safe closeout
+    - 在 backlog 中新增一条 `p5-approved-baseline-closeout-wave`，收束为 3 个最小自动项：`p5-baseline-approval-doc-sync`、`p5-replay-baseline-contract-closeout`、`p5-approved-baseline-queue-refresh`
+    - 将同名 3-item closeout batch 直接追加进 live queue，作为下一批串行自动执行项
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ PC Web source-entry carrying batch is now drafted as the next queue-ready frontend follow-up for already-landed external-source APIs
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue.json`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 记录当前 `P4` 的最小有效 trigger：后端已有 `web page / feed / sitemap` ingestion API，但 `PC Web` 文档工作台仍缺 URL 录入入口
+    - 在 backlog 中新增 `p4-source-entry-carrying-wave`，按 `web page -> feed -> sitemap` 的顺序拆成 3 个最小 frontend carrying 项
+    - 将同名 3-item batch 直接追加进 live queue，后续可在 harness 稳定后按既定顺序消费
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
 
 - ✅ P5 retrieval-regression artifact boundary wording now explicitly separates offline eval proof outputs from the web report-center surface (docs-only increment)
   - 变更文件：

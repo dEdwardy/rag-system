@@ -19,6 +19,8 @@
 
 It intentionally stays narrow: one queue item, one session, one handoff.
 
+For a concise module-and-flow overview, see `.opencode/loop/ARCHITECTURE.md`.
+
 ## Files It Uses
 
 - `.opencode/loop/queue.json` - queue state and cursor
@@ -35,6 +37,8 @@ It intentionally stays narrow: one queue item, one session, one handoff.
 - `.opencode/loop/harness/planner.mjs` - guarded queue refill planner and generated-prompt writer
 - `.opencode/loop/harness/jsonc.mjs` - lightweight JSONC comment-stripping helper for repo config
 - `.opencode/loop/harness/runtime.mjs` - queue, lock, and OpenCode API logic
+- `.opencode/loop/harness/visibility.mjs` - queue work/cursor visibility payload helpers for terminal logs
+- `.opencode/loop/harness/logger.mjs` - ordered Chinese terminal status logging helper
 - `.opencode/loop/harness/self-test.mjs` - self-test harness and mock server
 - `.opencode/loop/harness/strategy.mjs` - small strategy/callback normalization layer for selection and failure handling
 
@@ -107,6 +111,8 @@ For read-model / metadata queue items, prefer `prompts/read-model-metadata-build
 
 Queue items now normalize toward a small V2 task contract with optional `kind`, `goal`, `acceptance`, `constraints`, `verification`, `retryPolicy`, and `attempt` fields.
 Completed items are enriched with `sessionId`, `messageId`, `handoffPath`, `verificationArtifactPath`, `verificationVerdict`, and `completedAt`.
+The harness now centralizes queue-status and verifier-verdict transitions in `harness/state-machine.mjs`, so `runtime` / `queue` / `review` / `verification` all validate against the same transition table instead of hand-rolled status strings.
+Verifier failure routing is also table-driven inside `harness/verification.mjs`: each failure family declares its retry-policy keys, default verdict, and optional inferred matchers before the runtime falls back to generic handling.
 Verification records now also carry structured failure taxonomy fields such as `verificationResult.failureCategory`, `verificationResult.failureCode`, and `verificationResult.failureDetail`.
 When verifier routing is inferred instead of explicitly declared, records also carry `verificationResult.routingReason` so the handoff shows whether the task was routed by retry policy, by an inferred external blocker, or by an inferred manual-review artifact hint.
 For `needs_replan` and `failed` outcomes, the markdown handoff now also includes an operator-facing `接管摘要` section that points to the failure taxonomy, verification artifact, and next manual action.
@@ -152,6 +158,23 @@ Review-oriented item statuses:
 - `blocked_external`: the item is blocked on credentials, external systems, or another dependency outside the harness
 - `needs_replan`: verification evidence says the task ran but did not meet acceptance/constraint targets
 - `failed`: verification commands or required artifacts failed before the task could be accepted
+
+Common status transitions:
+
+| From | Trigger | To |
+|---|---|---|
+| `pending` | picked by runtime | `in_progress` |
+| `pending` | `reviewRequired=true` pre-run promotion | `needs_review` |
+| `in_progress` | assistant reply captured | `verifying` |
+| `in_progress` | timeout retry window exhausted and item reset | `pending` |
+| `verifying` | verifier success | `completed` |
+| `verifying` | acceptance/constraint miss within retry budget | `needs_replan` + appended follow-up |
+| `verifying` | verifier routes to manual judgment | `needs_review` |
+| `verifying` | verifier detects env/credential blocker | `blocked_external` |
+| `verifying` | verifier hard fail or replan budget exhausted | `failed` |
+| `needs_review` / `blocked_external` | manual `--resume-item` recovery | `pending` |
+
+Handoff and verifier artifacts now share the same timestamp-and-item-id naming pattern inside `.opencode/loop/handoffs/`, which keeps scan order and replay evidence aligned.
 
 The loop will continue processing later runnable items in the same queue, but it will not auto-refill a new planner wave while unresolved review/blocker/replan/failure items remain.
 When you have manually cleared a `needs_review` or `blocked_external` exception, use `node .opencode/loop/cli.mjs --resume-item <item-id> --resume-note "what changed"` to move it back to `pending`; the next execution prompt will include that resume context.
