@@ -961,7 +961,11 @@ Notes:
   - report-center contract source: `POST /eval/question-sets/:id/runs` response payload (including `reportExports`); this route does not consume usage snapshot payloads or offline `storage/evals/p5-v1` artifacts
 - `Trace Detail` keeps a scan-first execution-summary surface (diagnostic summary slice, failure taxonomy, quick-jump anchors) and does not require new backend contracts
   - trace-detail contract source: existing `GET /traces/:id` / `GET /conversations/:id/traces` `traceSummary` readability fields; no coupling to usage snapshot comparison payloads or report-center run payloads
-- dashboard scope is intentionally constrained in this wave: keep `Usage`/`Trace Detail` scan-first troubleshooting panels plus `Report center` scan-first eval replay only, and defer generic analytics/ops-platform expansion
+- closeout-batch observability contract snapshot（scan-first, landed）：
+  - `Usage` contract surface remains `summary + comparison + audit` (`GET /knowledge-bases/:id/document-runs/summary`, `GET /knowledge-bases/:id/document-runs/comparison`, `GET /audit/events`)
+  - `Report center` contract surface remains live eval run/read/export (`POST /eval/question-sets/:id/runs` response + `reportExports`)
+  - `Trace Detail` contract surface remains `traceSummary` readability (`GET /traces/:id` / `GET /conversations/:id/traces`)
+- dashboard scope is intentionally constrained after this closeout batch: keep `Usage`/`Trace Detail` scan-first troubleshooting panels plus `Report center` scan-first eval replay only, and continue to defer generic analytics/ops-platform expansion
 - next accepted P6 closeout gaps (scan-first surface only, docs snapshot):
   - keep `Usage` closeout focused on existing panel readability/empty-state consistency over current summary/comparison/audit payloads (no new metric families)
   - keep `Report center` closeout focused on existing P5 eval run/read/export flow and parameter carry-through (`questionSetId` / `assistantId` / `baselineSnapshotId`), without adding new report families

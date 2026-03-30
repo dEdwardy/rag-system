@@ -17,6 +17,16 @@
 
 补充进展（2026-03-30）：
 
+- ✅ observability docs are now minimally re-synced to the landed scan-first contract surfaces after this closeout batch (docs-only)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `current-dev-setup` 的 observability 快照补一条 closeout-batch contract snapshot，明确当前三块 scan-first surface 的固定契约来源：`Usage(summary/comparison/audit)`、`Report center(eval run/read/export + reportExports)`、`Trace Detail(traceSummary readability)`
+    - 明确本批收口后的 deferred scope 不变：继续保持 scan-first 排障/复盘边界，不扩展为通用 analytics/ops dashboard，不重开 auth/ACL 或手动 P5 流程
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ usage page pre-run guidance wording now matches current collapsed-panel scope for scan-first readability stability (P6 closeout, narrow UI-only)
   - 变更文件：
     - `apps/web/src/pages/usage/UsagePage.tsx`
