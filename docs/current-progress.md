@@ -19,6 +19,16 @@
 
 补充进展（2026-03-31）：
 
+- ✅ observability follow-up docs are now kept explicitly bounded around the one-more P6 scan-first readability pass
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 `p6-observability-followup-docs-sync` 收口为完成态，继续把这轮 follow-up 锁定在 Usage / Report center / Trace Detail 的 scan-first 可读性与 docs sync
+    - 仅补记录，不新增 dashboard platform、analytics surface 或 backend observability contract
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ trace detail scan order is now a little more scan-first, with execution summary placed before request / response / steps
   - 变更文件：
     - `apps/web/src/pages/traces/TraceDetailPage.tsx`
