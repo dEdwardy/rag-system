@@ -87,10 +87,13 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetchWithFollowRedirects(input.url, {
+      const { response, resolvedUrl } = await fetchWithFollowRedirects(input.url, {
         signal: AbortSignal.timeout(input.timeoutMs),
         headers: input.headers
       }, runtimeConfig);
+      if (shouldRecheckRobotsForResolvedUrl(input.url, resolvedUrl)) {
+        await assertRobotsAllowUrl(resolvedUrl);
+      }
       await applySitePressureSignals(input.url, response, runtimeConfig);
 
       if (!shouldRetryResponse(response.status) || attempt === attempts) {
@@ -127,12 +130,13 @@ export async function assertRobotsAllowUrl(url: string) {
 
   let response: Response;
   try {
-    response = await fetchWithFollowRedirects(robotsUrl, {
+    const fetched = await fetchWithFollowRedirects(robotsUrl, {
       signal: AbortSignal.timeout(COURTESY_ROBOTS_TIMEOUT_MS),
       headers: {
         Accept: "text/plain"
       }
     }, runtimeConfig);
+    response = fetched.response;
   } catch {
     return;
   }
@@ -213,7 +217,10 @@ async function fetchWithFollowRedirects(
     });
 
     if (!isRedirectStatus(response.status)) {
-      return response;
+      return {
+        response,
+        resolvedUrl: currentUrl
+      };
     }
 
     const redirectLocation = response.headers.get("location");
@@ -228,6 +235,18 @@ async function fetchWithFollowRedirects(
   }
 
   throw new Error(`Failed to follow redirect for ${url}: too many redirects.`);
+}
+
+function shouldRecheckRobotsForResolvedUrl(sourceUrl: string, resolvedUrl: string) {
+  try {
+    const source = new URL(sourceUrl);
+    const resolved = new URL(resolvedUrl);
+    source.hash = "";
+    resolved.hash = "";
+    return source.toString() !== resolved.toString();
+  } catch {
+    return sourceUrl !== resolvedUrl;
+  }
 }
 
 function assertRedirectDomainBoundary(nextUrl: string, sourceUrl: string, currentUrl: string, rawRedirectTarget: string) {

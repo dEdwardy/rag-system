@@ -806,6 +806,41 @@ test("WebPageService blocks fetch when robots disallows the target path", async 
   );
 });
 
+test("WebPageService blocks redirected fetch when target path is disallowed by robots", async () => {
+  await withMockedFetch(
+    [
+      new Response("User-agent: *\nAllow: /public\nDisallow: /private\n", {
+        status: 200,
+        headers: { "content-type": "text/plain" }
+      }),
+      new Response("redirect", {
+        status: 302,
+        headers: { location: "/private/doc" }
+      }),
+      new Response("<html><title>Private</title><body>private page</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" }
+      }),
+      new Response("User-agent: *\nDisallow: /private\n", {
+        status: 200,
+        headers: { "content-type": "text/plain" }
+      })
+    ],
+    async () => {
+      const service = new WebPageService();
+
+      await assert.rejects(service.fetchWebPage("https://example.com/public"), error => {
+        assert.equal(error instanceof BadRequestException, true);
+        assert.match(
+          error.message,
+          /^Failed to fetch web page: Blocked by robots\.txt for https:\/\/example\.com\/private\/doc\./
+        );
+        return true;
+      });
+    }
+  );
+});
+
 test("FeedSourceService classifies upstream 404 responses as non-retryable", async () => {
   await withMockedFetch(
     [
@@ -823,6 +858,99 @@ test("FeedSourceService classifies upstream 404 responses as non-retryable", asy
         error => {
           assert.equal(error instanceof BadRequestException, true);
           assert.equal(error.message, "Failed to fetch feed: upstream responded with 404.");
+          return true;
+        }
+      );
+    }
+  );
+});
+
+test("FeedSourceService blocks redirected fetch when target path is disallowed by robots", async () => {
+  await withMockedFetch(
+    [
+      new Response("User-agent: *\nAllow: /feed.xml\nDisallow: /private\n", {
+        status: 200,
+        headers: { "content-type": "text/plain" }
+      }),
+      new Response("redirect", {
+        status: 302,
+        headers: { location: "/private/feed.xml" }
+      }),
+      new Response(
+        ['<?xml version="1.0" encoding="UTF-8"?>', "<rss><channel><title>Private Feed</title><item><title>One</title><link>https://example.com/one</link></item></channel></rss>"].join("\n"),
+        {
+          status: 200,
+          headers: { "content-type": "application/rss+xml" }
+        }
+      ),
+      new Response("User-agent: *\nDisallow: /private\n", {
+        status: 200,
+        headers: { "content-type": "text/plain" }
+      })
+    ],
+    async () => {
+      const service = new FeedSourceService();
+
+      await assert.rejects(
+        service.fetchFeed({
+          url: "https://example.com/feed.xml",
+          maxItems: 5
+        }),
+        error => {
+          assert.equal(error instanceof BadRequestException, true);
+          assert.match(
+            error.message,
+            /^Failed to fetch feed: Blocked by robots\.txt for https:\/\/example\.com\/private\/feed\.xml\./
+          );
+          return true;
+        }
+      );
+    }
+  );
+});
+
+test("SitemapSourceService blocks redirected fetch when target path is disallowed by robots", async () => {
+  await withMockedFetch(
+    [
+      new Response("User-agent: *\nAllow: /sitemap.xml\nDisallow: /private\n", {
+        status: 200,
+        headers: { "content-type": "text/plain" }
+      }),
+      new Response("redirect", {
+        status: 302,
+        headers: { location: "/private/sitemap.xml" }
+      }),
+      new Response(
+        ['<?xml version="1.0" encoding="UTF-8"?>', "<urlset><url><loc>https://example.com/one</loc></url></urlset>"].join("\n"),
+        {
+          status: 200,
+          headers: { "content-type": "application/xml" }
+        }
+      ),
+      new Response("User-agent: *\nDisallow: /private\n", {
+        status: 200,
+        headers: { "content-type": "text/plain" }
+      })
+    ],
+    async () => {
+      const service = new SitemapSourceService({
+        fetchWebPage: async url => ({
+          title: url,
+          content: `Content for ${url}`
+        })
+      });
+
+      await assert.rejects(
+        service.fetchSitemap({
+          url: "https://example.com/sitemap.xml",
+          maxPages: 5
+        }),
+        error => {
+          assert.equal(error instanceof BadRequestException, true);
+          assert.match(
+            error.message,
+            /^Failed to fetch sitemap: Blocked by robots\.txt for https:\/\/example\.com\/private\/sitemap\.xml\./
+          );
           return true;
         }
       );
