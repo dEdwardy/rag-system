@@ -155,6 +155,94 @@ closeout 边界保持不变：
 - 不重开人工判断型 `P5` 项
 - 不触发 source-family / auth / observability dashboard 扩面
 
+## Approved Follow-up Rebuild (2026-03-30)
+
+在上述 wave 均已收口的前提下，用户又明确批准了 6 个主题进入下一轮自动 queue 整理：
+
+- `source retry/timeout diagnostics consistency`
+- `web page body-quality diagnostics`
+- `external resync diagnostics/error-code consistency`
+- `P5 已批准基线的 docs/contract closeout`
+- `P6 运行观测 / 审计补强`
+- `P4 PC Web 局部承载收口`
+
+这次不是把已落地波次整包重做，而是把它们重新拆成一条更窄的 reopen/closeout wave：只允许继续收口仍适合自动执行的 follow-up/readability/contract/docs 增量。
+
+### 批准后的执行顺序
+
+`P3 follow-up reopen -> P5 docs/contract closeout -> P6 scan-first observability closeout -> P4 source-entry closeout -> loop queue refresh`
+
+### Included Queue Items (approved rebuild)
+
+1. `p3-source-retry-timeout-diagnostics-091`
+   - title: `source retry/timeout diagnostics`
+
+2. `p3-web-body-quality-diagnostics-092`
+   - title: `web body-quality diagnostics`
+
+3. `p3-external-resync-error-code-consistency-093`
+   - title: `external resync error-code consistency`
+
+4. `p5-baseline-doc-surface-sync-094`
+   - title: `p5 baseline doc surface sync`
+
+5. `p5-replay-boundary-contract-closeout-095`
+   - title: `p5 replay boundary contract closeout`
+
+6. `p6-usage-readability-closeout-096`
+   - title: `p6 usage readability closeout`
+
+7. `p6-report-center-carrythrough-closeout-097`
+   - title: `p6 report center carrythrough`
+
+8. `p6-trace-audit-readability-closeout-098`
+   - title: `p6 trace audit closeout`
+
+9. `p6-observability-docs-sync-099`
+   - title: `p6 observability docs sync`
+
+10. `p4-source-entry-readability-closeout-100`
+    - title: `p4 source-entry readability`
+
+11. `p4-source-entry-guard-docs-sync-101`
+    - title: `p4 source-entry guard/docs`
+
+12. `loop-queue-refresh-102`
+    - title: `loop queue refresh`
+
+### Boundaries For This Rebuild
+
+- `P3` 仍只允许 existing source families；不重开 source expansion、JS rendering crawler、sync architecture rewrite
+- `P5` 仍只允许 approved engineering baseline v1 的 docs/contract closeout；不重开 benchmark/framework/platform 设计
+- `P6` 仍只允许 Usage / Report center / Trace Detail / audit 的 scan-first closeout；不扩成通用 dashboard / analytics 平台
+- `P4` 仍只允许 Documents 既有 source-entry surface 的 readability/guard/docs 收口；不扩成新的 source management console、不引入 mobile
+- 每个 queue item 继续保持一个最小目标 + 一条 focused validation
+
+### Approved Follow-up Rebuild Closeout Status (2026-03-30)
+
+本批 12-item rebuild 已消费完并完成 queue refresh 收口；本段仅做 closeout 对齐，不追加新 wave。
+
+- 已完成（verification succeeded）：
+  - `p3-source-retry-timeout-diagnostics-091`
+  - `p3-external-resync-error-code-consistency-093`
+  - `p5-baseline-doc-surface-sync-094`
+  - `p6-usage-readability-closeout-096`
+  - `p6-report-center-carrythrough-closeout-097`
+  - `p6-observability-docs-sync-099`
+  - `p4-source-entry-readability-closeout-100`
+  - `p4-source-entry-guard-docs-sync-101`
+  - `loop-queue-refresh-102`
+- 失败（verification failed，evidence-only，不可 push-eligible）：
+  - `p3-web-body-quality-diagnostics-092`
+  - `p5-replay-boundary-contract-closeout-095`
+  - `p6-trace-audit-readability-closeout-098`
+
+next-wave bookkeeping（保持收敛）：
+
+- 下一步仅处理上述 3 个 failed slice 的 targeted replan；
+- 本次 queue refresh 不追加任何 brand-new product wave；
+- 其余边界不变（不重开 source family 扩面、不重开 benchmark/framework、不扩 dashboard 平台化）。
+
 ## Items Kept Out Of Auto Queue
 
 以下任务不进入自动 queue，因为它们依赖人工判断、主观验收或基线选择，不适合自动 build loop：

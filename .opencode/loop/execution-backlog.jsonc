@@ -3,7 +3,7 @@
   // Purpose: let the loop planner derive the next queue wave from explicit task data,
   // instead of inferring everything from long-form docs.
   "version": 1,
-  "updatedAt": "2026-03-30T07:51:05.000Z",
+  "updatedAt": "2026-03-30T11:58:54.000Z",
   "scope": {
     "productStage": "local-first RAG hardening / feature closeout",
     "included": [
@@ -38,7 +38,7 @@
     "currentStageTarget": "non-SaaS + non-mobile + local-first RAG hardening/closeout",
     "currentEstimatedCompletion": "86%-92%",
     "estimatedCompletionAfterAutoQueueDrains": "92%-96%",
-    "note": "The latest executable gap set is the narrow external-source guardrail wave: policy boundary, robots/domain courtesy, crawl budget, breaker behavior, and incremental resync bias on top of the existing source APIs."
+    "note": "The approved 2026-03-30 follow-up rebuild wave has landed with mixed verification outcomes; next queue-safe work should replan only the failed narrow slices (p3-web-body-quality-diagnostics-092, p5-replay-boundary-contract-closeout-095, p6-trace-audit-readability-closeout-098) before opening any brand-new wave."
   },
   "routingView": {
     "routingRules": [
@@ -59,11 +59,15 @@
       "p5-annotation-manifest-materialization",
       "p5-demo-replay-entrypoint",
       "p4-source-entry-carrying",
-      "p3-external-source-guardrails"
+      "p3-external-source-guardrails",
+      "p3-followup-reopen-closeout",
+      "p5-baseline-doc-contract-closeout",
+      "p6-observability-readability-closeout",
+      "p4-source-entry-closeout"
     ]
   },
   "queueMaterializationPlan": {
-    "currentBias": "Only decompose the smallest real implementation tasks; keep newly approved decisions in closeout bookkeeping and move forward without reopening broader product scope.",
+    "currentBias": "After the approved rebuild wave closeout, prioritize replan-only follow-ups for failed verification slices before adding any new product wave; keep scope narrow and bookkeeping-first.",
     "nextQueueFamilies": [
       {
         "id": "p3-external-source-guardrail-wave",
@@ -405,6 +409,264 @@
             },
             "suspendWhen": [
               "Replay entrypoint behavior is not landed yet"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p3-followup-reopen-closeout-wave",
+        "dependsOn": [],
+        "waveGoal": "Reopen P3 only for the user-approved narrow follow-up slices: retry/timeout diagnostics consistency, web-page body-quality diagnostics, and external-resync diagnostics/error-code consistency, while keeping the existing source-family/stability boundary unchanged.",
+        "candidateTasks": [
+          "p3-source-retry-timeout-diagnostics-followup",
+          "p3-web-body-quality-diagnostics-followup",
+          "p3-external-resync-error-code-consistency-followup"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p3-source-retry-timeout-diagnostics-followup",
+            "kind": "build_increment",
+            "riskLevel": "medium",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node apps/api/scripts/run-test-file.mjs -- test/fetch-with-retry.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested change broadens into retry-policy rewrites or new crawler-platform behavior"
+            ]
+          },
+          {
+            "taskId": "p3-web-body-quality-diagnostics-followup",
+            "kind": "build_increment",
+            "riskLevel": "medium",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node apps/api/scripts/run-test-file.mjs -- test/parsing.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested body-quality work broadens into JS-rendered crawling or a larger extraction redesign"
+            ]
+          },
+          {
+            "taskId": "p3-external-resync-error-code-consistency-followup",
+            "kind": "build_increment",
+            "riskLevel": "medium",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node apps/api/scripts/run-test-file.mjs -- test/external-source-sync.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested consistency pass broadens into new source-family expansion or sync-architecture redesign"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p5-baseline-doc-contract-closeout-wave",
+        "dependsOn": [
+          "p5-baseline-question-set",
+          "p5-baseline-annotations",
+          "p5-baseline-dataset-pin",
+          "p5-demo-case-selection"
+        ],
+        "waveGoal": "Keep the approved P5 engineering baseline surfaces tidy through narrow docs/contract closeout only, without reopening benchmark/framework/platform work.",
+        "candidateTasks": [
+          "p5-baseline-doc-surface-sync-followup",
+          "p5-replay-boundary-contract-closeout-followup"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p5-baseline-doc-surface-sync-followup",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/current-dev-setup.md docs/next_steps_rag_project_plan.md docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "Approved P5 baseline/demo decisions are no longer the current source of truth"
+            ]
+          },
+          {
+            "taskId": "p5-replay-boundary-contract-closeout-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested closeout broadens into a new benchmark framework or report platform redesign"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p6-observability-readability-closeout-wave",
+        "dependsOn": [],
+        "waveGoal": "Reopen P6 only for narrow scan-first observability closeout around Usage, Report center, Trace Detail/audit readability, and docs sync, without expanding into a broader dashboard platform.",
+        "candidateTasks": [
+          "p6-usage-readability-closeout-followup",
+          "p6-report-center-carrythrough-closeout-followup",
+          "p6-trace-audit-readability-closeout-followup",
+          "p6-observability-docs-sync-followup"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p6-usage-readability-closeout-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested Usage closeout would require new backend contracts or new metric families"
+            ]
+          },
+          {
+            "taskId": "p6-report-center-carrythrough-closeout-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested Report center closeout broadens into new report families or dashboard-platform behavior"
+            ]
+          },
+          {
+            "taskId": "p6-trace-audit-readability-closeout-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"trace detail\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested trace/audit closeout would require new backend trace or audit contracts"
+            ]
+          },
+          {
+            "taskId": "p6-observability-docs-sync-followup",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "No new scan-first observability wording/contract gap remains after the preceding closeout items"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p4-source-entry-closeout-wave",
+        "dependsOn": [],
+        "waveGoal": "Keep the newly landed PC Web source-entry surface tidy through narrow readability/guard/docs closeout only, without turning Documents into a broader source-management console.",
+        "candidateTasks": [
+          "p4-source-entry-readability-closeout-followup",
+          "p4-source-entry-guard-docs-sync-followup"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p4-source-entry-readability-closeout-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested source-entry closeout broadens into a new source-management workspace or backend contract redesign"
+            ]
+          },
+          {
+            "taskId": "p4-source-entry-guard-docs-sync-followup",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The current Documents source-entry surface is no longer the intended PC Web carrying surface"
             ]
           }
         ]
@@ -1014,6 +1276,159 @@
       ],
       "suspendWhen": [
         "No current capability requires UI carrying work"
+      ]
+    },
+    {
+      "id": "p3-followup-reopen-closeout",
+      "phase": "P3",
+      "title": "reopen P3 for narrow diagnostics follow-up only",
+      "priority": "medium",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Use the user-approved reopen path only for the three narrow P3 follow-up slices: retry/timeout diagnostics consistency, web body-quality diagnostics, and external-resync error-code consistency.",
+      "scope": [
+        "apps/api/src/infra/http/fetch-with-retry.ts",
+        "apps/api/src/infra/web-page/web-page.service.ts",
+        "apps/api/src/modules/documents/documents.service.ts",
+        "apps/api/test/fetch-with-retry.test.js",
+        "apps/api/test/parsing.test.js",
+        "apps/api/test/external-source-sync.test.js",
+        "docs/current-progress.md",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "P3 follow-up remains within existing source families and current stability semantics.",
+        "The three requested follow-up slices are represented as separate queue items with one focused validation each."
+      ],
+      "verification": [
+        "node apps/api/scripts/run-test-file.mjs -- test/fetch-with-retry.test.js",
+        "node apps/api/scripts/run-test-file.mjs -- test/parsing.test.js",
+        "node apps/api/scripts/run-test-file.mjs -- test/external-source-sync.test.js"
+      ],
+      "notDoing": [
+        "No new source family",
+        "No JS-rendered crawling",
+        "No sync-architecture rewrite"
+      ],
+      "suspendWhen": [
+        "The follow-up broadens beyond the three approved diagnostics slices"
+      ]
+    },
+    {
+      "id": "p5-baseline-doc-contract-closeout",
+      "phase": "P5",
+      "title": "keep P5 closeout on docs and replay-boundary contracts",
+      "priority": "medium",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [
+        "p5-baseline-question-set",
+        "p5-baseline-annotations",
+        "p5-baseline-dataset-pin",
+        "p5-demo-case-selection"
+      ],
+      "goal": "Keep the approved P5 engineering baseline wave tidy through narrow docs/contract follow-up only.",
+      "scope": [
+        "apps/api/scripts/run-p5-v1-eval-runner.mjs",
+        "apps/api/scripts/p5-baseline-manifest.v1.json",
+        "apps/api/scripts/p5-demo-shortlist.json",
+        "docs/current-dev-setup.md",
+        "docs/next_steps_rag_project_plan.md",
+        "docs/current-progress.md",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "Primary docs remain aligned to the approved engineering baseline v1 source of truth.",
+        "Replay/help wording stays pinned to manifest + shortlist and does not broaden platform scope."
+      ],
+      "verification": [
+        "git diff --check -- docs/current-dev-setup.md docs/next_steps_rag_project_plan.md docs/current-progress.md",
+        "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+      ],
+      "notDoing": [
+        "No new benchmark framework",
+        "No report-center redesign",
+        "No manual baseline workflow expansion"
+      ],
+      "suspendWhen": [
+        "The approved P5 baseline/demo decisions stop being the current source of truth"
+      ]
+    },
+    {
+      "id": "p6-observability-readability-closeout",
+      "phase": "P6",
+      "title": "reopen P6 only for scan-first readability closeout",
+      "priority": "medium",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Keep P6 limited to narrow Usage/Report center/Trace Detail/audit readability and docs follow-up.",
+      "scope": [
+        "apps/web/src/pages/usage/UsagePage.tsx",
+        "apps/web/src/pages/reports/ReportCenterPage.tsx",
+        "apps/web/src/pages/traces/TraceDetailPage.tsx",
+        "apps/web/test/ui-review-regressions.test.js",
+        "docs/current-dev-setup.md",
+        "docs/current-progress.md",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "Usage, Report center, and Trace Detail/audit closeout remain scan-first and contract-preserving.",
+        "Docs continue to reflect the intentionally deferred dashboard scope."
+      ],
+      "verification": [
+        "node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js",
+        "node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js",
+        "node --test --test-name-pattern \"trace detail\" apps/web/test/ui-review-regressions.test.js",
+        "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+      ],
+      "notDoing": [
+        "No dashboard platformization",
+        "No new backend observability contracts",
+        "No analytics surface expansion"
+      ],
+      "suspendWhen": [
+        "No concrete scan-first closeout gap remains after the current landed surfaces"
+      ]
+    },
+    {
+      "id": "p4-source-entry-closeout",
+      "phase": "P4",
+      "title": "close out PC Web source-entry carrying with narrow guards/docs",
+      "priority": "medium",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Keep the newly landed Documents source-entry surface tidy through readability/guard/docs follow-up only.",
+      "scope": [
+        "apps/web/src/pages/documents/DocumentsPage.tsx",
+        "apps/web/src/features/api/hooks.ts",
+        "apps/web/src/i18n/messages.ts",
+        "apps/web/test/ui-review-regressions.test.js",
+        "docs/current-dev-setup.md",
+        "docs/current-progress.md",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "PC Web keeps the existing web/feed/sitemap entrypoints readable and consistent.",
+        "Follow-up stays inside the current Documents workspace and existing backend contracts."
+      ],
+      "verification": [
+        "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js",
+        "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+      ],
+      "notDoing": [
+        "No source-management console",
+        "No mobile work",
+        "No backend source-contract rewrite"
+      ],
+      "suspendWhen": [
+        "The current Documents page is no longer the intended source-entry carrying surface"
       ]
     },
     {

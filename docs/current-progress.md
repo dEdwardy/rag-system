@@ -17,6 +17,19 @@
 
 补充进展（2026-03-30）：
 
+- ✅ approved follow-up rebuild wave queue/backlog/progress closeout is now re-synced after `loop-queue-refresh-102` (queue/backlog/progress sync only)
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 `loop-queue-refresh-102` 从 `in_progress` 收口为 `completed`，并把本批 approved rebuild 的 closeout 状态补齐到 refinement/backlog/progress 三处
+    - 明确本批 mixed outcome：`091/093/094/096/097/099/100/101/102` 为已完成；`092/095/098` 为 verification failed（evidence-only，不可 push-eligible）
+    - next-wave bookkeeping 继续收敛：下一步只处理上述 failed slices 的 targeted replan；本次不追加 brand-new product wave
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue-refinement-plan-2026-03-29.md .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ documents source-entry web guard/docs snapshot is now minimally re-synced for `web page` / `feed` / `sitemap` parity (contract closeout only)
    - 变更文件：
      - `apps/web/test/ui-review-regressions.test.js`
