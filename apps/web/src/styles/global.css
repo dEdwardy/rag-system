@@ -68,6 +68,14 @@ html[data-theme-layout="workspace-app"] {
     text-decoration: none;
   }
 
+  a,
+  button,
+  input,
+  textarea,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   button:focus-visible,
   a:focus-visible,
   input:focus-visible,
@@ -310,6 +318,75 @@ html[data-theme-layout="workspace-app"] {
     background: rgba(16, 16, 22, 0.88);
   }
 
+  .workspace-table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .workspace-table-hint {
+    color: var(--app-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+
+  .workspace-table .mantine-Table-th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    backdrop-filter: blur(14px);
+  }
+
+  .workspace-table .mantine-Table-th,
+  .workspace-table .mantine-Table-td {
+    vertical-align: top;
+  }
+
+  .workspace-table-cell-title {
+    min-width: 0;
+  }
+
+  .workspace-table-cell-title-main {
+    color: var(--app-text);
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  .workspace-table-cell-meta {
+    color: var(--app-text-muted);
+    display: block;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    margin-top: 0.3rem;
+  }
+
+  .workspace-table-cell-copy {
+    color: var(--app-text-secondary);
+    display: block;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    margin-top: 0.35rem;
+  }
+
+  .workspace-table-number {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .workspace-table-action {
+    white-space: nowrap;
+    width: 1%;
+  }
+
+  .workspace-table-badge-stack {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
   .workspace-inline-chip {
     display: inline-flex;
     align-items: center;
@@ -386,6 +463,46 @@ html[data-theme-layout="workspace-app"] {
   .workspace-loading-grid {
     display: grid;
     gap: 1rem;
+  }
+
+  .workspace-scan-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workspace-scan-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 1rem;
+    min-width: 0;
+    padding: 0.95rem 1rem;
+  }
+
+  .workspace-scan-label {
+    color: var(--app-text-muted);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .workspace-scan-value {
+    color: var(--app-text);
+    display: block;
+    font-size: 0.96rem;
+    font-weight: 600;
+    line-height: 1.5;
+    margin-top: 0.4rem;
+  }
+
+  .workspace-scan-copy {
+    color: var(--app-text-secondary);
+    display: block;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    margin-top: 0.3rem;
   }
 
   .workspace-loading-grid.metrics {
@@ -468,6 +585,15 @@ html[data-theme-layout="workspace-app"] {
   @media (max-width: 48rem) {
     .workspace-metric-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .workspace-scan-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .workspace-table-toolbar {
+      align-items: flex-start;
+      flex-direction: column;
     }
 
     .workspace-hero-split {

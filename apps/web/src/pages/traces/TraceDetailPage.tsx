@@ -382,6 +382,58 @@ export function TraceDetailPage() {
       : null) ??
     conversationMessages.find(message => message.role === "assistant" && message.traceId === trace?.id)?.content ??
     null;
+  const traceScanItems = trace
+    ? [
+        {
+          key: "status",
+          label: locale === "zh" ? "结果" : "Outcome",
+          value:
+            trace.status === "success"
+              ? locale === "zh"
+                ? "已完成"
+                : "Completed"
+              : locale === "zh"
+                ? "需排查"
+                : "Needs review",
+          copy:
+            trace.errorMessage ??
+            (locale === "zh"
+              ? "先看执行摘要，再决定是否展开 chunk 与原始载荷。"
+              : "Start with the execution summary before expanding chunks or raw payload.")
+        },
+        {
+          key: "retrieval",
+          label: locale === "zh" ? "检索规模" : "Retrieval size",
+          value:
+            locale === "zh"
+              ? `${retrievedChunkIds.length} 个 chunk / ${citations.length} 条引用`
+              : `${retrievedChunkIds.length} chunks / ${citations.length} citations`,
+          copy:
+            scores.length > 0
+              ? locale === "zh"
+                ? "已保留评分，可直接继续看排序结果。"
+                : "Scores are available for ranked inspection."
+              : locale === "zh"
+                ? "当前只保留了 trace 顺序。"
+                : "Only trace order is available for this run."
+        },
+        {
+          key: "taxonomy",
+          label: locale === "zh" ? "失败分类" : "Failure taxonomy",
+          value:
+            failureTaxonomy.length > 0
+              ? failureTaxonomy.map(category => getFailureTaxonomyLabel(category, locale)).join(" / ")
+              : locale === "zh"
+                ? "未命中失败分类"
+                : "No failure taxonomy",
+          copy:
+            diagnosticSummarySlice?.issueLine ??
+            (locale === "zh"
+              ? "当前没有额外问题线索。"
+              : "No additional issue signal is available.")
+        }
+      ]
+    : [];
 
   return (
     <Stack gap="md">
@@ -436,6 +488,16 @@ export function TraceDetailPage() {
 
       {trace ? (
         <>
+          <div className="workspace-scan-grid">
+            {traceScanItems.map(item => (
+              <div className="workspace-scan-card" key={item.key}>
+                <span className="workspace-scan-label">{item.label}</span>
+                <span className="workspace-scan-value">{item.value}</span>
+                <span className="workspace-scan-copy">{item.copy}</span>
+              </div>
+            ))}
+          </div>
+
           <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
             <Stack gap="md">
               <Group justify="space-between" wrap="nowrap">
@@ -675,30 +737,6 @@ export function TraceDetailPage() {
                 </Paper>
               ) : null}
 
-              <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
-                <Stack gap="xs">
-                  <Text className="workspace-section-heading">
-                    {locale === "zh" ? "Trace 快速跳转" : "Trace quick jumps"}
-                  </Text>
-                  <Text c="var(--app-text-muted)" size="xs">
-                    {locale === "zh"
-                      ? "在当前详情页内快速切换到 chunk、引用或原始载荷区。"
-                      : "Move through chunk, citation, and raw-payload sections without leaving this detail view."}
-                  </Text>
-                  <Group gap="xs">
-                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`} size="sm">
-                      {locale === "zh" ? "查看命中 Chunk" : "Go to retrieved chunks"}
-                    </Anchor>
-                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.citations}`} size="sm">
-                      {locale === "zh" ? "查看引用" : "Go to citations"}
-                    </Anchor>
-                    <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.rawPayload}`} size="sm">
-                      {locale === "zh" ? "查看原始载荷" : "Go to raw payload"}
-                    </Anchor>
-                  </Group>
-                </Stack>
-              </Paper>
-
               {traceSummary ? (
                 <div className="workspace-meta-list">
                   <div className="workspace-meta-row">
@@ -768,6 +806,30 @@ export function TraceDetailPage() {
                         {trace.errorMessage}
                       </Alert>
                     ) : null}
+                  </Stack>
+                </Paper>
+
+                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                  <Stack gap="sm">
+                    <Text className="workspace-section-heading">
+                      {locale === "zh" ? "页内快速跳转" : "In-page quick jumps"}
+                    </Text>
+                    <Text className="workspace-section-copy">
+                      {locale === "zh"
+                        ? "优先跳到 chunk、引用或原始载荷区，不必反复滚动。"
+                        : "Jump directly to chunks, citations, or raw payload without rescanning the whole page."}
+                    </Text>
+                    <Stack gap={6}>
+                      <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`} size="sm">
+                        {locale === "zh" ? "查看命中 Chunk" : "Go to retrieved chunks"}
+                      </Anchor>
+                      <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.citations}`} size="sm">
+                        {locale === "zh" ? "查看引用" : "Go to citations"}
+                      </Anchor>
+                      <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.rawPayload}`} size="sm">
+                        {locale === "zh" ? "查看原始载荷" : "Go to raw payload"}
+                      </Anchor>
+                    </Stack>
                   </Stack>
                 </Paper>
 

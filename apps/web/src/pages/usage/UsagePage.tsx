@@ -555,6 +555,46 @@ export function UsagePage() {
     };
   }, [snapshotWindowDiffQuery.data]);
 
+  const topAlert = alertItems[0] ?? null;
+  const scanSummaryItems = useMemo(
+    () => [
+      {
+        key: "priority",
+        label: locale === "zh" ? "优先信号" : "Priority signal",
+        value: topAlert?.title ?? (locale === "zh" ? "当前无活跃告警" : "No active alerts"),
+        copy: topAlert?.detail ??
+          (locale === "zh"
+            ? "继续看趋势、异常聚类和 source-family 热点。"
+            : "Continue with trend view, anomaly clusters, and source-family hotspot.")
+      },
+      {
+        key: "hotspot",
+        label: locale === "zh" ? "当前热点" : "Current hotspot",
+        value: sourceFamilyHotspot?.family ?? (locale === "zh" ? "暂无 source-family 热点" : "No source-family hotspot"),
+        copy: sourceFamilyHotspot
+          ? locale === "zh"
+            ? `失败 ${sourceFamilyHotspot.stats.failedRuns} · 边界 ${sourceFamilyHotspot.stats.runsWithBoundaryHit} · 总运行 ${sourceFamilyHotspot.stats.totalRuns}`
+            : `Failed ${sourceFamilyHotspot.stats.failedRuns} · Boundary ${sourceFamilyHotspot.stats.runsWithBoundaryHit} · Total ${sourceFamilyHotspot.stats.totalRuns}`
+          : locale === "zh"
+            ? "最近 24h 没有读得出的 source-family 压力点。"
+            : "No readable source-family pressure point in the last 24h."
+      },
+      {
+        key: "next-step",
+        label: locale === "zh" ? "下一步" : "Next step",
+        value: topAlert?.actionLabel ?? (locale === "zh" ? "继续观察 P6 面板" : "Continue scanning P6 panels"),
+        copy: topAlert
+          ? locale === "zh"
+            ? `建议先进入 ${topAlert.actionTo === "/traces" ? "Trace" : "Knowledge base"} 路由。`
+            : `Suggested first route: ${topAlert.actionTo === "/traces" ? "Trace" : "Knowledge base"}.`
+          : locale === "zh"
+            ? "如果趋势、差异和热点都平稳，当前工作区基本可继续使用。"
+            : "If trend, diff, and hotspot panels stay calm, the workspace is generally ready to use."
+      }
+    ],
+    [locale, sourceFamilyHotspot, topAlert]
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -770,6 +810,16 @@ export function UsagePage() {
                 </div>
               ) : (
                 <>
+                  <div className="workspace-scan-grid">
+                    {scanSummaryItems.map(item => (
+                      <div className="workspace-scan-card" key={item.key}>
+                        <span className="workspace-scan-label">{item.label}</span>
+                        <span className="workspace-scan-value">{item.value}</span>
+                        <span className="workspace-scan-copy">{item.copy}</span>
+                      </div>
+                    ))}
+                  </div>
+
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     {healthSignals.map(signal => (
                       <div className="workspace-subpanel rounded-[20px] p-4" key={signal.label}>
@@ -928,7 +978,7 @@ export function UsagePage() {
                               ? `阶段：${cluster.failedStage} · 来源：${cluster.sourceTypes.join("，")}`
                               : `Stage: ${cluster.failedStage} · Sources: ${cluster.sourceTypes.join(", ")}`}
                           </p>
-                          {cluster.sampleMessage ? <p className="mt-1 text-[var(--app-text-muted)]">{cluster.sampleMessage}</p> : null}
+                          {cluster.sampleMessage ? <p className="mt-1 line-clamp-2 text-[var(--app-text-muted)]">{cluster.sampleMessage}</p> : null}
                         </li>
                       ))}
                     </ul>

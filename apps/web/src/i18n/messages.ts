@@ -350,6 +350,21 @@ export const messages = {
       missingProfileTitle: "Missing retrieval profile",
       missingProfileDescription: "The assistant exists, but its retrieval profile could not be resolved."
     },
+    auth: {
+      login: {
+        brand: "RAG System",
+        title: "Login",
+        subtitle: "Sign in with your local account or continue with a provider.",
+        email: "Email",
+        emailPlaceholder: "you@example.com...",
+        password: "Password",
+        submit: "Login",
+        submitting: "Logging in...",
+        continueWithGitHub: "Continue with GitHub",
+        continueWithGoogle: "Continue with Google",
+        continueWithOidc: "Continue with OIDC"
+      }
+    },
     trace: {
       title: "Trace Detail",
       subtitle: "Inspect retrieval, citations, and model metadata for a single ask request.",
@@ -747,6 +762,21 @@ export const messages = {
       noAssistantDescription: "当前种子数据没有暴露默认助手。",
       missingProfileTitle: "缺少检索配置",
       missingProfileDescription: "助手存在，但无法解析其绑定的检索配置。"
+    },
+    auth: {
+      login: {
+        brand: "RAG System",
+        title: "登录",
+        subtitle: "使用本地账号登录，或继续使用第三方提供方。",
+        email: "邮箱",
+        emailPlaceholder: "you@example.com...",
+        password: "密码",
+        submit: "登录",
+        submitting: "登录中...",
+        continueWithGitHub: "使用 GitHub 继续",
+        continueWithGoogle: "使用 Google 继续",
+        continueWithOidc: "使用 OIDC 继续"
+      }
     },
     trace: {
       title: "Trace 详情",
