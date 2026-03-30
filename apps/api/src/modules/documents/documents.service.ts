@@ -944,14 +944,14 @@ export class DocumentsService {
       throw new Error(this.buildExternalSourceConfigErrorMessage("missing", sourceTypeHint));
     }
 
-    if (value.kind === "web_page" && typeof value.url === "string") {
+    if (value.kind === "web_page" && typeof value.url === "string" && this.isValidRemoteSourceUrl(value.url)) {
       return {
         kind: "web_page",
         url: value.url
       };
     }
 
-    if (value.kind === "feed" && typeof value.url === "string") {
+    if (value.kind === "feed" && typeof value.url === "string" && this.isValidRemoteSourceUrl(value.url)) {
       const maxItems = this.resolveExternalSourceBoundOrLegacyDefault(value.maxItems);
 
       if (maxItems !== null) {
@@ -963,7 +963,7 @@ export class DocumentsService {
       }
     }
 
-    if (value.kind === "sitemap" && typeof value.url === "string") {
+    if (value.kind === "sitemap" && typeof value.url === "string" && this.isValidRemoteSourceUrl(value.url)) {
       const maxPages = this.resolveExternalSourceBoundOrLegacyDefault(value.maxPages);
 
       if (maxPages !== null) {
@@ -1259,5 +1259,14 @@ export class DocumentsService {
     }
 
     return null;
+  }
+
+  private isValidRemoteSourceUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
   }
 }
