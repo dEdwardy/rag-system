@@ -653,6 +653,135 @@ test("DocumentsService records a failed web page sync when source fetch fails", 
   assert.deepEqual(enqueuedDocumentIds, []);
 });
 
+test("DocumentsService persists normalized partial diagnostics when a reused web page source returns partial results", async () => {
+  const enqueuedDocumentIds = [];
+  const documentUpdates = [];
+
+  const existingDocument = {
+    id: "existing-web-partial-document",
+    kbId: "default-kb",
+    sourceType: "web_page",
+    sourceName: "https://example.com/page",
+    title: "Existing web page",
+    mimeType: "text/plain",
+    storageKey: "generated/web.txt",
+    status: "ready",
+    processingStage: "completed",
+    version: 3,
+    chunkCount: 4,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findFirst: async () => existingDocument,
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...existingDocument,
+            ...args.data,
+            version:
+              typeof args.data.version === "object" && args.data.version.increment === 1
+                ? existingDocument.version + 1
+                : existingDocument.version
+          };
+        }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async knowledgeBaseId => {
+        assert.equal(knowledgeBaseId, "default-kb");
+        return { id: knowledgeBaseId };
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async ({ content }) => {
+        assert.equal(content, "Web partial content");
+        return {
+          storageKey: "generated/web-partial.txt"
+        };
+      }
+    },
+    webPageService: {
+      fetchWebPage: async url => {
+        assert.equal(url, "https://example.com/page");
+        return {
+          title: "Fetched Web Page",
+          content: "Web partial content",
+          diagnostics: {
+            sourceKind: "web",
+            schemaVersion: 2,
+            contentTypeFallbackApplied: false,
+            upstreamContentType: "text/html; charset=utf-8",
+            bodyMissing: true,
+            bodyQualityLow: false,
+            bodyReadabilitySignal: "body_missing",
+            bodyTextLength: 0,
+            partial: true
+          }
+        };
+      }
+    },
+    documentRunsService: {
+      createRun: async () => {}
+    },
+    ingestionService: {
+      enqueueDocument: async documentId => {
+        enqueuedDocumentIds.push(documentId);
+      }
+    },
+    feedSourceService: {},
+    sitemapSourceService: {}
+  });
+
+  const result = await DocumentsService.prototype.createWebPageDocument.call(fakeService, "default-kb", {
+    url: "https://example.com/page"
+  });
+
+  const expectedDiagnosticsJson = {
+    sourceKind: "web",
+    schemaVersion: 2,
+    contentTypeFallbackApplied: false,
+    upstreamContentType: "text/html; charset=utf-8",
+    bodyMissing: true,
+    bodyQualityLow: false,
+    bodyReadabilitySignal: "body_missing",
+    bodyTextLength: 0,
+    partial: true,
+    code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+    failedStage: "source_fetch",
+    retryable: false,
+    documentVersion: existingDocument.version + 1,
+    category: "external_source_partial",
+    partialFailureCount: 1,
+    retryableFailureCount: 0,
+    nonRetryableFailureCount: 0,
+    boundaryHit: false,
+    boundaryReasons: [],
+    message: "Web page source completed with body-missing diagnostics."
+  };
+
+  assert.equal(result.id, existingDocument.id);
+  assert.equal(documentUpdates.length, 2);
+  assert.deepEqual(documentUpdates[1], {
+    where: {
+      id: existingDocument.id
+    },
+    data: {
+      title: "Fetched Web Page",
+      mimeType: "text/plain",
+      storageKey: "generated/web-partial.txt",
+      status: "pending",
+      processingStage: "uploaded",
+      errorMessage: null,
+      diagnosticsJson: expectedDiagnosticsJson
+    }
+  });
+  assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
+});
+
 test("DocumentsService records non-retryable diagnostics for invalid external source payloads", async () => {
   const documentUpdates = [];
   const failedRuns = [];

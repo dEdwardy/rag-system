@@ -19,6 +19,27 @@
 
 补充进展（2026-03-31）：
 
+- ✅ p3 external-source guardrail wave is now split and queued as the next legality/crawl-safety batch
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 为 `p3-external-source-guardrails` 补上 `decompositionPlan`，把 policy baseline / robots-domain guard / crawl budget / throttle breaker / incremental resync bias 拆成可独立排队的 5 个子项
+    - 将 `p3-external-source-guardrail-wave` 追加进当前队列，保持工作范围仍然只覆盖既有 `web` / `feed` / `sitemap` 入口
+  - focused validation：
+    - `node .opencode/loop/cli.mjs --materialize-append-wave p3-external-source-guardrail-wave`
+
+- ✅ documents external resync coverage now includes the web page partial-diagnostics path alongside the existing feed / sitemap cases
+  - 变更文件：
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 补了一条 `DocumentsService` 的 web page partial-diagnostics 回归用例，锁住 reused web page source 在部分成功时也会落到归一化的 `EXTERNAL_SOURCE_PARTIAL_SUCCESS` 符号和 `Web page source completed with body-missing diagnostics.` 文案
+    - 保持实现不变，只补测试覆盖，让 web / feed / sitemap 三类 external source 的 resync 归一化行为对齐
+  - focused validation：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/external-source-sync.test.js -t "reused web page source returns partial results"`
+
 - ✅ observability follow-up docs are now kept explicitly bounded around the one-more P6 scan-first readability pass
   - 变更文件：
     - `.opencode/loop/queue.json`

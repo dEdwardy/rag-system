@@ -965,6 +965,63 @@
         "pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js",
         "pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js"
       ],
+      "decompositionPlan": [
+        {
+          "id": "p3-source-policy-baseline",
+          "title": "tighten external-source policy baseline",
+          "status": "auto_later",
+          "goal": "Record the smallest legality and crawl-courtesy baseline for already-landed web/feed/sitemap ingestion.",
+          "acceptance": [
+            "Docs explicitly say public/no-login/no-paywall only.",
+            "Docs explicitly forbid access-control bypass and keep rights-to-use on the user side."
+          ],
+          "verification": "git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc"
+        },
+        {
+          "id": "p3-robots-and-domain-guard",
+          "title": "add robots and domain guard",
+          "status": "auto_later",
+          "goal": "Add narrow robots/domain courtesy checks without broadening the source contract.",
+          "acceptance": [
+            "Robots and domain courtesy remain bounded to existing source families.",
+            "No connector-platform redesign is introduced."
+          ],
+          "verification": "pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js"
+        },
+        {
+          "id": "p3-crawl-rate-budget-guard",
+          "title": "add crawl rate budget guard",
+          "status": "auto_later",
+          "goal": "Keep source fetching inside a narrow crawl budget and retry envelope.",
+          "acceptance": [
+            "Crawl budget stays aligned with the existing timeout/retry baseline.",
+            "No broad connector rewrite is introduced."
+          ],
+          "verification": "pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js"
+        },
+        {
+          "id": "p3-source-throttle-circuit-breaker",
+          "title": "add source throttle circuit breaker",
+          "status": "auto_later",
+          "goal": "Stop repeated pressure on external sources when retry signals keep failing.",
+          "acceptance": [
+            "Throttle or breaker behavior stays limited to existing source families.",
+            "No broader crawler platform semantics are added."
+          ],
+          "verification": "pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js"
+        },
+        {
+          "id": "p3-resync-incremental-bias",
+          "title": "bias resync toward incremental refresh",
+          "status": "auto_later",
+          "goal": "Prefer incremental low-disturbance refreshes over repeated full-site pressure.",
+          "acceptance": [
+            "Resync remains incremental-first.",
+            "No new source family or sync-architecture rewrite is introduced."
+          ],
+          "verification": "pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js"
+        }
+      ],
       "notDoing": [
         "No new source family",
         "No JS-rendering crawler",
@@ -1600,6 +1657,30 @@
         "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js",
         "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
       ],
+      "decompositionPlan": [
+        {
+          "id": "p4-source-entry-readability-closeout-followup",
+          "title": "tighten Documents source-entry readability closeout",
+          "status": "auto_later",
+          "goal": "Keep the Documents source-entry surface readable and narrow by closing the smallest remaining UI clarity gap.",
+          "acceptance": [
+            "The Documents source-entry surface stays within the current workspace scope.",
+            "Readability improvements remain contract-preserving and do not introduce new source-management flows."
+          ],
+          "verification": "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        },
+        {
+          "id": "p4-source-entry-guard-docs-sync-followup",
+          "title": "sync Documents source-entry guard docs",
+          "status": "auto_later",
+          "goal": "Keep the Documents source-entry closeout documented with the smallest matching docs sync.",
+          "acceptance": [
+            "Current-dev setup and progress docs stay aligned with the source-entry closeout scope.",
+            "No broader architecture or product-surface expansion is introduced."
+          ],
+          "verification": "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+        }
+      ],
       "notDoing": [
         "No source-management console",
         "No mobile work",
@@ -1634,6 +1715,52 @@
       "verification": [
         "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js",
         "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+      ],
+      "decompositionPlan": [
+        {
+          "id": "p4-source-entry-field-errors-followup",
+          "title": "add Documents field-error follow-up",
+          "status": "auto_later",
+          "goal": "Clarify field validation and error display on the Documents source-entry surface without widening scope.",
+          "acceptance": [
+            "Field errors are clearer in the current Documents workspace.",
+            "The change remains backend-contract preserving."
+          ],
+          "verification": "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        },
+        {
+          "id": "p4-source-entry-success-feedback-followup",
+          "title": "refine Documents success feedback",
+          "status": "auto_later",
+          "goal": "Keep success feedback readable and lightweight for the Documents source-entry flow.",
+          "acceptance": [
+            "Success feedback remains simple and consistent in the Documents workspace.",
+            "No new notification system or list-refresh architecture is introduced."
+          ],
+          "verification": "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        },
+        {
+          "id": "p4-source-entry-busy-empty-state-consistency-followup",
+          "title": "align Documents busy and empty states",
+          "status": "auto_later",
+          "goal": "Make busy and empty state behavior consistent on the Documents source-entry surface.",
+          "acceptance": [
+            "Busy and empty states read consistently in the current Documents workspace.",
+            "No broader page layout rewrite or mobile adaptation is introduced."
+          ],
+          "verification": "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        },
+        {
+          "id": "p4-source-entry-ux-guard-docs-sync-followup",
+          "title": "sync Documents UX guard docs",
+          "status": "auto_later",
+          "goal": "Document the Documents source-entry UX follow-up so the narrow scope stays explicit.",
+          "acceptance": [
+            "Docs still point at the current Documents source-entry scope.",
+            "The follow-up stays bounded to the existing backend contracts."
+          ],
+          "verification": "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+        }
       ],
       "notDoing": [
         "No source-management console",
@@ -1672,6 +1799,52 @@
         "node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js",
         "node --test --test-name-pattern \"trace detail\" apps/web/test/ui-review-regressions.test.js",
         "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+      ],
+      "decompositionPlan": [
+        {
+          "id": "p6-usage-scan-summary-clarity-followup",
+          "title": "tighten Usage scan summary clarity",
+          "status": "auto_later",
+          "goal": "Make the Usage page read more clearly without adding new observability surface area.",
+          "acceptance": [
+            "Usage remains scan-first and readable.",
+            "No new metric family or backend contract is introduced."
+          ],
+          "verification": "node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js"
+        },
+        {
+          "id": "p6-report-center-run-context-clarity-followup",
+          "title": "tighten Report Center run context clarity",
+          "status": "auto_later",
+          "goal": "Make Report Center run context easier to scan while keeping the same contract boundaries.",
+          "acceptance": [
+            "Report Center remains a scan-first readability surface.",
+            "No new report family or eval contract is added."
+          ],
+          "verification": "node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js"
+        },
+        {
+          "id": "p6-trace-detail-scan-order-refinement-followup",
+          "title": "refine Trace Detail scan order",
+          "status": "auto_later",
+          "goal": "Improve Trace Detail ordering and readability without changing the backend trace schema.",
+          "acceptance": [
+            "Trace Detail remains contract-preserving and readable.",
+            "No backend trace schema or larger audit-platform redesign is introduced."
+          ],
+          "verification": "node --test --test-name-pattern \"trace detail\" apps/web/test/ui-review-regressions.test.js"
+        },
+        {
+          "id": "p6-observability-followup-docs-sync",
+          "title": "sync observability follow-up docs",
+          "status": "auto_later",
+          "goal": "Keep the scan-first observability follow-up documented with a narrow docs sync.",
+          "acceptance": [
+            "Current-dev setup and progress docs continue to describe the scan-first scope.",
+            "No dashboard platformization or analytics expansion is added."
+          ],
+          "verification": "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+        }
       ],
       "notDoing": [
         "No dashboard platformization",

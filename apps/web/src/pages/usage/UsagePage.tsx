@@ -564,8 +564,8 @@ export function UsagePage() {
         value: topAlert?.title ?? (locale === "zh" ? "当前无活跃告警" : "No active alerts"),
         copy: topAlert?.detail ??
           (locale === "zh"
-            ? "继续看趋势、异常聚类和 source-family 热点。"
-            : "Continue with trend view, anomaly clusters, and source-family hotspot.")
+            ? "按趋势、告警、异常、差异和热点的顺序继续扫读。"
+            : "Scan trend, alert, anomaly, diff, and hotspot panels in that order.")
       },
       {
         key: "hotspot",
