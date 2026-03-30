@@ -1131,6 +1131,7 @@ export class DocumentsService {
     const contentTypeFallbackApplied = diagnostics.contentTypeFallbackApplied === true;
     const bodyMissing = diagnostics.bodyMissing === true;
     const bodyQualityLow = diagnostics.bodyQualityLow === true;
+    const bodyReadabilitySignal = this.resolveWebBodyReadabilitySignal(sourceKind, bodyMissing, bodyQualityLow);
     const partialFailureCount =
       this.getNumericDiagnosticField(diagnostics, "failedEntryCount") +
       this.getNumericDiagnosticField(diagnostics, "failedPageCount") +
@@ -1161,11 +1162,28 @@ export class DocumentsService {
       partialFailureCount: partialSignalCount,
       retryableFailureCount,
       nonRetryableFailureCount,
+      ...(bodyReadabilitySignal ? { bodyReadabilitySignal } : {}),
       boundaryHit,
       boundaryReasons,
       message,
       partial: true
     } satisfies Prisma.InputJsonValue;
+  }
+
+  private resolveWebBodyReadabilitySignal(sourceKind: "feed" | "sitemap" | "web", bodyMissing: boolean, bodyQualityLow: boolean) {
+    if (sourceKind !== "web") {
+      return null;
+    }
+
+    if (bodyMissing) {
+      return "body_missing" as const;
+    }
+
+    if (bodyQualityLow) {
+      return "body_quality_low" as const;
+    }
+
+    return null;
   }
 
   private buildSitemapPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {

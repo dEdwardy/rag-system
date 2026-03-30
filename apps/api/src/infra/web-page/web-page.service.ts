@@ -20,6 +20,7 @@ type WebPageFetchDiagnostics = {
   upstreamContentType: string;
   bodyMissing: boolean;
   bodyQualityLow: boolean;
+  bodyReadabilitySignal?: "body_missing" | "body_quality_low";
   bodyTextLength: number;
   partial: boolean;
 };
@@ -61,6 +62,7 @@ export class WebPageService {
 
     const extracted = this.extractFromHtml(payload);
     const bodyQuality = this.buildBodyQualityDiagnostics(payload);
+    const bodyReadabilitySignal = this.resolveBodyReadabilitySignal(bodyQuality);
     const partial = htmlPayloadByFallback || bodyQuality.bodyMissing || bodyQuality.bodyQualityLow;
 
     return {
@@ -73,11 +75,24 @@ export class WebPageService {
             upstreamContentType: diagnosticsContentType,
             bodyMissing: bodyQuality.bodyMissing,
             bodyQualityLow: bodyQuality.bodyQualityLow,
+            ...(bodyReadabilitySignal ? { bodyReadabilitySignal } : {}),
             bodyTextLength: bodyQuality.bodyTextLength,
             partial: true
           }
         : null
     };
+  }
+
+  private resolveBodyReadabilitySignal(input: { bodyMissing: boolean; bodyQualityLow: boolean }) {
+    if (input.bodyMissing) {
+      return "body_missing" as const;
+    }
+
+    if (input.bodyQualityLow) {
+      return "body_quality_low" as const;
+    }
+
+    return null;
   }
 
   extractFromHtml(html: string): FetchedWebPage {

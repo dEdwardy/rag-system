@@ -102,6 +102,7 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
       upstreamContentType: "text/plain; charset=utf-8",
       bodyMissing: false,
       bodyQualityLow: true,
+      bodyReadabilitySignal: "body_quality_low",
       bodyTextLength: 16,
       partial: true
     });
@@ -136,6 +137,7 @@ test("WebPageService emits body-missing diagnostics when HTML has no body tag", 
       upstreamContentType: "text/html; charset=utf-8",
       bodyMissing: true,
       bodyQualityLow: false,
+      bodyReadabilitySignal: "body_missing",
       bodyTextLength: 0,
       partial: true
     });
@@ -161,6 +163,7 @@ test("WebPageService emits low body-quality diagnostics for very short body text
     assert.match(extracted.content, /tiny text/);
     assert.equal(extracted.diagnostics?.bodyMissing, false);
     assert.equal(extracted.diagnostics?.bodyQualityLow, true);
+    assert.equal(extracted.diagnostics?.bodyReadabilitySignal, "body_quality_low");
     assert.equal(extracted.diagnostics?.contentTypeFallbackApplied, false);
     assert.equal(extracted.diagnostics?.partial, true);
     assert.ok(extracted.diagnostics?.bodyTextLength > 0);
