@@ -110,9 +110,16 @@ Notes:
 ```text
 SOURCE_FETCH_TIMEOUT_MS=10000
 SOURCE_FETCH_RETRY_ATTEMPTS=2
+SOURCE_FETCH_BREAKER_PAUSE_MS=15000
+SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD=2
+SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
 ```
 
 - current defaults preserve the existing behavior: `10s` timeout and `2` total fetch attempts for `web page` / `feed` / `sitemap` source HTTP requests
+- source fetch now also applies a narrow breaker pause on domain pressure signals to avoid hammering target sites:
+  - immediate pause on `429`
+  - pause after repeated `5xx` responses on the same domain (`threshold=2` by default)
+  - pause on obvious anti-bot/challenge HTML responses (`403/503` with challenge markers)
 - optional OpenCode harness note: the harness now lives under `.opencode/loop/`; use `.opencode/loop/README.md` for its docs and `node .opencode/loop/cli.mjs --self-test` for its focused smoke test
 - auth/session runtime now also supports:
 
@@ -884,6 +891,11 @@ Notes:
   - upstream / transient fetch failures remain `retryable: true`
   - invalid payload / unsupported content type style failures now persist as `retryable: false`
 - external source follow-up（P3）当前 accepted stability boundary / queue slices 快照：
+  - legality/crawl-courtesy baseline（policy only，当前约束）：
+    - 仅面向公开可访问、无登录、无付费墙内容
+    - 不支持任何访问控制绕过（登录/付费墙/封禁等）
+    - `sitemap` 仅作索引提示，不构成授权声明
+    - 使用方仅应导入其有权使用的数据（rights-to-use 由使用方确认）
   - stability boundary（保持不变）：
     - source family 仅限 `web page` / `feed` / `sitemap urlset` / `sitemapindex(一层)` + `external_resync`
     - source-expansion decision（当前波次）：`keep`（不新增 source family）

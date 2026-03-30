@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
 import { relative, resolve } from "node:path";
 
 import { appendQueueItems } from "./queue.mjs";
@@ -526,14 +527,16 @@ function runVerificationCommands({ repoRoot, commands, commandTimeoutMs }) {
 
   const results = [];
   for (const command of normalizedCommands) {
-    const commandResult = spawnSync(command, {
+    const resolvedCommand = rewriteShellCommandForTooling(command);
+    const commandResult = spawnSync(resolvedCommand, {
       cwd: repoRoot,
       shell: true,
       encoding: "utf8",
-      timeout: Number.isInteger(commandTimeoutMs) && commandTimeoutMs > 0 ? commandTimeoutMs : 300000
+      timeout: Number.isInteger(commandTimeoutMs) && commandTimeoutMs > 0 ? commandTimeoutMs : 300000,
+      env: buildVerificationCommandEnv()
     });
     results.push({
-      command,
+      command: resolvedCommand,
       exitCode: typeof commandResult.status === "number" ? commandResult.status : 1,
       signal: commandResult.signal ?? null,
       stdout: truncateForArtifact(commandResult.stdout),
@@ -547,6 +550,122 @@ function runVerificationCommands({ repoRoot, commands, commandTimeoutMs }) {
   }
 
   return results;
+}
+
+function rewriteShellCommandForTooling(command) {
+  if (typeof command !== "string" || !command.trim()) {
+    return command;
+  }
+
+  const pnpmLauncher = resolvePnpmLauncherForShell();
+  if (!pnpmLauncher) {
+    return command;
+  }
+
+  return command.replace(/(^|[;&|(]\s*)pnpm(?=\s|$)/g, `$1${pnpmLauncher}`);
+}
+
+function buildVerificationCommandEnv() {
+  const env = { ...process.env };
+  const home = env.HOME;
+  const pathEntries = [];
+
+  const appendIfPresent = candidate => {
+    if (!candidate || !existsSync(candidate)) {
+      return;
+    }
+    pathEntries.push(candidate);
+  };
+
+  if (home) {
+    appendIfPresent(join(home, ".volta", "bin"));
+    appendIfPresent(join(home, ".local", "share", "pnpm"));
+    appendIfPresent(join(home, ".local", "bin"));
+  }
+
+  appendIfPresent(dirname(resolveDirectPnpmBinary() ?? ""));
+  appendIfPresent(dirname(resolveCorepackBinary() ?? ""));
+  appendIfPresent(dirname(process.execPath));
+
+  env.PATH = [...pathEntries, ...(env.PATH ?? "").split(":").filter(Boolean)].join(":");
+  if (home && !env.VOLTA_HOME) {
+    env.VOLTA_HOME = join(home, ".volta");
+  }
+  const directPnpm = resolveDirectPnpmBinary();
+  if (directPnpm) {
+    env.PNPM_HOME = dirname(directPnpm);
+  }
+  return env;
+}
+
+function resolvePnpmLauncherForShell() {
+  const directPnpm = resolveDirectPnpmBinary();
+  if (directPnpm) {
+    return shellQuote(directPnpm);
+  }
+
+  const corepack = resolveCorepackBinary();
+  if (corepack) {
+    return `${shellQuote(corepack)} pnpm`;
+  }
+
+  return null;
+}
+
+function resolveDirectPnpmBinary() {
+  const home = process.env.HOME;
+  const candidates = [
+    home ? join(home, ".volta", "bin", "pnpm") : null,
+    home ? join(home, ".local", "share", "pnpm", "pnpm") : null,
+    home ? join(home, ".local", "bin", "pnpm") : null
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function resolveCorepackBinary() {
+  const home = process.env.HOME;
+  const candidates = [join(dirname(process.execPath), "corepack")];
+
+  if (home) {
+    candidates.push(join(home, ".volta", "bin", "corepack"));
+    candidates.push(...resolveNvmCorepackCandidates(home));
+  }
+
+  candidates.push("/usr/bin/corepack", "/usr/local/bin/corepack");
+
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function resolveNvmCorepackCandidates(home) {
+  const versionsDir = join(home, ".nvm", "versions", "node");
+  if (!existsSync(versionsDir)) {
+    return [];
+  }
+
+  try {
+    return readdirSync(versionsDir)
+      .map(version => join(versionsDir, version, "bin", "corepack"))
+      .filter(candidate => existsSync(candidate));
+  } catch {
+    return [];
+  }
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
 function readVerificationArtifacts({ repoRoot, artifactPaths, executionHandoffPath, handoffsDir }) {

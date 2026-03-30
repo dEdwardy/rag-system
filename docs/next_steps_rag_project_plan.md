@@ -494,6 +494,23 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 跨 source family 的全面错误码体系重构
 - source 平台化/插件化重构（保持现有主链路与契约）
 
+#### P3 legality + crawl-safety follow-up（2026-03-30）
+
+- 在当前 source family 已经收口到 `web page / feed / sitemap / sitemapindex(一层)` 的前提下，下一条最合理补强不是继续扩 connector，而是补“合法性 + 低扰动抓取” guardrails。
+- 目标边界（policy baseline）：
+  - 只抓取公开可访问、无登录、无付费墙的内容
+  - 不做任何访问控制绕过（包括但不限于登录态绕过、付费墙绕过、技术性封禁绕过）
+  - `sitemap` 仅作为 URL 索引提示，不构成抓取授权声明
+  - 用户只应导入其有权使用的数据（rights-to-use 由用户侧负责确认）
+  - 避免把现有 source fetch 演变成高并发、大范围、反复全量重扫的 crawler
+- queue-ready guardrail 顺序（建议）：
+  1. `source-policy-baseline`
+  2. `robots-and-domain-guard`
+  3. `crawl-rate-budget-guard`
+  4. `source-throttle-circuit-breaker`
+  5. `resync-incremental-bias`
+- 这批 guardrail 只围绕既有 source family 做合法性/礼仪/预算/熔断/增量偏置补强，不新增 source family，不引入 JS rendering crawler，也不重开 source 平台化。
+
 #### P3 queue-ready slices（accepted）
 
 当前 follow-up 的 queue-ready 最小切片保持为 5 个（按当前建议顺序）：

@@ -17,6 +17,46 @@
 
 补充进展（2026-03-30）：
 
+- ✅ source fetch retry layer now includes a narrow target-pressure breaker pause (429 / repeated 5xx / obvious anti-bot challenge)
+  - 变更文件：
+    - `apps/api/src/infra/http/fetch-with-retry.ts`
+    - `apps/api/test/fetch-with-retry.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在现有 source fetch retry 之上增加同域 breaker pause：遇到 `429` 立即暂停、遇到 repeated `5xx`（默认阈值 2）暂停、遇到明显 challenge 页面（`403/503` + HTML challenge marker）暂停
+    - 变更仅收敛在 `fetch-with-retry` 层；未引入 scheduler、未改 source-family 语义、未改持久化契约
+    - `fetch-with-retry` focused tests 增补 breaker 相关断言（429 / repeated 5xx / anti-bot challenge）
+  - focused validation：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+
+- ✅ source fetch now has a narrow domain-level crawl-budget courtesy guard (rate limit + retry backoff/jitter + bounded budget) without changing existing source-family semantics
+  - 变更文件：
+    - `apps/api/src/infra/http/fetch-with-retry.ts`
+    - `apps/api/test/fetch-with-retry.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在既有 `timeout + retry attempts` 基线不变前提下，给 source fetch 增加同域低扰动保护：请求最小间隔、rolling window crawl budget、以及 retry exponential backoff + jitter
+    - 保护范围保持在现有 fetch 入口（`fetchWithRetry` + `robots` fetch）内，不引入 crawler scheduler、不新增 connector 层、不改 source persistence 契约
+    - `fetch-with-retry` focused tests 同步补齐配置解析、backoff 行为与 budget guard 断言
+  - focused validation：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+
+- ✅ P3 external-source legality/crawl-courtesy baseline wording is now synced as docs/policy-only constraints
+  - 变更文件：
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-dev-setup.md`
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 明确 policy baseline：仅面向公开/无登录/无付费墙内容，不做访问控制绕过
+    - 明确 `sitemap` 语义：仅是索引提示，不是抓取授权声明
+    - 明确 rights-to-use 责任：使用方仅应导入其有权使用的数据
+    - 保持边界不变：仅 docs/policy wording 同步，不改 runtime 行为、不扩 source family、不引入更大治理框架
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc`
+
 - ✅ approved-baseline closeout batch queue/backlog bookkeeping is now tidy and marked landed (queue/backlog/progress sync only)
   - 变更文件：
     - `.opencode/loop/execution-backlog.jsonc`
@@ -849,6 +889,49 @@
     - 将同名 3-item batch 直接追加进 live queue，后续可在 harness 稳定后按既定顺序消费
   - focused validation：
     - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ loop verifier now resolves `pnpm` consistently during command verification, and the latest P5/P4 false-failure items are corrected after manual post-fix verification
+  - 变更文件：
+    - `.opencode/loop/harness/verification.mjs`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - verifier command path 现在会优先把 shell 里的 `pnpm` 重写到可用的 `corepack pnpm` / direct pnpm launcher，并补齐更稳的 PATH/VOLTA 环境，避免 runtime 执行成功但 verifier 因 Volta shim 找不到 `pnpm` 而误报失败
+    - 对本轮受影响的 4 个 queue item（`p5-replay-baseline-contract-closeout-074`、`p4-web-page-source-entry-076`、`p4-feed-source-entry-077`、`p4-sitemap-source-entry-078`）补做 post-fix focused verification，并把 queue 状态从 false failure 收口为 completed，同时保留原失败证据与人工复核结果
+    - 范围仅限 harness verifier/tooling 与 queue bookkeeping 修正，不重做这些 item 的实现逻辑，也不追加新的 wave
+  - focused validation：
+    - `node --input-type=module -e "import { verifyQueueItem } from './.opencode/loop/harness/verification.mjs'; const result = verifyQueueItem({ repoRoot: process.cwd(), handoffsDir: '.opencode/loop/handoffs', item: { verification: { mode: 'command_only', commands: ['pnpm --filter @rag-system/web typecheck'] } }, assistantText: '', executionHandoffPath: null }); if (result.verdict !== 'succeeded') { throw new Error(result.summary); } console.log(result.commands[0].command);"`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
+- ✅ external-source legality/crawl-safety guardrail batch is now drafted as the next queue-ready P3 follow-up on top of the existing source baseline
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue.json`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 planning/backlog 中明确：当前 external source 的下一条合理补强主线，不是 connector 扩面，而是 legality + crawl-courtesy + crawl-budget + breaker + incremental resync bias guardrails
+    - 在 backlog 中新增 `p3-external-source-guardrail-wave`，拆成 5 个最小 queue-ready 项：`source-policy-baseline`、`robots-and-domain-guard`、`crawl-rate-budget-guard`、`source-throttle-circuit-breaker`、`resync-incremental-bias`
+    - 将同名 5-item guardrail batch 直接追加进 live queue，后续可在 harness 稳定后按既定顺序消费
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
+- ✅ verifier pnpm resolution is now hardened against nested `pnpm -> package script -> pnpm` chains, and the latest P3 guardrail false failures are corrected after post-fix verification
+  - 变更文件：
+    - `.opencode/loop/harness/verification.mjs`
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - verifier environment 现在显式暴露真实 `pnpm` launcher 路径（含 Volta bin），不再只依赖外层 `corepack pnpm`，从而避免 package script 内层再次调用 `pnpm` 时掉到 `sh: pnpm: not found`
+    - backlog/live queue 的 P3 guardrail focused verification commands 也被扁平化为直接 `pnpm --filter @rag-system/api test:file -- ...`，减少后续 nested script 链带来的 verifier 漂移
+    - 对本轮受影响的 4 个 P3 guardrail item（`080-083`）补做 post-fix focused verification，并把 queue 状态从 false failure 收口为 completed，同时保留原失败证据与人工复核结果
+  - focused validation：
+    - `node --input-type=module -e "import { verifyQueueItem } from './.opencode/loop/harness/verification.mjs'; const result = verifyQueueItem({ repoRoot: process.cwd(), handoffsDir: '.opencode/loop/handoffs', item: { verification: { mode: 'command_only', commands: ['pnpm test:api:file -- test/fetch-with-retry.test.js'] } }, assistantText: '', executionHandoffPath: null }); if (result.verdict !== 'succeeded') { throw new Error(result.summary); } console.log(result.commands[0].command);"`
+    - `node --input-type=module -e "import { verifyQueueItem } from './.opencode/loop/harness/verification.mjs'; const result = verifyQueueItem({ repoRoot: process.cwd(), handoffsDir: '.opencode/loop/handoffs', item: { verification: { mode: 'command_only', commands: ['pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js'] } }, assistantText: '', executionHandoffPath: null }); if (result.verdict !== 'succeeded') { throw new Error(result.summary); } console.log(result.commands[0].command);"`
+    - `pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js`
 
 - ✅ P5 retrieval-regression artifact boundary wording now explicitly separates offline eval proof outputs from the web report-center surface (docs-only increment)
   - 变更文件：

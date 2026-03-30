@@ -55,6 +55,7 @@ export const DEFAULT_EXECUTION_DIRECTIVE = [
   "First inspect the relevant code path, then make the smallest concrete change, run one focused validation, and report exact files and commands.",
   "If the task clearly requires human approval, unavailable credentials, risky schema/security changes, or repo-state conflict resolution, stop implementation, say so explicitly, and explain the exact review or unblock needed.",
   "Commit each completed increment on the current branch, but keep push and PR decisions for a stable wave closeout point after validation is green.",
+  "If verification does not succeed, any local commit is evidence-only and is never push-eligible; do not push, open a PR, or describe the increment as publish-ready.",
   "Prefer `dev` for backend work unless the task explicitly requires a different branch transition."
 ].join("\n");
 

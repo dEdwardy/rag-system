@@ -127,6 +127,7 @@ For read-model / metadata queue items, prefer `prompts/read-model-metadata-build
 
 Queue items now normalize toward a small V2 task contract with optional `kind`, `goal`, `acceptance`, `constraints`, `verification`, `retryPolicy`, and `attempt` fields.
 Completed items are enriched with `sessionId`, `messageId`, `handoffPath`, `verificationArtifactPath`, `verificationVerdict`, and `completedAt`.
+Queue records also persist `pushEligible`, where only `verificationVerdict === succeeded` yields `true`; every failed/replan/review/blocker verifier outcome is explicitly local-only evidence and not publish-ready.
 The harness now centralizes queue-status and verifier-verdict transitions in `harness/state-machine.mjs`, so `runtime` / `queue` / `review` / `verification` all validate against the same transition table instead of hand-rolled status strings.
 Verifier failure routing is also table-driven inside `harness/verification.mjs`: each failure family declares its retry-policy keys, default verdict, and optional inferred matchers before the runtime falls back to generic handling.
 Verification records now also carry structured failure taxonomy fields such as `verificationResult.failureCategory`, `verificationResult.failureCode`, and `verificationResult.failureDetail`.
@@ -149,6 +150,8 @@ Minimal verifier modes currently supported:
 - `assistant_only`: legacy compatibility; successful execution reply is accepted and a verification artifact is still written
 - `command_only`: run declared verification commands and require exit code `0`
 - `command+artifact`: run declared commands, require declared artifacts, and optionally evaluate numeric `acceptance.metrics` / `constraints` rules from JSON artifacts
+
+When a verifier command can be expressed either as a direct package-manager invocation or as a package script that shells back out to the same package manager, prefer the direct form. For example, prefer `pnpm --filter @rag-system/api test:file -- test/example.test.js` over `pnpm test:api:file -- test/example.test.js` when both are equivalent. This reduces nested `pnpm -> script -> pnpm` resolution drift across non-interactive verifier shells.
 
 `retryPolicy` can now also route verifier failures by category:
 
@@ -203,6 +206,7 @@ When you have manually cleared a `needs_review` or `blocked_external` exception,
 - The recommended unattended setup is `systemd --user` plus the thin `night-run.sh` wrapper, so crash restarts stay separate from normal queue-empty exits.
 - `pnpm loop:start|stop|status` is the quickest day-to-day entrypoint for starting, stopping, or checking the user service and timer together, and it auto-links the user units if needed.
 - After each completed queue item, commit the resulting changes so the work stays isolated, but do not rush to push or open a PR on every commit.
+- If verification does not succeed, any commit created during execution is evidence-only: keep it local if needed, but never treat it as push-eligible until a later successful verification closes the same increment.
 - Let the loop accumulate a small coherent wave of commits on `dev`, then choose a push/PR point only after validation is green and the branch is stable enough to minimize merge conflict risk.
 - Prefer push/PR at wave closeout or other natural handoff points, not mid-increment.
 - The runtime execution directive follows the same rule so the loop prompt itself keeps push/PR timing conservative.

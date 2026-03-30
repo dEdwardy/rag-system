@@ -3,7 +3,7 @@
   // Purpose: let the loop planner derive the next queue wave from explicit task data,
   // instead of inferring everything from long-form docs.
   "version": 1,
-  "updatedAt": "2026-03-30T08:20:00.000Z",
+  "updatedAt": "2026-03-30T07:51:05.000Z",
   "scope": {
     "productStage": "local-first RAG hardening / feature closeout",
     "included": [
@@ -37,8 +37,8 @@
   "completionEstimate": {
     "currentStageTarget": "non-SaaS + non-mobile + local-first RAG hardening/closeout",
     "currentEstimatedCompletion": "86%-92%",
-    "estimatedCompletionAfterAutoQueueDrains": "91%-96%",
-    "note": "The approved P5 baseline/demo closeout batch has landed; the next executable gap remains the smallest PC Web source-entry carrying work for already-landed backend source APIs."
+    "estimatedCompletionAfterAutoQueueDrains": "92%-96%",
+    "note": "The latest executable gap set is the narrow external-source guardrail wave: policy boundary, robots/domain courtesy, crawl budget, breaker behavior, and incremental resync bias on top of the existing source APIs."
   },
   "routingView": {
     "routingRules": [
@@ -58,12 +58,121 @@
     "queueMaterializableTasks": [
       "p5-annotation-manifest-materialization",
       "p5-demo-replay-entrypoint",
-      "p4-source-entry-carrying"
+      "p4-source-entry-carrying",
+      "p3-external-source-guardrails"
     ]
   },
   "queueMaterializationPlan": {
     "currentBias": "Only decompose the smallest real implementation tasks; keep newly approved decisions in closeout bookkeeping and move forward without reopening broader product scope.",
     "nextQueueFamilies": [
+      {
+        "id": "p3-external-source-guardrail-wave",
+        "dependsOn": [],
+        "waveGoal": "Add the smallest legality/crawl-safety guardrails around existing external-source families: public/no-login/no-paywall content only, no access-control bypass, sitemap treated as index (not authorization), and rights-to-use responsibility kept user-side.",
+        "candidateTasks": [
+          "p3-source-policy-baseline",
+          "p3-robots-and-domain-guard",
+          "p3-crawl-rate-budget-guard",
+          "p3-source-throttle-circuit-breaker",
+          "p3-resync-incremental-bias"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p3-source-policy-baseline",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The project has not yet accepted external-source legality/crawl courtesy as an explicit guardrail goal"
+            ]
+          },
+          {
+            "taskId": "p3-robots-and-domain-guard",
+            "kind": "build_increment",
+            "riskLevel": "medium",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "Robots/domain courtesy rules still conflict with the current source fetch contract"
+            ]
+          },
+          {
+            "taskId": "p3-crawl-rate-budget-guard",
+            "kind": "build_increment",
+            "riskLevel": "medium",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "Domain-level crawl budget decisions are not yet aligned with the existing timeout/retry baseline"
+            ]
+          },
+          {
+            "taskId": "p3-source-throttle-circuit-breaker",
+            "kind": "build_increment",
+            "riskLevel": "medium",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "Breaker semantics for 429/5xx or anti-bot signals are not yet aligned to the accepted guardrail scope"
+            ]
+          },
+          {
+            "taskId": "p3-resync-incremental-bias",
+            "kind": "build_increment",
+            "riskLevel": "medium",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "Incremental resync rules would broaden into a larger connector-platform redesign"
+            ]
+          }
+        ]
+      },
       {
         "id": "p4-source-entry-carrying-wave",
         "dependsOn": [],
@@ -312,7 +421,8 @@
       "notes": [
         "Current accepted safe gaps in the P3 micro-wave are already closed out in docs/progress.",
         "Do not reopen source-family expansion in this stage.",
-        "Only reopen P3 if a new concrete stability gap appears from implementation or regression evidence."
+        "Only reopen P3 if a new concrete stability gap appears from implementation or regression evidence.",
+        "The current queue-ready reopen path is legality/crawl-safety guardrails for the already-landed web/feed/sitemap source baseline."
       ]
     },
     {
@@ -380,6 +490,48 @@
       ],
       "suspendWhen": [
         "No new concrete P3 regression evidence exists"
+      ]
+    },
+    {
+      "id": "p3-external-source-guardrails",
+      "phase": "P3",
+      "title": "add legality and crawl-safety guardrails around existing external-source ingestion",
+      "priority": "high",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Keep existing web/feed/sitemap ingestion legally safer and less disruptive through a narrow policy baseline (public/no-login/no-paywall only, no access-control bypass, sitemap as index-not-authorization, user-side rights-to-use responsibility), then apply robots/domain courtesy, crawl budgets, breaker behavior, and incremental resync bias without opening new source families.",
+      "scope": [
+        "apps/api/src/infra/http/fetch-with-retry.ts",
+        "apps/api/src/infra/web-page/web-page.service.ts",
+        "apps/api/src/infra/feed-source/feed-source.service.ts",
+        "apps/api/src/infra/sitemap-source/sitemap-source.service.ts",
+        "apps/api/src/modules/documents/documents.service.ts",
+        "docs/current-dev-setup.md",
+        "docs/next_steps_rag_project_plan.md",
+        "docs/current-progress.md",
+        ".opencode/loop/execution-backlog.jsonc",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "Project docs clearly state external-source legality and crawl-courtesy boundaries.",
+        "Policy baseline is explicit: public/no-login/no-paywall only; no access-control bypass; sitemap is index, not authorization; ingest only data you have rights to use.",
+        "Existing source fetches gain narrow robots/domain or crawl-budget protections without broad connector redesign.",
+        "Resync behavior stays biased toward incremental/low-disturbance refresh rather than repeated full-site pressure."
+      ],
+      "verification": [
+        "git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json",
+        "pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js",
+        "pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js"
+      ],
+      "notDoing": [
+        "No new source family",
+        "No JS-rendering crawler",
+        "No broad connector platformization"
+      ],
+      "suspendWhen": [
+        "Accepted guardrail scope expands into a broader source-platform redesign"
       ]
     },
     {

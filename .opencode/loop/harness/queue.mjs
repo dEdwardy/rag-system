@@ -250,6 +250,7 @@ export function finalizeQueueItemVerification({
     ...assertStatusChange(queueItem, nextStatus, "finalize-verification"),
     ...queueItem,
     status: nextStatus,
+    pushEligible: normalizedVerdict === "succeeded",
     verificationVerdict: normalizedVerdict,
     verificationArtifactPath,
     verificationSummary,
