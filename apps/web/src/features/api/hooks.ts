@@ -3,6 +3,7 @@ import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
   AuditEventRecord,
   AuthMeResponse,
+  AuthProvidersResponse,
   AskResponse,
   AskStreamEvent,
   AnswerPolicy,
@@ -32,6 +33,14 @@ export function useAuthMe(enabled = true) {
     queryKey: AUTH_ME_QUERY_KEY,
     queryFn: () => apiRequest<AuthMeResponse>("/auth/me"),
     enabled,
+    retry: false
+  });
+}
+
+export function useAuthProviders() {
+  return useQuery({
+    queryKey: ["auth", "providers"],
+    queryFn: () => apiRequest<AuthProvidersResponse>("/auth/providers"),
     retry: false
   });
 }
@@ -562,6 +571,57 @@ export function useUploadDocument(knowledgeBaseId: string) {
         body: formData
       });
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+    }
+  });
+}
+
+export function useCreateWebPageDocument(knowledgeBaseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { url: string; title?: string }) =>
+      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/web-page`, {
+        method: "POST",
+        body: payload
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+    }
+  });
+}
+
+export function useCreateFeedDocument(knowledgeBaseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { url: string; title?: string }) =>
+      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/feed`, {
+        method: "POST",
+        body: payload
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+    }
+  });
+}
+
+export function useCreateSitemapDocument(knowledgeBaseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { url: string; title?: string; maxPages?: number }) =>
+      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/sitemap`, {
+        method: "POST",
+        body: payload
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });

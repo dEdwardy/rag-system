@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { DocumentProcessingStage, DocumentRunFailedStage, DocumentStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { getDocumentIngestionQueueName } from "../../infra/queue/queue.constants";
@@ -17,8 +17,8 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private worker?: any;
 
   constructor(
-    private readonly queueService: QueueService,
-    private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
+    @Inject(QueueService) private readonly queueService: QueueService,
+    @Inject(QueueRuntimeConfigService) private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
     private readonly documentIngestionProcessor: DocumentIngestionProcessor,
     private readonly prisma: PrismaService,
     private readonly documentRunsService: DocumentRunsService

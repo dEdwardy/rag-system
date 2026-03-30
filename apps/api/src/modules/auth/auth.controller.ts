@@ -66,6 +66,11 @@ export class AuthController {
     };
   }
 
+  @Get("providers")
+  providers() {
+    return this.authService.getAuthProviders();
+  }
+
   @Get("oauth/:provider/start")
   async oauthProviderStart(
     @Param() params: unknown,
@@ -97,7 +102,43 @@ export class AuthController {
         cookie?: string | string[];
       };
     },
-    @Res({ passthrough: true }) response: { setHeader: (name: string, value: string | string[]) => void }
+    @Res() response: {
+      setHeader: (name: string, value: string | string[]) => void;
+      redirect: (statusCode: number, url: string) => void;
+    }
+  ) {
+    return this.completeOauthProviderCallback(params, query, request, response);
+  }
+
+  @Get("github/callback")
+  async githubOauthCallback(
+    @Query() query: unknown,
+    @Req()
+    request: {
+      headers?: {
+        cookie?: string | string[];
+      };
+    },
+    @Res() response: {
+      setHeader: (name: string, value: string | string[]) => void;
+      redirect: (statusCode: number, url: string) => void;
+    }
+  ) {
+    return this.completeOauthProviderCallback({ provider: "github" }, query, request, response);
+  }
+
+  private async completeOauthProviderCallback(
+    params: unknown,
+    query: unknown,
+    request: {
+      headers?: {
+        cookie?: string | string[];
+      };
+    },
+    response: {
+      setHeader: (name: string, value: string | string[]) => void;
+      redirect: (statusCode: number, url: string) => void;
+    }
   ) {
     const providerInput = oauthProviderParamSchema.parse(params);
     const callbackInput = oauthCallbackQuerySchema.parse(query);
@@ -115,8 +156,24 @@ export class AuthController {
       this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
       this.buildLoginProvenanceCookieValue(providerInput.provider, result.expiresAt)
     ]);
+    response.redirect(302, this.resolveOauthSuccessRedirectUrl());
+  }
 
-    return result;
+  private resolveOauthSuccessRedirectUrl(): string {
+    const configuredUrl = (process.env.AUTH_OAUTH_SUCCESS_REDIRECT_URI ?? process.env.AUTH_WEB_SUCCESS_REDIRECT_URI ?? "").trim();
+    if (configuredUrl.length > 0) {
+      return configuredUrl;
+    }
+
+    const firstCorsOrigin = (process.env.CORS_ORIGIN ?? "")
+      .split(",")
+      .map(value => value.trim())
+      .find(value => value.length > 0);
+    if (firstCorsOrigin) {
+      return firstCorsOrigin;
+    }
+
+    return "http://localhost:5173";
   }
 
   @Get("me")

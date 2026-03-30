@@ -1,9 +1,11 @@
 const { PrismaClient } = require("@prisma/client");
+const { hashSync } = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
-const DEFAULT_LOCAL_LOGIN_EMAIL = "default-user@example.com";
-const DEFAULT_LOCAL_LOGIN_PASSWORD_HASH = "$2b$12$VbuJPLF.9KuI8KlHp4uVr.gVX1z/2gXQaYtoK3KmPfOILKYLgs7..";
+const DEFAULT_LOCAL_LOGIN_EMAIL = (process.env.AUTH_DEV_DEFAULT_USER_EMAIL ?? "default-user@example.com").trim();
+const DEFAULT_LOCAL_LOGIN_PASSWORD = (process.env.AUTH_DEV_DEFAULT_USER_PASSWORD ?? "local-password-1").trim();
+const DEFAULT_LOCAL_LOGIN_PASSWORD_HASH = hashSync(DEFAULT_LOCAL_LOGIN_PASSWORD, 10);
 
 async function main() {
   const tenant = await prisma.tenant.upsert({

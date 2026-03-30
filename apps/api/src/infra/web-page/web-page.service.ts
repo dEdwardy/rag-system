@@ -1,5 +1,11 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
+import {
+  assertRobotsAllowUrl,
+  fetchWithRetry,
+  isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
+  resolveSourceFetchRuntimeConfig
+} from "../http/fetch-with-retry";
 
 type FetchedWebPage = {
   title: string | null;
@@ -12,8 +18,13 @@ type WebPageFetchDiagnostics = {
   schemaVersion: 2;
   contentTypeFallbackApplied: boolean;
   upstreamContentType: string;
+  bodyMissing: boolean;
+  bodyQualityLow: boolean;
+  bodyTextLength: number;
   partial: boolean;
 };
+
+const MIN_BODY_QUALITY_TEXT_LENGTH = 120;
 
 @Injectable()
 export class WebPageService {
@@ -22,6 +33,7 @@ export class WebPageService {
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(url);
       response = await fetchWithRetry({
         url,
         timeoutMs: fetchConfig.timeoutMs,
@@ -31,8 +43,7 @@ export class WebPageService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch web page: ${message}`);
+      throw this.buildFetchException("Failed to fetch web page", error);
     }
 
     if (!response.ok) {
@@ -49,15 +60,20 @@ export class WebPageService {
     }
 
     const extracted = this.extractFromHtml(payload);
+    const bodyQuality = this.buildBodyQualityDiagnostics(payload);
+    const partial = htmlPayloadByFallback || bodyQuality.bodyMissing || bodyQuality.bodyQualityLow;
 
     return {
       ...extracted,
-      diagnostics: htmlPayloadByFallback
+      diagnostics: partial
         ? {
             sourceKind: "web",
             schemaVersion: 2,
-            contentTypeFallbackApplied: true,
+            contentTypeFallbackApplied: htmlPayloadByFallback,
             upstreamContentType: diagnosticsContentType,
+            bodyMissing: bodyQuality.bodyMissing,
+            bodyQualityLow: bodyQuality.bodyQualityLow,
+            bodyTextLength: bodyQuality.bodyTextLength,
             partial: true
           }
         : null
@@ -68,11 +84,7 @@ export class WebPageService {
     const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     const title = titleMatch ? this.normalizeInlineText(titleMatch[1]) : null;
 
-    const stripped = html
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<(script|style|noscript|svg|iframe)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<(br|\/p|\/div|\/section|\/article|\/main|\/li|\/ul|\/ol|\/h[1-6]|\/header|\/footer|\/table|\/tr)\s*>/gi, "\n")
-      .replace(/<[^>]+>/g, " ");
+    const stripped = this.stripHtmlToText(html);
 
     const content = this.normalizeBlockText(stripped);
     if (!content) {
@@ -98,6 +110,28 @@ export class WebPageService {
     return /<!doctype\s+html\b|<html\b|<head\b|<body\b|<title\b/i.test(payload);
   }
 
+  private buildBodyQualityDiagnostics(html: string) {
+    const bodyMatch = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+    const bodyMissing = !bodyMatch;
+    const bodyText = bodyMatch ? this.normalizeBlockText(this.stripHtmlToText(bodyMatch[1])) : "";
+    const bodyTextLength = bodyText.length;
+    const bodyQualityLow = !bodyMissing && bodyTextLength > 0 && bodyTextLength < MIN_BODY_QUALITY_TEXT_LENGTH;
+
+    return {
+      bodyMissing,
+      bodyQualityLow,
+      bodyTextLength
+    };
+  }
+
+  private stripHtmlToText(html: string) {
+    return html
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<(script|style|noscript|svg|iframe)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<(br|\/p|\/div|\/section|\/article|\/main|\/li|\/ul|\/ol|\/h[1-6]|\/header|\/footer|\/table|\/tr)\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, " ");
+  }
+
   private normalizeDiagnosticsContentType(contentType: string) {
     if (!contentType) {
       return "unknown";
@@ -115,6 +149,15 @@ export class WebPageService {
     return this.isRetryableUpstreamStatus(status)
       ? new BadGatewayException(message)
       : new BadRequestException(message);
+  }
+
+  private buildFetchException(prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    const normalizedMessage = normalizeSourceFetchFailureMessage(message);
+    const wrappedMessage = `${prefix}: ${normalizedMessage}`;
+    const retryable = error instanceof Error ? isRetryableFetchException(error) : true;
+
+    return retryable ? new BadGatewayException(wrappedMessage) : new BadRequestException(wrappedMessage);
   }
 
   private isRetryableUpstreamStatus(status: number) {

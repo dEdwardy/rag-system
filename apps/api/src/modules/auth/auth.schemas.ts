@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RESOURCE_ACCESS_ACTION_VALUES, RESOURCE_KIND_VALUES } from "@rag-system/shared";
+import { RESOURCE_ACCESS_ACTION_VALUES, RESOURCE_KIND_VALUES } from "../../../../../packages/shared/src/index.js";
 
 export const loginSchema = z.object({
   email: z.string().trim().email(),

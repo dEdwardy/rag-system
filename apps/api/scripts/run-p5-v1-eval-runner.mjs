@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +8,8 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "../../..");
 const DEFAULT_BASE_URL = process.env.RAG_EVAL_BASE_URL ?? "http://127.0.0.1:3000";
 const DEFAULT_OUTPUT_DIR = path.join(REPO_ROOT, "storage/evals/p5-v1");
+const P5_DEMO_SHORTLIST_PATH = path.join(SCRIPT_DIR, "p5-demo-shortlist.json");
+const P5_BASELINE_MANIFEST_PATH = path.join(SCRIPT_DIR, "p5-baseline-manifest.v1.json");
 
 function readOptionValue(argv, index, optionName) {
   const next = argv[index + 1];
@@ -94,7 +96,7 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "P5 v1 retrieval regression runner",
+    "P5 v1 retrieval regression runner (engineering-proof replay pin)",
     "",
     "Usage:",
     "  pnpm --filter @rag-system/api eval:runner:p5-v1 [--base-url <url>] [--output <file>] [--quality-gate-mode warn|fail] [--user-id <id>]",
@@ -112,8 +114,89 @@ function usage() {
     "",
     "Notes:",
     "  - unknown flags and missing option values fail fast",
-    "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default"
+    "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default",
+    "  - replay target is pinned to approved engineering-proof demo demo-eval-report-replay (eval-report-replay)",
+    "    via apps/api/scripts/p5-baseline-manifest.v1.json + apps/api/scripts/p5-demo-shortlist.json"
   ].join("\n");
+}
+
+async function loadApprovedBaselineManifest() {
+  let manifest;
+  try {
+    manifest = JSON.parse(await readFile(P5_BASELINE_MANIFEST_PATH, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `Failed to read approved baseline manifest at ${P5_BASELINE_MANIFEST_PATH}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (manifest?.schemaVersion !== "p5-baseline-manifest.v1") {
+    throw new Error(
+      `Unsupported baseline manifest schemaVersion: ${manifest?.schemaVersion ?? "unknown"}. Expected p5-baseline-manifest.v1.`
+    );
+  }
+
+  if (!Array.isArray(manifest?.questionSet?.questions) || manifest.questionSet.questions.length === 0) {
+    throw new Error("Baseline manifest contract edge: questionSet.questions must be a non-empty array.");
+  }
+
+  const replayBinding = manifest?.runnerReplayBinding;
+  if (
+    !replayBinding ||
+    typeof replayBinding !== "object" ||
+    typeof replayBinding.replayId !== "string" ||
+    typeof replayBinding.endpointPath !== "string" ||
+    typeof replayBinding.approvedShortlistSet !== "string" ||
+    typeof replayBinding.approvedReplayDemoId !== "string" ||
+    typeof replayBinding.approvedReplayCapabilitySurfaceId !== "string"
+  ) {
+    throw new Error(
+      "Baseline manifest contract edge: runnerReplayBinding must provide replayId, endpointPath, approvedShortlistSet, approvedReplayDemoId, and approvedReplayCapabilitySurfaceId."
+    );
+  }
+
+  return manifest;
+}
+
+async function loadApprovedReplayTargetFromShortlist(baselineManifest) {
+  const replayBinding = baselineManifest.runnerReplayBinding;
+  let shortlist;
+  try {
+    shortlist = JSON.parse(await readFile(P5_DEMO_SHORTLIST_PATH, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `Failed to read approved demo shortlist at ${P5_DEMO_SHORTLIST_PATH}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (shortlist?.approvedSet !== replayBinding.approvedShortlistSet) {
+    throw new Error(
+      `Unsupported demo shortlist approvedSet: ${shortlist?.approvedSet ?? "unknown"}. Expected ${replayBinding.approvedShortlistSet}.`
+    );
+  }
+
+  if (!Array.isArray(shortlist.selected)) {
+    throw new Error("Approved demo shortlist contract edge: selected must be an array.");
+  }
+
+  const replayDemo = shortlist.selected.find(
+    item =>
+      item?.id === replayBinding.approvedReplayDemoId &&
+      item?.capabilitySurfaceId === replayBinding.approvedReplayCapabilitySurfaceId
+  );
+  if (!replayDemo) {
+    throw new Error(
+      `Approved demo shortlist is missing ${replayBinding.approvedReplayDemoId} mapped to ${replayBinding.approvedReplayCapabilitySurfaceId}.`
+    );
+  }
+
+  return {
+    demoId: replayDemo.id,
+    replayId: replayBinding.replayId,
+    endpointPath: replayBinding.endpointPath,
+    baselineQuestionSetId: baselineManifest.questionSet.id,
+    baselineQuestionCount: baselineManifest.questionSet.questions.length
+  };
 }
 
 function toCookieHeader(response) {
@@ -163,8 +246,8 @@ async function login(baseUrl, userId) {
   return toCookieHeader(response);
 }
 
-async function runReplay(baseUrl, cookieHeader, qualityGateMode) {
-  const response = await fetch(`${baseUrl}/eval/question-sets/demo-replays/p5-v1/run`, {
+async function runReplay(baseUrl, replayTarget, cookieHeader, qualityGateMode) {
+  const response = await fetch(`${baseUrl}${replayTarget.endpointPath}`, {
     method: "POST",
     headers: {
       cookie: cookieHeader,
@@ -570,8 +653,10 @@ async function main() {
     return;
   }
 
+  const baselineManifest = await loadApprovedBaselineManifest();
+  const replayTarget = await loadApprovedReplayTargetFromShortlist(baselineManifest);
   const cookieHeader = await login(options.baseUrl, options.userId);
-  const runResult = await runReplay(options.baseUrl, cookieHeader, options.qualityGateMode);
+  const runResult = await runReplay(options.baseUrl, replayTarget, cookieHeader, options.qualityGateMode);
   assertRunResultContract(runResult);
 
   const itemDetails = await Promise.all(
@@ -652,7 +737,11 @@ async function main() {
     runner: {
       baseUrl: options.baseUrl,
       qualityGateMode: options.qualityGateMode,
-      replayId: runResult.replayEntry?.id ?? "p5-v1"
+      replayId: runResult.replayEntry?.id ?? replayTarget.replayId,
+      shortlistDemoId: replayTarget.demoId,
+      baselineManifestSchemaVersion: baselineManifest.schemaVersion,
+      baselineQuestionSetId: replayTarget.baselineQuestionSetId,
+      baselineQuestionCount: replayTarget.baselineQuestionCount
     },
     run: {
       questionSetId: runResult.questionSetId,

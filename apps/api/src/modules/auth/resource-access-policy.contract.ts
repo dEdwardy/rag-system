@@ -13,7 +13,7 @@ import {
   type ResourceAccessDenyReason,
   type ResourceAccessPolicyInput as SharedResourceAccessPolicyInput,
   type ResourceAccessPolicyVersion
-} from "@rag-system/shared";
+} from "../../../../../packages/shared/src/index.js";
 
 export type { ResourceAccessDecision, ResourceAccessDecisionReason, ResourceAccessPolicyVersion };
 

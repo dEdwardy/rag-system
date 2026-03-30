@@ -1,5 +1,12 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
+import {
+  assertRobotsAllowUrl,
+  fetchWithRetry,
+  isUrlWithinDomainBoundary,
+  isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
+  resolveSourceFetchRuntimeConfig
+} from "../http/fetch-with-retry";
 import { WebPageService } from "../web-page/web-page.service";
 
 type FetchSitemapOptions = {
@@ -10,6 +17,7 @@ type FetchSitemapOptions = {
 type ExtractSitemapOptions = {
   url: string;
   maxPages: number;
+  sourceBoundaryUrl?: string;
 };
 
 type FetchedSitemap = {
@@ -133,6 +141,7 @@ export class SitemapSourceService {
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(options.url);
       response = await fetchWithRetry({
         url: options.url,
         timeoutMs: fetchConfig.timeoutMs,
@@ -142,8 +151,7 @@ export class SitemapSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+      throw this.buildFetchException("Failed to fetch sitemap", error);
     }
 
     if (!response.ok) {
@@ -183,6 +191,11 @@ export class SitemapSourceService {
     const extractedUrls = [...normalizedXml.matchAll(SITEMAP_URL_ENTRY_PATTERN)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
       .filter(url => this.isHttpUrl(url));
+    const sourceBoundaryUrl = options.sourceBoundaryUrl ?? options.url;
+
+    for (const extractedUrl of extractedUrls) {
+      this.assertSitemapUrlWithinDomainBoundary(extractedUrl, sourceBoundaryUrl, "page");
+    }
 
     const allUniqueUrls = this.deduplicateSitemapUrls(extractedUrls);
     const selectedUrls = allUniqueUrls.slice(0, options.maxPages);
@@ -253,7 +266,7 @@ export class SitemapSourceService {
       );
     }
 
-    const childSitemapUrls = this.extractChildSitemapUrls(normalizedXml);
+    const childSitemapUrls = this.extractChildSitemapUrls(normalizedXml, options.url);
     if (!childSitemapUrls.length) {
       throw new BadRequestException("Extracted sitemap child URLs are empty.");
     }
@@ -305,7 +318,8 @@ export class SitemapSourceService {
       const extractedChildPageUrls = this.extractPageUrlsWithStats(normalizedChildXml, {
         ...options,
         url: childSitemapUrl,
-        maxPages: options.maxPages
+        maxPages: options.maxPages,
+        sourceBoundaryUrl: options.url
       });
       totalExtractedPageUrlCount += extractedChildPageUrls.totalExtractedCount;
 
@@ -531,10 +545,14 @@ export class SitemapSourceService {
     throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
   }
 
-  private extractChildSitemapUrls(xml: string) {
+  private extractChildSitemapUrls(xml: string, sourceBoundaryUrl: string) {
     const extractedChildSitemapUrls = [...xml.matchAll(CHILD_SITEMAP_ENTRY_PATTERN)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
       .filter(url => this.isHttpUrl(url));
+
+    for (const childSitemapUrl of extractedChildSitemapUrls) {
+      this.assertSitemapUrlWithinDomainBoundary(childSitemapUrl, sourceBoundaryUrl, "child sitemap");
+    }
 
     return this.deduplicateSitemapUrls(extractedChildSitemapUrls);
   }
@@ -601,6 +619,7 @@ export class SitemapSourceService {
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(url);
       response = await fetchWithRetry({
         url,
         timeoutMs: fetchConfig.timeoutMs,
@@ -610,8 +629,7 @@ export class SitemapSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+      throw this.buildFetchException("Failed to fetch sitemap", error);
     }
 
     if (!response.ok) {
@@ -651,6 +669,15 @@ export class SitemapSourceService {
     return this.isRetryableUpstreamStatus(status)
       ? new BadGatewayException(message)
       : new BadRequestException(message);
+  }
+
+  private buildFetchException(prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    const normalizedMessage = normalizeSourceFetchFailureMessage(message);
+    const wrappedMessage = `${prefix}: ${normalizedMessage}`;
+    const retryable = error instanceof Error ? isRetryableFetchException(error) : true;
+
+    return retryable ? new BadGatewayException(wrappedMessage) : new BadRequestException(wrappedMessage);
   }
 
   private isRetryableUpstreamStatus(status: number) {
@@ -738,5 +765,15 @@ export class SitemapSourceService {
       [truncatedKey]: omittedCount > 0,
       [omittedCountKey]: omittedCount
     };
+  }
+
+  private assertSitemapUrlWithinDomainBoundary(url: string, sourceBoundaryUrl: string, urlKind: "page" | "child sitemap") {
+    if (isUrlWithinDomainBoundary(url, sourceBoundaryUrl)) {
+      return;
+    }
+
+    throw new BadRequestException(
+      `Sitemap ${urlKind} URL is outside source domain boundary: ${url}.`
+    );
   }
 }

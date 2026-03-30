@@ -2,6 +2,7 @@ import { Badge, Box, Button, Grid, Group, Paper, SegmentedControl, Stack, Text, 
 import { notifications } from "@mantine/notifications";
 import { type ComponentProps, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
 import {
   formatRunSourceTypeLabel,
@@ -310,6 +311,12 @@ export function KnowledgeBasePage() {
 
       {knowledgeBase ? (
         <>
+          <OauthWorkspaceWelcome
+            assistantCount={assistantCount}
+            context="knowledge"
+            documentCount={documents.length}
+          />
+
           <div className="workspace-metric-grid">
             {metricCards.map(metric => (
               <Paper className="workspace-metric-card workspace-metric-card-compact" key={metric.key} p="lg" radius="xl">

@@ -100,8 +100,71 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
       schemaVersion: 2,
       contentTypeFallbackApplied: true,
       upstreamContentType: "text/plain; charset=utf-8",
+      bodyMissing: false,
+      bodyQualityLow: true,
+      bodyTextLength: 16,
       partial: true
     });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("WebPageService emits body-missing diagnostics when HTML has no body tag", async () => {
+  const originalFetch = global.fetch;
+  const service = new WebPageService();
+
+  global.fetch = async () =>
+    new Response(
+      "<html><head><title>No Body</title></head><h1>Loose heading</h1><p>Loose body marker.</p></html>",
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html;charset=utf-8"
+        }
+      }
+    );
+
+  try {
+    const extracted = await service.fetchWebPage("https://example.com/no-body");
+    assert.match(extracted.content, /Loose heading/);
+    assert.match(extracted.content, /Loose body marker\./);
+    assert.deepEqual(extracted.diagnostics, {
+      sourceKind: "web",
+      schemaVersion: 2,
+      contentTypeFallbackApplied: false,
+      upstreamContentType: "text/html; charset=utf-8",
+      bodyMissing: true,
+      bodyQualityLow: false,
+      bodyTextLength: 0,
+      partial: true
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("WebPageService emits low body-quality diagnostics for very short body text", async () => {
+  const originalFetch = global.fetch;
+  const service = new WebPageService();
+
+  global.fetch = async () =>
+    new Response("<html><head><title>Short Body</title></head><body><main><p>tiny text</p></main></body></html>", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html;charset=utf-8"
+      }
+    });
+
+  try {
+    const extracted = await service.fetchWebPage("https://example.com/short-body");
+    assert.match(extracted.content, /tiny text/);
+    assert.equal(extracted.diagnostics?.bodyMissing, false);
+    assert.equal(extracted.diagnostics?.bodyQualityLow, true);
+    assert.equal(extracted.diagnostics?.contentTypeFallbackApplied, false);
+    assert.equal(extracted.diagnostics?.partial, true);
+    assert.ok(extracted.diagnostics?.bodyTextLength > 0);
+    assert.ok(extracted.diagnostics?.bodyTextLength < 120);
   } finally {
     global.fetch = originalFetch;
   }

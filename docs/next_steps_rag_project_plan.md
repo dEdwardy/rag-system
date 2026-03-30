@@ -3,7 +3,7 @@
 > 文档角色：`current-primary`
 > 当前使用方式：当前阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以本文档为主；`docs/current-progress.md` 主要承担进度记录和完成状态同步。
 
-更新时间：2026-03-29
+更新时间：2026-03-30
 
 ## 1. 当前判断
 
@@ -494,6 +494,23 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 跨 source family 的全面错误码体系重构
 - source 平台化/插件化重构（保持现有主链路与契约）
 
+#### P3 legality + crawl-safety follow-up（2026-03-30）
+
+- 在当前 source family 已经收口到 `web page / feed / sitemap / sitemapindex(一层)` 的前提下，下一条最合理补强不是继续扩 connector，而是补“合法性 + 低扰动抓取” guardrails。
+- 目标边界（policy baseline）：
+  - 只抓取公开可访问、无登录、无付费墙的内容
+  - 不做任何访问控制绕过（包括但不限于登录态绕过、付费墙绕过、技术性封禁绕过）
+  - `sitemap` 仅作为 URL 索引提示，不构成抓取授权声明
+  - 用户只应导入其有权使用的数据（rights-to-use 由用户侧负责确认）
+  - 避免把现有 source fetch 演变成高并发、大范围、反复全量重扫的 crawler
+- queue-ready guardrail 顺序（建议）：
+  1. `source-policy-baseline`
+  2. `robots-and-domain-guard`
+  3. `crawl-rate-budget-guard`
+  4. `source-throttle-circuit-breaker`
+  5. `resync-incremental-bias`
+- 这批 guardrail 只围绕既有 source family 做合法性/礼仪/预算/熔断/增量偏置补强，不新增 source family，不引入 JS rendering crawler，也不重开 source 平台化。
+
 #### P3 queue-ready slices（accepted）
 
 当前 follow-up 的 queue-ready 最小切片保持为 5 个（按当前建议顺序）：
@@ -522,21 +539,21 @@ Queue 短标题版（可直接作为 loop item title 使用）：
    | sitemap / sitemapindex | `urlset` + 一层 `sitemapindex`、子 sitemap 与 page 级 partial diagnostics、maxPages/maxChildSitemaps 边界与 dedup 已具备 | 1) 明确不支持 nested sitemapindex（子项再指向 index 会失败）；2) `MAX_CHILD_SITEMAPS=20` 当前是代码常量，不支持按 source 配置细粒度调节 |
    | external re-sync（现有 family） | same-URL document reuse + version 递增、stale run guard、run history/summary、source-level diagnostics 基线已具备；legacy config recovery 已覆盖 `web_page` / `feed` / `sitemap`（含 config 丢失与 feed/sitemap 边界默认值回退） | 1) 对不可恢复配置异常仍统一落到 `EXTERNAL_SOURCE_CONFIG_INVALID`，跨 family 的错误 code/readability 映射口径仍可继续收敛；2) source-level diagnostics 字段在跨 family 对齐上仍有细粒度差异 |
 
-   稳定性补强（现有 source family 内，优先）：
+   稳定性补强（现有 source family 内，当前剩余 safe gaps 优先）：
 
-   1) web/feed：收口 partial diagnostics 粒度一致性，优先补“可观测性不足”而不是改抓取语义
-   2) sitemap：明确 nested sitemapindex 与 child-limit 的边界策略（保持当前失败语义或做最小可控放宽）
-   3) external re-sync：收口不可恢复配置异常在跨 family 的 diagnostics / error-code 可读性一致性
+   1) source fetch：收口 retry / timeout diagnostics 一致性（不改抓取语义）
+   2) web page：补最小正文质量/正文缺失可读信号（不引入 JS 渲染抓取）
+   3) external re-sync：收口跨 family 的 diagnostics / error-code 可读性一致性
 
    扩面候选（后置，非当前最小缺口）：
 
    - 新增 source family（在上面稳定性项收口前不启动）
    - web page 动态渲染抓取能力（属于能力扩展，不是现有 baseline 稳定性修补）
 
-   最小 follow-up gap list（P3 task 1 交付版）：
+   最小 follow-up gap list（按当前 micro-wave 剩余 safe gaps 刷新）：
 
-   - `web/feed partial diagnostics consistency`
-   - `sitemap nested-index + child-limit boundary policy`
+   - `source retry/timeout diagnostics consistency`
+   - `web page body-quality diagnostics`
    - `external resync diagnostics/error-code consistency`
 
 2. 补 source retry / timeout / diagnostics 一致性
@@ -597,6 +614,15 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 只做与当前新增能力直接相关的页面承载优化
 - 不再开启新一轮大范围 UI 重构
 - 继续坚持 `PC Web` 优先、移动端后置
+
+#### P4 当前最小 trigger（2026-03-30）
+
+- 当前已出现一个明确 trigger：backend 已支持 `web page` / `feed` / `sitemap` source ingestion API，但 `PC Web` 文档工作台还缺少对应 URL 录入入口。
+- 这一波只做能力承载，不做新 source family 扩展：
+  - 先补 `web page` 单 URL 入口
+  - 再补 `feed` URL 入口
+  - 最后补 `sitemap` URL 入口
+- 范围继续收紧在 `DocumentsPage` 与其现有 API hooks，不扩成新的 source 管理后台，不引入移动端适配，也不改 backend source contract。
 
 ### P5：RAG 质量证明（eval / regression / demo）
 
@@ -659,6 +685,28 @@ Queue 短标题版（可直接作为 loop item title 使用）：
   - demo case 取舍与 replay 验收结论
 - 边界说明：本次仅做 P5 planning/status 对齐，不新增 queue wave，不改现有 runner/report/gate 运行时契约。
 
+#### P5 人工决策已批准（2026-03-30）
+
+- ✅ 当前批准口径统一以 `apps/api/scripts/p5-baseline-manifest.v1.json` 作为工程 baseline v1 机器可读单一来源（question set + dataset pin + annotation layering + replay binding），不扩展为更大 benchmark 框架契约。
+- ✅ baseline question set 已按当前 `engineering baseline v1` 批准，沿用 `apps/api/scripts/p5-baseline-manifest.v1.json` 中的 3 题：
+  - `p5-v1-q1-capability-summary`
+  - `p5-v1-q2-source-family-support`
+  - `p5-v1-q3-no-hit-guardrail`
+- ✅ baseline annotations 已按当前分层方案批准：所有题继续使用 `intent / expectedAnswerPoints / mustNotMiss / acceptableExpressionRange`；`q1` 与 `q2` 保持 `criticalEvidenceExpectation` 关键题要求，`q3` 继续作为非关键 evidence 题。
+- ✅ baseline dataset version pin 已批准沿用当前 manifest source：`p5-v1-demo-replay.questions.v1`，snapshot ref 为 `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts#P5_V1_DEMO_REPLAY_QUESTIONS`。
+- ✅ demo shortlist 已批准沿用当前 `4+1`：4 个正式 demo（happy path / no-hit / source-backed answer / eval-report-replay）+ 1 个候补 `trace diagnostic readability`。
+- ✅ `demo-eval-report-replay` 已明确定位为“工程证明型 demo”；其 replay baseline 通过口径继续收敛为：能正常触发 replay、产出既有 proof artifacts、并保持与当前 report/export 流兼容。
+- 后续执行边界：这些人工结论现在可以作为后续 docs sync、queue materialization 或 replay/baseline closeout 的输入；本次仍不重开更大 benchmark 设计、不扩成新的 demo 平台、也不改现有 runner/report/gate 契约。
+
+#### P5 批准后 queue-ready closeout（2026-03-30）
+
+- 这批人工结论已足够作为下一条自动执行小波次的输入；推荐继续保持单线、小步、可验证。
+- 推荐顺序：
+  - `p5-baseline-approval-doc-sync`
+  - `p5-replay-baseline-contract-closeout`
+  - `p5-approved-baseline-queue-refresh`
+- 这批只做批准结果的 docs/contract/queue 收口，不重开题集设计、不扩 benchmark 体系、不新增 demo/showcase 平台。
+
 ### 当前阶段推荐大类顺序
 
 当前更稳的后续顺序是：
@@ -677,6 +725,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 #### 当前 queue refinement note（2026-03-29）
 
 - `P1`、`P2` 与上一轮 `P5 -> P6 -> docs sync` auto-queue 已收口；当前已按批准范围重建一条新的 12-item 执行队列，主线固定为 `P3` 稳定性补强，随后接 `P5/P6` closeout，最后做 queue closeout refresh。
+- 在这批 12-item core wave 之外，当前又追加了一条更小的 `P3` follow-up micro-wave，用来收口仍在波次边界内的 retry/timeout、正文质量与外部重同步可读性差异。
 - queue `title` 可以继续保持短标题；真正的执行边界、涉及文件、focused validation 统一放在 queue item 的 `promptText` / `promptFile`。
 - 当前批准顺序：`p3-source-gaplist-refresh -> p3-source-diagnostics-consistency -> p3-source-resync-recovery-guards -> p3-sitemap-boundary-guard -> p3-web-feed-partial-diagnostics -> p3-source-followup-docs-sync -> p5-runner-report-contract-sync -> p6-usage-scan-first-closeout -> p6-report-center-closeout -> p6-trace-detail-closeout -> p6-observability-docs-sync -> loop-queue-refresh`。
 - `P5` 里需要人工判断的任务（题集选择、标注、baseline 文档版本、demo case 取舍、demo replay 验收）仍留在自动 queue 外，避免把主观评审混进自动 build loop。
@@ -692,8 +741,23 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 #### 第三批 post-drain queue note（2026-03-29）
 
 - post-drain 第三批 queue（`P5 -> P6 -> docs sync`）现已消费完成；该段继续保留为 closeout 记录。
-- 在该 drain 之后，当前已重建一条新的 execution-ready 12-item 队列：先完成 `P3 external knowledge source follow-up` 的 gap/diagnostics/resync/boundary/docs 收口，再接 `P5/P6` 已落地能力的 contract/readability/docs closeout，最后做 queue refresh closeout。
+- 在该 drain 之后，先重建了一条新的 execution-ready 12-item core queue：完成 `P3 external knowledge source follow-up` 的 gap/diagnostics/resync/boundary/docs 收口，再接 `P5/P6` 已落地能力的 contract/readability/docs closeout，最后做 queue refresh closeout。
+- 在这条 core queue 收口后，又追加了一条更小的 `P3 follow-up micro-wave`，把当前仍然适合自动 loop 的剩余 safe gaps 继续收口起来：retry / timeout diagnostics、一层正文质量信号、external resync error-code/readability 一致性，以及对应 docs sync。
 - 本轮继续保持边界不变：不新增 source family、不把 `P5` 人工判断项塞进自动 loop、不重开 auth/ACL 扩面、不把 Usage / Report center / Trace Detail 扩成 dashboard 平台化或大 UI 改版。
+
+#### P3 follow-up micro-wave（2026-03-29）
+
+- 当前追加的 micro-wave 只覆盖仍在当前稳定性边界内、且适合自动 loop 消费的剩余 follow-up：`retry / timeout diagnostics`、`web page body-quality diagnostics`、`external resync error-code consistency`、`source follow-up docs sync`，最后以 queue refresh 收口。
+- 固定顺序：`p3-source-gaplist-refresh -> p3-source-retry-timeout-diagnostics -> p3-web-body-quality-diagnostics -> p3-external-resync-error-code-consistency -> p3-source-followup-docs-sync -> loop-queue-refresh`。
+- 本 extra batch 对应的 remaining safe gaps（保持当前边界，不扩面）明确为：
+  - `source retry/timeout diagnostics consistency`
+  - `web page body-quality diagnostics`
+  - `external resync diagnostics/error-code consistency`
+- focused validation baseline（for this extra batch，复用当前 P3 follow-up baseline）：
+  - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - `pnpm test:api:file -- test/parsing.test.js`
+- 继续保持同一条边界：不新增 source family、不重开 auth/ACL、不把自动 queue 扩成 dashboard 平台化或手动 baseline 流程。
 
 ### 边界说明：产品核心 vs 第三方集成
 

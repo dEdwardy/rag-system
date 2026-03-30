@@ -18,9 +18,13 @@ import {
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useMemo } from "react";
+import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAssistants,
+  useConversations,
+  useDocuments,
+  useKnowledgeBases,
   useRetrievalProfiles,
   useUpdateAssistant,
   useUpdateRetrievalProfile
@@ -35,6 +39,10 @@ import {
 
 export function AssistantPage() {
   const assistantsQuery = useAssistants();
+  const knowledgeBasesQuery = useKnowledgeBases();
+  const knowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
+  const documentsQuery = useDocuments(knowledgeBase?.id ?? "default-kb", knowledgeBase != null);
+  const conversationsQuery = useConversations();
   const retrievalProfilesQuery = useRetrievalProfiles();
   const assistant = assistantsQuery.data?.[0] ?? null;
   const retrievalProfile =
@@ -124,6 +132,13 @@ export function AssistantPage() {
           ) : null}
         </div>
       </Paper>
+
+      <OauthWorkspaceWelcome
+        assistantCount={assistant ? 1 : 0}
+        context="assistant"
+        conversationCount={conversationsQuery.data?.length ?? 0}
+        documentCount={documentsQuery.data?.length ?? 0}
+      />
 
       {isLoading ? (
         <StatePanel

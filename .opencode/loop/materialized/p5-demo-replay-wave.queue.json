@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "cursor": 0,
+  "createdAt": "2026-03-29T20:56:36.255Z",
+  "updatedAt": "2026-03-29T20:56:36.255Z",
+  "materializedFrom": ".opencode/loop/execution-backlog.jsonc",
+  "materializedWaveId": "p5-demo-replay-wave",
+  "items": [
+    {
+      "id": "p5-demo-shortlist-manifest",
+      "version": 2,
+      "kind": "build_increment",
+      "title": "materialize approved demo shortlist",
+      "goal": "Store the approved 4+1 demo shortlist in one machine-readable place that replay logic can consume.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Inspect the current P5 codepath and docs for `materialize approved demo replay entrypoint` first.\nThen make the smallest concrete change to complete `materialize approved demo shortlist` without broadening scope.\nWave goal: Materialize the approved demo shortlist and expose one narrow replay path that reuses existing eval proof surfaces.\nTask goal: Store the approved 4+1 demo shortlist in one machine-readable place that replay logic can consume.\nRelevant scope: apps/api/scripts or existing replay entrypoint, docs/current-dev-setup.md, docs/current-progress.md\nAcceptance:\n- Selected demos and the one candidate demo are explicitly recorded.\n- Each demo maps to a named capability surface.\nDo not:\n- No new demo platform\n- No broad frontend showcase page\nRun exactly one focused validation command: `node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-demo-shortlist.json`.\nReport the exact changed files and exact validation result.\n",
+      "acceptance": {
+        "checklist": [
+          "Selected demos and the one candidate demo are explicitly recorded.",
+          "Each demo maps to a named capability surface."
+        ]
+      },
+      "verification": {
+        "mode": "command+artifact",
+        "commands": [
+          "node --input-type=module -e \"import { readFileSync } from 'node:fs'; console.log(readFileSync(process.argv[1], 'utf8').length > 0 ? 'ok' : 'empty');\" apps/api/scripts/p5-demo-shortlist.json"
+        ],
+        "artifacts": [
+          "apps/api/scripts/p5-demo-shortlist.json"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onArtifactFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "low",
+      "dependsOn": [],
+      "suspendWhen": [
+        "Approved 4+1 demo shortlist is not finalized"
+      ],
+      "backlogWaveId": "p5-demo-replay-wave",
+      "backlogParentId": "p5-demo-replay-entrypoint",
+      "plannerFamily": "p5",
+      "plannerSource": "backlog-materializer"
+    },
+    {
+      "id": "p5-demo-replay-entrypoint-narrow-path",
+      "version": 2,
+      "kind": "build_increment",
+      "title": "add narrow demo replay entrypoint",
+      "goal": "Expose the smallest replay path that can run the approved demo shortlist without inventing a broader demo platform.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Inspect the current P5 codepath and docs for `materialize approved demo replay entrypoint` first.\nThen make the smallest concrete change to complete `add narrow demo replay entrypoint` without broadening scope.\nWave goal: Materialize the approved demo shortlist and expose one narrow replay path that reuses existing eval proof surfaces.\nTask goal: Expose the smallest replay path that can run the approved demo shortlist without inventing a broader demo platform.\nRelevant scope: apps/api/scripts or existing replay entrypoint, docs/current-dev-setup.md, docs/current-progress.md\nAssume these earlier queue items are completed first: p5-demo-shortlist-manifest.\nAcceptance:\n- Replay path references the approved shortlist only.\n- Output remains compatible with the current eval/report proof flow.\nDo not:\n- No new demo platform\n- No broad frontend showcase page\nRun exactly one focused validation command: `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`.\nReport the exact changed files and exact validation result.\n",
+      "acceptance": {
+        "checklist": [
+          "Replay path references the approved shortlist only.",
+          "Output remains compatible with the current eval/report proof flow."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "medium",
+      "dependsOn": [
+        "p5-demo-shortlist-manifest"
+      ],
+      "suspendWhen": [
+        "Demo shortlist manifest is not available yet"
+      ],
+      "backlogWaveId": "p5-demo-replay-wave",
+      "backlogParentId": "p5-demo-replay-entrypoint",
+      "plannerFamily": "p5",
+      "plannerSource": "backlog-materializer"
+    },
+    {
+      "id": "p5-demo-replay-docs-sync",
+      "version": 2,
+      "kind": "docs_sync",
+      "title": "sync demo replay usage docs",
+      "goal": "Document the replay entrypoint and the intended demo scope without widening product surface area.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Inspect the current P5 codepath and docs for `materialize approved demo replay entrypoint` first.\nThen make the smallest concrete change to complete `sync demo replay usage docs` without broadening scope.\nWave goal: Materialize the approved demo shortlist and expose one narrow replay path that reuses existing eval proof surfaces.\nTask goal: Document the replay entrypoint and the intended demo scope without widening product surface area.\nRelevant scope: apps/api/scripts or existing replay entrypoint, docs/current-dev-setup.md, docs/current-progress.md\nAssume these earlier queue items are completed first: p5-demo-shortlist-manifest, p5-demo-replay-entrypoint-narrow-path.\nAcceptance:\n- Docs explain how to run the approved demo replay path.\n- Docs keep the scope tied to the approved shortlist.\nDo not:\n- No new demo platform\n- No broad frontend showcase page\nRun exactly one focused validation command: `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`.\nReport the exact changed files and exact validation result.\n",
+      "acceptance": {
+        "checklist": [
+          "Docs explain how to run the approved demo replay path.",
+          "Docs keep the scope tied to the approved shortlist."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p5-demo-shortlist-manifest",
+        "p5-demo-replay-entrypoint-narrow-path"
+      ],
+      "suspendWhen": [
+        "Replay entrypoint behavior is not landed yet"
+      ],
+      "backlogWaveId": "p5-demo-replay-wave",
+      "backlogParentId": "p5-demo-replay-entrypoint",
+      "plannerFamily": "p5",
+      "plannerSource": "backlog-materializer"
+    }
+  ],
+  "createdAtDisplay": "2026-03-30 04:56:36",
+  "updatedAtDisplay": "2026-03-30 04:56:36"
+}

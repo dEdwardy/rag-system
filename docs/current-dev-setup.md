@@ -110,9 +110,17 @@ Notes:
 ```text
 SOURCE_FETCH_TIMEOUT_MS=10000
 SOURCE_FETCH_RETRY_ATTEMPTS=2
+SOURCE_FETCH_BREAKER_PAUSE_MS=15000
+SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD=2
+SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
 ```
 
 - current defaults preserve the existing behavior: `10s` timeout and `2` total fetch attempts for `web page` / `feed` / `sitemap` source HTTP requests
+- source fetch now also applies a narrow breaker pause on domain pressure signals to avoid hammering target sites:
+  - immediate pause on `429`
+  - pause after repeated `5xx` responses on the same domain (`threshold=2` by default)
+  - pause on obvious anti-bot/challenge HTML responses (`403/503` with challenge markers)
+- optional OpenCode harness note: the harness now lives under `.opencode/loop/`; use `.opencode/loop/README.md` for its docs and `node .opencode/loop/cli.mjs --self-test` for its focused smoke test
 - auth/session runtime now also supports:
 
 ```text
@@ -125,17 +133,19 @@ AUTH_SESSION_TTL_HOURS=168
   - cookie name default is `rag_session`
   - login session TTL default is `168` hours (`7` days)
   - route policy baseline now distinguishes public and authenticated API routes:
-    - public: `GET /health`, `POST /auth/login`, `POST /auth/logout`
+    - public: `GET /health`, `GET /auth/providers`, `POST /auth/login`, `POST /auth/logout`
     - authenticated: `GET /auth/me`, `POST /auth/permissions/check`, plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, and `retrieval-profiles`
     - `GET /auth/me` and the owner-scoped business routes require an authenticated session cookie and return `401` when unauthenticated
   - backend now exposes minimal auth loop endpoints:
     - `POST /auth/login` (Phase 1 local-account baseline: accepts `{ email, password }`, sets session cookie, returns identity)
     - `POST /auth/logout` (revokes current session when present, clears cookie)
+    - `GET /auth/providers` (returns local-login dev helper info plus OAuth provider configuration readiness for the login UI)
     - `GET /auth/me` (returns `{ identity, currentIdentity, loginProvenance }`)
       - `loginProvenance.type`: `local_session` or `oauth_session`
       - `loginProvenance.oauthProvider`: `github` / `google` / `oidc` / `null` (null for local session)
   - current local-account login baseline (`Phase 1`) scope:
     - pre-created users only (seed/admin/manual bootstrap); no public signup in this wave
+    - local seed defaults are now explicit for local development: `AUTH_DEV_DEFAULT_USER_EMAIL` (default `default-user@example.com`) and `AUTH_DEV_DEFAULT_USER_PASSWORD` (default `local-password-1`)
     - no password reset / forgot-password / email verification in this wave
     - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
     - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
@@ -146,7 +156,8 @@ AUTH_SESSION_TTL_HOURS=168
       - reserved provider route shape remains `GET /auth/oauth/:provider/start` + `GET /auth/oauth/:provider/callback`
     - `Phase 3` GitHub flow is landed in backend runtime:
       - `/auth/oauth/github/start` builds redirect URL + state cookie
-      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession` and writes `rag_session`
+      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession`, writes `rag_session`, and redirects back to the web app success URL
+      - local GitHub app setups may also point the callback URL at `/auth/github/callback`; the backend now accepts that alias and runs the same callback flow
     - `Phase 4` Google flow is landed with the same backend pattern:
       - `/auth/oauth/google/start` and `/auth/oauth/google/callback` follow the same state + identity-link + local-session bridge semantics
     - real `oidc` flow is now landed with the same backend identity-link/session bridge pattern:
@@ -154,6 +165,7 @@ AUTH_SESSION_TTL_HOURS=168
       - `/auth/oauth/oidc/callback` resolves discovery metadata (`token_endpoint` + `userinfo_endpoint`), exchanges code, reads stable `sub`, then links/creates local user via `AuthIdentityLink(provider, subject)` and creates local `AuthSession`
     - runtime env requirements currently used by code paths above:
       - shared OAuth state controls: `AUTH_OAUTH_STATE_COOKIE_NAME` (default `rag_oauth_state`), `AUTH_OAUTH_STATE_TTL_SECONDS` (default `600`)
+      - shared post-login redirect control: `AUTH_OAUTH_SUCCESS_REDIRECT_URI` (fallbacks: `AUTH_WEB_SUCCESS_REDIRECT_URI`, then first `CORS_ORIGIN`, then `http://localhost:5173`)
       - GitHub start/callback config: `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET`, `AUTH_GITHUB_REDIRECT_URI` (optional overrides: `AUTH_GITHUB_AUTHORIZE_URL`, `AUTH_GITHUB_TOKEN_URL`, `AUTH_GITHUB_USER_URL`, `AUTH_GITHUB_SCOPE`)
       - Google start/callback config: `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_GOOGLE_REDIRECT_URI` (optional overrides: `AUTH_GOOGLE_AUTHORIZE_URL`, `AUTH_GOOGLE_TOKEN_URL`, `AUTH_GOOGLE_USER_URL`, `AUTH_GOOGLE_SCOPE`)
       - OIDC start/callback config: `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_REDIRECT_URI` (optional: `AUTH_OIDC_SCOPE`, default `openid email profile`)
@@ -479,6 +491,10 @@ LLM_REWRITE_TEMPERATURE=0
 CORS_ORIGIN=http://localhost:5173,http://your-other-origin
 ```
 
+- local API `start:prod` now loads gitignored workspace env files automatically when present:
+  - `.env.local`
+  - `.env`
+
 ## Start web
 
 ```bash
@@ -600,6 +616,17 @@ pnpm --filter @rag-system/api eval:runner:p5-v1
   - latest Markdown/HTML: use the same basename and swap extension to `.md` / `.html`
 - report summarizes retrieval regression signals from existing eval item metadata + `traceSummary`, including: `no-hit`, `fallback`, `low-score`, `citation-limit-hit`, and `source-family-failure` (with source-family breakdown)
 - boundary note (P5 v1): timestamped files under `storage/evals/p5-v1` are **offline regression artifacts** for replay-proof/archive/diff workflows; they are not a web runtime contract surface
+- baseline source-of-truth note (P5 v1 engineering baseline):
+  - canonical manifest path: `apps/api/scripts/p5-baseline-manifest.v1.json`
+  - this manifest is the approved **engineering baseline v1** source of truth (question set + replay binding), not a broad benchmark framework contract
+  - approved baseline question set currently stays pinned to the 3 manifest IDs:
+    - `p5-v1-q1-capability-summary`
+    - `p5-v1-q2-source-family-support`
+    - `p5-v1-q3-no-hit-guardrail`
+  - approved dataset pin stays on `baselineSource.sourceVersion = p5-v1-demo-replay.questions.v1` with snapshot ref `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts#P5_V1_DEMO_REPLAY_QUESTIONS`
+  - approved annotation layering stays on default fields `intent / expectedAnswerPoints / mustNotMiss / acceptableExpressionRange`, with `criticalEvidenceExpectation` as the optional critical layer (required only for `q1`/`q2`; `q3` remains non-critical evidence)
+  - runner consumption path: `eval:runner:p5-v1` (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) loads `runnerReplayBinding` from this manifest first, then validates the shortlist pin via `apps/api/scripts/p5-demo-shortlist.json`, and pins replay to the approved engineering-proof demo `demo-eval-report-replay` (`eval-report-replay`) before calling `POST /eval/question-sets/demo-replays/p5-v1/run`
+  - approved demo shortlist pin remains `p5-demo-shortlist-4plus1`: 4 selected demos (`ask-happy-path`, `no-hit-guardrail`, `source-backed-answer`, `eval-report-replay`) + 1 candidate (`trace-diagnostic-readability`); `demo-eval-report-replay` is positioned as the approved engineering-proof replay demo in this wave
 - boundary note (artifact producer): offline files under `storage/evals/p5-v1` are produced by the CLI runner path (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) after calling `POST /eval/question-sets/demo-replays/p5-v1/run`
 - boundary note (report-center contract): web `Report center` keeps using live eval API response contracts (`POST /eval/question-sets/:id/runs` + `reportExports`) for in-app read/trigger/export flows, and does not directly consume or index offline files under `storage/evals/p5-v1`
 - current wave scope guard: this wave stays on eval/regression proof closeout; do not expand `Report center`/`Usage` into a generic analytics or ops dashboard platform
@@ -788,7 +815,7 @@ Notes:
 - small focused tests and static checks may run in parallel when they stay within a light local feedback loop
 - do not run multiple heavy builds or node test processes at the same time
 - do not overlap heavy validation with AI review
-- `pnpm opencode:loop` runs the repo-local development harness in `scripts/opencode-loop.md`; `scripts/opencode-loop/jsonc.mjs` keeps `opencode.jsonc` comment-safe; `node scripts/opencode-loop.mjs --self-test` covers draining, resume recovery, and one guarded refill pass.
+- `pnpm opencode:loop` runs the optional repo-local OpenCode harness under `.opencode/loop/`; its implementation details stay in `.opencode/loop/README.md`, not the main product docs.
 - this smoke test is currently scoped to `PC Web`
 - it validates `Knowledge Base -> Assistant` browser rendering against the real local API
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks
@@ -864,6 +891,11 @@ Notes:
   - upstream / transient fetch failures remain `retryable: true`
   - invalid payload / unsupported content type style failures now persist as `retryable: false`
 - external source follow-up（P3）当前 accepted stability boundary / queue slices 快照：
+  - legality/crawl-courtesy baseline（policy only，当前约束）：
+    - 仅面向公开可访问、无登录、无付费墙内容
+    - 不支持任何访问控制绕过（登录/付费墙/封禁等）
+    - `sitemap` 仅作索引提示，不构成授权声明
+    - 使用方仅应导入其有权使用的数据（rights-to-use 由使用方确认）
   - stability boundary（保持不变）：
     - source family 仅限 `web page` / `feed` / `sitemap urlset` / `sitemapindex(一层)` + `external_resync`
     - source-expansion decision（当前波次）：`keep`（不新增 source family）
@@ -876,6 +908,11 @@ Notes:
     3) `source resync recovery guards`
     4) `new source type review`
     5) `source follow-up docs`
+  - remaining safe follow-up gaps（current source wave，docs/planning snapshot）：
+    - `source retry/timeout diagnostics consistency`
+    - `web page body-quality diagnostics`
+    - `external resync diagnostics/error-code consistency`
+  - extra batch note（P3 follow-up micro-wave）：本轮附加批次只收口以上 3 个 remaining safe gaps，不重开 auth/ACL sequencing，不新增 source family。
   - intentionally deferred（本波次明确后置）：
     - 新 source family 扩展（connector 扩面）
     - web page JS 渲染抓取能力
@@ -885,6 +922,7 @@ Notes:
     - `pnpm test:api:file -- test/external-source-sync.test.js`
     - `pnpm test:api:file -- test/fetch-with-retry.test.js`
     - `pnpm test:api:file -- test/parsing.test.js`
+  - focused validation baseline（extra batch）：复用同一组三条 P3 follow-up 命令，不额外升级到重型全量验证。
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`
 - backend now also exposes one lightweight aggregate summary through `GET /knowledge-bases/:id/document-runs/summary`

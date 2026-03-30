@@ -185,6 +185,30 @@ export const messages = {
       emptyDescription: "Upload a document to start parsing, chunking, indexing, and retrieval.",
       reindexRequested: "Reindex requested for {title}",
       reindexError: "Reindex failed.",
+      webPage: {
+        sectionTitle: "Web page",
+        sectionDescription: "Submit one direct URL into the active knowledge base.",
+        inputPlaceholder: "https://example.com/page",
+        submitAction: "Submit web page",
+        submitSuccess: "Web page submitted: {url}",
+        submitError: "Web page submission failed."
+      },
+      feed: {
+        sectionTitle: "Feed",
+        sectionDescription: "Submit one direct RSS or Atom feed URL into the active knowledge base.",
+        inputPlaceholder: "https://example.com/feed.xml",
+        submitAction: "Submit feed",
+        submitSuccess: "Feed submitted: {url}",
+        submitError: "Feed submission failed."
+      },
+      sitemap: {
+        sectionTitle: "Sitemap",
+        sectionDescription: "Submit one direct sitemap URL into the active knowledge base.",
+        inputPlaceholder: "https://example.com/sitemap.xml",
+        submitAction: "Submit sitemap",
+        submitSuccess: "Sitemap submitted: {url}",
+        submitError: "Sitemap submission failed."
+      },
       detail: {
         title: "Document Detail",
         kicker: "Document detail",
@@ -360,9 +384,14 @@ export const messages = {
         password: "Password",
         submit: "Login",
         submitting: "Logging in...",
+        localDevAccount: "Local dev account",
+        useDevCredentials: "Use dev credentials",
         continueWithGitHub: "Continue with GitHub",
         continueWithGoogle: "Continue with Google",
-        continueWithOidc: "Continue with OIDC"
+        continueWithOidc: "Continue with OIDC",
+        githubSetupRequired: "GitHub setup required",
+        googleSetupRequired: "Google setup required",
+        oidcSetupRequired: "OIDC setup required"
       }
     },
     trace: {
@@ -599,6 +628,30 @@ export const messages = {
       emptyDescription: "上传文档后即可开始解析、切块、索引与检索。",
       reindexRequested: "已请求重新索引：{title}",
       reindexError: "重新索引失败。",
+      webPage: {
+        sectionTitle: "网页",
+        sectionDescription: "提交一个直达 URL 到当前知识库。",
+        inputPlaceholder: "https://example.com/page",
+        submitAction: "提交网页",
+        submitSuccess: "已提交网页：{url}",
+        submitError: "提交网页失败。"
+      },
+      feed: {
+        sectionTitle: "订阅源",
+        sectionDescription: "提交一个 RSS 或 Atom 直达 URL 到当前知识库。",
+        inputPlaceholder: "https://example.com/feed.xml",
+        submitAction: "提交订阅源",
+        submitSuccess: "已提交订阅源：{url}",
+        submitError: "提交订阅源失败。"
+      },
+      sitemap: {
+        sectionTitle: "站点地图",
+        sectionDescription: "提交一个 sitemap 直达 URL 到当前知识库。",
+        inputPlaceholder: "https://example.com/sitemap.xml",
+        submitAction: "提交站点地图",
+        submitSuccess: "已提交站点地图：{url}",
+        submitError: "提交站点地图失败。"
+      },
       detail: {
         title: "文档详情",
         kicker: "文档详情",
@@ -773,9 +826,14 @@ export const messages = {
         password: "密码",
         submit: "登录",
         submitting: "登录中...",
+        localDevAccount: "本地开发账号",
+        useDevCredentials: "填入开发凭据",
         continueWithGitHub: "使用 GitHub 继续",
         continueWithGoogle: "使用 Google 继续",
-        continueWithOidc: "使用 OIDC 继续"
+        continueWithOidc: "使用 OIDC 继续",
+        githubSetupRequired: "GitHub 尚未配置",
+        googleSetupRequired: "Google 尚未配置",
+        oidcSetupRequired: "OIDC 尚未配置"
       }
     },
     trace: {

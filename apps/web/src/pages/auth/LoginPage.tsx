@@ -1,12 +1,13 @@
 import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useAuthMe, useLogin } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import { useAuthMe, useAuthProviders, useLogin } from "../../features/api/hooks";
 import { resolveApiUrl } from "../../lib/api";
 
 export function LoginPage() {
   const navigate = useNavigate();
   const authMeQuery = useAuthMe();
+  const authProvidersQuery = useAuthProviders();
   const loginMutation = useLogin();
   const { t } = useI18n();
   const [email, setEmail] = useState("");
@@ -14,6 +15,10 @@ export function LoginPage() {
   const githubOauthStartUrl = resolveApiUrl("/auth/oauth/github/start");
   const googleOauthStartUrl = resolveApiUrl("/auth/oauth/google/start");
   const oidcOauthStartUrl = resolveApiUrl("/auth/oauth/oidc/start");
+  const defaultCredentials = authProvidersQuery.data?.local.defaultCredentials ?? null;
+  const githubConfigured = authProvidersQuery.data?.oauth.github.configured ?? true;
+  const googleConfigured = authProvidersQuery.data?.oauth.google.configured ?? true;
+  const oidcConfigured = authProvidersQuery.data?.oauth.oidc.configured ?? true;
 
   if (authMeQuery.data?.identity != null) {
     return <Navigate replace to="/" />;
@@ -47,6 +52,23 @@ export function LoginPage() {
           <p className="mt-2 text-sm leading-6 text-[var(--app-text-muted)]">{t("auth.login.subtitle")}</p>
         </div>
 
+        {defaultCredentials ? (
+          <div className="mt-4 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-3 text-sm text-[var(--app-text-secondary)]">
+            <p className="font-medium text-[var(--app-text)]">{t("auth.login.localDevAccount")}</p>
+            <p className="mt-1 break-all">{defaultCredentials.email} / {defaultCredentials.password}</p>
+            <button
+              className="mt-3 rounded-md border border-[var(--app-border)] px-3 py-1.5 text-xs text-[var(--app-text)] transition-[background-color,border-color] duration-150 hover:bg-[var(--app-bg-elevated)]"
+              onClick={() => {
+                setEmail(defaultCredentials.email);
+                setPassword(defaultCredentials.password);
+              }}
+              type="button"
+            >
+              {t("auth.login.useDevCredentials")}
+            </button>
+          </div>
+        ) : null}
+
         <label className="mt-5 block text-sm text-[var(--app-text-secondary)]" htmlFor="email">
           {t("auth.login.email")}
         </label>
@@ -77,24 +99,36 @@ export function LoginPage() {
         />
 
         <div className="mt-5 space-y-2">
-          <a
-            className="block w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-center text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)]"
-            href={githubOauthStartUrl}
+          <button
+            className="w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!githubConfigured}
+            onClick={() => {
+              window.location.assign(githubOauthStartUrl);
+            }}
+            type="button"
           >
-            {t("auth.login.continueWithGitHub")}
-          </a>
-          <a
-            className="block w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-center text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)]"
-            href={googleOauthStartUrl}
+            {githubConfigured ? t("auth.login.continueWithGitHub") : t("auth.login.githubSetupRequired")}
+          </button>
+          <button
+            className="w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!googleConfigured}
+            onClick={() => {
+              window.location.assign(googleOauthStartUrl);
+            }}
+            type="button"
           >
-            {t("auth.login.continueWithGoogle")}
-          </a>
-          <a
-            className="block w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-center text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)]"
-            href={oidcOauthStartUrl}
+            {googleConfigured ? t("auth.login.continueWithGoogle") : t("auth.login.googleSetupRequired")}
+          </button>
+          <button
+            className="w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!oidcConfigured}
+            onClick={() => {
+              window.location.assign(oidcOauthStartUrl);
+            }}
+            type="button"
           >
-            {t("auth.login.continueWithOidc")}
-          </a>
+            {oidcConfigured ? t("auth.login.continueWithOidc") : t("auth.login.oidcSetupRequired")}
+          </button>
         </div>
 
         {loginMutation.error ? (
