@@ -21,6 +21,19 @@ const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "EAI_AGAIN",
   "ETIMEDOUT"
 ]);
+const FETCH_ERROR_CODE_LABELS = new Map([
+  ["ECONNRESET", "connection reset"],
+  ["ECONNREFUSED", "connection refused"],
+  ["EHOSTUNREACH", "host unreachable"],
+  ["ENETDOWN", "network down"],
+  ["ENETRESET", "network reset"],
+  ["ENETUNREACH", "network unreachable"],
+  ["ENOTFOUND", "host not found"],
+  ["EAI_AGAIN", "temporary DNS lookup failure"],
+  ["ETIMEDOUT", "timed out"],
+  ["UND_ERR_CONNECT_TIMEOUT", "connection timed out"],
+  ["UND_ERR_HEADERS_TIMEOUT", "headers timed out"]
+]);
 
 type DomainFetchState = {
   requestTimestamps: number[];
@@ -594,10 +607,17 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
     return error;
   }
 
+  const causeCode = readErrorCode(error.cause);
+  const codeLabel = causeCode ? formatFetchErrorCodeLabel(causeCode) : null;
+
   if (error.name === "AbortError" || error.name === "TimeoutError") {
     const timeoutMessage = error.message.trim().replace(/[.]+$/, "");
     return new Error(
-      `Failed to fetch ${sourceUrl}: request timed out after ${timeoutMs}ms${timeoutMessage ? `: ${timeoutMessage}` : ""}.`
+      appendFetchErrorCodeLabel(
+        `Failed to fetch ${sourceUrl}: request timed out after ${timeoutMs}ms${timeoutMessage ? `: ${timeoutMessage}` : ""}.`,
+        causeCode,
+        codeLabel
+      )
     );
   }
 
@@ -622,7 +642,7 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
     return error;
   }
 
-  return new Error(`Failed to fetch ${sourceUrl}: ${normalizedMessage}`);
+  return new Error(appendFetchErrorCodeLabel(`Failed to fetch ${sourceUrl}: ${normalizedMessage}`, causeCode, codeLabel));
 
 }
 
@@ -657,6 +677,18 @@ function readErrorCode(value: unknown) {
 
   const maybeCode = Reflect.get(value, "code");
   return typeof maybeCode === "string" ? maybeCode.toUpperCase() : null;
+}
+
+function formatFetchErrorCodeLabel(code: string) {
+  return FETCH_ERROR_CODE_LABELS.get(code) ?? code.toLowerCase();
+}
+
+function appendFetchErrorCodeLabel(message: string, code: string | null, codeLabel: string | null) {
+  if (!code || !codeLabel) {
+    return message;
+  }
+
+  return `${message} [error code ${code}: ${codeLabel}]`;
 }
 
 function readPositiveInteger(value: string | undefined, fallback: number) {

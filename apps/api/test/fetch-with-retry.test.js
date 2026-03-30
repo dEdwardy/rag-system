@@ -938,6 +938,71 @@ test("fetchWithRetry timeout exhaustion remains retryable for source diagnostics
   }
 });
 
+test("fetchWithRetry includes readable error code labels for retryable fetch failures", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const error = new TypeError("fetch failed");
+    error.cause = { code: "ENOTFOUND" };
+    throw error;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/labeled-network-failure.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          "Failed to fetch https://example.com/labeled-network-failure.xml: fetch failed [error code ENOTFOUND: host not found] (after 1 attempt)."
+        );
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry includes readable error code labels for timeout failures", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const timeoutError = new Error("The operation was aborted.");
+    timeoutError.name = "AbortError";
+    timeoutError.cause = { code: "ETIMEDOUT" };
+    throw timeoutError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/labeled-timeout.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 2500,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          "Failed to fetch https://example.com/labeled-timeout.xml: request timed out after 2500ms: The operation was aborted. [error code ETIMEDOUT: timed out] (after 1 attempt)."
+        );
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("fetchWithRetry retries once after a transient fetch exception", async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;

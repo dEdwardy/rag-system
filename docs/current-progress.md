@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：用于记录当前实现进度、已完成增量、未完成方向和验证快照；现阶段优先级判断以 `docs/next_steps_rag_project_plan.md` 为主。
 
-更新时间：2026-03-30
+更新时间：2026-03-31
 
 > 当前说明：
 > 现阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以 `docs/next_steps_rag_project_plan.md` 为主。
@@ -16,6 +16,19 @@
 补充进展（2026-03-29）：
 
 补充进展（2026-03-30）：
+
+补充进展（2026-03-31）：
+
+- ✅ source fetch failure diagnostics now keep retry/timeout wording aligned and surface readable upstream error-code labels when the fetch error carries one
+  - 变更文件：
+    - `apps/api/src/infra/http/fetch-with-retry.ts`
+    - `apps/api/test/fetch-with-retry.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 `fetchWithRetry` 的失败归一化里保留现有 retry/timeout 语义不变，只在可识别的上游网络代码存在时补一层可读 label，方便外部 source fetch 失败诊断直接看到 `error code ...` 上下文
+    - 保持 fetch 行为、重试策略和 source-family 范围不变；仅增强 failure message 的诊断可读性
+  - focused validation：
+    - `pnpm test:api:file -- test/fetch-with-retry.test.js`
 
 - ✅ ask/trace provenance sentence assembly now uses one shared helper to keep ask final payload and traceSummary wording aligned
   - 变更文件：
