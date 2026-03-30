@@ -694,7 +694,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
   - `p5-v1-q3-no-hit-guardrail`
 - ✅ baseline annotations 已按当前分层方案批准：所有题继续使用 `intent / expectedAnswerPoints / mustNotMiss / acceptableExpressionRange`；`q1` 与 `q2` 保持 `criticalEvidenceExpectation` 关键题要求，`q3` 继续作为非关键 evidence 题。
 - ✅ baseline dataset version pin 已批准沿用当前 manifest source：`p5-v1-demo-replay.questions.v1`，snapshot ref 为 `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts#P5_V1_DEMO_REPLAY_QUESTIONS`。
-- ✅ demo shortlist 已批准沿用当前 `4+1`：4 个正式 demo（happy path / no-hit / source-backed answer / eval-report-replay）+ 1 个候补 `trace diagnostic readability`。
+- ✅ demo shortlist 已批准沿用 `apps/api/scripts/p5-demo-shortlist.json`（`approvedSet = p5-demo-shortlist-4plus1`）当前 `4+1`：4 个 selected capability surfaces（`ask-happy-path` / `no-hit-guardrail` / `source-backed-answer` / `eval-report-replay`）+ 1 个 candidate（`trace-diagnostic-readability`）。
 - ✅ `demo-eval-report-replay` 已明确定位为“工程证明型 demo”；其 replay baseline 通过口径继续收敛为：能正常触发 replay、产出既有 proof artifacts、并保持与当前 report/export 流兼容。
 - 后续执行边界：这些人工结论现在可以作为后续 docs sync、queue materialization 或 replay/baseline closeout 的输入；本次仍不重开更大 benchmark 设计、不扩成新的 demo 平台、也不改现有 runner/report/gate 契约。
 
