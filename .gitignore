@@ -44,3 +44,5 @@ ui/version-b-creative.*
 !.opencode/loop/harness/systemd/*.service
 !.opencode/loop/harness/systemd/*.timer
 apps/web/.*
+.opencode/loop/handoffs/
+.opencode/loop.lock/
