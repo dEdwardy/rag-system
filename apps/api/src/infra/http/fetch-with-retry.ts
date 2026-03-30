@@ -638,7 +638,12 @@ export function isRetryableFetchException(error: unknown) {
 
   const causeMessage = error.cause instanceof Error ? error.cause.message : "";
   const combinedMessage = `${error.message} ${causeMessage}`.toLowerCase();
-  return combinedMessage.includes("fetch failed") || combinedMessage.includes("network error");
+  return (
+    combinedMessage.includes("fetch failed") ||
+    combinedMessage.includes("network error") ||
+    combinedMessage.includes("timed out") ||
+    combinedMessage.includes("timeout")
+  );
 }
 
 function readErrorCode(value: unknown) {

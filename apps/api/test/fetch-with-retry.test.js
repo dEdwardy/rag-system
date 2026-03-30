@@ -13,6 +13,7 @@ const {
   DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS,
   DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
   fetchWithRetry,
+  isRetryableFetchException,
   resolveSourceFetchRuntimeConfig
 } = require("../src/infra/http/fetch-with-retry.ts");
 
@@ -863,6 +864,39 @@ test("fetchWithRetry includes source URL and timeout boundary for timeout failur
           error.message,
           "Failed to fetch https://example.com/timeout.xml: request timed out after 2500ms: The operation was aborted. (after 1 attempt)."
         );
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry timeout exhaustion remains retryable for source diagnostics", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const timeoutError = new Error("The operation was aborted.");
+    timeoutError.name = "AbortError";
+    throw timeoutError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/timeout-retryable.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 2500,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          "Failed to fetch https://example.com/timeout-retryable.xml: request timed out after 2500ms: The operation was aborted. (after 1 attempt)."
+        );
+        assert.equal(isRetryableFetchException(error), true);
         return true;
       }
     );
