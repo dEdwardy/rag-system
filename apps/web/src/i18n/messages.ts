@@ -195,7 +195,7 @@ export const messages = {
         sectionDescription: "Submit one direct URL into the active knowledge base.",
         inputPlaceholder: "https://example.com/page",
         submitAction: "Submit web page",
-        submitSuccess: "Web page submitted: {url}",
+        submitSuccess: "Web page submitted: {url}. Next: watch its status in the document workspace table.",
         submitError: "Web page submission failed."
       },
       feed: {
@@ -203,7 +203,7 @@ export const messages = {
         sectionDescription: "Submit one direct RSS or Atom feed URL into the active knowledge base.",
         inputPlaceholder: "https://example.com/feed.xml",
         submitAction: "Submit feed",
-        submitSuccess: "Feed submitted: {url}",
+        submitSuccess: "Feed submitted: {url}. Next: watch its status in the document workspace table.",
         submitError: "Feed submission failed."
       },
       sitemap: {
@@ -211,7 +211,7 @@ export const messages = {
         sectionDescription: "Submit one direct sitemap URL into the active knowledge base.",
         inputPlaceholder: "https://example.com/sitemap.xml",
         submitAction: "Submit sitemap",
-        submitSuccess: "Sitemap submitted: {url}",
+        submitSuccess: "Sitemap submitted: {url}. Next: watch its status in the document workspace table.",
         submitError: "Sitemap submission failed."
       },
       detail: {
@@ -643,7 +643,7 @@ export const messages = {
         sectionDescription: "提交一个直达 URL 到当前知识库。",
         inputPlaceholder: "https://example.com/page",
         submitAction: "提交网页",
-        submitSuccess: "已提交网页：{url}",
+        submitSuccess: "已提交网页：{url}。下一步：到文档工作台表格查看处理状态。",
         submitError: "提交网页失败。"
       },
       feed: {
@@ -651,7 +651,7 @@ export const messages = {
         sectionDescription: "提交一个 RSS 或 Atom 直达 URL 到当前知识库。",
         inputPlaceholder: "https://example.com/feed.xml",
         submitAction: "提交订阅源",
-        submitSuccess: "已提交订阅源：{url}",
+        submitSuccess: "已提交订阅源：{url}。下一步：到文档工作台表格查看处理状态。",
         submitError: "提交订阅源失败。"
       },
       sitemap: {
@@ -659,7 +659,7 @@ export const messages = {
         sectionDescription: "提交一个 sitemap 直达 URL 到当前知识库。",
         inputPlaceholder: "https://example.com/sitemap.xml",
         submitAction: "提交站点地图",
-        submitSuccess: "已提交站点地图：{url}",
+        submitSuccess: "已提交站点地图：{url}。下一步：到文档工作台表格查看处理状态。",
         submitError: "提交站点地图失败。"
       },
       detail: {
