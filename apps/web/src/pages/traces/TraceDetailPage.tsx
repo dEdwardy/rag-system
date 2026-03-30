@@ -166,6 +166,22 @@ function getPrimaryIssueReadabilityLabel(primaryIssue: string, locale: "zh" | "e
   return primaryIssue;
 }
 
+function getAnswerStatusReadabilityLabel(answerStatus: string | null | undefined, locale: "zh" | "en") {
+  if (!answerStatus) {
+    return locale === "zh" ? "未知" : "Unknown";
+  }
+
+  if (answerStatus === "grounded") {
+    return locale === "zh" ? "有依据（grounded）" : "Grounded (grounded)";
+  }
+
+  if (answerStatus === "insufficient_context") {
+    return locale === "zh" ? "上下文不足（insufficient_context）" : "Insufficient context (insufficient_context)";
+  }
+
+  return answerStatus;
+}
+
 function buildTraceDiagnosticSummarySlice(
   trace: {
     status: "success" | "failed";
@@ -382,6 +398,7 @@ export function TraceDetailPage() {
       : null) ??
     conversationMessages.find(message => message.role === "assistant" && message.traceId === trace?.id)?.content ??
     null;
+  const answerStatusValue = traceSummary?.answerStatus ?? (trace?.status === "success" ? "grounded" : "insufficient_context");
   const traceScanItems = trace
     ? [
         {
@@ -556,7 +573,7 @@ export function TraceDetailPage() {
                       {locale === "zh" ? "回答状态" : "Answer status"}
                     </Text>
                     <Text c="var(--app-text)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                      {traceSummary?.answerStatus ?? (trace.status === "success" ? "grounded" : "insufficient_context")}
+                      {getAnswerStatusReadabilityLabel(answerStatusValue, locale)}
                     </Text>
                   </Stack>
                 </Paper>

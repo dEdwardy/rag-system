@@ -126,6 +126,8 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.retrievedChunks\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.citations\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.rawPayload\}`\}/);
+  assert.match(traceSource, /Grounded \(grounded\)/);
+  assert.match(traceSource, /上下文不足（insufficient_context）/);
   assert.match(statePanelSource, /data-tone=/);
 });
 
