@@ -872,6 +872,39 @@ test("fetchWithRetry includes source URL and timeout boundary for timeout failur
   }
 });
 
+test("fetchWithRetry treats TimeoutError the same as AbortError for timeout failures", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const timeoutError = new Error("The operation timed out.");
+    timeoutError.name = "TimeoutError";
+    throw timeoutError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/timeout-error.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 2500,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          "Failed to fetch https://example.com/timeout-error.xml: request timed out after 2500ms: The operation timed out. (after 1 attempt)."
+        );
+        assert.equal(isRetryableFetchException(error), true);
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("fetchWithRetry timeout exhaustion remains retryable for source diagnostics", async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
