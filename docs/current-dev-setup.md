@@ -612,7 +612,14 @@ pnpm --filter @rag-system/api eval:runner:p5-v1
 - baseline source-of-truth note (P5 v1 engineering baseline):
   - canonical manifest path: `apps/api/scripts/p5-baseline-manifest.v1.json`
   - this manifest is the approved **engineering baseline v1** source of truth (question set + replay binding), not a broad benchmark framework contract
+  - approved baseline question set currently stays pinned to the 3 manifest IDs:
+    - `p5-v1-q1-capability-summary`
+    - `p5-v1-q2-source-family-support`
+    - `p5-v1-q3-no-hit-guardrail`
+  - approved dataset pin stays on `baselineSource.sourceVersion = p5-v1-demo-replay.questions.v1` with snapshot ref `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts#P5_V1_DEMO_REPLAY_QUESTIONS`
+  - approved annotation layering stays on default fields `intent / expectedAnswerPoints / mustNotMiss / acceptableExpressionRange`, with `criticalEvidenceExpectation` as the optional critical layer (required only for `q1`/`q2`; `q3` remains non-critical evidence)
   - runner consumption path: `eval:runner:p5-v1` (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) loads `runnerReplayBinding` from this manifest first, then validates the shortlist pin via `apps/api/scripts/p5-demo-shortlist.json`, then calls `POST /eval/question-sets/demo-replays/p5-v1/run`
+  - approved demo shortlist pin remains `p5-demo-shortlist-4plus1`: 4 selected demos (`ask-happy-path`, `no-hit-guardrail`, `source-backed-answer`, `eval-report-replay`) + 1 candidate (`trace-diagnostic-readability`)
 - boundary note (artifact producer): offline files under `storage/evals/p5-v1` are produced by the CLI runner path (`apps/api/scripts/run-p5-v1-eval-runner.mjs`) after calling `POST /eval/question-sets/demo-replays/p5-v1/run`
 - boundary note (report-center contract): web `Report center` keeps using live eval API response contracts (`POST /eval/question-sets/:id/runs` + `reportExports`) for in-app read/trigger/export flows, and does not directly consume or index offline files under `storage/evals/p5-v1`
 - current wave scope guard: this wave stays on eval/regression proof closeout; do not expand `Report center`/`Usage` into a generic analytics or ops dashboard platform

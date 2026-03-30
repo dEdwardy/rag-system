@@ -3,7 +3,7 @@
 > 文档角色：`current-primary`
 > 当前使用方式：当前阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以本文档为主；`docs/current-progress.md` 主要承担进度记录和完成状态同步。
 
-更新时间：2026-03-29
+更新时间：2026-03-30
 
 ## 1. 当前判断
 
@@ -670,6 +670,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 #### P5 人工决策已批准（2026-03-30）
 
+- ✅ 当前批准口径统一以 `apps/api/scripts/p5-baseline-manifest.v1.json` 作为工程 baseline v1 机器可读单一来源（question set + dataset pin + annotation layering + replay binding），不扩展为更大 benchmark 框架契约。
 - ✅ baseline question set 已按当前 `engineering baseline v1` 批准，沿用 `apps/api/scripts/p5-baseline-manifest.v1.json` 中的 3 题：
   - `p5-v1-q1-capability-summary`
   - `p5-v1-q2-source-family-support`

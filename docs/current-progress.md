@@ -17,6 +17,18 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 primary docs surfaces are now minimally re-synced to the approved engineering baseline v1 decisions (docs-only)
+  - 变更文件：
+    - `docs/current-dev-setup.md`
+    - `docs/next_steps_rag_project_plan.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 dev setup 的 `eval:runner:p5-v1` 基线说明中补齐并固定 4 个批准事实：baseline v1 三题、dataset pin（`p5-v1-demo-replay.questions.v1` + snapshot ref）、annotation layering（default layer + criticalEvidence optional for q1/q2）、以及 `4+1` demo shortlist pin
+    - 在 next-steps 的 `P5 人工决策已批准` 段补一条统一声明：`apps/api/scripts/p5-baseline-manifest.v1.json` 是当前工程 baseline v1 的机器可读单一来源
+    - 保持边界不变：仅做 docs 同步，不改运行时行为，不扩 benchmark 范围，不扩 demo 平台
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/next_steps_rag_project_plan.md docs/current-progress.md`
+
 - ✅ loop harness runtime is now split into smaller review / verification / handoff / OpenCode API helpers, with explicit status-transition docs and stronger suspended-path self-tests
   - 变更文件：
     - `.opencode/loop/harness/state-machine.mjs`
