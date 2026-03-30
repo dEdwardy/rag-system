@@ -40,8 +40,44 @@ export function DocumentsPage() {
   const [webPageUrl, setWebPageUrl] = useState("");
   const [feedUrl, setFeedUrl] = useState("");
   const [sitemapUrl, setSitemapUrl] = useState("");
+  const [webPageInlineError, setWebPageInlineError] = useState<string | null>(null);
+  const [feedInlineError, setFeedInlineError] = useState<string | null>(null);
+  const [sitemapInlineError, setSitemapInlineError] = useState<string | null>(null);
   const isAnySourceSubmissionPending =
     createWebPageMutation.isPending || createFeedMutation.isPending || createSitemapMutation.isPending;
+
+  const validateSourceEntryUrl = useCallback(
+    (rawValue: string) => {
+      const normalizedUrl = rawValue.trim();
+      if (!normalizedUrl) {
+        return {
+          normalizedUrl,
+          error: t("documents.sourceEntryInlineErrorRequired")
+        };
+      }
+
+      try {
+        const parsed = new URL(normalizedUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          return {
+            normalizedUrl,
+            error: t("documents.sourceEntryInlineErrorInvalidHttpUrl")
+          };
+        }
+      } catch {
+        return {
+          normalizedUrl,
+          error: t("documents.sourceEntryInlineErrorInvalidHttpUrl")
+        };
+      }
+
+      return {
+        normalizedUrl,
+        error: null
+      };
+    },
+    [t]
+  );
 
   const documents = documentsQuery.data ?? [];
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
@@ -160,11 +196,13 @@ export function DocumentsPage() {
       return;
     }
 
-    const normalizedUrl = webPageUrl.trim();
-    if (!normalizedUrl) {
+    const { normalizedUrl, error } = validateSourceEntryUrl(webPageUrl);
+    if (error) {
+      setWebPageInlineError(error);
       return;
     }
 
+    setWebPageInlineError(null);
     try {
       await createWebPageMutation.mutateAsync({ url: normalizedUrl });
       setWebPageUrl("");
@@ -178,18 +216,20 @@ export function DocumentsPage() {
         message: error instanceof Error ? error.message : t("documents.webPage.submitError")
       });
     }
-  }, [activeKnowledgeBase, createWebPageMutation, t, webPageUrl]);
+  }, [activeKnowledgeBase, createWebPageMutation, t, validateSourceEntryUrl, webPageUrl]);
 
   const handleCreateFeed = useCallback(async () => {
     if (!activeKnowledgeBase) {
       return;
     }
 
-    const normalizedUrl = feedUrl.trim();
-    if (!normalizedUrl) {
+    const { normalizedUrl, error } = validateSourceEntryUrl(feedUrl);
+    if (error) {
+      setFeedInlineError(error);
       return;
     }
 
+    setFeedInlineError(null);
     try {
       await createFeedMutation.mutateAsync({ url: normalizedUrl });
       setFeedUrl("");
@@ -203,18 +243,20 @@ export function DocumentsPage() {
         message: error instanceof Error ? error.message : t("documents.feed.submitError")
       });
     }
-  }, [activeKnowledgeBase, createFeedMutation, feedUrl, t]);
+  }, [activeKnowledgeBase, createFeedMutation, feedUrl, t, validateSourceEntryUrl]);
 
   const handleCreateSitemap = useCallback(async () => {
     if (!activeKnowledgeBase) {
       return;
     }
 
-    const normalizedUrl = sitemapUrl.trim();
-    if (!normalizedUrl) {
+    const { normalizedUrl, error } = validateSourceEntryUrl(sitemapUrl);
+    if (error) {
+      setSitemapInlineError(error);
       return;
     }
 
+    setSitemapInlineError(null);
     try {
       await createSitemapMutation.mutateAsync({ url: normalizedUrl });
       setSitemapUrl("");
@@ -228,7 +270,7 @@ export function DocumentsPage() {
         message: error instanceof Error ? error.message : t("documents.sitemap.submitError")
       });
     }
-  }, [activeKnowledgeBase, createSitemapMutation, sitemapUrl, t]);
+  }, [activeKnowledgeBase, createSitemapMutation, sitemapUrl, t, validateSourceEntryUrl]);
 
   return (
     <Stack gap="md">
@@ -303,8 +345,12 @@ export function DocumentsPage() {
                 </Text>
                 <TextInput
                   disabled={isAnySourceSubmissionPending}
+                  error={webPageInlineError ?? undefined}
                   onChange={event => {
                     setWebPageUrl(event.currentTarget.value);
+                    if (webPageInlineError) {
+                      setWebPageInlineError(null);
+                    }
                   }}
                   placeholder={t("documents.webPage.inputPlaceholder")}
                   radius="xl"
@@ -332,8 +378,12 @@ export function DocumentsPage() {
                 </Text>
                 <TextInput
                   disabled={isAnySourceSubmissionPending}
+                  error={feedInlineError ?? undefined}
                   onChange={event => {
                     setFeedUrl(event.currentTarget.value);
+                    if (feedInlineError) {
+                      setFeedInlineError(null);
+                    }
                   }}
                   placeholder={t("documents.feed.inputPlaceholder")}
                   radius="xl"
@@ -361,8 +411,12 @@ export function DocumentsPage() {
                 </Text>
                 <TextInput
                   disabled={isAnySourceSubmissionPending}
+                  error={sitemapInlineError ?? undefined}
                   onChange={event => {
                     setSitemapUrl(event.currentTarget.value);
+                    if (sitemapInlineError) {
+                      setSitemapInlineError(null);
+                    }
                   }}
                   placeholder={t("documents.sitemap.inputPlaceholder")}
                   radius="xl"

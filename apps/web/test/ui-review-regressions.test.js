@@ -114,7 +114,7 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.doesNotMatch(traceListSource, /Conversation ID[^]*Latest trace[^]*Created/);
 });
 
-test("documents source-entry keeps web page/feed/sitemap entrypoint parity under one submit guard", () => {
+test("documents page source-entry keeps web page/feed/sitemap entrypoint parity under one submit guard", () => {
   const documentsSource = readFileSync(documentsPath, "utf8");
 
   assert.match(documentsSource, /useCreateWebPageDocument/);
@@ -128,6 +128,12 @@ test("documents source-entry keeps web page/feed/sitemap entrypoint parity under
   assert.match(documentsSource, /documents\.webPage\.submitAction/);
   assert.match(documentsSource, /documents\.feed\.submitAction/);
   assert.match(documentsSource, /documents\.sitemap\.submitAction/);
+  assert.match(documentsSource, /validateSourceEntryUrl/);
+  assert.match(documentsSource, /documents\.sourceEntryInlineErrorRequired/);
+  assert.match(documentsSource, /documents\.sourceEntryInlineErrorInvalidHttpUrl/);
+  assert.match(documentsSource, /error=\{webPageInlineError \?\? undefined\}/);
+  assert.match(documentsSource, /error=\{feedInlineError \?\? undefined\}/);
+  assert.match(documentsSource, /error=\{sitemapInlineError \?\? undefined\}/);
   assert.match(documentsSource, /disabled=\{isAnySourceSubmissionPending\}/);
 });
 
