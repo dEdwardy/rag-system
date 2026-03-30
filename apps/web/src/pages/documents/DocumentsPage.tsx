@@ -46,6 +46,41 @@ export function DocumentsPage() {
   const isAnySourceSubmissionPending =
     createWebPageMutation.isPending || createFeedMutation.isPending || createSitemapMutation.isPending;
 
+  const resolveSourceEntryStatus = useCallback(
+    (urlValue: string, inlineError: string | null) => {
+      if (inlineError) {
+        return {
+          message: inlineError,
+          tone: "red"
+        } as const;
+      }
+
+      if (isAnySourceSubmissionPending) {
+        return {
+          message: t("documents.sourceEntryStatusSubmitting"),
+          tone: "indigo"
+        } as const;
+      }
+
+      if (urlValue.trim().length === 0) {
+        return {
+          message: t("documents.sourceEntryStatusEmpty"),
+          tone: "dimmed"
+        } as const;
+      }
+
+      return {
+        message: t("documents.sourceEntryStatusReady"),
+        tone: "dimmed"
+      } as const;
+    },
+    [isAnySourceSubmissionPending, t]
+  );
+
+  const webPageSourceEntryStatus = resolveSourceEntryStatus(webPageUrl, webPageInlineError);
+  const feedSourceEntryStatus = resolveSourceEntryStatus(feedUrl, feedInlineError);
+  const sitemapSourceEntryStatus = resolveSourceEntryStatus(sitemapUrl, sitemapInlineError);
+
   const validateSourceEntryUrl = useCallback(
     (rawValue: string) => {
       const normalizedUrl = rawValue.trim();
@@ -357,6 +392,9 @@ export function DocumentsPage() {
                   type="url"
                   value={webPageUrl}
                 />
+                <Text c={webPageSourceEntryStatus.tone} size="xs">
+                  {webPageSourceEntryStatus.message}
+                </Text>
                 <Button
                   className="workspace-button"
                   color="indigo"
@@ -390,6 +428,9 @@ export function DocumentsPage() {
                   type="url"
                   value={feedUrl}
                 />
+                <Text c={feedSourceEntryStatus.tone} size="xs">
+                  {feedSourceEntryStatus.message}
+                </Text>
                 <Button
                   className="workspace-button"
                   color="indigo"
@@ -423,6 +464,9 @@ export function DocumentsPage() {
                   type="url"
                   value={sitemapUrl}
                 />
+                <Text c={sitemapSourceEntryStatus.tone} size="xs">
+                  {sitemapSourceEntryStatus.message}
+                </Text>
                 <Button
                   className="workspace-button"
                   color="indigo"

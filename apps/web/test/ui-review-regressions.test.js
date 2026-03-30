@@ -131,6 +131,13 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /validateSourceEntryUrl/);
   assert.match(documentsSource, /documents\.sourceEntryInlineErrorRequired/);
   assert.match(documentsSource, /documents\.sourceEntryInlineErrorInvalidHttpUrl/);
+  assert.match(documentsSource, /resolveSourceEntryStatus/);
+  assert.match(documentsSource, /documents\.sourceEntryStatusEmpty/);
+  assert.match(documentsSource, /documents\.sourceEntryStatusReady/);
+  assert.match(documentsSource, /documents\.sourceEntryStatusSubmitting/);
+  assert.match(documentsSource, /webPageSourceEntryStatus/);
+  assert.match(documentsSource, /feedSourceEntryStatus/);
+  assert.match(documentsSource, /sitemapSourceEntryStatus/);
   assert.match(documentsSource, /error=\{webPageInlineError \?\? undefined\}/);
   assert.match(documentsSource, /error=\{feedInlineError \?\? undefined\}/);
   assert.match(documentsSource, /error=\{sitemapInlineError \?\? undefined\}/);
