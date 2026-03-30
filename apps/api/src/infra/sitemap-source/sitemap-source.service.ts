@@ -687,7 +687,10 @@ export class SitemapSourceService {
   private buildAllPagesFailedError(pageFailures: PageFetchFailure[]) {
     const firstFailure = pageFailures[0]?.error;
     const firstFailedUrl = pageFailures[0]?.url ?? "unknown";
-    const message = `Failed to fetch sitemap pages: all sitemap pages failed. First failed page URL: ${firstFailedUrl}.`;
+    const retryTimeoutDetail = this.readRetryTimeoutFailureDetail(firstFailure);
+    const message =
+      `Failed to fetch sitemap pages: all sitemap pages failed. First failed page URL: ${firstFailedUrl}.` +
+      (retryTimeoutDetail ? ` Retry/timeout detail: ${retryTimeoutDetail}.` : "");
 
     if (firstFailure instanceof BadRequestException) {
       return new BadRequestException(message);
@@ -703,7 +706,11 @@ export class SitemapSourceService {
   private buildAllChildSitemapsFailedError(childSitemapFailures: ChildSitemapFailure[]) {
     const firstFailure = childSitemapFailures[0]?.error;
     const firstFailedUrl = childSitemapFailures[0]?.url ?? "unknown";
-    const message = `Failed to fetch sitemap index children: all child sitemap fetches failed. First failed child sitemap URL: ${firstFailedUrl}.`;
+    const retryTimeoutDetail = this.readRetryTimeoutFailureDetail(firstFailure);
+    const message =
+      "Failed to fetch sitemap index children: all child sitemap fetches failed." +
+      ` First failed child sitemap URL: ${firstFailedUrl}.` +
+      (retryTimeoutDetail ? ` Retry/timeout detail: ${retryTimeoutDetail}.` : "");
 
     if (firstFailure instanceof BadRequestException) {
       return new BadRequestException(message);
@@ -722,6 +729,23 @@ export class SitemapSourceService {
     }
 
     return "Unknown fetch error.";
+  }
+
+  private readRetryTimeoutFailureDetail(error: unknown) {
+    if (!(error instanceof Error)) {
+      return null;
+    }
+
+    const normalizedMessage = normalizeSourceFetchFailureMessage(error.message)
+      .replace(/^Failed to fetch\s+(web page|feed|sitemap):\s*/i, "")
+      .trim();
+
+    if (!normalizedMessage) {
+      return null;
+    }
+
+    const isRetryTimeoutMessage = /timed out|timeout|fetch failed|network error/i.test(normalizedMessage);
+    return isRetryTimeoutMessage ? normalizedMessage.replace(/[.]+$/g, "") : null;
   }
 
   private isRetryableFetchError(error: unknown) {
