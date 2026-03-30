@@ -183,6 +183,9 @@ export const messages = {
       loadingDescription: "Fetching the latest document list and processing state.",
       emptyTitle: "No documents yet",
       emptyDescription: "Upload a document to start parsing, chunking, indexing, and retrieval.",
+      sourceEntryHeading: "URL source intake",
+      sourceEntryScanPath: "Scan path: paste one URL, submit it, then watch status in the document workspace table.",
+      sourceEntrySubmittingHint: "A source URL submission is running. Wait for it to finish before submitting another URL.",
       reindexRequested: "Reindex requested for {title}",
       reindexError: "Reindex failed.",
       webPage: {
@@ -626,6 +629,9 @@ export const messages = {
       loadingDescription: "正在获取最新文档列表和处理状态。",
       emptyTitle: "暂无文档",
       emptyDescription: "上传文档后即可开始解析、切块、索引与检索。",
+      sourceEntryHeading: "URL 来源录入",
+      sourceEntryScanPath: "扫描路径：先粘贴一个 URL 并提交，再到文档工作台表格查看状态。",
+      sourceEntrySubmittingHint: "当前正在提交来源 URL。请等待完成后再提交下一条。",
       reindexRequested: "已请求重新索引：{title}",
       reindexError: "重新索引失败。",
       webPage: {

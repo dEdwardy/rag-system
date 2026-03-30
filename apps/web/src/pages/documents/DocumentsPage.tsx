@@ -40,6 +40,8 @@ export function DocumentsPage() {
   const [webPageUrl, setWebPageUrl] = useState("");
   const [feedUrl, setFeedUrl] = useState("");
   const [sitemapUrl, setSitemapUrl] = useState("");
+  const isAnySourceSubmissionPending =
+    createWebPageMutation.isPending || createFeedMutation.isPending || createSitemapMutation.isPending;
 
   const documents = documentsQuery.data ?? [];
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
@@ -286,12 +288,21 @@ export function DocumentsPage() {
               </FileButton>
               <Stack className="w-full" gap={6} maw={360}>
                 <Text c="var(--app-text-secondary)" fw={600} size="xs">
+                  {t("documents.sourceEntryHeading")}
+                </Text>
+                <Text c="var(--app-text-muted)" size="xs">
+                  {t("documents.sourceEntryScanPath")}
+                </Text>
+              </Stack>
+              <Stack className="w-full" gap={6} maw={360}>
+                <Text c="var(--app-text-secondary)" fw={600} size="xs">
                   {t("documents.webPage.sectionTitle")}
                 </Text>
                 <Text c="var(--app-text-muted)" size="xs">
                   {t("documents.webPage.sectionDescription")}
                 </Text>
                 <TextInput
+                  disabled={isAnySourceSubmissionPending}
                   onChange={event => {
                     setWebPageUrl(event.currentTarget.value);
                   }}
@@ -303,7 +314,7 @@ export function DocumentsPage() {
                 <Button
                   className="workspace-button"
                   color="indigo"
-                  disabled={!activeKnowledgeBase || webPageUrl.trim().length === 0}
+                  disabled={!activeKnowledgeBase || webPageUrl.trim().length === 0 || isAnySourceSubmissionPending}
                   loading={createWebPageMutation.isPending}
                   onClick={handleCreateWebPage}
                   radius="xl"
@@ -320,6 +331,7 @@ export function DocumentsPage() {
                   {t("documents.feed.sectionDescription")}
                 </Text>
                 <TextInput
+                  disabled={isAnySourceSubmissionPending}
                   onChange={event => {
                     setFeedUrl(event.currentTarget.value);
                   }}
@@ -331,7 +343,7 @@ export function DocumentsPage() {
                 <Button
                   className="workspace-button"
                   color="indigo"
-                  disabled={!activeKnowledgeBase || feedUrl.trim().length === 0}
+                  disabled={!activeKnowledgeBase || feedUrl.trim().length === 0 || isAnySourceSubmissionPending}
                   loading={createFeedMutation.isPending}
                   onClick={handleCreateFeed}
                   radius="xl"
@@ -348,6 +360,7 @@ export function DocumentsPage() {
                   {t("documents.sitemap.sectionDescription")}
                 </Text>
                 <TextInput
+                  disabled={isAnySourceSubmissionPending}
                   onChange={event => {
                     setSitemapUrl(event.currentTarget.value);
                   }}
@@ -359,7 +372,7 @@ export function DocumentsPage() {
                 <Button
                   className="workspace-button"
                   color="indigo"
-                  disabled={!activeKnowledgeBase || sitemapUrl.trim().length === 0}
+                  disabled={!activeKnowledgeBase || sitemapUrl.trim().length === 0 || isAnySourceSubmissionPending}
                   loading={createSitemapMutation.isPending}
                   onClick={handleCreateSitemap}
                   radius="xl"
@@ -410,6 +423,11 @@ export function DocumentsPage() {
           {createSitemapMutation.error instanceof Error
             ? createSitemapMutation.error.message
             : t("documents.sitemap.submitError")}
+        </Alert>
+      ) : null}
+      {isAnySourceSubmissionPending ? (
+        <Alert color="indigo" radius="xl" variant="light">
+          {t("documents.sourceEntrySubmittingHint")}
         </Alert>
       ) : null}
       {hasProcessingDocuments ? (

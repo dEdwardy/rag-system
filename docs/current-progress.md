@@ -17,6 +17,18 @@
 
 补充进展（2026-03-30）：
 
+- ✅ documents source-entry surface now has a clearer scan path and single-submit guard for `web page` / `feed` / `sitemap` URL intake (narrow web closeout)
+   - 变更文件：
+     - `apps/web/src/pages/documents/DocumentsPage.tsx`
+     - `apps/web/src/i18n/messages.ts`
+     - `docs/current-progress.md`
+   - 完成内容（最小范围）：
+     - 在 Documents hero 右侧 URL 录入区补充统一 scan-path 文案，帮助快速定位“录入 URL -> 提交 -> 在列表看状态”的最短路径
+     - 增加最窄状态一致性 guard：任一来源提交进行中时，三个 URL 输入与提交按钮统一进入禁用，避免并发重复提交导致页面状态割裂
+     - 保持边界不变：不改 backend contract、不新增 source family、不扩展为 source-management console
+   - focused validation：
+     - `node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ observability docs are now minimally re-synced to the landed scan-first contract surfaces after this closeout batch (docs-only)
   - 变更文件：
     - `docs/current-dev-setup.md`
