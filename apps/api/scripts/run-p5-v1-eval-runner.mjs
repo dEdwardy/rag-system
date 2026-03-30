@@ -96,7 +96,7 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "P5 v1 retrieval regression runner",
+    "P5 v1 retrieval regression runner (engineering-proof replay pin)",
     "",
     "Usage:",
     "  pnpm --filter @rag-system/api eval:runner:p5-v1 [--base-url <url>] [--output <file>] [--quality-gate-mode warn|fail] [--user-id <id>]",
@@ -115,7 +115,8 @@ function usage() {
     "Notes:",
     "  - unknown flags and missing option values fail fast",
     "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default",
-    "  - replay target is pinned by apps/api/scripts/p5-baseline-manifest.v1.json + apps/api/scripts/p5-demo-shortlist.json"
+    "  - replay target is pinned to approved engineering-proof demo demo-eval-report-replay (eval-report-replay)",
+    "    via apps/api/scripts/p5-baseline-manifest.v1.json + apps/api/scripts/p5-demo-shortlist.json"
   ].join("\n");
 }
 

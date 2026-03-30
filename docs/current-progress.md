@@ -17,6 +17,19 @@
 
 补充进展（2026-03-30）：
 
+- ✅ P5 replay help/usage wording now consistently positions `demo-eval-report-replay` as the approved engineering-proof demo (contract/readability only)
+  - 变更文件：
+    - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
+    - `apps/api/scripts/p5-demo-shortlist.json`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - `eval:runner:p5-v1 --help` 文案现在明确 replay pin 指向 approved engineering-proof demo：`demo-eval-report-replay`（`eval-report-replay`）
+    - shortlist 中 `eval-report-replay` 的 name/title/proofSurface 文案与上述定位对齐，仅做可读性与契约表述收口
+    - `current-dev-setup` 的 runner consumption 说明同步同一定位，保持 endpoint、artifact layout、report-center contract 与 broader eval 语义不变
+  - focused validation：
+    - `pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
 - ✅ P5 primary docs surfaces are now minimally re-synced to the approved engineering baseline v1 decisions (docs-only)
   - 变更文件：
     - `docs/current-dev-setup.md`
