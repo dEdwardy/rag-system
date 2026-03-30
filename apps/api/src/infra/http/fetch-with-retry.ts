@@ -379,9 +379,11 @@ async function applySitePressureSignals(
 
   const state = domainFetchStates.get(domain) ?? createDomainFetchState();
   const now = Date.now();
+  const retryAfterMs = readRetryAfterDelayMs(response, now);
 
   if (response.status === 429 && runtimeConfig.breakerPauseMs > 0) {
-    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + runtimeConfig.breakerPauseMs);
+    const pauseMs = Math.max(runtimeConfig.breakerPauseMs, retryAfterMs);
+    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + pauseMs);
     state.consecutiveServerErrorCount = 0;
     domainFetchStates.set(domain, state);
     return;
@@ -393,7 +395,8 @@ async function applySitePressureSignals(
       runtimeConfig.breakerPauseMs > 0 &&
       state.consecutiveServerErrorCount >= runtimeConfig.breakerRepeated5xxThreshold
     ) {
-      state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + runtimeConfig.breakerPauseMs);
+      const pauseMs = Math.max(runtimeConfig.breakerPauseMs, retryAfterMs);
+      state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + pauseMs);
       state.consecutiveServerErrorCount = 0;
     }
   } else {
@@ -404,11 +407,31 @@ async function applySitePressureSignals(
     runtimeConfig.breakerChallengePauseMs > 0 &&
     (await isLikelyAntiBotChallengeResponse(response))
   ) {
-    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + runtimeConfig.breakerChallengePauseMs);
+    const pauseMs = Math.max(runtimeConfig.breakerChallengePauseMs, retryAfterMs);
+    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + pauseMs);
     state.consecutiveServerErrorCount = 0;
   }
 
   domainFetchStates.set(domain, state);
+}
+
+function readRetryAfterDelayMs(response: Response, now: number) {
+  const retryAfterValue = response.headers.get("retry-after")?.trim();
+  if (!retryAfterValue) {
+    return 0;
+  }
+
+  const retryAfterSeconds = Number.parseInt(retryAfterValue, 10);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+    return retryAfterSeconds * 1000;
+  }
+
+  const retryAfterDate = Date.parse(retryAfterValue);
+  if (!Number.isFinite(retryAfterDate)) {
+    return 0;
+  }
+
+  return Math.max(0, retryAfterDate - now);
 }
 
 async function isLikelyAntiBotChallengeResponse(response: Response) {

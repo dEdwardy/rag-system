@@ -164,6 +164,77 @@ test("fetchWithRetry pauses follow-up same-domain request after 429 pressure", a
   }
 });
 
+test("fetchWithRetry honors Retry-After delay for follow-up same-domain request", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+  const requestTimestamps = [];
+
+  try {
+    global.fetch = async () => {
+      requestCount += 1;
+      requestTimestamps.push(Date.now());
+      if (requestCount === 1) {
+        return new Response("rate limited", {
+          status: 429,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Retry-After": "1"
+          }
+        });
+      }
+
+      return new Response("ok", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    };
+
+    await withTemporarySourceFetchEnv(
+      {
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
+        SOURCE_FETCH_RETRY_JITTER_MS: "0",
+        SOURCE_FETCH_BREAKER_PAUSE_MS: "20",
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "0"
+      },
+      async () => {
+        const first = await fetchWithRetry({
+          url: "https://pressure-retry-after.example/source.xml",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+        assert.equal(first.status, 429);
+
+        const second = await fetchWithRetry({
+          url: "https://pressure-retry-after.example/source.xml",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+
+        assert.equal(second.status, 200);
+        assert.ok(
+          requestTimestamps[1] - requestTimestamps[0] >= 850,
+          `Expected Retry-After-driven breaker pause, got ${requestTimestamps[1] - requestTimestamps[0]}ms.`
+        );
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("fetchWithRetry pauses follow-up request after anti-bot challenge response", async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;
