@@ -3,7 +3,7 @@
   // Purpose: let the loop planner derive the next queue wave from explicit task data,
   // instead of inferring everything from long-form docs.
   "version": 1,
-  "updatedAt": "2026-03-30T11:58:54.000Z",
+  "updatedAt": "2026-03-30T13:05:00.000Z",
   "scope": {
     "productStage": "local-first RAG hardening / feature closeout",
     "included": [
@@ -38,7 +38,7 @@
     "currentStageTarget": "non-SaaS + non-mobile + local-first RAG hardening/closeout",
     "currentEstimatedCompletion": "86%-92%",
     "estimatedCompletionAfterAutoQueueDrains": "92%-96%",
-    "note": "The approved 2026-03-30 follow-up rebuild wave has landed with mixed verification outcomes; next queue-safe work should replan only the failed narrow slices (p3-web-body-quality-diagnostics-092, p5-replay-boundary-contract-closeout-095, p6-trace-audit-readability-closeout-098) before opening any brand-new wave."
+    "note": "The approved 2026-03-30 follow-up rebuild wave is now fully closed out, including manual post-fix verification for the earlier false-failure slices. The next queue-safe work can move to a new narrow frontend/readability wave: P4 Documents source-entry UX closeout first, then one more P6 scan-first observability readability pass."
   },
   "routingView": {
     "routingRules": [
@@ -63,11 +63,13 @@
       "p3-followup-reopen-closeout",
       "p5-baseline-doc-contract-closeout",
       "p6-observability-readability-closeout",
-      "p4-source-entry-closeout"
+      "p4-source-entry-closeout",
+      "p4-source-entry-ux-followup",
+      "p6-observability-readability-followup"
     ]
   },
   "queueMaterializationPlan": {
-    "currentBias": "After the approved rebuild wave closeout, prioritize replan-only follow-ups for failed verification slices before adding any new product wave; keep scope narrow and bookkeeping-first.",
+    "currentBias": "After the approved rebuild wave and post-fix verification close out, keep the next wave frontend-first and narrow: finish P4 Documents source-entry UX/readability follow-up first, then do one more P6 scan-first observability readability pass. Record the items in queue, but do not auto-start a new drain until manually requested.",
     "nextQueueFamilies": [
       {
         "id": "p3-external-source-guardrail-wave",
@@ -667,6 +669,182 @@
             },
             "suspendWhen": [
               "The current Documents source-entry surface is no longer the intended PC Web carrying surface"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p4-source-entry-ux-followup-wave",
+        "dependsOn": [],
+        "waveGoal": "Do one more narrow P4 Documents source-entry UX closeout pass focused on field validation, success feedback, and empty/busy-state consistency, without expanding Documents into a broader source-management workspace.",
+        "candidateTasks": [
+          "p4-source-entry-field-errors-followup",
+          "p4-source-entry-success-feedback-followup",
+          "p4-source-entry-busy-empty-state-consistency-followup",
+          "p4-source-entry-ux-guard-docs-sync-followup"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p4-source-entry-field-errors-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested field-error work would require backend validation-contract changes or a broader Documents redesign"
+            ]
+          },
+          {
+            "taskId": "p4-source-entry-success-feedback-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested success feedback work broadens into a new notification system or list-refresh architecture"
+            ]
+          },
+          {
+            "taskId": "p4-source-entry-busy-empty-state-consistency-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested state-consistency pass broadens into a full page-layout rewrite or mobile adaptation"
+            ]
+          },
+          {
+            "taskId": "p4-source-entry-ux-guard-docs-sync-followup",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "No remaining P4 source-entry UX contract/readability gap remains after the preceding items"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p6-observability-readability-followup-wave",
+        "dependsOn": [],
+        "waveGoal": "Do one more narrow P6 scan-first readability pass across Usage, Report center, and Trace Detail before closing the current observability wave, without broadening into a dashboard platform.",
+        "candidateTasks": [
+          "p6-usage-scan-summary-clarity-followup",
+          "p6-report-center-run-context-clarity-followup",
+          "p6-trace-detail-scan-order-refinement-followup",
+          "p6-observability-followup-docs-sync"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p6-usage-scan-summary-clarity-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested Usage refinement would require new metric families or backend observability contract changes"
+            ]
+          },
+          {
+            "taskId": "p6-report-center-run-context-clarity-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested Report center refinement broadens into new report families or eval contract changes"
+            ]
+          },
+          {
+            "taskId": "p6-trace-detail-scan-order-refinement-followup",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node --test --test-name-pattern \"trace detail\" apps/web/test/ui-review-regressions.test.js"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested trace-detail refinement broadens into backend trace schema changes or a larger audit platform redesign"
+            ]
+          },
+          {
+            "taskId": "p6-observability-followup-docs-sync",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "No remaining P6 scan-first readability/contract gap remains after the preceding items"
             ]
           }
         ]
@@ -1429,6 +1607,79 @@
       ],
       "suspendWhen": [
         "The current Documents page is no longer the intended source-entry carrying surface"
+      ]
+    },
+    {
+      "id": "p4-source-entry-ux-followup",
+      "phase": "P4",
+      "title": "queue one more P4 source-entry UX pass",
+      "priority": "medium",
+      "status": "auto_later",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Queue one more narrow P4 Documents source-entry UX/readability wave after the existing carrying/closeout work, but do not auto-start it until manually requested.",
+      "scope": [
+        "apps/web/src/pages/documents/DocumentsPage.tsx",
+        "apps/web/src/i18n/messages.ts",
+        "apps/web/test/ui-review-regressions.test.js",
+        "docs/current-dev-setup.md",
+        "docs/current-progress.md",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "The next P4 follow-up wave is decomposed into field errors, success feedback, state consistency, and guard/docs sync.",
+        "The wave remains limited to the current Documents source-entry surface and existing backend contracts."
+      ],
+      "verification": [
+        "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js",
+        "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+      ],
+      "notDoing": [
+        "No source-management console",
+        "No mobile work",
+        "No backend contract redesign"
+      ],
+      "suspendWhen": [
+        "The current Documents page stops being the intended PC Web source-entry carrying surface"
+      ]
+    },
+    {
+      "id": "p6-observability-readability-followup",
+      "phase": "P6",
+      "title": "queue one more P6 readability pass",
+      "priority": "medium",
+      "status": "auto_later",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Queue one more narrow P6 scan-first readability wave after the current closeout work, but keep it paused until manually requested.",
+      "scope": [
+        "apps/web/src/pages/usage/UsagePage.tsx",
+        "apps/web/src/pages/reports/ReportCenterPage.tsx",
+        "apps/web/src/pages/traces/TraceDetailPage.tsx",
+        "apps/web/test/ui-review-regressions.test.js",
+        "docs/current-dev-setup.md",
+        "docs/current-progress.md",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "The next P6 follow-up wave is decomposed into Usage, Report center, Trace Detail, and docs sync slices.",
+        "The wave remains scan-first and contract-preserving, without dashboard platformization."
+      ],
+      "verification": [
+        "node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js",
+        "node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js",
+        "node --test --test-name-pattern \"trace detail\" apps/web/test/ui-review-regressions.test.js",
+        "git diff --check -- docs/current-dev-setup.md docs/current-progress.md"
+      ],
+      "notDoing": [
+        "No dashboard platformization",
+        "No new backend observability contracts",
+        "No analytics-surface expansion"
+      ],
+      "suspendWhen": [
+        "No remaining scan-first readability gap remains after the current landed observability surfaces"
       ]
     },
     {

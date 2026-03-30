@@ -151,7 +151,7 @@ Minimal verifier modes currently supported:
 - `command_only`: run declared verification commands and require exit code `0`
 - `command+artifact`: run declared commands, require declared artifacts, and optionally evaluate numeric `acceptance.metrics` / `constraints` rules from JSON artifacts
 
-When a verifier command can be expressed either as a direct package-manager invocation or as a package script that shells back out to the same package manager, prefer the direct form. For example, prefer `pnpm --filter @rag-system/api test:file -- test/example.test.js` over `pnpm test:api:file -- test/example.test.js` when both are equivalent. This reduces nested `pnpm -> script -> pnpm` resolution drift across non-interactive verifier shells.
+When a verifier command can be expressed either as a direct package-manager invocation or as a package script that shells back out to the same package manager, prefer the direct form. For example, prefer `node apps/api/scripts/run-test-file.mjs -- test/example.test.js` over `pnpm test:api:file -- test/example.test.js` (and the harness may normalize both `pnpm test:api:file -- ...` and `pnpm --filter @rag-system/api test:file -- ...` to that direct form) when both are equivalent. This reduces nested `pnpm -> script -> pnpm` resolution drift across non-interactive verifier shells.
 
 `retryPolicy` can now also route verifier failures by category:
 

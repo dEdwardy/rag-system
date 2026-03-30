@@ -527,7 +527,7 @@ function runVerificationCommands({ repoRoot, commands, commandTimeoutMs }) {
 
   const results = [];
   for (const command of normalizedCommands) {
-    const resolvedCommand = rewriteShellCommandForTooling(command);
+    const resolvedCommand = rewriteShellCommandForTooling({ repoRoot, command });
     const commandResult = spawnSync(resolvedCommand, {
       cwd: repoRoot,
       shell: true,
@@ -552,9 +552,14 @@ function runVerificationCommands({ repoRoot, commands, commandTimeoutMs }) {
   return results;
 }
 
-function rewriteShellCommandForTooling(command) {
+function rewriteShellCommandForTooling({ repoRoot, command }) {
   if (typeof command !== "string" || !command.trim()) {
     return command;
+  }
+
+  const directApiTestCommand = normalizeApiTestFileCommand({ repoRoot, command });
+  if (directApiTestCommand) {
+    return directApiTestCommand;
   }
 
   const pnpmLauncher = resolvePnpmLauncherForShell();
@@ -563,6 +568,23 @@ function rewriteShellCommandForTooling(command) {
   }
 
   return command.replace(/(^|[;&|(]\s*)pnpm(?=\s|$)/g, `$1${pnpmLauncher}`);
+}
+
+function normalizeApiTestFileCommand({ repoRoot, command }) {
+  const match =
+    command.match(/^pnpm\s+--filter\s+@rag-system\/api\s+test:file\s+--\s+(.+)$/u) ??
+    command.match(/^pnpm\s+test:api:file\s+--\s+(.+)$/u);
+  if (!match) {
+    return null;
+  }
+
+  const testArgs = match[1].trim();
+  if (!testArgs) {
+    return null;
+  }
+
+  const runTestFileScript = resolve(repoRoot, "apps/api/scripts/run-test-file.mjs");
+  return `${shellQuote(process.execPath)} ${shellQuote(runTestFileScript)} -- ${testArgs}`;
 }
 
 function buildVerificationCommandEnv() {

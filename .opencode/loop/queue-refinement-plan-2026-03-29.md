@@ -243,6 +243,52 @@ next-wave bookkeeping（保持收敛）：
 - 本次 queue refresh 不追加任何 brand-new product wave；
 - 其余边界不变（不重开 source family 扩面、不重开 benchmark/framework、不扩 dashboard 平台化）。
 
+## Recorded But Not Started: Next Frontend/Readability Wave (2026-03-30)
+
+在 approved rebuild wave 和后续 post-fix verification 收口后，下一批更合适的自动队列不再回到 `P3/P5`，而是记录为一条新的前端/readability wave：
+
+- 先做 `P4 Documents source-entry UX closeout`
+- 再做 `P6 scan-first observability readability follow-up`
+
+本批当前只录入 queue，不启动 loop 自动消费。
+
+### 推荐执行顺序
+
+`P4 source-entry UX follow-up -> P6 scan-first readability follow-up`
+
+### Included Queue Items (recorded only, not started)
+
+1. `p4-source-entry-field-errors-103`
+   - title: `source-entry field errors`
+
+2. `p4-source-entry-success-feedback-104`
+   - title: `source-entry success feedback`
+
+3. `p4-source-entry-state-consistency-105`
+   - title: `source-entry state consistency`
+
+4. `p4-source-entry-ux-guard-docs-106`
+   - title: `source-entry ux docs`
+
+5. `p6-usage-scan-clarity-107`
+   - title: `usage scan clarity`
+
+6. `p6-report-context-clarity-108`
+   - title: `report context clarity`
+
+7. `p6-trace-scan-order-109`
+   - title: `trace scan order`
+
+8. `p6-observability-followup-docs-110`
+   - title: `observability followup docs`
+
+### Boundaries For This Recorded Wave
+
+- `P4` 只允许当前 `DocumentsPage` source-entry surface 的 field-error / success-feedback / busy-empty-state / docs 收口
+- `P6` 只允许 `Usage / Report center / Trace Detail` 的 scan-first readability refinement，不扩成 dashboard / analytics 平台
+- 每个 item 继续保持一个最小目标 + 一条 focused validation
+- 当前只是 queue-ready 录入；在用户再次要求前，不启动 loop drain
+
 ## Items Kept Out Of Auto Queue
 
 以下任务不进入自动 queue，因为它们依赖人工判断、主观验收或基线选择，不适合自动 build loop：

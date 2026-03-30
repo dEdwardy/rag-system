@@ -46,3 +46,4 @@ ui/version-b-creative.*
 apps/web/.*
 .opencode/loop/handoffs/
 .opencode/loop.lock/
+.opencode/
