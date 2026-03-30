@@ -17,6 +17,31 @@
 
 补充进展（2026-03-30）：
 
+- ✅ ask/trace provenance sentence assembly now uses one shared helper to keep ask final payload and traceSummary wording aligned
+  - 变更文件：
+    - `apps/api/src/modules/answering/answer-source-readability.ts`
+    - `apps/api/src/modules/assistants/ask-assistant.service.ts`
+    - `apps/api/src/modules/traces/traces.service.ts`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 把 `answerProvenanceSentence` / `answerProvenanceReadabilitySentence` 的组装逻辑提到共享 helper，ask 一次性响应与 traceSummary 现在复用同一组拼装入口
+    - 保持边界不变：不改 answer 语义、不改 trace contract、不新增任何可见字段
+  - focused validation：
+    - `pnpm --filter @rag-system/api exec vitest run --maxWorkers=1 test/traces.service.test.js -t "TracesService keeps answerProvenanceSentence legacy fallback wording when attribution source metadata is missing"`
+
+- ✅ next frontend/readability wave is now recorded in queue/backlog as pending-only, without starting a new drain
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 把下一批 8 个 queue-ready items 录入为 pending-only：先做 `P4 Documents source-entry UX closeout` 4 项，再做 `P6 scan-first observability readability follow-up` 4 项
+    - 保持当前边界：`P4` 只收口 field-error / success-feedback / state-consistency / docs；`P6` 只收口 Usage / Report center / Trace Detail 的 scan-first readability 与 docs sync
+    - 明确本次只录入 queue，不启动 loop，不追加新的 `P3/P5` 波次
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8')); const q=JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8')); console.log(JSON.stringify({cursor:q.cursor,pending:q.items.filter(i=>i.status==='pending').length,lastIds:q.items.slice(-8).map(i=>i.id)}, null, 2));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue-refinement-plan-2026-03-29.md .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ approved follow-up rebuild wave queue/backlog/progress closeout is now re-synced after `loop-queue-refresh-102` (queue/backlog/progress sync only)
   - 变更文件：
     - `.opencode/loop/execution-backlog.jsonc`
