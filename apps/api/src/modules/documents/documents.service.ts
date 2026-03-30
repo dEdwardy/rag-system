@@ -42,6 +42,8 @@ type DocumentAccessScope = {
 
 @Injectable()
 export class DocumentsService {
+  private static readonly EXTERNAL_RESYNC_MIN_INTERVAL_MS = 60_000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly knowledgeBasesService: KnowledgeBasesService,
@@ -377,6 +379,10 @@ export class DocumentsService {
 
     if (this.isExternalSourceType(document.sourceType)) {
       if (this.isExternalResyncInProgress(document)) {
+        return document;
+      }
+
+      if (this.shouldPreferIncrementalExternalRefresh(document)) {
         return document;
       }
 
@@ -1086,6 +1092,23 @@ export class DocumentsService {
       document.processingStage === DocumentProcessingStage.indexing;
 
     return hasInFlightStatus && hasInFlightStage;
+  }
+
+  private shouldPreferIncrementalExternalRefresh(document: {
+    status: DocumentStatus;
+    processingStage: DocumentProcessingStage;
+    updatedAt?: Date | null;
+  }) {
+    if (document.status !== DocumentStatus.ready || document.processingStage !== DocumentProcessingStage.completed) {
+      return false;
+    }
+
+    if (!(document.updatedAt instanceof Date)) {
+      return false;
+    }
+
+    const elapsedMs = Date.now() - document.updatedAt.getTime();
+    return elapsedMs >= 0 && elapsedMs < DocumentsService.EXTERNAL_RESYNC_MIN_INTERVAL_MS;
   }
 
   private isRetryableExternalSourceError(error: unknown) {
