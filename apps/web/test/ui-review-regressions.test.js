@@ -137,9 +137,10 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   const statePanelSource = readFileSync(resolve(__dirname, "../src/components/StatePanel.tsx"), "utf8");
 
   assert.match(chatSource, /workspace-chat-summary/);
-  assert.match(chatSource, /chatCopy\.readyToAsk/);
+  assert.match(chatSource, /resolveWorkspaceStatus\(/);
+  assert.match(chatSource, /readyToAsk:\s*t\("chat\.copy\.readyToAsk"\)/);
   assert.match(traceSource, /workspace-metric-grid/);
-  assert.match(traceSource, /data-tone=/);
+  assert.match(traceSource, /tone="loading"/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.retrievedChunks\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.citations\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.rawPayload\}`\}/);

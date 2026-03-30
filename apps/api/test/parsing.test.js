@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { Document, Packer, Paragraph, TextRun } = require("docx");
+const { resetSourceFetchRuntimeStateForTests } = require("../src/infra/http/fetch-with-retry.ts");
 const { ParsingService } = require("../src/infra/parsing/parsing.service.ts");
 const { FeedSourceService } = require("../src/infra/feed-source/feed-source.service.ts");
 const { SitemapSourceService } = require("../src/infra/sitemap-source/sitemap-source.service.ts");
@@ -1035,10 +1036,12 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap.xml",
-      maxPages: 5
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap.xml",
+        maxPages: 5
+      })
+    );
 
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
     assert.doesNotMatch(extracted.content, /https:\/\/example\.com\/pages\/bad/);
@@ -1120,14 +1123,19 @@ test("SitemapSourceService still fails when all sitemap pages fail", async () =>
   };
 
   try {
-    await assert.rejects(service.fetchSitemap({
-      url: "https://example.com/sitemap.xml",
-      maxPages: 5
-    }), error => {
-      assert.match(error.message, /all sitemap pages failed/i);
-      assert.match(error.message, /https:\/\/example\.com\/pages\/bad-a/);
-      return true;
-    });
+    await assert.rejects(
+      withFastSourceFetchRuntime(() =>
+        service.fetchSitemap({
+          url: "https://example.com/sitemap.xml",
+          maxPages: 5
+        })
+      ),
+      error => {
+        assert.match(error.message, /all sitemap pages failed/i);
+        assert.match(error.message, /https:\/\/example\.com\/pages\/bad-a/);
+        return true;
+      }
+    );
   } finally {
     global.fetch = originalFetch;
   }
@@ -1196,10 +1204,12 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap-index.xml",
-      maxPages: 5
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 5
+      })
+    );
 
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
     assert.deepEqual(extracted.diagnostics, {
@@ -1321,10 +1331,12 @@ test("SitemapSourceService preserves merged retryable counts when child and page
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap-index.xml",
-      maxPages: 5
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 5
+      })
+    );
 
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/good/);
     assert.equal(extracted.diagnostics?.retryable, true);
@@ -1379,10 +1391,12 @@ test("SitemapSourceService emits boundary diagnostics when urlset is truncated b
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap.xml",
-      maxPages: 2
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap.xml",
+        maxPages: 2
+      })
+    );
 
     assert.equal(extracted.diagnostics?.boundaryHit, true);
     assert.deepEqual(extracted.diagnostics?.boundaryReasons, ["MAX_PAGES_REACHED"]);
@@ -1478,10 +1492,12 @@ test("SitemapSourceService does not count duplicate child sitemap URLs as droppe
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap-index.xml",
-      maxPages: 3
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 3
+      })
+    );
 
     assert.equal(extracted.diagnostics?.boundaryHit, true);
     assert.deepEqual(extracted.diagnostics?.boundaryReasons, ["MAX_PAGES_REACHED"]);
@@ -1560,10 +1576,12 @@ test("SitemapSourceService reports child-sitemap boundary when sitemap index exc
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap-index.xml",
-      maxPages: 50
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 50
+      })
+    );
 
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/1/);
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/20/);
@@ -1645,10 +1663,12 @@ test("SitemapSourceService keeps combined sitemapindex boundary reasons in stabl
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap-index.xml",
-      maxPages: 2
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 2
+      })
+    );
 
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/1/);
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/2/);
@@ -1741,10 +1761,12 @@ test("SitemapSourceService treats hash-only page URL variants as duplicates acro
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap-index.xml",
-      maxPages: 2
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap-index.xml",
+        maxPages: 2
+      })
+    );
 
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/shared#intro/);
     assert.match(extracted.content, /https:\/\/example\.com\/pages\/unique/);
@@ -1804,10 +1826,12 @@ test("SitemapSourceService caps partial failure summaries and reports omitted co
   };
 
   try {
-    const extracted = await service.fetchSitemap({
-      url: "https://example.com/sitemap.xml",
-      maxPages: 20
-    });
+    const extracted = await withFastSourceFetchRuntime(() =>
+      service.fetchSitemap({
+        url: "https://example.com/sitemap.xml",
+        maxPages: 20
+      })
+    );
 
     assert.equal(extracted.diagnostics.failedPageCount, 12);
     assert.equal(extracted.diagnostics.failedPages.length, 10);
@@ -1857,15 +1881,57 @@ test("SitemapSourceService still fails when all child sitemaps fail", async () =
   };
 
   try {
-    await assert.rejects(service.fetchSitemap({
-      url: "https://example.com/sitemap-index.xml",
-      maxPages: 5
-    }), error => {
-      assert.match(error.message, /all child sitemap fetches failed/i);
-      assert.match(error.message, /https:\/\/example\.com\/sitemaps\/bad-a\.xml/);
-      return true;
-    });
+    await assert.rejects(
+      withFastSourceFetchRuntime(() =>
+        service.fetchSitemap({
+          url: "https://example.com/sitemap-index.xml",
+          maxPages: 5
+        })
+      ),
+      error => {
+        assert.match(error.message, /all child sitemap fetches failed/i);
+        assert.match(error.message, /https:\/\/example\.com\/sitemaps\/bad-a\.xml/);
+        return true;
+      }
+    );
   } finally {
     global.fetch = originalFetch;
   }
 });
+
+async function withFastSourceFetchRuntime(run) {
+  const overrides = {
+    SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
+    SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
+    SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "1000",
+    SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
+    SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
+    SOURCE_FETCH_RETRY_JITTER_MS: "0",
+    SOURCE_FETCH_BREAKER_PAUSE_MS: "0",
+    SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "0"
+  };
+  const previousValues = {};
+
+  for (const [key, value] of Object.entries(overrides)) {
+    previousValues[key] = process.env[key];
+    process.env[key] = value;
+  }
+
+  resetSourceFetchRuntimeStateForTests();
+
+  try {
+    return await run();
+  } finally {
+    resetSourceFetchRuntimeStateForTests();
+
+    for (const key of Object.keys(overrides)) {
+      const previousValue = previousValues[key];
+      if (typeof previousValue === "undefined") {
+        delete process.env[key];
+        continue;
+      }
+
+      process.env[key] = previousValue;
+    }
+  }
+}

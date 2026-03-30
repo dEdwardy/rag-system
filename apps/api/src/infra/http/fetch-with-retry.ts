@@ -31,6 +31,10 @@ type DomainFetchState = {
 
 const domainFetchStates = new Map<string, DomainFetchState>();
 
+export function resetSourceFetchRuntimeStateForTests() {
+  domainFetchStates.clear();
+}
+
 export const DEFAULT_SOURCE_FETCH_TIMEOUT_MS = 10000;
 export const DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS = 2;
 export const DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS = 80;
