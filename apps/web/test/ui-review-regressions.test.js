@@ -116,6 +116,7 @@ test("documents and trace list emphasize readable workspace summaries over spars
 
 test("documents page source-entry keeps web page/feed/sitemap entrypoint parity under one submit guard", () => {
   const documentsSource = readFileSync(documentsPath, "utf8");
+  const messagesSource = readFileSync(messagesPath, "utf8");
 
   assert.match(documentsSource, /useCreateWebPageDocument/);
   assert.match(documentsSource, /useCreateFeedDocument/);
@@ -131,6 +132,10 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /validateSourceEntryUrl/);
   assert.match(documentsSource, /documents\.sourceEntryInlineErrorRequired/);
   assert.match(documentsSource, /documents\.sourceEntryInlineErrorInvalidHttpUrl/);
+  assert.match(messagesSource, /sourceEntryInlineErrorRequired: "Enter a URL in this source field before submitting\."/);
+  assert.match(messagesSource, /sourceEntryInlineErrorInvalidHttpUrl: "Enter a valid http\(s\) URL for this source field\."/);
+  assert.match(messagesSource, /sourceEntryInlineErrorRequired: "请先在此来源输入框中填入 URL 再提交。"/);
+  assert.match(messagesSource, /sourceEntryInlineErrorInvalidHttpUrl: "请输入合法的 http\(s\) 来源 URL。"/);
   assert.match(documentsSource, /resolveSourceEntryStatus/);
   assert.match(documentsSource, /documents\.sourceEntryStatusEmpty/);
   assert.match(documentsSource, /documents\.sourceEntryStatusReady/);

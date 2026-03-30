@@ -189,8 +189,8 @@ export const messages = {
       sourceEntryStatusEmpty: "First use: paste one URL to enable submission.",
       sourceEntryStatusReady: "Ready to submit this URL.",
       sourceEntryStatusSubmitting: "Submitting source URL. Keep this section read-only until it finishes.",
-      sourceEntryInlineErrorRequired: "Enter one URL before submitting.",
-      sourceEntryInlineErrorInvalidHttpUrl: "Enter a valid http(s) URL.",
+      sourceEntryInlineErrorRequired: "Enter a URL in this source field before submitting.",
+      sourceEntryInlineErrorInvalidHttpUrl: "Enter a valid http(s) URL for this source field.",
       reindexRequested: "Reindex requested for {title}",
       reindexError: "Reindex failed.",
       webPage: {
@@ -640,8 +640,8 @@ export const messages = {
       sourceEntryStatusEmpty: "首次使用：先粘贴一个 URL，提交按钮才会启用。",
       sourceEntryStatusReady: "当前 URL 可提交。",
       sourceEntryStatusSubmitting: "正在提交来源 URL。该区域暂时只读，提交完成后再继续。",
-      sourceEntryInlineErrorRequired: "请先输入一个 URL 再提交。",
-      sourceEntryInlineErrorInvalidHttpUrl: "请输入合法的 http(s) URL。",
+      sourceEntryInlineErrorRequired: "请先在此来源输入框中填入 URL 再提交。",
+      sourceEntryInlineErrorInvalidHttpUrl: "请输入合法的 http(s) 来源 URL。",
       reindexRequested: "已请求重新索引：{title}",
       reindexError: "重新索引失败。",
       webPage: {

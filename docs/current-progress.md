@@ -19,6 +19,19 @@
 
 补充进展（2026-03-31）：
 
+- ✅ documents source-entry field-error follow-up now uses clearer source-field wording without changing the backend contract
+  - 变更文件：
+    - `apps/web/src/i18n/messages.ts`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 Documents source-entry 的通用 URL 校验文案改成更明确的 source-field 提示，保留当前 `web page` / `feed` / `sitemap` 三入口与单提交边界不变
+    - 同步更新 `documents page` 回归守卫，继续锁住这组字段错误文案和现有入口契约
+    - 没有新增 source-management 流程，也没有改 backend contract
+  - focused validation：
+    - `node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js`
+    - result: pass (`1` test, `0` fail)
+
 - ✅ documents source-entry guard/docs sync is now recorded for the already landed narrow source-entry surface
   - 变更文件：
     - `docs/current-progress.md`
