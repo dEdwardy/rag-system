@@ -120,6 +120,17 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
   - immediate pause on `429`
   - pause after repeated `5xx` responses on the same domain (`threshold=2` by default)
   - pause on obvious anti-bot/challenge HTML responses (`403/503` with challenge markers)
+- storage runtime now also supports:
+
+```text
+STORAGE_ROOT=storage
+```
+
+- storage path resolution is now repo-root-stable instead of `process.cwd()`-relative:
+  - when unset, the default remains the repo-local `storage/` directory
+  - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
+  - when set to an absolute path, the absolute path wins as before
+- this avoids write/read drift when the API is started from different directories (for example repo root vs `apps/api`) while still allowing environment-specific absolute paths on Windows/WSL/Linux
 - optional OpenCode harness note: the harness now lives under `.opencode/loop/`; use `.opencode/loop/README.md` for its docs and `node .opencode/loop/cli.mjs --self-test` for its focused smoke test
 - auth/session runtime now also supports:
 

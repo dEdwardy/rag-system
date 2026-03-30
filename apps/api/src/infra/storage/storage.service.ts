@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { extname, join, resolve } from "node:path";
+import { extname, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { resolveStorageRoot } from "./storage-root";
 
 type SaveFileInput = {
   buffer: Buffer;
@@ -10,7 +11,7 @@ type SaveFileInput = {
 
 @Injectable()
 export class StorageService {
-  private readonly storageRoot = resolve(process.cwd(), process.env.STORAGE_ROOT ?? "storage");
+  private readonly storageRoot = resolveStorageRoot();
 
   async saveUploadedFile(input: SaveFileInput) {
     return this.saveBuffer({

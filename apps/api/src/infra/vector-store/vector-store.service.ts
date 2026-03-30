@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { EmbeddingProvider, EmbeddingVector } from "../embedding/embedding-runtime-config";
 import { RetrievalProfileFilters } from "../../modules/retrieval-profiles/retrieval-profile.schemas";
+import { resolveStorageRoot } from "../storage/storage-root";
 import {
   IndexedEmbeddingDiagnostics,
   ReplaceDocumentVectorsInput,
@@ -16,7 +17,7 @@ import {
 
 @Injectable()
 export class VectorStoreService implements VectorStore {
-  private readonly storageRoot = resolve(process.cwd(), process.env.STORAGE_ROOT ?? "storage");
+  private readonly storageRoot = resolveStorageRoot();
   private readonly vectorRoot = join(this.storageRoot, "vectors");
 
   async replaceDocumentVectors(input: ReplaceDocumentVectorsInput) {

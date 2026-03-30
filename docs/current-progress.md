@@ -17,6 +17,21 @@
 
 补充进展（2026-03-30）：
 
+- ✅ storage root resolution is now repo-root-stable for generated files and vector data, so API startup cwd no longer changes where external-source artifacts are written/read
+  - 变更文件：
+    - `apps/api/src/infra/storage/storage-root.ts`
+    - `apps/api/src/infra/storage/storage.service.ts`
+    - `apps/api/src/infra/vector-store/vector-store.service.ts`
+    - `apps/api/test/storage-root-resolution.test.js`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 新增统一 storage-root resolver：默认 `storage/` 以及相对 `STORAGE_ROOT` 现在都相对仓库根目录解析，而不是相对 `process.cwd()`
+    - `StorageService` 与 `VectorStoreService` 统一复用同一 resolver，避免 external source generated text 写在 `apps/api/storage/`、后续 ingestion 却去 repo-root `storage/` 读取的漂移问题
+    - 绝对路径行为保持不变，因此 Windows/WSL/Linux 仍可按各自环境提供绝对 `STORAGE_ROOT`
+  - focused validation：
+    - `pnpm --filter @rag-system/api test:file -- test/storage-root-resolution.test.js`
+
 - ✅ source fetch retry layer now includes a narrow target-pressure breaker pause (429 / repeated 5xx / obvious anti-bot challenge)
   - 变更文件：
     - `apps/api/src/infra/http/fetch-with-retry.ts`
