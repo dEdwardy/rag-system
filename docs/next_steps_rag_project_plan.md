@@ -598,6 +598,15 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 不再开启新一轮大范围 UI 重构
 - 继续坚持 `PC Web` 优先、移动端后置
 
+#### P4 当前最小 trigger（2026-03-30）
+
+- 当前已出现一个明确 trigger：backend 已支持 `web page` / `feed` / `sitemap` source ingestion API，但 `PC Web` 文档工作台还缺少对应 URL 录入入口。
+- 这一波只做能力承载，不做新 source family 扩展：
+  - 先补 `web page` 单 URL 入口
+  - 再补 `feed` URL 入口
+  - 最后补 `sitemap` URL 入口
+- 范围继续收紧在 `DocumentsPage` 与其现有 API hooks，不扩成新的 source 管理后台，不引入移动端适配，也不改 backend source contract。
+
 ### P5：RAG 质量证明（eval / regression / demo）
 
 这条线的目标不是继续堆功能，而是把当前 RAG 核心能力变成“可证明地好用”：
@@ -658,6 +667,27 @@ Queue 短标题版（可直接作为 loop item title 使用）：
   - baseline 文档集版本选择与冻结
   - demo case 取舍与 replay 验收结论
 - 边界说明：本次仅做 P5 planning/status 对齐，不新增 queue wave，不改现有 runner/report/gate 运行时契约。
+
+#### P5 人工决策已批准（2026-03-30）
+
+- ✅ baseline question set 已按当前 `engineering baseline v1` 批准，沿用 `apps/api/scripts/p5-baseline-manifest.v1.json` 中的 3 题：
+  - `p5-v1-q1-capability-summary`
+  - `p5-v1-q2-source-family-support`
+  - `p5-v1-q3-no-hit-guardrail`
+- ✅ baseline annotations 已按当前分层方案批准：所有题继续使用 `intent / expectedAnswerPoints / mustNotMiss / acceptableExpressionRange`；`q1` 与 `q2` 保持 `criticalEvidenceExpectation` 关键题要求，`q3` 继续作为非关键 evidence 题。
+- ✅ baseline dataset version pin 已批准沿用当前 manifest source：`p5-v1-demo-replay.questions.v1`，snapshot ref 为 `apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts#P5_V1_DEMO_REPLAY_QUESTIONS`。
+- ✅ demo shortlist 已批准沿用当前 `4+1`：4 个正式 demo（happy path / no-hit / source-backed answer / eval-report-replay）+ 1 个候补 `trace diagnostic readability`。
+- ✅ `demo-eval-report-replay` 已明确定位为“工程证明型 demo”；其 replay baseline 通过口径继续收敛为：能正常触发 replay、产出既有 proof artifacts、并保持与当前 report/export 流兼容。
+- 后续执行边界：这些人工结论现在可以作为后续 docs sync、queue materialization 或 replay/baseline closeout 的输入；本次仍不重开更大 benchmark 设计、不扩成新的 demo 平台、也不改现有 runner/report/gate 契约。
+
+#### P5 批准后 queue-ready closeout（2026-03-30）
+
+- 这批人工结论已足够作为下一条自动执行小波次的输入；推荐继续保持单线、小步、可验证。
+- 推荐顺序：
+  - `p5-baseline-approval-doc-sync`
+  - `p5-replay-baseline-contract-closeout`
+  - `p5-approved-baseline-queue-refresh`
+- 这批只做批准结果的 docs/contract/queue 收口，不重开题集设计、不扩 benchmark 体系、不新增 demo/showcase 平台。
 
 ### 当前阶段推荐大类顺序
 

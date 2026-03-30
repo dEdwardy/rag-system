@@ -3,7 +3,7 @@
   // Purpose: let the loop planner derive the next queue wave from explicit task data,
   // instead of inferring everything from long-form docs.
   "version": 1,
-  "updatedAt": "2026-03-30T00:00:00.000Z",
+  "updatedAt": "2026-03-30T06:45:49.000Z",
   "scope": {
     "productStage": "local-first RAG hardening / feature closeout",
     "included": [
@@ -36,9 +36,9 @@
   },
   "completionEstimate": {
     "currentStageTarget": "non-SaaS + non-mobile + local-first RAG hardening/closeout",
-    "currentEstimatedCompletion": "80%-88%",
-    "estimatedCompletionAfterAutoQueueDrains": "85%-95%",
-    "note": "Reaching the upper end depends mostly on resolving the remaining P5 human-late baseline/demo decisions and then materializing them into the existing eval/replay flow."
+    "currentEstimatedCompletion": "86%-92%",
+    "estimatedCompletionAfterAutoQueueDrains": "91%-96%",
+    "note": "The main remaining gaps are now narrow closeout batches: approved P5 docs/contract sync and the smallest PC Web source-entry carrying work for already-landed backend source APIs."
   },
   "routingView": {
     "routingRules": [
@@ -48,7 +48,8 @@
       "saas-excluded-stage-note",
       "mobile-excluded-stage-note"
     ],
-    "humanLateDecisions": [
+    "humanLateDecisions": [],
+    "approvedHumanDecisions": [
       "p5-baseline-question-set",
       "p5-baseline-annotations",
       "p5-baseline-dataset-pin",
@@ -56,12 +57,155 @@
     ],
     "queueMaterializableTasks": [
       "p5-annotation-manifest-materialization",
-      "p5-demo-replay-entrypoint"
+      "p5-demo-replay-entrypoint",
+      "p5-approved-baseline-closeout",
+      "p4-source-entry-carrying"
     ]
   },
   "queueMaterializationPlan": {
-    "currentBias": "Only decompose the smallest real implementation tasks; keep routing rules and human-late decisions out of the autonomous queue.",
+    "currentBias": "Only decompose the smallest real implementation tasks; approved human decisions can now feed narrow docs/contract/queue closeout waves without reopening broader product scope.",
     "nextQueueFamilies": [
+      {
+        "id": "p5-approved-baseline-closeout-wave",
+        "dependsOn": [
+          "p5-baseline-question-set",
+          "p5-baseline-annotations",
+          "p5-baseline-dataset-pin",
+          "p5-demo-case-selection"
+        ],
+        "waveGoal": "Sync the approved P5 baseline/demo decisions through docs, replay baseline wording, and queue/backlog state without changing the eval/report runtime contract.",
+        "candidateTasks": [
+          "p5-baseline-approval-doc-sync",
+          "p5-replay-baseline-contract-closeout",
+          "p5-approved-baseline-queue-refresh"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p5-baseline-approval-doc-sync",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/current-dev-setup.md docs/next_steps_rag_project_plan.md docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "Approved P5 baseline/demo decisions are not yet recorded in the main planning docs"
+            ]
+          },
+          {
+            "taskId": "p5-replay-baseline-contract-closeout",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "Replay baseline positioning still conflicts with the approved engineering-proof demo scope"
+            ]
+          },
+          {
+            "taskId": "p5-approved-baseline-queue-refresh",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "node -e \"const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));\" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The approved closeout batch has not been enqueued yet"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p4-source-entry-carrying-wave",
+        "dependsOn": [],
+        "waveGoal": "Expose the already-landed backend external-source APIs through the smallest PC Web document-workspace entrypoints, starting with web page and then reusing the same surface for feed and sitemap.",
+        "candidateTasks": [
+          "p4-web-page-source-entry",
+          "p4-feed-source-entry",
+          "p4-sitemap-source-entry"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p4-web-page-source-entry",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/web typecheck"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The Documents page no longer serves as the current source-ingestion workspace"
+            ]
+          },
+          {
+            "taskId": "p4-feed-source-entry",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/web typecheck"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The web-page source-entry carrying work has not landed yet"
+            ]
+          },
+          {
+            "taskId": "p4-sitemap-source-entry",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/web typecheck"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The feed source-entry carrying work has not landed yet"
+            ]
+          }
+        ]
+      },
       {
         "id": "p5-baseline-manifest-wave",
         "dependsOn": [
@@ -252,7 +396,8 @@
       "status": "partially_complete",
       "notes": [
         "Automation side is mostly landed: runner, report, and quality-gate contracts exist.",
-        "Remaining work is mostly human-late baseline curation and demo selection."
+        "Human baseline/demo decisions are now approved and recorded in docs.",
+        "Remaining work is now smaller sync/contract/queue-closeout follow-up that reuses the approved baseline/demo decisions."
       ]
     },
     {
@@ -274,7 +419,8 @@
       "status": "conditional",
       "notes": [
         "Only trigger when a backend/runtime capability needs direct PC Web carrying work.",
-        "No mobile work in this stage."
+        "No mobile work in this stage.",
+        "The current approved trigger is the missing PC Web entrypoint for already-landed web-page/feed/sitemap ingestion APIs."
       ]
     }
   ],
@@ -310,11 +456,44 @@
       ]
     },
     {
+      "id": "p4-source-entry-carrying",
+      "phase": "P4",
+      "title": "carry landed source-ingestion APIs into the PC Web documents workspace",
+      "priority": "medium",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Add the smallest PC Web source-entry inputs for already-landed web-page/feed/sitemap backend APIs so users can ingest URL-based source material without leaving the documents workspace.",
+      "scope": [
+        "apps/web/src/pages/documents/DocumentsPage.tsx",
+        "apps/web/src/features/api/hooks.ts",
+        "apps/web/src/i18n/messages.ts",
+        "docs/current-progress.md"
+      ],
+      "acceptance": [
+        "Documents workspace can start with one direct web-page URL entrypoint.",
+        "The same surface can then carry feed and sitemap entrypoints without inventing a new management console.",
+        "Work stays PC Web only and reuses the existing backend endpoints."
+      ],
+      "verification": [
+        "pnpm --filter @rag-system/web typecheck"
+      ],
+      "notDoing": [
+        "No mobile adaptation",
+        "No source-platform redesign",
+        "No new source family"
+      ],
+      "suspendWhen": [
+        "The backend external-source endpoints are no longer the intended contract"
+      ]
+    },
+    {
       "id": "p5-baseline-question-set",
       "phase": "P5",
       "title": "define minimum engineering baseline question set v1",
       "priority": "high",
-      "status": "human_late",
+      "status": "completed",
       "autoExecutable": false,
       "humanInputRequired": true,
       "dependsOn": [],
@@ -353,7 +532,7 @@
       "phase": "P5",
       "title": "define layered baseline annotations v1",
       "priority": "high",
-      "status": "human_late",
+      "status": "completed",
       "autoExecutable": false,
       "humanInputRequired": true,
       "dependsOn": [
@@ -397,7 +576,7 @@
       "phase": "P5",
       "title": "declare baseline input source for baseline v1",
       "priority": "high",
-      "status": "human_late",
+      "status": "completed",
       "autoExecutable": false,
       "humanInputRequired": true,
       "dependsOn": [
@@ -512,7 +691,7 @@
       "phase": "P5",
       "title": "select demo case shortlist",
       "priority": "medium",
-      "status": "human_late",
+      "status": "completed",
       "autoExecutable": false,
       "humanInputRequired": true,
       "dependsOn": [],
@@ -586,6 +765,47 @@
         "No broad UX redesign"
       ],
       "suspendWhen": []
+    },
+    {
+      "id": "p5-approved-baseline-closeout",
+      "phase": "P5",
+      "title": "sync approved baseline/demo decisions through closeout surfaces",
+      "priority": "medium",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [
+        "p5-baseline-question-set",
+        "p5-baseline-annotations",
+        "p5-baseline-dataset-pin",
+        "p5-demo-case-selection"
+      ],
+      "goal": "Carry the approved P5 baseline/demo decisions through docs, replay baseline wording, and queue/backlog bookkeeping without reopening broader benchmark or demo-platform work.",
+      "scope": [
+        "apps/api/scripts/run-p5-v1-eval-runner.mjs",
+        "docs/current-dev-setup.md",
+        "docs/next_steps_rag_project_plan.md",
+        "docs/current-progress.md",
+        ".opencode/loop/execution-backlog.jsonc",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "Approved baseline/demo decisions are visible in the primary docs and replay usage wording.",
+        "Replay baseline wording stays aligned to the engineering-proof demo positioning.",
+        "Backlog/queue state reflects that the human-late P5 decisions are complete and the next work is auto-safe closeout only."
+      ],
+      "verification": [
+        "git diff --check -- docs/current-dev-setup.md docs/next_steps_rag_project_plan.md docs/current-progress.md .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json",
+        "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+      ],
+      "notDoing": [
+        "No new benchmark framework",
+        "No broad demo/showcase platform",
+        "No report-center redesign"
+      ],
+      "suspendWhen": [
+        "Approved P5 baseline/demo decisions are not yet recorded"
+      ]
     },
     {
       "id": "p5-demo-replay-entrypoint",

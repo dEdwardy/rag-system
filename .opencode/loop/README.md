@@ -44,6 +44,22 @@ For a concise module-and-flow overview, see `.opencode/loop/ARCHITECTURE.md`.
 
 Session titles use the shape `loop #<queue-index> · <remaining> left · <item-id> · MM-DD HH:MM:SS`. Auto-refill follow-up items are labeled as `refill <remaining> left` so a second mini-countdown after the planner run is visually distinguishable from the manual wave countdown.
 
+Backlog/queue layering is intentional:
+
+- `execution-backlog.jsonc` is the editable planning source for backlog waves and queue contracts
+- `materialized/*.queue.json` is the generated draft output from a backlog wave
+- `queue.json` is the live execution queue that the runtime actually drains and mutates
+
+Typical flow:
+
+```text
+execution-backlog.jsonc
+  -> materialize wave
+  -> materialized/*.queue.json
+  -> append into queue.json
+  -> runtime drains queue.json
+```
+
 ## Environment
 
 - `OPENCODE_BASE_URL` - OpenCode server URL, default `http://127.0.0.1:4096`
