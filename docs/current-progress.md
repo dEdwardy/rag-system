@@ -17,6 +17,18 @@
 
 补充进展（2026-03-30）：
 
+- ✅ external_resync now classifies invalid stored source URLs as `EXTERNAL_SOURCE_CONFIG_INVALID` consistently across `web_page` / `feed` / `sitemap` (instead of falling through to fetch-stage failures)
+  - 变更文件：
+    - `apps/api/src/modules/documents/documents.service.ts`
+    - `apps/api/test/external-source-sync.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 在 external resync 的 source-config 解析阶段新增 URL 合法性校验（仅接受 `http/https`），让无效配置 URL 在解析时直接归类为 config-invalid
+    - 保持持久化字段结构不变，仅收口错误归类：此类不可恢复失败现在稳定落到 `EXTERNAL_SOURCE_CONFIG_INVALID` + `retryable: false`
+    - `external-source-sync` focused tests 增补跨 family 回归，覆盖 `web_page` / `feed` / `sitemap` 三类无效 URL 配置的统一失败语义
+  - focused validation：
+    - `pnpm test:api:file -- test/external-source-sync.test.js`
+
 - ✅ storage root resolution is now repo-root-stable for generated files and vector data, so API startup cwd no longer changes where external-source artifacts are written/read
   - 变更文件：
     - `apps/api/src/infra/storage/storage-root.ts`
