@@ -19,6 +19,17 @@
 
 补充进展（2026-03-31）：
 
+- ✅ documents source-entry busy/empty copy is now aligned to a single source-intake tone across the current workspace
+  - 变更文件：
+    - `apps/web/src/i18n/messages.ts`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 Documents source-entry 的空态与忙碌态提示统一收束到同一套 source-intake 语气，保持 `web page` / `feed` / `sitemap` 三入口、单提交 guard 和现有 backend contract 不变
+    - 只做文案与回归守卫收口，不扩展页面布局，也不引入新的 source-management 方向
+  - focused validation：
+    - `node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ documents source-entry success feedback is now trimmed to a shared lightweight submit line across web page / feed / sitemap
   - 变更文件：
     - `apps/web/src/i18n/messages.ts`

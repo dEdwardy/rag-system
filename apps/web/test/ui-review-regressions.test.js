@@ -146,6 +146,12 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /documents\.sourceEntryStatusEmpty/);
   assert.match(documentsSource, /documents\.sourceEntryStatusReady/);
   assert.match(documentsSource, /documents\.sourceEntryStatusSubmitting/);
+  assert.match(messagesSource, /sourceEntrySubmittingHint: "Source intake busy\. Wait for the current submission to finish before submitting another URL\."/);
+  assert.match(messagesSource, /sourceEntryStatusEmpty: "Source intake idle\. Paste one URL to enable submission\."/);
+  assert.match(messagesSource, /sourceEntryStatusSubmitting: "Source intake busy\. Keep this section read-only until it finishes\."/);
+  assert.match(messagesSource, /sourceEntrySubmittingHint: "来源录入忙碌中：请等待当前提交完成后再提交下一条 URL。"/);
+  assert.match(messagesSource, /sourceEntryStatusEmpty: "来源录入待命：先粘贴一个 URL，提交按钮才会启用。"/);
+  assert.match(messagesSource, /sourceEntryStatusSubmitting: "来源录入忙碌中：该区域暂时只读，提交完成后再继续。"/);
   assert.match(documentsSource, /webPageSourceEntryStatus/);
   assert.match(documentsSource, /feedSourceEntryStatus/);
   assert.match(documentsSource, /sitemapSourceEntryStatus/);
