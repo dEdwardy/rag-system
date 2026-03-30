@@ -775,7 +775,10 @@ test("DocumentsService keeps canonical external partial envelope fields over raw
 
 test("WebPageService classifies upstream 404 responses as non-retryable", async () => {
   await withMockedFetch(
-    [new Response("missing", { status: 404, headers: { "content-type": "text/html" } })],
+    [
+      new Response("User-agent: *\nAllow: /\n", { status: 200, headers: { "content-type": "text/plain" } }),
+      new Response("missing", { status: 404, headers: { "content-type": "text/html" } })
+    ],
     async () => {
       const service = new WebPageService();
 
@@ -788,9 +791,27 @@ test("WebPageService classifies upstream 404 responses as non-retryable", async 
   );
 });
 
+test("WebPageService blocks fetch when robots disallows the target path", async () => {
+  await withMockedFetch(
+    [new Response("User-agent: *\nDisallow: /private\n", { status: 200, headers: { "content-type": "text/plain" } })],
+    async () => {
+      const service = new WebPageService();
+
+      await assert.rejects(service.fetchWebPage("https://example.com/private/doc"), error => {
+        assert.equal(error instanceof BadRequestException, true);
+        assert.equal(error.message, "Failed to fetch web page: Blocked by robots.txt for https://example.com/private/doc.");
+        return true;
+      });
+    }
+  );
+});
+
 test("FeedSourceService classifies upstream 404 responses as non-retryable", async () => {
   await withMockedFetch(
-    [new Response("missing", { status: 404, headers: { "content-type": "application/rss+xml" } })],
+    [
+      new Response("User-agent: *\nAllow: /\n", { status: 200, headers: { "content-type": "text/plain" } }),
+      new Response("missing", { status: 404, headers: { "content-type": "application/rss+xml" } })
+    ],
     async () => {
       const service = new FeedSourceService();
 
@@ -812,6 +833,7 @@ test("FeedSourceService classifies upstream 404 responses as non-retryable", asy
 test("SitemapSourceService keeps child sitemap 404 failures non-retryable in partial diagnostics", async () => {
   await withMockedFetch(
     [
+      new Response("User-agent: *\nAllow: /\n", { status: 200, headers: { "content-type": "text/plain" } }),
       new Response(
         [
           '<?xml version="1.0" encoding="UTF-8"?>',
@@ -822,6 +844,7 @@ test("SitemapSourceService keeps child sitemap 404 failures non-retryable in par
         ].join("\n"),
         { status: 200, headers: { "content-type": "application/xml" } }
       ),
+      new Response("User-agent: *\nAllow: /\n", { status: 200, headers: { "content-type": "text/plain" } }),
       new Response(
         [
           '<?xml version="1.0" encoding="UTF-8"?>',
@@ -831,6 +854,7 @@ test("SitemapSourceService keeps child sitemap 404 failures non-retryable in par
         ].join("\n"),
         { status: 200, headers: { "content-type": "application/xml" } }
       ),
+      new Response("User-agent: *\nAllow: /\n", { status: 200, headers: { "content-type": "text/plain" } }),
       new Response("missing", { status: 404, headers: { "content-type": "application/xml" } })
     ],
     async () => {
@@ -856,6 +880,40 @@ test("SitemapSourceService keeps child sitemap 404 failures non-retryable in par
           retryable: false
         }
       ]);
+    }
+  );
+});
+
+test("SitemapSourceService rejects cross-domain child sitemap URLs", async () => {
+  await withMockedFetch(
+    [
+      new Response("User-agent: *\nAllow: /\n", { status: 200, headers: { "content-type": "text/plain" } }),
+      new Response(
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          "<sitemapindex>",
+          "  <sitemap><loc>https://example.com/sitemaps/one.xml</loc></sitemap>",
+          "  <sitemap><loc>https://other-site.test/sitemaps/two.xml</loc></sitemap>",
+          "</sitemapindex>"
+        ].join("\n"),
+        { status: 200, headers: { "content-type": "application/xml" } }
+      )
+    ],
+    async () => {
+      const service = new SitemapSourceService({
+        fetchWebPage: async url => ({
+          title: url,
+          content: `Content for ${url}`
+        })
+      });
+
+      await assert.rejects(
+        service.fetchSitemap({
+          url: "https://example.com/sitemap-index.xml",
+          maxPages: 5
+        }),
+        /outside source domain boundary/
+      );
     }
   );
 });

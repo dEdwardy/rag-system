@@ -8,6 +8,8 @@ type FetchWithRetryInput = {
 const MAX_FOLLOW_REDIRECTS = 5;
 const MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH = 160;
 const FETCH_URL_PREFIX_PATTERN = /^Failed to fetch\s+\S+:\s*/i;
+const COURTESY_ROBOTS_TIMEOUT_MS = 5000;
+const COURTESY_USER_AGENT = "rag-system-bot";
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "ECONNRESET",
   "ECONNREFUSED",
@@ -63,9 +65,62 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
   throw lastError instanceof Error ? lastError : new Error("Unknown fetch error.");
 }
 
+export async function assertRobotsAllowUrl(url: string) {
+  const robotsUrl = buildRobotsUrl(url);
+  if (!robotsUrl) {
+    return;
+  }
+
+  let response: Response;
+  try {
+    response = await fetchWithFollowRedirects(robotsUrl, {
+      signal: AbortSignal.timeout(COURTESY_ROBOTS_TIMEOUT_MS),
+      headers: {
+        Accept: "text/plain"
+      }
+    });
+  } catch {
+    return;
+  }
+
+  if (!response.ok) {
+    return;
+  }
+
+  const robotsPayload = await response.text();
+  if (isPathDisallowedByRobots(robotsPayload, url)) {
+    throw new Error(`Blocked by robots.txt for ${url}.`);
+  }
+}
+
 export function normalizeSourceFetchFailureMessage(message: string) {
   const trimmedMessage = message.trim();
   return trimmedMessage.replace(FETCH_URL_PREFIX_PATTERN, "");
+}
+
+export function isUrlWithinDomainBoundary(candidateUrl: string, boundaryUrl: string) {
+  let candidate: URL;
+  let boundary: URL;
+
+  try {
+    candidate = new URL(candidateUrl);
+    boundary = new URL(boundaryUrl);
+  } catch {
+    return false;
+  }
+
+  const candidateHost = candidate.hostname.trim().toLowerCase();
+  const boundaryHost = boundary.hostname.trim().toLowerCase();
+
+  if (!candidateHost || !boundaryHost) {
+    return false;
+  }
+
+  return (
+    candidateHost === boundaryHost ||
+    candidateHost.endsWith(`.${boundaryHost}`) ||
+    boundaryHost.endsWith(`.${candidateHost}`)
+  );
 }
 
 function withRetryAttemptContext(error: unknown, attempt: number) {
@@ -109,10 +164,21 @@ async function fetchWithFollowRedirects(url: string, init: RequestInit) {
 
     const nextUrl = resolveRedirectUrl(currentUrl, redirectLocation);
     assertHttpUrl(nextUrl, currentUrl, redirectLocation);
+    assertRedirectDomainBoundary(nextUrl, url, currentUrl, redirectLocation);
     currentUrl = nextUrl;
   }
 
   throw new Error(`Failed to follow redirect for ${url}: too many redirects.`);
+}
+
+function assertRedirectDomainBoundary(nextUrl: string, sourceUrl: string, currentUrl: string, rawRedirectTarget: string) {
+  if (isUrlWithinDomainBoundary(nextUrl, sourceUrl)) {
+    return;
+  }
+
+  throw new Error(
+    `Failed to follow redirect for ${currentUrl}: redirect target must stay within source domain boundary (${formatRedirectTargetForDiagnostics(rawRedirectTarget)}).`
+  );
 }
 
 function isRedirectStatus(status: number) {
@@ -153,6 +219,118 @@ function formatRedirectTargetForDiagnostics(target: string) {
   }
 
   return `${target.slice(0, MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH)}...<truncated>`;
+}
+
+function buildRobotsUrl(url: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return null;
+  }
+
+  parsed.pathname = "/robots.txt";
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString();
+}
+
+function isPathDisallowedByRobots(robotsPayload: string, targetUrl: string) {
+  let targetPath = "/";
+  try {
+    const parsedTarget = new URL(targetUrl);
+    targetPath = parsedTarget.pathname || "/";
+  } catch {
+    return false;
+  }
+
+  const rules = parseRobotsRulesForCourtesyAgent(robotsPayload);
+  let matchedAllowLength = -1;
+  let matchedDisallowLength = -1;
+
+  for (const rule of rules) {
+    if (!targetPath.startsWith(rule.path)) {
+      continue;
+    }
+
+    if (rule.kind === "allow") {
+      matchedAllowLength = Math.max(matchedAllowLength, rule.path.length);
+      continue;
+    }
+
+    matchedDisallowLength = Math.max(matchedDisallowLength, rule.path.length);
+  }
+
+  if (matchedDisallowLength < 0) {
+    return false;
+  }
+
+  return matchedDisallowLength >= matchedAllowLength;
+}
+
+function parseRobotsRulesForCourtesyAgent(robotsPayload: string) {
+  const lines = robotsPayload.split(/\r?\n/);
+  const rules: Array<{ kind: "allow" | "disallow"; path: string }> = [];
+  let currentGroupMatches = false;
+  let hasUserAgentInCurrentGroup = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/#.*/, "").trim();
+    if (!line) {
+      currentGroupMatches = false;
+      hasUserAgentInCurrentGroup = false;
+      continue;
+    }
+
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const rawDirective = line.slice(0, separatorIndex).trim().toLowerCase();
+    const value = line.slice(separatorIndex + 1).trim();
+
+    if (rawDirective === "user-agent") {
+      const normalizedAgent = value.toLowerCase();
+      if (!hasUserAgentInCurrentGroup) {
+        currentGroupMatches = false;
+        hasUserAgentInCurrentGroup = true;
+      }
+
+      if (normalizedAgent === "*" || normalizedAgent === COURTESY_USER_AGENT) {
+        currentGroupMatches = true;
+      }
+
+      continue;
+    }
+
+    if (!hasUserAgentInCurrentGroup || !currentGroupMatches) {
+      continue;
+    }
+
+    if (rawDirective !== "allow" && rawDirective !== "disallow") {
+      continue;
+    }
+
+    if (!value || value === "") {
+      continue;
+    }
+
+    if (!value.startsWith("/")) {
+      continue;
+    }
+
+    rules.push({
+      kind: rawDirective,
+      path: value
+    });
+  }
+
+  return rules;
 }
 
 function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: number) {

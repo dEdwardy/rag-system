@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
 import {
+  assertRobotsAllowUrl,
   fetchWithRetry,
   isRetryableFetchException,
   normalizeSourceFetchFailureMessage,
@@ -86,6 +87,7 @@ export class FeedSourceService {
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(options.url);
       response = await fetchWithRetry({
         url: options.url,
         timeoutMs: fetchConfig.timeoutMs,

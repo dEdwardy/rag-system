@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
 import {
+  assertRobotsAllowUrl,
   fetchWithRetry,
   isRetryableFetchException,
   normalizeSourceFetchFailureMessage,
@@ -32,6 +33,7 @@ export class WebPageService {
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(url);
       response = await fetchWithRetry({
         url,
         timeoutMs: fetchConfig.timeoutMs,
