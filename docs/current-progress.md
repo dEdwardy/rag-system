@@ -19,6 +19,17 @@
 
 补充进展（2026-03-31）：
 
+- ✅ p3-source-policy-baseline is now closed as the narrow policy-only docs sync for external-source ingestion
+  - 变更文件：
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 live queue 里的 `p3-source-policy-baseline` 收口为 completed
+    - 保持现有 P3 policy baseline 文案不扩面：public/no-login/no-paywall only、no access-control bypass、sitemap/sitemapindex 仅作 URL index、rights-to-use 责任在使用方
+    - 未改 runtime、未加新 source family
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc`
+
 - ✅ p3 external-source guardrail wave is now split and queued as the next legality/crawl-safety batch
   - 变更文件：
     - `.opencode/loop/execution-backlog.jsonc`
