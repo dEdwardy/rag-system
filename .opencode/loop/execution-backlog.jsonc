@@ -3,7 +3,7 @@
   // Purpose: let the loop planner derive the next queue wave from explicit task data,
   // instead of inferring everything from long-form docs.
   "version": 1,
-  "updatedAt": "2026-03-30T06:45:49.000Z",
+  "updatedAt": "2026-03-30T08:20:00.000Z",
   "scope": {
     "productStage": "local-first RAG hardening / feature closeout",
     "included": [
@@ -38,7 +38,7 @@
     "currentStageTarget": "non-SaaS + non-mobile + local-first RAG hardening/closeout",
     "currentEstimatedCompletion": "86%-92%",
     "estimatedCompletionAfterAutoQueueDrains": "91%-96%",
-    "note": "The main remaining gaps are now narrow closeout batches: approved P5 docs/contract sync and the smallest PC Web source-entry carrying work for already-landed backend source APIs."
+    "note": "The approved P5 baseline/demo closeout batch has landed; the next executable gap remains the smallest PC Web source-entry carrying work for already-landed backend source APIs."
   },
   "routingView": {
     "routingRules": [
@@ -58,85 +58,12 @@
     "queueMaterializableTasks": [
       "p5-annotation-manifest-materialization",
       "p5-demo-replay-entrypoint",
-      "p5-approved-baseline-closeout",
       "p4-source-entry-carrying"
     ]
   },
   "queueMaterializationPlan": {
-    "currentBias": "Only decompose the smallest real implementation tasks; approved human decisions can now feed narrow docs/contract/queue closeout waves without reopening broader product scope.",
+    "currentBias": "Only decompose the smallest real implementation tasks; keep newly approved decisions in closeout bookkeeping and move forward without reopening broader product scope.",
     "nextQueueFamilies": [
-      {
-        "id": "p5-approved-baseline-closeout-wave",
-        "dependsOn": [
-          "p5-baseline-question-set",
-          "p5-baseline-annotations",
-          "p5-baseline-dataset-pin",
-          "p5-demo-case-selection"
-        ],
-        "waveGoal": "Sync the approved P5 baseline/demo decisions through docs, replay baseline wording, and queue/backlog state without changing the eval/report runtime contract.",
-        "candidateTasks": [
-          "p5-baseline-approval-doc-sync",
-          "p5-replay-baseline-contract-closeout",
-          "p5-approved-baseline-queue-refresh"
-        ],
-        "queueContracts": [
-          {
-            "taskId": "p5-baseline-approval-doc-sync",
-            "kind": "docs_sync",
-            "riskLevel": "low",
-            "verifier": {
-              "mode": "command_only",
-              "commands": [
-                "git diff --check -- docs/current-dev-setup.md docs/next_steps_rag_project_plan.md docs/current-progress.md"
-              ]
-            },
-            "retryPolicy": {
-              "maxAttempts": 1,
-              "onVerificationFail": "needs_replan"
-            },
-            "suspendWhen": [
-              "Approved P5 baseline/demo decisions are not yet recorded in the main planning docs"
-            ]
-          },
-          {
-            "taskId": "p5-replay-baseline-contract-closeout",
-            "kind": "build_increment",
-            "riskLevel": "low",
-            "verifier": {
-              "mode": "command_only",
-              "commands": [
-                "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
-              ]
-            },
-            "retryPolicy": {
-              "maxAttempts": 1,
-              "onCommandFailure": "needs_replan",
-              "onVerificationFail": "needs_replan"
-            },
-            "suspendWhen": [
-              "Replay baseline positioning still conflicts with the approved engineering-proof demo scope"
-            ]
-          },
-          {
-            "taskId": "p5-approved-baseline-queue-refresh",
-            "kind": "build_increment",
-            "riskLevel": "low",
-            "verifier": {
-              "mode": "command_only",
-              "commands": [
-                "node -e \"const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));\" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/current-progress.md"
-              ]
-            },
-            "retryPolicy": {
-              "maxAttempts": 1,
-              "onVerificationFail": "needs_replan"
-            },
-            "suspendWhen": [
-              "The approved closeout batch has not been enqueued yet"
-            ]
-          }
-        ]
-      },
       {
         "id": "p4-source-entry-carrying-wave",
         "dependsOn": [],
@@ -397,7 +324,7 @@
       "notes": [
         "Automation side is mostly landed: runner, report, and quality-gate contracts exist.",
         "Human baseline/demo decisions are now approved and recorded in docs.",
-        "Remaining work is now smaller sync/contract/queue-closeout follow-up that reuses the approved baseline/demo decisions."
+        "Approved baseline/demo closeout bookkeeping has landed; remaining follow-up stays in narrower manifest/replay maintenance slices."
       ]
     },
     {
@@ -771,7 +698,7 @@
       "phase": "P5",
       "title": "sync approved baseline/demo decisions through closeout surfaces",
       "priority": "medium",
-      "status": "auto_now",
+      "status": "completed",
       "autoExecutable": true,
       "humanInputRequired": false,
       "dependsOn": [

@@ -17,6 +17,18 @@
 
 补充进展（2026-03-30）：
 
+- ✅ approved-baseline closeout batch queue/backlog bookkeeping is now tidy and marked landed (queue/backlog/progress sync only)
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - backlog 已明确将 `p5-approved-baseline-closeout` 标记为 `completed`，并从 `queueMaterializationPlan.nextQueueFamilies` / `routingView.queueMaterializableTasks` 中移除该已落地 closeout wave，避免重复再入队
+    - queue 已将本批 closeout 尾项整理为已完成状态：`p5-replay-baseline-contract-closeout-074`、`p5-approved-baseline-queue-refresh-075`，并保留后续 `P4` source-entry 三项为 pending
+    - 保持边界不变：仅做 queue/backlog/progress 收口，不重开人工 P5 决策，不追加新的 feature wave，不改任何运行时行为
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ P5 replay help/usage wording now consistently positions `demo-eval-report-replay` as the approved engineering-proof demo (contract/readability only)
   - 变更文件：
     - `apps/api/scripts/run-p5-v1-eval-runner.mjs`
