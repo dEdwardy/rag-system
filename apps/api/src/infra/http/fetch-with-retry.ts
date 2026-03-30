@@ -25,6 +25,8 @@ const TRANSIENT_NETWORK_ERROR_CODES = new Set([
 type DomainFetchState = {
   requestTimestamps: number[];
   nextAllowedAt: number;
+  consecutiveServerErrorCount: number;
+  breakerPausedUntil: number;
 };
 
 const domainFetchStates = new Map<string, DomainFetchState>();
@@ -37,6 +39,11 @@ export const DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS = 40;
 export const DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS = 250;
 export const DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS = 2000;
 export const DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS = 120;
+export const DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS = 15000;
+export const DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD = 2;
+export const DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS = 30000;
+const BREAKER_CHALLENGE_PATTERN =
+  /attention required|captcha|cf-browser-verification|checking your browser|verify you are human|bot challenge|security check/i;
 
 export function resolveSourceFetchRuntimeConfig(env: NodeJS.ProcessEnv = process.env) {
   return {
@@ -59,7 +66,16 @@ export function resolveSourceFetchRuntimeConfig(env: NodeJS.ProcessEnv = process
       DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS
     ),
     retryBackoffMaxMs: readNonNegativeInteger(env.SOURCE_FETCH_RETRY_BACKOFF_MAX_MS, DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS),
-    retryJitterMs: readNonNegativeInteger(env.SOURCE_FETCH_RETRY_JITTER_MS, DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS)
+    retryJitterMs: readNonNegativeInteger(env.SOURCE_FETCH_RETRY_JITTER_MS, DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS),
+    breakerPauseMs: readNonNegativeInteger(env.SOURCE_FETCH_BREAKER_PAUSE_MS, DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS),
+    breakerRepeated5xxThreshold: readPositiveInteger(
+      env.SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
+      DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD
+    ),
+    breakerChallengePauseMs: readNonNegativeInteger(
+      env.SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS,
+      DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS
+    )
   };
 }
 
@@ -75,6 +91,7 @@ export async function fetchWithRetry(input: FetchWithRetryInput) {
         signal: AbortSignal.timeout(input.timeoutMs),
         headers: input.headers
       }, runtimeConfig);
+      await applySitePressureSignals(input.url, response, runtimeConfig);
 
       if (!shouldRetryResponse(response.status) || attempt === attempts) {
         return response;
@@ -288,10 +305,7 @@ async function enforceDomainCrawlBudget(
   }
 
   const state =
-    domainFetchStates.get(domain) ?? {
-      requestTimestamps: [],
-      nextAllowedAt: 0
-    };
+    domainFetchStates.get(domain) ?? createDomainFetchState();
   const now = Date.now();
 
   pruneOutdatedRequests(state.requestTimestamps, now, runtimeConfig.crawlBudgetWindowMs);
@@ -302,7 +316,7 @@ async function enforceDomainCrawlBudget(
     );
   }
 
-  const waitMs = Math.max(0, state.nextAllowedAt - now);
+  const waitMs = Math.max(0, state.nextAllowedAt - now, state.breakerPausedUntil - now);
   if (waitMs > 0) {
     await sleep(waitMs);
   }
@@ -312,6 +326,77 @@ async function enforceDomainCrawlBudget(
   state.requestTimestamps.push(stampedAt);
   state.nextAllowedAt = stampedAt + runtimeConfig.domainMinIntervalMs;
   domainFetchStates.set(domain, state);
+}
+
+function createDomainFetchState(): DomainFetchState {
+  return {
+    requestTimestamps: [],
+    nextAllowedAt: 0,
+    consecutiveServerErrorCount: 0,
+    breakerPausedUntil: 0
+  };
+}
+
+async function applySitePressureSignals(
+  url: string,
+  response: Response,
+  runtimeConfig: ReturnType<typeof resolveSourceFetchRuntimeConfig>
+) {
+  const domain = readDomainFromUrl(url);
+  if (!domain) {
+    return;
+  }
+
+  const state = domainFetchStates.get(domain) ?? createDomainFetchState();
+  const now = Date.now();
+
+  if (response.status === 429 && runtimeConfig.breakerPauseMs > 0) {
+    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + runtimeConfig.breakerPauseMs);
+    state.consecutiveServerErrorCount = 0;
+    domainFetchStates.set(domain, state);
+    return;
+  }
+
+  if (response.status >= 500) {
+    state.consecutiveServerErrorCount += 1;
+    if (
+      runtimeConfig.breakerPauseMs > 0 &&
+      state.consecutiveServerErrorCount >= runtimeConfig.breakerRepeated5xxThreshold
+    ) {
+      state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + runtimeConfig.breakerPauseMs);
+      state.consecutiveServerErrorCount = 0;
+    }
+  } else {
+    state.consecutiveServerErrorCount = 0;
+  }
+
+  if (
+    runtimeConfig.breakerChallengePauseMs > 0 &&
+    (await isLikelyAntiBotChallengeResponse(response))
+  ) {
+    state.breakerPausedUntil = Math.max(state.breakerPausedUntil, now + runtimeConfig.breakerChallengePauseMs);
+    state.consecutiveServerErrorCount = 0;
+  }
+
+  domainFetchStates.set(domain, state);
+}
+
+async function isLikelyAntiBotChallengeResponse(response: Response) {
+  if (response.status !== 403 && response.status !== 503) {
+    return false;
+  }
+
+  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+  if (!contentType.includes("text/html")) {
+    return false;
+  }
+
+  try {
+    const payload = await response.clone().text();
+    return BREAKER_CHALLENGE_PATTERN.test(payload.slice(0, 4096));
+  } catch {
+    return false;
+  }
 }
 
 function readDomainFromUrl(url: string) {

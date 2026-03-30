@@ -3,6 +3,9 @@ const http = require("node:http");
 const {
   DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
   DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS,
+  DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS,
+  DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS,
+  DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
   DEFAULT_SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS,
   DEFAULT_SOURCE_FETCH_RETRY_ATTEMPTS,
   DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
@@ -24,7 +27,10 @@ test("resolveSourceFetchRuntimeConfig preserves current defaults", () => {
     crawlBudgetMaxRequests: DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
     retryBackoffBaseMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
     retryBackoffMaxMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
-    retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS
+    retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS,
+    breakerPauseMs: DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS,
+    breakerRepeated5xxThreshold: DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
+    breakerChallengePauseMs: DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS
   });
 });
 
@@ -37,7 +43,10 @@ test("resolveSourceFetchRuntimeConfig accepts explicit env overrides", () => {
     SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "6",
     SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "11",
     SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "77",
-    SOURCE_FETCH_RETRY_JITTER_MS: "13"
+    SOURCE_FETCH_RETRY_JITTER_MS: "13",
+    SOURCE_FETCH_BREAKER_PAUSE_MS: "1500",
+    SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "3",
+    SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "2200"
   });
 
   assert.deepEqual(config, {
@@ -48,7 +57,10 @@ test("resolveSourceFetchRuntimeConfig accepts explicit env overrides", () => {
     crawlBudgetMaxRequests: 6,
     retryBackoffBaseMs: 11,
     retryBackoffMaxMs: 77,
-    retryJitterMs: 13
+    retryJitterMs: 13,
+    breakerPauseMs: 1500,
+    breakerRepeated5xxThreshold: 3,
+    breakerChallengePauseMs: 2200
   });
 });
 
@@ -61,7 +73,10 @@ test("resolveSourceFetchRuntimeConfig ignores invalid env overrides", () => {
     SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "0",
     SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "nope",
     SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "-10",
-    SOURCE_FETCH_RETRY_JITTER_MS: "bad"
+    SOURCE_FETCH_RETRY_JITTER_MS: "bad",
+    SOURCE_FETCH_BREAKER_PAUSE_MS: "-1",
+    SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "0",
+    SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "-5"
   });
 
   assert.deepEqual(config, {
@@ -72,8 +87,231 @@ test("resolveSourceFetchRuntimeConfig ignores invalid env overrides", () => {
     crawlBudgetMaxRequests: DEFAULT_SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS,
     retryBackoffBaseMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_BASE_MS,
     retryBackoffMaxMs: DEFAULT_SOURCE_FETCH_RETRY_BACKOFF_MAX_MS,
-    retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS
+    retryJitterMs: DEFAULT_SOURCE_FETCH_RETRY_JITTER_MS,
+    breakerPauseMs: DEFAULT_SOURCE_FETCH_BREAKER_PAUSE_MS,
+    breakerRepeated5xxThreshold: DEFAULT_SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD,
+    breakerChallengePauseMs: DEFAULT_SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS
   });
+});
+
+test("fetchWithRetry pauses follow-up same-domain request after 429 pressure", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+  const requestTimestamps = [];
+
+  try {
+    global.fetch = async () => {
+      requestCount += 1;
+      requestTimestamps.push(Date.now());
+      if (requestCount === 1) {
+        return new Response("rate limited", {
+          status: 429,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8"
+          }
+        });
+      }
+
+      return new Response("ok", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    };
+
+    await withTemporarySourceFetchEnv(
+      {
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
+        SOURCE_FETCH_RETRY_JITTER_MS: "0",
+        SOURCE_FETCH_BREAKER_PAUSE_MS: "40",
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "0"
+      },
+      async () => {
+        const first = await fetchWithRetry({
+          url: "https://pressure-429.example/source.xml",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+        assert.equal(first.status, 429);
+
+        const second = await fetchWithRetry({
+          url: "https://pressure-429.example/source.xml",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+
+        assert.equal(second.status, 200);
+        assert.ok(
+          requestTimestamps[1] - requestTimestamps[0] >= 30,
+          `Expected breaker pause after 429, got ${requestTimestamps[1] - requestTimestamps[0]}ms.`
+        );
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry pauses follow-up request after anti-bot challenge response", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+  const requestTimestamps = [];
+
+  try {
+    global.fetch = async () => {
+      requestCount += 1;
+      requestTimestamps.push(Date.now());
+      if (requestCount === 1) {
+        return new Response("<html><title>Attention Required</title><body>captcha challenge</body></html>", {
+          status: 403,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        });
+      }
+
+      return new Response("ok", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    };
+
+    await withTemporarySourceFetchEnv(
+      {
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
+        SOURCE_FETCH_RETRY_JITTER_MS: "0",
+        SOURCE_FETCH_BREAKER_PAUSE_MS: "0",
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "45"
+      },
+      async () => {
+        const first = await fetchWithRetry({
+          url: "https://challenge-breaker.example/source.html",
+          headers: {
+            Accept: "text/html"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+        assert.equal(first.status, 403);
+
+        const second = await fetchWithRetry({
+          url: "https://challenge-breaker.example/source.html",
+          headers: {
+            Accept: "text/html"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+
+        assert.equal(second.status, 200);
+        assert.ok(
+          requestTimestamps[1] - requestTimestamps[0] >= 35,
+          `Expected breaker pause after challenge response, got ${requestTimestamps[1] - requestTimestamps[0]}ms.`
+        );
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fetchWithRetry pauses same-domain follow-up request after repeated 5xx responses", async () => {
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+  const requestTimestamps = [];
+
+  try {
+    global.fetch = async () => {
+      requestCount += 1;
+      requestTimestamps.push(Date.now());
+      if (requestCount <= 2) {
+        return new Response("upstream unavailable", {
+          status: 503,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8"
+          }
+        });
+      }
+
+      return new Response("ok", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8"
+        }
+      });
+    };
+
+    await withTemporarySourceFetchEnv(
+      {
+        SOURCE_FETCH_DOMAIN_MIN_INTERVAL_MS: "0",
+        SOURCE_FETCH_CRAWL_BUDGET_WINDOW_MS: "60000",
+        SOURCE_FETCH_CRAWL_BUDGET_MAX_REQUESTS: "10",
+        SOURCE_FETCH_RETRY_BACKOFF_BASE_MS: "0",
+        SOURCE_FETCH_RETRY_BACKOFF_MAX_MS: "0",
+        SOURCE_FETCH_RETRY_JITTER_MS: "0",
+        SOURCE_FETCH_BREAKER_PAUSE_MS: "40",
+        SOURCE_FETCH_BREAKER_REPEATED_5XX_THRESHOLD: "2",
+        SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS: "0"
+      },
+      async () => {
+        const first = await fetchWithRetry({
+          url: "https://pressure-5xx.example/source.xml",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+        assert.equal(first.status, 503);
+
+        const second = await fetchWithRetry({
+          url: "https://pressure-5xx.example/source.xml",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+        assert.equal(second.status, 503);
+
+        const third = await fetchWithRetry({
+          url: "https://pressure-5xx.example/source.xml",
+          headers: {
+            Accept: "text/plain"
+          },
+          timeoutMs: 10000,
+          attempts: 1
+        });
+
+        assert.equal(third.status, 200);
+        assert.ok(
+          requestTimestamps[2] - requestTimestamps[1] >= 30,
+          `Expected breaker pause after repeated 5xx, got ${requestTimestamps[2] - requestTimestamps[1]}ms.`
+        );
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("fetchWithRetry applies bounded retry backoff before the next attempt", async () => {
