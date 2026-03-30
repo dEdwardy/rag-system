@@ -19,7 +19,9 @@ const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "ENETUNREACH",
   "ENOTFOUND",
   "EAI_AGAIN",
-  "ETIMEDOUT"
+  "ETIMEDOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT"
 ]);
 const FETCH_ERROR_CODE_LABELS = new Map([
   ["ECONNRESET", "connection reset"],
@@ -609,8 +611,13 @@ function normalizeFetchError(error: unknown, sourceUrl: string, timeoutMs: numbe
 
   const causeCode = readErrorCode(error.cause);
   const codeLabel = causeCode ? formatFetchErrorCodeLabel(causeCode) : null;
+  const isTimeoutFailure =
+    error.name === "AbortError" ||
+    error.name === "TimeoutError" ||
+    causeCode === "UND_ERR_CONNECT_TIMEOUT" ||
+    causeCode === "UND_ERR_HEADERS_TIMEOUT";
 
-  if (error.name === "AbortError" || error.name === "TimeoutError") {
+  if (isTimeoutFailure) {
     const timeoutMessage = error.message.trim().replace(/[.]+$/, "");
     return new Error(
       appendFetchErrorCodeLabel(

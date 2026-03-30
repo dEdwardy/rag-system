@@ -1003,6 +1003,39 @@ test("fetchWithRetry includes readable error code labels for timeout failures", 
   }
 });
 
+test("fetchWithRetry treats undici timeout codes as timeout failures with readable labels", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    const timeoutError = new TypeError("fetch failed");
+    timeoutError.cause = { code: "UND_ERR_CONNECT_TIMEOUT" };
+    throw timeoutError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchWithRetry({
+          url: "https://example.com/undici-timeout.xml",
+          headers: {
+            Accept: "application/xml"
+          },
+          timeoutMs: 2500,
+          attempts: 1
+        }),
+      error => {
+        assert.equal(
+          error.message,
+          "Failed to fetch https://example.com/undici-timeout.xml: request timed out after 2500ms: fetch failed. [error code UND_ERR_CONNECT_TIMEOUT: connection timed out] (after 1 attempt)."
+        );
+        assert.equal(isRetryableFetchException(error), true);
+        return true;
+      }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("fetchWithRetry retries once after a transient fetch exception", async () => {
   const originalFetch = global.fetch;
   let requestCount = 0;

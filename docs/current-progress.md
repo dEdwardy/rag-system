@@ -150,7 +150,7 @@
     - `apps/api/test/fetch-with-retry.test.js`
     - `docs/current-progress.md`
   - 完成内容（最小范围）：
-    - 在 `fetchWithRetry` 的失败归一化里保留现有 retry/timeout 语义不变，只在可识别的上游网络代码存在时补一层可读 label，方便外部 source fetch 失败诊断直接看到 `error code ...` 上下文
+    - 在 `fetchWithRetry` 的失败归一化里保留现有 retry/timeout 语义不变，只在可识别的上游网络代码存在时补一层可读 label，方便外部 source fetch 失败诊断直接看到 `error code ...` 上下文；同时把 `UND_ERR_CONNECT_TIMEOUT` / `UND_ERR_HEADERS_TIMEOUT` 这类 timeout code 统一进 timeout 诊断路径
     - 保持 fetch 行为、重试策略和 source-family 范围不变；仅增强 failure message 的诊断可读性
   - focused validation：
     - `pnpm test:api:file -- test/fetch-with-retry.test.js`
