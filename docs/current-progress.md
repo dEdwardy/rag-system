@@ -17,6 +17,30 @@
 
 补充进展（2026-03-30）：
 
+- ✅ usage page pre-run guidance wording now matches current collapsed-panel scope for scan-first readability stability (P6 closeout, narrow UI-only)
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 仅调整 `showP6PreRunGuidance` 空态文案，把“首轮运行前保持收起”的面板范围从旧的 trend/alert/hotspot 补齐为当前实际页面的 trend/alert/anomaly/diff/hotspot，避免读感与现有 P6 子面板范围不一致
+    - 保持边界不变：不改 backend contract、不改指标语义、不新增 metric family、不扩展 dashboard 范围
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ next follow-up queue rebuild is now prepared for automatic drain across the 6 approved themes (queue/backlog/refinement sync only)
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue-refinement-plan-2026-03-29.md`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 把用户这次明确批准的 6 个主题收敛成一条新的 12-item execution-ready wave，顺序固定为 `P3 reopen follow-up -> P5 docs/contract closeout -> P6 scan-first observability closeout -> P4 source-entry closeout -> loop queue refresh`
+    - 在 backlog 中新增对应的 queue-materializable families / umbrella items，明确这次是 narrow reopen/closeout，而不是重开 source-family expansion、benchmark/framework 平台化、dashboard 平台化或 source-management console
+    - queue 已追加 11 个 pending implementation/docs items + 1 个 queue-refresh closeout item，等待 loop 按既定顺序自动串行消费
+  - focused validation：
+    - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('.opencode/loop/queue.json','utf8'));" && git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue-refinement-plan-2026-03-29.md .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ external_resync now classifies invalid stored source URLs as `EXTERNAL_SOURCE_CONFIG_INVALID` consistently across `web_page` / `feed` / `sitemap` (instead of falling through to fetch-stage failures)
   - 变更文件：
     - `apps/api/src/modules/documents/documents.service.ts`

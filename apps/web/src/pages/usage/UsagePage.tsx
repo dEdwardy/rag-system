@@ -797,8 +797,8 @@ export function UsagePage() {
                     }
                     description={
                       locale === "zh"
-                        ? "当前知识库还没有文档运行记录。先在 Knowledge base 页触发一次文档扫描/重跑，再回到这里查看 P6 健康信号。首轮运行完成前，这里的趋势/告警/热点面板会保持收起，避免误读。"
-                        : "This knowledge base has no document-run history yet. Trigger one document scan/re-run in the knowledge base page before reading P6 health signals here. Until the first run lands, trend/alert/hotspot panels stay collapsed to avoid false zero-signal reading."
+                        ? "当前知识库还没有文档运行记录。先在 Knowledge base 页触发一次文档扫描/重跑，再回到这里查看 P6 健康信号。首轮运行完成前，这里的趋势/告警/异常/差异/热点面板会保持收起，避免误读。"
+                        : "This knowledge base has no document-run history yet. Trigger one document scan/re-run in the knowledge base page before reading P6 health signals here. Until the first run lands, trend/alert/anomaly/diff/hotspot panels stay collapsed to avoid false zero-signal reading."
                     }
                     title={locale === "zh" ? "P6 预运行引导（scan-first）" : "P6 pre-run guidance (scan-first)"}
                   />
