@@ -17,6 +17,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
+  useCreateFeedDocument,
   useDocuments,
   useCreateWebPageDocument,
   useKnowledgeBases,
@@ -31,9 +32,11 @@ export function DocumentsPage() {
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
   const createWebPageMutation = useCreateWebPageDocument(activeKnowledgeBase?.id ?? "default-kb");
+  const createFeedMutation = useCreateFeedDocument(activeKnowledgeBase?.id ?? "default-kb");
   const reindexMutation = useReindexDocument();
   const { t, locale, formatDateTime } = useI18n();
   const [webPageUrl, setWebPageUrl] = useState("");
+  const [feedUrl, setFeedUrl] = useState("");
 
   const documents = documentsQuery.data ?? [];
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
@@ -172,6 +175,31 @@ export function DocumentsPage() {
     }
   }, [activeKnowledgeBase, createWebPageMutation, t, webPageUrl]);
 
+  const handleCreateFeed = useCallback(async () => {
+    if (!activeKnowledgeBase) {
+      return;
+    }
+
+    const normalizedUrl = feedUrl.trim();
+    if (!normalizedUrl) {
+      return;
+    }
+
+    try {
+      await createFeedMutation.mutateAsync({ url: normalizedUrl });
+      setFeedUrl("");
+      notifications.show({
+        color: "indigo",
+        message: t("documents.feed.submitSuccess", { url: normalizedUrl })
+      });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: error instanceof Error ? error.message : t("documents.feed.submitError")
+      });
+    }
+  }, [activeKnowledgeBase, createFeedMutation, feedUrl, t]);
+
   return (
     <Stack gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -256,6 +284,34 @@ export function DocumentsPage() {
                   {t("documents.webPage.submitAction")}
                 </Button>
               </Stack>
+              <Stack className="w-full" gap={6} maw={360}>
+                <Text c="var(--app-text-secondary)" fw={600} size="xs">
+                  {t("documents.feed.sectionTitle")}
+                </Text>
+                <Text c="var(--app-text-muted)" size="xs">
+                  {t("documents.feed.sectionDescription")}
+                </Text>
+                <TextInput
+                  onChange={event => {
+                    setFeedUrl(event.currentTarget.value);
+                  }}
+                  placeholder={t("documents.feed.inputPlaceholder")}
+                  radius="xl"
+                  type="url"
+                  value={feedUrl}
+                />
+                <Button
+                  className="workspace-button"
+                  color="indigo"
+                  disabled={!activeKnowledgeBase || feedUrl.trim().length === 0}
+                  loading={createFeedMutation.isPending}
+                  onClick={handleCreateFeed}
+                  radius="xl"
+                  variant="light"
+                >
+                  {t("documents.feed.submitAction")}
+                </Button>
+              </Stack>
             </Stack>
           </div>
       </Paper>
@@ -284,6 +340,13 @@ export function DocumentsPage() {
           {createWebPageMutation.error instanceof Error
             ? createWebPageMutation.error.message
             : t("documents.webPage.submitError")}
+        </Alert>
+      ) : null}
+      {createFeedMutation.isError ? (
+        <Alert color="red" radius="xl" variant="light">
+          {createFeedMutation.error instanceof Error
+            ? createFeedMutation.error.message
+            : t("documents.feed.submitError")}
         </Alert>
       ) : null}
       {hasProcessingDocuments ? (

@@ -193,6 +193,14 @@ export const messages = {
         submitSuccess: "Web page submitted: {url}",
         submitError: "Web page submission failed."
       },
+      feed: {
+        sectionTitle: "Feed",
+        sectionDescription: "Submit one direct RSS or Atom feed URL into the active knowledge base.",
+        inputPlaceholder: "https://example.com/feed.xml",
+        submitAction: "Submit feed",
+        submitSuccess: "Feed submitted: {url}",
+        submitError: "Feed submission failed."
+      },
       detail: {
         title: "Document Detail",
         kicker: "Document detail",
@@ -599,6 +607,14 @@ export const messages = {
         submitAction: "提交网页",
         submitSuccess: "已提交网页：{url}",
         submitError: "提交网页失败。"
+      },
+      feed: {
+        sectionTitle: "订阅源",
+        sectionDescription: "提交一个 RSS 或 Atom 直达 URL 到当前知识库。",
+        inputPlaceholder: "https://example.com/feed.xml",
+        submitAction: "提交订阅源",
+        submitSuccess: "已提交订阅源：{url}",
+        submitError: "提交订阅源失败。"
       },
       detail: {
         title: "文档详情",
