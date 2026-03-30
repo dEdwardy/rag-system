@@ -19,6 +19,16 @@
 
 补充进展（2026-03-31）：
 
+- ✅ documents source-entry guard/docs sync is now recorded for the already landed narrow source-entry surface
+  - 变更文件：
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 记录 `p4-source-entry-guard-docs-sync-followup` 的 narrow docs sync 进展，保留 Documents source-entry 现有 `web page` / `feed` / `sitemap` 单提交 guard 与当前文档回归命令说明不变
+    - current-dev setup already has the matching focused `documents page` regression command, so no further wording change was needed there
+    - 不新增 source workspace，不改 backend contract，不扩展 Documents 为 source-management console
+  - focused validation：
+    - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ documents source-entry readability closeout is now tightened to a shorter source-intake scan path while keeping the same narrow guard/docs boundary
   - 变更文件：
     - `apps/web/src/i18n/messages.ts`
