@@ -19,6 +19,30 @@
 
 补充进展（2026-03-31）：
 
+- ✅ documents source-entry readability closeout is now tightened to a shorter source-intake scan path while keeping the same narrow guard/docs boundary
+  - 变更文件：
+    - `apps/web/src/i18n/messages.ts`
+    - `docs/current-dev-setup.md`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 Documents source-entry 的顶部扫描文案收短为更直接的 source-intake / scan-path 表达，保留当前 `web page` / `feed` / `sitemap` 三入口和单提交边界不变
+    - 同步 `current-dev-setup` 中的最小回归命令到当前 `documents page` 测试名，避免文档里继续引用旧的 source-entry 测试片段
+    - 没有新增 source-management 流程，也没有改 backend contract
+  - focused validation：
+    - `node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ next P4/P6 follow-up waves have been split into queue-ready items and appended to the live loop queue
+  - 变更文件：
+    - `.opencode/loop/execution-backlog.jsonc`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 `P4 source-entry closeout`、`P4 source-entry UX follow-up`、`P6 observability readability follow-up` 三个波次拆成 queue-materializable 子任务，并写回 live queue
+    - 保持边界不变：P4 仍只围绕 Documents source-entry，P6 仍只围绕 Usage / Report center / Trace Detail 的 scan-first 可读性与 docs sync
+    - queue 现在已经带着这些 pending items，等待下一轮 loop 手动/自动消费
+  - focused validation：
+    - `pnpm loop:status`
+
 - ✅ source fetch failure diagnostics now keep retry/timeout wording aligned and surface readable upstream error-code labels when the fetch error carries one
   - 变更文件：
     - `apps/api/src/infra/http/fetch-with-retry.ts`

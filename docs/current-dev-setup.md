@@ -793,10 +793,10 @@ node --experimental-strip-types --test apps/web/test/document-run-observability.
 node --test apps/web/test/ui-review-regressions.test.js
 ```
 
-- documents source-entry (`web page` / `feed` / `sitemap`) contract parity + single-submit guard are currently locked by the `ui-review-regressions` source check:
+- documents page source-entry (`web page` / `feed` / `sitemap`) contract parity + single-submit guard are currently locked by the `ui-review-regressions` source check:
 
 ```bash
-node --test --test-name-pattern "documents source-entry" apps/web/test/ui-review-regressions.test.js
+node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js
 ```
 
 Focused assistant strategy UI validation:
