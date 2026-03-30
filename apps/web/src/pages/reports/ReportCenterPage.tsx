@@ -5,6 +5,42 @@ import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 
+type EvalRunParams = {
+  questionSetId: string;
+  assistantId: string;
+  baselineSnapshotId?: string;
+};
+
+function normalizeEvalRunParams(params: {
+  questionSetId: string;
+  assistantId: string;
+  baselineSnapshotId: string;
+}): EvalRunParams | null {
+  const questionSetId = params.questionSetId.trim();
+  const assistantId = params.assistantId.trim();
+  const baselineSnapshotId = params.baselineSnapshotId.trim();
+
+  if (!questionSetId || !assistantId) {
+    return null;
+  }
+
+  return {
+    questionSetId,
+    assistantId,
+    ...(baselineSnapshotId ? { baselineSnapshotId } : {})
+  };
+}
+
+function createEvalRunSearchParams(params: EvalRunParams): URLSearchParams {
+  const nextSearchParams = new URLSearchParams();
+  nextSearchParams.set("questionSetId", params.questionSetId);
+  nextSearchParams.set("assistantId", params.assistantId);
+  if (params.baselineSnapshotId) {
+    nextSearchParams.set("baselineSnapshotId", params.baselineSnapshotId);
+  }
+  return nextSearchParams;
+}
+
 export function ReportCenterPage() {
   const assistantsQuery = useAssistants();
   const runEvalMutation = useRunEvalQuestionSet();
@@ -119,27 +155,17 @@ export function ReportCenterPage() {
 
   async function onRunEvalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmedQuestionSetId = questionSetId.trim();
-    const trimmedAssistantId = assistantId.trim();
-    const trimmedBaselineSnapshotId = baselineSnapshotId.trim();
-
-    if (!trimmedQuestionSetId || !trimmedAssistantId) {
+    const evalRunParams = normalizeEvalRunParams({
+      questionSetId,
+      assistantId,
+      baselineSnapshotId
+    });
+    if (!evalRunParams) {
       return;
     }
 
-    const nextSearchParams = new URLSearchParams();
-    nextSearchParams.set("questionSetId", trimmedQuestionSetId);
-    nextSearchParams.set("assistantId", trimmedAssistantId);
-    if (trimmedBaselineSnapshotId) {
-      nextSearchParams.set("baselineSnapshotId", trimmedBaselineSnapshotId);
-    }
-    setSearchParams(nextSearchParams, { replace: true });
-
-    await runEvalMutation.mutateAsync({
-      questionSetId: trimmedQuestionSetId,
-      assistantId: trimmedAssistantId,
-      ...(trimmedBaselineSnapshotId ? { baselineSnapshotId: trimmedBaselineSnapshotId } : {})
-    });
+    setSearchParams(createEvalRunSearchParams(evalRunParams), { replace: true });
+    await runEvalMutation.mutateAsync(evalRunParams);
   }
 
   function downloadReport(format: "markdown" | "json" | "html") {
