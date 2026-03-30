@@ -201,6 +201,14 @@ export const messages = {
         submitSuccess: "Feed submitted: {url}",
         submitError: "Feed submission failed."
       },
+      sitemap: {
+        sectionTitle: "Sitemap",
+        sectionDescription: "Submit one direct sitemap URL into the active knowledge base.",
+        inputPlaceholder: "https://example.com/sitemap.xml",
+        submitAction: "Submit sitemap",
+        submitSuccess: "Sitemap submitted: {url}",
+        submitError: "Sitemap submission failed."
+      },
       detail: {
         title: "Document Detail",
         kicker: "Document detail",
@@ -615,6 +623,14 @@ export const messages = {
         submitAction: "提交订阅源",
         submitSuccess: "已提交订阅源：{url}",
         submitError: "提交订阅源失败。"
+      },
+      sitemap: {
+        sectionTitle: "站点地图",
+        sectionDescription: "提交一个 sitemap 直达 URL 到当前知识库。",
+        inputPlaceholder: "https://example.com/sitemap.xml",
+        submitAction: "提交站点地图",
+        submitSuccess: "已提交站点地图：{url}",
+        submitError: "提交站点地图失败。"
       },
       detail: {
         title: "文档详情",

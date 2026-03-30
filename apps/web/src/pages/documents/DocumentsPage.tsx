@@ -18,6 +18,7 @@ import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useCreateFeedDocument,
+  useCreateSitemapDocument,
   useDocuments,
   useCreateWebPageDocument,
   useKnowledgeBases,
@@ -33,10 +34,12 @@ export function DocumentsPage() {
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
   const createWebPageMutation = useCreateWebPageDocument(activeKnowledgeBase?.id ?? "default-kb");
   const createFeedMutation = useCreateFeedDocument(activeKnowledgeBase?.id ?? "default-kb");
+  const createSitemapMutation = useCreateSitemapDocument(activeKnowledgeBase?.id ?? "default-kb");
   const reindexMutation = useReindexDocument();
   const { t, locale, formatDateTime } = useI18n();
   const [webPageUrl, setWebPageUrl] = useState("");
   const [feedUrl, setFeedUrl] = useState("");
+  const [sitemapUrl, setSitemapUrl] = useState("");
 
   const documents = documentsQuery.data ?? [];
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
@@ -200,6 +203,31 @@ export function DocumentsPage() {
     }
   }, [activeKnowledgeBase, createFeedMutation, feedUrl, t]);
 
+  const handleCreateSitemap = useCallback(async () => {
+    if (!activeKnowledgeBase) {
+      return;
+    }
+
+    const normalizedUrl = sitemapUrl.trim();
+    if (!normalizedUrl) {
+      return;
+    }
+
+    try {
+      await createSitemapMutation.mutateAsync({ url: normalizedUrl });
+      setSitemapUrl("");
+      notifications.show({
+        color: "indigo",
+        message: t("documents.sitemap.submitSuccess", { url: normalizedUrl })
+      });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: error instanceof Error ? error.message : t("documents.sitemap.submitError")
+      });
+    }
+  }, [activeKnowledgeBase, createSitemapMutation, sitemapUrl, t]);
+
   return (
     <Stack gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
@@ -312,6 +340,34 @@ export function DocumentsPage() {
                   {t("documents.feed.submitAction")}
                 </Button>
               </Stack>
+              <Stack className="w-full" gap={6} maw={360}>
+                <Text c="var(--app-text-secondary)" fw={600} size="xs">
+                  {t("documents.sitemap.sectionTitle")}
+                </Text>
+                <Text c="var(--app-text-muted)" size="xs">
+                  {t("documents.sitemap.sectionDescription")}
+                </Text>
+                <TextInput
+                  onChange={event => {
+                    setSitemapUrl(event.currentTarget.value);
+                  }}
+                  placeholder={t("documents.sitemap.inputPlaceholder")}
+                  radius="xl"
+                  type="url"
+                  value={sitemapUrl}
+                />
+                <Button
+                  className="workspace-button"
+                  color="indigo"
+                  disabled={!activeKnowledgeBase || sitemapUrl.trim().length === 0}
+                  loading={createSitemapMutation.isPending}
+                  onClick={handleCreateSitemap}
+                  radius="xl"
+                  variant="light"
+                >
+                  {t("documents.sitemap.submitAction")}
+                </Button>
+              </Stack>
             </Stack>
           </div>
       </Paper>
@@ -347,6 +403,13 @@ export function DocumentsPage() {
           {createFeedMutation.error instanceof Error
             ? createFeedMutation.error.message
             : t("documents.feed.submitError")}
+        </Alert>
+      ) : null}
+      {createSitemapMutation.isError ? (
+        <Alert color="red" radius="xl" variant="light">
+          {createSitemapMutation.error instanceof Error
+            ? createSitemapMutation.error.message
+            : t("documents.sitemap.submitError")}
         </Alert>
       ) : null}
       {hasProcessingDocuments ? (

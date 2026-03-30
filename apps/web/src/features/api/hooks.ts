@@ -613,6 +613,23 @@ export function useCreateFeedDocument(knowledgeBaseId: string) {
   });
 }
 
+export function useCreateSitemapDocument(knowledgeBaseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { url: string; title?: string; maxPages?: number }) =>
+      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/sitemap`, {
+        method: "POST",
+        body: payload
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+    }
+  });
+}
+
 export function useReindexDocument() {
   const queryClient = useQueryClient();
 
