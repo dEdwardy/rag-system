@@ -19,6 +19,18 @@
 
 补充进展（2026-03-31）：
 
+- ✅ trace detail scan order is now a little more scan-first, with execution summary placed before request / response / steps
+  - 变更文件：
+    - `apps/web/src/pages/traces/TraceDetailPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `.opencode/loop/queue.json`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 Trace Detail 的 `Execution summary` 提到 `Request / response / steps` 之前，让 trace 先按 summary / diagnostics / raw payload 的顺序更容易扫读
+    - 保持边界不变：不改 backend trace schema，不新增 observability contract，也不把页面扩成 dashboard 平台
+  - focused validation：
+    - `node --test --test-name-pattern "trace detail" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ report center run context labels are now scan-friendly and grouped under an explicit run context heading
   - 变更文件：
     - `apps/web/src/pages/reports/ReportCenterPage.tsx`

@@ -169,6 +169,10 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   assert.match(chatSource, /workspace-chat-summary/);
   assert.match(chatSource, /resolveWorkspaceStatus\(/);
   assert.match(chatSource, /readyToAsk:\s*t\("chat\.copy\.readyToAsk"\)/);
+  assert.ok(
+    traceSource.indexOf('Execution summary') < traceSource.indexOf('Request / response / steps'),
+    'Trace Detail should scan execution summary before request / response / steps'
+  );
   assert.match(traceSource, /workspace-metric-grid/);
   assert.match(traceSource, /tone="loading"/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.retrievedChunks\}`\}/);
