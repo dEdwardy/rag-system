@@ -19,6 +19,28 @@
 
 补充进展（2026-03-31）：
 
+- ✅ report center run context labels are now scan-friendly and grouped under an explicit run context heading
+  - 变更文件：
+    - `apps/web/src/pages/reports/ReportCenterPage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 将 Report center 已完成 run 的上下文区从 raw field keys 收束为更直读的 `Run context` / `运行上下文` 标题，并把 `questionSetId` / `baselineSnapshotId` / `baselineVersion` / `assistantId` 改成更易扫读的展示标签
+    - 保持边界不变：不加新 report family，不改 eval API contract，不改 run 参数 carry-through 语义
+  - focused validation：
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+
+- ✅ usage scan summary copy is now a little clearer about the scan order, without widening the observability surface
+  - 变更文件：
+    - `apps/web/src/pages/usage/UsagePage.tsx`
+    - `apps/web/test/ui-review-regressions.test.js`
+    - `docs/current-progress.md`
+  - 完成内容（最小范围）：
+    - 仅收紧 Usage 页顶部 scan summary 的续读提示，把优先信号卡片改成更直接的 scan order 表达，继续保持 scan-first、trend/alert/anomaly/diff/hotspot 的既有面板边界不变
+    - 没有新增 metric family，也没有改 backend observability contract 或 report/trace surface
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+
 - ✅ documents source-entry UX guard docs stay explicitly scoped to the current field-validation / success-feedback / empty-busy closeout
   - 变更文件：
     - `docs/current-dev-setup.md`

@@ -124,6 +124,20 @@ export function ReportCenterPage() {
   const baselineVersionPlaceholder =
     locale === "zh" ? "scan-first：baseline version 暂不可读（先绑定 baseline snapshot）" : "scan-first: baseline version is unavailable until a baseline snapshot is linked";
 
+  function getRunContextLabel(field: "questionSetId" | "baselineSnapshotId" | "baselineVersion" | "assistantId") {
+    if (locale === "zh") {
+      if (field === "questionSetId") return "Question set";
+      if (field === "baselineSnapshotId") return "Baseline snapshot";
+      if (field === "baselineVersion") return "Baseline version";
+      return "Assistant";
+    }
+
+    if (field === "questionSetId") return "Question set";
+    if (field === "baselineSnapshotId") return "Baseline snapshot";
+    if (field === "baselineVersion") return "Baseline version";
+    return "Assistant";
+  }
+
   function formatBaselineMetadataValue(
     value: string | number | null | undefined,
     placeholder: string
@@ -426,25 +440,26 @@ export function ReportCenterPage() {
             </Stack>
           </Paper>
 
+          <div className="workspace-section-heading">{locale === "zh" ? "运行上下文" : "Run context"}</div>
           <div className="workspace-meta-list">
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">questionSetId</span>
+              <span className="workspace-meta-label">{getRunContextLabel("questionSetId")}</span>
               <span className="workspace-meta-value">{runEvalMutation.data.questionSetId}</span>
             </div>
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">baselineSnapshotId</span>
+              <span className="workspace-meta-label">{getRunContextLabel("baselineSnapshotId")}</span>
               <span className="workspace-meta-value">
                 {formatBaselineMetadataValue(runEvalMutation.data.baselineSnapshotId, baselineSnapshotPlaceholder)}
               </span>
             </div>
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">baselineVersion</span>
+              <span className="workspace-meta-label">{getRunContextLabel("baselineVersion")}</span>
               <span className="workspace-meta-value">
                 {formatBaselineMetadataValue(runEvalMutation.data.baselineVersion, baselineVersionPlaceholder)}
               </span>
             </div>
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">assistantId</span>
+              <span className="workspace-meta-label">{getRunContextLabel("assistantId")}</span>
               <span className="workspace-meta-value">{runEvalMutation.data.assistantId}</span>
             </div>
             <div className="workspace-meta-row">

@@ -184,6 +184,7 @@ test("usage page exposes a single P6 v1 alert view for warnings and threshold is
 
   assert.match(usageSource, /P6 v1 alert view|P6 v1 告警视图/);
   assert.match(usageSource, /important warnings and threshold issues|重要 warning 与阈值问题/);
+  assert.match(usageSource, /Scan trend, alert, anomaly, diff, and hotspot panels in that order\.|按趋势、告警、异常、差异和热点的顺序继续扫读。/);
   assert.match(usageSource, /run-backlog-threshold/);
   assert.match(usageSource, /issue-events-threshold/);
 });
@@ -285,6 +286,8 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /setSearchParams\(createEvalRunSearchParams\(evalRunParams\), \{ replace: true \}\)/);
   assert.match(reportCenterSource, /normalizeEvalRunParams/);
   assert.match(reportCenterSource, /report-center-pre-run-path/);
+  assert.match(reportCenterSource, /Run context|运行上下文/);
+  assert.match(reportCenterSource, /Question set|Baseline snapshot|Baseline version|Assistant/);
   assert.match(reportCenterSource, /scan path: Eval run \(trigger first run\) -> Report center \(review quality\/diff\/weakest items\)/);
   assert.match(reportCenterSource, /Start with one scan-first run|先跑一次 scan-first run/);
   assert.match(reportCenterSource, /scan-first: this run is not linked to a baseline snapshot|scan-first：本次 run 未绑定 baseline snapshot/);
