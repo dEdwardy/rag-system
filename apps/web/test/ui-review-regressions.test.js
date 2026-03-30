@@ -114,6 +114,23 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.doesNotMatch(traceListSource, /Conversation ID[^]*Latest trace[^]*Created/);
 });
 
+test("documents source-entry keeps web page/feed/sitemap entrypoint parity under one submit guard", () => {
+  const documentsSource = readFileSync(documentsPath, "utf8");
+
+  assert.match(documentsSource, /useCreateWebPageDocument/);
+  assert.match(documentsSource, /useCreateFeedDocument/);
+  assert.match(documentsSource, /useCreateSitemapDocument/);
+  assert.match(documentsSource, /createWebPageMutation\.isPending \|\| createFeedMutation\.isPending \|\| createSitemapMutation\.isPending/);
+  assert.match(documentsSource, /documents\.sourceEntryScanPath/);
+  assert.match(documentsSource, /documents\.webPage\.sectionTitle/);
+  assert.match(documentsSource, /documents\.feed\.sectionTitle/);
+  assert.match(documentsSource, /documents\.sitemap\.sectionTitle/);
+  assert.match(documentsSource, /documents\.webPage\.submitAction/);
+  assert.match(documentsSource, /documents\.feed\.submitAction/);
+  assert.match(documentsSource, /documents\.sitemap\.submitAction/);
+  assert.match(documentsSource, /disabled=\{isAnySourceSubmissionPending\}/);
+});
+
 test("chat and trace detail surface higher-level workspace summaries before diagnostics", () => {
   const chatSource = readFileSync(chatPagePath, "utf8");
   const traceSource = readFileSync(traceDetailPath, "utf8");

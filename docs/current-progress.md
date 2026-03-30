@@ -17,6 +17,17 @@
 
 补充进展（2026-03-30）：
 
+- ✅ documents source-entry web guard/docs snapshot is now minimally re-synced for `web page` / `feed` / `sitemap` parity (contract closeout only)
+   - 变更文件：
+     - `apps/web/test/ui-review-regressions.test.js`
+     - `docs/current-dev-setup.md`
+     - `docs/current-progress.md`
+   - 完成内容（最小范围）：
+     - 在 `ui-review-regressions` 补一条 documents source-entry guard，锁定 `web page` / `feed` / `sitemap` 三个入口仍共用同一 `isAnySourceSubmissionPending` 提交中状态，避免入口契约漂移
+     - 在 `current-dev-setup` 补充对应 focused guard 命令，明确该 guard 的最小回归入口，保持边界不变（不新增 source workspace、不改 backend contract）
+   - focused validation：
+     - `git diff --check -- docs/current-dev-setup.md docs/current-progress.md`
+
 - ✅ documents source-entry surface now has a clearer scan path and single-submit guard for `web page` / `feed` / `sitemap` URL intake (narrow web closeout)
    - 变更文件：
      - `apps/web/src/pages/documents/DocumentsPage.tsx`
