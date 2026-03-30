@@ -376,6 +376,10 @@ export class DocumentsService {
     const document = await this.getDocument(id, scope);
 
     if (this.isExternalSourceType(document.sourceType)) {
+      if (this.isExternalResyncInProgress(document)) {
+        return document;
+      }
+
       return this.resyncExternalDocument(document);
     }
 
@@ -1071,6 +1075,17 @@ export class DocumentsService {
   private isExternalSourceType(sourceType: string) {
     const normalizedSourceType = sourceType.trim().toLowerCase();
     return normalizedSourceType === "web_page" || normalizedSourceType === "feed" || normalizedSourceType === "sitemap";
+  }
+
+  private isExternalResyncInProgress(document: { status: DocumentStatus; processingStage: DocumentProcessingStage }) {
+    const hasInFlightStatus = document.status === DocumentStatus.pending || document.status === DocumentStatus.processing;
+    const hasInFlightStage =
+      document.processingStage === DocumentProcessingStage.uploaded ||
+      document.processingStage === DocumentProcessingStage.parsing ||
+      document.processingStage === DocumentProcessingStage.chunking ||
+      document.processingStage === DocumentProcessingStage.indexing;
+
+    return hasInFlightStatus && hasInFlightStage;
   }
 
   private isRetryableExternalSourceError(error: unknown) {

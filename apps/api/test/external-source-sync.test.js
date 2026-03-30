@@ -2040,6 +2040,72 @@ test("DocumentsService reindex recovers legacy feed config when sourceConfigJson
   assert.deepEqual(enqueuedDocumentIds, [existingDocument.id]);
 });
 
+test("DocumentsService reindex keeps in-flight external resync instead of starting another broad fetch", async () => {
+  const createdRuns = [];
+
+  const existingDocument = {
+    id: "in-flight-feed-resync-document",
+    kbId: "default-kb",
+    sourceType: "feed",
+    sourceName: "https://example.com/feed.xml",
+    title: "In-flight feed",
+    mimeType: "text/plain",
+    storageKey: "generated/feed.txt",
+    sourceConfigJson: {
+      kind: "feed",
+      url: "https://example.com/feed.xml",
+      maxItems: 50
+    },
+    status: "pending",
+    processingStage: "uploaded",
+    version: 6,
+    chunkCount: 0,
+    errorMessage: null,
+    diagnosticsJson: Prisma.JsonNull
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    getDocument: async documentId => {
+      assert.equal(documentId, existingDocument.id);
+      return existingDocument;
+    },
+    prisma: {
+      document: {
+        update: async () => {
+          throw new Error("document.update should not be called while external resync is already in-flight");
+        }
+      }
+    },
+    documentRunsService: {
+      createRun: async input => {
+        createdRuns.push(input);
+      }
+    },
+    feedSourceService: {
+      fetchFeed: async () => {
+        throw new Error("fetchFeed should not be called while external resync is already in-flight");
+      }
+    },
+    storageService: {
+      saveGeneratedTextFile: async () => {
+        throw new Error("saveGeneratedTextFile should not be called while external resync is already in-flight");
+      }
+    },
+    ingestionService: {
+      enqueueDocument: async () => {
+        throw new Error("enqueueDocument should not be called while external resync is already in-flight");
+      }
+    },
+    sitemapSourceService: {},
+    webPageService: {}
+  });
+
+  const result = await DocumentsService.prototype.reindexDocument.call(fakeService, existingDocument.id);
+
+  assert.deepEqual(result, existingDocument);
+  assert.deepEqual(createdRuns, []);
+});
+
 test("DocumentsService reindex recovers legacy sitemap config when sourceConfigJson is missing", async () => {
   const documentUpdates = [];
   const createdRuns = [];
