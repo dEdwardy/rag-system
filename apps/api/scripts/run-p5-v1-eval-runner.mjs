@@ -11,6 +11,10 @@ const DEFAULT_OUTPUT_DIR = path.join(REPO_ROOT, "storage/evals/p5-v1");
 const P5_DEMO_SHORTLIST_PATH = path.join(SCRIPT_DIR, "p5-demo-shortlist.json");
 const P5_BASELINE_MANIFEST_PATH = path.join(SCRIPT_DIR, "p5-baseline-manifest.v1.json");
 
+function toRepoRelative(filePath) {
+  return path.relative(REPO_ROOT, filePath).replace(/\\/g, "/");
+}
+
 function readOptionValue(argv, index, optionName) {
   const next = argv[index + 1];
   if (!next || next.startsWith("-")) {
@@ -95,6 +99,8 @@ function parseArgs(argv) {
 }
 
 function usage() {
+  const baselineManifestPath = toRepoRelative(P5_BASELINE_MANIFEST_PATH);
+  const demoShortlistPath = toRepoRelative(P5_DEMO_SHORTLIST_PATH);
   return [
     "P5 v1 retrieval regression runner (engineering-proof replay pin)",
     "",
@@ -116,7 +122,9 @@ function usage() {
     "  - unknown flags and missing option values fail fast",
     "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default",
     "  - replay target is pinned to approved engineering-proof demo demo-eval-report-replay (eval-report-replay)",
-    "    via apps/api/scripts/p5-baseline-manifest.v1.json + apps/api/scripts/p5-demo-shortlist.json"
+    `    via ${baselineManifestPath} + ${demoShortlistPath}`,
+    "  - Report center runtime contract stays on live eval API payloads",
+    "    (`POST /eval/question-sets/:id/runs` + `reportExports`), not offline artifacts under storage/evals/p5-v1"
   ].join("\n");
 }
 
