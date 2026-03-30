@@ -905,7 +905,7 @@ Notes:
   - legality/crawl-courtesy baseline（policy only，当前约束）：
     - 仅面向公开可访问、无登录、无付费墙内容
     - 不支持任何访问控制绕过（登录/付费墙/封禁等）
-    - `sitemap` 仅作索引提示，不构成授权声明
+    - `sitemap`（含 `sitemapindex`）仅作 URL 索引提示，不构成授权 grant
     - 使用方仅应导入其有权使用的数据（rights-to-use 由使用方确认）
   - stability boundary（保持不变）：
     - source family 仅限 `web page` / `feed` / `sitemap urlset` / `sitemapindex(一层)` + `external_resync`

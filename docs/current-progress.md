@@ -66,7 +66,7 @@
     - `docs/current-progress.md`
   - 完成内容（最小范围）：
     - 明确 policy baseline：仅面向公开/无登录/无付费墙内容，不做访问控制绕过
-    - 明确 `sitemap` 语义：仅是索引提示，不是抓取授权声明
+    - 明确 `sitemap/sitemapindex` 语义：仅是 URL 索引提示，不是抓取授权 grant
     - 明确 rights-to-use 责任：使用方仅应导入其有权使用的数据
     - 保持边界不变：仅 docs/policy wording 同步，不改 runtime 行为、不扩 source family、不引入更大治理框架
   - focused validation：

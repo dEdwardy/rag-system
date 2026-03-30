@@ -68,7 +68,7 @@
       {
         "id": "p3-external-source-guardrail-wave",
         "dependsOn": [],
-        "waveGoal": "Add the smallest legality/crawl-safety guardrails around existing external-source families: public/no-login/no-paywall content only, no access-control bypass, sitemap treated as index (not authorization), and rights-to-use responsibility kept user-side.",
+        "waveGoal": "Add the smallest legality/crawl-safety guardrails around existing external-source families: public/no-login/no-paywall content only, no access-control bypass, sitemap/sitemapindex treated as URL index (not an authorization grant), and rights-to-use responsibility kept user-side.",
         "candidateTasks": [
           "p3-source-policy-baseline",
           "p3-robots-and-domain-guard",
@@ -501,7 +501,7 @@
       "autoExecutable": true,
       "humanInputRequired": false,
       "dependsOn": [],
-      "goal": "Keep existing web/feed/sitemap ingestion legally safer and less disruptive through a narrow policy baseline (public/no-login/no-paywall only, no access-control bypass, sitemap as index-not-authorization, user-side rights-to-use responsibility), then apply robots/domain courtesy, crawl budgets, breaker behavior, and incremental resync bias without opening new source families.",
+      "goal": "Keep existing web/feed/sitemap ingestion legally safer and less disruptive through a narrow policy baseline (public/no-login/no-paywall only, no access-control bypass, sitemap/sitemapindex as URL index-not-authorization-grant, user-side rights-to-use responsibility), then apply robots/domain courtesy, crawl budgets, breaker behavior, and incremental resync bias without opening new source families.",
       "scope": [
         "apps/api/src/infra/http/fetch-with-retry.ts",
         "apps/api/src/infra/web-page/web-page.service.ts",
@@ -516,7 +516,7 @@
       ],
       "acceptance": [
         "Project docs clearly state external-source legality and crawl-courtesy boundaries.",
-        "Policy baseline is explicit: public/no-login/no-paywall only; no access-control bypass; sitemap is index, not authorization; ingest only data you have rights to use.",
+        "Policy baseline is explicit: public/no-login/no-paywall only; no access-control bypass; sitemap/sitemapindex is URL index, not an authorization grant; ingest only data you have rights to use.",
         "Existing source fetches gain narrow robots/domain or crawl-budget protections without broad connector redesign.",
         "Resync behavior stays biased toward incremental/low-disturbance refresh rather than repeated full-site pressure."
       ],

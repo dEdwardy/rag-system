@@ -500,7 +500,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 - 目标边界（policy baseline）：
   - 只抓取公开可访问、无登录、无付费墙的内容
   - 不做任何访问控制绕过（包括但不限于登录态绕过、付费墙绕过、技术性封禁绕过）
-  - `sitemap` 仅作为 URL 索引提示，不构成抓取授权声明
+  - `sitemap`（含 `sitemapindex`）仅作为 URL 索引提示，不构成抓取授权 grant
   - 用户只应导入其有权使用的数据（rights-to-use 由用户侧负责确认）
   - 避免把现有 source fetch 演变成高并发、大范围、反复全量重扫的 crawler
 - queue-ready guardrail 顺序（建议）：
