@@ -931,10 +931,14 @@ export class DocumentsService {
     const legacyFallbackConfig = this.resolveLegacyExternalSourceConfigFromDocumentIdentity(
       legacyExternalIdentity
     );
-    const sourceTypeHint =
-      (value && typeof value === "object" && !Array.isArray(value) && typeof value.kind === "string"
+    const sourceTypeHintFromConfig =
+      value && typeof value === "object" && !Array.isArray(value) && typeof value.kind === "string"
         ? value.kind
-        : undefined) ?? legacyExternalIdentity?.sourceType;
+        : undefined;
+    const sourceTypeHint =
+      sourceTypeHintFromConfig && this.resolveExternalSourceFamilyReadabilityLabel(sourceTypeHintFromConfig)
+        ? sourceTypeHintFromConfig
+        : legacyExternalIdentity?.sourceType ?? sourceTypeHintFromConfig;
 
     if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") {
       if (legacyFallbackConfig) {

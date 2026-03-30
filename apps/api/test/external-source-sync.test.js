@@ -2214,6 +2214,35 @@ test("DocumentsService keeps external_resync config-invalid diagnostics consiste
     },
     expectedMessage: "External web page source config is invalid."
   });
+
+  await runInvalidConfigCase({
+    sourceType: "feed",
+    sourceConfigJson: {
+      kind: "rss",
+      url: "not-a-valid-feed-url",
+      maxItems: 20
+    },
+    expectedMessage: "External feed source config is invalid."
+  });
+
+  await runInvalidConfigCase({
+    sourceType: "sitemap",
+    sourceConfigJson: {
+      kind: "site_map",
+      url: "not-a-valid-sitemap-url",
+      maxPages: 20
+    },
+    expectedMessage: "External sitemap source config is invalid."
+  });
+
+  await runInvalidConfigCase({
+    sourceType: "web_page",
+    sourceConfigJson: {
+      kind: "web",
+      url: "not-a-valid-web-page-url"
+    },
+    expectedMessage: "External web page source config is invalid."
+  });
 });
 
 test("DocumentsService reindex recovers legacy feed config when sourceConfigJson is missing", async () => {
