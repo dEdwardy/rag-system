@@ -534,8 +534,13 @@ export function TraceDetailPage() {
               </Group>
 
               <div className="workspace-metric-grid">
-                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "本轮结果" : "Outcome"}</Text>
+                <Paper className={`workspace-metric-card workspace-metric-card-compact ${trace.status === "success" ? "workspace-metric-card-success" : "workspace-metric-card-warning"}`} p="lg" radius="xl">
+                  <div className="workspace-metric-header">
+                    <Text className="workspace-metric-label">{locale === "zh" ? "本轮结果" : "Outcome"}</Text>
+                    <Badge color={trace.status === "success" ? "teal" : "orange"} variant="light">
+                      {t(`common.status.${trace.status}`)}
+                    </Badge>
+                  </div>
                   <Text className="workspace-metric-value">
                     {trace.status === "success"
                       ? locale === "zh"
@@ -553,7 +558,7 @@ export function TraceDetailPage() {
                         : "The answer pipeline finished. Continue with citations and score details if needed."}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
                   <Text className="workspace-metric-label">{locale === "zh" ? "命中 Chunk" : "Retrieved chunks"}</Text>
                   <Text className="workspace-metric-value">{retrievedChunkIds.length}</Text>
                   <Text className="workspace-metric-subtle">
@@ -566,7 +571,7 @@ export function TraceDetailPage() {
                         : "Only trace order was persisted, without full score detail."}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
                   <Text className="workspace-metric-label">{locale === "zh" ? "引用数量" : "Citations"}</Text>
                   <Text className="workspace-metric-value">{citations.length}</Text>
                   <Text className="workspace-metric-subtle">
@@ -575,9 +580,9 @@ export function TraceDetailPage() {
                       : "Citations remain directly linked to their source documents."}
                   </Text>
                 </Paper>
-                <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
+                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
                   <Text className="workspace-metric-label">{locale === "zh" ? "总耗时" : "Latency"}</Text>
-                  <Text className="workspace-metric-value">{trace.latencyMs ?? "-"}</Text>
+                  <Text className="workspace-metric-value">{trace.latencyMs ?? "-"} ms</Text>
                   <Text className="workspace-metric-subtle">
                     {locale === "zh"
                       ? hasRewrite
@@ -622,25 +627,25 @@ export function TraceDetailPage() {
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
                   <Stack gap="xs">
                     <Text className="workspace-section-heading">
-                      {locale === "zh" ? "诊断摘要切片（scan-first）" : "Diagnostic summary slice (scan-first)"}
+                      {locale === "zh" ? "诊断摘要切片（快速扫描）" : "Diagnostic summary slice (scan-first)"}
                     </Text>
                     <Text c="var(--app-text-muted)" size="xs">
                       {locale === "zh"
-                        ? "先看一条问题线索 + 一条检索线索 + 一条回答线索，快速决定下一步排查方向。"
-                        : "Scan one issue line, one retrieval line, and one answer line before drilling into raw detail."}
+                        ? "先看问题、检索和回答三条线索，快速决定下一步排查方向。"
+                        : "Scan issue, retrieval, and answer signals to quickly determine next steps."}
                     </Text>
-                    <div className="workspace-meta-list">
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "问题线索" : "Issue signal"}</span>
-                        <span className="workspace-meta-value">{diagnosticSummarySlice.issueLine}</span>
+                    <div className="workspace-diagnostic-grid">
+                      <div className="workspace-diagnostic-item workspace-diagnostic-item-issue">
+                        <div className="workspace-diagnostic-label">{locale === "zh" ? "问题线索" : "Issue signal"}</div>
+                        <div className="workspace-diagnostic-value">{diagnosticSummarySlice.issueLine}</div>
                       </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "检索线索" : "Retrieval signal"}</span>
-                        <span className="workspace-meta-value">{diagnosticSummarySlice.retrievalLine}</span>
+                      <div className="workspace-diagnostic-item workspace-diagnostic-item-retrieval">
+                        <div className="workspace-diagnostic-label">{locale === "zh" ? "检索线索" : "Retrieval signal"}</div>
+                        <div className="workspace-diagnostic-value">{diagnosticSummarySlice.retrievalLine}</div>
                       </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{locale === "zh" ? "回答线索" : "Answer signal"}</span>
-                        <span className="workspace-meta-value">{diagnosticSummarySlice.answerLine}</span>
+                      <div className="workspace-diagnostic-item workspace-diagnostic-item-answer">
+                        <div className="workspace-diagnostic-label">{locale === "zh" ? "回答线索" : "Answer signal"}</div>
+                        <div className="workspace-diagnostic-value">{diagnosticSummarySlice.answerLine}</div>
                       </div>
                     </div>
                   </Stack>
@@ -796,31 +801,36 @@ export function TraceDetailPage() {
                     <Text className="workspace-section-heading">
                       {locale === "zh" ? "Trace 元数据" : "Trace metadata"}
                     </Text>
-                    <div className="workspace-meta-list">
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.created")}</span>
-                        <span className="workspace-meta-value">{formatDateTime(trace.createdAt)}</span>
+                    <div className="workspace-metadata-grid">
+                      <div className="workspace-metadata-item">
+                        <div className="workspace-metadata-label">{t("common.fields.created")}</div>
+                        <div className="workspace-metadata-value">{formatDateTime(trace.createdAt)}</div>
                       </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.conversation")}</span>
-                        <span className="workspace-meta-value">{trace.conversationId}</span>
+                      <div className="workspace-metadata-item">
+                        <div className="workspace-metadata-label">{t("common.fields.conversation")}</div>
+                        <div className="workspace-metadata-value workspace-metadata-value-code">{trace.conversationId}</div>
                       </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.assistant")}</span>
-                        <span className="workspace-meta-value">{trace.assistantId}</span>
+                      <div className="workspace-metadata-item">
+                        <div className="workspace-metadata-label">{t("common.fields.assistant")}</div>
+                        <div className="workspace-metadata-value workspace-metadata-value-code">{trace.assistantId}</div>
                       </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.latency")}</span>
-                        <span className="workspace-meta-value">{trace.latencyMs ?? "-"} ms</span>
+                      <div className="workspace-metadata-item">
+                        <div className="workspace-metadata-label">{t("common.fields.latency")}</div>
+                        <div className="workspace-metadata-value">{trace.latencyMs ?? "-"} ms</div>
                       </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.model")}</span>
-                        <span className="workspace-meta-value">{trace.modelName ?? "-"}</span>
+                      <div className="workspace-metadata-item">
+                        <div className="workspace-metadata-label">{t("common.fields.model")}</div>
+                        <div className="workspace-metadata-value">{trace.modelName ?? "-"}</div>
                       </div>
                     </div>
                     {trace.errorMessage ? (
                       <Alert color="red" radius="xl" variant="light">
-                        {trace.errorMessage}
+                        <Text size="sm" c="var(--app-text-danger)">
+                          {locale === "zh" ? "错误信息" : "Error message"}
+                        </Text>
+                        <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                          {trace.errorMessage}
+                        </Text>
                       </Alert>
                     ) : null}
                   </Stack>
@@ -980,20 +990,32 @@ export function TraceDetailPage() {
                                 </Badge>
                               </Group>
 
-                              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
-                                <Badge color="gray" variant="light">
-                                  {t("trace.vectorScoreLabel", { score: formatScore(item.vectorScore) })}
-                                </Badge>
-                                <Badge color="gray" variant="light">
-                                  {t("trace.lexicalScoreLabel", { score: formatScore(item.lexicalScore) })}
-                                </Badge>
-                                <Badge color="gray" variant="light">
-                                  {t("trace.hybridScoreLabel", { score: formatScore(item.hybridScore) })}
-                                </Badge>
-                                <Badge color="gray" variant="light">
-                                  {t("trace.rerankScoreLabel", { score: formatScore(item.rerankScore) })}
-                                </Badge>
-                              </SimpleGrid>
+                              <div className="workspace-score-grid">
+                                {item.vectorScore != null && (
+                                  <div className="workspace-score-item">
+                                    <span className="workspace-score-label">{t("trace.vectorScoreLabel", { score: "" })}</span>
+                                    <span className="workspace-score-value">{formatScore(item.vectorScore)}</span>
+                                  </div>
+                                )}
+                                {item.lexicalScore != null && (
+                                  <div className="workspace-score-item">
+                                    <span className="workspace-score-label">{t("trace.lexicalScoreLabel", { score: "" })}</span>
+                                    <span className="workspace-score-value">{formatScore(item.lexicalScore)}</span>
+                                  </div>
+                                )}
+                                {item.hybridScore != null && (
+                                  <div className="workspace-score-item">
+                                    <span className="workspace-score-label">{t("trace.hybridScoreLabel", { score: "" })}</span>
+                                    <span className="workspace-score-value">{formatScore(item.hybridScore)}</span>
+                                  </div>
+                                )}
+                                {item.rerankScore != null && (
+                                  <div className="workspace-score-item">
+                                    <span className="workspace-score-label">{t("trace.rerankScoreLabel", { score: "" })}</span>
+                                    <span className="workspace-score-value">{formatScore(item.rerankScore)}</span>
+                                  </div>
+                                )}
+                              </div>
 
                               {item.contentPreview || linkedCitation ? (
                                 <div className="workspace-content-block">
@@ -1078,17 +1100,17 @@ export function TraceDetailPage() {
                 </Paper>
 
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-                  <details id={TRACE_DETAIL_SECTION_IDS.rawPayload} style={{ scrollMarginTop: "96px" }}>
+                  <details id={TRACE_DETAIL_SECTION_IDS.rawPayload} style={{ scrollMarginTop: "96px" }} open={false}>
                     <summary className="workspace-collapsible-summary">
                       <span>{t("common.fields.rawPayload")}</span>
-                      <span className="workspace-inline-chip">
-                        {locale === "zh" ? "次级诊断" : "Secondary diagnostics"}
+                      <span className="workspace-inline-chip workspace-inline-chip-secondary">
+                        {locale === "zh" ? "仅开发调试使用" : "For development only"}
                       </span>
                     </summary>
                     <Text c="var(--app-text-muted)" mt="sm" size="sm">
                       {locale === "zh"
-                        ? "仅在需要核对原始 trace 载荷时展开。"
-                        : "Expand only when you need to inspect the captured trace payload directly."}
+                        ? "原始 trace 数据，仅在需要深度调试时查看。" 
+                        : "Raw trace payload, only for deep debugging purposes."}
                     </Text>
                     <pre className="workspace-code-block workspace-code-block-scroll" style={{ marginTop: "0.9rem" }}>
                       {formatJson(buildRawPayload(trace))}

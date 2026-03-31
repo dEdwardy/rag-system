@@ -65,10 +65,27 @@
     - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
     - `node --test --test-name-pattern "trace detail" apps/web/test/ui-review-regressions.test.js`
 
+- ✅ `p3-source-followup-docs-sync` completed external source follow-up docs and validation baseline sync
+  - 已同步 P3 follow-up 边界、验证方式、未做项到项目文档
+  - 保持现有 source family 边界不变：`web page`、`feed (RSS/Atom)`、`sitemap/urlset`、`sitemapindex(一层)`
+  - 明确后置项：新 source family 扩展、web page JS 渲染抓取能力、跨 source family 的全面错误码体系重构、source 平台化/插件化重构
+  - focused validation：`git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md`
+
+- ✅ `p6-observability-readability-pass` completed observability readability improvements
+  - Usage / Report center / Trace Detail 已完成 scan-first readability 和 docs sync
+  - 保持边界不变：不扩成新 observability platform
+  - 已同步观测性相关文档和最小复用验证清单
+  - focused validation：
+    - `node --test --test-name-pattern "usage page" apps/web/test/ui-review-regressions.test.js`
+    - `node --test --test-name-pattern "report center" apps/web/test/ui-review-regressions.test.js`
+    - `node --test --test-name-pattern "trace detail" apps/web/test/ui-review-regressions.test.js`
+    - `node --test --test-name-pattern "document run" apps/web/test/document-run-observability.test.js`
+
 ## Active Boundaries
 
 - external-source 仍限定在既有 `web page` / `feed` / `sitemap` / `sitemap index` 范围内的小步 guardrail 收口。
 - P3 follow-up 边界继续保持在同一 source family 的稳定性补强（diagnostics/retry-resync/readability 一致性）；不重开 source expansion、connector 平台化或无关波次。
+- P6 观测性边界继续保持在 scan-first readability 和 docs sync；不扩成新 observability platform。
 - loop harness 仍是本地辅助开发工具，不是产品 runtime；优先做小而可回退的 token / queue / verifier 优化，不展开新 orchestration 架构。
 - docs、queue、progress、backlog 的同步继续保持同一波次内最小收口，不把 bookkeeping 扩成独立产品方向。
 
@@ -80,6 +97,30 @@
 - web focused test：`node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
 - docs / queue sync：`git diff --check -- <files...>`
 - P3 source follow-up（guardrail 后沿用）：`pnpm test:api:file -- test/external-source-sync.test.js` + `pnpm test:api:file -- test/fetch-with-retry.test.js` + `pnpm test:api:file -- test/parsing.test.js`
+- P6 观测性（guardrail 后沿用）：`pnpm test:api:file -- test/traces.service.test.js` + `pnpm test:api:file -- test/ask-success.test.js` + `node --test apps/web/test/trace-summary-contract.test.js` + `node --test --test-name-pattern "document run" apps/web/test/document-run-observability.test.js`
+
+## P3 External Source Follow-up 最小复用验证清单
+
+- 运行前提：在仓库根目录执行，且 API 测试环境依赖可用（沿用当前 dev setup）
+- 验证命令：
+  1. `pnpm test:api:file -- test/external-source-sync.test.js`
+  2. `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  3. `pnpm test:api:file -- test/parsing.test.js`
+- 回归确认口径：
+  - 三条命令全部通过，视为现有 source family 的 re-sync recovery、source fetch diagnostics、source parsing/dedup baseline 仍稳定
+  - 若失败，先按失败文件回到对应 source follow-up 子路径修复，再重跑同一组命令，不直接升级到重型全量测试
+
+## P6 观测性（Observability）最小复用验证清单
+
+- 运行前提：在仓库根目录执行，且 API 测试环境依赖可用（沿用当前 dev setup）
+- 验证命令：
+  1. `pnpm test:api:file -- test/traces.service.test.js`
+  2. `pnpm test:api:file -- test/ask-success.test.js`
+  3. `node --test apps/web/test/trace-summary-contract.test.js`
+  4. `node --test --test-name-pattern "document run" apps/web/test/document-run-observability.test.js`
+- 回归确认口径：
+  - 四条命令全部通过，视为观测性相关功能（trace summary、document run observability、ask response metadata）仍稳定
+  - 若失败，先按失败文件回到对应观测性子路径修复，再重跑同一组命令，不直接升级到重型全量测试
 
 ## Notes
 

@@ -1,0 +1,188 @@
+{
+  "schemaVersion": "baseline-question-set.v1",
+  "id": "baseline-question-set-v1",
+  "version": "v1",
+  "description": "Comprehensive baseline question set for RAG system quality evaluation",
+  "questions": [
+    {
+      "id": "q1-capability-summary",
+      "question": "Summarize the core capabilities of this knowledge base system and provide examples of supported features.",
+      "category": "system-overview",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q2-source-ingestion",
+      "question": "What types of external sources can be ingested into the knowledge base?",
+      "category": "data-ingestion",
+      "difficulty": "easy"
+    },
+    {
+      "id": "q3-no-hit-handling",
+      "question": "How does the system handle queries for which no relevant information is found?",
+      "category": "query-handling",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q4-citation-support",
+      "question": "Does the system provide citations for the information it provides? If so, how are they presented?",
+      "category": "answer-quality",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q5-document-types",
+      "question": "What types of documents are supported for ingestion?",
+      "category": "data-ingestion",
+      "difficulty": "easy"
+    },
+    {
+      "id": "q6-retrieval-strategy",
+      "question": "How does the system determine which information to retrieve for a given query?",
+      "category": "retrieval",
+      "difficulty": "hard"
+    },
+    {
+      "id": "q7-auth-system",
+      "question": "What authentication methods are supported by the system?",
+      "category": "security",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q8-conversation-support",
+      "question": "Does the system support multi-turn conversations? If so, how is context maintained?",
+      "category": "conversation",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q9-performance-metrics",
+      "question": "What metrics are used to evaluate the performance of the system?",
+      "category": "evaluation",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q10-error-handling",
+      "question": "How does the system handle errors during ingestion or retrieval?",
+      "category": "error-handling",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q11-vector-storage",
+      "question": "How are embeddings stored and managed in the system?",
+      "category": "infrastructure",
+      "difficulty": "hard"
+    },
+    {
+      "id": "q12-chunking-strategy",
+      "question": "How does the system chunk documents for better retrieval?",
+      "category": "retrieval",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q13-external-sources",
+      "question": "Can the system ingest data from external websites? If so, what limitations exist?",
+      "category": "data-ingestion",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q14-evaluation-process",
+      "question": "How can the quality of the system's answers be evaluated?",
+      "category": "evaluation",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q15-knowledge-base-management",
+      "question": "How can users manage and organize their knowledge bases?",
+      "category": "knowledge-management",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q16-fallback-behavior",
+      "question": "What fallback mechanisms does the system use when it cannot provide a fully grounded answer?",
+      "category": "query-handling",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q17-traceability",
+      "question": "How does the system track and trace the processing of queries and answers?",
+      "category": "monitoring",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q18-llm-integration",
+      "question": "How is the LLM integrated into the system's workflow?",
+      "category": "architecture",
+      "difficulty": "hard"
+    },
+    {
+      "id": "q19-baseline-comparison",
+      "question": "How does the system compare current performance against baseline metrics?",
+      "category": "evaluation",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q20-security-features",
+      "question": "What security features are implemented to protect sensitive information?",
+      "category": "security",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q21-sitemap-ingestion",
+      "question": "How does the system handle sitemap ingestion and what level of depth is supported?",
+      "category": "data-ingestion",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q22-feed-ingestion",
+      "question": "What types of feeds are supported for ingestion and how often are they refreshed?",
+      "category": "data-ingestion",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q23-answer-quality",
+      "question": "How is the quality of answers assessed and what factors contribute to a high-quality answer?",
+      "category": "answer-quality",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q24-retrieval-filters",
+      "question": "Can users apply filters to control what information is retrieved for their queries?",
+      "category": "retrieval",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q25-document-runs",
+      "question": "What are document runs and how are they used in the system?",
+      "category": "knowledge-management",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q26-api-endpoints",
+      "question": "What API endpoints are available for interacting with the system programmatically?",
+      "category": "integration",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q27-user-roles",
+      "question": "What user roles are supported and what permissions do they have?",
+      "category": "security",
+      "difficulty": "medium"
+    },
+    {
+      "id": "q28-embedding-models",
+      "question": "What embedding models are supported and how are they configured?",
+      "category": "infrastructure",
+      "difficulty": "hard"
+    },
+    {
+      "id": "q29-queue-management",
+      "question": "How does the system manage ingestion and processing queues?",
+      "category": "infrastructure",
+      "difficulty": "hard"
+    },
+    {
+      "id": "q30-reporting-capabilities",
+      "question": "What reporting capabilities does the system provide for evaluating performance?",
+      "category": "evaluation",
+      "difficulty": "medium"
+    }
+  ]
+}

@@ -788,7 +788,9 @@ test("DocumentsService records non-retryable diagnostics for invalid external so
 
   const reservedDocument = {
     id: "reserved-invalid-web-page-document",
-    version: 4
+    version: 4,
+    sourceType: undefined,
+    sourceName: undefined
   };
 
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
@@ -835,7 +837,9 @@ test("DocumentsService records non-retryable diagnostics for invalid external so
           failedStage: "source_fetch",
           retryable: false,
           documentVersion: reservedDocument.version,
-          message: "Unsupported web page content type: application/pdf."
+          message: "Unsupported web page content type: application/pdf.",
+          sourceType: undefined,
+          sourceName: undefined
         }
       }
     }
@@ -850,7 +854,9 @@ test("DocumentsService records non-retryable diagnostics for invalid external so
         failedStage: "source_fetch",
         retryable: false,
         documentVersion: reservedDocument.version,
-        message: "Unsupported web page content type: application/pdf."
+        message: "Unsupported web page content type: application/pdf.",
+        sourceType: undefined,
+        sourceName: undefined
       }
     }
   ]);
@@ -1181,7 +1187,9 @@ test("DocumentsService records non-retryable diagnostics for upstream 404 source
 
   const reservedDocument = {
     id: "reserved-missing-web-page-document",
-    version: 5
+    version: 5,
+    sourceType: undefined,
+    sourceName: undefined
   };
 
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
@@ -1224,7 +1232,9 @@ test("DocumentsService records non-retryable diagnostics for upstream 404 source
           failedStage: "source_fetch",
           retryable: false,
           documentVersion: reservedDocument.version,
-          message: "Failed to fetch web page: upstream responded with 404."
+          message: "Failed to fetch web page: upstream responded with 404.",
+          sourceType: undefined,
+          sourceName: undefined
         }
       }
     }
@@ -1239,7 +1249,9 @@ test("DocumentsService records non-retryable diagnostics for upstream 404 source
         failedStage: "source_fetch",
         retryable: false,
         documentVersion: reservedDocument.version,
-        message: "Failed to fetch web page: upstream responded with 404."
+        message: "Failed to fetch web page: upstream responded with 404.",
+        sourceType: undefined,
+        sourceName: undefined
       }
     }
   ]);
@@ -1251,7 +1263,9 @@ test("DocumentsService records readable diagnostics when external fetch throws a
 
   const reservedDocument = {
     id: "reserved-string-fetch-error-document",
-    version: 9
+    version: 9,
+    sourceType: undefined,
+    sourceName: undefined
   };
 
   const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
@@ -1294,7 +1308,9 @@ test("DocumentsService records readable diagnostics when external fetch throws a
           failedStage: "source_fetch",
           retryable: true,
           documentVersion: reservedDocument.version,
-          message: "Upstream source timeout while fetching feed."
+          message: "Upstream source timeout while fetching feed.",
+          sourceType: undefined,
+          sourceName: undefined
         }
       }
     }
@@ -1309,7 +1325,9 @@ test("DocumentsService records readable diagnostics when external fetch throws a
         failedStage: "source_fetch",
         retryable: true,
         documentVersion: reservedDocument.version,
-        message: "Upstream source timeout while fetching feed."
+        message: "Upstream source timeout while fetching feed.",
+        sourceType: undefined,
+        sourceName: undefined
       }
     }
   ]);

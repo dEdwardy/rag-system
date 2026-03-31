@@ -31,5 +31,8 @@
     "test:api:e2e:sources": "pnpm --filter @rag-system/api test:e2e:sources",
     "test:api:e2e": "pnpm --filter @rag-system/api test:e2e",
     "test:web-smoke": "pnpm --filter @rag-system/api build && pnpm --filter @rag-system/web build && node --test apps/web/test/pc-web-smoke.test.js"
+  },
+  "dependencies": {
+    "recharts": "^3.8.1"
   }
 }

@@ -103,8 +103,14 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
       upstreamContentType: "text/plain; charset=utf-8",
       bodyMissing: false,
       bodyQualityLow: true,
-      bodyReadabilitySignal: "body_quality_low",
+      bodyReadabilitySignal: "body_structure_poor",
       bodyTextLength: 16,
+      contentDensity: 0.4444444444444444,
+      paragraphCount: 2,
+      hasHeadings: false,
+      retryable: false,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 0,
       partial: true
     });
   } finally {
@@ -140,6 +146,12 @@ test("WebPageService emits body-missing diagnostics when HTML has no body tag", 
       bodyQualityLow: false,
       bodyReadabilitySignal: "body_missing",
       bodyTextLength: 0,
+      contentDensity: 0,
+      paragraphCount: 0,
+      hasHeadings: false,
+      retryable: false,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 0,
       partial: true
     });
   } finally {
@@ -164,11 +176,14 @@ test("WebPageService emits low body-quality diagnostics for very short body text
     assert.match(extracted.content, /tiny text/);
     assert.equal(extracted.diagnostics?.bodyMissing, false);
     assert.equal(extracted.diagnostics?.bodyQualityLow, true);
-    assert.equal(extracted.diagnostics?.bodyReadabilitySignal, "body_quality_low");
+    assert.equal(extracted.diagnostics?.bodyReadabilitySignal, "body_structure_poor");
     assert.equal(extracted.diagnostics?.contentTypeFallbackApplied, false);
     assert.equal(extracted.diagnostics?.partial, true);
     assert.ok(extracted.diagnostics?.bodyTextLength > 0);
     assert.ok(extracted.diagnostics?.bodyTextLength < 120);
+    assert.ok(extracted.diagnostics?.contentDensity > 0);
+    assert.ok(extracted.diagnostics?.paragraphCount >= 0);
+    assert.equal(extracted.diagnostics?.hasHeadings, false);
   } finally {
     global.fetch = originalFetch;
   }
@@ -1077,7 +1092,16 @@ test("SitemapSourceService tolerates partial sitemap page failures and returns s
         totalExtractedChildSitemapCount: 0,
         selectedChildSitemapCount: 0,
         droppedChildSitemapCount: 0
-      }
+      },
+      attemptedChildSitemapCount: 0,
+      succeededChildSitemapCount: 0,
+      failedChildSitemapCount: 0,
+      failedChildSitemapUrls: [],
+      failedChildSitemaps: [],
+      failedChildSitemapsTruncated: false,
+      failedChildSitemapsOmittedCount: 0,
+      contentTypeFallbackApplied: false,
+      upstreamContentType: "unknown"
     });
   } finally {
     global.fetch = originalFetch;
@@ -1251,7 +1275,9 @@ test("SitemapSourceService tolerates partial child sitemap failures for sitemap 
         totalExtractedChildSitemapCount: 2,
         selectedChildSitemapCount: 2,
         droppedChildSitemapCount: 0
-      }
+      },
+      contentTypeFallbackApplied: false,
+      upstreamContentType: "application/xml; charset=utf-8"
     });
   } finally {
     global.fetch = originalFetch;
