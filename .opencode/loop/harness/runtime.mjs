@@ -284,8 +284,12 @@ export async function runLoop(options) {
       if (!assistantText.trim()) {
         caveats.push("Assistant text was empty; raw response parts were preserved in the handoff.");
       }
-      if (next.item.status === "in_progress" && next.item.sessionId) {
+      if (runState.sessionReuseKind === "resume") {
         caveats.push("The loop resumed an existing OpenCode session after an interrupted run.");
+      } else if (runState.sessionReuseKind === "affinity") {
+        caveats.push(
+          `The loop reused the previous adjacent session for related work via session affinity${runState.sessionReuseSourceItemId ? ` (source item: ${runState.sessionReuseSourceItemId})` : ""}.`
+        );
       } else {
         caveats.push("The loop creates a fresh OpenCode session for new work items.");
       }
@@ -339,7 +343,6 @@ export async function runLoop(options) {
         queue: verifyingQueue,
         index: next.index,
         item: verifyingQueue.items[next.index],
-        promptText,
         verificationResult
       });
       verifyingQueue = replanOutcome.queue;
@@ -702,6 +705,8 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
     let session = currentItem.sessionId ? { id: currentItem.sessionId } : null;
     let message = null;
     let resumeBaselineMessageId = null;
+    let sessionReuseKind = currentItem.sessionId ? "resume" : "fresh";
+    let sessionReuseSourceItemId = null;
 
     try {
       if (session) {
@@ -729,6 +734,39 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
             resumeBaselineMessageId = null;
           }
         }
+      } else {
+        const reusableSessionCandidate = await findReusableSessionCandidate({
+          api,
+          queue: workingQueue,
+          index: next.index,
+          item: currentItem
+        });
+
+        if (reusableSessionCandidate) {
+          session = { id: reusableSessionCandidate.sessionId };
+          resumeBaselineMessageId = reusableSessionCandidate.afterMessageId;
+          sessionReuseKind = "affinity";
+          sessionReuseSourceItemId = reusableSessionCandidate.sourceItemId;
+
+          logStatus("session:reuse", {
+            itemId: next.item.id,
+            sessionId: session.id,
+            sourceItemId: sessionReuseSourceItemId,
+            timeoutRetryAttempt
+          });
+
+          workingQueue = updateQueueItem(workingQueue, next.index, queueItem => ({
+            ...queueItem,
+            sessionId: session.id,
+            startedAt: queueItem.startedAt ?? runStartedAt,
+            status: QUEUE_STATUS.inProgress,
+            sessionReuseKind,
+            sessionReuseSourceItemId,
+            resumedAt: runStartedAt
+          }));
+          writeQueue(queuePath, workingQueue);
+          currentItem = workingQueue.items[next.index] ?? currentItem;
+        }
       }
 
       if (!session) {
@@ -751,7 +789,9 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
           ...queueItem,
           sessionId: session.id,
           startedAt: queueItem.startedAt ?? runStartedAt,
-          status: QUEUE_STATUS.inProgress
+          status: QUEUE_STATUS.inProgress,
+          sessionReuseKind: "fresh",
+          sessionReuseSourceItemId: undefined
         }));
         writeQueue(queuePath, workingQueue);
         currentItem = workingQueue.items[next.index] ?? currentItem;
@@ -781,14 +821,18 @@ async function resolveQueueItemRun({ api, queuePath, queue, next, promptText, ag
         messageId,
         status: QUEUE_STATUS.inProgress,
         messageReceivedAt: new Date().toISOString(),
-        resumedAt: currentItem.sessionId ? runStartedAt : undefined
+        resumedAt: sessionReuseKind === "fresh" ? undefined : runStartedAt,
+        sessionReuseKind,
+        sessionReuseSourceItemId: sessionReuseSourceItemId ?? undefined
       }));
       writeQueue(queuePath, workingQueue);
 
       return {
         queue: workingQueue,
         session,
-        message
+        message,
+        sessionReuseKind,
+        sessionReuseSourceItemId
       };
     } catch (error) {
       if (!isAssistantMessageTimeoutError(error)) {
@@ -835,8 +879,78 @@ function resetTimedOutQueueItem(queue, index, { preserveInProgress }) {
     sessionId: undefined,
     messageId: undefined,
     messageReceivedAt: undefined,
-    resumedAt: undefined
+    resumedAt: undefined,
+    sessionReuseKind: undefined,
+    sessionReuseSourceItemId: undefined
   }));
+}
+
+async function findReusableSessionCandidate({ api, queue, index, item }) {
+  const previousItem = index > 0 ? queue.items[index - 1] ?? null : null;
+  if (!previousItem?.sessionId) {
+    return null;
+  }
+
+  if (!itemsShareReusableSession(previousItem, item)) {
+    return null;
+  }
+
+  const afterMessageId = await resolveReusableSessionBaselineMessageId({
+    api,
+    sessionId: previousItem.sessionId,
+    preferredMessageId: previousItem.messageId
+  });
+
+  return {
+    sessionId: previousItem.sessionId,
+    afterMessageId,
+    sourceItemId: previousItem.id ?? null
+  };
+}
+
+function itemsShareReusableSession(previousItem, item) {
+  const previousAffinityKey = normalizeSessionAffinityKey(previousItem);
+  const currentAffinityKey = normalizeSessionAffinityKey(item);
+  if (previousAffinityKey && currentAffinityKey) {
+    return previousAffinityKey === currentAffinityKey;
+  }
+
+  const previousPlannerFamily = normalizePlannerFamily(previousItem);
+  const currentPlannerFamily = normalizePlannerFamily(item);
+  return Boolean(previousPlannerFamily && currentPlannerFamily && previousPlannerFamily === currentPlannerFamily);
+}
+
+async function resolveReusableSessionBaselineMessageId({ api, sessionId, preferredMessageId }) {
+  if (preferredMessageId) {
+    try {
+      const matchedMessage = await api.findAssistantMessage({
+        sessionId,
+        messageId: preferredMessageId
+      });
+      if (matchedMessage?.info?.id) {
+        return matchedMessage.info.id;
+      }
+    } catch {
+      // Fall through to latest-assistant discovery when the stored assistant message is unavailable.
+    }
+  }
+
+  try {
+    const latestAssistant = await api.getLatestAssistantMessage({ sessionId });
+    return latestAssistant?.info?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSessionAffinityKey(item) {
+  return typeof item?.sessionAffinityKey === "string" && item.sessionAffinityKey.trim()
+    ? item.sessionAffinityKey.trim()
+    : null;
+}
+
+function normalizePlannerFamily(item) {
+  return typeof item?.plannerFamily === "string" && item.plannerFamily.trim() ? item.plannerFamily.trim() : null;
 }
 
 function assertStatusChange(queueItem, nextStatus, context) {
