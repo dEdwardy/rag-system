@@ -19,6 +19,7 @@ import {
   ListKnowledgeBaseDocumentsInput,
   ListKnowledgeBaseDocumentRunsInput
 } from "./document.schemas";
+import { ErrorCode, createErrorDiagnostics, createPartialErrorDiagnostics } from "../../common/error-codes";
 
 type ExternalSourceConfig =
   | { kind: "web_page"; url: string }
@@ -617,21 +618,17 @@ export class DocumentsService {
     } catch (error) {
       const message = this.resolveErrorMessage(error, "Unknown external source fetch error.");
       const retryable = this.isRetryableExternalSourceError(error);
-      const diagnostics: Record<string, Prisma.InputJsonValue> = {
-        code: "EXTERNAL_SOURCE_FETCH_FAILED",
-        failedStage: "source_fetch",
+      const diagnostics = createErrorDiagnostics(
+        ErrorCode.EXTERNAL_SOURCE_FETCH_FAILED,
+        "source_fetch",
         retryable,
-        documentVersion: document.version,
-        message
-      };
-
-      if (typeof document.sourceType === "string") {
-        diagnostics.sourceType = document.sourceType;
-      }
-
-      if (typeof document.sourceName === "string") {
-        diagnostics.sourceName = document.sourceName;
-      }
+        document.version,
+        message,
+        {
+          sourceType: document.sourceType,
+          sourceName: document.sourceName
+        }
+      );
 
       await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
@@ -651,13 +648,13 @@ export class DocumentsService {
     } catch (error) {
       const message = this.resolveErrorMessage(error, "Unknown external source persistence error.");
       const retryable = this.isRetryableExternalSourceError(error);
-      const diagnostics = {
-        code: "EXTERNAL_SOURCE_PERSIST_FAILED",
-        failedStage: "source_fetch",
+      const diagnostics = createErrorDiagnostics(
+        ErrorCode.EXTERNAL_SOURCE_PERSIST_FAILED,
+        "source_fetch",
         retryable,
-        documentVersion: document.version,
+        document.version,
         message
-      } satisfies Prisma.InputJsonValue;
+      );
 
       await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
@@ -670,13 +667,13 @@ export class DocumentsService {
       await this.ingestionService.enqueueDocument(document.id, document.version);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown ingestion enqueue error.";
-      const diagnostics = {
-        code: "INGESTION_ENQUEUE_FAILED",
-        failedStage: "parsing",
-        retryable: true,
-        documentVersion: document.version,
+      const diagnostics = createErrorDiagnostics(
+        ErrorCode.INGESTION_ENQUEUE_FAILED,
+        "parsing",
+        true,
+        document.version,
         message
-      } satisfies Prisma.InputJsonValue;
+      );
 
       await this.recordIngestionFailureIfCurrent(document, diagnostics, message);
 
@@ -689,13 +686,13 @@ export class DocumentsService {
       await this.ingestionService.enqueueDocument(document.id, document.version);
     } catch (error) {
       const message = this.resolveErrorMessage(error, "Unknown external enqueue error.");
-      const diagnostics = {
-        code: "EXTERNAL_SOURCE_ENQUEUE_FAILED",
-        failedStage: "source_fetch",
-        retryable: true,
-        documentVersion: document.version,
+      const diagnostics = createErrorDiagnostics(
+        ErrorCode.EXTERNAL_SOURCE_ENQUEUE_FAILED,
+        "source_fetch",
+        true,
+        document.version,
         message
-      } satisfies Prisma.InputJsonValue;
+      );
 
       await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
@@ -812,13 +809,13 @@ export class DocumentsService {
         error instanceof Error
           ? error.message
           : this.buildExternalSourceConfigErrorMessage("invalid", document.sourceType ?? undefined);
-      const diagnostics = {
-        code: "EXTERNAL_SOURCE_CONFIG_INVALID",
-        failedStage: "source_fetch",
-        retryable: false,
-        documentVersion: document.version,
+      const diagnostics = createErrorDiagnostics(
+        ErrorCode.EXTERNAL_SOURCE_CONFIG_INVALID,
+        "source_fetch",
+        false,
+        document.version,
         message
-      } satisfies Prisma.InputJsonValue;
+      );
 
       await this.recordExternalFailureIfCurrent(document, diagnostics, message);
 
@@ -844,14 +841,16 @@ export class DocumentsService {
 
     await this.documentRunsService.markRunSkipped(document.id, document.version, {
       failedStage: DocumentRunFailedStage.stale_guard,
-      diagnosticsJson: {
-        code: "EXTERNAL_SOURCE_RUN_SUPERSEDED",
-          failedStage: "stale_guard",
-          retryable: false,
-          documentVersion: document.version,
-          message: "Skipped stale external source update because a newer document version is already active.",
+      diagnosticsJson: createErrorDiagnostics(
+        ErrorCode.EXTERNAL_SOURCE_RUN_SUPERSEDED,
+        "stale_guard",
+        false,
+        document.version,
+        "Skipped stale external source update because a newer document version is already active.",
+        {
           currentDocumentVersion: currentDocument.version
-      }
+        }
+      )
     });
 
     return false;
@@ -908,14 +907,16 @@ export class DocumentsService {
 
     await this.documentRunsService.markRunSkipped(document.id, document.version, {
       failedStage: DocumentRunFailedStage.stale_guard,
-      diagnosticsJson: {
-        code: "INGESTION_RUN_SUPERSEDED",
-        failedStage: "stale_guard",
-        retryable: false,
-        documentVersion: document.version,
-        message: "Skipped stale ingestion enqueue failure handling because a newer document version is already active.",
-        currentDocumentVersion: currentDocument.version
-      }
+      diagnosticsJson: createErrorDiagnostics(
+        ErrorCode.INGESTION_RUN_SUPERSEDED,
+        "stale_guard",
+        false,
+        document.version,
+        "Skipped stale ingestion enqueue failure handling because a newer document version is already active.",
+        {
+          currentDocumentVersion: currentDocument.version
+        }
+      )
     });
 
     return false;
@@ -1173,24 +1174,28 @@ export class DocumentsService {
           ? true
           : retryable;
 
-    return {
-      ...diagnostics,
-      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
-      failedStage: "source_fetch",
-      retryable: resolvedRetryable,
+    // Extract only the fields we want to keep from the original diagnostics
+    const { code, failedStage, documentVersion: _, sourceKind: __, schemaVersion, category, message: ___, ...otherDiagnostics } = diagnostics;
+
+    const partialDiagnostics = createPartialErrorDiagnostics(
+      ErrorCode.EXTERNAL_SOURCE_PARTIAL_SUCCESS,
+      "source_fetch",
+      resolvedRetryable,
       documentVersion,
+      message,
       sourceKind,
-      schemaVersion: 2,
-      category: "external_source_partial",
-      partialFailureCount: partialSignalCount,
+      partialSignalCount,
       retryableFailureCount,
       nonRetryableFailureCount,
-      ...(bodyReadabilitySignal ? { bodyReadabilitySignal } : {}),
-      boundaryHit,
-      boundaryReasons,
-      message,
-      partial: true
-    } satisfies Prisma.InputJsonValue;
+      {
+        boundaryHit,
+        boundaryReasons,
+        ...(bodyReadabilitySignal ? { bodyReadabilitySignal } : {}),
+        ...otherDiagnostics
+      }
+    );
+
+    return partialDiagnostics satisfies Prisma.InputJsonValue;
   }
 
   private resolveWebBodyReadabilitySignal(sourceKind: "feed" | "sitemap" | "web", bodyMissing: boolean, bodyQualityLow: boolean) {

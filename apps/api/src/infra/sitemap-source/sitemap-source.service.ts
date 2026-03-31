@@ -26,41 +26,41 @@ type FetchedSitemap = {
 };
 
 type SitemapFetchDiagnostics = {
-  sourceKind?: "sitemap";
-  schemaVersion?: 2;
+  sourceKind: "sitemap";
+  schemaVersion: 2;
   retryable: boolean;
-  contentTypeFallbackApplied?: boolean;
-  upstreamContentType?: string;
+  contentTypeFallbackApplied: boolean;
+  upstreamContentType: string;
   attemptedPageCount: number;
   succeededPageCount: number;
   failedPageCount: number;
-  retryableFailureCount?: number;
-  nonRetryableFailureCount?: number;
+  retryableFailureCount: number;
+  nonRetryableFailureCount: number;
   failedPageUrls: string[];
-  failedPages?: Array<{
+  failedPages: Array<{
     url: string;
     code: string;
     message: string;
     retryable: boolean;
   }>;
-  failedPagesTruncated?: boolean;
-  failedPagesOmittedCount?: number;
+  failedPagesTruncated: boolean;
+  failedPagesOmittedCount: number;
   partial: boolean;
-  attemptedChildSitemapCount?: number;
-  succeededChildSitemapCount?: number;
-  failedChildSitemapCount?: number;
-  failedChildSitemapUrls?: string[];
-  failedChildSitemaps?: Array<{
+  attemptedChildSitemapCount: number;
+  succeededChildSitemapCount: number;
+  failedChildSitemapCount: number;
+  failedChildSitemapUrls: string[];
+  failedChildSitemaps: Array<{
     url: string;
     code: string;
     message: string;
     retryable: boolean;
   }>;
-  failedChildSitemapsTruncated?: boolean;
-  failedChildSitemapsOmittedCount?: number;
-  boundaryHit?: boolean;
-  boundaryReasons?: string[];
-  boundary?: {
+  failedChildSitemapsTruncated: boolean;
+  failedChildSitemapsOmittedCount: number;
+  boundaryHit: boolean;
+  boundaryReasons: string[];
+  boundary: {
     maxPages: number;
     maxChildSitemaps: number;
     totalExtractedPageUrlCount: number;
@@ -237,12 +237,8 @@ export class SitemapSourceService {
                 failedPageUrls: [],
                 retryableFailureCount: 0,
                 nonRetryableFailureCount: 0,
-                ...(rootPayloadAcceptance.contentTypeFallbackApplied
-                  ? {
-                      contentTypeFallbackApplied: true,
-                      upstreamContentType: rootPayloadAcceptance.upstreamContentType
-                    }
-                  : {}),
+                contentTypeFallbackApplied: rootPayloadAcceptance.contentTypeFallbackApplied,
+                upstreamContentType: rootPayloadAcceptance.upstreamContentType,
                 boundaryHit,
                 boundaryReasons: boundaryHit ? [SITEMAP_BOUNDARY_REASON_MAX_PAGES_REACHED] : [],
                 boundary: {
@@ -254,7 +250,17 @@ export class SitemapSourceService {
                   totalExtractedChildSitemapCount: 0,
                   selectedChildSitemapCount: 0,
                   droppedChildSitemapCount: 0
-                }
+                },
+                attemptedChildSitemapCount: 0,
+                succeededChildSitemapCount: 0,
+                failedChildSitemapCount: 0,
+                failedChildSitemapUrls: [],
+                failedChildSitemaps: [],
+                failedChildSitemapsTruncated: false,
+                failedChildSitemapsOmittedCount: 0,
+                failedPages: [],
+                failedPagesTruncated: false,
+                failedPagesOmittedCount: 0
               }
             : null
       };
@@ -385,12 +391,8 @@ export class SitemapSourceService {
                 retryableFailureCount,
                 nonRetryableFailureCount,
                 retryable: retryableFailureCount > 0,
-                ...(contentTypeFallbackApplied
-                  ? {
-                      contentTypeFallbackApplied: true,
-                      upstreamContentType: fallbackUpstreamContentType
-                    }
-                  : {}),
+                contentTypeFallbackApplied: contentTypeFallbackApplied,
+                upstreamContentType: fallbackUpstreamContentType,
                 boundaryHit,
                 boundaryReasons,
                 boundary: {
@@ -403,7 +405,14 @@ export class SitemapSourceService {
                   selectedChildSitemapCount: selectedChildSitemapUrls.length,
                   droppedChildSitemapCount
                 },
-                partial: true
+                partial: true,
+                attemptedPageCount: 0,
+                succeededPageCount: 0,
+                failedPageCount: 0,
+                failedPageUrls: [],
+                failedPages: [],
+                failedPagesTruncated: false,
+                failedPagesOmittedCount: 0
               }
           : null
     };
@@ -459,10 +468,19 @@ export class SitemapSourceService {
     );
     const pageNonRetryableFailureCount = pageFailures.length - pageRetryableFailureCount;
 
-    const diagnostics =
-      failedPageUrls.length > 0 || existingDiagnostics?.partial
+    const diagnostics = failedPageUrls.length > 0 || existingDiagnostics?.partial
         ? {
-            ...(existingDiagnostics ?? {}),
+            ...(existingDiagnostics ?? {
+              attemptedChildSitemapCount: 0,
+              succeededChildSitemapCount: 0,
+              failedChildSitemapCount: 0,
+              failedChildSitemapUrls: [],
+              failedChildSitemaps: [],
+              failedChildSitemapsTruncated: false,
+              failedChildSitemapsOmittedCount: 0,
+              contentTypeFallbackApplied: false,
+              upstreamContentType: "unknown"
+            }),
             ...this.buildFailureSummary(
               pageFailures,
               "failedPages",
@@ -485,7 +503,19 @@ export class SitemapSourceService {
             retryable:
               pageFailures.some(failure => this.isRetryableFetchError(failure.error)) ||
               existingDiagnostics?.retryable === true,
-            partial: true
+            partial: true,
+            boundaryHit: existingDiagnostics?.boundaryHit ?? false,
+            boundaryReasons: existingDiagnostics?.boundaryReasons ?? [],
+            boundary: existingDiagnostics?.boundary ?? {
+              maxPages: pageUrls.length,
+              maxChildSitemaps: MAX_CHILD_SITEMAPS,
+              totalExtractedPageUrlCount: pageUrls.length,
+              selectedPageUrlCount: pageUrls.length,
+              droppedPageUrlCount: 0,
+              totalExtractedChildSitemapCount: existingDiagnostics?.attemptedChildSitemapCount ?? 0,
+              selectedChildSitemapCount: existingDiagnostics?.attemptedChildSitemapCount ?? 0,
+              droppedChildSitemapCount: 0
+            }
           }
         : null;
 
@@ -495,20 +525,7 @@ export class SitemapSourceService {
         ? {
             ...diagnostics,
             sourceKind: "sitemap" as const,
-            schemaVersion: 2 as const,
-            boundaryHit: diagnostics.boundaryHit ?? false,
-            boundaryReasons: diagnostics.boundaryReasons ?? [],
-            boundary:
-              diagnostics.boundary ?? {
-                maxPages: pageUrls.length,
-                maxChildSitemaps: MAX_CHILD_SITEMAPS,
-                totalExtractedPageUrlCount: pageUrls.length,
-                selectedPageUrlCount: pageUrls.length,
-                droppedPageUrlCount: 0,
-                totalExtractedChildSitemapCount: diagnostics.attemptedChildSitemapCount ?? 0,
-                selectedChildSitemapCount: diagnostics.attemptedChildSitemapCount ?? 0,
-                droppedChildSitemapCount: 0
-              }
+            schemaVersion: 2 as const
           }
         : null
     };

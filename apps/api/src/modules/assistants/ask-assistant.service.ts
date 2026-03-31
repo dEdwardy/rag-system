@@ -78,6 +78,7 @@ export class AskAssistantService {
     question: string;
     conversationId?: string;
     authContext?: RequestAuthContext | null;
+    documentVersions?: Record<string, number>;
   }) {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
@@ -136,7 +137,8 @@ export class AskAssistantService {
       retrievalProfile,
       retrievalStrategy,
       retrievalFilters,
-      rewritten
+      rewritten,
+      documentVersions: input.documentVersions
     });
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
@@ -916,6 +918,7 @@ export class AskAssistantService {
       usedFallback: boolean | null;
       promptId: string | null;
     };
+    documentVersions?: Record<string, number>;
   }) {
     try {
       return await this.retrievalService.retrieve({
@@ -927,7 +930,8 @@ export class AskAssistantService {
         enableHybrid: input.retrievalProfile.enableHybrid,
         enableRerank: input.retrievalProfile.enableRerank,
         filters: input.retrievalFilters,
-        strategy: input.retrievalStrategy
+        strategy: input.retrievalStrategy,
+        documentVersions: input.documentVersions
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown retrieval pipeline error.";

@@ -1,5 +1,5 @@
-import { Badge, Button, Paper } from "@mantine/core";
-import { useMemo } from "react";
+import { Badge, Button, Paper, Select } from "@mantine/core";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -21,11 +21,13 @@ import type {
 } from "../../types/api";
 
 export function UsagePage() {
+  const [timeRange, setTimeRange] = useState<number>(24); // 默认24小时
+  
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
   const conversationsQuery = useConversations();
   const apiHealthQuery = useApiHealth();
-  const auditEventsQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 5 });
+  const auditEventsQuery = useAuditEvents({ issueOnly: true, sinceHours: timeRange, limit: 5 });
   const issueTrend1hQuery = useAuditEvents({ issueOnly: true, sinceHours: 1, limit: 100 });
   const issueTrend6hQuery = useAuditEvents({ issueOnly: true, sinceHours: 6, limit: 100 });
   const issueTrend24hQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 100 });
@@ -34,10 +36,10 @@ export function UsagePage() {
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
   const runSummary1hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 1 });
   const runSummary6hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 6 });
-  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 24 });
+  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: timeRange });
   const anomalyRunsQuery = useKnowledgeBaseDocumentRuns(activeKnowledgeBase?.id ?? null, {
     issueOnly: true,
-    sinceHours: 24,
+    sinceHours: timeRange,
     limit: 100
   });
   const latestIssueRunPair = useMemo(() => {
@@ -94,17 +96,25 @@ export function UsagePage() {
     [documents]
   );
 
-  const metrics = useMemo(
-    () => [
-      { label: locale === "zh" ? "知识库" : "Knowledge bases", value: knowledgeBasesQuery.data?.length ?? 0 },
-      { label: locale === "zh" ? "文档" : "Documents", value: documents.length },
-      { label: locale === "zh" ? "Chunk" : "Chunks", value: totalChunks },
-      { label: locale === "zh" ? "助手" : "Assistants", value: assistants.length },
-      { label: locale === "zh" ? "会话" : "Conversations", value: conversations.length },
-      { label: locale === "zh" ? "就绪文档" : "Ready docs", value: readyDocuments }
-    ],
-    [assistants.length, conversations.length, documents.length, knowledgeBasesQuery.data?.length, locale, readyDocuments, totalChunks]
-  );
+  // 生成指标数据
+  const generateMetrics = () => [
+    { label: locale === "zh" ? "知识库" : "Knowledge bases", value: knowledgeBasesQuery.data?.length ?? 0 },
+    { label: locale === "zh" ? "文档" : "Documents", value: documents.length },
+    { label: locale === "zh" ? "Chunk" : "Chunks", value: totalChunks },
+    { label: locale === "zh" ? "助手" : "Assistants", value: assistants.length },
+    { label: locale === "zh" ? "会话" : "Conversations", value: conversations.length },
+    { label: locale === "zh" ? "就绪文档" : "Ready docs", value: readyDocuments }
+  ];
+
+  const metrics = useMemo(() => generateMetrics(), [
+    assistants.length, 
+    conversations.length, 
+    documents.length, 
+    knowledgeBasesQuery.data?.length, 
+    locale, 
+    readyDocuments, 
+    totalChunks
+  ]);
 
   const hasError = useMemo(
     () =>
@@ -153,163 +163,165 @@ export function UsagePage() {
   const hasRecentFailure = retryableFailureCount + nonRetryableFailureCount > 0;
   const hasDocumentRunHistory = (runSummary?.totalRuns ?? 0) > 0;
   const boundaryHitCount = runSummary?.boundaryStats.runsWithBoundaryHit ?? 0;
-  const healthSignals = useMemo(
-    () => [
-      {
-        label: locale === "zh" ? "API" : "API",
-        tone: isApiHealthy ? "green" : apiHealthQuery.isLoading ? "gray" : "red",
-        value: isApiHealthy
+  // 生成健康信号
+  const generateHealthSignals = () => [
+    {
+      label: locale === "zh" ? "API" : "API",
+      tone: isApiHealthy ? "green" : apiHealthQuery.isLoading ? "gray" : "red",
+      value: isApiHealthy
+        ? locale === "zh"
+          ? "正常"
+          : "healthy"
+        : apiHealthQuery.isLoading
           ? locale === "zh"
-            ? "正常"
-            : "healthy"
-          : apiHealthQuery.isLoading
-            ? locale === "zh"
-              ? "检查中"
-              : "checking"
-            : locale === "zh"
-              ? "不可用"
-              : "unhealthy"
-      },
-      {
-        label: locale === "zh" ? "运行积压" : "Run backlog",
-        tone: pendingRunCount > 0 ? "yellow" : "green",
-        value: pendingRunCount > 0 ? `${pendingRunCount}` : locale === "zh" ? "无" : "none"
-      },
-      {
-        label: locale === "zh" ? "最近 24h 问题事件" : "Issue events (24h)",
-        tone: recentIssueCount > 0 ? "orange" : "green",
-        value: String(recentIssueCount)
-      },
-      {
-        label: locale === "zh" ? "失败运行" : "Failed runs",
-        tone: hasRecentFailure ? "red" : "green",
-        value: hasRecentFailure
-          ? `${retryableFailureCount} / ${nonRetryableFailureCount}`
+            ? "检查中"
+            : "checking"
           : locale === "zh"
-            ? "无"
-            : "none"
-      }
-    ],
-    [
-      apiHealthQuery.isLoading,
-      hasRecentFailure,
-      isApiHealthy,
-      locale,
-      pendingRunCount,
-      recentIssueCount,
-      nonRetryableFailureCount,
-      retryableFailureCount
-    ]
-  );
-
-  const alertItems = useMemo(
-    () => {
-      const alerts: Array<{
-        id: string;
-        tone: "red" | "orange" | "yellow";
-        title: string;
-        detail: string;
-        actionLabel: string;
-        actionTo: string;
-      }> = [];
-
-      if (!apiHealthQuery.isLoading && !isApiHealthy) {
-        alerts.push({
-          id: "api-unhealthy",
-          tone: "red",
-          title: locale === "zh" ? "API 不可用" : "API unavailable",
-          detail:
-            locale === "zh"
-              ? "健康探针未返回 ok，优先检查 API 进程与基础依赖。"
-              : "Health probe is not ok; check API process and dependencies first.",
-          actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
-          actionTo: "/traces"
-        });
-      }
-
-      if (nonRetryableFailureCount > 0) {
-        alerts.push({
-          id: "non-retryable-failures",
-          tone: "red",
-          title: locale === "zh" ? "存在不可重试失败" : "Non-retryable failures detected",
-          detail:
-            locale === "zh"
-              ? `最近 24h 有 ${nonRetryableFailureCount} 条不可重试失败运行。`
-              : `${nonRetryableFailureCount} non-retryable failed runs in the last 24h.`,
-          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-          actionTo: "/knowledge-base"
-        });
-      }
-
-      if (pendingRunCount >= 3) {
-        alerts.push({
-          id: "run-backlog-threshold",
-          tone: pendingRunCount >= 10 ? "orange" : "yellow",
-          title: locale === "zh" ? "运行积压触发阈值" : "Run backlog threshold reached",
-          detail:
-            locale === "zh"
-              ? `当前积压 ${pendingRunCount} 条（阈值 >= 3）。`
-              : `Current backlog is ${pendingRunCount} (threshold >= 3).`,
-          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-          actionTo: "/knowledge-base"
-        });
-      }
-
-      if (retryableFailureCount >= 3) {
-        alerts.push({
-          id: "retryable-failure-threshold",
-          tone: "orange",
-          title: locale === "zh" ? "可重试失败超过阈值" : "Retryable-failure threshold reached",
-          detail:
-            locale === "zh"
-              ? `最近 24h 可重试失败 ${retryableFailureCount} 条（阈值 >= 3）。`
-              : `${retryableFailureCount} retryable failed runs in the last 24h (threshold >= 3).`,
-          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-          actionTo: "/knowledge-base"
-        });
-      }
-
-      if (recentIssueCount >= 5) {
-        alerts.push({
-          id: "issue-events-threshold",
-          tone: "orange",
-          title: locale === "zh" ? "问题事件超过阈值" : "Issue-event threshold reached",
-          detail:
-            locale === "zh"
-              ? `最近 24h 问题事件 ${recentIssueCount} 条（阈值 >= 5）。`
-              : `${recentIssueCount} issue events in the last 24h (threshold >= 5).`,
-          actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
-          actionTo: "/traces"
-        });
-      }
-
-      if (boundaryHitCount > 0) {
-        alerts.push({
-          id: "boundary-hit",
-          tone: "yellow",
-          title: locale === "zh" ? "检测到边界截断" : "Boundary truncation observed",
-          detail:
-            locale === "zh"
-              ? `最近 24h 有 ${boundaryHitCount} 次 source 边界命中。`
-              : `${boundaryHitCount} source boundary-hit runs in the last 24h.`,
-          actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-          actionTo: "/knowledge-base"
-        });
-      }
-
-      return alerts;
+            ? "不可用"
+            : "unhealthy"
     },
-    [
-      apiHealthQuery.isLoading,
-      boundaryHitCount,
-      isApiHealthy,
-      locale,
-      nonRetryableFailureCount,
-      pendingRunCount,
-      recentIssueCount,
-      retryableFailureCount
-    ]
-  );
+    {
+      label: locale === "zh" ? "运行积压" : "Run backlog",
+      tone: pendingRunCount > 0 ? "yellow" : "green",
+      value: pendingRunCount > 0 ? `${pendingRunCount}` : locale === "zh" ? "无" : "none"
+    },
+    {
+      label: locale === "zh" ? `最近 ${timeRange}h 问题事件` : `Issue events (${timeRange}h)`,
+      tone: recentIssueCount > 0 ? "orange" : "green",
+      value: String(recentIssueCount)
+    },
+    {
+      label: locale === "zh" ? "失败运行" : "Failed runs",
+      tone: hasRecentFailure ? "red" : "green",
+      value: hasRecentFailure
+        ? `${retryableFailureCount} / ${nonRetryableFailureCount}`
+        : locale === "zh"
+          ? "无"
+          : "none"
+    }
+  ];
+
+  const healthSignals = useMemo(() => generateHealthSignals(), [
+    apiHealthQuery.isLoading,
+    hasRecentFailure,
+    isApiHealthy,
+    locale,
+    pendingRunCount,
+    recentIssueCount,
+    nonRetryableFailureCount,
+    retryableFailureCount,
+    timeRange
+  ]);
+
+  // 生成告警项
+  const generateAlertItems = () => {
+    const alerts: Array<{
+      id: string;
+      tone: "red" | "orange" | "yellow";
+      title: string;
+      detail: string;
+      actionLabel: string;
+      actionTo: string;
+    }> = [];
+
+    if (!apiHealthQuery.isLoading && !isApiHealthy) {
+      alerts.push({
+        id: "api-unhealthy",
+        tone: "red",
+        title: locale === "zh" ? "API 不可用" : "API unavailable",
+        detail:
+          locale === "zh"
+            ? "健康探针未返回 ok，优先检查 API 进程与基础依赖。"
+            : "Health probe is not ok; check API process and dependencies first.",
+        actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
+        actionTo: "/traces"
+      });
+    }
+
+    if (nonRetryableFailureCount > 0) {
+      alerts.push({
+        id: "non-retryable-failures",
+        tone: "red",
+        title: locale === "zh" ? "存在不可重试失败" : "Non-retryable failures detected",
+        detail:
+          locale === "zh"
+            ? `最近 ${timeRange}h 有 ${nonRetryableFailureCount} 条不可重试失败运行。`
+            : `${nonRetryableFailureCount} non-retryable failed runs in the last ${timeRange}h.`,
+        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+        actionTo: "/knowledge-base"
+      });
+    }
+
+    if (pendingRunCount >= 3) {
+      alerts.push({
+        id: "run-backlog-threshold",
+        tone: pendingRunCount >= 10 ? "orange" : "yellow",
+        title: locale === "zh" ? "运行积压触发阈值" : "Run backlog threshold reached",
+        detail:
+          locale === "zh"
+            ? `当前积压 ${pendingRunCount} 条（阈值 >= 3）。`
+            : `Current backlog is ${pendingRunCount} (threshold >= 3).`,
+        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+        actionTo: "/knowledge-base"
+      });
+    }
+
+    if (retryableFailureCount >= 3) {
+      alerts.push({
+        id: "retryable-failure-threshold",
+        tone: "orange",
+        title: locale === "zh" ? "可重试失败超过阈值" : "Retryable-failure threshold reached",
+        detail:
+          locale === "zh"
+            ? `最近 ${timeRange}h 可重试失败 ${retryableFailureCount} 条（阈值 >= 3）。`
+            : `${retryableFailureCount} retryable failed runs in the last ${timeRange}h (threshold >= 3).`,
+        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+        actionTo: "/knowledge-base"
+      });
+    }
+
+    if (recentIssueCount >= 5) {
+      alerts.push({
+        id: "issue-events-threshold",
+        tone: "orange",
+        title: locale === "zh" ? "问题事件超过阈值" : "Issue-event threshold reached",
+        detail:
+          locale === "zh"
+            ? `最近 ${timeRange}h 问题事件 ${recentIssueCount} 条（阈值 >= 5）。`
+            : `${recentIssueCount} issue events in the last ${timeRange}h (threshold >= 5).`,
+        actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
+        actionTo: "/traces"
+      });
+    }
+
+    if (boundaryHitCount > 0) {
+      alerts.push({
+        id: "boundary-hit",
+        tone: "yellow",
+        title: locale === "zh" ? "检测到边界截断" : "Boundary truncation observed",
+        detail:
+          locale === "zh"
+            ? `最近 ${timeRange}h 有 ${boundaryHitCount} 次 source 边界命中。`
+            : `${boundaryHitCount} source boundary-hit runs in the last ${timeRange}h.`,
+        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
+        actionTo: "/knowledge-base"
+      });
+    }
+
+    return alerts;
+  };
+
+  const alertItems = useMemo(() => generateAlertItems(), [
+    apiHealthQuery.isLoading,
+    boundaryHitCount,
+    isApiHealthy,
+    locale,
+    nonRetryableFailureCount,
+    pendingRunCount,
+    recentIssueCount,
+    retryableFailureCount,
+    timeRange
+  ]);
 
   const healthPanelErrorMessage =
     (apiHealthQuery.error instanceof Error && apiHealthQuery.error.message) ||
@@ -596,9 +608,9 @@ export function UsagePage() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="container mx-auto px-4 py-6">
       <Paper className="workspace-hero" p="lg" radius="xl">
-        <div className="workspace-hero-split">
+        <div className="workspace-hero-split flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="workspace-hero-copy">
             <div className="workspace-hero-kicker">{locale === "zh" ? "桌面端使用统计" : "Desktop usage"}</div>
             <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-0.03em] text-[var(--app-text)]">
@@ -611,7 +623,22 @@ export function UsagePage() {
             </p>
           </div>
 
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-start md:items-end gap-3 w-full md:w-auto">
+            <div className="w-full md:w-auto">
+              <Select
+                value={timeRange.toString()}
+                onChange={(value) => setTimeRange(parseInt(value || "24"))}
+                data={[
+                  { value: "1", label: locale === "zh" ? "1小时" : "1h" },
+                  { value: "6", label: locale === "zh" ? "6小时" : "6h" },
+                  { value: "24", label: locale === "zh" ? "24小时" : "24h" },
+                  { value: "72", label: locale === "zh" ? "3天" : "3d" },
+                  { value: "168", label: locale === "zh" ? "7天" : "7d" },
+                ]}
+                className="w-full md:w-40 workspace-input"
+                label={locale === "zh" ? "时间范围" : "Time range"}
+              />
+            </div>
             <Badge color={processingDocuments > 0 ? "yellow" : "indigo"} radius="sm" variant="light">
               {processingDocuments > 0
                 ? locale === "zh"
@@ -621,7 +648,7 @@ export function UsagePage() {
                   ? "桌面视图"
                   : "Desktop view"}
             </Badge>
-            <p className="max-w-sm text-right text-[13px] leading-6 text-[var(--app-text-muted)]">
+            <p className="max-w-sm text-sm leading-6 text-[var(--app-text-muted)] md:text-right">
               {locale === "zh"
                 ? "这里聚合知识库、文档、助手和会话的当前真实数据，作为独立于“知识库”的唯一路由页面。"
                 : "This page aggregates current real knowledge-base, document, assistant, and conversation data on a dedicated route separate from the knowledge base."}
@@ -632,13 +659,29 @@ export function UsagePage() {
 
       {hasError ? (
         <StatePanel
-          description={
-            (knowledgeBasesQuery.error instanceof Error && knowledgeBasesQuery.error.message) ||
-            (assistantsQuery.error instanceof Error && assistantsQuery.error.message) ||
-            (conversationsQuery.error instanceof Error && conversationsQuery.error.message) ||
-            (documentsQuery.error instanceof Error && documentsQuery.error.message) ||
-            undefined
+          action={
+            <Button 
+              className="workspace-button" 
+              color="indigo" 
+              radius="xl" 
+              variant="light"
+              onClick={() => {
+                knowledgeBasesQuery.refetch();
+                assistantsQuery.refetch();
+                conversationsQuery.refetch();
+                documentsQuery.refetch();
+              }}
+            >
+              {locale === "zh" ? "重试" : "Retry"}
+            </Button>
           }
+          description={`${(knowledgeBasesQuery.error instanceof Error && knowledgeBasesQuery.error.message) ||
+                (assistantsQuery.error instanceof Error && assistantsQuery.error.message) ||
+                (conversationsQuery.error instanceof Error && conversationsQuery.error.message) ||
+                (documentsQuery.error instanceof Error && documentsQuery.error.message) ||
+                locale === "zh" ? "加载数据时发生未知错误" : "An unknown error occurred while loading data"}
+
+${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check your network connection or try again later."}`}
           title={locale === "zh" ? "统计数据加载失败" : "Failed to load usage data"}
           tone="error"
         />
@@ -647,18 +690,23 @@ export function UsagePage() {
       {isUsageLoading ? (
         <div aria-live="polite" className="workspace-loading-grid metrics" role="status">
           {Array.from({ length: 6 }).map((_, index) => (
-            <Paper className="workspace-metric-card workspace-skeleton-panel" key={index} p="lg" radius="xl">
+            <Paper className="workspace-skeleton-panel" key={index} p="lg" radius="xl">
               <div className="workspace-skeleton-line short" />
               <div className="mt-6 workspace-skeleton-line metric" />
             </Paper>
           ))}
+          <div className="flex justify-center mt-4">
+            <div className="animate-pulse text-sm text-[var(--app-text-muted)]">
+              {locale === "zh" ? "加载统计数据中..." : "Loading usage data..."}
+            </div>
+          </div>
           <span className="sr-only">{locale === "zh" ? "加载统计中" : "Loading usage"}</span>
         </div>
       ) : null}
 
       {!hasError && !isUsageLoading ? (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {metrics.map(metric => (
               <Paper className="workspace-metric-card" key={metric.label} p="lg" radius="xl">
                 <div className="workspace-section-heading">{metric.label}</div>
@@ -685,7 +733,7 @@ export function UsagePage() {
             />
           ) : null}
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
             {hasActiveKnowledgeBase ? (
               <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
                 <div className="flex flex-col gap-4">
@@ -698,18 +746,42 @@ export function UsagePage() {
                     </p>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <div className="workspace-subpanel rounded-[20px] p-4">
                       <div className="workspace-section-heading">{locale === "zh" ? "就绪" : "Ready"}</div>
                       <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{readyDocuments}</div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-[var(--app-border)]">
+                        <div 
+                          className="h-2 rounded-full bg-green-500 transition-all duration-300 ease-in-out" 
+                          style={{ 
+                            width: `${documents.length > 0 ? (readyDocuments / documents.length) * 100 : 0}%` 
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="workspace-subpanel rounded-[20px] p-4">
                       <div className="workspace-section-heading">{locale === "zh" ? "处理中" : "Processing"}</div>
                       <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{processingDocuments}</div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-[var(--app-border)]">
+                        <div 
+                          className="h-2 rounded-full bg-yellow-500 transition-all duration-300 ease-in-out" 
+                          style={{ 
+                            width: `${documents.length > 0 ? (processingDocuments / documents.length) * 100 : 0}%` 
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="workspace-subpanel rounded-[20px] p-4">
                       <div className="workspace-section-heading">{locale === "zh" ? "失败" : "Failed"}</div>
                       <div className="mt-2 text-2xl font-semibold text-[var(--app-text)]">{failedDocuments}</div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-[var(--app-border)]">
+                        <div 
+                          className="h-2 rounded-full bg-red-500 transition-all duration-300 ease-in-out" 
+                          style={{ 
+                            width: `${documents.length > 0 ? (failedDocuments / documents.length) * 100 : 0}%` 
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -727,13 +799,13 @@ export function UsagePage() {
             <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
               <div className="flex flex-col gap-4">
                 <div className="workspace-section-heading">{locale === "zh" ? "桌面端入口" : "Desktop entry points"}</div>
-                <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+                <Button className="workspace-button w-full" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
                   {locale === "zh" ? "打开知识库" : "Open knowledge base"}
                 </Button>
-                <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/documents" variant="light">
+                <Button className="workspace-button w-full" color="indigo" component={Link} radius="xl" to="/documents" variant="light">
                   {locale === "zh" ? "打开文档" : "Open documents"}
                 </Button>
-                <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/assistant" variant="light">
+                <Button className="workspace-button w-full" color="indigo" component={Link} radius="xl" to="/assistant" variant="light">
                   {locale === "zh" ? "打开助手配置" : "Open assistant"}
                 </Button>
               </div>
@@ -810,7 +882,7 @@ export function UsagePage() {
                 </div>
               ) : (
                 <>
-                  <div className="workspace-scan-grid">
+                  <div className="workspace-scan-grid grid gap-4 md:grid-cols-3">
                     {scanSummaryItems.map(item => (
                       <div className="workspace-scan-card" key={item.key}>
                         <span className="workspace-scan-label">{item.label}</span>
@@ -820,7 +892,7 @@ export function UsagePage() {
                     ))}
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
                     {healthSignals.map(signal => (
                       <div className="workspace-subpanel rounded-[20px] p-4" key={signal.label}>
                         <div className="flex items-center justify-between gap-2">
@@ -833,7 +905,7 @@ export function UsagePage() {
                     ))}
                   </div>
 
-                  <div className="grid gap-4 xl:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
                 <div className="workspace-subpanel rounded-[20px] p-4">
                   <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 趋势视图" : "P6 v1 trend view"}</div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
@@ -852,14 +924,23 @@ export function UsagePage() {
                     <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
                   ) : (
                     <ul className="mt-3 flex flex-col gap-2 text-sm">
-                      {trendMetrics.map(metric => (
-                        <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={metric.key}>
-                          <div className="font-medium text-[var(--app-text)]">{metric.label}</div>
-                          <div className="mt-1 text-[var(--app-text-muted)]">
-                            1h: {metric.values[0]} · 6h: {metric.values[1]} · 24h: {metric.values[2]}
-                          </div>
-                        </li>
-                      ))}
+                      {trendMetrics.map(metric => {
+                        const trend = metric.values[2] - metric.values[0];
+                        const trendClass = trend > 0 ? 'text-red-500' : trend < 0 ? 'text-green-500' : 'text-gray-500';
+                        const trendIcon = trend > 0 ? '↑' : trend < 0 ? '↓' : '→';
+                        
+                        return (
+                          <li className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3" key={metric.key}>
+                            <div className="flex items-center justify-between">
+                              <div className="font-medium text-[var(--app-text)]">{metric.label}</div>
+                              <span className={`${trendClass} font-medium`}>{trendIcon} {Math.abs(trend)}</span>
+                            </div>
+                            <div className="mt-1 text-[var(--app-text-muted)]">
+                              1h: {metric.values[0]} · 6h: {metric.values[1]} · 24h: {metric.values[2]}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>

@@ -92,6 +92,7 @@ export class RetrievalService {
     enableRerank?: boolean;
     filters?: RetrievalProfileFilters;
     strategy?: ResolvedRetrievalStrategy;
+    documentVersions?: Record<string, number>;
   }) {
     const normalizedFilters = retrievalProfileFiltersSchema.optional().parse(input.filters);
     const strategy =
@@ -114,7 +115,8 @@ export class RetrievalService {
         kbId: input.kbId,
         query: input.query,
         limit: candidateLimit,
-        filters: normalizedFilters
+        filters: normalizedFilters,
+        documentVersions: input.documentVersions
       });
 
       return this.retrieveWithLexicalFallback({
@@ -138,7 +140,8 @@ export class RetrievalService {
             kbId: input.kbId,
             query: input.query,
             limit: candidateLimit,
-            filters: normalizedFilters
+            filters: normalizedFilters,
+            documentVersions: input.documentVersions
           })
         : undefined;
     let vectorCandidateCount = 0;
@@ -175,7 +178,8 @@ export class RetrievalService {
             input.kbId,
             rankedCandidates,
             input.chunkWindow ?? 0,
-            normalizedFilters
+            normalizedFilters,
+            input.documentVersions
           );
           return this.buildRetrievalResult(retrievedChunks, {
             embedding: embeddingDiagnostics,
@@ -215,7 +219,8 @@ export class RetrievalService {
         actualMode: "lexical",
         usedFallback: true,
         fallbackReason: "vector_error",
-        rerankApplied: resolvedEnableRerank
+        rerankApplied: resolvedEnableRerank,
+        documentVersions: input.documentVersions
       });
     }
 
@@ -230,7 +235,8 @@ export class RetrievalService {
       actualMode: "lexical",
       usedFallback: true,
       fallbackReason: "no_ranked_candidates",
-      rerankApplied: resolvedEnableRerank
+      rerankApplied: resolvedEnableRerank,
+      documentVersions: input.documentVersions
     });
   }
 
@@ -250,6 +256,7 @@ export class RetrievalService {
     usedFallback: boolean;
     fallbackReason: "vector_error" | "no_ranked_candidates" | null;
     rerankApplied: boolean;
+    documentVersions?: Record<string, number>;
   }) {
     const lexicalCandidates =
       input.lexicalCandidates ??
@@ -257,7 +264,8 @@ export class RetrievalService {
         kbId: input.kbId,
         query: input.query,
         limit: input.candidateLimit,
-        filters: input.filters
+        filters: input.filters,
+        documentVersions: input.documentVersions
       }));
     const ranked = this.rankCandidates(lexicalCandidates, {
       enableRerank: input.enableRerank ?? false,
@@ -271,7 +279,8 @@ export class RetrievalService {
         input.kbId,
         ranked,
         input.chunkWindow ?? 0,
-        input.filters
+        input.filters,
+        input.documentVersions
       );
       return this.buildRetrievalResult(retrievedChunks, {
         embedding: input.embedding,
@@ -317,9 +326,10 @@ export class RetrievalService {
     query: string;
     limit: number;
     filters?: RetrievalProfileFilters;
+    documentVersions?: Record<string, number>;
   }) {
     const chunks = await this.prisma.documentChunk.findMany({
-      where: this.buildChunkWhere(input.kbId, input.filters),
+      where: this.buildChunkWhere(input.kbId, input.filters, input.documentVersions),
       include: {
         document: true
       }
@@ -532,7 +542,8 @@ export class RetrievalService {
     kbId: string,
     chunks: RetrievedChunk[],
     chunkWindow: number,
-    filters?: RetrievalProfileFilters
+    filters?: RetrievalProfileFilters,
+    documentVersions?: Record<string, number>
   ) {
     if (chunkWindow <= 0 || chunks.length === 0) {
       return chunks;
@@ -567,7 +578,7 @@ export class RetrievalService {
 
     const expandedChunks = await this.prisma.documentChunk.findMany({
       where: {
-        ...this.buildChunkWhere(kbId, filters),
+        ...this.buildChunkWhere(kbId, filters, documentVersions),
         OR: documentChunkEntries
       },
       include: {
@@ -742,8 +753,8 @@ export class RetrievalService {
     return uniqueValues;
   }
 
-  private buildChunkWhere(kbId: string, filters?: RetrievalProfileFilters): Prisma.DocumentChunkWhereInput {
-    if (!filters) {
+  private buildChunkWhere(kbId: string, filters?: RetrievalProfileFilters, documentVersions?: Record<string, number>): Prisma.DocumentChunkWhereInput {
+    if (!filters && !documentVersions) {
       return {
         kbId
       };
@@ -755,13 +766,13 @@ export class RetrievalService {
     const extraPositiveClauses: Prisma.DocumentChunkWhereInput[] = [];
     const negativeClauses: Prisma.DocumentChunkWhereInput[] = [];
 
-    if (filters.documentIds?.include) {
+    if (filters?.documentIds?.include) {
       directWhere.documentId = {
         in: filters.documentIds.include
       };
     }
 
-    if (filters.documentIds?.exclude) {
+    if (filters?.documentIds?.exclude) {
       negativeClauses.push({
         documentId: {
           in: filters.documentIds.exclude
@@ -770,7 +781,7 @@ export class RetrievalService {
     }
 
     const sectionTitleClauses: Prisma.DocumentChunkWhereInput[] = [];
-    if (filters.sectionTitles?.include) {
+    if (filters?.sectionTitles?.include) {
       sectionTitleClauses.push({
         sectionTitle: {
           in: filters.sectionTitles.include
@@ -778,7 +789,7 @@ export class RetrievalService {
       });
     }
 
-    if (filters.sectionTitles?.contains) {
+    if (filters?.sectionTitles?.contains) {
       sectionTitleClauses.push(
         ...filters.sectionTitles.contains.map(sectionTitle => ({
           sectionTitle: {
@@ -797,7 +808,7 @@ export class RetrievalService {
       });
     }
 
-    if (filters.sectionTitles?.exclude) {
+    if (filters?.sectionTitles?.exclude) {
       negativeClauses.push({
         sectionTitle: {
           in: filters.sectionTitles.exclude
@@ -806,7 +817,7 @@ export class RetrievalService {
     }
 
     const pageNumberClauses: Prisma.DocumentChunkWhereInput[] = [];
-    if (filters.pageNumbers?.include) {
+    if (filters?.pageNumbers?.include) {
       pageNumberClauses.push({
         pageNo: {
           in: filters.pageNumbers.include
@@ -814,7 +825,7 @@ export class RetrievalService {
       });
     }
 
-    if (filters.pageNumbers?.min !== undefined || filters.pageNumbers?.max !== undefined) {
+    if (filters?.pageNumbers?.min !== undefined || filters?.pageNumbers?.max !== undefined) {
       pageNumberClauses.push({
         pageNo: {
           ...(filters.pageNumbers.min !== undefined ? { gte: filters.pageNumbers.min } : {}),
@@ -831,11 +842,26 @@ export class RetrievalService {
       });
     }
 
-    if (filters.pageNumbers?.exclude) {
+    if (filters?.pageNumbers?.exclude) {
       negativeClauses.push({
         pageNo: {
           in: filters.pageNumbers.exclude
         }
+      });
+    }
+
+    // Add document version constraints if provided
+    if (documentVersions && Object.keys(documentVersions).length > 0) {
+      const versionClauses = Object.entries(documentVersions).map(([documentId, version]) => ({
+        documentId,
+        document: {
+          version: {
+            lte: version
+          }
+        }
+      }));
+      extraPositiveClauses.push({
+        OR: versionClauses
       });
     }
 
