@@ -8,6 +8,7 @@ type FetchWithRetryInput = {
 const MAX_FOLLOW_REDIRECTS = 5;
 const MAX_REDIRECT_TARGET_DIAGNOSTIC_LENGTH = 160;
 const FETCH_URL_PREFIX_PATTERN = /^Failed to fetch\s+\S+:\s*/i;
+const FETCH_SOURCE_LABEL_PREFIX_PATTERN = /^Failed to fetch\s+(web page|feed|sitemap):\s*/i;
 const COURTESY_ROBOTS_TIMEOUT_MS = 5000;
 const COURTESY_USER_AGENT = "rag-system-bot";
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
@@ -172,7 +173,9 @@ export async function assertRobotsAllowUrl(url: string) {
 
 export function normalizeSourceFetchFailureMessage(message: string) {
   const trimmedMessage = message.trim();
-  return trimmedMessage.replace(FETCH_URL_PREFIX_PATTERN, "");
+  return trimmedMessage
+    .replace(FETCH_URL_PREFIX_PATTERN, "")
+    .replace(FETCH_SOURCE_LABEL_PREFIX_PATTERN, "");
 }
 
 export function isUrlWithinDomainBoundary(candidateUrl: string, boundaryUrl: string) {

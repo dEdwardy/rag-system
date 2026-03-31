@@ -14,6 +14,7 @@ const {
   DEFAULT_SOURCE_FETCH_TIMEOUT_MS,
   fetchWithRetry,
   isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
   resolveSourceFetchRuntimeConfig
 } = require("../src/infra/http/fetch-with-retry.ts");
 
@@ -936,6 +937,16 @@ test("fetchWithRetry timeout exhaustion remains retryable for source diagnostics
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test("normalizeSourceFetchFailureMessage keeps timeout and retry wording aligned across source prefixes", () => {
+  const timeoutWithRetryContext =
+    "Failed to fetch web page: request timed out after 2500ms: The operation was aborted. (after 1 attempt).";
+
+  assert.equal(
+    normalizeSourceFetchFailureMessage(timeoutWithRetryContext),
+    "request timed out after 2500ms: The operation was aborted. (after 1 attempt)."
+  );
 });
 
 test("fetchWithRetry includes readable error code labels for retryable fetch failures", async () => {
