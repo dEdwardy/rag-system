@@ -916,6 +916,34 @@
             ]
           }
         ]
+      },
+      {
+        "id": "loop-drain-state-sync-wave",
+        "dependsOn": [],
+        "waveGoal": "Keep the loop alive with a minimal queue-drain state sync pass after the approved baseline closeout, so docs and queue metadata stay aligned while the queue is empty.",
+        "candidateTasks": [
+          "loop-drain-state-sync"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "loop-drain-state-sync",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/README.md docs/project-status-overview.md .opencode/loop/queue.json"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The queue is already replenished with a more specific runnable wave"
+            ]
+          }
+        ]
       }
     ]
   },
@@ -1999,6 +2027,52 @@
       ],
       "suspendWhen": [
         "No remaining scan-first readability gap remains after the current landed observability surfaces"
+      ]
+    },
+    {
+      "id": "loop-drain-state-sync",
+      "phase": "P5",
+      "title": "keep queue-drain state synced with the docs",
+      "priority": "low",
+      "status": "auto_now",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [],
+      "goal": "Keep the queue-drain state and current docs aligned after the approved baseline closeout, without introducing a new product wave.",
+      "scope": [
+        ".opencode/loop/queue.json",
+        "docs/README.md",
+        "docs/project-status-overview.md",
+        "docs/current-progress.md",
+        "docs/next_steps_rag_project_plan.md"
+      ],
+      "acceptance": [
+        "The drained queue state remains reflected in the docs.",
+        "No new product feature, platform scope, or architecture change is introduced."
+      ],
+      "verification": [
+        "git diff --check -- .opencode/loop/queue.json docs/README.md docs/project-status-overview.md"
+      ],
+      "decompositionPlan": [
+        {
+          "id": "loop-drain-state-sync",
+          "title": "sync queue-drain state with docs",
+          "status": "auto_later",
+          "goal": "Keep the drained queue state reflected in the docs with the smallest possible follow-up.",
+          "acceptance": [
+            "Queue-drain status stays aligned across the docs and queue metadata.",
+            "No new product or architecture scope is introduced."
+          ],
+          "verification": "git diff --check -- .opencode/loop/queue.json docs/README.md docs/project-status-overview.md"
+        }
+      ],
+      "notDoing": [
+        "No new feature wave",
+        "No docs architecture rewrite",
+        "No queue planner redesign"
+      ],
+      "suspendWhen": [
+        "A more specific runnable wave is already available"
       ]
     },
     {
