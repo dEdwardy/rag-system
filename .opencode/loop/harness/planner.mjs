@@ -5,16 +5,16 @@ import { appendQueueItems, formatDisplayTime, formatSessionTitleTime, writeQueue
 
 export const DEFAULT_PLANNER_PROMPT_PATH = "prompts/plan-next.md";
 export const DEFAULT_PLANNER_PROMPT_FILE_NAME = "plan-next.md";
-export const DEFAULT_AUTO_REFILL_MAX_CYCLES = 1;
+export const DEFAULT_AUTO_REFILL_MAX_CYCLES = 0;
 export const DEFAULT_AUTO_REFILL_MAX_ITEMS = 2;
 
 const DOC_INGESTION_SCOPE = [
   "AGENTS.md",
+  "docs/current-context.md",
   "docs/next_steps_rag_project_plan.md",
   "docs/current-progress.md",
-  "docs/current-dev-setup.md",
   "README.md",
-  ".opencode/loop/README.md"
+  ".opencode/loop/loop-contract-brief.md"
 ];
 
 const TASK_DECOMPOSITION_RULES = {
@@ -137,10 +137,17 @@ export async function maybeAutoRefillQueue({
   const existingFingerprints = buildExistingFingerprintSet(queue, loopRoot);
   const generatedItems = [];
 
-  for (const proposal of proposals) {
+  for (let proposalIndex = 0; proposalIndex < proposals.length; proposalIndex += 1) {
+    const proposal = proposals[proposalIndex];
     const id = allocateGeneratedItemId({ queue, generatedItems, family: proposal.family });
     const title = proposal.title;
     const prompt = proposal.prompt;
+    const sessionAffinityKey = resolvePlannerSessionAffinityKey({
+      proposals,
+      proposalIndex,
+      plannerSessionId: session.id,
+      family: proposal.family
+    });
     const fingerprint = fingerprintQueueItem(title, prompt);
     if (existingFingerprints.has(fingerprint)) {
       continue;
@@ -171,6 +178,7 @@ export async function maybeAutoRefillQueue({
       plannerSessionId: session.id,
       plannerMessageId: message.info?.id ?? null,
       plannerFamily: proposal.family,
+      ...(sessionAffinityKey ? { sessionAffinityKey } : {}),
       plannerSource: "auto-refill"
     });
     existingFingerprints.add(fingerprint);
@@ -291,6 +299,28 @@ function normalizeNonNegativeInteger(value, fallback) {
 
 function normalizePositiveInteger(value, fallback) {
   return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function resolvePlannerSessionAffinityKey({ proposals, proposalIndex, plannerSessionId, family }) {
+  const normalizedFamily = typeof family === "string" && family.trim() ? family.trim() : null;
+  if (!normalizedFamily) {
+    return null;
+  }
+
+  const previousFamily =
+    proposalIndex > 0 && typeof proposals[proposalIndex - 1]?.family === "string" && proposals[proposalIndex - 1].family.trim()
+      ? proposals[proposalIndex - 1].family.trim()
+      : null;
+  const nextFamily =
+    proposalIndex + 1 < proposals.length && typeof proposals[proposalIndex + 1]?.family === "string" && proposals[proposalIndex + 1].family.trim()
+      ? proposals[proposalIndex + 1].family.trim()
+      : null;
+
+  if (previousFamily !== normalizedFamily && nextFamily !== normalizedFamily) {
+    return null;
+  }
+
+  return `planner-wave:${plannerSessionId}:${normalizedFamily}`;
 }
 
 function composePlannerPrompt({ plannerPromptTemplate, queue, repoRoot, handoffsDir, maxItems }) {
@@ -415,6 +445,9 @@ function describeDocPurpose(relativePath) {
   if (relativePath === "docs/next_steps_rag_project_plan.md") {
     return "current priority and boundary plan";
   }
+  if (relativePath === "docs/current-context.md") {
+    return "default short current-context summary";
+  }
   if (relativePath === "docs/current-progress.md") {
     return "landed increments and active status";
   }
@@ -423,6 +456,9 @@ function describeDocPurpose(relativePath) {
   }
   if (relativePath === "README.md") {
     return "repo overview and product framing";
+  }
+  if (relativePath === ".opencode/loop/loop-contract-brief.md") {
+    return "short loop harness planning contract";
   }
   if (relativePath === ".opencode/loop/README.md") {
     return "loop harness runtime contract";
@@ -445,6 +481,9 @@ function buildSignalPatterns(relativePath, field) {
   }
   if (relativePath === "docs/next_steps_rag_project_plan.md" && field === "currentPrioritySignals") {
     return [/(current recommended|recommended mainline|P[0-9]+|follow-up|remaining safe gap|mainline)/i];
+  }
+  if (relativePath === ".opencode/loop/loop-contract-brief.md" && field === "harnessContractSignals") {
+    return [/(planner|queue item|verification|auto-refill|sessionAffinityKey|replan|handoff)/i];
   }
   if (relativePath === ".opencode/loop/README.md" && field === "harnessContractSignals") {
     return [/(planner|queue item|verification|auto-refill|generated refill|reviewRequired|retryPolicy)/i];

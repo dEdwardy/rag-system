@@ -7,12 +7,15 @@ Prefer small, targeted, reversible changes that fit the existing structure and c
 
 Before making any non-trivial change, read these in order:
 
-1. `docs/next_steps_rag_project_plan.md`
-2. `docs/current-progress.md`
-3. `docs/current-dev-setup.md`
-4. `README.md`
+1. `docs/current-context.md`
+2. `docs/next_steps_rag_project_plan.md`
 
-Use additional docs in `docs/` only when they are directly relevant to the task.
+Read additional docs only when they are directly relevant to the task:
+
+- `docs/current-progress.md`
+- `docs/current-dev-setup.md`
+- `README.md`
+- `.opencode/loop/README.md` when working on the local loop harness
 
 ## Environment Assumption
 

@@ -189,7 +189,7 @@ export function verifyQueueItem({ repoRoot, handoffsDir, item, assistantText, ex
   };
 }
 
-export function maybeAppendVerificationFollowup({ queue, index, item, promptText, verificationResult }) {
+export function maybeAppendVerificationFollowup({ queue, index, item, verificationResult }) {
   if (verificationResult?.verdict !== VERIFICATION_VERDICT.needsReplan) {
     return { queue, verificationResult };
   }
@@ -215,7 +215,6 @@ export function maybeAppendVerificationFollowup({ queue, index, item, promptText
   const followupItem = buildReplanFollowupItem({
     queue,
     item,
-    promptText,
     verificationResult,
     generatedAt
   });
@@ -418,17 +417,20 @@ function inferManualReviewArtifact({ failureDetail, artifacts }) {
     : null;
 }
 
-function buildReplanFollowupItem({ queue, item, promptText, verificationResult, generatedAt }) {
+function buildReplanFollowupItem({ queue, item, verificationResult, generatedAt }) {
   const sourceId = item?.id ?? "item";
+  const taskSummary = buildTaskSummary(item);
   return {
     ...item,
     id: allocateReplanItemId(queue, sourceId),
     title: buildReplanTitle(item),
-    promptText: buildReplanPromptText({ item, promptText, verificationResult }),
+    promptText: buildReplanPromptText({ item, taskSummary, verificationResult }),
     status: QUEUE_STATUS.pending,
     attempt: Number.isInteger(item?.attempt) ? item.attempt : 0,
     parentId: sourceId,
     originVerdict: verificationResult?.verdict ?? VERIFICATION_VERDICT.needsReplan,
+    taskSummary,
+    sessionAffinityKey: resolveReplanSessionAffinityKey(item, sourceId),
     generatedAt,
     sessionId: undefined,
     messageId: undefined,
@@ -470,18 +472,49 @@ function buildReplanTitle(item) {
   return `${baseTitle} (replan)`;
 }
 
-function buildReplanPromptText({ item, promptText, verificationResult }) {
+function buildReplanPromptText({ item, taskSummary, verificationResult }) {
+  const verifierCommands = Array.isArray(verificationResult?.commands)
+    ? verificationResult.commands
+        .map(result => (typeof result?.command === "string" ? result.command.trim() : ""))
+        .filter(Boolean)
+    : [];
   const sections = [
     "Retry the same task with a narrower fix based on the failed verification evidence.",
     `Original item: ${item?.id ?? "unknown"}`,
+    taskSummary ? `Task summary: ${taskSummary}` : null,
     `Previous verification verdict: ${verificationResult?.verdict ?? "needs_replan"}`,
     verificationResult?.summary ? `Verification summary: ${verificationResult.summary}` : null,
+    verifierCommands.length > 0 ? `Verifier commands:\n- ${verifierCommands.join("\n- ")}` : null,
     buildReplanGuidance(verificationResult),
-    "Original task prompt:",
-    promptText
+    "Keep the original scope, verification contract, acceptance targets, and constraints unchanged.",
+    "Reuse the prior work where possible and change only the narrow code or artifact path needed for the next verifier run to pass."
   ].filter(Boolean);
 
   return sections.join("\n\n");
+}
+
+function buildTaskSummary(item) {
+  if (typeof item?.taskSummary === "string" && item.taskSummary.trim()) {
+    return item.taskSummary.trim();
+  }
+
+  if (typeof item?.goal === "string" && item.goal.trim()) {
+    return item.goal.trim();
+  }
+
+  if (typeof item?.title === "string" && item.title.trim()) {
+    return item.title.trim();
+  }
+
+  return "Keep the original task outcome intact while fixing the verifier miss.";
+}
+
+function resolveReplanSessionAffinityKey(item, sourceId) {
+  if (typeof item?.sessionAffinityKey === "string" && item.sessionAffinityKey.trim()) {
+    return item.sessionAffinityKey.trim();
+  }
+
+  return sourceId;
 }
 
 function buildReplanGuidance(verificationResult) {

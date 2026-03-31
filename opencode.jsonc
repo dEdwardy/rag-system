@@ -2,23 +2,51 @@
   "$schema": "https://opencode.ai/config.schema.json",
   // Model split rationale:
   // - top-level interactive model stays on gpt-5.4 because manual prompting and queue decomposition are high leverage.
-  // - build stays on gpt-5.3-codex for implementation efficiency on narrow execution-ready tasks.
-  // - explore stays on gpt-5.3-mini for low-cost, narrow retrieval/search tasks.
+  // - build uses gpt-5.3-codex for fast, concrete implementation loops on execution-ready tasks.
+  // - explore and most lightweight commands stay on gpt-5.4-mini for low-cost retrieval and analysis.
   // Revisit only when there is clear quality regression or sustained cost/latency pressure.
   // Available models (no rate limit): gpt-5.4-pro, gpt-5.2, gpt-5.1, codex-max, codex
   "model": "openai/gpt-5.4-mini",
   "small_model": "openai/gpt-5.4-mini",
   "default_agent": "rag-orchestrator",
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 10000
+  },
+  "watcher": {
+    "ignore": [
+      ".git/**",
+      "node_modules/**",
+      "storage/**",
+      ".opencode/loop/handoffs/**",
+      ".opencode/loop/materialized/**"
+    ]
+  },
+  "agent": {
+    "rag-plan": {
+      "steps": 8
+    },
+    "rag-explore": {
+      "steps": 5
+    },
+    "rag-review": {
+      "steps": 6
+    },
+    "rag-orchestrator": {
+      "steps": 6
+    }
+  },
   "command": {
     "plan": {
       "agent": "rag-plan",
       "model": "openai/gpt-5.4-mini",
       "description": "产出当前任务的最小可执行增量",
-      "template": "先阅读 AGENTS.md、docs/next_steps_rag_project_plan.md、docs/current-progress.md、docs/current-dev-setup.md、README.md。识别当前主线，给出最小、可直接执行的下一增量。默认按 plan -> build 工作；仅在任务属于高风险、跨模块、涉及 shared contract、schema/persistence、或 permission/policy boundary 变化时，才要求先补齐 spec/plan。若从现有上下文无法安全执行该任务，不要猜、不要扩 scope；该分支不要产出 queue item。"
+      "template": "先阅读 AGENTS.md 和 docs/current-context.md；仅在与当前任务直接相关时，再补读 docs/next_steps_rag_project_plan.md、docs/current-progress.md、docs/current-dev-setup.md、README.md。识别当前主线，给出最小、可直接执行的下一增量。默认按 plan -> build 工作；仅在任务属于高风险、跨模块、涉及 shared contract、schema/persistence、或 permission/policy boundary 变化时，才要求先补齐 spec/plan。若从现有上下文无法安全执行该任务，不要猜、不要扩 scope；该分支不要产出 queue item。"
     },
     "build": {
       "agent": "rag-build",
-      "model": "opencode/big-pickle",
+      "model": "openai/gpt-5.3-codex",
       "description": "按已确认计划实施并完成最小验证",
       "template": "基于已确认的最小计划执行实现。先检查相关代码路径和现有模式，再做最小具体改动。优先 backend-first、小步增量、快验证；运行一个最相关验证，并明确报告改动文件和验证命令；不做无关重构。TDD 不是默认流程，仅在行为语义、共享契约、source recovery 等改动时启用 light TDD。若需求不清晰或存在冲突，不要猜；直接 fail fast 并报告不确定点。"
     },

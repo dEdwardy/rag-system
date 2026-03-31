@@ -71,6 +71,7 @@ export function materializeBacklogWave({
       suspendWhen: contract.suspendWhen ?? matched.parent.suspendWhen ?? [],
       backlogWaveId: wave.id,
       backlogParentId: matched.parent.id,
+      sessionAffinityKey: `backlog-wave:${wave.id}:${matched.parent.id}`,
       plannerFamily: matched.parent.phase?.toLowerCase() ?? "backlog",
       plannerSource: "backlog-materializer"
     };

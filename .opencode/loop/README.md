@@ -9,17 +9,18 @@
 
 - reads `.opencode/loop/queue.json`
 - drains queue items one by one until the queue is empty
-- can ask the `plan` command for one guarded refill pass after the queue empties
-- creates or resumes an OpenCode session per item
+- can ask the `plan` command for one guarded refill pass after the queue empties when auto-refill is enabled
+- creates, resumes, or reuses an OpenCode session for adjacent related items
 - sends the item prompt to the configured agent
 - writes an execution handoff markdown file
 - runs a minimal verifier phase before completion
 - marks each queue item as completed only after verification passes, or escalates/routes it into a review or replan state
 - can automatically append one verifier-driven follow-up item when `needs_replan` still has remaining retry budget
 
-It intentionally stays narrow: one queue item, one session, one handoff.
+It intentionally stays narrow: one queue item, one handoff, and conservative session reuse only for adjacent related items.
 
 For a concise module-and-flow overview, see `.opencode/loop/ARCHITECTURE.md`.
+For the short planner-facing contract used by default doc ingestion, see `.opencode/loop/loop-contract-brief.md`.
 
 ## Files It Uses
 
@@ -67,7 +68,7 @@ execution-backlog.jsonc
 - `OPENCODE_SERVER_PASSWORD` - basic auth password when needed
 - `OPENCODE_LOOP_MESSAGE_WAIT_MS` - max wait for an assistant message
 - `OPENCODE_LOOP_POLL_MS` - polling interval while waiting
-- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` - max planner refill passes per queue wave; default `1`, `0` disables refill. The bundled systemd service also pins this to `1` for a conservative one-closeout-pass policy.
+- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` - max planner refill passes per queue wave; default `0`, `0` disables refill. The bundled systemd service also pins this to `0` so planner refill is opt-in instead of automatic.
 - `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS` - max new queue items each refill pass may append; default `2`
 
 ## Commands
@@ -125,7 +126,7 @@ Keep queue prompts task-family specific so metadata work does not silently fall 
 
 For read-model / metadata queue items, prefer `prompts/read-model-metadata-build.md` instead of `prompts/build.md`.
 
-Queue items now normalize toward a small V2 task contract with optional `kind`, `goal`, `acceptance`, `constraints`, `verification`, `retryPolicy`, and `attempt` fields.
+Queue items now normalize toward a small V2 task contract with optional `kind`, `goal`, `acceptance`, `constraints`, `verification`, `retryPolicy`, `attempt`, `taskSummary`, and `sessionAffinityKey` fields.
 Completed items are enriched with `sessionId`, `messageId`, `handoffPath`, `verificationArtifactPath`, `verificationVerdict`, and `completedAt`.
 Queue records also persist `pushEligible`, where only `verificationVerdict === succeeded` yields `true`; every failed/replan/review/blocker verifier outcome is explicitly local-only evidence and not publish-ready.
 The harness now centralizes queue-status and verifier-verdict transitions in `harness/state-machine.mjs`, so `runtime` / `queue` / `review` / `verification` all validate against the same transition table instead of hand-rolled status strings.
@@ -137,8 +138,8 @@ Queue records also carry readable `*Display` timestamp companions such as `start
 Suspended review/blocker items now also record `resumeWhen`, `resumeHint`, `lastSuspendedStatus`, `resumeApprovedAt`, and optional `resumeNote` so manual recovery can be explicit instead of ad-hoc.
 Interrupted items may stay in `in_progress` until the next run resumes them.
 Executed items now pass through `verifying` before they can become `completed`.
-When verification returns `needs_replan` and `attempt < retryPolicy.maxAttempts`, the runtime appends a follow-up queue item that inherits the task contract, carries `parentId` / `originVerdict` metadata, and retries the same goal with a narrower inline replan prompt.
-That replan prompt is now taxonomy-aware: acceptance failures focus on the missed target metric, constraint failures focus on the regressed bound, artifact failures focus on producing the missing evidence path, and command failures focus on making the declared verifier command itself pass.
+When verification returns `needs_replan` and `attempt < retryPolicy.maxAttempts`, the runtime appends a follow-up queue item that inherits the task contract, carries `parentId` / `originVerdict` metadata, keeps a short `taskSummary`, and retries the same goal with a narrower inline delta replan prompt.
+That replan prompt is now taxonomy-aware: acceptance failures focus on the missed target metric, constraint failures focus on the regressed bound, artifact failures focus on producing the missing evidence path, and command failures focus on making the declared verifier command itself pass, without replaying the full original execution prompt.
 If the verifier keeps returning `needs_replan` after the max attempt budget is exhausted, the runtime converts the item to `failed` instead of spawning infinite follow-ups.
 The harness keeps running until the queue has no pending or recoverable items left.
 Generated refill items materialize their own execution prompt files under `.opencode/loop/prompts/generated/` before the loop continues.
@@ -200,7 +201,7 @@ When you have manually cleared a `needs_review` or `blocked_external` exception,
 
 ## Notes
 
-- Fresh pending items create a new session; interrupted items with `sessionId` resume the existing one.
+- Fresh pending items create a new session unless they explicitly share a `sessionAffinityKey` or compatible planner family with the immediately preceding completed item; interrupted items with `sessionId` resume the existing one.
 - If an item already has `status: in_progress` and `sessionId`, the next run resumes that session instead of creating a second one.
 - A runtime lock prevents two `opencode-loop` processes from consuming the same queue at the same time.
 - The recommended unattended setup is `systemd --user` plus the thin `night-run.sh` wrapper, so crash restarts stay separate from normal queue-empty exits.
@@ -211,9 +212,10 @@ When you have manually cleared a `needs_review` or `blocked_external` exception,
 - Prefer push/PR at wave closeout or other natural handoff points, not mid-increment.
 - The runtime execution directive follows the same rule so the loop prompt itself keeps push/PR timing conservative.
 - Prompt delivery is execution-oriented: the harness prepends a small execution directive and the repository `command.build.template` before the task-specific prompt, so the session is biased toward implementation instead of search-only output.
-- Auto-refill stays intentionally conservative: by default it runs at most one planner pass per queue wave and appends at most two new items.
+- Auto-refill stays intentionally conservative: by default it is disabled, and when enabled it still runs at most one planner pass per queue wave and appends at most two new items.
 - Planner-generated items may now optionally return `riskLevel`, `reviewRequired`, and `escalationPolicy` fields in addition to the existing execution prompt fields.
-- Planner prompts now also embed a doc-derived planning snapshot from `AGENTS.md`, the main planning/progress/setup docs, `README.md`, and the local loop README, including a structured extraction of current objective/mainline, queue-ready candidate tasks, deferred work, and `blocked_human_late` items, plus an explicit task-decomposition contract so refill generation stays grounded in current repo direction instead of generic backlog ideas.
+- Adjacent planner-generated sibling items with the same `family` now automatically receive a shared `sessionAffinityKey`, and backlog materialization does the same for sibling tasks under the same parent item, so conservative session reuse does not rely on manual queue editing.
+- Planner prompts now also embed a doc-derived planning snapshot from `AGENTS.md`, `docs/current-context.md`, `docs/current-progress.md`, the main planning doc, `README.md`, and `.opencode/loop/loop-contract-brief.md`, including a structured extraction of current objective/mainline, queue-ready candidate tasks, deferred work, recent progress notes, and `blocked_human_late` items, plus an explicit task-decomposition contract so refill generation stays grounded in current repo direction instead of generic backlog ideas.
 - A repo-local backlog file now lives at `.opencode/loop/execution-backlog.jsonc` so remaining stage work can be kept close to the harness and later wired into planner-driven queue materialization.
 - `node .opencode/loop/cli.mjs --materialize-wave <wave-id>` now turns a backlog wave's `queueContracts` into a queue draft under `.opencode/loop/materialized/`, so backlog-defined P5 waves can be promoted into executable queue items without hand-copying JSON.
 - `node .opencode/loop/cli.mjs --materialize-append-wave <wave-id>` appends the same materialized items into `.opencode/loop/queue.json` while skipping existing item ids, making backlog-to-live-queue promotion one CLI step.

@@ -13,6 +13,7 @@ import {
   resumeQueueItem,
   resolveQueueCursor
 } from "./queue.mjs";
+import { materializeBacklogWave } from "./materialize.mjs";
 import { DEFAULT_PLANNER_PROMPT_FILE_NAME } from "./planner.mjs";
 import { DEFAULT_PROMPT_FILE_NAME, DEFAULT_PROMPT_PATH, runLoop } from "./runtime.mjs";
 import { QUEUE_STATUS, VERIFICATION_VERDICT, assertQueueStatusTransition, normalizeVerificationVerdictStatus } from "./state-machine.mjs";
@@ -35,6 +36,7 @@ export async function runSelfTest() {
   const root = mkdtempSync(join(tmpdir(), "opencode-loop-"));
   let resumeRoot = null;
   let refillRoot = null;
+  let refillAffinityRoot = null;
   let deferredRoot = null;
   let failureDeferRoot = null;
   let timeoutRetryRoot = null;
@@ -44,6 +46,7 @@ export async function runSelfTest() {
   let refillPersistRoot = null;
   let reviewPromotionRoot = null;
   let failureReviewRoot = null;
+  let materializeRoot = null;
   let verifierSuccessRoot = null;
   let verifierReplanRoot = null;
   let verifierExhaustedRoot = null;
@@ -131,6 +134,25 @@ export async function runSelfTest() {
                 title: `Persistent follow-up task ${plannerPersistentSequence + 1}`,
                 family: "trace",
                 prompt: `Run persistent refill follow-up ${++plannerPersistentSequence}.`,
+                agent: "rag-build"
+              }
+            ],
+            null,
+            2
+          )
+        : promptText.includes("planner affinity self-test")
+        ? JSON.stringify(
+            [
+              {
+                title: "Generated affinity follow-up task 1",
+                family: "trace",
+                prompt: "Run generated affinity follow-up 1.",
+                agent: "rag-build"
+              },
+              {
+                title: "Generated affinity follow-up task 2",
+                family: "trace",
+                prompt: "Run generated affinity follow-up 2.",
                 agent: "rag-build"
               }
             ],
@@ -422,6 +444,80 @@ export async function runSelfTest() {
 
     if (!handoff.includes("- 开始:") || !handoff.includes("- 收到:") || !handoff.includes("- 完成:")) {
       throw new Error("Self-test handoff timestamps were not rendered correctly.");
+    }
+
+    const affinityRoot = mkdtempSync(join(tmpdir(), "opencode-loop-affinity-"));
+    mkdirSync(resolve(affinityRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(affinityRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+
+    writeFileSync(
+      resolve(affinityRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME),
+      [
+        "Process two adjacent related tasks in the same codepath.",
+        "Reuse the same session when the queue items declare the same session affinity."
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    writeFileSync(
+      resolve(affinityRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify(
+        {
+          version: LOOP_SCHEMA_VERSION,
+          cursor: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          items: [
+            {
+              ...DEFAULT_QUEUE_ITEM,
+              id: "affinity-001",
+              title: "First related trace closeout item",
+              goal: "Finish the first trace closeout step.",
+              taskSummary: "Trace closeout wave for the same narrow codepath.",
+              sessionAffinityKey: "trace-closeout"
+            },
+            {
+              ...DEFAULT_QUEUE_ITEM,
+              id: "affinity-002",
+              title: "Second related trace closeout item",
+              goal: "Finish the second trace closeout step.",
+              taskSummary: "Trace closeout wave for the same narrow codepath.",
+              sessionAffinityKey: "trace-closeout"
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const sessionsBeforeAffinity = sessions.length;
+    const affinityResult = await runLoop({
+      repoRoot: affinityRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 0
+    });
+
+    const affinityQueue = readQueue(resolve(affinityRoot, ".opencode", "loop", "queue.json"));
+    const affinitySessionsCreated = sessions.length - sessionsBeforeAffinity;
+
+    if (affinityResult.processedCount !== 2 || affinitySessionsCreated !== 1) {
+      throw new Error(
+        `Self-test session-affinity path expected two processed items on one shared session, got processed=${affinityResult.processedCount}, newSessions=${affinitySessionsCreated}.`
+      );
+    }
+
+    if (affinityQueue.items[0]?.sessionId !== affinityQueue.items[1]?.sessionId) {
+      throw new Error(`Self-test session-affinity path did not reuse the same session: ${JSON.stringify(affinityQueue.items)}`);
+    }
+
+    if (affinityQueue.items[1]?.sessionReuseKind !== "affinity" || affinityQueue.items[1]?.sessionReuseSourceItemId !== "affinity-001") {
+      throw new Error(
+        `Self-test session-affinity metadata was not recorded correctly: ${JSON.stringify(affinityQueue.items[1])}`
+      );
     }
 
     resumeRoot = mkdtempSync(join(tmpdir(), "opencode-loop-resume-"));
@@ -751,6 +847,100 @@ export async function runSelfTest() {
     if (!refillGeneratedSession?.title?.startsWith("loop #1 · refill 1 left · trace-auto-001")) {
       throw new Error(
         `Self-test refill session title did not clarify auto-refill scope: ${JSON.stringify(refillGeneratedSession)}`
+      );
+    }
+
+    refillAffinityRoot = mkdtempSync(join(tmpdir(), "opencode-loop-refill-affinity-"));
+    mkdirSync(resolve(refillAffinityRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(refillAffinityRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+    mkdirSync(resolve(refillAffinityRoot, "docs"), { recursive: true });
+
+    writeFileSync(resolve(refillAffinityRoot, "AGENTS.md"), "Keep queue work narrow.\n", "utf8");
+    writeFileSync(resolve(refillAffinityRoot, "docs", "next_steps_rag_project_plan.md"), "Current recommended mainline: Planner affinity self-test.\n", "utf8");
+    writeFileSync(resolve(refillAffinityRoot, "docs", "current-progress.md"), "补充进展（2026-03-31）：\n- planner affinity self-test\n", "utf8");
+    writeFileSync(resolve(refillAffinityRoot, "docs", "current-dev-setup.md"), "Focused validation: node .opencode/loop/cli.mjs --self-test\n", "utf8");
+    writeFileSync(resolve(refillAffinityRoot, "README.md"), "Optional loop harness repo.\n", "utf8");
+    writeFileSync(resolve(refillAffinityRoot, ".opencode", "loop", "README.md"), "Planner-generated items may share session affinity when emitted as adjacent related tasks.\n", "utf8");
+    writeFileSync(resolve(refillAffinityRoot, ".opencode", "loop", "prompts", DEFAULT_PLANNER_PROMPT_FILE_NAME), "planner affinity self-test\n", "utf8");
+    writeFileSync(resolve(refillAffinityRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME), "Execute generated affinity task.\n", "utf8");
+    writeFileSync(
+      resolve(refillAffinityRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify({ version: LOOP_SCHEMA_VERSION, cursor: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), items: [] }, null, 2)}\n`,
+      "utf8"
+    );
+
+    const refillAffinityResult = await runLoop({
+      repoRoot: refillAffinityRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined,
+      autoRefillMaxCycles: 1,
+      autoRefillMaxItems: 2
+    });
+    const refillAffinityQueue = readQueue(resolve(refillAffinityRoot, ".opencode", "loop", "queue.json"));
+    const refillAffinityItems = refillAffinityQueue.items;
+
+    if (refillAffinityResult.processedCount !== 2) {
+      throw new Error(`Self-test planner-affinity path expected two processed items, got ${refillAffinityResult.processedCount}.`);
+    }
+
+    if (
+      refillAffinityItems.length !== 2 ||
+      typeof refillAffinityItems[0]?.sessionAffinityKey !== "string" ||
+      refillAffinityItems[0].sessionAffinityKey !== refillAffinityItems[1]?.sessionAffinityKey
+    ) {
+      throw new Error(
+        `Self-test planner-affinity path did not persist a shared sessionAffinityKey for adjacent generated siblings: ${JSON.stringify(refillAffinityItems)}`
+      );
+    }
+
+    materializeRoot = mkdtempSync(join(tmpdir(), "opencode-loop-materialize-"));
+    mkdirSync(resolve(materializeRoot, ".opencode", "loop"), { recursive: true });
+    writeFileSync(
+      resolve(materializeRoot, ".opencode", "loop", "execution-backlog.jsonc"),
+      `${JSON.stringify(
+        {
+          items: [
+            {
+              id: "parent-001",
+              title: "Materialized parent",
+              goal: "Finish the same codepath through two closeout steps.",
+              phase: "Trace",
+              scope: ["apps/api"],
+              decompositionPlan: [
+                { id: "mat-001", title: "Materialized step one", goal: "Complete the first step.", acceptance: ["step one accepted"] },
+                { id: "mat-002", title: "Materialized step two", goal: "Complete the second step.", acceptance: ["step two accepted"] }
+              ]
+            }
+          ],
+          queueMaterializationPlan: {
+            nextQueueFamilies: [
+              {
+                id: "wave-001",
+                waveGoal: "Close out one parent in order.",
+                candidateTasks: ["mat-001", "mat-002"],
+                queueContracts: [
+                  { taskId: "mat-001", verifier: { mode: "assistant_only" } },
+                  { taskId: "mat-002", verifier: { mode: "assistant_only" } }
+                ]
+              }
+            ]
+          }
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+
+    const materializedWave = materializeBacklogWave({ repoRoot: materializeRoot, waveId: "wave-001" });
+    if (
+      materializedWave.queue.items.length !== 2 ||
+      materializedWave.queue.items[0]?.sessionAffinityKey !== materializedWave.queue.items[1]?.sessionAffinityKey ||
+      materializedWave.queue.items[0]?.sessionAffinityKey !== "backlog-wave:wave-001:parent-001"
+    ) {
+      throw new Error(
+        `Self-test backlog materializer did not assign a shared sessionAffinityKey to sibling items: ${JSON.stringify(materializedWave.queue.items)}`
       );
     }
 
@@ -1300,7 +1490,10 @@ export async function runSelfTest() {
 
     if (
       !String(verifierReplanQueue.items[1]?.promptText ?? "").includes("Focus on the implementation gap that prevented acceptance from passing.") ||
-      !String(verifierReplanQueue.items[1]?.promptText ?? "").includes("Target metric `score` expected `>=0.9` but got `0.42`")
+      !String(verifierReplanQueue.items[1]?.promptText ?? "").includes("Target metric `score` expected `>=0.9` but got `0.42`") ||
+      !String(verifierReplanQueue.items[1]?.promptText ?? "").includes("Task summary: Recover from a failed verification by generating one autonomous replan follow-up.") ||
+      String(verifierReplanQueue.items[1]?.promptText ?? "").includes("Original task prompt:") ||
+      String(verifierReplanQueue.items[1]?.promptText ?? "").includes("Create the verifier artifact and let the harness replan if needed.")
     ) {
       throw new Error(
         `Self-test verifier-replan follow-up prompt did not include taxonomy-aware acceptance guidance: ${verifierReplanQueue.items[1]?.promptText}`
@@ -2260,6 +2453,9 @@ export async function runSelfTest() {
     if (refillRoot) {
       rmSync(refillRoot, { recursive: true, force: true });
     }
+    if (refillAffinityRoot) {
+      rmSync(refillAffinityRoot, { recursive: true, force: true });
+    }
     if (deferredRoot) {
       rmSync(deferredRoot, { recursive: true, force: true });
     }
@@ -2286,6 +2482,9 @@ export async function runSelfTest() {
     }
     if (failureReviewRoot) {
       rmSync(failureReviewRoot, { recursive: true, force: true });
+    }
+    if (materializeRoot) {
+      rmSync(materializeRoot, { recursive: true, force: true });
     }
     if (verifierSuccessRoot) {
       rmSync(verifierSuccessRoot, { recursive: true, force: true });
