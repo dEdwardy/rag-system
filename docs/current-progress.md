@@ -3,7 +3,7 @@
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃波次和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
 
-更新时间：2026-03-31
+更新时间：2026-04-01
 
 ## Current Snapshot
 
