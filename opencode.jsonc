@@ -18,7 +18,7 @@
     },
     "build": {
       "agent": "rag-build",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode/big-pickle",
       "description": "按已确认计划实施并完成最小验证",
       "template": "基于已确认的最小计划执行实现。先检查相关代码路径和现有模式，再做最小具体改动。优先 backend-first、小步增量、快验证；运行一个最相关验证，并明确报告改动文件和验证命令；不做无关重构。TDD 不是默认流程，仅在行为语义、共享契约、source recovery 等改动时启用 light TDD。若需求不清晰或存在冲突，不要猜；直接 fail fast 并报告不确定点。"
     },
