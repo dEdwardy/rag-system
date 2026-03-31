@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
-import { PieChart, Pie, BarChart, Bar, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 
 type EvalRunParams = {
   questionSetId: string;
@@ -50,7 +50,7 @@ export function ReportCenterPage() {
   const [questionSetId, setQuestionSetId] = useState(() => searchParams.get("questionSetId") ?? "");
   const [assistantId, setAssistantId] = useState(() => searchParams.get("assistantId") ?? "");
   const [baselineSnapshotId, setBaselineSnapshotId] = useState(() => searchParams.get("baselineSnapshotId") ?? "");
-  
+
   // 表格排序和筛选状态
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("");
@@ -325,11 +325,11 @@ export function ReportCenterPage() {
       filteredItems.sort((a, b) => {
         const aValue = a[sortConfig.key as keyof typeof a];
         const bValue = b[sortConfig.key as keyof typeof b];
-        
+
         // 处理空值情况
         if (aValue === null || aValue === undefined) return 1;
         if (bValue === null || bValue === undefined) return -1;
-        
+
         if (aValue < bValue) {
           return sortConfig.direction === 'ascending' ? -1 : 1;
         }

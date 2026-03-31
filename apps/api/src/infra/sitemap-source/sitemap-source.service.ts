@@ -29,8 +29,8 @@ type SitemapFetchDiagnostics = {
   sourceKind: "sitemap";
   schemaVersion: 2;
   retryable: boolean;
-  contentTypeFallbackApplied: boolean;
-  upstreamContentType: string;
+  contentTypeFallbackApplied?: boolean;
+  upstreamContentType?: string;
   attemptedPageCount: number;
   succeededPageCount: number;
   failedPageCount: number;
@@ -228,7 +228,7 @@ export class SitemapSourceService {
         pageUrls: extracted.urls,
         diagnostics:
           boundaryHit || rootPayloadAcceptance.contentTypeFallbackApplied
-            ? {
+            ? ({
                 retryable: false,
                 partial: true,
                 attemptedPageCount: extracted.urls.length,
@@ -261,7 +261,7 @@ export class SitemapSourceService {
                 failedPages: [],
                 failedPagesTruncated: false,
                 failedPagesOmittedCount: 0
-              }
+              } as Partial<SitemapFetchDiagnostics>)
             : null
       };
     }
@@ -371,7 +371,7 @@ export class SitemapSourceService {
       pageUrls: collectedPageUrls,
       diagnostics:
         failedChildSitemapUrls.length > 0 || boundaryHit || contentTypeFallbackApplied
-          ? {
+          ? ({
               ...this.buildFailureSummary(
                 childSitemapFailures,
                 "failedChildSitemaps",
@@ -413,7 +413,7 @@ export class SitemapSourceService {
                 failedPages: [],
                 failedPagesTruncated: false,
                 failedPagesOmittedCount: 0
-              }
+              } as Partial<SitemapFetchDiagnostics>)
           : null
     };
   }
@@ -522,11 +522,11 @@ export class SitemapSourceService {
     return {
       content,
       diagnostics: diagnostics
-        ? {
+        ? ({
             ...diagnostics,
             sourceKind: "sitemap" as const,
             schemaVersion: 2 as const
-          }
+          } as SitemapFetchDiagnostics)
         : null
     };
   }
