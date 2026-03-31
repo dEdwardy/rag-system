@@ -68,6 +68,7 @@
 ## Active Boundaries
 
 - external-source 仍限定在既有 `web page` / `feed` / `sitemap` / `sitemap index` 范围内的小步 guardrail 收口。
+- P3 follow-up 边界继续保持在同一 source family 的稳定性补强（diagnostics/retry-resync/readability 一致性）；不重开 source expansion、connector 平台化或无关波次。
 - loop harness 仍是本地辅助开发工具，不是产品 runtime；优先做小而可回退的 token / queue / verifier 优化，不展开新 orchestration 架构。
 - docs、queue、progress、backlog 的同步继续保持同一波次内最小收口，不把 bookkeeping 扩成独立产品方向。
 
@@ -78,6 +79,7 @@
 - API focused test：`pnpm test:api:file -- test/<file>.test.js`
 - web focused test：`node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
 - docs / queue sync：`git diff --check -- <files...>`
+- P3 source follow-up（guardrail 后沿用）：`pnpm test:api:file -- test/external-source-sync.test.js` + `pnpm test:api:file -- test/fetch-with-retry.test.js` + `pnpm test:api:file -- test/parsing.test.js`
 
 ## Notes
 

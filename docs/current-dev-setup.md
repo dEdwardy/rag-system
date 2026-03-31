@@ -925,6 +925,7 @@ Notes:
   - upstream / transient fetch failures remain `retryable: true`
   - invalid payload / unsupported content type style failures now persist as `retryable: false`
 - external source follow-up（P3）当前 accepted stability boundary / queue slices 快照：
+  - guardrail landed sync（2026-03-31）：后续仅在同一 in-scope source family 内做稳定性补强；不重开 source expansion、connector 平台化或无关能力扩面。
   - legality/crawl-courtesy baseline（policy only，当前约束）：
     - 仅面向公开可访问、无登录、无付费墙内容
     - 不支持任何访问控制绕过（登录/付费墙/封禁等）
@@ -956,6 +957,7 @@ Notes:
     - `pnpm test:api:file -- test/external-source-sync.test.js`
     - `pnpm test:api:file -- test/fetch-with-retry.test.js`
     - `pnpm test:api:file -- test/parsing.test.js`
+    - guardrail 后续增量默认复用这组基线，不额外扩成重型全量验证。
   - focused validation baseline（extra batch）：复用同一组三条 P3 follow-up 命令，不额外升级到重型全量验证。
 - backend now also persists run-level execution history in `DocumentRun` and exposes it through `GET /documents/:id/runs`
 - backend now also exposes knowledge-base scoped recent run history through `GET /knowledge-bases/:id/document-runs`

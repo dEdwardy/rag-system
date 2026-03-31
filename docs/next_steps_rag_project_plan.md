@@ -477,6 +477,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
 
 - in-scope source family（保持不变）：`web page`、`feed (RSS/Atom)`、`sitemap/urlset`、`sitemapindex(一层)`、以及对应 `external_resync`
 - source-expansion decision（当前波次）：`keep`（不新增 source family；仅在现有稳定性基线收口并通过 focused baseline 后再重评）
+- guardrail landed sync（2026-03-31）：`public/no-login/no-paywall only`、`no access-control bypass`、`sitemap/sitemapindex only as URL index`、`rights-to-use user-side responsibility` 已落地；后续 P3 仅在同一 source family 内继续做稳定性补强
 - in-scope 稳定性语义（保持不变）：
   - source fetch `timeout + retry` 基线
   - same-URL document reuse + version 递增
