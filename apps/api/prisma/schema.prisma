@@ -166,6 +166,7 @@ model EvalQuestionSetBaselineSnapshot {
   name          String
   description   String?
   questionsJson Json
+  documentVersionsJson Json?
   createdAt     DateTime        @default(now())
   tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)

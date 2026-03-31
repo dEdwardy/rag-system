@@ -286,6 +286,30 @@ export class EvalQuestionSetsService {
       return existingSnapshot;
     }
 
+    // Get all documents in the knowledge base and their versions
+    const knowledgeBases = await this.prisma.knowledgeBase.findMany({
+      where: {
+        tenantId: identity.tenantId,
+        ownerId: identity.userId
+      },
+      include: {
+        documents: {
+          select: {
+            id: true,
+            version: true
+          }
+        }
+      }
+    });
+
+    // Build document versions map
+    const documentVersions = new Map<string, number>();
+    for (const kb of knowledgeBases) {
+      for (const doc of kb.documents) {
+        documentVersions.set(doc.id, doc.version);
+      }
+    }
+
     return this.prisma.evalQuestionSetBaselineSnapshot.create({
       data: {
         tenantId: identity.tenantId,
@@ -294,7 +318,8 @@ export class EvalQuestionSetsService {
         version: questionSet.currentVersion,
         name: questionSet.name,
         description: questionSet.description,
-        questionsJson: questionSet.questionsJson as Prisma.InputJsonValue
+        questionsJson: questionSet.questionsJson as Prisma.InputJsonValue,
+        documentVersionsJson: Object.fromEntries(documentVersions) as Prisma.InputJsonValue
       }
     });
   }
@@ -420,6 +445,9 @@ export class EvalQuestionSetsService {
     const startedAt = new Date();
     const items: EvalRunItem[] = [];
 
+    // Get document versions from baseline snapshot
+    const documentVersions = this.readDocumentVersions(snapshot.documentVersionsJson);
+
     for (const [index, question] of questions.entries()) {
       try {
         const result = await this.askAssistantService.askAssistant({
@@ -428,7 +456,8 @@ export class EvalQuestionSetsService {
           authContext: {
             identity,
             currentIdentity: identity
-          }
+          },
+          documentVersions // Pass document versions to ensure consistent retrieval
         });
         const qualityEvaluation = this.readObject(result.qualityEvaluation);
         const answeringMetadata = this.readObject(result.answeringMetadata);
@@ -1194,6 +1223,21 @@ export class EvalQuestionSetsService {
       return value;
     }
     return null;
+  }
+
+  private readDocumentVersions(value: Prisma.JsonValue): Record<string, number> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+
+    const documentVersions: Record<string, number> = {};
+    for (const [docId, version] of Object.entries(value)) {
+      if (typeof version === "number") {
+        documentVersions[docId] = version;
+      }
+    }
+
+    return documentVersions;
   }
 
   private toRate(value: number, total: number): number {
