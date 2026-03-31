@@ -279,6 +279,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       chunkWindow: 1,
       enableHybrid: true,
       enableRerank: true,
+      documentVersions: undefined,
       filters: {
         documentIds: {
           include: ["document-1"],
@@ -621,7 +622,8 @@ test("AskAssistantService scopes existing conversation lookup to current identit
         userId: "user-99",
         tenantId: "tenant-99",
         sessionId: "session-99",
-        authSource: "session"
+        authSource: "session",
+        role: "owner"
       }
     ]
   ]);
@@ -812,6 +814,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       chunkWindow: 0,
       enableHybrid: true,
       enableRerank: false,
+      documentVersions: undefined,
       filters: undefined,
       strategy: {
         queryRewrite: {

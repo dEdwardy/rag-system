@@ -110,12 +110,12 @@ export class DocumentIngestionProcessor {
 
       if (!normalizedContent) {
         throw new IngestionProcessError({
-          code: "INGESTION_EMPTY_CONTENT",
+          code: ErrorCode.INGESTION_EMPTY_CONTENT,
           failedStage: "parsing",
           retryable: false,
           documentVersion: document.version,
           message: "Parsed content is empty."
-        });
+        } as IngestionDiagnostics);
       }
 
       if (!(await this.ensureCurrentDocumentVersion(document))) {
@@ -195,7 +195,7 @@ export class DocumentIngestionProcessor {
           true,
           document.version,
           error instanceof Error ? error.message : "Unknown storage read error."
-        )
+        ) as IngestionDiagnostics
       );
     }
   }
@@ -220,7 +220,7 @@ export class DocumentIngestionProcessor {
           false,
           document.version,
           message
-        )
+        ) as IngestionDiagnostics
       );
     }
   }
@@ -272,7 +272,7 @@ export class DocumentIngestionProcessor {
       return chunks;
     } catch (error) {
       throw new IngestionProcessError(
-        this.buildGenericIngestionDiagnostics("chunking", document.version, error)
+        this.buildGenericIngestionDiagnostics("chunking", document.version, error) as IngestionDiagnostics
       );
     }
   }
@@ -282,7 +282,7 @@ export class DocumentIngestionProcessor {
       await this.indexingService.indexDocument(document.id, document.version);
     } catch (error) {
       throw new IngestionProcessError(
-        this.buildGenericIngestionDiagnostics("indexing", document.version, error)
+        this.buildGenericIngestionDiagnostics("indexing", document.version, error) as IngestionDiagnostics
       );
     }
   }
@@ -304,12 +304,12 @@ export class DocumentIngestionProcessor {
       });
     } catch (error) {
       throw new IngestionProcessError({
-        code: "INGESTION_STATE_WRITE_FAILED",
+        code: ErrorCode.INGESTION_ENQUEUE_FAILED,
         failedStage: "parsing",
         retryable: true,
         documentVersion,
         message: error instanceof Error ? error.message : "Unknown document state update error."
-      });
+      } as IngestionDiagnostics);
     }
   }
 
@@ -341,7 +341,7 @@ export class DocumentIngestionProcessor {
       failedStage !== "parsing",
       documentVersion,
       message
-    );
+    ) as IngestionDiagnostics;
   }
 
   private toDocumentRunFailedStage(failedStage: IngestionFailedStage) {
