@@ -1245,6 +1245,76 @@ test("DocumentsService records non-retryable diagnostics for upstream 404 source
   ]);
 });
 
+test("DocumentsService records readable diagnostics when external fetch throws a string error", async () => {
+  const documentUpdates = [];
+  const failedRuns = [];
+
+  const reservedDocument = {
+    id: "reserved-string-fetch-error-document",
+    version: 9
+  };
+
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        update: async args => {
+          documentUpdates.push(args);
+          return {
+            ...reservedDocument,
+            ...args.data
+          };
+        }
+      }
+    },
+    documentRunsService: {
+      markRunFailed: async (documentId, version, input) => {
+        failedRuns.push({ documentId, version, ...input });
+      }
+    }
+  });
+
+  await assert.rejects(
+    DocumentsService.prototype.fetchExternalSourceOrRecordFailure.call(fakeService, reservedDocument, async () => {
+      throw "Upstream source timeout while fetching feed.";
+    }),
+    /Upstream source timeout while fetching feed/
+  );
+
+  assert.deepEqual(documentUpdates, [
+    {
+      where: {
+        id: reservedDocument.id
+      },
+      data: {
+        status: "failed",
+        processingStage: "failed",
+        errorMessage: "Upstream source timeout while fetching feed.",
+        diagnosticsJson: {
+          code: "EXTERNAL_SOURCE_FETCH_FAILED",
+          failedStage: "source_fetch",
+          retryable: true,
+          documentVersion: reservedDocument.version,
+          message: "Upstream source timeout while fetching feed."
+        }
+      }
+    }
+  ]);
+  assert.deepEqual(failedRuns, [
+    {
+      documentId: reservedDocument.id,
+      version: reservedDocument.version,
+      failedStage: "source_fetch",
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_FETCH_FAILED",
+        failedStage: "source_fetch",
+        retryable: true,
+        documentVersion: reservedDocument.version,
+        message: "Upstream source timeout while fetching feed."
+      }
+    }
+  ]);
+});
+
 test("DocumentsService stale external finalize does not overwrite a newer document version", async () => {
   const documentUpdates = [];
   const skippedRuns = [];

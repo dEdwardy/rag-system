@@ -615,7 +615,7 @@ export class DocumentsService {
     try {
       return await operation();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown external source fetch error.";
+      const message = this.resolveErrorMessage(error, "Unknown external source fetch error.");
       const retryable = this.isRetryableExternalSourceError(error);
       const diagnostics: Record<string, Prisma.InputJsonValue> = {
         code: "EXTERNAL_SOURCE_FETCH_FAILED",
@@ -649,7 +649,7 @@ export class DocumentsService {
     try {
       return await operation();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown external source persistence error.";
+      const message = this.resolveErrorMessage(error, "Unknown external source persistence error.");
       const retryable = this.isRetryableExternalSourceError(error);
       const diagnostics = {
         code: "EXTERNAL_SOURCE_PERSIST_FAILED",
@@ -688,7 +688,7 @@ export class DocumentsService {
     try {
       await this.ingestionService.enqueueDocument(document.id, document.version);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown external enqueue error.";
+      const message = this.resolveErrorMessage(error, "Unknown external enqueue error.");
       const diagnostics = {
         code: "EXTERNAL_SOURCE_ENQUEUE_FAILED",
         failedStage: "source_fetch",
@@ -1117,6 +1117,25 @@ export class DocumentsService {
 
   private isRetryableExternalSourceError(error: unknown) {
     return !(error instanceof BadRequestException);
+  }
+
+  private resolveErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && typeof error.message === "string" && error.message.trim().length > 0) {
+      return error.message;
+    }
+
+    if (typeof error === "string" && error.trim().length > 0) {
+      return error;
+    }
+
+    if (error && typeof error === "object" && "message" in error) {
+      const candidate = (error as { message?: unknown }).message;
+      if (typeof candidate === "string" && candidate.trim().length > 0) {
+        return candidate;
+      }
+    }
+
+    return fallback;
   }
 
   private buildExternalSourcePartialDiagnostics(
