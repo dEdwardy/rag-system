@@ -25,6 +25,15 @@
   - 保持 external-source baseline 边界不变：public / no-login / no-paywall only；不做 access-control bypass
   - focused validation：`git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc`
 
+- ✅ `p3-external-source-guardrails` wave closed within existing source-family boundary
+  - legality/courtesy baseline is now explicit in project docs：public/no-login/no-paywall only；no access-control bypass；`sitemap/sitemapindex` is URL index (not authorization grant)；rights-to-use stays user-side
+  - existing source fetch path remains narrow and low-disturbance: robots/domain checks + crawl budget pacing + source throttle/breaker
+  - external reindex keeps incremental-first behavior: skip duplicate in-flight resync and skip immediate repeat broad refresh for recently updated external docs
+  - focused validation：
+    - `git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json`
+    - `pnpm --filter @rag-system/api test:file -- test/external-source-sync.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/fetch-with-retry.test.js`
+
 - ✅ `p3-external-source-guardrail-wave` split and queued
   - 现已拆出 policy baseline / robots-domain guard / crawl budget / throttle breaker / incremental resync bias 等子项
   - focused validation：`node .opencode/loop/cli.mjs --materialize-append-wave p3-external-source-guardrail-wave`

@@ -511,6 +511,12 @@ Queue 短标题版（可直接作为 loop item title 使用）：
   5. `resync-incremental-bias`
 - 这批 guardrail 只围绕既有 source family 做合法性/礼仪/预算/熔断/增量偏置补强，不新增 source family，不引入 JS rendering crawler，也不重开 source 平台化。
 
+当前落地状态（2026-03-31，narrow closeout）：
+
+- ✅ 已在既有 source family 边界内完成 guardrail 收口：`public/no-login/no-paywall only`、`no access-control bypass`、`sitemap/sitemapindex is URL index (not authorization grant)`、`rights-to-use user-side responsibility`
+- ✅ fetch 侧保持最小 crawl-courtesy 保护：robots/domain guard、crawl budget pacing、retry/breaker pressure guard
+- ✅ resync 侧保持 incremental-first：避免并发重复 resync 与“刚刷新后立即再做一轮 broad refresh”
+
 #### P3 queue-ready slices（accepted）
 
 当前 follow-up 的 queue-ready 最小切片保持为 5 个（按当前建议顺序）：

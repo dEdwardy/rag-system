@@ -130,6 +130,12 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
   - immediate pause on `429`
   - pause after repeated `5xx` responses on the same domain (`threshold=2` by default)
   - pause on obvious anti-bot/challenge HTML responses (`403/503` with challenge markers)
+- external-source legality + crawl-courtesy baseline (for existing `web page` / `feed` / `sitemap` / `sitemapindex` families):
+  - ingest only publicly accessible sources (`no-login` / `no-paywall`)
+  - do not attempt access-control bypass (login walls, paywalls, anti-bot challenges, or other restricted-access bypass)
+  - treat `sitemap` / `sitemapindex` only as URL index hints, not as authorization grants
+  - users are responsible for confirming rights-to-use before ingestion
+  - external resync remains incremental-first: in-flight resync is not duplicated, and very recent `ready/completed` external docs are skipped for immediate repeat broad refetch
 - storage runtime now also supports:
 
 ```text
