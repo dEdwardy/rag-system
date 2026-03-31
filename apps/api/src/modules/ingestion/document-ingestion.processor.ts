@@ -322,11 +322,14 @@ export class DocumentIngestionProcessor {
     let errorCode: ErrorCode;
 
     switch (failedStage) {
-      case "chunking":
+      case "parsing":
         errorCode = ErrorCode.INGESTION_PARSING_FAILED;
         break;
+      case "chunking":
+        errorCode = ErrorCode.INGESTION_CHUNKING_FAILED;
+        break;
       case "indexing":
-        errorCode = ErrorCode.INGESTION_PARSING_FAILED;
+        errorCode = ErrorCode.INGESTION_INDEXING_FAILED;
         break;
       default:
         errorCode = ErrorCode.INGESTION_PARSING_FAILED;
