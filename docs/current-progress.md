@@ -15,6 +15,15 @@
 
 ## Recent Landed Increments
 
+- ✅ `fix-typescript-errors-and-warnings` completed TypeScript error/warning cleanup and PR #11 merge
+  - 修复了 `sitemap-source.service.ts` 类型问题（`contentTypeFallbackApplied`/`upstreamContentType` 可选化 + 类型断言）
+  - 修复了 `document-ingestion.processor.ts` 类型问题（所有 `createErrorDiagnostics()`/直接对象字面量的 `IngestionDiagnostics` 类型断言）
+  - 修复了 `ask-success.test.js` 测试期望（新增 `documentVersions`/`role` 字段）
+  - 移除了 `ReportCenterPage.tsx` 未使用的 recharts 导入
+  - 添加了 `ErrorCode.INGESTION_STATE_WRITE_FAILED` 以保持不同错误类型的 distinct code（响应 Codex P2 review）
+  - 创建了 `docs/project-full-status-review.md` 综合项目状态审查文档
+  - focused validation：`pnpm typecheck`（所有包通过）+ `pnpm test:api:file -- test/ask-success.test.js` + `pnpm test:api:file -- test/fetch-with-retry.test.js` + `pnpm test:api:file -- test/external-source-sync.test.js`
+
 - ✅ `p5-approved-baseline-queue-refresh` recorded closeout bookkeeping as completed
   - `.opencode/loop/execution-backlog.jsonc` and `.opencode/loop/queue.json` now reflect `p5-approved-baseline-closeout` wave/task statuses as completed（`p5-baseline-approval-doc-sync`、`p5-replay-baseline-contract-closeout`、`p5-approved-baseline-queue-refresh`）
   - 保持边界不变：仅 queue/backlog bookkeeping 收口，不新增 benchmark 或 demo-platform 方向
