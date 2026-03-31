@@ -5,7 +5,7 @@ import { appendQueueItems, formatDisplayTime, formatSessionTitleTime, writeQueue
 
 export const DEFAULT_PLANNER_PROMPT_PATH = "prompts/plan-next.md";
 export const DEFAULT_PLANNER_PROMPT_FILE_NAME = "plan-next.md";
-export const DEFAULT_AUTO_REFILL_MAX_CYCLES = 0;
+export const DEFAULT_AUTO_REFILL_MAX_CYCLES = 1;
 export const DEFAULT_AUTO_REFILL_MAX_ITEMS = 2;
 
 const DOC_INGESTION_SCOPE = [

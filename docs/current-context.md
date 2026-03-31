@@ -14,7 +14,7 @@
 
 - `P3 external-source guardrails`：继续保持 legality / crawl-safety / incremental resync 范围内的小步收口。
 - `queue-driven closeout`：优先消费已拆好的 queue-ready 小任务，保持实现、验证、文档同步一起收口。
-- `loop harness cost control`：默认关闭 planner auto-refill，优先用 session reuse 和 delta replan 控制 token 成本。
+- `loop harness cost control`：planner auto-refill 默认允许一轮 guarded refill，优先通过 session reuse、delta replan 和波次控制降低 token 成本。
 
 ## Do Not Do
 
@@ -22,6 +22,7 @@
 - 不做 broad refactor、架构重写、schema / persistence 大改。
 - 不把局部 docs / queue / observability / source-entry closeout 扩成新的平台化 redesign。
 - 不在没有明确收益时改 retrieval 语义、默认策略开关或模型分工。
+- 不为了“继续跑起来”而重开已经闭合、且 materialize 只会返回 0 的历史 wave；这类项要等新的 concrete evidence 或 backlog 同步。
 
 ## Validation Baseline
 
@@ -34,7 +35,7 @@
 ## Loop Notes
 
 - loop 仍保持 one queue item at a time；但相邻相关 item 现在可通过 `sessionAffinityKey` 或兼容 `plannerFamily` 保守复用 session。
-- planner auto-refill 默认值现在是 `0`，即默认关闭，只有显式启用时才补货。
+- planner auto-refill 默认值现在是 `1`，即 queue 空时允许一轮 guarded refill；需要关闭时再显式设为 `0`。
 - verifier replan prompt 现在走 delta prompt，不再整段回放原始执行 prompt。
 - planner/materializer 生成的同 wave sibling items 会自动带 `sessionAffinityKey`，减少未来 queue 的冷启动浪费。
 

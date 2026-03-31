@@ -19,7 +19,7 @@
 
 ## Cost-Control Defaults
 
-- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` default is `0`, so planner auto-refill is opt-in.
+- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` default is `1`, so planner auto-refill can extend the queue when the current wave drains.
 - Verifier-driven replan prompts are delta-sized and do not replay the full prior execution prompt.
 - Planner-generated sibling items with the same family, and backlog-materialized sibling items under the same parent, automatically receive a shared `sessionAffinityKey`.
 

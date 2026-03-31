@@ -36,6 +36,7 @@ export async function runSelfTest() {
   const root = mkdtempSync(join(tmpdir(), "opencode-loop-"));
   let resumeRoot = null;
   let refillRoot = null;
+  let refillDefaultRoot = null;
   let refillAffinityRoot = null;
   let deferredRoot = null;
   let failureDeferRoot = null;
@@ -134,6 +135,19 @@ export async function runSelfTest() {
                 title: `Persistent follow-up task ${plannerPersistentSequence + 1}`,
                 family: "trace",
                 prompt: `Run persistent refill follow-up ${++plannerPersistentSequence}.`,
+                agent: "rag-build"
+              }
+            ],
+            null,
+            2
+          )
+        : promptText.includes("planner default refill self-test")
+        ? JSON.stringify(
+            [
+              {
+                title: "Generated default refill task",
+                family: "trace",
+                prompt: "Run the default guarded refill follow-up.",
                 agent: "rag-build"
               }
             ],
@@ -847,6 +861,39 @@ export async function runSelfTest() {
     if (!refillGeneratedSession?.title?.startsWith("loop #1 · refill 1 left · trace-auto-001")) {
       throw new Error(
         `Self-test refill session title did not clarify auto-refill scope: ${JSON.stringify(refillGeneratedSession)}`
+      );
+    }
+
+    refillDefaultRoot = mkdtempSync(join(tmpdir(), "opencode-loop-refill-default-"));
+    mkdirSync(resolve(refillDefaultRoot, ".opencode", "loop", "prompts"), { recursive: true });
+    mkdirSync(resolve(refillDefaultRoot, ".opencode", "loop", "handoffs"), { recursive: true });
+    mkdirSync(resolve(refillDefaultRoot, "docs"), { recursive: true });
+
+    writeFileSync(resolve(refillDefaultRoot, "AGENTS.md"), "Keep queue work narrow.\n", "utf8");
+    writeFileSync(resolve(refillDefaultRoot, "docs", "next_steps_rag_project_plan.md"), "Current recommended mainline: Default refill self-test.\n", "utf8");
+    writeFileSync(resolve(refillDefaultRoot, "docs", "current-progress.md"), "补充进展（2026-03-31）：\n- planner default refill self-test\n", "utf8");
+    writeFileSync(resolve(refillDefaultRoot, "docs", "current-dev-setup.md"), "Focused validation: node .opencode/loop/cli.mjs --self-test\n", "utf8");
+    writeFileSync(resolve(refillDefaultRoot, "README.md"), "Optional loop harness repo.\n", "utf8");
+    writeFileSync(resolve(refillDefaultRoot, ".opencode", "loop", "README.md"), "Planner-generated items may share session affinity when emitted as adjacent related tasks.\n", "utf8");
+    writeFileSync(resolve(refillDefaultRoot, ".opencode", "loop", "prompts", DEFAULT_PLANNER_PROMPT_FILE_NAME), "planner default refill self-test\n", "utf8");
+    writeFileSync(resolve(refillDefaultRoot, ".opencode", "loop", "prompts", DEFAULT_PROMPT_FILE_NAME), "Execute default refill task.\n", "utf8");
+    writeFileSync(
+      resolve(refillDefaultRoot, ".opencode", "loop", "queue.json"),
+      `${JSON.stringify({ version: LOOP_SCHEMA_VERSION, cursor: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), items: [] }, null, 2)}\n`,
+      "utf8"
+    );
+
+    const refillDefaultResult = await runLoop({
+      repoRoot: refillDefaultRoot,
+      baseUrl,
+      username: undefined,
+      password: undefined
+    });
+    const refillDefaultQueue = readQueue(resolve(refillDefaultRoot, ".opencode", "loop", "queue.json"));
+
+    if (refillDefaultResult.processedCount !== 1 || refillDefaultQueue.items.length !== 1 || refillDefaultQueue.items[0]?.status !== "completed") {
+      throw new Error(
+        `Self-test default refill path did not auto-advance from an empty queue using the default cycle budget: ${JSON.stringify(refillDefaultQueue.items)}`
       );
     }
 
@@ -2452,6 +2499,9 @@ export async function runSelfTest() {
     }
     if (refillRoot) {
       rmSync(refillRoot, { recursive: true, force: true });
+    }
+    if (refillDefaultRoot) {
+      rmSync(refillDefaultRoot, { recursive: true, force: true });
     }
     if (refillAffinityRoot) {
       rmSync(refillAffinityRoot, { recursive: true, force: true });

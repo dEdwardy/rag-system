@@ -57,7 +57,7 @@ try {
     password: process.env.OPENCODE_SERVER_PASSWORD,
     messageWaitMs: Number(process.env.OPENCODE_LOOP_MESSAGE_WAIT_MS ?? 180000),
     pollIntervalMs: Number(process.env.OPENCODE_LOOP_POLL_MS ?? 2000),
-    autoRefillMaxCycles: Number(process.env.OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES ?? 0),
+    autoRefillMaxCycles: Number(process.env.OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES ?? 1),
     autoRefillMaxItems: Number(process.env.OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS ?? 2)
   });
 

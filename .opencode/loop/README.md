@@ -68,7 +68,7 @@ execution-backlog.jsonc
 - `OPENCODE_SERVER_PASSWORD` - basic auth password when needed
 - `OPENCODE_LOOP_MESSAGE_WAIT_MS` - max wait for an assistant message
 - `OPENCODE_LOOP_POLL_MS` - polling interval while waiting
-- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` - max planner refill passes per queue wave; default `0`, `0` disables refill. The bundled systemd service also pins this to `0` so planner refill is opt-in instead of automatic.
+- `OPENCODE_LOOP_AUTO_REFILL_MAX_CYCLES` - max planner refill passes per queue wave; default `1`, `0` disables refill. The bundled systemd service also pins this to `1` so planner refill can automatically extend the queue when the current wave drains.
 - `OPENCODE_LOOP_AUTO_REFILL_MAX_ITEMS` - max new queue items each refill pass may append; default `2`
 
 ## Commands

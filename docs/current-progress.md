@@ -9,13 +9,14 @@
 
 - 当前默认方向仍是：单线推进、小步增量、每轮收口。
 - 当前更值得继续消费的工作来源：已写入 queue/backlog 的 narrow closeout items 与 `P3 external-source guardrails` 波次。
+- 当前 queue 已耗尽；`p4-source-entry-ux-followup-wave` 和 `p6-observability-readability-followup-wave` 只是历史已存在项，materialize 结果为 0，暂不强行重开旧 wave。
 - 当前默认上下文入口已收瘦：先读 `docs/current-context.md`，再按需读本文件和其他长文档，避免把 append-only 进展日志默认塞进上下文。
 - loop planner 默认摄入会保留本文件这份短 progress 摘要，同时用更短的 `.opencode/loop/loop-contract-brief.md` 替代全量 loop README。
 
 ## Recent Landed Increments
 
 - ✅ opencode loop token-cost guardrails tightened
-  - 默认 planner auto-refill 改为 opt-in
+  - 默认 planner auto-refill 恢复为 queue-drain 时的一轮 guarded refill，确保推荐方向能自然延续成下一波 queue
   - 相邻相关 item 现在可保守复用 session
   - verifier replan prompt 改为 delta prompt
   - planner/materializer 生成 sibling items 会自动带 `sessionAffinityKey`
