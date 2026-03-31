@@ -15,6 +15,11 @@
 
 ## Recent Landed Increments
 
+- ✅ `p5-replay-baseline-contract-closeout` kept replay contract surface narrow and explicit
+  - `apps/api/scripts/run-p5-v1-eval-runner.mjs` help text now directly states the pinned contract path：`manifest.runnerReplayBinding -> shortlist approvedSet/selected checks -> POST /eval/question-sets/demo-replays/p5-v1/run`
+  - 边界保持不变：不引入新的 eval framework / demo 平台 / report-center 重写
+  - focused validation：`pnpm --filter @rag-system/api eval:runner:p5-v1 --help`
+
 - ✅ `p5-baseline-approval-doc-sync` kept approved baseline v1 docs aligned (narrow scope)
   - `docs/current-dev-setup.md` and this progress doc both keep `apps/api/scripts/p5-baseline-manifest.v1.json` as the approved engineering baseline v1 source of truth（含 3 题 question set、`p5-v1-demo-replay.questions.v1` dataset pin、annotation layering、`p5-demo-shortlist-4plus1` 4+1 shortlist）
   - 边界保持不变：不重开 benchmark framework 设计、不扩 demo 平台、不改现有 runner/report/gate 契约

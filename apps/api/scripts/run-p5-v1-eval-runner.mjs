@@ -123,6 +123,7 @@ function usage() {
     "  - output directory is anchored to <repo>/storage/evals/p5-v1 by default",
     "  - replay target is pinned to approved engineering-proof demo demo-eval-report-replay (eval-report-replay)",
     `    via ${baselineManifestPath} + ${demoShortlistPath}`,
+    "  - replay contract path is fixed: manifest.runnerReplayBinding -> shortlist approvedSet/selected checks -> POST /eval/question-sets/demo-replays/p5-v1/run",
     "  - Report center runtime contract stays on live eval API payloads",
     "    (`POST /eval/question-sets/:id/runs` + `reportExports`), not offline artifacts under storage/evals/p5-v1"
   ].join("\n");
