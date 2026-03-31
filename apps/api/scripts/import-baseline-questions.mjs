@@ -1,13 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const prisma = new PrismaClient();
 
 async function importBaselineQuestions() {
   try {
     // Read the baseline question set
-    const baselinePath = path.join(process.cwd(), 'baseline-question-set.json');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const baselinePath = path.join(__dirname, 'baseline-question-set.json');
     const baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
     
     // Extract just the questions array for the format expected by the system

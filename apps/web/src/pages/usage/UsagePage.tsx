@@ -675,11 +675,11 @@ export function UsagePage() {
               {locale === "zh" ? "重试" : "Retry"}
             </Button>
           }
-          description={`${(knowledgeBasesQuery.error instanceof Error && knowledgeBasesQuery.error.message) ||
+          description={`$((knowledgeBasesQuery.error instanceof Error && knowledgeBasesQuery.error.message) ||
                 (assistantsQuery.error instanceof Error && assistantsQuery.error.message) ||
                 (conversationsQuery.error instanceof Error && conversationsQuery.error.message) ||
-                (documentsQuery.error instanceof Error && documentsQuery.error.message) ||
-                locale === "zh" ? "加载数据时发生未知错误" : "An unknown error occurred while loading data"}
+                (documentsQuery.error instanceof Error && documentsQuery.error.message)) ||
+                (locale === "zh" ? "加载数据时发生未知错误" : "An unknown error occurred while loading data")}
 
 ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check your network connection or try again later."}`}
           title={locale === "zh" ? "统计数据加载失败" : "Failed to load usage data"}
