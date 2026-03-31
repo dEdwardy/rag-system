@@ -58,6 +58,7 @@
     "queueMaterializableTasks": [
       "p5-annotation-manifest-materialization",
       "p5-demo-replay-entrypoint",
+      "p5-approved-baseline-closeout",
       "p4-source-entry-carrying",
       "p3-external-source-guardrails",
       "p3-followup-reopen-closeout",
@@ -538,6 +539,73 @@
         ]
       },
       {
+        "id": "p5-approved-baseline-closeout-wave",
+        "dependsOn": [],
+        "waveGoal": "Close out the approved P5 engineering baseline decisions through docs sync, replay-contract alignment, and queue bookkeeping, without reopening benchmark/framework or demo-platform work.",
+        "candidateTasks": [
+          "p5-baseline-approval-doc-sync",
+          "p5-replay-baseline-contract-closeout",
+          "p5-approved-baseline-queue-refresh"
+        ],
+        "queueContracts": [
+          {
+            "taskId": "p5-baseline-approval-doc-sync",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The approved P5 baseline decisions are no longer the current source of truth"
+            ]
+          },
+          {
+            "taskId": "p5-replay-baseline-contract-closeout",
+            "kind": "build_increment",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onCommandFailure": "needs_replan",
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The requested replay closeout broadens into a new benchmark framework or report platform redesign"
+            ]
+          },
+          {
+            "taskId": "p5-approved-baseline-queue-refresh",
+            "kind": "docs_sync",
+            "riskLevel": "low",
+            "verifier": {
+              "mode": "command_only",
+              "commands": [
+                "git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/current-progress.md"
+              ]
+            },
+            "retryPolicy": {
+              "maxAttempts": 1,
+              "onVerificationFail": "needs_replan"
+            },
+            "suspendWhen": [
+              "The approved baseline queue refresh would require reopening benchmark, demo, or runner design work"
+            ]
+          }
+        ]
+      },
+      {
         "id": "p6-observability-readability-closeout-wave",
         "dependsOn": [],
         "waveGoal": "Reopen P6 only for narrow scan-first observability closeout around Usage, Report center, Trace Detail/audit readability, and docs sync, without expanding into a broader dashboard platform.",
@@ -907,7 +975,7 @@
       "phase": "P3",
       "title": "reopen P3 only on new source stability evidence",
       "priority": "high",
-      "status": "auto_later",
+      "status": "completed",
       "autoExecutable": true,
       "humanInputRequired": false,
       "dependsOn": [],
@@ -969,7 +1037,7 @@
         {
           "id": "p3-source-policy-baseline",
           "title": "tighten external-source policy baseline",
-          "status": "auto_later",
+          "status": "completed",
           "goal": "Record the smallest legality and crawl-courtesy baseline for already-landed web/feed/sitemap ingestion.",
           "acceptance": [
             "Docs explicitly say public/no-login/no-paywall only.",
@@ -980,7 +1048,7 @@
         {
           "id": "p3-robots-and-domain-guard",
           "title": "add robots and domain guard",
-          "status": "auto_later",
+          "status": "completed",
           "goal": "Add narrow robots/domain courtesy checks without broadening the source contract.",
           "acceptance": [
             "Robots and domain courtesy remain bounded to existing source families.",
@@ -991,7 +1059,7 @@
         {
           "id": "p3-crawl-rate-budget-guard",
           "title": "add crawl rate budget guard",
-          "status": "auto_later",
+          "status": "completed",
           "goal": "Keep source fetching inside a narrow crawl budget and retry envelope.",
           "acceptance": [
             "Crawl budget stays aligned with the existing timeout/retry baseline.",
@@ -1449,6 +1517,84 @@
       ],
       "suspendWhen": [
         "Demo shortlist is not approved"
+      ]
+    },
+    {
+      "id": "p5-approved-baseline-closeout",
+      "phase": "P5",
+      "title": "close out approved P5 baseline decisions",
+      "priority": "medium",
+      "status": "completed",
+      "autoExecutable": true,
+      "humanInputRequired": false,
+      "dependsOn": [
+        "p5-baseline-question-set",
+        "p5-baseline-annotations",
+        "p5-baseline-dataset-pin",
+        "p5-demo-case-selection"
+      ],
+      "goal": "Close out the approved P5 baseline decisions with narrow docs sync, replay-contract alignment, and queue bookkeeping, without reopening benchmark or demo-platform work.",
+      "scope": [
+        "apps/api/scripts/run-p5-v1-eval-runner.mjs",
+        "apps/api/scripts/p5-baseline-manifest.v1.json",
+        "apps/api/scripts/p5-demo-shortlist.json",
+        "docs/current-dev-setup.md",
+        "docs/current-progress.md",
+        "docs/next_steps_rag_project_plan.md",
+        ".opencode/loop/execution-backlog.jsonc",
+        ".opencode/loop/queue.json"
+      ],
+      "acceptance": [
+        "The approved baseline docs and replay contract stay aligned with the current engineering-baseline v1 decisions.",
+        "The queue bookkeeping explicitly records the closeout wave without reopening benchmark or demo-platform design.",
+        "The wave remains narrow and relies on existing runner/report proof surfaces."
+      ],
+      "verification": [
+        "git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json",
+        "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+      ],
+      "decompositionPlan": [
+        {
+          "id": "p5-baseline-approval-doc-sync",
+          "title": "sync approved baseline docs",
+          "status": "completed",
+          "goal": "Keep the approved baseline decisions reflected in the active docs without widening scope.",
+          "acceptance": [
+            "Current-dev setup and progress docs describe the approved baseline v1 source of truth.",
+            "Next-steps wording stays narrow and consistent with the approved baseline closeout."
+          ],
+          "verification": "git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md"
+        },
+        {
+          "id": "p5-replay-baseline-contract-closeout",
+          "title": "close out replay baseline contract",
+          "status": "completed",
+          "goal": "Confirm the replay contract still points at the approved manifest and shortlist without inventing a broader eval surface.",
+          "acceptance": [
+            "Runner help / contract surface still matches the approved baseline replay path.",
+            "No eval framework redesign is introduced."
+          ],
+          "verification": "pnpm --filter @rag-system/api eval:runner:p5-v1 --help"
+        },
+        {
+          "id": "p5-approved-baseline-queue-refresh",
+          "title": "refresh approved baseline queue",
+          "status": "completed",
+          "goal": "Record the approved baseline closeout in backlog and queue bookkeeping so the wave can be drained cleanly.",
+          "acceptance": [
+            "Backlog and queue metadata reflect the approved baseline closeout wave.",
+            "No new benchmark or demo-platform work is opened."
+          ],
+          "verification": "git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/current-progress.md"
+        }
+      ],
+      "notDoing": [
+        "No benchmark framework redesign",
+        "No new demo platform",
+        "No broad report-center rewrite"
+      ],
+      "suspendWhen": [
+        "Approved P5 baseline/demo decisions are not the current source of truth"
       ]
     },
     {

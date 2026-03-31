@@ -15,6 +15,11 @@
 
 ## Recent Landed Increments
 
+- ✅ `p5-approved-baseline-queue-refresh` recorded closeout bookkeeping as completed
+  - `.opencode/loop/execution-backlog.jsonc` and `.opencode/loop/queue.json` now reflect `p5-approved-baseline-closeout` wave/task statuses as completed（`p5-baseline-approval-doc-sync`、`p5-replay-baseline-contract-closeout`、`p5-approved-baseline-queue-refresh`）
+  - 保持边界不变：仅 queue/backlog bookkeeping 收口，不新增 benchmark 或 demo-platform 方向
+  - focused validation：`git diff --check -- .opencode/loop/execution-backlog.jsonc .opencode/loop/queue.json docs/current-progress.md`
+
 - ✅ `p5-replay-baseline-contract-closeout` kept replay contract surface narrow and explicit
   - `apps/api/scripts/run-p5-v1-eval-runner.mjs` help text now directly states the pinned contract path：`manifest.runnerReplayBinding -> shortlist approvedSet/selected checks -> POST /eval/question-sets/demo-replays/p5-v1/run`
   - 边界保持不变：不引入新的 eval framework / demo 平台 / report-center 重写
