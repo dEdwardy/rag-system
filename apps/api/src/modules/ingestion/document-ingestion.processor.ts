@@ -304,7 +304,7 @@ export class DocumentIngestionProcessor {
       });
     } catch (error) {
       throw new IngestionProcessError({
-        code: ErrorCode.INGESTION_ENQUEUE_FAILED,
+        code: ErrorCode.INGESTION_STATE_WRITE_FAILED,
         failedStage: "parsing",
         retryable: true,
         documentVersion,
