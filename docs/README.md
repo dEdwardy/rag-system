@@ -9,21 +9,24 @@ To reduce ambiguity, use the docs in the following order.
 
 ## Current Primary Docs
 
-1. [Next Steps Plan](next_steps_rag_project_plan.md)
+1. [Project Status Overview](project-status-overview.md)
+   - one-page project progress summary
+   - best first read for overall status
+2. [Next Steps Plan](next_steps_rag_project_plan.md)
    - current-stage planning authority
    - defines current priority order
    - defines current superpowers usage style
    - defines current AI review policy
-2. [Current Progress](current-progress.md)
+3. [Current Progress](current-progress.md)
    - implementation status snapshot
    - completed increments
    - remaining directions
    - latest validation snapshot
-3. [Current Dev Setup](current-dev-setup.md)
+4. [Current Dev Setup](current-dev-setup.md)
    - local run steps
    - validation commands
    - current environment notes
-4. [Local Dev Infra](local-dev-infra.md)
+5. [Local Dev Infra](local-dev-infra.md)
    - local PostgreSQL / Redis infrastructure notes
 
 ## Background Docs
@@ -56,10 +59,10 @@ These files are useful when a current task directly matches them, but they shoul
 
 If you only read four docs before doing substantial work, read:
 
-1. [Next Steps Plan](next_steps_rag_project_plan.md)
-2. [Current Progress](current-progress.md)
-3. [Current Dev Setup](current-dev-setup.md)
-4. [README.md](../README.md)
+1. [Project Status Overview](project-status-overview.md)
+2. [Next Steps Plan](next_steps_rag_project_plan.md)
+3. [Current Progress](current-progress.md)
+4. [Current Dev Setup](current-dev-setup.md)
 
 ## Role Labels
 
