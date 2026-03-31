@@ -3,7 +3,7 @@
 > 文档角色：`current-primary`
 > 当前使用方式：当前阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以本文档为主；`docs/current-progress.md` 主要承担进度记录和完成状态同步。
 
-更新时间：2026-03-30
+更新时间：2026-03-31
 
 ## 1. 当前判断
 
@@ -712,6 +712,7 @@ Queue 短标题版（可直接作为 loop item title 使用）：
   - `p5-replay-baseline-contract-closeout`
   - `p5-approved-baseline-queue-refresh`
 - 这批只做批准结果的 docs/contract/queue 收口，不重开题集设计、不扩 benchmark 体系、不新增 demo/showcase 平台。
+- docs sync 口径保持为：`apps/api/scripts/p5-baseline-manifest.v1.json` 仍是 approved engineering baseline v1 单一来源；仅做同步，不扩展为 benchmark framework 或 demo 平台。
 
 ### 当前阶段推荐大类顺序
 

@@ -15,6 +15,11 @@
 
 ## Recent Landed Increments
 
+- ✅ `p5-baseline-approval-doc-sync` kept approved baseline v1 docs aligned (narrow scope)
+  - `docs/current-dev-setup.md` and this progress doc both keep `apps/api/scripts/p5-baseline-manifest.v1.json` as the approved engineering baseline v1 source of truth（含 3 题 question set、`p5-v1-demo-replay.questions.v1` dataset pin、annotation layering、`p5-demo-shortlist-4plus1` 4+1 shortlist）
+  - 边界保持不变：不重开 benchmark framework 设计、不扩 demo 平台、不改现有 runner/report/gate 契约
+  - focused validation：`git diff --check -- docs/next_steps_rag_project_plan.md docs/current-progress.md docs/current-dev-setup.md .opencode/loop/execution-backlog.jsonc`
+
 - ✅ opencode loop token-cost guardrails tightened
   - 默认 planner auto-refill 恢复为 queue-drain 时的一轮 guarded refill，确保推荐方向能自然延续成下一波 queue
   - 相邻相关 item 现在可保守复用 session
