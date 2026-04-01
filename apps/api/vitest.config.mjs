@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 
+const junitOutput = process.env.VITEST_JUNIT_OUTPUT;
+
 export default defineConfig({
   test: {
     environment: "node",
@@ -8,18 +10,16 @@ export default defineConfig({
     fileParallelism: false,
     isolate: true,
     setupFiles: ["./test/support/vitest.setup.cjs"],
-    // 测试报告配置
-    reporters: ["default", "junit"],
-    outputFile: {
-      junit: "./test-results/junit.xml"
-    },
-    // 测试重试配置
-    retry: 2,
+    reporters: junitOutput ? ["default", "junit"] : ["default"],
+    outputFile: junitOutput
+      ? {
+          junit: junitOutput
+        }
+      : undefined,
     pool: "threads",
     poolOptions: {
       threads: { singleThread: true }
     },
-    // 测试覆盖率配置
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
