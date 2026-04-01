@@ -15,6 +15,20 @@
 
 ## Recent Landed Increments
 
+- `api build/start cross-environment hardening` completed a narrow Windows/WSL compatibility closeout for backend startup
+  - root cause: stale incremental API build artifacts could leave mixed runtime layouts in `apps/api/dist` after environment switches, causing missing runtime modules and missing route registration (`/auth/*` 404)
+  - `apps/api/package.json` now cleans build artifacts before `build`, and `start:dev` now follows the same clean-build runtime boot path as `start:prod` to avoid stale-watch output on Windows
+  - `apps/api/scripts/start-prod.mjs` and `apps/api/scripts/start-dev.mjs` now resolve the built entry via `apps/api/scripts/resolve-built-api-entry.mjs` instead of assuming one fixed output layout
+  - warning cleanup in the same area:
+    - Prisma seed config moved from deprecated `package.json#prisma` to `apps/api/prisma.config.ts`
+    - build finalize now writes `apps/api/dist/packages/shared/package.json` with `"type": "module"` to remove Node runtime reparsing warnings for emitted shared files
+  - focused validation:
+    - `node --test apps/api/test/resolve-built-api-entry.test.js`
+    - `pnpm --filter @rag-system/api build`
+    - `pnpm --filter @rag-system/api start:prod`
+    - `pnpm --filter @rag-system/api start:dev`
+    - `GET /health` + `GET /auth/providers` + `GET /auth/me` on the restarted API
+
 - ✅ `fix-typescript-errors-and-warnings` completed TypeScript error/warning cleanup and PR #11 merge
   - 修复了 `sitemap-source.service.ts` 类型问题（`contentTypeFallbackApplied`/`upstreamContentType` 可选化 + 类型断言）
   - 修复了 `document-ingestion.processor.ts` 类型问题（所有 `createErrorDiagnostics()`/直接对象字面量的 `IngestionDiagnostics` 类型断言）

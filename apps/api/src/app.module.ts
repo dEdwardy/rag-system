@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 import { HealthController } from "./common/health.controller";
 import { KnowledgeBasesModule } from "./modules/knowledge-bases/knowledge-bases.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
@@ -25,6 +26,10 @@ import { AuditModule } from "./modules/audit/audit.module";
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ["apps/api/.env.local", "apps/api/.env"]
+    }),
     DatabaseModule,
     StorageModule,
     VectorStoreModule,

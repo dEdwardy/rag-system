@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "start": "nest start",
-    "start:dev": "nest start --watch",
+    "start:dev": "node scripts/start-dev.mjs",
     "start:prod": "node scripts/start-prod.mjs",
-    "build": "pnpm run prisma:generate && nest build",
+    "build": "rimraf dist tsconfig.tsbuildinfo && pnpm run prisma:generate && nest build && node scripts/finalize-build-artifacts.mjs",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run test:all",
     "test:all": "pnpm run test:fast && pnpm run test:integration && pnpm run test:e2e",
@@ -33,11 +33,9 @@
     "prisma:migrate": "pnpm exec prisma migrate dev",
     "prisma:seed": "node prisma/seed.js"
   },
-  "prisma": {
-    "seed": "node prisma/seed.js"
-  },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@prisma/client": "^6.5.0",
@@ -55,6 +53,7 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
+    "@prisma/config": "^6.19.2",
     "@nestjs/testing": "^11.0.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.13.10",
@@ -62,6 +61,7 @@
     "docx": "^9.6.1",
     "eslint": "^9.22.0",
     "prisma": "^6.5.0",
+    "rimraf": "^6.1.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.2",
     "vitest": "^3.2.4"

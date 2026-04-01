@@ -22,10 +22,10 @@ This brings up:
 pnpm install
 ```
 
-If this is a fresh checkout, copy the example env first:
+If this is a fresh checkout, copy the example env into the API app first:
 
 ```bash
-cp .env.example .env
+cp .env.example apps/api/.env
 ```
 
 For clean-checkout or CI-like validation, explicitly generate the Prisma client before API build/typecheck:
@@ -81,6 +81,12 @@ pnpm --filter @rag-system/api build
 pnpm --filter @rag-system/api start:prod
 ```
 
+For stable local API startup in the current Windows/WSL-compatible path:
+
+```bash
+pnpm --filter @rag-system/api start:dev
+```
+
 This expects the local PostgreSQL and Redis stack to be running.
 
 Health check:
@@ -100,7 +106,29 @@ OLLAMA_EMBEDDING_DIMENSIONS=1536
 
 Notes:
 
-- The current API startup path now loads `.env` from the repo root and `apps/api/.env`.
+- The current API startup path now uses Nest `ConfigModule` and resolves env files only from the API app in this order:
+  - `apps/api/.env.local`
+  - `apps/api/.env`
+- Repository-root `.env` is not part of the runtime path for the API.
+- CORS behavior now differs by runtime mode:
+  - development / non-production: allow request origins dynamically so local multi-port frontend work is not blocked by fixed origin lists
+  - production: do not enable application-level CORS; handle cross-origin policy at the reverse proxy / gateway layer such as Nginx
+- The API build/start scripts now clear `apps/api/dist` and `apps/api/tsconfig.tsbuildinfo` before rebuilding.
+- This cleanup is intentional for cross-environment compatibility: after switching between Ubuntu/WSL and Windows, stale incremental output can leave mixed `dist` layouts behind and cause missing routes or missing runtime modules.
+- Root cause summary for the April 1, 2026 Windows issue:
+  - the API compiler output can include shared-package files under `dist/packages/...`, which pushes the effective runtime entry to `dist/apps/api/src/main.js`
+  - older flat output such as `dist/main.js` or partial stale `dist/apps/api/src/*` files can remain when `dist` is not cleaned first
+  - that stale mix caused `start:prod` / `start:dev` to pick inconsistent runtime artifacts, which surfaced as `GET /auth/me` returning `404` and one prod boot failing with `Cannot find module '../../infra/storage/storage.module'`
+- Current prevention baseline:
+  - `pnpm --filter @rag-system/api build` always runs a clean rebuild first
+  - `pnpm --filter @rag-system/api start:dev` now uses the same clean-build runtime path as `start:prod` instead of reusing potentially stale watch output
+  - `pnpm --filter @rag-system/api start:prod` resolves the built entry through the same nested-layout-aware helper
+  - the build finalize step now writes a minimal `dist/packages/shared/package.json` with `"type": "module"` so Node does not reparse emitted shared files with runtime warnings
+- Current tradeoff:
+  - `start:dev` is currently a stability-first local boot path, not a hot-reload watch path
+  - this was chosen because the previous Windows watch startup could drift across mixed `dist` layouts after environment switches
+- Prisma CLI config is now sourced from `apps/api/prisma.config.ts` instead of deprecated `package.json#prisma`.
+- If you manually run Nest/Node commands outside the package scripts after changing OS/runtime environment, prefer a clean rebuild first instead of reusing old `dist/`.
 - In the current local environment, `qwen2.5:7b` has been verified to respond to both `/api/generate` and `/api/embed`.
 - If you later switch to a dedicated embedding model, only `OLLAMA_EMBEDDING_MODEL` needs to change.
 - `OLLAMA_EMBEDDING_DIMENSIONS` is optional and acts as a strict guardrail: when set, the backend rejects Ollama embedding responses whose vector length does not match the configured dimension.
@@ -518,9 +546,9 @@ LLM_REWRITE_TEMPERATURE=0
 CORS_ORIGIN=http://localhost:5173,http://your-other-origin
 ```
 
-- local API `start:prod` now loads gitignored workspace env files automatically when present:
-  - `.env.local`
-  - `.env`
+- local API `start:prod` now loads app-scoped env files automatically when present:
+  - `apps/api/.env.local`
+  - `apps/api/.env`
 
 ## Start web
 
