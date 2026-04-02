@@ -100,8 +100,8 @@ The API will use Ollama automatically when these environment values are present:
 ```text
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
-OLLAMA_EMBEDDING_MODEL=qwen2.5:7b
-OLLAMA_EMBEDDING_DIMENSIONS=1536
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+OLLAMA_EMBEDDING_DIMENSIONS=768
 ```
 
 Notes:
@@ -129,8 +129,8 @@ Notes:
   - this was chosen because the previous Windows watch startup could drift across mixed `dist` layouts after environment switches
 - Prisma CLI config is now sourced from `apps/api/prisma.config.ts` instead of deprecated `package.json#prisma`.
 - If you manually run Nest/Node commands outside the package scripts after changing OS/runtime environment, prefer a clean rebuild first instead of reusing old `dist/`.
-- In the current local environment, `qwen2.5:7b` has been verified to respond to both `/api/generate` and `/api/embed`.
-- If you later switch to a dedicated embedding model, only `OLLAMA_EMBEDDING_MODEL` needs to change.
+- In the current local environment, `qwen2.5:7b` has been verified for `/api/generate`, and `nomic-embed-text` has been verified for `/api/embed`.
+- If you switch to a different dedicated embedding model later, update `OLLAMA_EMBEDDING_MODEL` and re-check `OLLAMA_EMBEDDING_DIMENSIONS` against the actual Ollama response length.
 - `OLLAMA_EMBEDDING_DIMENSIONS` is optional and acts as a strict guardrail: when set, the backend rejects Ollama embedding responses whose vector length does not match the configured dimension.
 - `OLLAMA_EMBEDDING_DIMENSIONS` now also requires Ollama embedding provider config (`OLLAMA_BASE_URL` + `OLLAMA_EMBEDDING_MODEL` or `OLLAMA_MODEL`); setting it alone now fails fast at startup/config resolution instead of being silently ignored.
 - external source fetch runtime now also supports:
