@@ -100,7 +100,7 @@
 ✅ 2. `P4 Documents / Knowledge Base` 第一轮收口 - 已完成（documents-page-helpers）
 ✅ 3. `Document Detail / Usage / Trace` 诊断路径收口 - 已完成（trace-detail-page-helpers, usage-page-helpers）
 ✅ 4. `Report center / eval` 参数与契约收口 - 已完成（report-center-page-helpers）
-➡️ 5. focused regression + bounded maintenance - 进行中
+✅ 5. focused regression + bounded maintenance - 已完成（ESLint 配置、lint 修复、构建验证）
 
 ## Focused Validation Baseline
 
