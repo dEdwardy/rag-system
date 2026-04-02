@@ -163,6 +163,23 @@ export function UsagePage() {
   const hasRecentFailure = retryableFailureCount + nonRetryableFailureCount > 0;
   const hasDocumentRunHistory = (runSummary?.totalRuns ?? 0) > 0;
   const boundaryHitCount = runSummary?.boundaryStats.runsWithBoundaryHit ?? 0;
+  const latestFailureAnchor = runSummary?.latestFailure ?? null;
+
+  function buildRunSummaryActionTarget() {
+    if (latestFailureAnchor?.documentId) {
+      return {
+        label: locale === "zh" ? "打开失败文档" : "Open failed document",
+        to: `/documents/${latestFailureAnchor.documentId}`
+      };
+    }
+
+    return {
+      label: locale === "zh" ? "查看运行摘要" : "Open run summary",
+      to: "/knowledge-base"
+    };
+  }
+
+  const runSummaryActionTarget = buildRunSummaryActionTarget();
   // 生成健康信号
   const generateHealthSignals = () => [
     {
@@ -247,8 +264,8 @@ export function UsagePage() {
           locale === "zh"
             ? `最近 ${timeRange}h 有 ${nonRetryableFailureCount} 条不可重试失败运行。`
             : `${nonRetryableFailureCount} non-retryable failed runs in the last ${timeRange}h.`,
-        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-        actionTo: "/knowledge-base"
+        actionLabel: runSummaryActionTarget.label,
+        actionTo: runSummaryActionTarget.to
       });
     }
 
@@ -261,8 +278,8 @@ export function UsagePage() {
           locale === "zh"
             ? `当前积压 ${pendingRunCount} 条（阈值 >= 3）。`
             : `Current backlog is ${pendingRunCount} (threshold >= 3).`,
-        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-        actionTo: "/knowledge-base"
+        actionLabel: runSummaryActionTarget.label,
+        actionTo: runSummaryActionTarget.to
       });
     }
 
@@ -275,8 +292,8 @@ export function UsagePage() {
           locale === "zh"
             ? `最近 ${timeRange}h 可重试失败 ${retryableFailureCount} 条（阈值 >= 3）。`
             : `${retryableFailureCount} retryable failed runs in the last ${timeRange}h (threshold >= 3).`,
-        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-        actionTo: "/knowledge-base"
+        actionLabel: runSummaryActionTarget.label,
+        actionTo: runSummaryActionTarget.to
       });
     }
 
@@ -303,8 +320,8 @@ export function UsagePage() {
           locale === "zh"
             ? `最近 ${timeRange}h 有 ${boundaryHitCount} 次 source 边界命中。`
             : `${boundaryHitCount} source boundary-hit runs in the last ${timeRange}h.`,
-        actionLabel: locale === "zh" ? "查看运行摘要" : "Open run summary",
-        actionTo: "/knowledge-base"
+        actionLabel: runSummaryActionTarget.label,
+        actionTo: runSummaryActionTarget.to
       });
     }
 
@@ -319,6 +336,8 @@ export function UsagePage() {
     nonRetryableFailureCount,
     pendingRunCount,
     recentIssueCount,
+    runSummaryActionTarget.label,
+    runSummaryActionTarget.to,
     retryableFailureCount,
     timeRange
   ]);
@@ -597,8 +616,8 @@ export function UsagePage() {
         value: topAlert?.actionLabel ?? (locale === "zh" ? "继续观察 P6 面板" : "Continue scanning P6 panels"),
         copy: topAlert
           ? locale === "zh"
-            ? `建议先进入 ${topAlert.actionTo === "/traces" ? "Trace" : "Knowledge base"} 路由。`
-            : `Suggested first route: ${topAlert.actionTo === "/traces" ? "Trace" : "Knowledge base"}.`
+            ? `建议先进入 ${topAlert.actionTo === "/traces" ? "Trace" : topAlert.actionTo.startsWith("/documents/") ? "失败文档" : "Knowledge base"} 路由。`
+            : `Suggested first route: ${topAlert.actionTo === "/traces" ? "Trace" : topAlert.actionTo.startsWith("/documents/") ? "failed document" : "Knowledge base"}.`
           : locale === "zh"
             ? "如果趋势、差异和热点都平稳，当前工作区基本可继续使用。"
             : "If trend, diff, and hotspot panels stay calm, the workspace is generally ready to use."
@@ -952,6 +971,38 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
                       ? "把重要 warning 与阈值问题收敛在一个列表里，便于快速排查。"
                       : "Keep important warnings and threshold issues in one scan-first list."}
                   </p>
+                  {latestFailureAnchor ? (
+                    <div className="mt-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge color="red" radius="sm" variant="light">
+                          {locale === "zh" ? "最新失败锚点" : "Latest failure anchor"}
+                        </Badge>
+                        <span className="font-medium text-[var(--app-text)]">
+                          {latestFailureAnchor.sourceType}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[var(--app-text-muted)]">
+                        {latestFailureAnchor.message ??
+                          (locale === "zh"
+                            ? "最近失败运行未记录 message。"
+                            : "The latest failed run does not include a failure message.")}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-3">
+                        <Link
+                          className="inline-block text-[13px] font-medium text-[var(--app-accent)]"
+                          to={`/documents/${latestFailureAnchor.documentId}`}
+                        >
+                          {locale === "zh" ? "打开对应文档" : "Open related document"}
+                        </Link>
+                        <Link
+                          className="inline-block text-[13px] font-medium text-[var(--app-accent)]"
+                          to="/knowledge-base"
+                        >
+                          {locale === "zh" ? "返回知识库摘要" : "Back to knowledge base summary"}
+                        </Link>
+                      </div>
+                    </div>
+                  ) : null}
                   {runSummaryQuery.isLoading || apiHealthQuery.isLoading ? (
                     <p className="mt-2 text-sm text-[var(--app-text-muted)]">{locale === "zh" ? "加载中…" : "Loading..."}</p>
                   ) : alertItems.length === 0 ? (

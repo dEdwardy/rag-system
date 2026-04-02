@@ -913,6 +913,11 @@ export function TraceDetailPage() {
                       <Text className="workspace-section-copy">
                         {scores.length > 0 ? t("trace.sortedByScore") : t("trace.sortedByTraceOrder")}
                       </Text>
+                      <Text c="var(--app-text-muted)" mt={6} size="sm">
+                        {locale === "zh"
+                          ? "从这里跳到文档时会保留当前 trace、rank、score 和 cited 上下文。"
+                          : "Opening a document from here preserves the current trace, rank, score, and cited context."}
+                      </Text>
                     </div>
                     <Badge variant="light">{retrievedChunkIds.length}</Badge>
                   </Group>

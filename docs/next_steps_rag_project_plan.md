@@ -47,6 +47,12 @@
 - 只做状态判断、文档和最小 bookkeeping 对齐
 - 不借机扩写新 roadmap，不引入新的大架构方案
 
+完成标准：
+
+- `current-context` / `current-progress` / `project-status-overview` / 本文档口径一致
+- 明确 `P3/P5/P6` 为维护或治理边界，而不是默认主开发波次
+- 明确后续执行顺序，避免重新回到“多方向并行”的模糊状态
+
 ### Priority B: P4 web capability carry-through
 
 如果继续做产品增量，最合适的下一条主线仍然是 `P4`，但要严格收窄为“承接已有 backend 能力”，不是新的 backend 扩展。
@@ -63,6 +69,23 @@
    - 已有入口与文档/状态页的一致性修正
 3. 保持现有 API contract，不重做 source 管理后台
 4. 保持 `PC Web` 优先，不展开移动端适配
+
+建议执行顺序：
+
+1. `Documents / Knowledge Base`
+   - 统一 source-entry、上传入口、空态和错误态表达
+   - 补 active knowledge base 缺失时的引导和跳转
+   - 收紧列表页与 run/详情页之间的入口路径
+2. `Document Detail / Usage / Trace`
+   - 统一 document run、failure summary、trace 诊断摘要的阅读路径
+   - 优先做 scan-first 信息编排，而不是加新数据面
+3. `Report center / eval`
+   - 补参数 carry-through、页面内一致性和 focused contract
+   - 保持 live eval API contract，不另开离线报表体系
+4. focused regression
+   - 锁定 `DocumentsPage` source-entry
+   - 锁定 document-run observability
+   - 锁定 trace/report 关键契约
 
 不做：
 
@@ -129,4 +152,4 @@
 
 ## 6. 一句话结论
 
-`P0`、`P1`、`P2` 已完成，`P3` 和 `P5` 的主开发也已完成；当前最合理的下一步不是继续把它们当成主线，而是先保持文档与阶段判断一致，再从 `P4 web capability carry-through` 的后续收口或一个新批准的窄范围产品波次继续推进。
+`P0`、`P1`、`P2` 已完成，`P3`、`P5`、`P6` 已完成主开发并进入维护/治理边界；当前最合理的推进方式是先完成 docs 对齐，然后沿 `P4 web capability carry-through` 按 `Documents / KB -> Detail / Usage / Trace -> Report / eval -> focused regression` 的顺序持续收口。

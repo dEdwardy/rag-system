@@ -9,9 +9,11 @@ const documentsPath = resolve(__dirname, "../src/pages/documents/DocumentsPage.t
 const documentDetailPath = resolve(__dirname, "../src/pages/documents/DocumentDetailPage.tsx");
 const knowledgeBasePath = resolve(__dirname, "../src/pages/knowledge-base/KnowledgeBasePage.tsx");
 const usagePath = resolve(__dirname, "../src/pages/usage/UsagePage.tsx");
+const usageHelpersPath = resolve(__dirname, "../src/pages/usage/usage-page-helpers.ts");
 const traceListPath = resolve(__dirname, "../src/pages/traces/TraceListPage.tsx");
 const traceDetailPath = resolve(__dirname, "../src/pages/traces/TraceDetailPage.tsx");
 const reportCenterPath = resolve(__dirname, "../src/pages/reports/ReportCenterPage.tsx");
+const reportCenterHelpersPath = resolve(__dirname, "../src/pages/reports/report-center-page-helpers.ts");
 const loginPagePath = resolve(__dirname, "../src/pages/auth/LoginPage.tsx");
 const globalCssPath = resolve(__dirname, "../src/styles/global.css");
 const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
@@ -83,7 +85,12 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
   assert.doesNotMatch(source, /workspace-page-grid-main-first/);
   assert.match(source, /useKnowledgeBaseDocumentRuns/);
   assert.match(source, /useKnowledgeBaseDocumentRunSummary/);
+  assert.match(source, /useDocuments\(knowledgeBase\?\.id \?\? "", hasKnowledgeBase\)/);
+  assert.doesNotMatch(source, /useDocuments\(knowledgeBase\?\.id \?\? "default-kb"\)/);
   assert.match(source, /Latest failure context|最新失败上下文/);
+  assert.match(source, /Next action|下一步动作/);
+  assert.match(source, /buildKnowledgeBaseWorkspaceNextAction/);
+  assert.match(source, /knowledgeBase\.nextAction\./);
   assert.match(source, /status:\s*runStatusFilter/);
   assert.match(source, /to=\{`\/documents\/\$\{latestFailure\.documentId\}`\}/);
 });
@@ -107,6 +114,9 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.match(detailSource, /workspace-detail-secondary-grid|workspace-collection-grid/);
   assert.match(detailSource, /useDocumentRuns/);
   assert.match(detailSource, /Document runs|文档 runs/);
+  assert.match(detailSource, /traceReturnHref/);
+  assert.match(detailSource, /traceFocusNextStep/);
+  assert.match(detailSource, /Back to documents workspace|回到文档工作台/);
   assert.match(runListSource, /component=\{Link\}/);
   assert.match(runListSource, /to=\{`\/documents\/\$\{run\.documentId\}`\}/);
   assert.match(runListSource, /onReindexRun/);
@@ -213,6 +223,7 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.retrievedChunks\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.citations\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.rawPayload\}`\}/);
+  assert.match(traceSource, /preserves the current trace, rank, score, and cited context|会保留当前 trace、rank、score 和 cited 上下文/);
   assert.match(traceSource, /Grounded \(grounded\)/);
   assert.match(traceSource, /上下文不足（insufficient_context）/);
   assert.match(statePanelSource, /data-tone=/);
@@ -226,6 +237,10 @@ test("usage page exposes a single P6 v1 alert view for warnings and threshold is
   assert.match(usageSource, /Scan trend, alert, anomaly, diff, and hotspot panels in that order\.|按趋势、告警、异常、差异和热点的顺序继续扫读。/);
   assert.match(usageSource, /run-backlog-threshold/);
   assert.match(usageSource, /issue-events-threshold/);
+  assert.match(usageSource, /Latest failure anchor|最新失败锚点/);
+  assert.match(usageSource, /Open related document|打开对应文档/);
+  assert.match(usageSource, /runSummaryActionTarget/);
+  assert.match(usageSource, /to=\{`\/documents\/\$\{latestFailureAnchor\.documentId\}`\}/);
 });
 
 test("usage page exposes a P6 v1 trend view with 1h/6h/24h windows", () => {
@@ -319,10 +334,14 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   const reportCenterSource = readFileSync(reportCenterPath, "utf8");
 
   assert.match(reportCenterSource, /useSearchParams/);
+  assert.match(reportCenterSource, /readEvalRunParamsFromSearchParams/);
   assert.match(reportCenterSource, /searchParams\.get\("questionSetId"\)/);
   assert.match(reportCenterSource, /searchParams\.get\("assistantId"\)/);
   assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
   assert.match(reportCenterSource, /setSearchParams\(createEvalRunSearchParams\(evalRunParams\), \{ replace: true \}\)/);
+  assert.match(reportCenterSource, /setSearchParams\(new URLSearchParams\(\), \{ replace: true \}\)/);
+  assert.match(reportCenterSource, /preRunContextRows/);
+  assert.match(reportCenterSource, /Current run context|当前运行上下文/);
   assert.match(reportCenterSource, /normalizeEvalRunParams/);
   assert.match(reportCenterSource, /report-center-pre-run-path/);
   assert.match(reportCenterSource, /Run context|运行上下文/);
@@ -351,4 +370,23 @@ test("index html defines a favicon to avoid the default 404 noise", () => {
   const source = readFileSync(indexHtmlPath, "utf8");
 
   assert.match(source, /rel="icon"/);
+});
+
+test("usage helper module keeps failed-document deep-link logic isolated", () => {
+  const usageHelpersSource = readFileSync(usageHelpersPath, "utf8");
+
+  assert.match(usageHelpersSource, /export function buildRunSummaryActionTarget/);
+  assert.match(usageHelpersSource, /latestFailureDocumentId/);
+  assert.match(usageHelpersSource, /Open failed document/);
+  assert.match(usageHelpersSource, /\/documents\/\$\{args\.latestFailureDocumentId\}/);
+});
+
+test("report center routing logic lives in focused helper module", () => {
+  const reportSource = readFileSync(reportCenterPath, "utf8");
+  const reportHelpersSource = readFileSync(reportCenterHelpersPath, "utf8");
+
+  assert.match(reportSource, /from "\.\/report-center-page-helpers"/);
+  assert.match(reportHelpersSource, /export function normalizeEvalRunParams/);
+  assert.match(reportHelpersSource, /export function createEvalRunSearchParams/);
+  assert.match(reportHelpersSource, /export function readEvalRunParamsFromSearchParams/);
 });

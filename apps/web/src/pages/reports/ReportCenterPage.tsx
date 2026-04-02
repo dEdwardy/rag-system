@@ -5,42 +5,11 @@ import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
-
-type EvalRunParams = {
-  questionSetId: string;
-  assistantId: string;
-  baselineSnapshotId?: string;
-};
-
-function normalizeEvalRunParams(params: {
-  questionSetId: string;
-  assistantId: string;
-  baselineSnapshotId: string;
-}): EvalRunParams | null {
-  const questionSetId = params.questionSetId.trim();
-  const assistantId = params.assistantId.trim();
-  const baselineSnapshotId = params.baselineSnapshotId.trim();
-
-  if (!questionSetId || !assistantId) {
-    return null;
-  }
-
-  return {
-    questionSetId,
-    assistantId,
-    ...(baselineSnapshotId ? { baselineSnapshotId } : {})
-  };
-}
-
-function createEvalRunSearchParams(params: EvalRunParams): URLSearchParams {
-  const nextSearchParams = new URLSearchParams();
-  nextSearchParams.set("questionSetId", params.questionSetId);
-  nextSearchParams.set("assistantId", params.assistantId);
-  if (params.baselineSnapshotId) {
-    nextSearchParams.set("baselineSnapshotId", params.baselineSnapshotId);
-  }
-  return nextSearchParams;
-}
+import {
+  createEvalRunSearchParams,
+  normalizeEvalRunParams,
+  readEvalRunParamsFromSearchParams
+} from "./report-center-page-helpers";
 
 export function ReportCenterPage() {
   const assistantsQuery = useAssistants();
@@ -70,6 +39,39 @@ export function ReportCenterPage() {
       setAssistantId(assistantOptions[0].value);
     }
   }, [assistantId, assistantOptions]);
+
+  useEffect(() => {
+    const paramsFromUrl = readEvalRunParamsFromSearchParams(searchParams);
+
+    setQuestionSetId(current => (current === paramsFromUrl.questionSetId ? current : paramsFromUrl.questionSetId));
+    setAssistantId(current => (current === paramsFromUrl.assistantId ? current : paramsFromUrl.assistantId));
+    setBaselineSnapshotId(current =>
+      current === paramsFromUrl.baselineSnapshotId ? current : paramsFromUrl.baselineSnapshotId
+    );
+  }, [searchParams]);
+
+  useEffect(() => {
+    const normalizedParams = normalizeEvalRunParams({
+      questionSetId,
+      assistantId,
+      baselineSnapshotId
+    });
+    const currentQuery = searchParams.toString();
+
+    if (normalizedParams) {
+      const nextQuery = createEvalRunSearchParams(normalizedParams).toString();
+      if (nextQuery !== currentQuery) {
+        setSearchParams(createEvalRunSearchParams(normalizedParams), { replace: true });
+      }
+      return;
+    }
+
+    const hasAnyEvalParams =
+      searchParams.has("questionSetId") || searchParams.has("assistantId") || searchParams.has("baselineSnapshotId");
+    if (hasAnyEvalParams) {
+      setSearchParams(new URLSearchParams(), { replace: true });
+    }
+  }, [assistantId, baselineSnapshotId, questionSetId, searchParams, setSearchParams]);
 
   const evalRunStatus = runEvalMutation.isPending
     ? "running"
@@ -213,6 +215,31 @@ export function ReportCenterPage() {
 
   // 质量门控信息
   const qualityGate = runEvalMutation.data?.qualityGate;
+  const selectedAssistantLabel =
+    assistantOptions.find(option => option.value === assistantId)?.label ??
+    (assistantId.trim().length > 0 ? assistantId : locale === "zh" ? "尚未选择" : "Not selected");
+  const preRunContextRows = [
+    {
+      key: "question-set",
+      label: locale === "zh" ? "Question set" : "Question set",
+      value: questionSetId.trim().length > 0 ? questionSetId.trim() : locale === "zh" ? "尚未填写" : "Not set"
+    },
+    {
+      key: "assistant",
+      label: locale === "zh" ? "Assistant" : "Assistant",
+      value: selectedAssistantLabel
+    },
+    {
+      key: "baseline",
+      label: locale === "zh" ? "Baseline snapshot" : "Baseline snapshot",
+      value:
+        baselineSnapshotId.trim().length > 0
+          ? baselineSnapshotId.trim()
+          : locale === "zh"
+            ? "本次 run 不绑定"
+            : "Not linked for this run"
+    }
+  ];
 
   function getRunContextLabel(field: "questionSetId" | "baselineSnapshotId" | "baselineVersion" | "assistantId") {
     if (locale === "zh") {
@@ -452,6 +479,21 @@ export function ReportCenterPage() {
                   ? "scan path: Eval run（触发首轮）→ Report center（查看质量/差异/弱项）"
                   : "scan path: Eval run (trigger first run) -> Report center (review quality/diff/weakest items)"}
               </Text>
+              <Paper className="workspace-subpanel" p="md" radius="xl">
+                <Stack gap="xs">
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "当前运行上下文" : "Current run context"}
+                  </Text>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    {preRunContextRows.map(row => (
+                      <div className="workspace-meta-row" key={row.key}>
+                        <span className="workspace-meta-label">{row.label}</span>
+                        <span className="workspace-meta-value">{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Stack>
+              </Paper>
             </Stack>
           ) : null}
         </Stack>
@@ -561,7 +603,11 @@ export function ReportCenterPage() {
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
-                          label={({ name, percent }: { name: string; percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }: { name?: string | number; percent?: number }) => {
+                            const labelName = name == null ? (locale === "zh" ? "未命名" : "Unnamed") : String(name);
+                            const labelPercent = typeof percent === "number" ? percent : 0;
+                            return `${labelName}: ${(labelPercent * 100).toFixed(0)}%`;
+                          }}
                         >
                           {qualityDistributionData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />

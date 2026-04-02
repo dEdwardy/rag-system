@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：日常问答 / 快速判断时优先看的项目总览入口。先看这一页，再决定是否下钻长文档。
-更新时间：2026-04-01
+更新时间：2026-04-02
 
 ## One-Line Status
 
@@ -43,13 +43,21 @@ RAG 主链路、PC Web chat、external source 第一轮、auth/ACL 最小闭环�
 - `P3` 和 `P5` 不应再被视为“当前主开发主线”，代码已经比旧文档口径更靠前。
 - 当前更合理的工作是：
   - 先保证阶段判断、docs、queue 口径和代码现实一致
-  - 再选择一个新的最小产品增量继续推进
+  - 再沿 `P4 web capability carry-through` 做连续收口，而不是重新开启新的 backend 主波次
+
+## Recommended Order
+
+1. `docs / stage alignment`
+2. `P4 Documents / Knowledge Base` 第一轮收口
+3. `Document Detail / Usage / Trace` 诊断路径收口
+4. `Report center / eval` 参数和契约收口
+5. focused regression + bounded maintenance
 
 ## Current Risks / Gaps
 
 - 文档阶段判断曾落后于代码现实，容易误导下一步优先级。
 - `P5` 的工程能力已落地，但长期 baseline 治理仍依赖人来使用和维护。
-- `P4` 还没有被重新明确成一个新的、窄范围的产品承接波次。
+- `P4` 虽已被重新确认为下一条更合理主线，但 web 收口的具体顺序仍需要按页面/诊断路径逐步推进，避免再次扩散为并行波次。
 
 ## Where to Look
 

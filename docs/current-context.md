@@ -15,13 +15,21 @@
   - `P5` eval / regression baseline：工程化能力已完成，进入基线治理/使用态
 - 当前更合适的下一批增量不再是继续把 `P3` / `P5` 当成主开发波次，而是：
   - 先收正文档与阶段判断，避免代码和文档继续漂移
-  - 然后从 `P4 web capability carry-through` 的后续收口，或新的明确产品波次里选一个最小增量
+  - 然后优先沿 `P4 web capability carry-through` 做连续收口，而不是重新打开新的 backend 主波次
 
 ## Current Priorities
 
 - `docs / stage alignment`：先把阶段口径和代码现实对齐，避免继续把 `P3/P5` 写成“待开发主线”。
 - `P4 web capability carry-through`：`DocumentsPage` 对 `web page` / `feed` / `sitemap` 的基础入口已经落地；如果继续做产品增量，优先做 web 侧收口、契约补齐和体验打磨，而不是再开新的 backend family。
 - `bounded stability maintenance`：保留 `P3/P5/P6` 范围内的小型回归修补，但不再把它们描述成主开发方向。
+
+## Execution Order
+
+1. 先完成 `docs / stage alignment`，把阶段判断、当前主线和 backlog 口径同步到文档。
+2. 再推进 `P4 Documents / Knowledge Base` 第一轮收口，优先统一 source-entry、空态、状态表达和页面跳转路径。
+3. 然后做 `Document Detail / Usage / Trace` 的诊断路径收口，减少跨页信息割裂。
+4. 接着补 `Report center / eval` 的参数 carry-through、页面一致性和 focused contract。
+5. 最后在本轮 closeout 中补 focused regression，并只接受 `P3/P5/P6` 范围内的 bounded maintenance。
 
 ## Do Not Do
 

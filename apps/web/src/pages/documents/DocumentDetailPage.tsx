@@ -52,7 +52,8 @@ export function DocumentDetailPage() {
   const document = documentQuery.data;
   const chunkRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const { formatDateTime, t } = useI18n();
+  const { formatDateTime, locale, t } = useI18n();
+  const traceReturnHref = sourceTraceId ? `/traces/${sourceTraceId}#trace-detail-retrieved-chunks` : null;
 
   useEffect(() => {
     if (!focusedChunkId || !chunksQuery.data) {
@@ -144,6 +145,11 @@ export function DocumentDetailPage() {
 
       <Paper className="workspace-hero" p="lg" radius="xl">
         <Stack gap={10}>
+          {traceReturnHref ? (
+            <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to={traceReturnHref}>
+              {t("documents.detail.backToTrace")}
+            </Text>
+          ) : null}
           <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/documents">
             {t("common.actions.backToDocuments")}
           </Text>
@@ -404,6 +410,35 @@ export function DocumentDetailPage() {
                           </Badge>
                         ) : null}
                       </Group>
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {t("documents.detail.traceFocusNextStep")}
+                      </Text>
+                      <Group gap="xs">
+                        {traceReturnHref ? (
+                          <Button
+                            className="workspace-button"
+                            color="indigo"
+                            component={Link}
+                            radius="xl"
+                            size="xs"
+                            to={traceReturnHref}
+                            variant="light"
+                          >
+                            {t("documents.detail.backToTrace")}
+                          </Button>
+                        ) : null}
+                        <Button
+                          className="workspace-button"
+                          color="gray"
+                          component={Link}
+                          radius="xl"
+                          size="xs"
+                          to="/documents"
+                          variant="light"
+                        >
+                          {locale === "zh" ? "回到文档工作台" : "Back to documents workspace"}
+                        </Button>
+                      </Group>
                     </Stack>
                   </Paper>
                 ) : null}
@@ -518,7 +553,7 @@ export function DocumentDetailPage() {
                 ) : null}
                 {sourceTraceId ? (
                   <Text c="var(--app-text-muted)" size="sm">
-                    <Text className="workspace-link" component={Link} inherit to={`/traces/${sourceTraceId}`}>
+                    <Text className="workspace-link" component={Link} inherit to={traceReturnHref ?? `/traces/${sourceTraceId}`}>
                       {t("documents.detail.backToTrace")}
                     </Text>
                   </Text>

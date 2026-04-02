@@ -18,7 +18,10 @@ import {
   useReindexDocument
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
-import { buildKnowledgeBaseWorkspaceSummary } from "./knowledge-base-page-helpers";
+import {
+  buildKnowledgeBaseWorkspaceNextAction,
+  buildKnowledgeBaseWorkspaceSummary
+} from "./knowledge-base-page-helpers";
 
 type RunFilter = "all" | "failed" | "processing";
 type RunRecord = Parameters<NonNullable<ComponentProps<typeof DocumentRunList>["onReindexRun"]>>[0];
@@ -27,7 +30,8 @@ export function KnowledgeBasePage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
   const knowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(knowledgeBase?.id ?? "default-kb");
+  const hasKnowledgeBase = knowledgeBase != null;
+  const documentsQuery = useDocuments(knowledgeBase?.id ?? "", hasKnowledgeBase);
   const reindexMutation = useReindexDocument();
   const [runFilter, setRunFilter] = useState<RunFilter>("all");
   const runStatusFilter = runFilter === "all" ? undefined : runFilter;
@@ -55,6 +59,14 @@ export function KnowledgeBasePage() {
         assistantCount
       }),
     [documents, assistantCount]
+  );
+  const nextAction = useMemo(
+    () =>
+      buildKnowledgeBaseWorkspaceNextAction({
+        documents,
+        assistantCount
+      }),
+    [assistantCount, documents]
   );
 
   const metricCards = useMemo(
@@ -432,6 +444,45 @@ export function KnowledgeBasePage() {
                                 ? "先添加文档，再逐步形成知识库主体。"
                                 : "Add source documents to start shaping the knowledge base."}
                       </Text>
+                    </Stack>
+                  </Paper>
+
+                  <Paper className="workspace-subpanel" p="md" radius="xl">
+                    <Stack gap={8}>
+                      <Text className="workspace-section-heading">
+                        {locale === "zh" ? "下一步动作" : "Next action"}
+                      </Text>
+                      <Text c="var(--app-text)" fw={600} size="sm">
+                        {t(nextAction.labelKey)}
+                      </Text>
+                      <Group gap="xs">
+                        <Button
+                          className="workspace-button"
+                          color="indigo"
+                          component={Link}
+                          radius="xl"
+                          size="xs"
+                          to={nextAction.actionHref}
+                          variant="light"
+                        >
+                          {nextAction.actionHref === "/documents"
+                            ? t("knowledgeBase.actions.openDocuments")
+                            : t("knowledgeBase.actions.openAssistant")}
+                        </Button>
+                        {nextAction.action === "review_failed_documents" && latestFailure ? (
+                          <Button
+                            className="workspace-button"
+                            color="gray"
+                            component={Link}
+                            radius="xl"
+                            size="xs"
+                            to={`/documents/${latestFailure.documentId}`}
+                            variant="light"
+                          >
+                            {locale === "zh" ? "打开最新失败文档" : "Open latest failed document"}
+                          </Button>
+                        ) : null}
+                      </Group>
                     </Stack>
                   </Paper>
                 </Stack>

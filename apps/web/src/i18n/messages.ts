@@ -256,6 +256,7 @@ export const messages = {
         detailHeroCopy: "Keep the same trace deep-link flow and tighten hierarchy, focus states, and reading density only.",
         traceFocusTitle: "Focused from trace",
         traceFocusDescription: "This chunk was opened from trace {traceId}.",
+        traceFocusNextStep: "Review the focused chunk first, then jump back to the same trace context or return to the document workspace.",
         traceRankLabel: "Trace rank #{rank}",
         traceScoreLabel: "Trace score {score}",
         tracePrimary: "Primary",
@@ -288,6 +289,13 @@ export const messages = {
         processingDescription: "{count} documents are still being parsed or indexed.",
         failedDescription: "{count} documents need attention before the knowledge base is fully reliable.",
         emptyDescription: "Upload documents to turn this knowledge base into a usable retrieval source."
+      },
+      nextAction: {
+        addDocuments: "Add source documents before tuning anything else.",
+        reviewFailedDocuments: "Review failed documents before adding more source material.",
+        waitForProcessing: "Wait for the current processing queue to finish, then review the refreshed states.",
+        bindAssistant: "The corpus is ready. Bind or review an assistant before asking questions.",
+        workspaceReady: "The workspace is ready. Review assistant behavior or move on to asking questions."
       },
       states: {
         loadingTitle: "Loading knowledge base",
@@ -715,6 +723,7 @@ export const messages = {
         detailHeroCopy: "保留现有 trace 深链和 chunk 聚焦能力，只继续收紧信息层级、状态分区和阅读密度。",
         traceFocusTitle: "来自 Trace 的定位",
         traceFocusDescription: "当前 chunk 从 Trace {traceId} 跳转而来。",
+        traceFocusNextStep: "先查看当前定位的 chunk，再返回同一条 Trace 上下文，或回到文档工作台继续排查。",
         traceRankLabel: "Trace 排名 #{rank}",
         traceScoreLabel: "Trace 分数 {score}",
         tracePrimary: "主命中",
@@ -747,6 +756,13 @@ export const messages = {
         processingDescription: "有 {count} 份文档仍在解析或索引中。",
         failedDescription: "有 {count} 份文档需要处理后，知识库才更可靠。",
         emptyDescription: "上传文档后，这个知识库才会成为可用的检索来源。"
+      },
+      nextAction: {
+        addDocuments: "先补充来源文档，再继续做后续配置。",
+        reviewFailedDocuments: "先处理失败文档，再继续补充新的来源材料。",
+        waitForProcessing: "先等待当前处理队列完成，再回来看更新后的状态。",
+        bindAssistant: "语料已经就绪，下一步更适合绑定或检查助手配置。",
+        workspaceReady: "当前工作台已经就绪，可以继续检查助手行为或直接去提问。"
       },
       states: {
         loadingTitle: "加载知识库中",

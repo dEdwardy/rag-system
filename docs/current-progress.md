@@ -17,6 +17,14 @@
 
 ## Recent Landed Increments
 
+- `docs / stage alignment refresh` 已完成当前阶段文档同步
+  - `current-context`、`next_steps_rag_project_plan`、`project-status-overview` 现已统一采用同一阶段判断：
+    - `P0/P1/P2` 已完成
+    - `P3/P5/P6` 已完成主开发并进入维护/治理边界
+    - `P4` 是当前最合理的下一条产品收口主线
+  - 文档现已补充明确执行顺序：先做 docs 对齐，再做 `P4 Documents / Knowledge Base` 收口，然后是 `Document Detail / Usage / Trace`、`Report center / eval` 和 focused regression
+  - 这轮同步只做阶段口径、优先级和执行顺序收正，不引入新的 backend roadmap
+
 - `api build/start cross-environment hardening` 完成了 Windows / WSL 切换下的 narrow backend startup closeout
   - 根因是 API 旧构建产物和增量状态残留会造成 `apps/api/dist` 混合布局，进一步导致运行时模块缺失和 `/auth/*` 路由未注册
   - `apps/api/package.json` 现在在 `build` 前稳定清理构建产物，`start:dev` 和 `start:prod` 共享 clean-build runtime boot path
@@ -63,6 +71,13 @@
   - Usage / Report center / Trace Detail 已完成 scan-first readability + docs sync
   - 保持边界不变：不扩成 observability platform
 
+## Runtime Validation Addendum
+
+- `web focused runtime helpers` 宸茶ˉ涓€杞彲鎵ц楠岃瘉
+  - `ReportCenterPage` 鐨?eval URL 鍙傛暟褰掍竴鍖? / 璇诲啓绾昏緫宸叉彁鍙栧埌 `report-center-page-helpers.ts`
+  - `Usage` latest-failure 璺宠浆鐩爣鐜板凡鏈夊彲鐙珛楠岃瘉鐨?helper锛屽苟琛ュ厖浜?helper tests
+  - 杩欒疆鐩爣鏄妸鍓嶉潰鍑犳椤甸潰鏀跺彛鐨勭ǔ瀹氱函閫昏緫锛屼粠鈥滈潤鎬佸瓨鍦ㄢ€濆崌绾у埌鈥滃彲鎵ц琛屼负楠岃瘉鈥?
+
 ## Active Boundaries
 
 - `P3` 仍允许在现有 source family 内做小型回归修补，但不再重开新的 source expansion wave。
@@ -71,6 +86,14 @@
 - 当前真正需要推进的新增量，更适合落在：
   - `P4 web capability carry-through` 的后续收口
   - 或新的明确产品波次
+
+## Next Execution Order
+
+1. `docs / stage alignment`
+2. `P4 Documents / Knowledge Base` 第一轮收口
+3. `Document Detail / Usage / Trace` 诊断路径收口
+4. `Report center / eval` 参数与契约收口
+5. focused regression + bounded maintenance
 
 ## Focused Validation Baseline
 

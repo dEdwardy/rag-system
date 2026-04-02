@@ -66,3 +66,48 @@ test("knowledge base workspace summary falls back to empty tone with no document
   assert.equal(summary.toneColor, "gray");
   assert.equal(summary.toneLabelKey, "knowledgeBase.summary.empty");
 });
+
+test("knowledge base next action points to documents when empty", async () => {
+  const { buildKnowledgeBaseWorkspaceNextAction } = await loadKnowledgeBaseHelpers();
+
+  const nextAction = buildKnowledgeBaseWorkspaceNextAction({
+    documents: [],
+    assistantCount: 0
+  });
+
+  assert.deepEqual(nextAction, {
+    action: "add_documents",
+    labelKey: "knowledgeBase.nextAction.addDocuments",
+    actionHref: "/documents"
+  });
+});
+
+test("knowledge base next action prioritizes failed documents", async () => {
+  const { buildKnowledgeBaseWorkspaceNextAction } = await loadKnowledgeBaseHelpers();
+
+  const nextAction = buildKnowledgeBaseWorkspaceNextAction({
+    documents: [
+      { status: "ready", chunkCount: 4 },
+      { status: "failed", chunkCount: 0 }
+    ],
+    assistantCount: 1
+  });
+
+  assert.equal(nextAction.action, "review_failed_documents");
+  assert.equal(nextAction.actionHref, "/documents");
+});
+
+test("knowledge base next action points to assistant when corpus is ready but no assistant is bound", async () => {
+  const { buildKnowledgeBaseWorkspaceNextAction } = await loadKnowledgeBaseHelpers();
+
+  const nextAction = buildKnowledgeBaseWorkspaceNextAction({
+    documents: [{ status: "ready", chunkCount: 6 }],
+    assistantCount: 0
+  });
+
+  assert.deepEqual(nextAction, {
+    action: "bind_assistant",
+    labelKey: "knowledgeBase.nextAction.bindAssistant",
+    actionHref: "/assistant"
+  });
+});
