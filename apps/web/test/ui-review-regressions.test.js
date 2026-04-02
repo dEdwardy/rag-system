@@ -261,8 +261,11 @@ test("usage page exposes a single P6 v1 alert view for warnings and threshold is
   assert.match(usageSource, /issue-events-threshold/);
   assert.match(usageSource, /Latest failure anchor|最新失败锚点/);
   assert.match(usageSource, /Open related document|打开对应文档/);
+  assert.match(usageSource, /Continue to trace diagnostics order|继续 trace 诊断顺序/);
+  assert.match(usageSource, /Follow one path: Document Detail -> Run failure summary -> Trace diagnostics order\.|按同一路径：文档详情 -> run 失败摘要 -> trace 诊断顺序。/);
   assert.match(usageSource, /runSummaryActionTarget/);
   assert.match(usageSource, /to=\{`\/documents\/\$\{latestFailureAnchor\.documentId\}`\}/);
+  assert.match(usageSource, /to="\/traces"/);
 });
 
 test("usage page exposes a P6 v1 trend view with 1h/6h/24h windows", () => {

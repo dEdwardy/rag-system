@@ -996,11 +996,16 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
                         </Link>
                         <Link
                           className="inline-block text-[13px] font-medium text-[var(--app-accent)]"
-                          to="/knowledge-base"
+                          to="/traces"
                         >
-                          {locale === "zh" ? "返回知识库摘要" : "Back to knowledge base summary"}
+                          {locale === "zh" ? "继续 trace 诊断顺序" : "Continue to trace diagnostics order"}
                         </Link>
                       </div>
+                      <p className="mt-2 text-xs text-[var(--app-text-muted)]">
+                        {locale === "zh"
+                          ? "按同一路径：文档详情 -> run 失败摘要 -> trace 诊断顺序。"
+                          : "Follow one path: Document Detail -> Run failure summary -> Trace diagnostics order."}
+                      </p>
                     </div>
                   ) : null}
                   {runSummaryQuery.isLoading || apiHealthQuery.isLoading ? (
