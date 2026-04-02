@@ -153,6 +153,9 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /documents\.sourceEntryStatusSubmitting/);
   assert.match(documentsSource, /documents\.sourceEntryStatusNoActiveKnowledgeBase/);
   assert.match(documentsSource, /documents\.sourceEntryStatusSuccess/);
+  assert.match(documentsSource, /failedCount > 0 \? "red" : hasProcessingDocuments \? "yellow" : "indigo"/);
+  assert.match(documentsSource, /failedCount > 0[\s\S]*Failed items need review/);
+  assert.match(documentsSource, /failedCount > 0[\s\S]*Review failed documents before adding new source material/);
   assert.match(messagesSource, /sourceEntrySubmittingHint: "Source intake busy\. Wait for the current submission to finish before submitting another URL\."/);
   assert.match(messagesSource, /sourceEntryStatusEmpty: "Source intake idle\. Paste one URL to enable submission\."/);
   assert.match(messagesSource, /sourceEntryStatusSubmitting: "Source intake busy\. Keep this section read-only until it finishes\."/);

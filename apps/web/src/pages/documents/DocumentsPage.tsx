@@ -416,11 +416,19 @@ export function DocumentsPage() {
                 <Badge color="gray" radius="sm" variant="light">
                   {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}
                 </Badge>
-                <Badge color={!hasActiveKnowledgeBase ? "gray" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
+                <Badge
+                  color={!hasActiveKnowledgeBase ? "gray" : failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"}
+                  radius="sm"
+                  variant="light"
+                >
                   {!hasActiveKnowledgeBase
                     ? locale === "zh"
                       ? "请先创建知识库"
                       : "Create a knowledge base first"
+                    : failedCount > 0
+                      ? locale === "zh"
+                        ? "存在待处理失败项"
+                        : "Failed items need review"
                     : hasProcessingDocuments
                       ? locale === "zh"
                         ? "处理队列进行中"
@@ -584,7 +592,15 @@ export function DocumentsPage() {
               <div className="workspace-meta-row">
                 <span className="workspace-meta-label">{locale === "zh" ? "下一步" : "Next action"}</span>
                 <span className="workspace-meta-value">
-                  {hasProcessingDocuments
+                  {!hasActiveKnowledgeBase
+                    ? locale === "zh"
+                      ? "先创建知识库，再开始上传或录入来源"
+                      : "Create a knowledge base before uploading files or submitting source URLs"
+                    : failedCount > 0
+                      ? locale === "zh"
+                        ? "先复查失败文档，再继续补充新来源"
+                        : "Review failed documents before adding new source material"
+                    : hasProcessingDocuments
                     ? locale === "zh"
                       ? "等待队列完成后复查失败项"
                       : "Review failed items after the queue settles"
