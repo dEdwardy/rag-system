@@ -14,6 +14,12 @@ import {
   useKnowledgeBases
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import {
+  buildRunSummaryActionTarget,
+  generateHealthSignals,
+  generateAlertItems,
+  type RunSummaryActionTarget
+} from "./usage-page-helpers";
 import type {
   KnowledgeBaseDocumentRunComparisonRunDifference,
   KnowledgeBaseDocumentRunComparisonSnapshotDifference,
@@ -165,60 +171,25 @@ export function UsagePage() {
   const boundaryHitCount = runSummary?.boundaryStats.runsWithBoundaryHit ?? 0;
   const latestFailureAnchor = runSummary?.latestFailure ?? null;
 
-  function buildRunSummaryActionTarget() {
-    if (latestFailureAnchor?.documentId) {
-      return {
-        label: locale === "zh" ? "打开失败文档" : "Open failed document",
-        to: `/documents/${latestFailureAnchor.documentId}`
-      };
-    }
 
-    return {
-      label: locale === "zh" ? "查看运行摘要" : "Open run summary",
-      to: "/knowledge-base"
-    };
-  }
 
-  const runSummaryActionTarget = buildRunSummaryActionTarget();
-  // 生成健康信号
-  const generateHealthSignals = () => [
-    {
-      label: locale === "zh" ? "API" : "API",
-      tone: isApiHealthy ? "green" : apiHealthQuery.isLoading ? "gray" : "red",
-      value: isApiHealthy
-        ? locale === "zh"
-          ? "正常"
-          : "healthy"
-        : apiHealthQuery.isLoading
-          ? locale === "zh"
-            ? "检查中"
-            : "checking"
-          : locale === "zh"
-            ? "不可用"
-            : "unhealthy"
-    },
-    {
-      label: locale === "zh" ? "运行积压" : "Run backlog",
-      tone: pendingRunCount > 0 ? "yellow" : "green",
-      value: pendingRunCount > 0 ? `${pendingRunCount}` : locale === "zh" ? "无" : "none"
-    },
-    {
-      label: locale === "zh" ? `最近 ${timeRange}h 问题事件` : `Issue events (${timeRange}h)`,
-      tone: recentIssueCount > 0 ? "orange" : "green",
-      value: String(recentIssueCount)
-    },
-    {
-      label: locale === "zh" ? "失败运行" : "Failed runs",
-      tone: hasRecentFailure ? "red" : "green",
-      value: hasRecentFailure
-        ? `${retryableFailureCount} / ${nonRetryableFailureCount}`
-        : locale === "zh"
-          ? "无"
-          : "none"
-    }
-  ];
+  const runSummaryActionTarget = buildRunSummaryActionTarget({
+    locale,
+    latestFailureDocumentId: latestFailureAnchor?.documentId
+  });
 
-  const healthSignals = useMemo(() => generateHealthSignals(), [
+
+  const healthSignals = useMemo(() => generateHealthSignals({
+    isApiHealthy,
+    apiHealthQueryLoading: apiHealthQuery.isLoading,
+    pendingRunCount,
+    recentIssueCount,
+    hasRecentFailure,
+    retryableFailureCount,
+    nonRetryableFailureCount,
+    timeRange,
+    locale
+  }), [
     apiHealthQuery.isLoading,
     hasRecentFailure,
     isApiHealthy,
@@ -230,105 +201,20 @@ export function UsagePage() {
     timeRange
   ]);
 
-  // 生成告警项
-  const generateAlertItems = () => {
-    const alerts: Array<{
-      id: string;
-      tone: "red" | "orange" | "yellow";
-      title: string;
-      detail: string;
-      actionLabel: string;
-      actionTo: string;
-    }> = [];
 
-    if (!apiHealthQuery.isLoading && !isApiHealthy) {
-      alerts.push({
-        id: "api-unhealthy",
-        tone: "red",
-        title: locale === "zh" ? "API 不可用" : "API unavailable",
-        detail:
-          locale === "zh"
-            ? "健康探针未返回 ok，优先检查 API 进程与基础依赖。"
-            : "Health probe is not ok; check API process and dependencies first.",
-        actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
-        actionTo: "/traces"
-      });
-    }
 
-    if (nonRetryableFailureCount > 0) {
-      alerts.push({
-        id: "non-retryable-failures",
-        tone: "red",
-        title: locale === "zh" ? "存在不可重试失败" : "Non-retryable failures detected",
-        detail:
-          locale === "zh"
-            ? `最近 ${timeRange}h 有 ${nonRetryableFailureCount} 条不可重试失败运行。`
-            : `${nonRetryableFailureCount} non-retryable failed runs in the last ${timeRange}h.`,
-        actionLabel: runSummaryActionTarget.label,
-        actionTo: runSummaryActionTarget.to
-      });
-    }
-
-    if (pendingRunCount >= 3) {
-      alerts.push({
-        id: "run-backlog-threshold",
-        tone: pendingRunCount >= 10 ? "orange" : "yellow",
-        title: locale === "zh" ? "运行积压触发阈值" : "Run backlog threshold reached",
-        detail:
-          locale === "zh"
-            ? `当前积压 ${pendingRunCount} 条（阈值 >= 3）。`
-            : `Current backlog is ${pendingRunCount} (threshold >= 3).`,
-        actionLabel: runSummaryActionTarget.label,
-        actionTo: runSummaryActionTarget.to
-      });
-    }
-
-    if (retryableFailureCount >= 3) {
-      alerts.push({
-        id: "retryable-failure-threshold",
-        tone: "orange",
-        title: locale === "zh" ? "可重试失败超过阈值" : "Retryable-failure threshold reached",
-        detail:
-          locale === "zh"
-            ? `最近 ${timeRange}h 可重试失败 ${retryableFailureCount} 条（阈值 >= 3）。`
-            : `${retryableFailureCount} retryable failed runs in the last ${timeRange}h (threshold >= 3).`,
-        actionLabel: runSummaryActionTarget.label,
-        actionTo: runSummaryActionTarget.to
-      });
-    }
-
-    if (recentIssueCount >= 5) {
-      alerts.push({
-        id: "issue-events-threshold",
-        tone: "orange",
-        title: locale === "zh" ? "问题事件超过阈值" : "Issue-event threshold reached",
-        detail:
-          locale === "zh"
-            ? `最近 ${timeRange}h 问题事件 ${recentIssueCount} 条（阈值 >= 5）。`
-            : `${recentIssueCount} issue events in the last ${timeRange}h (threshold >= 5).`,
-        actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
-        actionTo: "/traces"
-      });
-    }
-
-    if (boundaryHitCount > 0) {
-      alerts.push({
-        id: "boundary-hit",
-        tone: "yellow",
-        title: locale === "zh" ? "检测到边界截断" : "Boundary truncation observed",
-        detail:
-          locale === "zh"
-            ? `最近 ${timeRange}h 有 ${boundaryHitCount} 次 source 边界命中。`
-            : `${boundaryHitCount} source boundary-hit runs in the last ${timeRange}h.`,
-        actionLabel: runSummaryActionTarget.label,
-        actionTo: runSummaryActionTarget.to
-      });
-    }
-
-    return alerts;
-  };
-
-  const alertItems = useMemo(() => generateAlertItems(), [
+  const alertItems = useMemo(() => generateAlertItems({
+    apiHealthQueryLoading: apiHealthQuery.isLoading,
+    isApiHealthy,
+    nonRetryableFailureCount,
+    pendingRunCount,
+    retryableFailureCount,
+    recentIssueCount,
+    boundaryHitCount,
+    timeRange,
+    runSummaryActionTarget,
+    locale
+  }), [
     apiHealthQuery.isLoading,
     boundaryHitCount,
     isApiHealthy,
@@ -336,8 +222,7 @@ export function UsagePage() {
     nonRetryableFailureCount,
     pendingRunCount,
     recentIssueCount,
-    runSummaryActionTarget.label,
-    runSummaryActionTarget.to,
+    runSummaryActionTarget,
     retryableFailureCount,
     timeRange
   ]);
