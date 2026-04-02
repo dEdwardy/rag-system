@@ -121,6 +121,8 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /useCreateWebPageDocument/);
   assert.match(documentsSource, /useCreateFeedDocument/);
   assert.match(documentsSource, /useCreateSitemapDocument/);
+  assert.match(documentsSource, /const hasActiveKnowledgeBase = activeKnowledgeBase != null/);
+  assert.match(documentsSource, /useDocuments\(activeKnowledgeBase\?\.id \?\? "", hasActiveKnowledgeBase\)/);
   assert.match(documentsSource, /createWebPageMutation\.isPending \|\| createFeedMutation\.isPending \|\| createSitemapMutation\.isPending/);
   assert.match(documentsSource, /documents\.sourceEntryScanPath/);
   assert.match(documentsSource, /documents\.webPage\.sectionTitle/);
@@ -159,6 +161,16 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /error=\{feedInlineError \?\? undefined\}/);
   assert.match(documentsSource, /error=\{sitemapInlineError \?\? undefined\}/);
   assert.match(documentsSource, /disabled=\{isAnySourceSubmissionPending\}/);
+  assert.match(documentsSource, /disabled=\{!hasActiveKnowledgeBase\}/);
+  assert.match(documentsSource, /documents\.noActiveKnowledgeBaseTitle/);
+  assert.match(documentsSource, /documents\.noActiveKnowledgeBaseDescription/);
+  assert.match(documentsSource, /documents\.noActiveKnowledgeBaseAction/);
+  assert.match(messagesSource, /noActiveKnowledgeBaseTitle: "No active knowledge base for documents"/);
+  assert.match(messagesSource, /noActiveKnowledgeBaseDescription:\s*"Documents stays intake-first: create a knowledge base before uploading files or submitting source URLs\."/);
+  assert.match(messagesSource, /noActiveKnowledgeBaseAction: "Create a knowledge base first"/);
+  assert.match(messagesSource, /noActiveKnowledgeBaseTitle:/);
+  assert.match(messagesSource, /noActiveKnowledgeBaseDescription:/);
+  assert.match(messagesSource, /noActiveKnowledgeBaseAction:/);
 });
 
 test("chat and trace detail surface higher-level workspace summaries before diagnostics", () => {

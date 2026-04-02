@@ -30,11 +30,12 @@ import { useI18n } from "../../i18n/I18nProvider";
 export function DocumentsPage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
-  const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
-  const createWebPageMutation = useCreateWebPageDocument(activeKnowledgeBase?.id ?? "default-kb");
-  const createFeedMutation = useCreateFeedDocument(activeKnowledgeBase?.id ?? "default-kb");
-  const createSitemapMutation = useCreateSitemapDocument(activeKnowledgeBase?.id ?? "default-kb");
+  const hasActiveKnowledgeBase = activeKnowledgeBase != null;
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
+  const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "");
+  const createWebPageMutation = useCreateWebPageDocument(activeKnowledgeBase?.id ?? "");
+  const createFeedMutation = useCreateFeedDocument(activeKnowledgeBase?.id ?? "");
+  const createSitemapMutation = useCreateSitemapDocument(activeKnowledgeBase?.id ?? "");
   const reindexMutation = useReindexDocument();
   const { t, locale, formatDateTime } = useI18n();
   const [webPageUrl, setWebPageUrl] = useState("");
@@ -356,6 +357,7 @@ export function DocumentsPage() {
                     {...props}
                     className="workspace-button"
                     color="indigo"
+                    disabled={!hasActiveKnowledgeBase}
                     loading={uploadMutation.isPending}
                     radius="xl"
                   >
@@ -601,7 +603,17 @@ export function DocumentsPage() {
             ) : null}
           </Group>
 
-          {isDocumentsLoading ? (
+          {!hasActiveKnowledgeBase ? (
+            <StatePanel
+              action={
+                <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+                  {t("documents.noActiveKnowledgeBaseAction")}
+                </Button>
+              }
+              description={t("documents.noActiveKnowledgeBaseDescription")}
+              title={t("documents.noActiveKnowledgeBaseTitle")}
+            />
+          ) : isDocumentsLoading ? (
             <div aria-live="polite" className="workspace-loading-grid" role="status">
               {Array.from({ length: 3 }).map((_, index) => (
                 <Paper className="workspace-panel-hover workspace-skeleton-panel" key={index} p="lg" radius="xl">
