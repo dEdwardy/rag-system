@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-更新时间：2026-04-01
+更新时间：2026-04-02
 
 ## Current Snapshot
 
@@ -13,7 +13,7 @@
 - 因此，`P3` / `P5` 不应再被视为“下一步主开发波次”。
 - 当前更合适的下一步是：
   - 先完成阶段判断与文档同步
-  - 再从 `P4 web capability carry-through` 或新的明确产品波次里选一个最小增量
+  - 再从 `P4 web capability carry-through` 的后续收口，或新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments
 
@@ -48,6 +48,11 @@
   - legality / courtesy / retry / timeout / incremental resync / one-level sitemap index 边界都已落地到代码和 focused tests
   - 当前只保留同一家族内的小型维护位，不再把 `P3` 当成主开发主线
 
+- `P4 DocumentsPage source-entry carry-through` 已完成基础承接
+  - web 侧已具备 `web page` / `feed` / `sitemap` 三类 URL 入口
+  - 当前若继续推进 `P4`，更适合做现有入口的收口、测试和体验打磨，而不是把入口承接继续记为待开发
+  - 本轮已补一个小范围收口：`DocumentsPage` 在无 active knowledge base 时不再对文档列表和 source-entry 走隐式 `default-kb` 兜底，而是切到显式空态与引导动作；并补了 focused web regression
+
 - `P5 approved baseline closeout` 已完成主开发闭环
   - fixed-question eval runner、baseline snapshot / compare、quality gate、report export、approved baseline manifest、demo replay pin 都已落地
   - 当前剩余事项更偏向基线治理和使用，而不是继续补工程能力
@@ -62,13 +67,11 @@
 - `P5` 仍允许在现有 eval / replay / report / quality gate 契约内做维护，但不再把它描述成当前主开发方向。
 - `P6` 仍保持 scan-first readability 和 docs sync 边界，不扩成平台化重写。
 - 当前真正需要推进的新增量，更适合落在：
-  - `P4 web capability carry-through`
+  - `P4 web capability carry-through` 的后续收口
   - 或新的明确产品波次
 
 ## Focused Validation Baseline
 
-- loop harness：`node .opencode/loop/cli.mjs --self-test`
-- queue/backlog materialization：`node .opencode/loop/cli.mjs --materialize-wave <wave-id>` 或 `--materialize-append-wave <wave-id>`
 - API focused test：`pnpm test:api:file -- test/<file>.test.js`
 - web focused test：`node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
 - docs / queue sync：`git diff --check -- <files...>`
