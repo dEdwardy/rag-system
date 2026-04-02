@@ -40,15 +40,11 @@ type RetrievalScoreRecord = {
 
 type RankedEntry = RetrievalScoreRecord;
 
-type FailureTaxonomyKey = "no_hit" | "fallback" | "slow_path" | "timeout" | "source_failure";
-
 type TraceDiagnosticSummarySlice = {
   issueLine: string;
   retrievalLine: string;
   answerLine: string;
 };
-
-const SLOW_PATH_LATENCY_MS = 10_000;
 
 const TRACE_DETAIL_SECTION_IDS = {
   retrievedChunks: "trace-detail-retrieved-chunks",

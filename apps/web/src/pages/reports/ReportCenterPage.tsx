@@ -6,8 +6,6 @@ import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import {
-  type EvalRunParams,
-  createEvalRunSearchParams,
   mergeSearchParamsWithEvalRunParams,
   normalizeEvalRunParams,
   readEvalRunParamsFromSearchParams,
@@ -302,7 +300,7 @@ export function ReportCenterPage() {
       return [];
     }
 
-    let filteredItems = runEvalMutation.data.items.filter(item => {
+    const filteredItems = runEvalMutation.data.items.filter(item => {
       const matchesStatus = !filterStatus || item.status === filterStatus;
       const matchesQuality = !filterQuality || item.qualityOverall === filterQuality;
       return matchesStatus && matchesQuality;
@@ -593,7 +591,7 @@ export function ReportCenterPage() {
               <Stack gap="sm">
                 <div className="workspace-section-heading">{locale === "zh" ? "答案状态分布" : "Answer status distribution"}</div>
                 <div className="grid gap-2 md:grid-cols-3">
-                  {answerStatusDistribution.map((item, index) => (
+                   {answerStatusDistribution.map((item) => (
                     <div className="workspace-meta-row workspace-table-number" key={item.status}>
                       <span className="workspace-meta-label">{item.status}</span>
                       <span className="workspace-meta-value">{item.count}</span>
@@ -610,7 +608,7 @@ export function ReportCenterPage() {
               <Stack gap="sm">
                 <div className="workspace-section-heading">{locale === "zh" ? "错误类型分布" : "Error type distribution"}</div>
                 <div className="grid gap-2 md:grid-cols-3">
-                  {errorTypeDistribution.map((item, index) => (
+                   {errorTypeDistribution.map((item) => (
                     <div className="workspace-meta-row workspace-table-number" key={item.code}>
                       <span className="workspace-meta-label">{item.code}</span>
                       <span className="workspace-meta-value">{item.count}</span>

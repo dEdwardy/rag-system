@@ -634,7 +634,7 @@ export function useReindexDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ documentId, knowledgeBaseId }: { documentId: string; knowledgeBaseId: string }) =>
+    mutationFn: ({ documentId }: { documentId: string; knowledgeBaseId: string }) =>
       apiRequest<DocumentRecord>(`/documents/${documentId}/reindex`, {
         method: "POST"
       }),
