@@ -62,3 +62,46 @@ export function mergeSearchParamsWithEvalRunParams(
 
   return nextSearchParams;
 }
+
+export function getRunContextLabel(field: "questionSetId" | "baselineSnapshotId" | "baselineVersion" | "assistantId", locale: "zh" | "en") {
+  if (locale === "zh") {
+    if (field === "questionSetId") return "Question set";
+    if (field === "baselineSnapshotId") return "Baseline snapshot";
+    if (field === "baselineVersion") return "Baseline version";
+    return "Assistant";
+  }
+
+  if (field === "questionSetId") return "Question set";
+  if (field === "baselineSnapshotId") return "Baseline snapshot";
+  if (field === "baselineVersion") return "Baseline version";
+  return "Assistant";
+}
+
+export function formatBaselineMetadataValue(
+  value: string | number | null | undefined,
+  placeholder: string
+) {
+  if (value == null) {
+    return placeholder;
+  }
+  const text = String(value).trim();
+  return text.length > 0 ? text : placeholder;
+}
+
+export function getRegressionReasonLabel(reasonCode: string, locale: "zh" | "en") {
+  if (locale === "zh") {
+    if (reasonCode === "became_failed") return "由成功变为失败";
+    if (reasonCode === "became_insufficient_context") return "由 grounded 变为 insufficient_context";
+    if (reasonCode === "quality_degraded") return "质量等级下降";
+    if (reasonCode === "fallback_introduced") return "新增 fallback 依赖";
+    if (reasonCode === "citations_decreased") return "引用数量下降";
+    return reasonCode;
+  }
+
+  if (reasonCode === "became_failed") return "Succeeded -> failed";
+  if (reasonCode === "became_insufficient_context") return "Grounded -> insufficient_context";
+  if (reasonCode === "quality_degraded") return "Quality degraded";
+  if (reasonCode === "fallback_introduced") return "Fallback introduced";
+  if (reasonCode === "citations_decreased") return "Citation count decreased";
+  return reasonCode;
+}

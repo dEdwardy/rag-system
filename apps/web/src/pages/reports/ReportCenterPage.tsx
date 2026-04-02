@@ -10,7 +10,10 @@ import {
   createEvalRunSearchParams,
   mergeSearchParamsWithEvalRunParams,
   normalizeEvalRunParams,
-  readEvalRunParamsFromSearchParams
+  readEvalRunParamsFromSearchParams,
+  getRunContextLabel,
+  formatBaselineMetadataValue,
+  getRegressionReasonLabel
 } from "./report-center-page-helpers";
 
 export function ReportCenterPage() {
@@ -234,48 +237,11 @@ export function ReportCenterPage() {
     }
   ];
 
-  function getRunContextLabel(field: "questionSetId" | "baselineSnapshotId" | "baselineVersion" | "assistantId") {
-    if (locale === "zh") {
-      if (field === "questionSetId") return "Question set";
-      if (field === "baselineSnapshotId") return "Baseline snapshot";
-      if (field === "baselineVersion") return "Baseline version";
-      return "Assistant";
-    }
 
-    if (field === "questionSetId") return "Question set";
-    if (field === "baselineSnapshotId") return "Baseline snapshot";
-    if (field === "baselineVersion") return "Baseline version";
-    return "Assistant";
-  }
 
-  function formatBaselineMetadataValue(
-    value: string | number | null | undefined,
-    placeholder: string
-  ) {
-    if (value == null) {
-      return placeholder;
-    }
-    const text = String(value).trim();
-    return text.length > 0 ? text : placeholder;
-  }
 
-  function getRegressionReasonLabel(reasonCode: string) {
-    if (locale === "zh") {
-      if (reasonCode === "became_failed") return "由成功变为失败";
-      if (reasonCode === "became_insufficient_context") return "由 grounded 变为 insufficient_context";
-      if (reasonCode === "quality_degraded") return "质量等级下降";
-      if (reasonCode === "fallback_introduced") return "新增 fallback 依赖";
-      if (reasonCode === "citations_decreased") return "引用数量下降";
-      return reasonCode;
-    }
 
-    if (reasonCode === "became_failed") return "Succeeded -> failed";
-    if (reasonCode === "became_insufficient_context") return "Grounded -> insufficient_context";
-    if (reasonCode === "quality_degraded") return "Quality degraded";
-    if (reasonCode === "fallback_introduced") return "Fallback introduced";
-    if (reasonCode === "citations_decreased") return "Citation count decreased";
-    return reasonCode;
-  }
+
 
   async function onRunEvalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -726,7 +692,7 @@ export function ReportCenterPage() {
                     <div className="grid gap-2">
                       {runDiffSummary.topRegressionReasons.map(reason => (
                         <div className="workspace-meta-row" key={reason.reasonCode}>
-                          <span className="workspace-meta-label">{getRegressionReasonLabel(reason.reasonCode)}</span>
+                           <span className="workspace-meta-label">{getRegressionReasonLabel(reason.reasonCode, locale)}</span>
                           <span className="workspace-meta-value">{reason.count}</span>
                         </div>
                       ))}
@@ -765,7 +731,7 @@ export function ReportCenterPage() {
                             #{item.index} · {item.severity}
                           </span>
                           <span className="workspace-meta-value text-right">
-                            {item.reasonCodes.map(getRegressionReasonLabel).join("; ")}
+                             {item.reasonCodes.map(code => getRegressionReasonLabel(code, locale)).join("; ")}
                           </span>
                         </div>
                       ))}
@@ -791,21 +757,21 @@ export function ReportCenterPage() {
               <div className="workspace-section-heading">{locale === "zh" ? "运行上下文" : "Run context"}</div>
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{getRunContextLabel("questionSetId")}</span>
+                   <span className="workspace-meta-label">{getRunContextLabel("questionSetId", locale)}</span>
                   <span className="workspace-meta-value">{runEvalMutation.data.questionSetId}</span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{getRunContextLabel("assistantId")}</span>
+                   <span className="workspace-meta-label">{getRunContextLabel("assistantId", locale)}</span>
                   <span className="workspace-meta-value">{runEvalMutation.data.assistantId}</span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{getRunContextLabel("baselineSnapshotId")}</span>
+                   <span className="workspace-meta-label">{getRunContextLabel("baselineSnapshotId", locale)}</span>
                   <span className="workspace-meta-value">
                     {formatBaselineMetadataValue(runEvalMutation.data.baselineSnapshotId, baselineSnapshotPlaceholder)}
                   </span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{getRunContextLabel("baselineVersion")}</span>
+                   <span className="workspace-meta-label">{getRunContextLabel("baselineVersion", locale)}</span>
                   <span className="workspace-meta-value">
                     {formatBaselineMetadataValue(runEvalMutation.data.baselineVersion, baselineVersionPlaceholder)}
                   </span>
