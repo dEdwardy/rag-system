@@ -602,8 +602,8 @@ export function DocumentsPage() {
                         : "Review failed documents before adding new source material"
                     : hasProcessingDocuments
                     ? locale === "zh"
-                      ? "等待队列完成后复查失败项"
-                      : "Review failed items after the queue settles"
+                      ? "等待当前处理队列完成，再复查刷新后的文档状态"
+                      : "Wait for the current processing queue to finish, then review the refreshed document states"
                     : locale === "zh"
                       ? "优先补充新文档或复查低质量来源"
                       : "Upload new material or review weaker sources"}
