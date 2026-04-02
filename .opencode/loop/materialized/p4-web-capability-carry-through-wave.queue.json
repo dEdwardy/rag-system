@@ -1,0 +1,473 @@
+{
+  "version": 1,
+  "cursor": 0,
+  "createdAt": "2026-04-02T17:30:00.000Z",
+  "updatedAt": "2026-04-02T10:30:58.421Z",
+  "materializedFrom": ".opencode/loop/execution-backlog.jsonc",
+  "materializedWaveId": "p4-web-capability-carry-through-wave",
+  "items": [
+    {
+      "id": "p4-unify-documents-empty-state-messaging",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "unify Documents empty-state messaging",
+      "goal": "Reduce state mismatch between the Documents list surface and the source-entry surface by keeping empty-state wording aligned.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 Documents codepath and docs first. Make the smallest additive change to unify Documents empty-state messaging without widening scope. Keep the change contract-preserving and do not introduce new source-management flows. Relevant scope: apps/web/src/pages/documents/DocumentsPage.tsx, apps/web/src/i18n/messages.ts, apps/web/test/ui-review-regressions.test.js. Run exactly one focused validation command: `node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Documents list and source-entry empty-state wording stay aligned.",
+          "No new source-management console or backend contract change is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [],
+      "suspendWhen": [
+        "The Documents surface is no longer the intended narrow P4 carry-through target"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "updatedAt": "2026-04-02T10:22:38.193Z",
+      "startedAt": "2026-04-02T10:21:29.788Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:22:38.193Z",
+      "finishedAt": "2026-04-02T10:22:38.193Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "  - exact validation result\n  - commit hash\n  - final machine-readable queue line.\n\nRecommended next steps:\n1. Re-run me (or continue in a fresh turn) to apply a smallest-scope unification by reusing a single no-active-KB message set for both source-entry and document-list empty states.\n2. Run the required focused test command exactly once.\n3. If green, commit with a focused message (no push), then return the required `QUEUE_RESULT ...` line."
+    },
+    {
+      "id": "p4-align-no-active-kb-guidance-on-documents-page",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "align no-active-kb guidance on Documents page",
+      "goal": "Keep the no-active-knowledge-base guidance and call-to-action consistent across the Documents surface.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 Documents codepath and docs first. Make the smallest additive change to align no-active-kb guidance on the Documents page without widening scope. Keep the change contract-preserving and do not introduce new knowledge-base flows. Relevant scope: apps/web/src/pages/documents/DocumentsPage.tsx, apps/web/src/i18n/messages.ts, apps/web/test/ui-review-regressions.test.js. Assume this item depends on p4-unify-documents-empty-state-messaging. Run exactly one focused validation command: `node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "No-active-KB guidance is consistent with the surrounding Documents surface.",
+          "No new knowledge-base flow or backend contract change is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-unify-documents-empty-state-messaging"
+      ],
+      "suspendWhen": [
+        "The Documents page no longer exposes a narrow no-active-kb guidance gap"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:22:38.195Z",
+      "updatedAt": "2026-04-02T10:23:28.435Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:23:28.435Z",
+      "finishedAt": "2026-04-02T10:23:28.435Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "- If passing, create a commit on current branch (no push).\n- Report exact changed files, exact validation result, and final `QUEUE_RESULT ...` line.\n\nRecommended next steps:\n1. Apply a minimal copy-alignment update only (likely no logic changes), keeping existing contracts and no new KB flows.\n2. Update only the specific test expectations affected by that copy alignment.\n3. Run the single required focused validation command.\n4. Commit if green, then return the required machine-readable queue result line."
+    },
+    {
+      "id": "p4-tighten-documents-to-detail-run-entry-paths",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "tighten Documents to detail/run entry paths",
+      "goal": "Reduce unnecessary branching in the Documents list-to-detail/run navigation flow.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 Documents codepath and docs first. Make the smallest additive change to tighten Documents to detail/run entry paths without widening scope. Keep the change contract-preserving and do not add new routes. Relevant scope: apps/web/src/pages/documents/DocumentsPage.tsx, apps/web/test/ui-review-regressions.test.js. Assume this item depends on the Documents empty-state and no-active-kb guidance tasks. Run exactly one focused validation command: `node --test --test-name-pattern \"document run\" apps/web/test/document-run-observability.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Documents navigation stays narrow and predictable.",
+          "No new route or backend contract is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"document run\" apps/web/test/document-run-observability.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-unify-documents-empty-state-messaging",
+        "p4-align-no-active-kb-guidance-on-documents-page"
+      ],
+      "suspendWhen": [
+        "The Documents page no longer needs a narrow navigation-path tightening"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:23:28.436Z",
+      "updatedAt": "2026-04-02T10:24:17.964Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:24:17.964Z",
+      "finishedAt": "2026-04-02T10:24:17.964Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "- Report exact changed files, exact validation result, and commit hash.\n\nRecommended next steps:\n1. Resume in a fresh run and implement one minimal UI-path tightening change in `DocumentsPage.tsx` (likely clarifying/strengthening entry affordance from list to detail/run context).\n2. Add the narrow matching assertion(s) in `apps/web/test/ui-review-regressions.test.js`.\n3. Run only the specified focused test command, then commit if green.\n\nQUEUE_RESULT status=needs_replan item=p4-tighten-documents-to-detail-run-entry-paths validation=node --test --test-name-pattern \"document run\" apps/web/test/document-run-observability.test.js changed_files=none commit=none"
+    },
+    {
+      "id": "p4-align-source-entry-and-list-status-wording",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "align source-entry and list status wording",
+      "goal": "Keep Documents list-status wording and source-entry wording aligned so the same state is described the same way.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 Documents codepath and docs first. Make the smallest additive change to align source-entry and list status wording without widening scope. Keep the change contract-preserving and do not introduce new source-management flows. Relevant scope: apps/web/src/pages/documents/DocumentsPage.tsx, apps/web/src/i18n/messages.ts, apps/web/test/ui-review-regressions.test.js. Assume this item depends on the earlier Documents surface tasks. Run exactly one focused validation command: `node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "The same Documents state is described consistently across list and source-entry surfaces.",
+          "No new product-surface expansion is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-unify-documents-empty-state-messaging",
+        "p4-align-no-active-kb-guidance-on-documents-page",
+        "p4-tighten-documents-to-detail-run-entry-paths"
+      ],
+      "suspendWhen": [
+        "The Documents list/source-entry wording is already aligned to the current mainline"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:24:17.966Z",
+      "updatedAt": "2026-04-02T10:25:11.763Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:25:11.763Z",
+      "finishedAt": "2026-04-02T10:25:11.763Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "\nRecommended next steps:\n1. Make one small, additive wording alignment (most likely unify “need review” phrasing between source-entry/list status copy in EN/ZH).\n2. Update matching assertions in `apps/web/test/ui-review-regressions.test.js` to the new exact copy.\n3. Run the single required test command above.\n4. Commit only if that command passes, then return queue result line in the exact required format.\n\nQUEUE_RESULT status=needs_replan item=p4-align-source-entry-and-list-status-wording validation=node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js changed_files=none commit=none"
+    },
+    {
+      "id": "p4-tighten-source-entry-success-and-failure-feedback-consistency",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "tighten source-entry success and failure feedback consistency",
+      "goal": "Keep source-entry feedback consistent between success and failure states without adding new workflows.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 Documents codepath and docs first. Make the smallest additive change to tighten source-entry success and failure feedback consistency without widening scope. Keep the change contract-preserving and do not add new notifications or a broader console. Relevant scope: apps/web/src/pages/documents/DocumentsPage.tsx, apps/web/src/i18n/messages.ts, apps/web/test/ui-review-regressions.test.js. Run exactly one focused validation command: `node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Source-entry success and failure feedback read consistently.",
+          "No new notification system or backend contract redesign is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"documents page\" apps/web/test/ui-review-regressions.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-align-source-entry-and-list-status-wording"
+      ],
+      "suspendWhen": [
+        "The source-entry feedback surface already has consistent success/failure wording"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:25:11.764Z",
+      "updatedAt": "2026-04-02T10:26:24.910Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:26:24.910Z",
+      "finishedAt": "2026-04-02T10:26:24.910Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "- If validation passes, create a commit on current branch (no push).\n- Report exact changed files, exact validation result, and final queue result line.\n\nRecommended next steps:\n1. Make the smallest contract-preserving i18n copy alignment (most likely unify failure fallback wording to a shared pattern, keeping existing keys and flows intact).\n2. Update the corresponding regression assertions only where wording changed.\n3. Run the single required test command exactly as specified.\n4. Commit with a narrow message (if test passes), then return the required machine-readable `QUEUE_RESULT ...` line."
+    },
+    {
+      "id": "p4-align-document-detail-to-trace-diagnostics-path",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "align document detail to trace diagnostics path",
+      "goal": "Keep document detail and trace diagnostics connected through the same narrow diagnostic path.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 document detail and trace codepath first. Make the smallest additive change to align document detail to trace diagnostics path without widening scope. Keep the change contract-preserving and do not add new diagnostic surfaces. Relevant scope: apps/web/src/pages/traces/TraceDetailPage.tsx, apps/web/src/pages/documents/DocumentsPage.tsx, apps/web/test/ui-review-regressions.test.js. Run exactly one focused validation command: `node --test --test-name-pattern \"document run\" apps/web/test/document-run-observability.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Document detail and trace diagnostics use the same narrow path.",
+          "No backend trace schema or broader audit-platform redesign is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"document run\" apps/web/test/document-run-observability.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-tighten-documents-to-detail-run-entry-paths",
+        "p4-align-source-entry-and-list-status-wording"
+      ],
+      "suspendWhen": [
+        "The document detail to trace diagnostic path no longer has a narrow readability gap"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:26:24.911Z",
+      "updatedAt": "2026-04-02T10:27:14.648Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:27:14.648Z",
+      "finishedAt": "2026-04-02T10:27:14.648Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "- If passing, commit on current branch (no push).\n- Report exact changed files, exact validation result, and final queue result line.\n\nRecommended next steps:\n1. Resume with a fresh turn and apply one minimal additive edit (likely a copy/path wording alignment in the in-scope files, keeping existing trace/document link contract untouched).\n2. Run only the required focused test command.\n3. Commit if green.\n4. Return the required machine-readable `QUEUE_RESULT ...` line with final details."
+    },
+    {
+      "id": "p4-tighten-document-run-failure-summary-first-screen",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "tighten document run failure summary first screen",
+      "goal": "Make document-run failures easier to scan at a glance without changing the underlying data model.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 document run and trace codepath first. Make the smallest additive change to tighten document run failure summary first screen without widening scope. Keep the change contract-preserving and do not add new data fields. Relevant scope: apps/web/src/pages/traces/TraceDetailPage.tsx, apps/web/src/pages/documents/DocumentsPage.tsx, apps/web/test/ui-review-regressions.test.js. Run exactly one focused validation command: `node --test --test-name-pattern \"document run\" apps/web/test/document-run-observability.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Document-run failure information is easier to scan on the first screen.",
+          "No new data fields or backend contract changes are introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"document run\" apps/web/test/document-run-observability.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-align-document-detail-to-trace-diagnostics-path"
+      ],
+      "suspendWhen": [
+        "The document run failure summary is already scan-first"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:27:14.650Z",
+      "updatedAt": "2026-04-02T10:28:10.310Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:28:10.310Z",
+      "finishedAt": "2026-04-02T10:28:10.310Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "- If passing, commit on current branch (no push).\n- Report exact changed files, exact validation result, and final queue result line.\n\nRecommended next steps:\n1. Make the minimal contract-preserving UI ordering tweak so failure context appears before generic run summary in first-screen run cards (no new data fields).\n2. Update only the minimal corresponding UI regression assertion(s) in `apps/web/test/ui-review-regressions.test.js` if necessary.\n3. Run the exact required validation command once.\n4. Commit with a focused message, then output required final machine-readable line."
+    },
+    {
+      "id": "p4-align-usage-latest-failure-navigation",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "align Usage latest-failure navigation",
+      "goal": "Keep Usage latest-failure navigation pointing at the narrowest useful diagnostics target.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 Usage codepath and docs first. Make the smallest additive change to align Usage latest-failure navigation without widening scope. Keep the change contract-preserving and do not expand observability surface area. Relevant scope: apps/web/src/pages/usage/UsagePage.tsx, apps/web/test/ui-review-regressions.test.js. Run exactly one focused validation command: `node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Usage latest-failure navigation is consistent and narrow.",
+          "No analytics-surface expansion or backend observability contract change is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-tighten-document-run-failure-summary-first-screen"
+      ],
+      "suspendWhen": [
+        "Usage latest-failure navigation already points at the narrowest useful diagnostic target"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:28:10.312Z",
+      "updatedAt": "2026-04-02T10:29:06.803Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:29:06.803Z",
+      "finishedAt": "2026-04-02T10:29:06.803Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "  - `node --test --test-name-pattern \"usage page\" apps/web/test/ui-review-regressions.test.js`\n- If validation passes, create a commit on current branch (no push).\n- Report exact changed files, exact validation result, and commit hash.\n\nRecommended next step:\n- Resume with a fresh tool-enabled turn and complete the minimal alignment by reusing the existing `usage-page-helpers.ts` target builder in `UsagePage.tsx`, then run the single required validation command and commit only if it passes.\n\nQUEUE_RESULT status=needs_replan item=p4-align-usage-latest-failure-navigation validation=node --test --test-name-pattern \\\"usage page\\\" apps/web/test/ui-review-regressions.test.js changed_files=none commit=none"
+    },
+    {
+      "id": "p4-refine-trace-detail-first-screen-scan-order",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "refine Trace Detail first-screen scan order",
+      "goal": "Improve the ordering of the Trace Detail first screen so the most important facts appear first.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 trace codepath and docs first. Make the smallest additive change to refine Trace Detail first-screen scan order without widening scope. Keep the change contract-preserving and do not alter backend trace schema. Relevant scope: apps/web/src/pages/traces/TraceDetailPage.tsx, apps/web/test/ui-review-regressions.test.js. Run exactly one focused validation command: `node --test apps/web/test/trace-summary-contract.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Trace Detail first-screen ordering is scan-first and readable.",
+          "No backend trace schema or audit-platform redesign is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test apps/web/test/trace-summary-contract.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-align-document-detail-to-trace-diagnostics-path",
+        "p4-align-usage-latest-failure-navigation"
+      ],
+      "suspendWhen": [
+        "Trace Detail first-screen ordering is already scan-first"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:29:06.805Z",
+      "updatedAt": "2026-04-02T10:30:08.072Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:30:08.072Z",
+      "finishedAt": "2026-04-02T10:30:08.072Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "- If validation passes, create a commit on current branch (no push).\n- Report exact changed files, exact validation result, and final queue result line.\n\nRecommended next steps:\n1. Resume from current inspection state and make the smallest additive ordering tweak in `TraceDetailPage.tsx` (likely first-screen section ordering/copy only, no schema/API changes).\n2. Add/adjust one focused regression assertion in `apps/web/test/ui-review-regressions.test.js` to lock the refined scan order.\n3. Run exactly `node --test apps/web/test/trace-summary-contract.test.js`.\n4. If pass, commit and output the required single-line machine result format."
+    },
+    {
+      "id": "p4-tighten-report-center-parameter-carry-through",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "tighten report center parameter carry-through",
+      "goal": "Keep report-center URL parameters and page state consistent across navigation.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Inspect the current P4 report-center codepath and docs first. Make the smallest additive change to tighten report center parameter carry-through without widening scope. Keep the change contract-preserving and do not introduce a new report system. Relevant scope: apps/web/src/pages/reports/ReportCenterPage.tsx, apps/web/test/ui-review-regressions.test.js. Run exactly one focused validation command: `node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Report center parameters stay consistent across page navigation.",
+          "No new report family or eval platform is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "node --test --test-name-pattern \"report center\" apps/web/test/ui-review-regressions.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "p4-refine-trace-detail-first-screen-scan-order"
+      ],
+      "suspendWhen": [
+        "Report center parameter carry-through is already narrow and consistent"
+      ],
+      "backlogWaveId": "p4-web-capability-carry-through-wave",
+      "backlogParentId": "p4-web-capability-carry-through",
+      "plannerFamily": "p4",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-02T10:30:08.074Z",
+      "updatedAt": "2026-04-02T10:30:58.421Z",
+      "startedBy": "opencode-loop-runner",
+      "completedAt": "2026-04-02T10:30:58.421Z",
+      "finishedAt": "2026-04-02T10:30:58.421Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "- Report exact changed files, exact validation result, and commit hash in required queue result format.\n\nRecommended next steps:\n1. Resume with tools enabled and apply a minimal contract-preserving tweak to tighten param carry-through in `ReportCenterPage.tsx` (likely around URL sync/submit timing).\n2. Run the single mandated validation command exactly once.\n3. Commit if pass; otherwise report blocker.\n4. Return final line in required machine-readable format:\n   `QUEUE_RESULT status=<completed|needs_replan> item=p4-tighten-report-center-parameter-carry-through validation=node --test --test-name-pattern \\\"report center\\\" apps/web/test/ui-review-regressions.test.js changed_files=<comma-separated-or-none> commit=<hash-or-none>`"
+    }
+  ]
+}

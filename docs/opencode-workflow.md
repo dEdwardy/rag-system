@@ -169,14 +169,14 @@ In normal day-to-day repository work:
 
 ## Unattended Execution
 
-For unattended `opencode-loop` runs, prefer `systemd --user` over `pm2`:
+For unattended `opencode-loop` runs, use the repo-local Node harness first:
 
 - `opencode-loop` is a repo-local development harness, not part of the product runtime
 - keep this section as the operational exception, not the center of the workflow docs
-- `pnpm loop:start|stop|status` now auto-links the user units from `.opencode/loop/harness/systemd/`
-- `.opencode/loop/harness/night-run.sh` now resolves `pnpm` via `corepack`, Volta, or local pnpm shims before launching the loop
-- use `pnpm loop:start|stop|status` for day-to-day management
-- the timer kicks the service off immediately after activation, and the service restarts on failure while a normal empty-queue exit stays a normal exit
+- `pnpm loop:start|stop|status` runs the cross-platform Node harness under `.opencode/loop/harness/`
+- use `pnpm loop:start|stop|status` for day-to-day management on Windows or WSL/Linux
+- the runner reads the current materialized wave snapshot, selects the next runnable queue item in order, and invokes `opencode run` for that item
+- each spawned session title should expose queue progress clearly, including current task index and remaining task count
 - after each completed loop increment, commit the change before moving to the next item so work does not pile up in the checkout
 - do not push or open a PR after every commit; wait for a coherent wave to close, then push from `dev` when validation is green and the branch is unlikely to conflict
 

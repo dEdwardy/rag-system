@@ -82,7 +82,7 @@ pnpm loop:status
 pnpm loop:stop
 ```
 
-These scripts currently remain in the root `package.json`, but the referenced `.opencode/loop/` files are not present in this checkout. Treat them as unavailable until the harness files are restored or the scripts are updated.
+These scripts now use the repo-local Node harness under `.opencode/loop/harness/`, and the runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. Each spawned OpenCode session title includes the current task index and remaining task count, for example `[3/10 | left 7] p4-tighten-documents-to-detail-run-entry-paths`.
 
 If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for non-pure-frontend work (backend, frontend/backend integration, docs/orchestration), `apps/web` worktree for pure frontend development, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
 

@@ -17,6 +17,11 @@
 
 ## Recent Landed Increments
 
+- `opencode loop sequential executor` now consumes the active materialized queue in order
+  - root `pnpm loop:start|stop|status` now uses the repo-local Node harness under `.opencode/loop/harness/`
+  - the runner selects the next runnable pending queue item, invokes `opencode run` for it, and stops on failure / replan so the queue does not drift ahead of the checkout
+  - this is harness/workflow plumbing only; it does not expand product scope or queue planning scope
+
 - `docs / stage alignment refresh` 已完成当前阶段文档同步
   - `current-context`、`next_steps_rag_project_plan`、`project-status-overview` 现已统一采用同一阶段判断：
     - `P0/P1/P2` 已完成

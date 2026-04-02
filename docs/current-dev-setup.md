@@ -175,7 +175,7 @@ STORAGE_ROOT=storage
   - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
   - when set to an absolute path, the absolute path wins as before
 - this avoids write/read drift when the API is started from different directories (for example repo root vs `apps/api`) while still allowing environment-specific absolute paths on Windows/WSL/Linux
-- optional OpenCode harness note: root `package.json` still contains `loop:*` / `opencode:loop` scripts that point to `.opencode/loop/*`, but that path is not present in the current checkout; treat those commands as unavailable until the harness files are restored or the scripts are updated
+- optional OpenCode harness note: root `package.json` now points `loop:*` / `opencode:loop` scripts at the repo-local Node harness under `.opencode/loop/harness/`; the runner consumes the current materialized queue in order and uses `opencode run` for each pending item; spawned session titles include the current task index and remaining task count such as `[3/10 | left 7] ...`; use those commands directly on Windows or WSL/Linux
 - auth/session runtime now also supports:
 
 ```text
