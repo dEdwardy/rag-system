@@ -43,7 +43,7 @@ export function formatRunFailedStageLabel(failedStage: string | null | undefined
     return null;
   }
 
-  return failedStage.replace(/_/g, " ");
+  return toTitleCase(failedStage.replace(/_/g, " "));
 }
 
 export function getRunFailureMessage(diagnosticsJson: JsonValue | null | undefined) {
@@ -99,7 +99,9 @@ export function buildRunSummaryText(run: RunLike, locale: string) {
 
   if (run.status === "ready") {
     if (failedStageLabel) {
-      return locale === "zh" ? `运行完成，但在 ${failedStageLabel} 存在异常。` : `Run completed with issues at ${failedStageLabel}.`;
+      return locale === "zh"
+        ? `运行完成，但在 ${failedStageLabel} 存在异常。`
+        : `Run completed with issues during ${failedStageLabel}.`;
     }
 
     return locale === "zh" ? "运行完成，未发现异常。" : "Run completed successfully.";
@@ -107,7 +109,7 @@ export function buildRunSummaryText(run: RunLike, locale: string) {
 
   if (run.status === "failed") {
     if (failedStageLabel) {
-      return locale === "zh" ? `运行失败，阶段：${failedStageLabel}。` : `Run failed at ${failedStageLabel}.`;
+      return locale === "zh" ? `运行失败，阶段：${failedStageLabel}。` : `Run failed during ${failedStageLabel}.`;
     }
 
     return locale === "zh" ? "运行失败。" : "Run failed.";

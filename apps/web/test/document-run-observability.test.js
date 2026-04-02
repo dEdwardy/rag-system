@@ -56,7 +56,7 @@ test("describeRunMeta normalizes trigger source type and failure message", async
   assert.equal(meta.triggerLabel, "External resync");
   assert.equal(meta.sourceTypeLabel, "Feed");
   assert.equal(meta.failureMessage, "Entry summary and link are both missing.");
-  assert.equal(meta.failedStageLabel, "source fetch");
+  assert.equal(meta.failedStageLabel, "Source fetch");
   assert.equal(meta.finishedAt, "2026-03-22T08:02:00.000Z");
 });
 
@@ -88,7 +88,7 @@ test("buildRunSummaryText provides scan-first status summary", async () => {
       },
       "zh"
     ),
-    "运行失败，阶段：source fetch。"
+    "运行失败，阶段：Source fetch。"
   );
 
   assert.equal(
@@ -103,5 +103,19 @@ test("buildRunSummaryText provides scan-first status summary", async () => {
       "en"
     ),
     "Run is in progress."
+  );
+
+  assert.equal(
+    buildRunSummaryText(
+      {
+        trigger: "manual",
+        status: "failed",
+        failedStage: "source_fetch",
+        startedAt: "2026-03-22T08:00:00.000Z",
+        finishedAt: "2026-03-22T08:02:00.000Z"
+      },
+      "en"
+    ),
+    "Run failed during Source fetch."
   );
 });
