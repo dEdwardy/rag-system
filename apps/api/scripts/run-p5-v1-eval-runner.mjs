@@ -238,7 +238,11 @@ async function parseJson(response) {
 }
 
 async function login(baseUrl, userId) {
-  const payload = userId ? { userId } : {};
+  // 使用默认开发凭证，忽略 userId 参数
+  const email = process.env.AUTH_DEV_DEFAULT_USER_EMAIL || "default-user@example.com";
+  const password = process.env.AUTH_DEV_DEFAULT_USER_PASSWORD || "local-password-1";
+  
+  const payload = { email, password };
   const response = await fetch(`${baseUrl}/auth/login`, {
     method: "POST",
     headers: {

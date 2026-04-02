@@ -21,15 +21,21 @@ from ragas.metrics import (
     context_recall,
     answer_correctness,
 )
+from ragas.llms import LangchainLLM
+from langchain_openai import ChatOpenAI
+from langchain_community.chat_models import ChatOllama
+from langchain_community.llms import Ollama
 from dotenv import load_dotenv
 
 # 加载环境变量
 load_dotenv()
 
 class RAGASEvaluator:
-    def __init__(self, api_base_url: str = "http://localhost:3000"):
+    def __init__(self, api_base_url: str = "http://localhost:3000", llm_provider: str = "openai"):
         self.api_base_url = api_base_url
         self.session_cookie = None
+        self.llm_provider = llm_provider.lower()
+        self.llm = self._init_llm()
         
     def login(self, user_id: Optional[str] = None) -> str:
         """登录获取session cookie"""
