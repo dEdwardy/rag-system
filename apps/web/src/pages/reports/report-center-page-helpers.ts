@@ -41,3 +41,24 @@ export function readEvalRunParamsFromSearchParams(searchParams: URLSearchParams)
     baselineSnapshotId: searchParams.get("baselineSnapshotId") ?? ""
   };
 }
+
+const EVAL_RUN_SEARCH_PARAM_KEYS = ["questionSetId", "assistantId", "baselineSnapshotId"] as const;
+
+export function mergeSearchParamsWithEvalRunParams(
+  currentSearchParams: URLSearchParams,
+  evalRunParams: EvalRunParams | null
+) {
+  const nextSearchParams = new URLSearchParams(currentSearchParams);
+
+  for (const key of EVAL_RUN_SEARCH_PARAM_KEYS) {
+    nextSearchParams.delete(key);
+  }
+
+  if (evalRunParams) {
+    for (const [key, value] of createEvalRunSearchParams(evalRunParams).entries()) {
+      nextSearchParams.set(key, value);
+    }
+  }
+
+  return nextSearchParams;
+}

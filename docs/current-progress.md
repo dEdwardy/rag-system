@@ -78,10 +78,10 @@
 
 ## Runtime Validation Addendum
 
-- `web focused runtime helpers` 宸茶ˉ涓€杞彲鎵ц楠岃瘉
-  - `ReportCenterPage` 鐨?eval URL 鍙傛暟褰掍竴鍖? / 璇诲啓绾昏緫宸叉彁鍙栧埌 `report-center-page-helpers.ts`
-  - `Usage` latest-failure 璺宠浆鐩爣鐜板凡鏈夊彲鐙珛楠岃瘉鐨?helper锛屽苟琛ュ厖浜?helper tests
-  - 杩欒疆鐩爣鏄妸鍓嶉潰鍑犳椤甸潰鏀跺彛鐨勭ǔ瀹氱函閫昏緫锛屼粠鈥滈潤鎬佸瓨鍦ㄢ€濆崌绾у埌鈥滃彲鎵ц琛屼负楠岃瘉鈥?
+- `web focused runtime helpers` 已完成一轮可执行验证
+  - `ReportCenterPage` 的 eval URL 参数归一区 / 读写逻辑已提取到 `report-center-page-helpers.ts`
+  - `Usage` latest-failure 跳转目标现在已有可独立验证的 helper，并补充了 helper tests
+  - 这轮目标是把前面几次页面收口的稳定纯逻辑，从“静态存在”升级到“可执行行为验证”
 
 ## Active Boundaries
 

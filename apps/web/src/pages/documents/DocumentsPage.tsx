@@ -16,6 +16,7 @@ import { notifications } from "@mantine/notifications";
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
+import { validateSourceEntryUrl as validateSourceEntryUrlHelper } from "./documents-page-helpers";
 import {
   useCreateFeedDocument,
   useCreateSitemapDocument,
@@ -105,35 +106,7 @@ export function DocumentsPage() {
   const sitemapSourceEntryStatus = resolveSourceEntryStatus("sitemap", sitemapUrl, sitemapInlineError);
 
   const validateSourceEntryUrl = useCallback(
-    (rawValue: string) => {
-      const normalizedUrl = rawValue.trim();
-      if (!normalizedUrl) {
-        return {
-          normalizedUrl,
-          error: t("documents.sourceEntryInlineErrorRequired")
-        };
-      }
-
-      try {
-        const parsed = new URL(normalizedUrl);
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          return {
-            normalizedUrl,
-            error: t("documents.sourceEntryInlineErrorInvalidHttpUrl")
-          };
-        }
-      } catch {
-        return {
-          normalizedUrl,
-          error: t("documents.sourceEntryInlineErrorInvalidHttpUrl")
-        };
-      }
-
-      return {
-        normalizedUrl,
-        error: null
-      };
-    },
+    (rawValue: string) => validateSourceEntryUrlHelper(rawValue, t),
     [t]
   );
 

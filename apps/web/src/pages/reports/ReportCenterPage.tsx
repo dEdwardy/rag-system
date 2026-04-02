@@ -8,30 +8,10 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, 
 import {
   type EvalRunParams,
   createEvalRunSearchParams,
+  mergeSearchParamsWithEvalRunParams,
   normalizeEvalRunParams,
   readEvalRunParamsFromSearchParams
 } from "./report-center-page-helpers";
-
-const EVAL_RUN_SEARCH_PARAM_KEYS = ["questionSetId", "assistantId", "baselineSnapshotId"] as const;
-
-function mergeSearchParamsWithEvalRunParams(
-  currentSearchParams: URLSearchParams,
-  evalRunParams: EvalRunParams | null
-) {
-  const nextSearchParams = new URLSearchParams(currentSearchParams);
-
-  for (const key of EVAL_RUN_SEARCH_PARAM_KEYS) {
-    nextSearchParams.delete(key);
-  }
-
-  if (evalRunParams) {
-    for (const [key, value] of createEvalRunSearchParams(evalRunParams).entries()) {
-      nextSearchParams.set(key, value);
-    }
-  }
-
-  return nextSearchParams;
-}
 
 export function ReportCenterPage() {
   const assistantsQuery = useAssistants();

@@ -58,3 +58,24 @@ test("report center helpers round-trip eval params through URLSearchParams", asy
     baselineSnapshotId: "snapshot-1"
   });
 });
+
+test("report center helpers merge eval params into existing search params", async () => {
+  const { mergeSearchParamsWithEvalRunParams } = await loadReportCenterHelpers();
+
+  const current = new URLSearchParams("other=value&questionSetId=old");
+  const merged = mergeSearchParamsWithEvalRunParams(current, {
+    questionSetId: "new-set",
+    assistantId: "new-assistant"
+  });
+
+  assert.equal(merged.toString(), "other=value&questionSetId=new-set&assistantId=new-assistant");
+});
+
+test("report center helpers clear eval params when null evalRunParams", async () => {
+  const { mergeSearchParamsWithEvalRunParams } = await loadReportCenterHelpers();
+
+  const current = new URLSearchParams("questionSetId=old&assistantId=old&baselineSnapshotId=old");
+  const merged = mergeSearchParamsWithEvalRunParams(current, null);
+
+  assert.equal(merged.toString(), "");
+});
