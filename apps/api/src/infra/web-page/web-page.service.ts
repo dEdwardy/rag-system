@@ -157,8 +157,8 @@ export class WebPageService {
     const bodyHtmlLength = bodyContent.length;
     const contentDensity = bodyHtmlLength > 0 ? bodyTextLength / bodyHtmlLength : 0;
     
-    // 计算段落数量
-    const paragraphCount = (bodyContent.match(/<p\b[^>]*>|<br\s*\/>|<\/p>/gi) || []).length;
+    // Count paragraph-like content blocks once instead of double-counting <p></p> pairs.
+    const paragraphCount = this.countBodyParagraphs(bodyContent);
     
     // 检查标题层级结构
     const hasHeadings = /<h[1-6]\b[^>]*>/i.test(bodyContent);
@@ -189,6 +189,21 @@ export class WebPageService {
       .replace(/<(script|style|noscript|svg|iframe)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
       .replace(/<(br|\/p|\/div|\/section|\/article|\/main|\/li|\/ul|\/ol|\/h[1-6]|\/header|\/footer|\/table|\/tr)\s*>/gi, "\n")
       .replace(/<[^>]+>/g, " ");
+  }
+
+  private countBodyParagraphs(bodyContent: string) {
+    const paragraphMatches = bodyContent.match(/<p\b[^>]*>/gi) || [];
+    const lineBreakMatches = bodyContent.match(/<br\s*\/?>/gi) || [];
+
+    if (paragraphMatches.length > 0) {
+      return paragraphMatches.length;
+    }
+
+    if (lineBreakMatches.length > 0) {
+      return lineBreakMatches.length + 1;
+    }
+
+    return 0;
   }
 
   private normalizeDiagnosticsContentType(contentType: string) {

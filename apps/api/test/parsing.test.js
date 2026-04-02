@@ -106,7 +106,7 @@ test("WebPageService accepts HTML payload when upstream content-type is text/pla
       bodyReadabilitySignal: "body_structure_poor",
       bodyTextLength: 16,
       contentDensity: 0.4444444444444444,
-      paragraphCount: 2,
+      paragraphCount: 1,
       hasHeadings: false,
       retryable: false,
       retryableFailureCount: 0,
