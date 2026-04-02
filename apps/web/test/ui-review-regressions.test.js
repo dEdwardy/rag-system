@@ -125,6 +125,8 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /useDocuments\(activeKnowledgeBase\?\.id \?\? "", hasActiveKnowledgeBase\)/);
   assert.match(documentsSource, /createWebPageMutation\.isPending \|\| createFeedMutation\.isPending \|\| createSitemapMutation\.isPending/);
   assert.match(documentsSource, /documents\.sourceEntryScanPath/);
+  assert.match(documentsSource, /documents\.sourceEntryNoActiveKnowledgeBaseTitle/);
+  assert.match(documentsSource, /documents\.sourceEntryNoActiveKnowledgeBaseDescription/);
   assert.match(documentsSource, /documents\.webPage\.sectionTitle/);
   assert.match(documentsSource, /documents\.feed\.sectionTitle/);
   assert.match(documentsSource, /documents\.sitemap\.sectionTitle/);
@@ -148,6 +150,8 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /documents\.sourceEntryStatusEmpty/);
   assert.match(documentsSource, /documents\.sourceEntryStatusReady/);
   assert.match(documentsSource, /documents\.sourceEntryStatusSubmitting/);
+  assert.match(documentsSource, /documents\.sourceEntryStatusNoActiveKnowledgeBase/);
+  assert.match(documentsSource, /documents\.sourceEntryStatusSuccess/);
   assert.match(messagesSource, /sourceEntrySubmittingHint: "Source intake busy\. Wait for the current submission to finish before submitting another URL\."/);
   assert.match(messagesSource, /sourceEntryStatusEmpty: "Source intake idle\. Paste one URL to enable submission\."/);
   assert.match(messagesSource, /sourceEntryStatusSubmitting: "Source intake busy\. Keep this section read-only until it finishes\."/);
@@ -157,6 +161,7 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /webPageSourceEntryStatus/);
   assert.match(documentsSource, /feedSourceEntryStatus/);
   assert.match(documentsSource, /sitemapSourceEntryStatus/);
+  assert.match(documentsSource, /lastSubmittedSourceUrl/);
   assert.match(documentsSource, /error=\{webPageInlineError \?\? undefined\}/);
   assert.match(documentsSource, /error=\{feedInlineError \?\? undefined\}/);
   assert.match(documentsSource, /error=\{sitemapInlineError \?\? undefined\}/);
@@ -165,9 +170,21 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /documents\.noActiveKnowledgeBaseTitle/);
   assert.match(documentsSource, /documents\.noActiveKnowledgeBaseDescription/);
   assert.match(documentsSource, /documents\.noActiveKnowledgeBaseAction/);
+  assert.match(documentsSource, /hasActiveKnowledgeBase \? \(/);
   assert.match(messagesSource, /noActiveKnowledgeBaseTitle: "No active knowledge base for documents"/);
   assert.match(messagesSource, /noActiveKnowledgeBaseDescription:\s*"Documents stays intake-first: create a knowledge base before uploading files or submitting source URLs\."/);
   assert.match(messagesSource, /noActiveKnowledgeBaseAction: "Create a knowledge base first"/);
+  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseTitle: "Create a knowledge base before source intake"/);
+  assert.match(
+    messagesSource,
+    /sourceEntryNoActiveKnowledgeBaseDescription:\s*"Source intake follows the current Documents workspace boundary: create a knowledge base first, then submit web page, feed, or sitemap URLs here\."/
+  );
+  assert.match(messagesSource, /sourceEntryStatusNoActiveKnowledgeBase: "Source intake unavailable until a knowledge base is active\."/);
+  assert.match(messagesSource, /sourceEntryStatusSuccess: "Last submitted source URL: \{url\}\."/);
+  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseTitle: "请先创建知识库再录入来源"/);
+  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseDescription:\s*"来源录入保持当前 Documents workspace 边界：请先创建知识库，再在这里提交网页、订阅源或站点地图 URL。"/);
+  assert.match(messagesSource, /sourceEntryStatusNoActiveKnowledgeBase: "知识库未就绪前，来源录入暂不可用。"/);
+  assert.match(messagesSource, /sourceEntryStatusSuccess: "最近一次已提交来源 URL：\{url\}。"/);
   assert.match(messagesSource, /noActiveKnowledgeBaseTitle:/);
   assert.match(messagesSource, /noActiveKnowledgeBaseDescription:/);
   assert.match(messagesSource, /noActiveKnowledgeBaseAction:/);

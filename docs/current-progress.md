@@ -51,7 +51,8 @@
 - `P4 DocumentsPage source-entry carry-through` 已完成基础承接
   - web 侧已具备 `web page` / `feed` / `sitemap` 三类 URL 入口
   - 当前若继续推进 `P4`，更适合做现有入口的收口、测试和体验打磨，而不是把入口承接继续记为待开发
-  - 本轮已补一个小范围收口：`DocumentsPage` 在无 active knowledge base 时不再对文档列表和 source-entry 走隐式 `default-kb` 兜底，而是切到显式空态与引导动作；并补了 focused web regression
+  - 本轮已补一个小范围收口：`DocumentsPage` 在无 active knowledge base 时不再对文档列表和 source-entry 走隐式 `default-kb` 兜底，而是切到显式空态与引导动作
+  - 当前 source-entry 收口口径：三类 URL 入口都带有前端 `http/https` 校验、提交中忙态与提交成功后的行内状态反馈；focused web regression 已补齐并锁定这组行为
 
 - `P5 approved baseline closeout` 已完成主开发闭环
   - fixed-question eval runner、baseline snapshot / compare、quality gate、report export、approved baseline manifest、demo replay pin 都已落地

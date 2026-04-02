@@ -834,6 +834,7 @@ node --test apps/web/test/ui-review-regressions.test.js
 
 - documents page source-entry (`web page` / `feed` / `sitemap`) contract parity + single-submit guard are currently locked by the `ui-review-regressions` source check:
   - this focused check stays limited to the current Documents source-entry UX follow-up: field validation, success feedback, and empty/busy-state consistency for the existing three intake entrypoints
+  - current closeout behavior assumes an active knowledge base is required for both the document list and the source-entry panel; without one, the page now shows an explicit empty state and guidance action instead of implicitly falling back to `default-kb`
 
 ```bash
 node --test --test-name-pattern "documents page" apps/web/test/ui-review-regressions.test.js
