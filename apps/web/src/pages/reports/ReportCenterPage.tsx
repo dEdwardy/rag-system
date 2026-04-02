@@ -6,10 +6,32 @@ import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import {
+  type EvalRunParams,
   createEvalRunSearchParams,
   normalizeEvalRunParams,
   readEvalRunParamsFromSearchParams
 } from "./report-center-page-helpers";
+
+const EVAL_RUN_SEARCH_PARAM_KEYS = ["questionSetId", "assistantId", "baselineSnapshotId"] as const;
+
+function mergeSearchParamsWithEvalRunParams(
+  currentSearchParams: URLSearchParams,
+  evalRunParams: EvalRunParams | null
+) {
+  const nextSearchParams = new URLSearchParams(currentSearchParams);
+
+  for (const key of EVAL_RUN_SEARCH_PARAM_KEYS) {
+    nextSearchParams.delete(key);
+  }
+
+  if (evalRunParams) {
+    for (const [key, value] of createEvalRunSearchParams(evalRunParams).entries()) {
+      nextSearchParams.set(key, value);
+    }
+  }
+
+  return nextSearchParams;
+}
 
 export function ReportCenterPage() {
   const assistantsQuery = useAssistants();
@@ -58,18 +80,9 @@ export function ReportCenterPage() {
     });
     const currentQuery = searchParams.toString();
 
-    if (normalizedParams) {
-      const nextQuery = createEvalRunSearchParams(normalizedParams).toString();
-      if (nextQuery !== currentQuery) {
-        setSearchParams(createEvalRunSearchParams(normalizedParams), { replace: true });
-      }
-      return;
-    }
-
-    const hasAnyEvalParams =
-      searchParams.has("questionSetId") || searchParams.has("assistantId") || searchParams.has("baselineSnapshotId");
-    if (hasAnyEvalParams) {
-      setSearchParams(new URLSearchParams(), { replace: true });
+    const nextSearchParams = mergeSearchParamsWithEvalRunParams(searchParams, normalizedParams);
+    if (nextSearchParams.toString() !== currentQuery) {
+      setSearchParams(nextSearchParams, { replace: true });
     }
   }, [assistantId, baselineSnapshotId, questionSetId, searchParams, setSearchParams]);
 
@@ -295,7 +308,8 @@ export function ReportCenterPage() {
       return;
     }
 
-    setSearchParams(createEvalRunSearchParams(evalRunParams), { replace: true });
+    const nextSearchParams = mergeSearchParamsWithEvalRunParams(searchParams, evalRunParams);
+    setSearchParams(nextSearchParams, { replace: true });
     await runEvalMutation.mutateAsync(evalRunParams);
   }
 

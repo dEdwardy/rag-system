@@ -363,8 +363,13 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /searchParams\.get\("questionSetId"\)/);
   assert.match(reportCenterSource, /searchParams\.get\("assistantId"\)/);
   assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
-  assert.match(reportCenterSource, /setSearchParams\(createEvalRunSearchParams\(evalRunParams\), \{ replace: true \}\)/);
-  assert.match(reportCenterSource, /setSearchParams\(new URLSearchParams\(\), \{ replace: true \}\)/);
+  assert.match(reportCenterSource, /mergeSearchParamsWithEvalRunParams/);
+  assert.match(reportCenterSource, /const EVAL_RUN_SEARCH_PARAM_KEYS = \["questionSetId", "assistantId", "baselineSnapshotId"\] as const/);
+  assert.match(reportCenterSource, /nextSearchParams\.delete\(key\)/);
+  assert.match(reportCenterSource, /for \(const \[key, value\] of createEvalRunSearchParams\(evalRunParams\)\.entries\(\)\)/);
+  assert.match(reportCenterSource, /const nextSearchParams = mergeSearchParamsWithEvalRunParams\(searchParams, evalRunParams\);/);
+  assert.match(reportCenterSource, /const nextSearchParams = mergeSearchParamsWithEvalRunParams\(searchParams, normalizedParams\);/);
+  assert.match(reportCenterSource, /setSearchParams\(nextSearchParams, \{ replace: true \}\)/);
   assert.match(reportCenterSource, /preRunContextRows/);
   assert.match(reportCenterSource, /Current run context|当前运行上下文/);
   assert.match(reportCenterSource, /normalizeEvalRunParams/);
