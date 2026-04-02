@@ -147,6 +147,7 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(messagesSource, /feed:\s*\{[^]*submitSuccess: "已提交来源 URL：\{url\}。"/);
   assert.match(messagesSource, /sitemap:\s*\{[^]*submitSuccess: "已提交来源 URL：\{url\}。"/);
   assert.match(documentsSource, /resolveSourceEntryStatus/);
+  assert.match(documentsSource, /const sourceEntrySections = useMemo/);
   assert.match(documentsSource, /documents\.sourceEntryStatusEmpty/);
   assert.match(documentsSource, /documents\.sourceEntryStatusReady/);
   assert.match(documentsSource, /documents\.sourceEntryStatusSubmitting/);
@@ -162,15 +163,17 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /feedSourceEntryStatus/);
   assert.match(documentsSource, /sitemapSourceEntryStatus/);
   assert.match(documentsSource, /lastSubmittedSourceUrl/);
-  assert.match(documentsSource, /error=\{webPageInlineError \?\? undefined\}/);
-  assert.match(documentsSource, /error=\{feedInlineError \?\? undefined\}/);
-  assert.match(documentsSource, /error=\{sitemapInlineError \?\? undefined\}/);
+  assert.match(documentsSource, /submitSourceEntry/);
+  assert.match(documentsSource, /error=\{section\.inlineError != null\}/);
+  assert.match(documentsSource, /aria-live="polite"/);
   assert.match(documentsSource, /disabled=\{isAnySourceSubmissionPending\}/);
   assert.match(documentsSource, /disabled=\{!hasActiveKnowledgeBase\}/);
   assert.match(documentsSource, /documents\.noActiveKnowledgeBaseTitle/);
   assert.match(documentsSource, /documents\.noActiveKnowledgeBaseDescription/);
   assert.match(documentsSource, /documents\.noActiveKnowledgeBaseAction/);
   assert.match(documentsSource, /hasActiveKnowledgeBase \? \(/);
+  assert.match(documentsSource, /No active KB|尚无活动知识库/);
+  assert.doesNotMatch(documentsSource, /Default KB|默认知识库/);
   assert.match(messagesSource, /noActiveKnowledgeBaseTitle: "No active knowledge base for documents"/);
   assert.match(messagesSource, /noActiveKnowledgeBaseDescription:\s*"Documents stays intake-first: create a knowledge base before uploading files or submitting source URLs\."/);
   assert.match(messagesSource, /noActiveKnowledgeBaseAction: "Create a knowledge base first"/);

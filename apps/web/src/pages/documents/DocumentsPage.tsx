@@ -27,6 +27,8 @@ import {
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 
+type SourceEntryKind = "webPage" | "feed" | "sitemap";
+
 export function DocumentsPage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
@@ -44,11 +46,7 @@ export function DocumentsPage() {
   const [webPageInlineError, setWebPageInlineError] = useState<string | null>(null);
   const [feedInlineError, setFeedInlineError] = useState<string | null>(null);
   const [sitemapInlineError, setSitemapInlineError] = useState<string | null>(null);
-  const [lastSubmittedSourceUrl, setLastSubmittedSourceUrl] = useState<{
-    webPage: string | null;
-    feed: string | null;
-    sitemap: string | null;
-  }>({
+  const [lastSubmittedSourceUrl, setLastSubmittedSourceUrl] = useState<Record<SourceEntryKind, string | null>>({
     webPage: null,
     feed: null,
     sitemap: null
@@ -57,7 +55,7 @@ export function DocumentsPage() {
     createWebPageMutation.isPending || createFeedMutation.isPending || createSitemapMutation.isPending;
 
   const resolveSourceEntryStatus = useCallback(
-    (sourceKind: "webPage" | "feed" | "sitemap", urlValue: string, inlineError: string | null) => {
+    (sourceKind: SourceEntryKind, urlValue: string, inlineError: string | null) => {
       if (!hasActiveKnowledgeBase) {
         return {
           message: t("documents.sourceEntryStatusNoActiveKnowledgeBase"),
@@ -251,92 +249,148 @@ export function DocumentsPage() {
     [reindexMutation, t]
   );
 
+  const submitSourceEntry = useCallback(
+    async (
+      sourceKind: SourceEntryKind,
+      urlValue: string,
+      setUrlValue: (nextValue: string) => void,
+      setInlineError: (nextValue: string | null) => void,
+      mutateAsync: (payload: { url: string }) => Promise<unknown>,
+      submitMessages: {
+        error: string;
+        success: (url: string) => string;
+      }
+    ) => {
+      if (!activeKnowledgeBase) {
+        return;
+      }
+
+      const { normalizedUrl, error } = validateSourceEntryUrl(urlValue);
+      if (error) {
+        setInlineError(error);
+        return;
+      }
+
+      setInlineError(null);
+      try {
+        await mutateAsync({ url: normalizedUrl });
+        setUrlValue("");
+        setLastSubmittedSourceUrl(current => ({ ...current, [sourceKind]: normalizedUrl }));
+        notifications.show({
+          color: "indigo",
+          message: submitMessages.success(normalizedUrl)
+        });
+      } catch (error) {
+        setInlineError(error instanceof Error ? error.message : submitMessages.error);
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : submitMessages.error
+        });
+      }
+    },
+    [activeKnowledgeBase, validateSourceEntryUrl]
+  );
+
   const handleCreateWebPage = useCallback(async () => {
-    if (!activeKnowledgeBase) {
-      return;
-    }
-
-    const { normalizedUrl, error } = validateSourceEntryUrl(webPageUrl);
-    if (error) {
-      setWebPageInlineError(error);
-      return;
-    }
-
-    setWebPageInlineError(null);
-    try {
-      await createWebPageMutation.mutateAsync({ url: normalizedUrl });
-      setWebPageUrl("");
-      setLastSubmittedSourceUrl(current => ({ ...current, webPage: normalizedUrl }));
-      notifications.show({
-        color: "indigo",
-        message: t("documents.webPage.submitSuccess", { url: normalizedUrl })
-      });
-    } catch (error) {
-      setWebPageInlineError(error instanceof Error ? error.message : t("documents.webPage.submitError"));
-      notifications.show({
-        color: "red",
-        message: error instanceof Error ? error.message : t("documents.webPage.submitError")
-      });
-    }
-  }, [activeKnowledgeBase, createWebPageMutation, t, validateSourceEntryUrl, webPageUrl]);
+    await submitSourceEntry("webPage", webPageUrl, setWebPageUrl, setWebPageInlineError, createWebPageMutation.mutateAsync, {
+      error: t("documents.webPage.submitError"),
+      success: url => t("documents.webPage.submitSuccess", { url })
+    });
+  }, [createWebPageMutation.mutateAsync, submitSourceEntry, t, webPageUrl]);
 
   const handleCreateFeed = useCallback(async () => {
-    if (!activeKnowledgeBase) {
-      return;
-    }
-
-    const { normalizedUrl, error } = validateSourceEntryUrl(feedUrl);
-    if (error) {
-      setFeedInlineError(error);
-      return;
-    }
-
-    setFeedInlineError(null);
-    try {
-      await createFeedMutation.mutateAsync({ url: normalizedUrl });
-      setFeedUrl("");
-      setLastSubmittedSourceUrl(current => ({ ...current, feed: normalizedUrl }));
-      notifications.show({
-        color: "indigo",
-        message: t("documents.feed.submitSuccess", { url: normalizedUrl })
-      });
-    } catch (error) {
-      setFeedInlineError(error instanceof Error ? error.message : t("documents.feed.submitError"));
-      notifications.show({
-        color: "red",
-        message: error instanceof Error ? error.message : t("documents.feed.submitError")
-      });
-    }
-  }, [activeKnowledgeBase, createFeedMutation, feedUrl, t, validateSourceEntryUrl]);
+    await submitSourceEntry("feed", feedUrl, setFeedUrl, setFeedInlineError, createFeedMutation.mutateAsync, {
+      error: t("documents.feed.submitError"),
+      success: url => t("documents.feed.submitSuccess", { url })
+    });
+  }, [createFeedMutation.mutateAsync, feedUrl, submitSourceEntry, t]);
 
   const handleCreateSitemap = useCallback(async () => {
-    if (!activeKnowledgeBase) {
-      return;
-    }
+    await submitSourceEntry("sitemap", sitemapUrl, setSitemapUrl, setSitemapInlineError, createSitemapMutation.mutateAsync, {
+      error: t("documents.sitemap.submitError"),
+      success: url => t("documents.sitemap.submitSuccess", { url })
+    });
+  }, [createSitemapMutation.mutateAsync, sitemapUrl, submitSourceEntry, t]);
 
-    const { normalizedUrl, error } = validateSourceEntryUrl(sitemapUrl);
-    if (error) {
-      setSitemapInlineError(error);
-      return;
-    }
-
-    setSitemapInlineError(null);
-    try {
-      await createSitemapMutation.mutateAsync({ url: normalizedUrl });
-      setSitemapUrl("");
-      setLastSubmittedSourceUrl(current => ({ ...current, sitemap: normalizedUrl }));
-      notifications.show({
-        color: "indigo",
-        message: t("documents.sitemap.submitSuccess", { url: normalizedUrl })
-      });
-    } catch (error) {
-      setSitemapInlineError(error instanceof Error ? error.message : t("documents.sitemap.submitError"));
-      notifications.show({
-        color: "red",
-        message: error instanceof Error ? error.message : t("documents.sitemap.submitError")
-      });
-    }
-  }, [activeKnowledgeBase, createSitemapMutation, sitemapUrl, t, validateSourceEntryUrl]);
+  const sourceEntrySections = useMemo(
+    () => [
+      {
+        key: "webPage" as const,
+        description: t("documents.webPage.sectionDescription"),
+        inlineError: webPageInlineError,
+        inputPlaceholder: t("documents.webPage.inputPlaceholder"),
+        isSubmitting: createWebPageMutation.isPending,
+        onChange: (nextValue: string) => {
+          setWebPageUrl(nextValue);
+          setLastSubmittedSourceUrl(current => ({ ...current, webPage: null }));
+          if (webPageInlineError) {
+            setWebPageInlineError(null);
+          }
+        },
+        onSubmit: handleCreateWebPage,
+        status: webPageSourceEntryStatus,
+        submitAction: t("documents.webPage.submitAction"),
+        title: t("documents.webPage.sectionTitle"),
+        value: webPageUrl
+      },
+      {
+        key: "feed" as const,
+        description: t("documents.feed.sectionDescription"),
+        inlineError: feedInlineError,
+        inputPlaceholder: t("documents.feed.inputPlaceholder"),
+        isSubmitting: createFeedMutation.isPending,
+        onChange: (nextValue: string) => {
+          setFeedUrl(nextValue);
+          setLastSubmittedSourceUrl(current => ({ ...current, feed: null }));
+          if (feedInlineError) {
+            setFeedInlineError(null);
+          }
+        },
+        onSubmit: handleCreateFeed,
+        status: feedSourceEntryStatus,
+        submitAction: t("documents.feed.submitAction"),
+        title: t("documents.feed.sectionTitle"),
+        value: feedUrl
+      },
+      {
+        key: "sitemap" as const,
+        description: t("documents.sitemap.sectionDescription"),
+        inlineError: sitemapInlineError,
+        inputPlaceholder: t("documents.sitemap.inputPlaceholder"),
+        isSubmitting: createSitemapMutation.isPending,
+        onChange: (nextValue: string) => {
+          setSitemapUrl(nextValue);
+          setLastSubmittedSourceUrl(current => ({ ...current, sitemap: null }));
+          if (sitemapInlineError) {
+            setSitemapInlineError(null);
+          }
+        },
+        onSubmit: handleCreateSitemap,
+        status: sitemapSourceEntryStatus,
+        submitAction: t("documents.sitemap.submitAction"),
+        title: t("documents.sitemap.sectionTitle"),
+        value: sitemapUrl
+      }
+    ],
+    [
+      createFeedMutation.isPending,
+      createSitemapMutation.isPending,
+      createWebPageMutation.isPending,
+      feedInlineError,
+      feedSourceEntryStatus,
+      feedUrl,
+      handleCreateFeed,
+      handleCreateSitemap,
+      handleCreateWebPage,
+      sitemapInlineError,
+      sitemapSourceEntryStatus,
+      sitemapUrl,
+      t,
+      webPageInlineError,
+      webPageSourceEntryStatus,
+      webPageUrl
+    ]
+  );
 
   return (
     <Stack gap="md">
@@ -360,16 +414,20 @@ export function DocumentsPage() {
               </Text>
               <Group gap="xs" mt="sm">
                 <Badge color="gray" radius="sm" variant="light">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "默认知识库" : "Default KB")}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}
                 </Badge>
-                <Badge color={hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
-                  {hasProcessingDocuments
+                <Badge color={!hasActiveKnowledgeBase ? "gray" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
+                  {!hasActiveKnowledgeBase
                     ? locale === "zh"
-                      ? "处理队列进行中"
-                      : "Processing in progress"
-                    : locale === "zh"
-                      ? "工作台已就绪"
-                      : "Workspace ready"}
+                      ? "请先创建知识库"
+                      : "Create a knowledge base first"
+                    : hasProcessingDocuments
+                      ? locale === "zh"
+                        ? "处理队列进行中"
+                        : "Processing in progress"
+                      : locale === "zh"
+                        ? "工作台已就绪"
+                        : "Workspace ready"}
                 </Badge>
               </Group>
             </div>
@@ -405,117 +463,41 @@ export function DocumentsPage() {
               </Stack>
               {hasActiveKnowledgeBase ? (
                 <>
-                  <Stack className="w-full" gap={6} maw={360}>
-                    <Text c="var(--app-text-secondary)" fw={600} size="xs">
-                      {t("documents.webPage.sectionTitle")}
-                    </Text>
-                    <Text c="var(--app-text-muted)" size="xs">
-                      {t("documents.webPage.sectionDescription")}
-                    </Text>
-                    <TextInput
-                      disabled={isAnySourceSubmissionPending}
-                      error={webPageInlineError ?? undefined}
-                      onChange={event => {
-                        setWebPageUrl(event.currentTarget.value);
-                        setLastSubmittedSourceUrl(current => ({ ...current, webPage: null }));
-                        if (webPageInlineError) {
-                          setWebPageInlineError(null);
-                        }
-                      }}
-                      placeholder={t("documents.webPage.inputPlaceholder")}
-                      radius="xl"
-                      type="url"
-                      value={webPageUrl}
-                    />
-                    <Text c={webPageSourceEntryStatus.tone} size="xs">
-                      {webPageSourceEntryStatus.message}
-                    </Text>
-                    <Button
-                      className="workspace-button"
-                      color="indigo"
-                      disabled={!activeKnowledgeBase || webPageUrl.trim().length === 0 || isAnySourceSubmissionPending}
-                      loading={createWebPageMutation.isPending}
-                      onClick={handleCreateWebPage}
-                      radius="xl"
-                      variant="light"
-                    >
-                      {t("documents.webPage.submitAction")}
-                    </Button>
-                  </Stack>
-                  <Stack className="w-full" gap={6} maw={360}>
-                    <Text c="var(--app-text-secondary)" fw={600} size="xs">
-                      {t("documents.feed.sectionTitle")}
-                    </Text>
-                    <Text c="var(--app-text-muted)" size="xs">
-                      {t("documents.feed.sectionDescription")}
-                    </Text>
-                    <TextInput
-                      disabled={isAnySourceSubmissionPending}
-                      error={feedInlineError ?? undefined}
-                      onChange={event => {
-                        setFeedUrl(event.currentTarget.value);
-                        setLastSubmittedSourceUrl(current => ({ ...current, feed: null }));
-                        if (feedInlineError) {
-                          setFeedInlineError(null);
-                        }
-                      }}
-                      placeholder={t("documents.feed.inputPlaceholder")}
-                      radius="xl"
-                      type="url"
-                      value={feedUrl}
-                    />
-                    <Text c={feedSourceEntryStatus.tone} size="xs">
-                      {feedSourceEntryStatus.message}
-                    </Text>
-                    <Button
-                      className="workspace-button"
-                      color="indigo"
-                      disabled={!activeKnowledgeBase || feedUrl.trim().length === 0 || isAnySourceSubmissionPending}
-                      loading={createFeedMutation.isPending}
-                      onClick={handleCreateFeed}
-                      radius="xl"
-                      variant="light"
-                    >
-                      {t("documents.feed.submitAction")}
-                    </Button>
-                  </Stack>
-                  <Stack className="w-full" gap={6} maw={360}>
-                    <Text c="var(--app-text-secondary)" fw={600} size="xs">
-                      {t("documents.sitemap.sectionTitle")}
-                    </Text>
-                    <Text c="var(--app-text-muted)" size="xs">
-                      {t("documents.sitemap.sectionDescription")}
-                    </Text>
-                    <TextInput
-                      disabled={isAnySourceSubmissionPending}
-                      error={sitemapInlineError ?? undefined}
-                      onChange={event => {
-                        setSitemapUrl(event.currentTarget.value);
-                        setLastSubmittedSourceUrl(current => ({ ...current, sitemap: null }));
-                        if (sitemapInlineError) {
-                          setSitemapInlineError(null);
-                        }
-                      }}
-                      placeholder={t("documents.sitemap.inputPlaceholder")}
-                      radius="xl"
-                      type="url"
-                      value={sitemapUrl}
-                    />
-                    <Text c={sitemapSourceEntryStatus.tone} size="xs">
-                      {sitemapSourceEntryStatus.message}
-                    </Text>
-                    <Button
-                      className="workspace-button"
-                      color="indigo"
-                      disabled={!activeKnowledgeBase || sitemapUrl.trim().length === 0 || isAnySourceSubmissionPending}
-                      loading={createSitemapMutation.isPending}
-                      onClick={handleCreateSitemap}
-                      radius="xl"
-                      variant="light"
-                    >
-                      {t("documents.sitemap.submitAction")}
-                    </Button>
-                  </Stack>
+                  {sourceEntrySections.map(section => (
+                    <Stack className="w-full" gap={6} key={section.key} maw={360}>
+                      <Text c="var(--app-text-secondary)" fw={600} size="xs">
+                        {section.title}
+                      </Text>
+                      <Text c="var(--app-text-muted)" size="xs">
+                        {section.description}
+                      </Text>
+                      <TextInput
+                        disabled={isAnySourceSubmissionPending}
+                        error={section.inlineError != null}
+                        onChange={event => {
+                          section.onChange(event.currentTarget.value);
+                        }}
+                        placeholder={section.inputPlaceholder}
+                        radius="xl"
+                        type="url"
+                        value={section.value}
+                      />
+                      <Text aria-live="polite" c={section.status.tone} size="xs">
+                        {section.status.message}
+                      </Text>
+                      <Button
+                        className="workspace-button"
+                        color="indigo"
+                        disabled={!activeKnowledgeBase || section.value.trim().length === 0 || isAnySourceSubmissionPending}
+                        loading={section.isSubmitting}
+                        onClick={section.onSubmit}
+                        radius="xl"
+                        variant="light"
+                      >
+                        {section.submitAction}
+                      </Button>
+                    </Stack>
+                  ))}
                 </>
               ) : (
                 <StatePanel
@@ -596,7 +578,7 @@ export function DocumentsPage() {
               <div className="workspace-meta-row">
                 <span className="workspace-meta-label">{locale === "zh" ? "当前知识库" : "Current KB"}</span>
                 <span className="workspace-meta-value">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "默认知识库" : "Default KB")}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}
                 </span>
               </div>
               <div className="workspace-meta-row">
