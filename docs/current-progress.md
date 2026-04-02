@@ -78,10 +78,12 @@
 
 ## Runtime Validation Addendum
 
-- `web focused runtime helpers` 已完成一轮可执行验证
-  - `ReportCenterPage` 的 eval URL 参数归一区 / 读写逻辑已提取到 `report-center-page-helpers.ts`
-  - `Usage` latest-failure 跳转目标现在已有可独立验证的 helper，并补充了 helper tests
-  - 这轮目标是把前面几次页面收口的稳定纯逻辑，从“静态存在”升级到“可执行行为验证”
+- `P4 regression hardening wave` 已完成 web 页面逻辑提取和测试准备
+  - `DocumentsPage` 的 URL 验证逻辑提取到 `documents-page-helpers.ts`
+  - `ReportCenterPage` 的 eval URL 参数归一区、字段标签、回归原因标签提取到 `report-center-page-helpers.ts`
+  - `TraceDetailPage` 的失败分类、标签、颜色、链接构建提取到 `trace-detail-page-helpers.ts`
+  - `UsagePage` 的健康信号、告警项、跳转目标提取到 `usage-page-helpers.ts`
+  - 所有提取保持现有 UI 行为，启用 focused regression testing，构建验证通过
 
 ## Active Boundaries
 
@@ -94,11 +96,11 @@
 
 ## Next Execution Order
 
-1. `docs / stage alignment`
-2. `P4 Documents / Knowledge Base` 第一轮收口
-3. `Document Detail / Usage / Trace` 诊断路径收口
-4. `Report center / eval` 参数与契约收口
-5. focused regression + bounded maintenance
+✅ 1. `docs / stage alignment` - 已完成
+✅ 2. `P4 Documents / Knowledge Base` 第一轮收口 - 已完成（documents-page-helpers）
+✅ 3. `Document Detail / Usage / Trace` 诊断路径收口 - 已完成（trace-detail-page-helpers, usage-page-helpers）
+✅ 4. `Report center / eval` 参数与契约收口 - 已完成（report-center-page-helpers）
+➡️ 5. focused regression + bounded maintenance - 进行中
 
 ## Focused Validation Baseline
 
