@@ -175,8 +175,11 @@ For unattended `opencode-loop` runs, use the repo-local Node harness first:
 - keep this section as the operational exception, not the center of the workflow docs
 - `pnpm loop:start|stop|status` runs the cross-platform Node harness under `.opencode/loop/harness/`
 - use `pnpm loop:start|stop|status` for day-to-day management on Windows or WSL/Linux
-- the runner reads the current materialized wave snapshot, selects the next runnable queue item in order, and invokes `opencode run` for that item
+- the runner reads the current materialized wave snapshot, selects the next runnable queue item in order, and invokes `opencode run --agent build` for the first item, then `opencode run --continue --agent build` on the same session for following items in the same compact wave when possible
 - each spawned session title should expose queue progress clearly, including current task index and remaining task count
+- prefer compact waves over per-task fresh sessions when the tasks are closely related; this keeps repeated context cost lower without turning the harness into a long-lived autonomous agent
+- use the per-item timeout guard (`OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`) so a stuck queue item is terminated and marked `needs_replan` instead of hanging the whole wave indefinitely
+- treat structured JSON `error` events from `opencode run --format json` as queue failures even when the process exit code is `0`, so false-success runs do not silently advance the wave
 - after each completed loop increment, commit the change before moving to the next item so work does not pile up in the checkout
 - do not push or open a PR after every commit; wait for a coherent wave to close, then push from `dev` when validation is green and the branch is unlikely to conflict
 

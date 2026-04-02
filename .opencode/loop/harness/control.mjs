@@ -27,6 +27,15 @@ function pidAlive(pid) {
   }
 }
 
+async function waitForPidExit(pid, timeoutMs = 15000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!pidAlive(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return !pidAlive(pid);
+}
+
 async function readJson(filePath) {
   const raw = await readFile(filePath, 'utf8');
   return JSON.parse(raw);
@@ -73,7 +82,8 @@ async function printStatus() {
   const summary = await latestWaveSummary();
   if (state && pidAlive(state.pid)) {
     const itemPart = state.currentItemId ? ` item=${state.currentItemId}` : '';
-    console.log(`running pid=${state.pid} wave=${state.activeWave ?? summary.activeWave ?? 'none'} pending=${state.pendingCount ?? summary.pendingCount}${itemPart} log=${path.relative(repoRoot, logFile)}`);
+    const sessionPart = state.activeSessionId ? ` session=${state.activeSessionId}` : '';
+    console.log(`running pid=${state.pid} wave=${state.activeWave ?? summary.activeWave ?? 'none'} pending=${state.pendingCount ?? summary.pendingCount}${itemPart}${sessionPart} log=${path.relative(repoRoot, logFile)}`);
     return;
   }
   if (state && state.pid && !pidAlive(state.pid)) {
@@ -118,7 +128,8 @@ async function stop() {
   }
 
   await writeState({ status: 'stopping', stoppedAt: new Date().toISOString() });
-  console.log(`stopping pid=${state.pid}`);
+  const exited = await waitForPidExit(state.pid);
+  console.log(exited ? `stopped pid=${state.pid}` : `stopping pid=${state.pid} timed_out_wait=true`);
 }
 
 function help() {

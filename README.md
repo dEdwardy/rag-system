@@ -82,7 +82,7 @@ pnpm loop:status
 pnpm loop:stop
 ```
 
-These scripts now use the repo-local Node harness under `.opencode/loop/harness/`, and the runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. Each spawned OpenCode session title includes the current task index and remaining task count, for example `[3/10 | left 7] p4-tighten-documents-to-detail-run-entry-paths`.
+These scripts now use the repo-local Node harness under `.opencode/loop/harness/`, and the runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. The runner reuses one OpenCode session across a compact wave when possible to reduce repeated context cost, invokes the repo's `build` command for queue items, applies a per-item timeout guard (`OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`), and each spawned session title includes the current task index and remaining task count, for example `[1/4 | left 3] p4-consolidate-documents-surface-copy-and-empty-states`.
 
 If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for non-pure-frontend work (backend, frontend/backend integration, docs/orchestration), `apps/web` worktree for pure frontend development, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
 

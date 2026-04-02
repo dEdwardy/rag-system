@@ -175,7 +175,8 @@ STORAGE_ROOT=storage
   - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
   - when set to an absolute path, the absolute path wins as before
 - this avoids write/read drift when the API is started from different directories (for example repo root vs `apps/api`) while still allowing environment-specific absolute paths on Windows/WSL/Linux
-- optional OpenCode harness note: root `package.json` now points `loop:*` / `opencode:loop` scripts at the repo-local Node harness under `.opencode/loop/harness/`; the runner consumes the current materialized queue in order and uses `opencode run` for each pending item; spawned session titles include the current task index and remaining task count such as `[3/10 | left 7] ...`; use those commands directly on Windows or WSL/Linux
+- optional OpenCode harness note: root `package.json` now points `loop:*` / `opencode:loop` scripts at the repo-local Node harness under `.opencode/loop/harness/`; the runner consumes the current materialized queue in order, reuses the same OpenCode session across a compact wave when possible, and uses `opencode run --agent build` / `opencode run --continue --agent build` for each pending item; spawned session titles include the current task index and remaining task count such as `[1/4 | left 3] ...`; each item is also protected by `OPENCODE_LOOP_ITEM_TIMEOUT_MS` (default `1200000`) so a stuck task is killed and marked `needs_replan`; structured JSON error events are also treated as queue failures instead of false `completed` results; use those commands directly on Windows or WSL/Linux
+- `pnpm loop:stop` now waits briefly for the current runner pid to fully exit before returning, which reduces restart races that could otherwise interrupt an in-flight child run during immediate stop/start cycles
 - auth/session runtime now also supports:
 
 ```text

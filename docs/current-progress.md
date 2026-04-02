@@ -19,7 +19,7 @@
 
 - `opencode loop sequential executor` now consumes the active materialized queue in order
   - root `pnpm loop:start|stop|status` now uses the repo-local Node harness under `.opencode/loop/harness/`
-  - the runner selects the next runnable pending queue item, invokes `opencode run` for it, and stops on failure / replan so the queue does not drift ahead of the checkout
+  - the runner selects the next runnable pending queue item, reuses the same OpenCode session across a compact wave when possible, runs queue items through the repo `build` command, and stops on failure / replan so the queue does not drift ahead of the checkout
   - this is harness/workflow plumbing only; it does not expand product scope or queue planning scope
 
 - `docs / stage alignment refresh` 已完成当前阶段文档同步
