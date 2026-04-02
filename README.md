@@ -82,9 +82,7 @@ pnpm loop:status
 pnpm loop:stop
 ```
 
-These commands wrap `.opencode/loop/harness/control.sh`, auto-link the `systemd --user` units, and manage a repo-local development harness for unattended runs. This is optional tooling, not product runtime.
-
-The harness implementation, state, prompts, and docs are centralized under `.opencode/loop/`. If you use it, start with `.opencode/loop/README.md`.
+These scripts currently remain in the root `package.json`, but the referenced `.opencode/loop/` files are not present in this checkout. Treat them as unavailable until the harness files are restored or the scripts are updated.
 
 If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for non-pure-frontend work (backend, frontend/backend integration, docs/orchestration), `apps/web` worktree for pure frontend development, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
 

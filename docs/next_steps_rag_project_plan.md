@@ -2,7 +2,7 @@
 
 > 文档角色：`current-primary`
 > 当前使用方式：作为现阶段任务方向、优先级判断和阶段边界的主文档；`docs/current-progress.md` 负责记录近期完成情况和验证基线。
-更新时间：2026-04-01
+更新时间：2026-04-02
 
 ## 1. 当前判断
 
@@ -49,16 +49,20 @@
 
 ### Priority B: P4 web capability carry-through
 
-如果继续做产品增量，最合适的下一条主线是 `P4`，但要严格收窄为“承接已有 backend 能力”，不是新的 backend 扩展。
+如果继续做产品增量，最合适的下一条主线仍然是 `P4`，但要严格收窄为“承接已有 backend 能力”，不是新的 backend 扩展。
 
-推荐切入：
+当前代码现实：
 
-1. 补齐 `DocumentsPage` 对现有 source family 的自然承载
+1. `DocumentsPage` 对现有 source family 的基础承载已经落地
    - `web page` URL 入口
    - `feed` URL 入口
    - `sitemap` URL 入口
-2. 保持现有 API contract，不重做 source 管理后台
-3. 保持 `PC Web` 优先，不展开移动端适配
+2. 因此，后续 `P4` 更适合继续做：
+   - web 侧收口与体验打磨
+   - focused contract / regression 补齐
+   - 已有入口与文档/状态页的一致性修正
+3. 保持现有 API contract，不重做 source 管理后台
+4. 保持 `PC Web` 优先，不展开移动端适配
 
 不做：
 
@@ -87,7 +91,7 @@
 | P1 | done | auth/login 最小闭环已完成 |
 | P2 | done | owner-only ACL baseline 已完成 |
 | P3 | done / maintenance only | source family 和 guardrails 已落地 |
-| P4 | next likely wave | 更适合承接已有 backend 能力到 web |
+| P4 | next likely wave | 更适合继续收口已有 backend 能力到 web |
 | P5 | done / governance only | eval runner / baseline / replay / report / quality gate 已落地 |
 | P6 | done / bounded follow-up only | observability readability 已完成，不扩成平台化改造 |
 
@@ -104,8 +108,6 @@
 
 默认继续使用最小相关验证：
 
-- loop harness smoke test：
-  - `node .opencode/loop/cli.mjs --self-test`
 - docs / queue sync：
   - `git diff --check -- <files...>`
 - API focused test：
@@ -127,4 +129,4 @@
 
 ## 6. 一句话结论
 
-`P0`、`P1`、`P2` 已完成，`P3` 和 `P5` 的主开发也已完成；当前最合理的下一步不是继续把它们当成主线，而是先保持文档与阶段判断一致，再从 `P4 web capability carry-through` 或一个新批准的窄范围产品波次继续推进。
+`P0`、`P1`、`P2` 已完成，`P3` 和 `P5` 的主开发也已完成；当前最合理的下一步不是继续把它们当成主线，而是先保持文档与阶段判断一致，再从 `P4 web capability carry-through` 的后续收口或一个新批准的窄范围产品波次继续推进。

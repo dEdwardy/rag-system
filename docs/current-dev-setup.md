@@ -175,7 +175,7 @@ STORAGE_ROOT=storage
   - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
   - when set to an absolute path, the absolute path wins as before
 - this avoids write/read drift when the API is started from different directories (for example repo root vs `apps/api`) while still allowing environment-specific absolute paths on Windows/WSL/Linux
-- optional OpenCode harness note: the harness now lives under `.opencode/loop/`; use `.opencode/loop/README.md` for its docs and `node .opencode/loop/cli.mjs --self-test` for its focused smoke test
+- optional OpenCode harness note: root `package.json` still contains `loop:*` / `opencode:loop` scripts that point to `.opencode/loop/*`, but that path is not present in the current checkout; treat those commands as unavailable until the harness files are restored or the scripts are updated
 - auth/session runtime now also supports:
 
 ```text
@@ -661,6 +661,11 @@ P5 v1 fixed-question eval runner (automation-first baseline capture):
 pnpm --filter @rag-system/api eval:runner:p5-v1
 ```
 
+- current caution:
+  - `apps/api/scripts/run-p5-v1-eval-runner.mjs` currently logs in through `POST /auth/login`
+  - `POST /auth/login` now validates the local-account payload shape (`{ email, password }`)
+  - re-verify or update the runner login path before treating this command as the default reproducible baseline entry
+
 - default target: `http://127.0.0.1:3000`
 - output artifacts:
   - `storage/evals/p5-v1/p5-v1-retrieval-regression-<timestamp>.json`
@@ -877,7 +882,7 @@ Notes:
 - small focused tests and static checks may run in parallel when they stay within a light local feedback loop
 - do not run multiple heavy builds or node test processes at the same time
 - do not overlap heavy validation with AI review
-- `pnpm opencode:loop` runs the optional repo-local OpenCode harness under `.opencode/loop/`; its implementation details stay in `.opencode/loop/README.md`, not the main product docs.
+- `pnpm opencode:loop` still exists in root `package.json`, but currently points to a missing `.opencode/loop/` path in this checkout; do not treat it as an available local workflow entry.
 - this smoke test is currently scoped to `PC Web`
 - it validates `Knowledge Base -> Assistant` browser rendering against the real local API
 - it is intentionally smaller than the later full document-flow and ask-flow browser E2E tasks

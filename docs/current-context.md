@@ -2,7 +2,7 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、硬边界、最小验证和高频入口，详细历史按需回看其他文档。
-更新时间：2026-04-01
+更新时间：2026-04-02
 
 ## Current Mainline
 
@@ -15,12 +15,12 @@
   - `P5` eval / regression baseline：工程化能力已完成，进入基线治理/使用态
 - 当前更合适的下一批增量不再是继续把 `P3` / `P5` 当成主开发波次，而是：
   - 先收正文档与阶段判断，避免代码和文档继续漂移
-  - 然后从 `P4 web capability carry-through` 或新的明确产品波次里选一个最小增量
+  - 然后从 `P4 web capability carry-through` 的后续收口，或新的明确产品波次里选一个最小增量
 
 ## Current Priorities
 
 - `docs / stage alignment`：先把阶段口径和代码现实对齐，避免继续把 `P3/P5` 写成“待开发主线”。
-- `P4 web capability carry-through`：如果继续做产品增量，优先承接已落地的 backend 能力，而不是再开新的 backend family。
+- `P4 web capability carry-through`：`DocumentsPage` 对 `web page` / `feed` / `sitemap` 的基础入口已经落地；如果继续做产品增量，优先做 web 侧收口、契约补齐和体验打磨，而不是再开新的 backend family。
 - `bounded stability maintenance`：保留 `P3/P5/P6` 范围内的小型回归修补，但不再把它们描述成主开发方向。
 
 ## Do Not Do
@@ -32,18 +32,10 @@
 
 ## Validation Baseline
 
-- loop harness focused smoke test：`node .opencode/loop/cli.mjs --self-test`
 - focused 文档/脚本检查：`git diff --check -- <files...>`
 - API focused test：`pnpm test:api:file -- test/<file>.test.js`
 - web focused test：`node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
 - 只有在当前增量确实跨范围时，才升级到更重的 `pnpm build` / `pnpm lint` / `pnpm typecheck`
-
-## Loop Notes
-
-- loop 仍保持 `one queue item at a time`，但相邻相关 item 现在可通过 `sessionAffinityKey` 或兼容 `plannerFamily` 保守复用 session。
-- planner auto-refill 默认值现在是 `1`，即 queue 空时允许一轮 guarded refill；需要关闭时再显式设为 `0`。
-- verifier replan prompt 现在走 delta prompt，不再整段回放原始执行 prompt。
-- planner/materializer 生成的同 wave sibling items 会自动带 `sessionAffinityKey`，减少未来 queue 的冷启动浪费。
 
 ## Key Docs
 
@@ -52,5 +44,3 @@
 - 项目状态总览：[docs/project-status-overview.md](D:\FeProjects\rag-system\docs\project-status-overview.md)
 - 本地开发与验证：[docs/current-dev-setup.md](D:\FeProjects\rag-system\docs\current-dev-setup.md)
 - 仓库总览：`README.md`
-- loop harness 摘要合同：`.opencode/loop/loop-contract-brief.md`
-- loop harness 全量说明：`.opencode/loop/README.md`
