@@ -194,7 +194,7 @@ test("DocumentsService persists normalized partial diagnostics when a reused fee
           category: "external_source_partial",
           partialFailureCount: 1,
           retryableFailureCount: 0,
-          nonRetryableFailureCount: 0,
+          nonRetryableFailureCount: 1,
           boundaryHit: false,
           boundaryReasons: [],
           message: "Feed source completed with partial entry validation failures.",
@@ -354,7 +354,7 @@ test("DocumentsService persists normalized partial diagnostics when a reused sit
           category: "external_source_partial",
           partialFailureCount: 1,
           retryableFailureCount: 0,
-          nonRetryableFailureCount: 0,
+          nonRetryableFailureCount: 1,
           boundaryHit: false,
           boundaryReasons: [],
           message: "Sitemap source completed with partial page fetch failures.",
@@ -505,7 +505,7 @@ test("DocumentsService clarifies child-sitemap partial diagnostics and preserves
           schemaVersion: 2,
           category: "external_source_partial",
           partialFailureCount: 1,
-          retryableFailureCount: 0,
+          retryableFailureCount: 1,
           nonRetryableFailureCount: 0,
           boundaryHit: false,
           boundaryReasons: [],
@@ -906,6 +906,37 @@ test("DocumentsService keeps canonical external partial envelope fields over raw
     boundaryReasons: ["RAW_REASON"],
     failedEntryCount: 1
   });
+});
+
+test("DocumentsService infers retryability counts from detailed partial failure collections when summary counts are absent", () => {
+  const fakeService = Object.create(DocumentsService.prototype);
+
+  const diagnostics = DocumentsService.prototype.buildExternalSourcePartialDiagnostics.call(
+    fakeService,
+    7,
+    {
+      partial: true,
+      retryable: true,
+      failedPageCount: 2,
+      failedPages: [
+        {
+          url: "https://example.com/retryable",
+          retryable: true
+        },
+        {
+          url: "https://example.com/non-retryable",
+          retryable: false
+        }
+      ]
+    },
+    "canonical-message",
+    false,
+    "sitemap"
+  );
+
+  assert.equal(diagnostics.retryableFailureCount, 1);
+  assert.equal(diagnostics.nonRetryableFailureCount, 1);
+  assert.equal(diagnostics.partialFailureCount, 2);
 });
 
 test("WebPageService classifies upstream 404 responses as non-retryable", async () => {

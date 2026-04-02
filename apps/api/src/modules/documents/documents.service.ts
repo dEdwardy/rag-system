@@ -1150,8 +1150,10 @@ export class DocumentsService {
       return null;
     }
 
-    const retryableFailureCount = this.getNumericDiagnosticField(diagnostics, "retryableFailureCount");
-    const nonRetryableFailureCount = this.getNumericDiagnosticField(diagnostics, "nonRetryableFailureCount");
+    const {
+      retryableFailureCount,
+      nonRetryableFailureCount
+    } = this.resolveExternalPartialFailureRetryabilityCounts(diagnostics);
     const contentTypeFallbackApplied = diagnostics.contentTypeFallbackApplied === true;
     const bodyMissing = diagnostics.bodyMissing === true;
     const bodyQualityLow = diagnostics.bodyQualityLow === true;
@@ -1293,6 +1295,64 @@ export class DocumentsService {
   ) {
     const value = diagnostics?.[key];
     return typeof value === "number" ? value : 0;
+  }
+
+  private resolveExternalPartialFailureRetryabilityCounts(
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined
+  ) {
+    const retryableFailureCount = this.getNumericDiagnosticField(diagnostics, "retryableFailureCount");
+    const nonRetryableFailureCount = this.getNumericDiagnosticField(diagnostics, "nonRetryableFailureCount");
+
+    if (retryableFailureCount > 0 || nonRetryableFailureCount > 0) {
+      return {
+        retryableFailureCount,
+        nonRetryableFailureCount
+      };
+    }
+
+    const inferredCounts = this.countRetryabilityFromDiagnosticCollections(diagnostics, [
+      "failedEntries",
+      "failedPages",
+      "failedChildSitemaps"
+    ]);
+
+    return inferredCounts;
+  }
+
+  private countRetryabilityFromDiagnosticCollections(
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
+    keys: string[]
+  ) {
+    let retryableFailureCount = 0;
+    let nonRetryableFailureCount = 0;
+
+    for (const key of keys) {
+      const items = diagnostics?.[key];
+      if (!Array.isArray(items)) {
+        continue;
+      }
+
+      for (const item of items) {
+        if (!item || typeof item !== "object") {
+          continue;
+        }
+
+        const retryable = (item as { retryable?: unknown }).retryable;
+        if (retryable === true) {
+          retryableFailureCount += 1;
+          continue;
+        }
+
+        if (retryable === false) {
+          nonRetryableFailureCount += 1;
+        }
+      }
+    }
+
+    return {
+      retryableFailureCount,
+      nonRetryableFailureCount
+    };
   }
 
   private resolveExternalSourceBoundOrLegacyDefault(value: unknown) {
