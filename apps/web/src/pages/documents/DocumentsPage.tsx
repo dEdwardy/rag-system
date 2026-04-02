@@ -163,6 +163,49 @@ export function DocumentsPage() {
     [documents]
   );
   const hasProcessingDocuments = processingCount > 0;
+  const workspaceSurfaceState = useMemo(() => {
+    if (!hasActiveKnowledgeBase) {
+      return {
+        badgeColor: "gray",
+        badgeLabel: t("documents.workspaceStatusNoActiveKnowledgeBase"),
+        nextAction: t("documents.workspaceNextActionNoActiveKnowledgeBase")
+      } as const;
+    }
+
+    if (failedCount > 0) {
+      return {
+        badgeColor: "red",
+        badgeLabel: t("documents.workspaceStatusNeedsAttention"),
+        nextAction: t("documents.workspaceNextActionNeedsAttention")
+      } as const;
+    }
+
+    if (hasProcessingDocuments) {
+      return {
+        badgeColor: "yellow",
+        badgeLabel: t("documents.workspaceStatusProcessing"),
+        nextAction: t("documents.workspaceNextActionProcessing")
+      } as const;
+    }
+
+    return {
+      badgeColor: "indigo",
+      badgeLabel: t("documents.workspaceStatusReady"),
+      nextAction: t("documents.workspaceNextActionReady")
+    } as const;
+  }, [failedCount, hasActiveKnowledgeBase, hasProcessingDocuments, t]);
+
+  const noActiveKnowledgeBaseStatePanel = (
+    <StatePanel
+      action={
+        <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+          {t("documents.noActiveKnowledgeBaseAction")}
+        </Button>
+      }
+      description={t("documents.noActiveKnowledgeBaseDescription")}
+      title={t("documents.noActiveKnowledgeBaseTitle")}
+    />
+  );
 
   const metricCards = useMemo(
     () => [
@@ -417,25 +460,11 @@ export function DocumentsPage() {
                   {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}
                 </Badge>
                 <Badge
-                  color={!hasActiveKnowledgeBase ? "gray" : failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"}
+                  color={workspaceSurfaceState.badgeColor}
                   radius="sm"
                   variant="light"
                 >
-                  {!hasActiveKnowledgeBase
-                    ? locale === "zh"
-                      ? "请先创建知识库"
-                      : "Create a knowledge base first"
-                    : failedCount > 0
-                      ? locale === "zh"
-                        ? "存在待处理失败项"
-                        : "Failed items need review"
-                    : hasProcessingDocuments
-                      ? locale === "zh"
-                        ? "处理队列进行中"
-                        : "Processing in progress"
-                      : locale === "zh"
-                        ? "工作台已就绪"
-                        : "Workspace ready"}
+                  {workspaceSurfaceState.badgeLabel}
                 </Badge>
               </Group>
             </div>
@@ -591,23 +620,7 @@ export function DocumentsPage() {
               </div>
               <div className="workspace-meta-row">
                 <span className="workspace-meta-label">{locale === "zh" ? "下一步" : "Next action"}</span>
-                <span className="workspace-meta-value">
-                  {!hasActiveKnowledgeBase
-                    ? locale === "zh"
-                      ? "先创建知识库，再开始上传或录入来源"
-                      : "Create a knowledge base before uploading files or submitting source URLs"
-                    : failedCount > 0
-                      ? locale === "zh"
-                        ? "先复查失败文档，再继续补充新来源"
-                        : "Review failed documents before adding new source material"
-                    : hasProcessingDocuments
-                    ? locale === "zh"
-                      ? "等待当前处理队列完成，再复查刷新后的文档状态"
-                      : "Wait for the current processing queue to finish, then review the refreshed document states"
-                    : locale === "zh"
-                      ? "优先补充新文档或复查低质量来源"
-                      : "Upload new material or review weaker sources"}
-                </span>
+                <span className="workspace-meta-value">{workspaceSurfaceState.nextAction}</span>
               </div>
             </div>
           </Stack>
@@ -635,15 +648,7 @@ export function DocumentsPage() {
           </Group>
 
           {!hasActiveKnowledgeBase ? (
-            <StatePanel
-              action={
-                <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
-                  {t("documents.noActiveKnowledgeBaseAction")}
-                </Button>
-              }
-              description={t("documents.noActiveKnowledgeBaseDescription")}
-              title={t("documents.noActiveKnowledgeBaseTitle")}
-            />
+            noActiveKnowledgeBaseStatePanel
           ) : isDocumentsLoading ? (
             <div aria-live="polite" className="workspace-loading-grid" role="status">
               {Array.from({ length: 3 }).map((_, index) => (

@@ -157,20 +157,25 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(messagesSource, /feed:\s*\{[^]*submitSuccess: "已提交来源 URL：\{url\}。"/);
   assert.match(messagesSource, /sitemap:\s*\{[^]*submitSuccess: "已提交来源 URL：\{url\}。"/);
   assert.match(documentsSource, /resolveSourceEntryStatus/);
+  assert.match(documentsSource, /const workspaceSurfaceState = useMemo/);
+  assert.match(documentsSource, /const noActiveKnowledgeBaseStatePanel = \(/);
   assert.match(documentsSource, /const sourceEntrySections = useMemo/);
   assert.match(documentsSource, /documents\.sourceEntryStatusEmpty/);
   assert.match(documentsSource, /documents\.sourceEntryStatusReady/);
   assert.match(documentsSource, /documents\.sourceEntryStatusSubmitting/);
   assert.match(documentsSource, /documents\.sourceEntryStatusNoActiveKnowledgeBase/);
   assert.match(documentsSource, /documents\.sourceEntryStatusSuccess/);
+  assert.match(documentsSource, /workspaceSurfaceState\.badgeColor/);
+  assert.match(documentsSource, /workspaceSurfaceState\.badgeLabel/);
+  assert.match(documentsSource, /workspaceSurfaceState\.nextAction/);
   assert.match(documentsSource, /failedCount > 0 \? "red" : hasProcessingDocuments \? "yellow" : "indigo"/);
-  assert.match(documentsSource, /failedCount > 0[\s\S]*Failed items need review/);
-  assert.match(documentsSource, /failedCount > 0[\s\S]*Review failed documents before adding new source material/);
-  assert.match(messagesSource, /sourceEntrySubmittingHint: "Source intake busy\. Wait for the current submission to finish before submitting another URL\."/);
-  assert.match(messagesSource, /sourceEntryStatusEmpty: "Source intake idle\. Paste one URL to enable submission\."/);
+  assert.match(messagesSource, /workspaceStatusNeedsAttention: "Failed items need review"/);
+  assert.match(messagesSource, /workspaceNextActionNeedsAttention: "Review failed documents before adding new source material\."/);
+  assert.match(messagesSource, /sourceEntrySubmittingHint: "Source intake busy\. Wait for the current submission to finish, then review the document table below\."/);
+  assert.match(messagesSource, /sourceEntryStatusEmpty: "Upload a file or paste one URL to start the Documents intake flow\."/);
   assert.match(messagesSource, /sourceEntryStatusSubmitting: "Source intake busy\. Keep this section read-only until it finishes\."/);
-  assert.match(messagesSource, /sourceEntrySubmittingHint: "来源录入忙碌中：请等待当前提交完成后再提交下一条 URL。"/);
-  assert.match(messagesSource, /sourceEntryStatusEmpty: "来源录入待命：先粘贴一个 URL，提交按钮才会启用。"/);
+  assert.match(messagesSource, /sourceEntrySubmittingHint: "来源录入忙碌中：请等待当前提交完成，再到下方文档表格查看状态。"/);
+  assert.match(messagesSource, /sourceEntryStatusEmpty: "上传文件或先粘贴一个 URL，即可启动 Documents 的录入流程。"/);
   assert.match(messagesSource, /sourceEntryStatusSubmitting: "来源录入忙碌中：该区域暂时只读，提交完成后再继续。"/);
   assert.match(documentsSource, /webPageSourceEntryStatus/);
   assert.match(documentsSource, /feedSourceEntryStatus/);
@@ -188,19 +193,25 @@ test("documents page source-entry keeps web page/feed/sitemap entrypoint parity 
   assert.match(documentsSource, /No active KB|尚无活动知识库/);
   assert.doesNotMatch(documentsSource, /Default KB|默认知识库/);
   assert.match(messagesSource, /noActiveKnowledgeBaseTitle: "No active knowledge base for documents"/);
-  assert.match(messagesSource, /noActiveKnowledgeBaseDescription:\s*"Documents stays intake-first: create a knowledge base before uploading files or submitting source URLs\."/);
-  assert.match(messagesSource, /noActiveKnowledgeBaseAction: "Create a knowledge base first"/);
-  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseTitle: "Create a knowledge base before source intake"/);
   assert.match(
     messagesSource,
-    /sourceEntryNoActiveKnowledgeBaseDescription:\s*"Source intake follows the current Documents workspace boundary: create a knowledge base first, then submit web page, feed, or sitemap URLs here\."/
+    /noActiveKnowledgeBaseDescription:\s*"Create a knowledge base before uploading files, submitting source URLs, or reviewing document status in Documents\."/
   );
-  assert.match(messagesSource, /sourceEntryStatusNoActiveKnowledgeBase: "Source intake unavailable until a knowledge base is active\."/);
-  assert.match(messagesSource, /sourceEntryStatusSuccess: "Last submitted source URL: \{url\}\."/);
-  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseTitle: "请先创建知识库再录入来源"/);
-  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseDescription:\s*"来源录入保持当前 Documents workspace 边界：请先创建知识库，再在这里提交网页、订阅源或站点地图 URL。"/);
-  assert.match(messagesSource, /sourceEntryStatusNoActiveKnowledgeBase: "知识库未就绪前，来源录入暂不可用。"/);
-  assert.match(messagesSource, /sourceEntryStatusSuccess: "最近一次已提交来源 URL：\{url\}。"/);
+  assert.match(messagesSource, /noActiveKnowledgeBaseAction: "Create a knowledge base first"/);
+  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseTitle: "No active knowledge base for documents"/);
+  assert.match(
+    messagesSource,
+    /sourceEntryNoActiveKnowledgeBaseDescription:\s*"Create a knowledge base before uploading files, submitting source URLs, or reviewing document status in Documents\."/
+  );
+  assert.match(
+    messagesSource,
+    /sourceEntryStatusNoActiveKnowledgeBase: "Create a knowledge base first to enable uploads, source intake, and document status\."/
+  );
+  assert.match(messagesSource, /sourceEntryStatusSuccess: "Last submitted source URL: \{url\}\. Watch the table below for status\."/);
+  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseTitle: "还没有可录入文档的知识库"/);
+  assert.match(messagesSource, /sourceEntryNoActiveKnowledgeBaseDescription:\s*"请先创建知识库，再在 Documents 中上传文件、提交来源 URL，或查看文档状态。"/);
+  assert.match(messagesSource, /sourceEntryStatusNoActiveKnowledgeBase: "请先创建知识库，再启用上传、来源录入和文档状态查看。"/);
+  assert.match(messagesSource, /sourceEntryStatusSuccess: "最近一次已提交来源 URL：\{url\}。请到下方表格查看状态。"/);
   assert.match(messagesSource, /noActiveKnowledgeBaseTitle:/);
   assert.match(messagesSource, /noActiveKnowledgeBaseDescription:/);
   assert.match(messagesSource, /noActiveKnowledgeBaseAction:/);
