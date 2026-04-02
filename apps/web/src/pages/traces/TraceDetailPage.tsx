@@ -598,7 +598,7 @@ export function TraceDetailPage() {
               <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
                 <Stack gap="xs">
                   <Text className="workspace-section-heading">
-                    {locale === "zh" ? "失败分类（P6 v1）" : "Failure taxonomy (P6 v1)"}
+                    {locale === "zh" ? "失败类别" : "Failure categories"}
                   </Text>
                   <Text c="var(--app-text-muted)" size="xs">
                     {locale === "zh"
@@ -616,8 +616,8 @@ export function TraceDetailPage() {
                   ) : (
                     <Text c="var(--app-text-secondary)" size="sm">
                       {locale === "zh"
-                        ? "当前 trace 未命中以上失败分类。"
-                        : "No failure taxonomy category was detected for this trace."}
+                        ? "当前 trace 未命中以上失败类别。"
+                        : "No failure category was detected for this trace."}
                     </Text>
                   )}
                 </Stack>
