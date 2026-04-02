@@ -399,6 +399,24 @@ export function TraceDetailPage() {
     conversationMessages.find(message => message.role === "assistant" && message.traceId === trace?.id)?.content ??
     null;
   const answerStatusValue = traceSummary?.answerStatus ?? (trace?.status === "success" ? "grounded" : "insufficient_context");
+  const scanFirstDocumentTarget =
+    rankedEntries.find(entry => entry.documentId)?.documentId ?? citations.find(citation => citation.documentId)?.documentId ?? null;
+  const scanFirstDocumentTitle =
+    rankedEntries.find(entry => entry.documentId && entry.documentTitle)?.documentTitle ??
+    citations.find(citation => citation.documentTitle)?.documentTitle ??
+    null;
+  const runFailureSummary =
+    trace == null
+      ? null
+      : traceSummary?.failureReadabilitySentence ||
+        trace.errorMessage ||
+        (trace.status === "failed"
+          ? locale === "zh"
+            ? "运行失败，先回看文档详情页中的 run 失败摘要。"
+            : "Run failed. Start with the run failure summary from Document Detail."
+          : locale === "zh"
+            ? "本轮未记录失败摘要。"
+            : "No failure summary was recorded for this run.");
   const traceScanItems = trace
     ? [
         {
@@ -514,6 +532,47 @@ export function TraceDetailPage() {
               </div>
             ))}
           </div>
+
+          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+            <Stack gap="sm">
+              <Text className="workspace-section-heading">
+                {locale === "zh" ? "单一路径排查（scan-first）" : "Single diagnostic path (scan-first)"}
+              </Text>
+              <Text className="workspace-section-copy">
+                {locale === "zh"
+                  ? "按同一顺序扫读：先进入文档详情，再看 run 失败摘要，最后按 trace 诊断顺序继续。"
+                  : "Follow one order: open Document Detail first, scan run failure summary second, then continue with ordered trace diagnostics."}
+              </Text>
+              <div className="workspace-meta-list">
+                <div className="workspace-meta-row">
+                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 1：文档详情" : "Step 1: Document Detail"}</span>
+                  <span className="workspace-meta-value">
+                    {scanFirstDocumentTarget ? (
+                      <Anchor component={Link} to={`/documents/${scanFirstDocumentTarget}`}>
+                        {scanFirstDocumentTitle ?? scanFirstDocumentTarget}
+                      </Anchor>
+                    ) : locale === "zh" ? (
+                      "当前 trace 未提供可跳转的文档。"
+                    ) : (
+                      "No document deep link is available for this trace."
+                    )}
+                  </span>
+                </div>
+                <div className="workspace-meta-row">
+                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 2：run 失败摘要" : "Step 2: Run failure summary"}</span>
+                  <span className="workspace-meta-value">{runFailureSummary}</span>
+                </div>
+                <div className="workspace-meta-row">
+                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 3：trace 诊断顺序" : "Step 3: Trace diagnostics order"}</span>
+                  <span className="workspace-meta-value">
+                    {locale === "zh"
+                      ? "问题线索 -> 检索线索 -> 回答线索"
+                      : "Issue signal -> Retrieval signal -> Answer signal"}
+                  </span>
+                </div>
+              </div>
+            </Stack>
+          </Paper>
 
           <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
             <Stack gap="md">

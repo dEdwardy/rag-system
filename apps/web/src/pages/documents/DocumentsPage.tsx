@@ -668,8 +668,8 @@ export function DocumentsPage() {
               <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3">
                 <Text className="workspace-table-hint">
                   {locale === "zh"
-                    ? "表头保持固定；优先扫状态、Chunk 数和最近更新时间。"
-                    : "The header stays pinned; scan status, chunk count, and latest update first."}
+                    ? "先扫状态、Chunk 数和更新时间，再进入文档详情查看 run 失败摘要，最后看 trace 诊断顺序。"
+                    : "Scan status, chunk count, and update time first, then open Document Detail for run failure summary before Trace diagnostics."}
                 </Text>
                 <Badge color={failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
                   {failedCount > 0

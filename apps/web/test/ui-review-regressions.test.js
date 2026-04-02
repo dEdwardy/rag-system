@@ -121,6 +121,7 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.match(runListSource, /to=\{`\/documents\/\$\{run\.documentId\}`\}/);
   assert.match(runListSource, /onReindexRun/);
   assert.match(traceListSource, /workspace-trace-list/);
+  assert.match(documentsSource, /open Document Detail for run failure summary before Trace diagnostics|进入文档详情查看 run 失败摘要，最后看 trace 诊断顺序/);
   assert.doesNotMatch(traceListSource, /Conversation ID[^]*Latest trace[^]*Created/);
 });
 
@@ -231,6 +232,16 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   );
   assert.match(traceSource, /workspace-metric-grid/);
   assert.match(traceSource, /tone="loading"/);
+  assert.ok(
+    traceSource.indexOf('Single diagnostic path (scan-first)') < traceSource.indexOf('Execution summary'),
+    'Trace Detail should present the single diagnostic path before execution summary details'
+  );
+  assert.ok(
+    traceSource.indexOf('Step 1: Document Detail') < traceSource.indexOf('Step 2: Run failure summary') &&
+      traceSource.indexOf('Step 2: Run failure summary') < traceSource.indexOf('Step 3: Trace diagnostics order'),
+    'Trace Detail should order scan-first flow as document detail -> run failure summary -> trace diagnostics'
+  );
+  assert.match(traceSource, /Issue signal -> Retrieval signal -> Answer signal|问题线索 -> 检索线索 -> 回答线索/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.retrievedChunks\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.citations\}`\}/);
   assert.match(traceSource, /href=\{`#\$\{TRACE_DETAIL_SECTION_IDS\.rawPayload\}`\}/);
