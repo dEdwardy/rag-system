@@ -15,7 +15,7 @@ const criticalEnvSchema = z
     SUPABASE_SERVICE_ROLE_KEY: trimmedOptionalString,
     SUPABASE_STORAGE_BUCKET_UPLOADS: trimmedOptionalString,
     SUPABASE_STORAGE_BUCKET_GENERATED: trimmedOptionalString,
-    QUEUE_PROVIDER: z.enum(["bullmq", "database", "pgmq"]).optional().default("bullmq"),
+    QUEUE_PROVIDER: z.enum(["database", "pgmq"]).optional().default("pgmq"),
     VECTOR_STORE_PROVIDER: z.enum(["filesystem", "pgvector"]).optional().default("filesystem"),
     OLLAMA_BASE_URL: trimmedOptionalString,
     OLLAMA_MODEL: trimmedOptionalString,

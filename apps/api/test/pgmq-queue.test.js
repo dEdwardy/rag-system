@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
+const test = require("node:test");
 
 const { QueueService } = require("../src/infra/queue/queue.service.ts");
+const { PgmqQueueProviderService } = require("../src/infra/queue/queue-provider.service.ts");
 const { IngestionService } = require("../src/modules/ingestion/ingestion.service.ts");
 
 test("QueueService stores ingestion jobs in pgmq when QUEUE_PROVIDER=pgmq", async () => {
@@ -17,20 +19,13 @@ test("QueueService stores ingestion jobs in pgmq when QUEUE_PROVIDER=pgmq", asyn
     }
   };
 
-  const queueService = new QueueService(
+  const queueProviderService = new PgmqQueueProviderService(
     {
-      getConfig: () => ({
-        provider: "pgmq",
-        redisUrl: null,
-        enableDocumentIngestionWorker: true,
-        databasePollIntervalMs: 1000,
-        databaseRetryDelayMs: 5000,
-        databaseMaxAttempts: 3,
-        pgmqVisibilityTimeoutSeconds: 300
-      })
-    },
-    fakePrisma
+      $queryRaw: fakePrisma.$queryRaw,
+      $executeRaw: fakePrisma.$executeRaw
+    }
   );
+  const queueService = new QueueService(queueProviderService);
 
   await queueService.addDocumentIngestionJob("document-1", 4);
 

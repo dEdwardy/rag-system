@@ -8,7 +8,6 @@
 This project uses Docker Compose for local infrastructure:
 
 - PostgreSQL on `localhost:5432`
-- Redis on `localhost:6379`
 
 ## Start
 
@@ -44,14 +43,4 @@ Database URL:
 postgresql://postgres:postgres@localhost:5432/rag_system
 ```
 
-Redis:
-
-- host: `localhost`
-- port: `6379`
-- password: none
-
-Redis URL:
-
-```text
-redis://localhost:6379
-```
+Redis is no longer part of the default local infra baseline. Queue runtime now defaults to Supabase `pgmq`, with PostgreSQL-backed queue fallback available when needed.

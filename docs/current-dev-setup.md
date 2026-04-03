@@ -45,18 +45,10 @@ Current local PostgreSQL connection values:
 - password: `postgres`
 - URL: `postgresql://postgres:postgres@localhost:5432/rag_system`
 
-Current local Redis connection values:
+Queue runtime now runs in two supported modes:
 
-- host: `localhost`
-- port: `6379`
-- password: none
-- URL: `redis://localhost:6379`
-
-Queue runtime can now run in three modes:
-
-- `QUEUE_PROVIDER=bullmq` (default): existing Redis/BullMQ-backed queue
-- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue, which avoids requiring a local Redis service
-- `QUEUE_PROVIDER=pgmq`: Supabase Queues / `pgmq`-backed ingestion queue without Redis
+- `QUEUE_PROVIDER=pgmq` (default): Supabase Queues / `pgmq`-backed ingestion queue
+- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue fallback
 
 Database queue runtime settings:
 
@@ -67,7 +59,6 @@ QUEUE_DATABASE_RETRY_DELAY_MS=5000
 QUEUE_DATABASE_MAX_ATTEMPTS=3
 ```
 
-- when `QUEUE_PROVIDER=database`, `REDIS_URL` is not used for document ingestion
 - the database queue stores durable ingestion jobs in `IngestionQueueJob`
 - retries are handled by the API worker poll loop using the configured delay/max-attempt settings above
 
@@ -81,7 +72,6 @@ QUEUE_DATABASE_MAX_ATTEMPTS=3
 QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS=300
 ```
 
-- when `QUEUE_PROVIDER=pgmq`, `REDIS_URL` is not used for document ingestion
 - `pgmq` requires the `pgmq` extension to exist on the target database; apply the approved migration rollout before switching runtime traffic
 - the API ensures the configured ingestion queue exists at runtime using the current `QUEUE_PREFIX`
 - message retry delay still uses `QUEUE_DATABASE_RETRY_DELAY_MS`, while `QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS` controls how long an in-flight message stays invisible before it can be delivered again
@@ -135,9 +125,8 @@ pnpm --filter @rag-system/api start:dev
 
 This expects the local PostgreSQL stack to be running.
 
-- when `QUEUE_PROVIDER=bullmq`, Redis must also be running
-- when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL and Redis is not required for document ingestion
-- when `QUEUE_PROVIDER=pgmq`, the ingestion queue runs through the Supabase `pgmq` extension and Redis is not required for document ingestion
+- when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL
+- when `QUEUE_PROVIDER=pgmq`, the ingestion queue runs through the Supabase `pgmq` extension
 
 Health check:
 
@@ -217,7 +206,6 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
 - storage runtime now also supports:
 
 ```text
-STORAGE_ROOT=storage
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_STORAGE_BUCKET_UPLOADS=uploads
@@ -227,11 +215,12 @@ VECTOR_STORE_PGVECTOR_TABLE=ChunkEmbedding
 VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 ```
 
-- storage path resolution is now repo-root-stable instead of `process.cwd()`-relative:
+- storage path resolution for the remaining local test/dev fallback is repo-root-stable instead of `process.cwd()`-relative:
   - when unset, the default remains the repo-local `storage/` directory
   - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
   - when set to an absolute path, the absolute path wins as before
-- when all `SUPABASE_*` storage variables above are set, uploaded files and generated text files are stored in Supabase Storage instead of the local filesystem
+- the default runtime expectation is now Supabase Storage; keep all `SUPABASE_*` storage variables configured in normal development and shared environments
+- local filesystem storage remains only as a temporary fallback for tests / narrow local debugging and should not be treated as the main deployment path
 - the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between local and Supabase storage
 - `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
 - vector storage still defaults to the local filesystem; set `VECTOR_STORE_PROVIDER=pgvector` to switch vector persistence/search to PostgreSQL `pgvector`

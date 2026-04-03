@@ -9,14 +9,10 @@ import { DocumentRunsService } from "../document-runs/document-runs.service";
 import { DocumentIngestionProcessor } from "./document-ingestion.processor";
 import type { DocumentIngestionJob } from "./document-ingestion.processor";
 
-const { Worker } = require("bullmq");
-
 @Injectable()
 export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IngestionService.name);
-  private readonly connection;
   private readonly runtimeConfig;
-  private worker?: any;
   private databasePollTimer?: NodeJS.Timeout;
   private databasePollInFlight = false;
 
@@ -28,7 +24,6 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     private readonly documentRunsService: DocumentRunsService
   ) {
     this.runtimeConfig = this.queueRuntimeConfigService.getConfig();
-    this.connection = this.runtimeConfig.provider === "bullmq" ? this.queueRuntimeConfigService.createRedisConnection() : null;
   }
 
   enqueueDocument(documentId: string, documentVersion?: number) {
@@ -52,18 +47,6 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       void this.startPgmqWorker();
       return;
     }
-
-    this.worker = new Worker(
-      getDocumentIngestionQueueName(),
-      async (job: DocumentIngestionJob) => this.documentIngestionProcessor.processDocument(job),
-      {
-        connection: this.connection
-      }
-    );
-
-    this.worker.on("failed", (job: { id?: string; data?: DocumentIngestionJob["data"]; attemptsMade?: number; opts?: { attempts?: number } } | undefined, error: Error) => {
-      void this.handleFailedJob(job, error);
-    });
   }
 
   private startDatabaseWorker() {
@@ -77,7 +60,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
 
   private async startPgmqWorker() {
     this.logger.log("Starting pgmq-backed document ingestion worker.");
-    await this.queueService.ensurePgmqQueueExists(getDocumentIngestionQueueName());
+    await this.queueService.ensureDocumentIngestionQueueReady();
 
     this.databasePollTimer = setInterval(() => {
       void this.pollPgmqQueue();
@@ -389,8 +372,5 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       clearInterval(this.databasePollTimer);
       this.databasePollTimer = undefined;
     }
-
-    await this.worker?.close();
-    await this.connection?.quit();
   }
 }

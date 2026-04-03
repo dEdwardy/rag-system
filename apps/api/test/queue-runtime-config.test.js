@@ -1,16 +1,16 @@
 const assert = require("node:assert/strict");
+const test = require("node:test");
 
 const {
   QueueRuntimeConfigError,
   resolveQueueRuntimeConfig
 } = require("../src/infra/queue/queue-runtime-config.ts");
 
-test("resolveQueueRuntimeConfig defaults to bullmq", () => {
+test("resolveQueueRuntimeConfig defaults to pgmq", () => {
   const config = resolveQueueRuntimeConfig({});
 
   assert.deepEqual(config, {
-    provider: "bullmq",
-    redisUrl: "redis://localhost:6379",
+    provider: "pgmq",
     enableDocumentIngestionWorker: true,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
@@ -30,7 +30,6 @@ test("resolveQueueRuntimeConfig supports database provider", () => {
 
   assert.deepEqual(config, {
     provider: "database",
-    redisUrl: null,
     enableDocumentIngestionWorker: false,
     databasePollIntervalMs: 250,
     databaseRetryDelayMs: 3000,
@@ -47,7 +46,6 @@ test("resolveQueueRuntimeConfig supports pgmq provider", () => {
 
   assert.deepEqual(config, {
     provider: "pgmq",
-    redisUrl: null,
     enableDocumentIngestionWorker: true,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,

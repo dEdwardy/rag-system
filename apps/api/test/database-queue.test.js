@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
+const test = require("node:test");
 
 const { QueueService } = require("../src/infra/queue/queue.service.ts");
+const { DatabaseQueueProviderService } = require("../src/infra/queue/queue-provider.service.ts");
 const { IngestionService } = require("../src/modules/ingestion/ingestion.service.ts");
 
 test("QueueService stores ingestion jobs in the database queue when QUEUE_PROVIDER=database", async () => {
@@ -12,11 +14,10 @@ test("QueueService stores ingestion jobs in the database queue when QUEUE_PROVID
     }
   };
 
-  const queueService = new QueueService(
+  const queueProviderService = new DatabaseQueueProviderService(
     {
       getConfig: () => ({
         provider: "database",
-        redisUrl: null,
         enableDocumentIngestionWorker: true,
         databasePollIntervalMs: 1000,
         databaseRetryDelayMs: 5000,
@@ -26,6 +27,7 @@ test("QueueService stores ingestion jobs in the database queue when QUEUE_PROVID
     },
     fakePrisma
   );
+  const queueService = new QueueService(queueProviderService);
 
   await queueService.addDocumentIngestionJob("document-1", 4);
 
@@ -34,7 +36,7 @@ test("QueueService stores ingestion jobs in the database queue when QUEUE_PROVID
   assert.match(String(executeCalls[1].strings.join(" ")), /INSERT INTO "IngestionQueueJob"/);
 });
 
-test("IngestionService completes database-backed jobs without BullMQ", async () => {
+test("IngestionService completes database-backed jobs without Redis queue runtime", async () => {
   const executeCalls = [];
   const processedJobs = [];
 

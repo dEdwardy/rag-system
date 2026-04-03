@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const test = require("node:test");
 
 const { StorageRuntimeConfigError, resolveStorageRuntimeConfig } = require("../src/infra/storage/storage-runtime-config.ts");
 const { StorageService } = require("../src/infra/storage/storage.service.ts");

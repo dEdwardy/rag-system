@@ -1,12 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 
-const IORedis = require("ioredis");
-
-export type QueueProvider = "bullmq" | "database" | "pgmq";
+export type QueueProvider = "database" | "pgmq";
 
 export type QueueRuntimeConfig = {
   provider: QueueProvider;
-  redisUrl: string | null;
   enableDocumentIngestionWorker: boolean;
   databasePollIntervalMs: number;
   databaseRetryDelayMs: number;
@@ -24,11 +21,11 @@ export class QueueRuntimeConfigError extends Error {
 }
 
 export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env): QueueRuntimeConfig {
-  const provider = (env.QUEUE_PROVIDER?.trim() || "bullmq") as QueueProvider;
+  const provider = (env.QUEUE_PROVIDER?.trim() || "pgmq") as QueueProvider;
 
-  if (provider !== "bullmq" && provider !== "database" && provider !== "pgmq") {
+  if (provider !== "database" && provider !== "pgmq") {
     throw new QueueRuntimeConfigError(
-      `Unsupported QUEUE_PROVIDER \"${env.QUEUE_PROVIDER}\". Expected \"bullmq\", \"database\", or \"pgmq\".`
+      `Unsupported QUEUE_PROVIDER \"${env.QUEUE_PROVIDER}\". Expected \"database\" or \"pgmq\".`
     );
   }
 
@@ -43,23 +40,12 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
 
   return {
     provider,
-    redisUrl: provider === "bullmq" ? env.REDIS_URL?.trim() || "redis://localhost:6379" : null,
     enableDocumentIngestionWorker: env.DOCUMENT_INGESTION_WORKER_ENABLED !== "false",
     databasePollIntervalMs,
     databaseRetryDelayMs,
     databaseMaxAttempts,
     pgmqVisibilityTimeoutSeconds
   };
-}
-
-export function createQueueRedisConnection(config: QueueRuntimeConfig) {
-  if (config.provider !== "bullmq" || !config.redisUrl) {
-    throw new QueueRuntimeConfigError("Redis connection is only available when QUEUE_PROVIDER=bullmq.");
-  }
-
-  return new IORedis(config.redisUrl, {
-    maxRetriesPerRequest: null
-  });
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number, envName: string) {
@@ -81,9 +67,5 @@ export class QueueRuntimeConfigService {
 
   getConfig() {
     return this.config;
-  }
-
-  createRedisConnection() {
-    return createQueueRedisConnection(this.config);
   }
 }
