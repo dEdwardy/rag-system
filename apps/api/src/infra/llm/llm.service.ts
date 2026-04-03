@@ -640,6 +640,19 @@ export class LlmService {
       return parsed;
     }
 
+    if (this.looksLikeStructuredPayload(rawAnswer)) {
+      const extractedAnswer = this.extractStructuredAnswerPreview(rawAnswer)?.trim();
+      if (extractedAnswer) {
+        return {
+          answer: extractedAnswer,
+          answerStatus: undefined,
+          missingInformation: [],
+          citedChunkNumbers: this.extractCitedChunkNumbers(rawAnswer),
+          citationEvidence: []
+        };
+      }
+    }
+
     return {
       answer: rawAnswer,
       answerStatus: undefined,

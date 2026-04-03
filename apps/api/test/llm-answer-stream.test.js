@@ -169,3 +169,28 @@ test("LlmService recovers readable answer text from malformed structured payload
   ]);
   assert.deepEqual(result.missingInformation, []);
 });
+
+test("LlmService extracts answer preview when structured payload is not valid JSON", () => {
+  const service = createLlmService({
+    answerPrompt: {
+      promptId: "answer.v2",
+      systemPrompt: "system prompt",
+      userPrompt: "user prompt",
+      fullPrompt: "system\n\nuser"
+    }
+  });
+
+  const result = service.parseStructuredAnswer({
+    rawAnswer:
+      '{"answer":"Codex App 更像一个给代理编程准备的桌面工作台。","citations":"grounded","citationEvidence":[{"source":1,"quote":"Codex App 更像一个给代理编程准备的桌面工作台"}],"missingInformation":[]',
+    modelName: "test-model",
+    promptId: "answer.v2",
+    usedFallback: false
+  });
+
+  assert.equal(result.answer, "Codex App 更像一个给代理编程准备的桌面工作台。");
+  assert.equal(result.answerStatus, undefined);
+  assert.deepEqual(result.citedChunkNumbers, []);
+  assert.deepEqual(result.citationEvidence, []);
+  assert.deepEqual(result.missingInformation, []);
+});
