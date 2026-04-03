@@ -14,7 +14,8 @@ test("resolveQueueRuntimeConfig defaults to bullmq", () => {
     enableDocumentIngestionWorker: true,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
-    databaseMaxAttempts: 3
+    databaseMaxAttempts: 3,
+    pgmqVisibilityTimeoutSeconds: 300
   });
 });
 
@@ -33,7 +34,25 @@ test("resolveQueueRuntimeConfig supports database provider", () => {
     enableDocumentIngestionWorker: false,
     databasePollIntervalMs: 250,
     databaseRetryDelayMs: 3000,
-    databaseMaxAttempts: 5
+    databaseMaxAttempts: 5,
+    pgmqVisibilityTimeoutSeconds: 300
+  });
+});
+
+test("resolveQueueRuntimeConfig supports pgmq provider", () => {
+  const config = resolveQueueRuntimeConfig({
+    QUEUE_PROVIDER: "pgmq",
+    QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS: "45"
+  });
+
+  assert.deepEqual(config, {
+    provider: "pgmq",
+    redisUrl: null,
+    enableDocumentIngestionWorker: true,
+    databasePollIntervalMs: 1000,
+    databaseRetryDelayMs: 5000,
+    databaseMaxAttempts: 3,
+    pgmqVisibilityTimeoutSeconds: 45
   });
 });
 

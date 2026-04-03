@@ -15,6 +15,8 @@ export class QueueService implements OnModuleDestroy {
 
   private readonly runtimeConfig;
 
+  private readonly ensuredPgmqQueues = new Set<string>();
+
   constructor(
     @Inject(QueueRuntimeConfigService) private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
     private readonly prisma: PrismaService
@@ -35,6 +37,10 @@ export class QueueService implements OnModuleDestroy {
   }
 
   addDocumentIngestionJob(documentId: string, documentVersion?: number) {
+    if (this.runtimeConfig.provider === "pgmq") {
+      return this.addPgmqDocumentIngestionJob(documentId, documentVersion);
+    }
+
     if (this.runtimeConfig.provider === "database") {
       return this.addDatabaseDocumentIngestionJob(documentId, documentVersion);
     }
@@ -112,6 +118,37 @@ export class QueueService implements OnModuleDestroy {
         ON CONFLICT ("queueName", "jobKey") DO NOTHING
       `
     );
+  }
+
+  private async addPgmqDocumentIngestionJob(documentId: string, documentVersion?: number) {
+    const queueName = getDocumentIngestionQueueName();
+    await this.ensurePgmqQueueExists(queueName);
+
+    await this.prisma.$executeRaw(
+      Prisma.sql`
+        SELECT pgmq.send(
+          ${queueName},
+          ${JSON.stringify({ documentId, documentVersion: documentVersion ?? null })}::jsonb,
+          ${JSON.stringify({ jobKey: this.buildDatabaseJobKey(documentId, documentVersion) })}::jsonb
+        )
+      `
+    );
+  }
+
+  async ensurePgmqQueueExists(queueName: string) {
+    if (this.ensuredPgmqQueues.has(queueName)) {
+      return;
+    }
+
+    const existingRows = await this.prisma.$queryRaw<Array<{ queue_name: string }>>(
+      Prisma.sql`SELECT queue_name FROM pgmq.list_queues() WHERE queue_name = ${queueName}`
+    );
+
+    if (existingRows.length === 0) {
+      await this.prisma.$executeRaw(Prisma.sql`SELECT pgmq.create(${queueName})`);
+    }
+
+    this.ensuredPgmqQueues.add(queueName);
   }
 
   private buildDatabaseJobKey(documentId: string, documentVersion?: number) {

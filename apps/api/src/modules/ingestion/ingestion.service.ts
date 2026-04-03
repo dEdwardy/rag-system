@@ -48,6 +48,11 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    if (runtimeConfig.provider === "pgmq") {
+      void this.startPgmqWorker();
+      return;
+    }
+
     this.worker = new Worker(
       getDocumentIngestionQueueName(),
       async (job: DocumentIngestionJob) => this.documentIngestionProcessor.processDocument(job),
@@ -70,6 +75,17 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     void this.pollDatabaseQueue();
   }
 
+  private async startPgmqWorker() {
+    this.logger.log("Starting pgmq-backed document ingestion worker.");
+    await this.queueService.ensurePgmqQueueExists(getDocumentIngestionQueueName());
+
+    this.databasePollTimer = setInterval(() => {
+      void this.pollPgmqQueue();
+    }, this.runtimeConfig.databasePollIntervalMs);
+
+    void this.pollPgmqQueue();
+  }
+
   private async pollDatabaseQueue() {
     if (this.databasePollInFlight) {
       return;
@@ -85,6 +101,27 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
         }
 
         await this.processDatabaseJob(job);
+      }
+    } finally {
+      this.databasePollInFlight = false;
+    }
+  }
+
+  private async pollPgmqQueue() {
+    if (this.databasePollInFlight) {
+      return;
+    }
+
+    this.databasePollInFlight = true;
+
+    try {
+      while (true) {
+        const job = await this.claimNextPgmqJob();
+        if (!job) {
+          break;
+        }
+
+        await this.processPgmqJob(job);
       }
     } finally {
       this.databasePollInFlight = false;
@@ -112,6 +149,28 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           "updatedAt" = NOW()
         WHERE "id" IN (SELECT "id" FROM next_job)
         RETURNING "id", "documentId", "documentVersion", "attempts", "maxAttempts"
+      `
+    );
+
+    return rows[0] ?? null;
+  }
+
+  private async claimNextPgmqJob() {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        msg_id: bigint | number;
+        read_ct: number;
+        message: { documentId?: string; documentVersion?: number | null } | null;
+      }>
+    >(
+      Prisma.sql`
+        SELECT msg_id, read_ct, message
+        FROM pgmq.read(
+          ${getDocumentIngestionQueueName()},
+          ${this.runtimeConfig.pgmqVisibilityTimeoutSeconds}::integer,
+          1::integer,
+          NULL::jsonb
+        )
       `
     );
 
@@ -167,6 +226,71 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           attemptsMade: job.attempts,
           opts: {
             attempts: job.maxAttempts
+          }
+        },
+        normalizedError
+      );
+    }
+  }
+
+  private async processPgmqJob(job: {
+    msg_id: bigint | number;
+    read_ct: number;
+    message: { documentId?: string; documentVersion?: number | null } | null;
+  }) {
+    const message = job.message ?? {};
+    const documentId = typeof message.documentId === "string" ? message.documentId : undefined;
+    const documentVersion = typeof message.documentVersion === "number" ? message.documentVersion : undefined;
+
+    if (!documentId) {
+      await this.prisma.$executeRaw(
+        Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
+      );
+      return;
+    }
+
+    try {
+      await this.documentIngestionProcessor.processDocument({
+        id: `pgmq-${String(job.msg_id)}`,
+        data: {
+          documentId,
+          documentVersion
+        }
+      });
+
+      await this.prisma.$executeRaw(
+        Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
+      );
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker error.");
+      const shouldRetry = job.read_ct < this.runtimeConfig.databaseMaxAttempts;
+
+      if (shouldRetry) {
+        await this.prisma.$executeRaw(
+          Prisma.sql`
+            SELECT pgmq.set_vt(
+              ${getDocumentIngestionQueueName()},
+              ${job.msg_id},
+              ${Math.max(1, Math.ceil(this.runtimeConfig.databaseRetryDelayMs / 1000))}::integer
+            )
+          `
+        );
+      } else {
+        await this.prisma.$executeRaw(
+          Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
+        );
+      }
+
+      await this.handleFailedJob(
+        {
+          id: `pgmq-${String(job.msg_id)}`,
+          data: {
+            documentId,
+            documentVersion
+          },
+          attemptsMade: job.read_ct,
+          opts: {
+            attempts: this.runtimeConfig.databaseMaxAttempts
           }
         },
         normalizedError

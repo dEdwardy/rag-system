@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 const IORedis = require("ioredis");
 
-export type QueueProvider = "bullmq" | "database";
+export type QueueProvider = "bullmq" | "database" | "pgmq";
 
 export type QueueRuntimeConfig = {
   provider: QueueProvider;
@@ -11,6 +11,7 @@ export type QueueRuntimeConfig = {
   databasePollIntervalMs: number;
   databaseRetryDelayMs: number;
   databaseMaxAttempts: number;
+  pgmqVisibilityTimeoutSeconds: number;
 };
 
 export const QUEUE_RUNTIME_CONFIG = Symbol("QUEUE_RUNTIME_CONFIG");
@@ -25,15 +26,20 @@ export class QueueRuntimeConfigError extends Error {
 export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env): QueueRuntimeConfig {
   const provider = (env.QUEUE_PROVIDER?.trim() || "bullmq") as QueueProvider;
 
-  if (provider !== "bullmq" && provider !== "database") {
+  if (provider !== "bullmq" && provider !== "database" && provider !== "pgmq") {
     throw new QueueRuntimeConfigError(
-      `Unsupported QUEUE_PROVIDER \"${env.QUEUE_PROVIDER}\". Expected \"bullmq\" or \"database\".`
+      `Unsupported QUEUE_PROVIDER \"${env.QUEUE_PROVIDER}\". Expected \"bullmq\", \"database\", or \"pgmq\".`
     );
   }
 
   const databasePollIntervalMs = parsePositiveInteger(env.QUEUE_DATABASE_POLL_INTERVAL_MS, 1000, "QUEUE_DATABASE_POLL_INTERVAL_MS");
   const databaseRetryDelayMs = parsePositiveInteger(env.QUEUE_DATABASE_RETRY_DELAY_MS, 5000, "QUEUE_DATABASE_RETRY_DELAY_MS");
   const databaseMaxAttempts = parsePositiveInteger(env.QUEUE_DATABASE_MAX_ATTEMPTS, 3, "QUEUE_DATABASE_MAX_ATTEMPTS");
+  const pgmqVisibilityTimeoutSeconds = parsePositiveInteger(
+    env.QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS,
+    300,
+    "QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS"
+  );
 
   return {
     provider,
@@ -41,7 +47,8 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
     enableDocumentIngestionWorker: env.DOCUMENT_INGESTION_WORKER_ENABLED !== "false",
     databasePollIntervalMs,
     databaseRetryDelayMs,
-    databaseMaxAttempts
+    databaseMaxAttempts,
+    pgmqVisibilityTimeoutSeconds
   };
 }
 

@@ -18,7 +18,8 @@ test("QueueService deduplicates duplicate ingestion enqueue for the same documen
     enableDocumentIngestionWorker: false,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
-    databaseMaxAttempts: 3
+    databaseMaxAttempts: 3,
+    pgmqVisibilityTimeoutSeconds: 300
   });
 
   const queueService = new QueueService(queueRuntimeConfigService, {

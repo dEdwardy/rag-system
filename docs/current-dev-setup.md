@@ -52,10 +52,11 @@ Current local Redis connection values:
 - password: none
 - URL: `redis://localhost:6379`
 
-Queue runtime can now run in two modes:
+Queue runtime can now run in three modes:
 
 - `QUEUE_PROVIDER=bullmq` (default): existing Redis/BullMQ-backed queue
 - `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue, which avoids requiring a local Redis service
+- `QUEUE_PROVIDER=pgmq`: Supabase Queues / `pgmq`-backed ingestion queue without Redis
 
 Database queue runtime settings:
 
@@ -69,6 +70,21 @@ QUEUE_DATABASE_MAX_ATTEMPTS=3
 - when `QUEUE_PROVIDER=database`, `REDIS_URL` is not used for document ingestion
 - the database queue stores durable ingestion jobs in `IngestionQueueJob`
 - retries are handled by the API worker poll loop using the configured delay/max-attempt settings above
+
+Supabase Queues / `pgmq` runtime settings:
+
+```text
+QUEUE_PROVIDER=pgmq
+QUEUE_DATABASE_POLL_INTERVAL_MS=1000
+QUEUE_DATABASE_RETRY_DELAY_MS=5000
+QUEUE_DATABASE_MAX_ATTEMPTS=3
+QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS=300
+```
+
+- when `QUEUE_PROVIDER=pgmq`, `REDIS_URL` is not used for document ingestion
+- `pgmq` requires the `pgmq` extension to exist on the target database; apply the approved migration rollout before switching runtime traffic
+- the API ensures the configured ingestion queue exists at runtime using the current `QUEUE_PREFIX`
+- message retry delay still uses `QUEUE_DATABASE_RETRY_DELAY_MS`, while `QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS` controls how long an in-flight message stays invisible before it can be delivered again
 
 Apply migrations:
 
@@ -121,6 +137,7 @@ This expects the local PostgreSQL stack to be running.
 
 - when `QUEUE_PROVIDER=bullmq`, Redis must also be running
 - when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL and Redis is not required for document ingestion
+- when `QUEUE_PROVIDER=pgmq`, the ingestion queue runs through the Supabase `pgmq` extension and Redis is not required for document ingestion
 
 Health check:
 
