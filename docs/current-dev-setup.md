@@ -52,6 +52,24 @@ Current local Redis connection values:
 - password: none
 - URL: `redis://localhost:6379`
 
+Queue runtime can now run in two modes:
+
+- `QUEUE_PROVIDER=bullmq` (default): existing Redis/BullMQ-backed queue
+- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue, which avoids requiring a local Redis service
+
+Database queue runtime settings:
+
+```text
+QUEUE_PROVIDER=database
+QUEUE_DATABASE_POLL_INTERVAL_MS=1000
+QUEUE_DATABASE_RETRY_DELAY_MS=5000
+QUEUE_DATABASE_MAX_ATTEMPTS=3
+```
+
+- when `QUEUE_PROVIDER=database`, `REDIS_URL` is not used for document ingestion
+- the database queue stores durable ingestion jobs in `IngestionQueueJob`
+- retries are handled by the API worker poll loop using the configured delay/max-attempt settings above
+
 Apply migrations:
 
 ```bash
@@ -99,7 +117,10 @@ For stable local API startup in the current Windows/WSL-compatible path:
 pnpm --filter @rag-system/api start:dev
 ```
 
-This expects the local PostgreSQL and Redis stack to be running.
+This expects the local PostgreSQL stack to be running.
+
+- when `QUEUE_PROVIDER=bullmq`, Redis must also be running
+- when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL and Redis is not required for document ingestion
 
 Health check:
 

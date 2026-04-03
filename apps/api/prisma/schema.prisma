@@ -306,6 +306,27 @@ model ChunkEmbedding {
   @@index([kbId, modelName, dimensions])
 }
 
+model IngestionQueueJob {
+  id              String   @id
+  queueName       String
+  jobKey          String
+  documentId      String
+  documentVersion Int?
+  status          String   @default("pending")
+  attempts        Int      @default(0)
+  maxAttempts     Int      @default(3)
+  availableAt     DateTime @default(now())
+  lockedAt        DateTime?
+  lastError       String?
+  payloadJson     Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([queueName, jobKey])
+  @@index([queueName, status, availableAt])
+  @@index([documentId])
+}
+
 model RetrievalProfile {
   id             String      @id @default(cuid())
   tenantId       String

@@ -13,11 +13,17 @@ test("QueueService deduplicates duplicate ingestion enqueue for the same documen
   process.env.QUEUE_PREFIX = queuePrefix;
 
   const queueRuntimeConfigService = new QueueRuntimeConfigService({
+    provider: "bullmq",
     redisUrl: process.env.REDIS_URL?.trim() || "redis://localhost:6379",
-    enableDocumentIngestionWorker: false
+    enableDocumentIngestionWorker: false,
+    databasePollIntervalMs: 1000,
+    databaseRetryDelayMs: 5000,
+    databaseMaxAttempts: 3
   });
 
-  const queueService = new QueueService(queueRuntimeConfigService);
+  const queueService = new QueueService(queueRuntimeConfigService, {
+    $executeRaw: async () => 1
+  });
   const inspectionConnection = queueRuntimeConfigService.createRedisConnection();
   const inspectionQueue = new Queue(getDocumentIngestionQueueName(), {
     connection: inspectionConnection

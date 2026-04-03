@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { DocumentProcessingStage, DocumentRunFailedStage, DocumentStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { getDocumentIngestionQueueName } from "../../infra/queue/queue.constants";
@@ -14,7 +15,10 @@ const { Worker } = require("bullmq");
 export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IngestionService.name);
   private readonly connection;
+  private readonly runtimeConfig;
   private worker?: any;
+  private databasePollTimer?: NodeJS.Timeout;
+  private databasePollInFlight = false;
 
   constructor(
     @Inject(QueueService) private readonly queueService: QueueService,
@@ -23,7 +27,8 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly documentRunsService: DocumentRunsService
   ) {
-    this.connection = this.queueRuntimeConfigService.createRedisConnection();
+    this.runtimeConfig = this.queueRuntimeConfigService.getConfig();
+    this.connection = this.runtimeConfig.provider === "bullmq" ? this.queueRuntimeConfigService.createRedisConnection() : null;
   }
 
   enqueueDocument(documentId: string, documentVersion?: number) {
@@ -31,8 +36,15 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    if (!this.queueRuntimeConfigService.getConfig().enableDocumentIngestionWorker) {
+    const runtimeConfig = this.runtimeConfig ?? this.queueRuntimeConfigService.getConfig();
+
+    if (!runtimeConfig.enableDocumentIngestionWorker) {
       this.logger.log("Document ingestion worker startup disabled by runtime config.");
+      return;
+    }
+
+    if (runtimeConfig.provider === "database") {
+      this.startDatabaseWorker();
       return;
     }
 
@@ -47,6 +59,119 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.worker.on("failed", (job: { id?: string; data?: DocumentIngestionJob["data"]; attemptsMade?: number; opts?: { attempts?: number } } | undefined, error: Error) => {
       void this.handleFailedJob(job, error);
     });
+  }
+
+  private startDatabaseWorker() {
+    this.logger.log("Starting database-backed document ingestion worker.");
+    this.databasePollTimer = setInterval(() => {
+      void this.pollDatabaseQueue();
+    }, this.runtimeConfig.databasePollIntervalMs);
+
+    void this.pollDatabaseQueue();
+  }
+
+  private async pollDatabaseQueue() {
+    if (this.databasePollInFlight) {
+      return;
+    }
+
+    this.databasePollInFlight = true;
+
+    try {
+      while (true) {
+        const job = await this.claimNextDatabaseJob();
+        if (!job) {
+          break;
+        }
+
+        await this.processDatabaseJob(job);
+      }
+    } finally {
+      this.databasePollInFlight = false;
+    }
+  }
+
+  private async claimNextDatabaseJob() {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }>>(
+      Prisma.sql`
+        WITH next_job AS (
+          SELECT "id"
+          FROM "IngestionQueueJob"
+          WHERE "queueName" = ${getDocumentIngestionQueueName()}
+            AND "status" = 'pending'
+            AND "availableAt" <= NOW()
+          ORDER BY "availableAt" ASC, "createdAt" ASC
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE "IngestionQueueJob"
+        SET
+          "status" = 'processing',
+          "lockedAt" = NOW(),
+          "attempts" = "attempts" + 1,
+          "updatedAt" = NOW()
+        WHERE "id" IN (SELECT "id" FROM next_job)
+        RETURNING "id", "documentId", "documentVersion", "attempts", "maxAttempts"
+      `
+    );
+
+    return rows[0] ?? null;
+  }
+
+  private async processDatabaseJob(job: { id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }) {
+    try {
+      await this.documentIngestionProcessor.processDocument({
+        id: job.id,
+        data: {
+          documentId: job.documentId,
+          documentVersion: job.documentVersion ?? undefined
+        }
+      });
+
+      await this.prisma.$executeRaw(
+        Prisma.sql`
+          UPDATE "IngestionQueueJob"
+          SET
+            "status" = 'completed',
+            "lockedAt" = NULL,
+            "lastError" = NULL,
+            "updatedAt" = NOW()
+          WHERE "id" = ${job.id}
+        `
+      );
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker error.");
+      const shouldRetry = job.attempts < job.maxAttempts;
+      const nextAvailableAt = new Date(Date.now() + this.runtimeConfig.databaseRetryDelayMs);
+
+      await this.prisma.$executeRaw(
+        Prisma.sql`
+          UPDATE "IngestionQueueJob"
+          SET
+            "status" = ${shouldRetry ? "pending" : "failed"},
+            "availableAt" = ${shouldRetry ? nextAvailableAt : new Date()},
+            "lockedAt" = NULL,
+            "lastError" = ${normalizedError.message},
+            "updatedAt" = NOW()
+          WHERE "id" = ${job.id}
+        `
+      );
+
+      await this.handleFailedJob(
+        {
+          id: job.id,
+          data: {
+            documentId: job.documentId,
+            documentVersion: job.documentVersion ?? undefined
+          },
+          attemptsMade: job.attempts,
+          opts: {
+            attempts: job.maxAttempts
+          }
+        },
+        normalizedError
+      );
+    }
   }
 
   private async handleFailedJob(
@@ -136,7 +261,12 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    if (this.databasePollTimer) {
+      clearInterval(this.databasePollTimer);
+      this.databasePollTimer = undefined;
+    }
+
     await this.worker?.close();
-    await this.connection.quit();
+    await this.connection?.quit();
   }
 }
