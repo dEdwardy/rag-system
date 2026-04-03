@@ -1,8 +1,10 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { GlobalHttpExceptionFilter } from "./common/http-exception.filter";
+import { validateCriticalRuntimeEnv } from "./infra/env/critical-env";
 
 async function bootstrap() {
+  validateCriticalRuntimeEnv(process.env);
   const app = await NestFactory.create(AppModule);
   const corsOptions = buildCorsOptions();
   if (corsOptions !== null) {
