@@ -1,13 +1,20 @@
 import { Module } from "@nestjs/common";
+import { PgVectorStoreService } from "./pg-vector-store.service";
+import { resolveVectorStoreRuntimeConfig } from "./vector-store-runtime-config";
 import { VectorStoreService } from "./vector-store.service";
 import { VECTOR_STORE } from "./vector-store.types";
 
 @Module({
   providers: [
     VectorStoreService,
+    PgVectorStoreService,
     {
       provide: VECTOR_STORE,
-      useExisting: VectorStoreService
+      useFactory: (filesystemVectorStore: VectorStoreService, pgVectorStore: PgVectorStoreService) => {
+        const runtimeConfig = resolveVectorStoreRuntimeConfig();
+        return runtimeConfig.provider === "pgvector" ? pgVectorStore : filesystemVectorStore;
+      },
+      inject: [VectorStoreService, PgVectorStoreService]
     }
   ],
   exports: [VECTOR_STORE]

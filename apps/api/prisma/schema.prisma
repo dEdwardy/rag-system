@@ -286,6 +286,26 @@ model DocumentChunk {
   @@index([kbId])
 }
 
+model ChunkEmbedding {
+  id           String                    @id
+  kbId         String
+  documentId   String
+  chunkId      String
+  chunkIndex   Int
+  sectionTitle String?
+  pageNo       Int?
+  content      String
+  modelName    String
+  dimensions   Int
+  metadataJson Json?
+  embedding    Unsupported("vector(768)")
+  updatedAt    DateTime
+
+  @@index([kbId])
+  @@index([documentId])
+  @@index([kbId, modelName, dimensions])
+}
+
 model RetrievalProfile {
   id             String      @id @default(cuid())
   tenantId       String
