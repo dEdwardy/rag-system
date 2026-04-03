@@ -1242,8 +1242,8 @@ Boundary note for contributors (implementation decision aid):
 - **Replaceable layers:** LLM/embedding providers, vector backend, chunking/parsing implementation, external source adapters, and eval/diagnostic tooling.
 - If a change only swaps a replaceable layer, keep it additive and behavior-preserving for core contracts (`ask` payload shape, `traceSummary` readability/semantics, fallback outcomes).
 
-- Local file storage
-- Redis-backed document ingestion queue
+- Supabase-first object storage runtime, with explicit local fallback only for tests/debug (`STORAGE_PROVIDER=local` or explicit `STORAGE_ROOT`)
+- Database-backed document ingestion queue (`QUEUE_PROVIDER=database` / `QUEUE_PROVIDER=pgmq`)
 - Basic parsing for `.md` / `.txt` / `.docx` / text-based `.pdf`
 - Multi-chunk splitting with heading-aware grouping and oversized-paragraph splitting
 - Ollama/OpenAI embedding generation with local fallback
