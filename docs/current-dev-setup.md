@@ -1200,11 +1200,11 @@ pnpm test:api
 
 The following path has been validated locally on `2026-03-21`:
 
-1. Start PostgreSQL and Redis with Docker.
+1. Start PostgreSQL with Docker.
 2. Start API with `pnpm --filter @rag-system/api start:prod`.
 3. Upload a markdown, DOCX, or PDF document to `default-kb`.
 4. Wait for the document to reach `ready`.
-5. Confirm vectors are written to `storage/vectors/default-kb.json`.
+5. Confirm the uploaded document has generated chunks in the document detail view.
 6. Ask `default-assistant` a question and confirm:
    - answer is returned
    - `answerStatus` is `grounded` or `insufficient_context`
