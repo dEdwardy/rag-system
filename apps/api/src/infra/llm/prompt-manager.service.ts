@@ -23,6 +23,7 @@ export class PromptManagerService {
 
 Answering rules:
 - Use only the provided retrieved sources.
+- If one or more retrieved sources explicitly answer the question, answer directly from them instead of saying the context is insufficient.
 - When a statement is supported by a source, append source markers like [1] or [1][2].
 - Do not cite sources that were not provided.
 - If the retrieved sources are insufficient, say so clearly.
@@ -59,6 +60,7 @@ Rules:
 - "citationEvidence" must be an array of objects with "source" and "quote".
 - Each "quote" must be copied verbatim from the cited retrieved source.
 - Use an empty array when there are no supported citations.
+- When one or more retrieved sources explicitly answer the question, return "grounded" and answer from those sources.
 - Use "grounded" only when the answer is supported by the provided sources.
 - Use "insufficient_context" when the sources do not support a reliable answer.
 - Use an empty "citationEvidence" array when no direct quote can be provided.

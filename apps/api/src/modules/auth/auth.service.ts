@@ -517,7 +517,8 @@ export class AuthService {
         kbId: knowledgeBase.id,
         name: "Default Assistant",
         description: "Default assistant created for OAuth login.",
-        systemPrompt: "Answer using the retrieved knowledge base content and cite the source snippets.",
+        systemPrompt:
+          "Answer only from the retrieved knowledge base content. If the retrieved sources explicitly contain the answer, answer directly and cite the supporting snippets. Only say the information is insufficient when the retrieved sources still do not support a reliable answer.",
         retrievalProfileId: retrievalProfile.id,
         status: "active"
       },
