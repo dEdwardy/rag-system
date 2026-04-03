@@ -5,6 +5,7 @@ const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
 const test = require("node:test");
 
+const { LocalStorageProviderService } = require("../src/infra/storage/storage-provider.service.ts");
 const { resolveStorageRoot } = require("../src/infra/storage/storage-root.ts");
 const { StorageService } = require("../src/infra/storage/storage.service.ts");
 const { VectorStoreService } = require("../src/infra/vector-store/vector-store.service.ts");
@@ -43,7 +44,7 @@ test("storage-backed services share the same repo-root-relative storage root beh
   process.chdir(apiRoot);
   try {
     process.env.STORAGE_ROOT = sandboxStorageRoot;
-    const storageService = new StorageService();
+    const storageService = new StorageService(new LocalStorageProviderService());
     const vectorStoreService = new VectorStoreService();
     const storedFile = await storageService.saveGeneratedTextFile({ content: "repo-root-stable" });
 

@@ -44,3 +44,5 @@ postgresql://postgres:postgres@localhost:5432/rag_system
 ```
 
 Redis is no longer part of the default local infra baseline. Queue runtime now defaults to Supabase `pgmq`, with PostgreSQL-backed queue fallback available when needed.
+
+Storage runtime is also Supabase-first now: normal development should configure `STORAGE_PROVIDER=supabase` plus the required `SUPABASE_*` storage variables, while local filesystem storage is kept only as an explicit test/debug fallback via `STORAGE_PROVIDER=local` or `STORAGE_ROOT`.

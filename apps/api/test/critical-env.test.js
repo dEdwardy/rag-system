@@ -19,8 +19,27 @@ test("validateCriticalRuntimeEnv accepts current Supabase pgvector pgmq shape", 
   assert.equal(env.VECTOR_STORE_PROVIDER, "pgvector");
 });
 
+test("validateCriticalRuntimeEnv accepts explicit local storage fallback for test-debug use", () => {
+  const env = validateCriticalRuntimeEnv({
+    DATABASE_URL: "postgresql://user:pass@localhost:5432/db",
+    STORAGE_PROVIDER: "local"
+  });
+
+  assert.equal(env.STORAGE_PROVIDER, "local");
+});
+
 test("validateCriticalRuntimeEnv rejects missing database url", () => {
   assert.throws(() => validateCriticalRuntimeEnv({}), /DATABASE_URL is required/);
+});
+
+test("validateCriticalRuntimeEnv rejects missing storage runtime selection", () => {
+  assert.throws(
+    () =>
+      validateCriticalRuntimeEnv({
+        DATABASE_URL: "postgresql://user:pass@localhost:5432/db"
+      }),
+    /Configure Supabase storage env for normal runtime/
+  );
 });
 
 test("validateCriticalRuntimeEnv rejects partial Supabase storage config", () => {

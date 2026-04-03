@@ -206,6 +206,7 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
 - storage runtime now also supports:
 
 ```text
+STORAGE_PROVIDER=supabase
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_STORAGE_BUCKET_UPLOADS=uploads
@@ -219,8 +220,8 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
   - when unset, the default remains the repo-local `storage/` directory
   - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
   - when set to an absolute path, the absolute path wins as before
-- the default runtime expectation is now Supabase Storage; keep all `SUPABASE_*` storage variables configured in normal development and shared environments
-- local filesystem storage remains only as a temporary fallback for tests / narrow local debugging and should not be treated as the main deployment path
+- the normal runtime path is now explicit Supabase Storage: keep `STORAGE_PROVIDER=supabase` plus all `SUPABASE_*` storage variables configured in normal development and shared environments
+- local filesystem storage no longer activates as a silent default; keep it only as a temporary fallback for tests / narrow local debugging via `STORAGE_PROVIDER=local` or an explicit `STORAGE_ROOT`
 - the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between local and Supabase storage
 - `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
 - vector storage still defaults to the local filesystem; set `VECTOR_STORE_PROVIDER=pgvector` to switch vector persistence/search to PostgreSQL `pgvector`

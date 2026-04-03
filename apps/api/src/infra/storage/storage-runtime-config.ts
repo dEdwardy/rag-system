@@ -25,18 +25,27 @@ export class StorageRuntimeConfigError extends Error {
 }
 
 export function resolveStorageRuntimeConfig(env: NodeJS.ProcessEnv = process.env): StorageRuntimeConfig {
+  const storageProvider = readTrimmedEnv(env, "STORAGE_PROVIDER");
+  const storageRoot = readTrimmedEnv(env, "STORAGE_ROOT");
   const supabaseUrl = readTrimmedEnv(env, "SUPABASE_URL");
   const serviceRoleKey = readTrimmedEnv(env, "SUPABASE_SERVICE_ROLE_KEY");
   const uploadsBucket = readTrimmedEnv(env, "SUPABASE_STORAGE_BUCKET_UPLOADS");
   const generatedBucket = readTrimmedEnv(env, "SUPABASE_STORAGE_BUCKET_GENERATED");
 
   const hasSupabaseConfig = [supabaseUrl, serviceRoleKey, uploadsBucket, generatedBucket].some(value => value !== null);
+  const useLocalFallback = storageProvider === "local" || Boolean(storageRoot);
 
-  if (!hasSupabaseConfig) {
+  if (useLocalFallback) {
     return {
       provider: "local",
       storageRoot: resolveStorageRoot({ env })
     };
+  }
+
+  if (!hasSupabaseConfig) {
+    throw new StorageRuntimeConfigError(
+      "Storage runtime requires Supabase storage config. For temporary local test/debug fallback, set STORAGE_PROVIDER=local or STORAGE_ROOT."
+    );
   }
 
   if (!supabaseUrl || !serviceRoleKey || !uploadsBucket || !generatedBucket) {

@@ -11,6 +11,8 @@ const trimmedOptionalString = z
 const criticalEnvSchema = z
   .object({
     DATABASE_URL: trimmedOptionalString,
+    STORAGE_PROVIDER: z.enum(["local", "supabase"]).optional(),
+    STORAGE_ROOT: trimmedOptionalString,
     SUPABASE_URL: trimmedOptionalString,
     SUPABASE_SERVICE_ROLE_KEY: trimmedOptionalString,
     SUPABASE_STORAGE_BUCKET_UPLOADS: trimmedOptionalString,
@@ -40,7 +42,19 @@ const criticalEnvSchema = z
     ] as const;
 
     const hasAnySupabaseStorageField = supabaseStorageFields.some(([, value]) => value !== undefined);
-    if (hasAnySupabaseStorageField) {
+    const hasLocalStorageFallback = env.STORAGE_PROVIDER === "local" || Boolean(env.STORAGE_ROOT);
+    const requiresSupabaseStorage = env.STORAGE_PROVIDER === "supabase" || (!hasLocalStorageFallback && hasAnySupabaseStorageField);
+
+    if (!hasLocalStorageFallback && !hasAnySupabaseStorageField) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["STORAGE_PROVIDER"],
+        message:
+          "Configure Supabase storage env for normal runtime, or set STORAGE_PROVIDER=local / STORAGE_ROOT only for temporary local test-debug fallback."
+      });
+    }
+
+    if (requiresSupabaseStorage) {
       for (const [key, value] of supabaseStorageFields) {
         if (!value) {
           ctx.addIssue({
