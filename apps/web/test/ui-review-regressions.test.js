@@ -1,7 +1,10 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
-const { resolve } = require("node:path");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const appShellPath = resolve(__dirname, "../src/app/AppShell.tsx");
 const chatPagePath = resolve(__dirname, "../src/pages/chat/ChatPage.tsx");
@@ -361,6 +364,7 @@ test("usage page keeps one explicit P6 pre-run guidance state when run history i
 
 test("report center keeps run inputs in query params for carry-through reruns", () => {
   const reportCenterSource = readFileSync(reportCenterPath, "utf8");
+  const reportHelpersSource = readFileSync(reportCenterHelpersPath, "utf8");
 
   assert.match(reportCenterSource, /useSearchParams/);
   assert.match(reportCenterSource, /readEvalRunParamsFromSearchParams/);
@@ -369,9 +373,9 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
   assert.match(reportCenterSource, /mergeSearchParamsWithEvalRunParams/);
   assert.match(reportCenterSource, /buildEvalRunCarryThroughPreview/);
-  assert.match(reportCenterSource, /const EVAL_RUN_SEARCH_PARAM_KEYS = \["questionSetId", "assistantId", "baselineSnapshotId"\] as const/);
-  assert.match(reportCenterSource, /nextSearchParams\.delete\(key\)/);
-  assert.match(reportCenterSource, /for \(const \[key, value\] of createEvalRunSearchParams\(evalRunParams\)\.entries\(\)\)/);
+  assert.match(reportHelpersSource, /const EVAL_RUN_SEARCH_PARAM_KEYS = \["questionSetId", "assistantId", "baselineSnapshotId"\] as const/);
+  assert.match(reportHelpersSource, /nextSearchParams\.delete\(key\)/);
+  assert.match(reportHelpersSource, /for \(const \[key, value\] of createEvalRunSearchParams\(evalRunParams\)\.entries\(\)\)/);
   assert.match(reportCenterSource, /const nextSearchParams = mergeSearchParamsWithEvalRunParams\(searchParams, evalRunParams\);/);
   assert.match(reportCenterSource, /const nextSearchParams = mergeSearchParamsWithEvalRunParams\(searchParams, normalizedParams\);/);
   assert.match(reportCenterSource, /setSearchParams\(nextSearchParams, \{ replace: true \}\)/);

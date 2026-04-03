@@ -1,13 +1,16 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
-const { existsSync } = require("node:fs");
-const { mkdtemp, readFile, rm } = require("node:fs/promises");
-const { createServer } = require("node:http");
-const { join, resolve } = require("node:path");
-const { tmpdir } = require("node:os");
-const { setTimeout: delay } = require("node:timers/promises");
-const { chromium } = require("playwright");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const repoRoot = resolve(__dirname, "../../..");
 const apiBaseUrl = "http://127.0.0.1:3000";
