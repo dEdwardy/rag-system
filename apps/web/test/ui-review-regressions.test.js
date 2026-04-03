@@ -231,13 +231,24 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   const traceSource = readFileSync(traceDetailPath, "utf8");
   const statePanelSource = readFileSync(resolve(__dirname, "../src/components/StatePanel.tsx"), "utf8");
   const workspaceSelectionSource = readFileSync(workspaceSelectionPath, "utf8");
+  const messagesSource = readFileSync(messagesPath, "utf8");
 
   assert.match(chatSource, /workspace-chat-summary/);
   assert.match(chatSource, /getPrimaryKnowledgeBase/);
   assert.match(chatSource, /getPrimaryAssistantForKnowledgeBase/);
   assert.match(chatSource, /resolveWorkspaceStatus\(/);
+  assert.match(chatSource, /currentKnowledgeBase/);
+  assert.match(chatSource, /currentAssistant/);
+  assert.match(chatSource, /noAssistantForKnowledgeBaseTitle/);
+  assert.match(chatSource, /to="\/assistant"/);
   assert.match(chatSource, /readyToAsk:\s*t\("chat\.copy\.readyToAsk"\)/);
   assert.match(workspaceSelectionSource, /return assistants\?\.find\(assistant => assistant\.kbId === knowledgeBaseId\) \?\? null/);
+  assert.match(messagesSource, /currentKnowledgeBase: "Current KB"/);
+  assert.match(messagesSource, /currentAssistant: "Current assistant"/);
+  assert.match(messagesSource, /noAssistantForKnowledgeBaseTitle: "No assistant bound to the current KB"/);
+  assert.match(messagesSource, /currentKnowledgeBase: "当前知识库"/);
+  assert.match(messagesSource, /currentAssistant: "当前助手"/);
+  assert.match(messagesSource, /noAssistantForKnowledgeBaseTitle: "当前知识库还没有绑定助手"/);
   assert.ok(
     traceSource.indexOf('Execution summary') < traceSource.indexOf('Request / response / steps'),
     'Trace Detail should scan execution summary before request / response / steps'

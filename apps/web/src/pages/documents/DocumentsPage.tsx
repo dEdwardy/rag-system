@@ -460,15 +460,18 @@ export function DocumentsPage() {
             </div>
           </Group>
 
-            <Stack align="flex-end" gap={10}>
-              <Text className="workspace-hero-sidecopy" ta="right">
-                {locale === "zh"
-                  ? "上传、状态查看、详情跳转和重建索引仍然保留在同一工作台，只把首屏层级和密度收紧。"
-                  : "Keep upload, status review, detail navigation, and reindex in one tighter workspace surface."}
-              </Text>
-              <FileButton onChange={handleUploadFile}>
-                {props => (
-                  <Button
+              <Stack align="flex-end" gap={10}>
+                <Text className="workspace-hero-sidecopy" ta="right">
+                  {activeKnowledgeBase
+                    ? t("documents.currentKnowledgeBaseHintHasKb")
+                    : t("documents.currentKnowledgeBaseHintNoKb")}
+                </Text>
+                <Badge color="gray" radius="sm" variant="light">
+                  {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}`}
+                </Badge>
+                <FileButton onChange={handleUploadFile}>
+                  {props => (
+                    <Button
                     {...props}
                     className="workspace-button"
                     color="indigo"

@@ -96,15 +96,21 @@ function resolveStreamStatusLabel(
 
 function resolveWorkspaceStatus(input: {
   copy: {
+    noActiveKnowledgeBase: string;
     assistantUnavailable: string;
     inProgress: string;
     readyToAsk: string;
   };
+  hasKnowledgeBase: boolean;
   hasAssistant: boolean;
   hasActiveStreamTurn: boolean;
   streamStatusLabel: string | null;
 }): string {
-  const { copy, hasAssistant, hasActiveStreamTurn, streamStatusLabel } = input;
+  const { copy, hasKnowledgeBase, hasAssistant, hasActiveStreamTurn, streamStatusLabel } = input;
+
+  if (!hasKnowledgeBase) {
+    return copy.noActiveKnowledgeBase;
+  }
 
   if (!hasAssistant) {
     return copy.assistantUnavailable;
@@ -216,10 +222,19 @@ export function ChatPage() {
       heroSubtitle: t("chat.copy.heroSubtitle"),
       moreActionsHint: t("chat.copy.moreActionsHint"),
       moreActions: t("chat.copy.moreActions"),
+      currentKnowledgeBase: t("chat.copy.currentKnowledgeBase"),
+      currentKnowledgeBaseHintHasKb: t("chat.copy.currentKnowledgeBaseHintHasKb"),
+      currentKnowledgeBaseHintNoKb: t("chat.copy.currentKnowledgeBaseHintNoKb"),
+      currentAssistant: t("chat.copy.currentAssistant"),
+      currentAssistantHintHasAssistant: t("chat.copy.currentAssistantHintHasAssistant"),
+      currentAssistantHintNoAssistant: t("chat.copy.currentAssistantHintNoAssistant"),
       currentWorkspaceHintHasConversation: t("chat.copy.currentWorkspaceHintHasConversation"),
       currentWorkspaceHintNewConversation: t("chat.copy.currentWorkspaceHintNewConversation"),
       currentWorkspace: t("chat.copy.currentWorkspace"),
       newConversationDraft: t("chat.copy.newConversationDraft"),
+      noActiveKnowledgeBase: t("chat.copy.noActiveKnowledgeBase"),
+      noKnowledgeBaseName: t("chat.copy.noKnowledgeBaseName"),
+      noAssistantName: t("chat.copy.noAssistantName"),
       askStatusHintHasAssistant: t("chat.copy.askStatusHintHasAssistant"),
       askStatusHintNoAssistant: t("chat.copy.askStatusHintNoAssistant"),
       askStatus: t("chat.copy.askStatus"),
@@ -242,7 +257,9 @@ export function ChatPage() {
       generatingAnswer: t("chat.copy.generatingAnswer"),
       assistantUnavailable: t("chat.copy.assistantUnavailable"),
       inProgress: t("chat.copy.inProgress"),
-      readyToAsk: t("chat.copy.readyToAsk")
+      readyToAsk: t("chat.copy.readyToAsk"),
+      noActiveKnowledgeBaseAction: t("chat.states.noActiveKnowledgeBaseAction"),
+      noAssistantForKnowledgeBaseAction: t("chat.states.noAssistantForKnowledgeBaseAction")
     }),
     [t]
   );
@@ -297,6 +314,7 @@ export function ChatPage() {
   const documentCount = documentsQuery.data?.length ?? 0;
   const workspaceStatus = resolveWorkspaceStatus({
     copy: chatCopy,
+    hasKnowledgeBase: activeKnowledgeBase != null,
     hasAssistant: activeAssistant != null,
     hasActiveStreamTurn: activeStreamTurn != null,
     streamStatusLabel
@@ -443,7 +461,25 @@ export function ChatPage() {
               documentCount={documentCount}
             />
 
-            <div className="workspace-chat-summary grid gap-3 md:grid-cols-3">
+            <div className="workspace-chat-summary grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <SummaryCard
+                hint={
+                  activeKnowledgeBase
+                    ? chatCopy.currentKnowledgeBaseHintHasKb
+                    : chatCopy.currentKnowledgeBaseHintNoKb
+                }
+                label={chatCopy.currentKnowledgeBase}
+                value={activeKnowledgeBase?.name ?? chatCopy.noKnowledgeBaseName}
+              />
+              <SummaryCard
+                hint={
+                  activeAssistant
+                    ? chatCopy.currentAssistantHintHasAssistant
+                    : chatCopy.currentAssistantHintNoAssistant
+                }
+                label={chatCopy.currentAssistant}
+                value={activeAssistant?.name ?? chatCopy.noAssistantName}
+              />
               <SummaryCard
                 hint={
                   activeConversation
@@ -480,7 +516,35 @@ export function ChatPage() {
               />
             </div>
 
-            {activeConversationId == null && activeStreamTurn == null ? (
+            {activeKnowledgeBase == null ? (
+              <StatePanel
+                action={
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
+                    to="/knowledge-base"
+                  >
+                    {chatCopy.noActiveKnowledgeBaseAction}
+                  </Link>
+                }
+                description={t("chat.states.noActiveKnowledgeBaseDescription")}
+                title={t("chat.states.noActiveKnowledgeBaseTitle")}
+              />
+            ) : activeAssistant == null ? (
+              <StatePanel
+                action={
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
+                    to="/assistant"
+                  >
+                    {chatCopy.noAssistantForKnowledgeBaseAction}
+                  </Link>
+                }
+                description={t("chat.states.noAssistantForKnowledgeBaseDescription", {
+                  knowledgeBaseName: activeKnowledgeBase.name
+                })}
+                title={t("chat.states.noAssistantForKnowledgeBaseTitle")}
+              />
+            ) : activeConversationId == null && activeStreamTurn == null ? (
               <StatePanel
                 description={t("chat.states.noActiveConversationDescription")}
                 title={t("chat.states.noActiveConversationTitle")}

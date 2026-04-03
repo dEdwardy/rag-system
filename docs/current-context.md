@@ -24,6 +24,7 @@
 - Report Center 的 result readout 补齐了 summary-before-details 顺序：结果区先给出 current inputs / summary / diff / weakest-item / next action 的一屏速读，再进入图表与明细。
 - Report Center 的 regression follow-up 文案进一步收紧：回归原因标签优先使用可读产品语言，next action 明确指向现有的 Run diff summary 与 Regression weakest items 路径，不新增详情页。
 - 当前产品交互临时收敛为 `single primary KB`：前端默认围绕首个知识库工作，`Chat` / `Documents` / `Assistant` 先按同一 KB 对齐，避免上传在一个 KB、提问却落到另一个 assistant 绑定 KB 的错位体验。
+- `Chat` 首屏已进一步显式展示当前 `KB / assistant`，并在“已有 KB 但未绑定 assistant”时优先给出空态引导，避免界面只表现为输入框不可用。
 - 多 KB / 多租户交互暂不在当前使用方式上展开；后续若恢复该方向，应在显式 workspace/tenant 上下文之上重做，而不是继续依赖前端隐式的独立首项选择。
 - 当前 dev / smoke 验证若保留额外 `KB`、`assistant`、`document` 或其他测试数据，应避免这些数据继续影响 `single primary KB` 前端默认路径；在前端尚未具备显式 workspace / KB 选择前，不要让临时验证数据成为默认首项或默认问答上下文。
 
