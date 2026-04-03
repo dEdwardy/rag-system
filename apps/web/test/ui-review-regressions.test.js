@@ -368,6 +368,7 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /searchParams\.get\("assistantId"\)/);
   assert.match(reportCenterSource, /searchParams\.get\("baselineSnapshotId"\)/);
   assert.match(reportCenterSource, /mergeSearchParamsWithEvalRunParams/);
+  assert.match(reportCenterSource, /buildEvalRunCarryThroughPreview/);
   assert.match(reportCenterSource, /const EVAL_RUN_SEARCH_PARAM_KEYS = \["questionSetId", "assistantId", "baselineSnapshotId"\] as const/);
   assert.match(reportCenterSource, /nextSearchParams\.delete\(key\)/);
   assert.match(reportCenterSource, /for \(const \[key, value\] of createEvalRunSearchParams\(evalRunParams\)\.entries\(\)\)/);
@@ -376,6 +377,8 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   assert.match(reportCenterSource, /setSearchParams\(nextSearchParams, \{ replace: true \}\)/);
   assert.match(reportCenterSource, /preRunContextRows/);
   assert.match(reportCenterSource, /Current run context|当前运行上下文/);
+  assert.match(reportCenterSource, /URL carry-through/);
+  assert.match(reportCenterSource, /Fill question set and assistant to carry through in URL|待补齐 question set 与 assistant 后写入 URL/);
   assert.match(reportCenterSource, /normalizeEvalRunParams/);
   assert.match(reportCenterSource, /report-center-pre-run-path/);
   assert.match(reportCenterSource, /Run context|运行上下文/);
@@ -389,6 +392,15 @@ test("report center keeps run inputs in query params for carry-through reruns", 
   );
   assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineSnapshotId,/);
   assert.match(reportCenterSource, /formatBaselineMetadataValue\(runEvalMutation\.data\.baselineVersion,/);
+  assert.match(reportCenterSource, /Result scan path|结果速读路径/);
+  assert.match(reportCenterSource, /current inputs -> summary -> diff -> weakest items -> next action|当前输入 -> 结果摘要 -> 差异 -> 弱项 -> 下一步/);
+  assert.match(reportCenterSource, /Current inputs|当前输入/);
+  assert.match(reportCenterSource, /Weakest-item path|弱项路径/);
+  assert.match(reportCenterSource, /Next action|下一步动作/);
+  assert.ok(
+    reportCenterSource.indexOf('Result scan path') < reportCenterSource.indexOf('Quality metrics radar'),
+    'Report Center should lead completed results with scan-path summary before detailed charts'
+  );
   assert.match(reportCenterSource, /hasRunItems/);
   assert.match(reportCenterSource, /This run has no eval items yet|本次 run 暂无题目结果/);
 });
@@ -423,4 +435,5 @@ test("report center routing logic lives in focused helper module", () => {
   assert.match(reportHelpersSource, /export function normalizeEvalRunParams/);
   assert.match(reportHelpersSource, /export function createEvalRunSearchParams/);
   assert.match(reportHelpersSource, /export function readEvalRunParamsFromSearchParams/);
+  assert.match(reportHelpersSource, /export function buildEvalRunCarryThroughPreview/);
 });

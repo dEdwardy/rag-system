@@ -20,6 +20,9 @@
 - `Document Detail -> Run -> Trace` 路径补齐了一项可读性维护：文档详情把当前 ingestion 状态与 next action 收敛到一个主状态区域，降低首屏来回扫读成本。
 - Documents 工作台的主状态 readout 进一步补齐了状态到动作的窄路径：失败态可直达失败文档诊断、进行中可直达当前 run 观察、就绪态可直达 trace 结果。
 - 同一路径补齐 failure summary 文案契约：失败主摘要先用产品语言说明发生了什么，再引导到既有 trace 诊断后续动作，不把后端底层字段作为主视图。
+- Report Center 的 pre-run readout 补齐了 URL carry-through 预览，运行前可直接核对 question set、assistant、baseline snapshot 与将写入 URL 的参数串。
+- Report Center 的 result readout 补齐了 summary-before-details 顺序：结果区先给出 current inputs / summary / diff / weakest-item / next action 的一屏速读，再进入图表与明细。
+- Report Center 的 regression follow-up 文案进一步收紧：回归原因标签优先使用可读产品语言，next action 明确指向现有的 Run diff summary 与 Regression weakest items 路径，不新增详情页。
 
 ## Current Priorities
 

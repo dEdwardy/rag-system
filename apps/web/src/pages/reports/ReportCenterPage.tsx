@@ -6,12 +6,14 @@ import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import {
+  buildEvalRunCarryThroughPreview,
   mergeSearchParamsWithEvalRunParams,
   normalizeEvalRunParams,
   readEvalRunParamsFromSearchParams,
   getRunContextLabel,
   formatBaselineMetadataValue,
-  getRegressionReasonLabel
+  getRegressionReasonLabel,
+  getReportCenterResultNextAction
 } from "./report-center-page-helpers";
 
 export function ReportCenterPage() {
@@ -119,12 +121,19 @@ export function ReportCenterPage() {
 
   const regressionDrilldownItems = runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [];
   const runDiffSummary = runEvalMutation.data?.baselineComparison?.diffSummary;
+  const firstRegressionDrilldownItem = regressionDrilldownItems[0];
   const showPreRunGuidance = !runEvalMutation.data && !runEvalMutation.isError && !runEvalMutation.isPending;
   const hasRunItems = (runEvalMutation.data?.items.length ?? 0) > 0;
   const baselineSnapshotPlaceholder =
     locale === "zh" ? "scan-first：本次 run 未绑定 baseline snapshot" : "scan-first: this run is not linked to a baseline snapshot";
   const baselineVersionPlaceholder =
     locale === "zh" ? "scan-first：baseline version 暂不可读（先绑定 baseline snapshot）" : "scan-first: baseline version is unavailable until a baseline snapshot is linked";
+  const resultNextAction = getReportCenterResultNextAction({
+    locale,
+    hasRunDiffSummary: runDiffSummary != null,
+    hasWeakestItems: regressionDrilldownItems.length > 0,
+    hasRunItems
+  });
 
   // 图表颜色配置
   const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088fe", "#00C49F"];
@@ -209,14 +218,22 @@ export function ReportCenterPage() {
 
   // 质量门控信息
   const qualityGate = runEvalMutation.data?.qualityGate;
+  const preRunContextPreview = buildEvalRunCarryThroughPreview({
+    questionSetId,
+    assistantId,
+    baselineSnapshotId
+  });
+  const normalizedPreRunParams = preRunContextPreview.normalizedParams;
   const selectedAssistantLabel =
     assistantOptions.find(option => option.value === assistantId)?.label ??
-    (assistantId.trim().length > 0 ? assistantId : locale === "zh" ? "尚未选择" : "Not selected");
+    (assistantId.trim().length > 0 ? assistantId.trim() : locale === "zh" ? "尚未选择" : "Not selected");
   const preRunContextRows = [
     {
       key: "question-set",
       label: locale === "zh" ? "Question set" : "Question set",
-      value: questionSetId.trim().length > 0 ? questionSetId.trim() : locale === "zh" ? "尚未填写" : "Not set"
+      value:
+        normalizedPreRunParams?.questionSetId ??
+        (locale === "zh" ? "尚未填写（运行前会去除前后空格）" : "Not set (trimmed before run)")
     },
     {
       key: "assistant",
@@ -227,11 +244,20 @@ export function ReportCenterPage() {
       key: "baseline",
       label: locale === "zh" ? "Baseline snapshot" : "Baseline snapshot",
       value:
-        baselineSnapshotId.trim().length > 0
-          ? baselineSnapshotId.trim()
+        normalizedPreRunParams?.baselineSnapshotId
+          ? normalizedPreRunParams.baselineSnapshotId
           : locale === "zh"
             ? "本次 run 不绑定"
             : "Not linked for this run"
+    },
+    {
+      key: "carry-through",
+      label: locale === "zh" ? "URL carry-through" : "URL carry-through",
+      value:
+        preRunContextPreview.searchParams?.toString() ??
+        (locale === "zh"
+          ? "待补齐 question set 与 assistant 后写入 URL"
+          : "Fill question set and assistant to carry through in URL")
     }
   ];
 
@@ -509,6 +535,59 @@ export function ReportCenterPage() {
               </Text>
             </Paper>
           </div>
+
+          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+            <Stack gap="sm">
+              <div className="workspace-section-heading">{locale === "zh" ? "结果速读路径" : "Result scan path"}</div>
+              <Text c="var(--app-text-muted)" size="sm">
+                {locale === "zh"
+                  ? "按 当前输入 -> 结果摘要 -> 差异 -> 弱项 -> 下一步 的顺序一屏扫读。"
+                  : "Scan in one pass: current inputs -> summary -> diff -> weakest items -> next action."}
+              </Text>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="workspace-meta-row">
+                  <span className="workspace-meta-label">{locale === "zh" ? "当前输入" : "Current inputs"}</span>
+                  <span className="workspace-meta-value">
+                    {runEvalMutation.data.questionSetId} · {runEvalMutation.data.assistantId}
+                  </span>
+                </div>
+                <div className="workspace-meta-row">
+                  <span className="workspace-meta-label">{locale === "zh" ? "结果摘要" : "Summary"}</span>
+                  <span className="workspace-meta-value">
+                    {(runEvalMutation.data.summary?.total ?? runEvalMutation.data.totals.total).toString()} · {locale === "zh" ? "成功率" : "success"}{" "}
+                    {runEvalMutation.data.summary ? `${(runEvalMutation.data.summary.successRate * 100).toFixed(1)}%` : "-"}
+                  </span>
+                </div>
+                <div className="workspace-meta-row">
+                  <span className="workspace-meta-label">{locale === "zh" ? "差异摘要" : "Diff summary"}</span>
+                  <span className="workspace-meta-value">
+                    {runDiffSummary
+                      ? `${runDiffSummary.regressedMetricCount} regressed · ${runDiffSummary.improvedMetricCount} improved`
+                      : locale === "zh"
+                        ? "baseline 差异暂不可读"
+                        : "baseline diff unavailable"}
+                  </span>
+                </div>
+                <div className="workspace-meta-row">
+                  <span className="workspace-meta-label">{locale === "zh" ? "弱项路径" : "Weakest-item path"}</span>
+                  <span className="workspace-meta-value">
+                    {firstRegressionDrilldownItem
+                      ? `#${firstRegressionDrilldownItem.index} · ${firstRegressionDrilldownItem.severity} · ${firstRegressionDrilldownItem.reasonCodes
+                          .slice(0, 2)
+                          .map(code => getRegressionReasonLabel(code, locale))
+                          .join("; ")}`
+                      : locale === "zh"
+                        ? "当前 run 未检测到题目级回归"
+                        : "No per-question regressions detected"}
+                  </span>
+                </div>
+              </div>
+              <div className="workspace-meta-row">
+                <span className="workspace-meta-label">{locale === "zh" ? "下一步动作" : "Next action"}</span>
+                <span className="workspace-meta-value">{resultNextAction}</span>
+              </div>
+            </Stack>
+          </Paper>
 
           {/* 质量指标雷达图 */}
           {runEvalMutation.data?.summary && (

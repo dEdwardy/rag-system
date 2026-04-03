@@ -79,3 +79,68 @@ test("report center helpers clear eval params when null evalRunParams", async ()
 
   assert.equal(merged.toString(), "");
 });
+
+test("report center helpers build URL carry-through preview from pre-run inputs", async () => {
+  const { buildEvalRunCarryThroughPreview } = await loadReportCenterHelpers();
+
+  const preview = buildEvalRunCarryThroughPreview({
+    questionSetId: "  set-1  ",
+    assistantId: "  assistant-1 ",
+    baselineSnapshotId: "  snapshot-1 "
+  });
+
+  assert.deepEqual(preview.normalizedParams, {
+    questionSetId: "set-1",
+    assistantId: "assistant-1",
+    baselineSnapshotId: "snapshot-1"
+  });
+  assert.equal(preview.searchParams?.toString(), "questionSetId=set-1&assistantId=assistant-1&baselineSnapshotId=snapshot-1");
+});
+
+test("report center helpers map regression reason codes to readable labels", async () => {
+  const { getRegressionReasonLabel } = await loadReportCenterHelpers();
+
+  assert.equal(getRegressionReasonLabel("became_failed", "en"), "Answer changed from success to failure");
+  assert.equal(
+    getRegressionReasonLabel("became_insufficient_context", "en"),
+    "Answer lost grounding (insufficient context)"
+  );
+  assert.equal(getRegressionReasonLabel("quality_degraded", "en"), "Answer quality rating dropped");
+  assert.equal(getRegressionReasonLabel("fallback_introduced", "en"), "Answer now depends on fallback");
+  assert.equal(getRegressionReasonLabel("citations_decreased", "en"), "Answer citation count dropped");
+  assert.equal(getRegressionReasonLabel("unknown_reason", "en"), "unknown_reason");
+});
+
+test("report center helpers provide explicit regression follow-up path", async () => {
+  const { getReportCenterResultNextAction } = await loadReportCenterHelpers();
+
+  assert.equal(
+    getReportCenterResultNextAction({
+      locale: "en",
+      hasRunDiffSummary: true,
+      hasWeakestItems: true,
+      hasRunItems: true
+    }),
+    "Next action: review Run diff summary first, then replay Regression weakest items in order."
+  );
+
+  assert.equal(
+    getReportCenterResultNextAction({
+      locale: "en",
+      hasRunDiffSummary: false,
+      hasWeakestItems: true,
+      hasRunItems: true
+    }),
+    "Next action: baseline diff is unavailable; replay Regression weakest items first, then inspect the item table."
+  );
+
+  assert.equal(
+    getReportCenterResultNextAction({
+      locale: "zh",
+      hasRunDiffSummary: true,
+      hasWeakestItems: true,
+      hasRunItems: true
+    }),
+    "下一步：先看 Run 差异摘要，再按回归弱项顺序复盘题目。"
+  );
+});

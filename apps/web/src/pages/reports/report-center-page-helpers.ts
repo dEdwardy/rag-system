@@ -63,6 +63,18 @@ export function mergeSearchParamsWithEvalRunParams(
   return nextSearchParams;
 }
 
+export function buildEvalRunCarryThroughPreview(params: {
+  questionSetId: string;
+  assistantId: string;
+  baselineSnapshotId: string;
+}) {
+  const normalizedParams = normalizeEvalRunParams(params);
+  return {
+    normalizedParams,
+    searchParams: normalizedParams ? createEvalRunSearchParams(normalizedParams) : null
+  };
+}
+
 export function getRunContextLabel(field: "questionSetId" | "baselineSnapshotId" | "baselineVersion" | "assistantId", locale: "zh" | "en") {
   if (locale === "zh") {
     if (field === "questionSetId") return "Question set";
@@ -90,18 +102,55 @@ export function formatBaselineMetadataValue(
 
 export function getRegressionReasonLabel(reasonCode: string, locale: "zh" | "en") {
   if (locale === "zh") {
-    if (reasonCode === "became_failed") return "由成功变为失败";
-    if (reasonCode === "became_insufficient_context") return "由 grounded 变为 insufficient_context";
-    if (reasonCode === "quality_degraded") return "质量等级下降";
-    if (reasonCode === "fallback_introduced") return "新增 fallback 依赖";
-    if (reasonCode === "citations_decreased") return "引用数量下降";
+    if (reasonCode === "became_failed") return "回答由可用变为失败";
+    if (reasonCode === "became_insufficient_context") return "回答失去 grounded（上下文不足）";
+    if (reasonCode === "quality_degraded") return "回答质量等级下降";
+    if (reasonCode === "fallback_introduced") return "回答开始依赖 fallback";
+    if (reasonCode === "citations_decreased") return "回答引用数量减少";
     return reasonCode;
   }
 
-  if (reasonCode === "became_failed") return "Succeeded -> failed";
-  if (reasonCode === "became_insufficient_context") return "Grounded -> insufficient_context";
-  if (reasonCode === "quality_degraded") return "Quality degraded";
-  if (reasonCode === "fallback_introduced") return "Fallback introduced";
-  if (reasonCode === "citations_decreased") return "Citation count decreased";
+  if (reasonCode === "became_failed") return "Answer changed from success to failure";
+  if (reasonCode === "became_insufficient_context") return "Answer lost grounding (insufficient context)";
+  if (reasonCode === "quality_degraded") return "Answer quality rating dropped";
+  if (reasonCode === "fallback_introduced") return "Answer now depends on fallback";
+  if (reasonCode === "citations_decreased") return "Answer citation count dropped";
   return reasonCode;
+}
+
+export function getReportCenterResultNextAction(args: {
+  locale: "zh" | "en";
+  hasRunDiffSummary: boolean;
+  hasWeakestItems: boolean;
+  hasRunItems: boolean;
+}) {
+  if (args.locale === "zh") {
+    if (!args.hasRunItems) {
+      return "下一步：当前 run 暂无题目结果，先确认输入参数后重跑。";
+    }
+    if (args.hasRunDiffSummary && args.hasWeakestItems) {
+      return "下一步：先看 Run 差异摘要，再按回归弱项顺序复盘题目。";
+    }
+    if (args.hasRunDiffSummary) {
+      return "下一步：先看 Run 差异摘要，再进入题目明细表定位问题。";
+    }
+    if (args.hasWeakestItems) {
+      return "下一步：baseline 差异暂不可读，先按回归弱项顺序复盘，再进入题目明细表。";
+    }
+    return "下一步：先扫读质量摘要，再进入题目明细表。";
+  }
+
+  if (!args.hasRunItems) {
+    return "Next action: this run has no items yet; verify inputs and rerun.";
+  }
+  if (args.hasRunDiffSummary && args.hasWeakestItems) {
+    return "Next action: review Run diff summary first, then replay Regression weakest items in order.";
+  }
+  if (args.hasRunDiffSummary) {
+    return "Next action: review Run diff summary first, then inspect the item table.";
+  }
+  if (args.hasWeakestItems) {
+    return "Next action: baseline diff is unavailable; replay Regression weakest items first, then inspect the item table.";
+  }
+  return "Next action: scan quality summary first, then inspect the item table.";
 }
