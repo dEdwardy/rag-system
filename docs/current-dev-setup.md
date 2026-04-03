@@ -58,6 +58,18 @@ Apply migrations:
 pnpm --filter @rag-system/api exec prisma migrate dev
 ```
 
+Remote / Supabase database safety:
+
+- use `prisma migrate dev` only for local development databases
+- do not run `prisma migrate dev`, `prisma db push`, or `prisma migrate reset` against Supabase or any shared remote database
+- for approved remote rollout, use:
+
+```bash
+pnpm --filter @rag-system/api exec prisma migrate deploy
+```
+
+- before changing a remote schema, validate the migration locally or against a separate dev/staging database first
+
 Seed default records:
 
 ```bash
@@ -168,12 +180,19 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
 
 ```text
 STORAGE_ROOT=storage
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_STORAGE_BUCKET_UPLOADS=uploads
+SUPABASE_STORAGE_BUCKET_GENERATED=generated
 ```
 
 - storage path resolution is now repo-root-stable instead of `process.cwd()`-relative:
   - when unset, the default remains the repo-local `storage/` directory
   - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
   - when set to an absolute path, the absolute path wins as before
+- when all `SUPABASE_*` storage variables above are set, uploaded files and generated text files are stored in Supabase Storage instead of the local filesystem
+- the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between local and Supabase storage
+- `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
 - this avoids write/read drift when the API is started from different directories (for example repo root vs `apps/api`) while still allowing environment-specific absolute paths on Windows/WSL/Linux
 - optional OpenCode harness note: root `package.json` now points `loop:*` / `opencode:loop` scripts at the repo-local Node harness under `.opencode/loop/harness/`; the runner consumes the current materialized queue in order, reuses the same OpenCode session across a compact wave when possible, and uses `opencode run --agent build` / `opencode run --continue --agent build` for each pending item; spawned session titles include the current task index and remaining task count such as `[1/4 | left 3] ...`; each item is also protected by `OPENCODE_LOOP_ITEM_TIMEOUT_MS` (default `1200000`) so a stuck task is killed and marked `needs_replan`; structured JSON error events are also treated as queue failures instead of false `completed` results; use those commands directly on Windows or WSL/Linux
 - `pnpm loop:stop` now waits briefly for the current runner pid to fully exit before returning, which reduces restart races that could otherwise interrupt an in-flight child run during immediate stop/start cycles

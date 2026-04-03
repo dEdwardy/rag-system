@@ -171,7 +171,8 @@ export class DocumentsService {
   ) {
     const storedFile = await this.storageService.saveUploadedFile({
       buffer: file.buffer,
-      originalName: file.originalname
+      originalName: file.originalname,
+      mimeType: file.mimetype || "application/octet-stream"
     });
 
     const document = await this.createDocument(

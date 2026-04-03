@@ -90,3 +90,12 @@ Rules:
 
 Heavy validation must remain serial.
 Do not run multiple builds, full API suites, integration flows, or E2E flows in parallel.
+
+## Prisma And Remote DB Safety
+
+- treat Supabase or any shared remote database as high-risk by default
+- default to read-only inspection for remote databases unless the user explicitly approves a write step
+- never run `prisma migrate dev`, `prisma db push`, or `prisma migrate reset` against Supabase or any shared remote database
+- for approved remote schema rollout, use `prisma migrate deploy`
+- before any remote schema change, prefer validating the migration locally or against a separate dev/staging database first
+- call out destructive risk explicitly before running migrations or data backfills against a remote database
