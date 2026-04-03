@@ -141,6 +141,23 @@ export function useKnowledgeBases(enabled = true) {
   });
 }
 
+export function useCreateKnowledgeBase() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { name: string; description?: string }) =>
+      apiRequest<KnowledgeBase>("/knowledge-bases", {
+        method: "POST",
+        body: payload
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["assistants"] });
+    }
+  });
+}
+
 export function useDocuments(knowledgeBaseId: string, enabled = true) {
   return useQuery({
     queryKey: ["documents", knowledgeBaseId],

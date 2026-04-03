@@ -315,8 +315,23 @@ export const messages = {
       title: "Knowledge Base",
       subtitle: "Overview of the current default knowledge base.",
       actions: {
+        create: "Create knowledge base",
         openDocuments: "Open documents",
         openAssistant: "Open assistant"
+      },
+      create: {
+        modalTitle: "Create the first knowledge base",
+        modalDescription:
+          "Documents, chat, and assistant setup all align to the current primary knowledge base. Start by creating that workspace target here.",
+        nameLabel: "Knowledge base name",
+        namePlaceholder: "Personal workspace KB",
+        descriptionLabel: "Description",
+        descriptionPlaceholder: "Optional note about what this knowledge base is for.",
+        submit: "Create knowledge base",
+        cancel: "Cancel",
+        success: "Knowledge base created: {name}.",
+        error: "Failed to create knowledge base.",
+        nameRequired: "Enter a knowledge base name before creating it."
       },
       metrics: {
         readyDocuments: "Ready documents",
@@ -352,8 +367,10 @@ export const messages = {
         assistantsErrorDescription: "Assistant data is unavailable for this overview.",
         documentsErrorTitle: "Failed to load documents.",
         documentsErrorDescription: "Document state could not be loaded for this knowledge base.",
-        emptyTitle: "No knowledge base found",
-        emptyDescription: "Seed data does not currently expose a default knowledge base.",
+        emptyTitle: "Create the first knowledge base",
+        emptyDescription:
+          "This workspace still has no knowledge base. Create one first so documents, chat, and assistant setup can align to the same current context.",
+        emptyAction: "Create knowledge base",
         noDocumentsTitle: "No documents yet",
         noDocumentsDescription: "Upload your first document to start parsing, indexing, and retrieval."
       }
@@ -454,8 +471,16 @@ export const messages = {
       pageNumbersExclude: "Page numbers exclude",
       pageNumbersMin: "Page min",
       pageNumbersMax: "Page max",
-      noAssistantTitle: "No assistant found",
-      noAssistantDescription: "Seed data does not currently expose a default assistant.",
+      noKnowledgeBaseTitle: "No knowledge base available",
+      noKnowledgeBaseDescription:
+        "Create a knowledge base first. Assistant setup in this workspace always follows the current primary KB.",
+      noKnowledgeBaseAction: "Open knowledge base",
+      noAssistantForKnowledgeBaseTitle: "No assistant bound to the current KB",
+      noAssistantForKnowledgeBaseDescription:
+        "The current primary knowledge base is {knowledgeBaseName}. Review that KB first, then finish binding or restoring an assistant for the same workspace context before asking questions.",
+      noAssistantForKnowledgeBaseAction: "Review current KB",
+      noAssistantDocumentsPrimaryAction: "Add documents first",
+      noAssistantDocumentsSecondaryAction: "Open documents",
       missingProfileTitle: "Missing retrieval profile",
       missingProfileDescription: "The assistant exists, but its retrieval profile could not be resolved."
     },
@@ -838,8 +863,22 @@ export const messages = {
       title: "知识库",
       subtitle: "查看当前默认知识库的概览。",
       actions: {
+        create: "创建知识库",
         openDocuments: "打开文档页",
         openAssistant: "打开助手页"
+      },
+      create: {
+        modalTitle: "先创建第一个知识库",
+        modalDescription: "Documents、Chat 和 Assistant 都会围绕当前主知识库协同工作，所以先在这里建立工作区目标。",
+        nameLabel: "知识库名称",
+        namePlaceholder: "个人工作台知识库",
+        descriptionLabel: "描述",
+        descriptionPlaceholder: "可选：说明这个知识库主要收什么资料。",
+        submit: "创建知识库",
+        cancel: "取消",
+        success: "已创建知识库：{name}。",
+        error: "创建知识库失败。",
+        nameRequired: "请先输入知识库名称，再继续创建。"
       },
       metrics: {
         readyDocuments: "就绪文档",
@@ -875,8 +914,9 @@ export const messages = {
         assistantsErrorDescription: "当前无法获取该知识库关联的助手信息。",
         documentsErrorTitle: "加载文档失败。",
         documentsErrorDescription: "当前无法获取该知识库的文档状态。",
-        emptyTitle: "未找到知识库",
-        emptyDescription: "当前种子数据没有暴露默认知识库。",
+        emptyTitle: "先创建第一个知识库",
+        emptyDescription: "当前工作区还没有知识库。先创建一个，让 Documents、Chat 和 Assistant 都对齐到同一个当前上下文。",
+        emptyAction: "创建知识库",
         noDocumentsTitle: "还没有文档",
         noDocumentsDescription: "上传第一份文档后即可开始解析、索引和检索。"
       }
@@ -970,8 +1010,15 @@ export const messages = {
       pageNumbersExclude: "排除页码",
       pageNumbersMin: "最小页码",
       pageNumbersMax: "最大页码",
-      noAssistantTitle: "未找到助手",
-      noAssistantDescription: "当前种子数据没有暴露默认助手。",
+      noKnowledgeBaseTitle: "当前没有可用知识库",
+      noKnowledgeBaseDescription: "请先创建知识库。当前工作区里的助手配置始终跟随主知识库。",
+      noKnowledgeBaseAction: "打开知识库",
+      noAssistantForKnowledgeBaseTitle: "当前知识库还没有绑定助手",
+      noAssistantForKnowledgeBaseDescription:
+        "当前主知识库是 {knowledgeBaseName}。请先确认这个知识库的工作区上下文，再为同一知识库补齐或恢复助手绑定，然后再继续提问。",
+      noAssistantForKnowledgeBaseAction: "查看当前知识库",
+      noAssistantDocumentsPrimaryAction: "先添加文档",
+      noAssistantDocumentsSecondaryAction: "打开文档页",
       missingProfileTitle: "缺少检索配置",
       missingProfileDescription: "助手存在，但无法解析其绑定的检索配置。"
     },

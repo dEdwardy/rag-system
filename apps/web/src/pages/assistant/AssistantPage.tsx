@@ -18,6 +18,7 @@ import {
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -56,6 +57,7 @@ export function AssistantPage() {
     retrievalProfile?.id ?? "default-retrieval-profile"
   );
   const { t } = useI18n();
+  const documentCount = documentsQuery.data?.length ?? 0;
 
   const form = useForm<AssistantConfigFormValues>({
     initialValues: createAssistantConfigFormValues(assistant, retrievalProfile),
@@ -165,6 +167,39 @@ export function AssistantPage() {
           description={retrievalProfileErrorMessage}
           title={t("assistant.retrievalProfileLoadError")}
           tone="error"
+        />
+      ) : null}
+
+      {!isLoading && !assistantsQuery.isError && !retrievalProfilesQuery.isError && knowledgeBase == null ? (
+        <StatePanel
+          action={
+            <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+              {t("assistant.noKnowledgeBaseAction")}
+            </Button>
+          }
+          description={t("assistant.noKnowledgeBaseDescription")}
+          title={t("assistant.noKnowledgeBaseTitle")}
+        />
+      ) : null}
+
+      {!isLoading && !assistantsQuery.isError && !retrievalProfilesQuery.isError && knowledgeBase != null && assistant == null ? (
+        <StatePanel
+          action={
+            <Group gap="xs">
+              <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+                {t("assistant.noAssistantForKnowledgeBaseAction")}
+              </Button>
+              <Button className="workspace-button" color="gray" component={Link} radius="xl" to="/documents" variant="light">
+                {documentCount > 0
+                  ? t("assistant.noAssistantDocumentsSecondaryAction")
+                  : t("assistant.noAssistantDocumentsPrimaryAction")}
+              </Button>
+            </Group>
+          }
+          description={t("assistant.noAssistantForKnowledgeBaseDescription", {
+            knowledgeBaseName: knowledgeBase.name
+          })}
+          title={t("assistant.noAssistantForKnowledgeBaseTitle")}
         />
       ) : null}
 
@@ -685,13 +720,6 @@ export function AssistantPage() {
             </div>
           </div>
         </Box>
-      ) : null}
-
-      {!isLoading && !assistant ? (
-        <StatePanel
-          description={t("assistant.noAssistantDescription")}
-          title={t("assistant.noAssistantTitle")}
-        />
       ) : null}
 
       {!isLoading && assistant && !retrievalProfile ? (

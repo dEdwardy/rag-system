@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Grid, Group, Paper, SegmentedControl, Stack, Text, Title } from "@mantine/core";
+import { Badge, Box, Button, Grid, Group, Modal, Paper, SegmentedControl, Stack, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { type ComponentProps, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +11,7 @@ import {
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAssistants,
+  useCreateKnowledgeBase,
   useDocuments,
   useKnowledgeBaseDocumentRuns,
   useKnowledgeBaseDocumentRunSummary,
@@ -30,11 +31,15 @@ type RunRecord = Parameters<NonNullable<ComponentProps<typeof DocumentRunList>["
 export function KnowledgeBasePage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
+  const createKnowledgeBaseMutation = useCreateKnowledgeBase();
   const knowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const hasKnowledgeBase = knowledgeBase != null;
   const documentsQuery = useDocuments(knowledgeBase?.id ?? "", hasKnowledgeBase);
   const reindexMutation = useReindexDocument();
   const [runFilter, setRunFilter] = useState<RunFilter>("all");
+  const [isCreateKnowledgeBaseOpen, setIsCreateKnowledgeBaseOpen] = useState(false);
+  const [createKnowledgeBaseName, setCreateKnowledgeBaseName] = useState("");
+  const [createKnowledgeBaseDescription, setCreateKnowledgeBaseDescription] = useState("");
   const runStatusFilter = runFilter === "all" ? undefined : runFilter;
   const recentRunsQuery = useKnowledgeBaseDocumentRuns(knowledgeBase?.id ?? null, {
     limit: 6,
@@ -186,6 +191,36 @@ export function KnowledgeBasePage() {
     setRunFilter(value as RunFilter);
   }, []);
 
+  const handleCreateKnowledgeBase = useCallback(async () => {
+    const normalizedName = createKnowledgeBaseName.trim();
+    if (!normalizedName) {
+      notifications.show({
+        color: "red",
+        message: t("knowledgeBase.create.nameRequired")
+      });
+      return;
+    }
+
+    try {
+      await createKnowledgeBaseMutation.mutateAsync({
+        name: normalizedName,
+        description: createKnowledgeBaseDescription.trim() || undefined
+      });
+      notifications.show({
+        color: "teal",
+        message: t("knowledgeBase.create.success", { name: normalizedName })
+      });
+      setCreateKnowledgeBaseName("");
+      setCreateKnowledgeBaseDescription("");
+      setIsCreateKnowledgeBaseOpen(false);
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: error instanceof Error ? error.message : t("knowledgeBase.create.error")
+      });
+    }
+  }, [createKnowledgeBaseDescription, createKnowledgeBaseMutation, createKnowledgeBaseName, t]);
+
   const handleReindexRun = useCallback(
     async (run: RunRecord) => {
       if (!("document" in run)) {
@@ -221,6 +256,52 @@ export function KnowledgeBasePage() {
 
   return (
     <Stack data-testid="knowledge-base-page" gap="md">
+      <Modal
+        centered
+        opened={isCreateKnowledgeBaseOpen}
+        onClose={() => setIsCreateKnowledgeBaseOpen(false)}
+        radius="xl"
+        title={t("knowledgeBase.create.modalTitle")}
+      >
+        <Stack gap="md">
+          <Text c="var(--app-text-muted)" size="sm">
+            {t("knowledgeBase.create.modalDescription")}
+          </Text>
+          <TextInput
+            autoFocus
+            classNames={{ input: "workspace-input" }}
+            data-testid="knowledge-base-create-name"
+            label={t("knowledgeBase.create.nameLabel")}
+            onChange={event => setCreateKnowledgeBaseName(event.currentTarget.value)}
+            placeholder={t("knowledgeBase.create.namePlaceholder")}
+            value={createKnowledgeBaseName}
+          />
+          <Textarea
+            autosize
+            classNames={{ input: "workspace-input" }}
+            label={t("knowledgeBase.create.descriptionLabel")}
+            minRows={3}
+            onChange={event => setCreateKnowledgeBaseDescription(event.currentTarget.value)}
+            placeholder={t("knowledgeBase.create.descriptionPlaceholder")}
+            value={createKnowledgeBaseDescription}
+          />
+          <Group justify="flex-end">
+            <Button color="gray" onClick={() => setIsCreateKnowledgeBaseOpen(false)} radius="xl" variant="light">
+              {t("knowledgeBase.create.cancel")}
+            </Button>
+            <Button
+              className="workspace-button"
+              color="indigo"
+              loading={createKnowledgeBaseMutation.isPending}
+              onClick={() => void handleCreateKnowledgeBase()}
+              radius="xl"
+            >
+              {t("knowledgeBase.create.submit")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <Group gap="md" wrap="nowrap">
@@ -247,6 +328,16 @@ export function KnowledgeBasePage() {
               <Badge color={summary.toneColor} radius="sm" variant="light">
                 {t(summary.toneLabelKey)}
               </Badge>
+              {!knowledgeBase ? (
+                <Button
+                  className="workspace-button"
+                  color="indigo"
+                  onClick={() => setIsCreateKnowledgeBaseOpen(true)}
+                  radius="xl"
+                >
+                  {t("knowledgeBase.actions.create")}
+                </Button>
+              ) : null}
               <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/documents" variant="light">
                 {t("knowledgeBase.actions.openDocuments")}
               </Button>
@@ -319,6 +410,18 @@ export function KnowledgeBasePage() {
         <StatePanel
           title={t("knowledgeBase.states.emptyTitle")}
           description={t("knowledgeBase.states.emptyDescription")}
+          action={
+            <Button
+              className="workspace-button"
+              color="indigo"
+              data-testid="knowledge-base-create-empty-action"
+              onClick={() => setIsCreateKnowledgeBaseOpen(true)}
+              radius="xl"
+              variant="light"
+            >
+              {t("knowledgeBase.states.emptyAction")}
+            </Button>
+          }
         />
       ) : null}
 

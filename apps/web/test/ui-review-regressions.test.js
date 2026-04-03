@@ -85,6 +85,7 @@ test("login page keeps provider-entry parity for GitHub Google and OIDC", () => 
 
 test("knowledge base page uses a compact metric grid instead of a long side rail", () => {
   const source = readFileSync(knowledgeBasePath, "utf8");
+  const messagesSource = readFileSync(messagesPath, "utf8");
 
   assert.match(source, /workspace-metric-grid/);
   assert.doesNotMatch(source, /workspace-page-grid-main-first/);
@@ -95,9 +96,17 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
   assert.match(source, /Latest failure context|最新失败上下文/);
   assert.match(source, /Next action|下一步动作/);
   assert.match(source, /buildKnowledgeBaseWorkspaceNextAction/);
-  assert.match(source, /knowledgeBase\.nextAction\./);
   assert.match(source, /status:\s*runStatusFilter/);
   assert.match(source, /to=\{`\/documents\/\$\{latestFailure\.documentId\}`\}/);
+  assert.match(source, /useCreateKnowledgeBase/);
+  assert.match(source, /knowledgeBase\.states\.emptyAction/);
+  assert.match(source, /knowledgeBase\.create\.modalTitle/);
+  assert.match(source, /data-testid="knowledge-base-create-empty-action"/);
+  assert.match(messagesSource, /emptyTitle: "Create the first knowledge base"/);
+  assert.match(messagesSource, /emptyAction: "Create knowledge base"/);
+  assert.match(messagesSource, /modalTitle: "Create the first knowledge base"/);
+  assert.match(messagesSource, /emptyTitle: "先创建第一个知识库"/);
+  assert.match(messagesSource, /emptyAction: "创建知识库"/);
 });
 
 test("assistant copy avoids exposing backend field names and trace raw payload is secondary", () => {
@@ -120,6 +129,14 @@ test("assistant copy avoids exposing backend field names and trace raw payload i
   assert.match(messagesSource, /advancedRetrievalHint:/);
   assert.match(messagesSource, /recommendedDefaults: "推荐默认"/);
   assert.match(messagesSource, /advancedTuning: "高级调优"/);
+  assert.match(assistantSource, /assistant\.noKnowledgeBaseTitle/);
+  assert.match(assistantSource, /assistant\.noAssistantForKnowledgeBaseTitle/);
+  assert.match(assistantSource, /to="\/knowledge-base"/);
+  assert.match(assistantSource, /to="\/documents"/);
+  assert.match(messagesSource, /noKnowledgeBaseTitle: "No knowledge base available"/);
+  assert.match(messagesSource, /noAssistantForKnowledgeBaseTitle: "No assistant bound to the current KB"/);
+  assert.match(messagesSource, /noKnowledgeBaseTitle: "当前没有可用知识库"/);
+  assert.match(messagesSource, /noAssistantForKnowledgeBaseTitle: "当前知识库还没有绑定助手"/);
   assert.match(traceSource, /<details[\s\S]*common\.fields\.rawPayload/);
 });
 
