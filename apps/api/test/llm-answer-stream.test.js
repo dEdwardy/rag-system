@@ -130,3 +130,42 @@ test("LlmService fallback stream aligns no-hit deltas with say_insufficient_cont
   assert.equal(result.answerStatus, "insufficient_context");
   assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
 });
+
+test("LlmService recovers readable answer text from malformed structured payloads", () => {
+  const service = createLlmService({
+    answerPrompt: {
+      promptId: "answer.v2",
+      systemPrompt: "system prompt",
+      userPrompt: "user prompt",
+      fullPrompt: "system\n\nuser"
+    }
+  });
+
+  const result = service.parseStructuredAnswer({
+    rawAnswer: JSON.stringify({
+      answer: "Codex App 更像一个给代理编程准备的桌面工作台。",
+      citations: "grounded",
+      citationEvidence: [
+        {
+          source: 1,
+          quote: "Codex App 更像一个给代理编程准备的桌面工作台"
+        }
+      ],
+      missingInformation: []
+    }),
+    modelName: "test-model",
+    promptId: "answer.v2",
+    usedFallback: false
+  });
+
+  assert.equal(result.answer, "Codex App 更像一个给代理编程准备的桌面工作台。");
+  assert.equal(result.answerStatus, "grounded");
+  assert.deepEqual(result.citedChunkNumbers, [1]);
+  assert.deepEqual(result.citationEvidence, [
+    {
+      source: 1,
+      quote: "Codex App 更像一个给代理编程准备的桌面工作台"
+    }
+  ]);
+  assert.deepEqual(result.missingInformation, []);
+});

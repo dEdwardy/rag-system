@@ -667,7 +667,8 @@ export class LlmService {
 
     for (const candidate of candidates) {
       try {
-        const payload = structuredAnswerSchema.parse(JSON.parse(candidate));
+        const parsedCandidate = JSON.parse(candidate);
+        const payload = structuredAnswerSchema.parse(parsedCandidate);
 
         return {
           answer: payload.answer,
@@ -676,10 +677,132 @@ export class LlmService {
           citedChunkNumbers: payload.citations,
           citationEvidence: payload.citationEvidence
         };
-      } catch {}
+      } catch {
+        try {
+          const recovered = this.tryRecoverStructuredAnswerCandidate(JSON.parse(candidate));
+          if (recovered) {
+            return recovered;
+          }
+        } catch {}
+      }
     }
 
     return null;
+  }
+
+  private tryRecoverStructuredAnswerCandidate(
+    value: unknown
+  ): Omit<GenerateAnswerOutput, "modelName" | "promptId" | "usedFallback"> | null {
+    if (typeof value !== "object" || value == null || Array.isArray(value)) {
+      return null;
+    }
+
+    const payload = value as Record<string, unknown>;
+    const answer = typeof payload.answer === "string" ? payload.answer.trim() : "";
+    if (!answer) {
+      return null;
+    }
+
+    const answerStatus = this.readStructuredAnswerStatus(payload.status) ?? this.readStructuredAnswerStatus(payload.citations);
+    const citationEvidence = this.readCitationEvidence(payload.citationEvidence);
+    const citedChunkNumbers = this.readStructuredCitationNumbers(payload.citations, citationEvidence);
+
+    return {
+      answer,
+      answerStatus,
+      missingInformation: this.readMissingInformation(payload.missingInformation),
+      citedChunkNumbers,
+      citationEvidence
+    };
+  }
+
+  private readStructuredAnswerStatus(value: unknown): "grounded" | "insufficient_context" | undefined {
+    return value === "grounded" || value === "insufficient_context" ? value : undefined;
+  }
+
+  private readStructuredCitationNumbers(
+    value: unknown,
+    citationEvidence: Array<{ source: number; quote: string }>
+  ): number[] {
+    if (Array.isArray(value)) {
+      const numbers: number[] = [];
+      for (const item of value) {
+        const parsed = this.readPositiveInteger(item);
+        if (parsed != null && !numbers.includes(parsed)) {
+          numbers.push(parsed);
+        }
+      }
+
+      if (numbers.length > 0) {
+        return numbers;
+      }
+    }
+
+    const evidenceSources: number[] = [];
+    for (const item of citationEvidence) {
+      if (!evidenceSources.includes(item.source)) {
+        evidenceSources.push(item.source);
+      }
+    }
+
+    return evidenceSources;
+  }
+
+  private readCitationEvidence(value: unknown): Array<{ source: number; quote: string }> {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const evidence: Array<{ source: number; quote: string }> = [];
+    for (const item of value) {
+      if (typeof item !== "object" || item == null || Array.isArray(item)) {
+        continue;
+      }
+
+      const itemRecord = item as Record<string, unknown>;
+      const source = this.readPositiveInteger(itemRecord.source);
+      const quote = typeof itemRecord.quote === "string" ? itemRecord.quote.trim() : "";
+      if (source == null || !quote) {
+        continue;
+      }
+
+      if (!evidence.some(candidate => candidate.source === source && candidate.quote === quote)) {
+        evidence.push({ source, quote });
+      }
+    }
+
+    return evidence;
+  }
+
+  private readMissingInformation(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const missingInformation: string[] = [];
+    for (const item of value) {
+      if (typeof item !== "string") {
+        continue;
+      }
+
+      const normalized = item.trim();
+      if (normalized && !missingInformation.includes(normalized)) {
+        missingInformation.push(normalized);
+      }
+    }
+
+    return missingInformation;
+  }
+
+  private readPositiveInteger(value: unknown): number | null {
+    const parsed =
+      typeof value === "number"
+        ? value
+        : typeof value === "string" && /^\d+$/.test(value)
+          ? Number.parseInt(value, 10)
+          : Number.NaN;
+
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }
 
   private extractStructuredAnswerPreview(rawAnswer: string) {
