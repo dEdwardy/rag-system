@@ -136,12 +136,22 @@ export function DocumentsPage() {
     [documents]
   );
   const hasProcessingDocuments = processingCount > 0;
+  const firstFailedDocument = useMemo(
+    () => documents.find(document => document.status === "failed") ?? null,
+    [documents]
+  );
+  const firstProcessingDocument = useMemo(
+    () => documents.find(document => document.status === "pending" || document.status === "processing") ?? null,
+    [documents]
+  );
   const workspaceSurfaceState = useMemo(() => {
     if (!hasActiveKnowledgeBase) {
       return {
         badgeColor: "gray",
         badgeLabel: t("documents.workspaceStatusNoActiveKnowledgeBase"),
-        nextAction: t("documents.workspaceNextActionNoActiveKnowledgeBase")
+        nextAction: t("documents.workspaceNextActionNoActiveKnowledgeBase"),
+        nextActionHref: "/knowledge-base",
+        nextActionLabel: t("documents.workspaceNextActionLinkNoActiveKnowledgeBase")
       } as const;
     }
 
@@ -149,7 +159,9 @@ export function DocumentsPage() {
       return {
         badgeColor: "red",
         badgeLabel: t("documents.workspaceStatusNeedsAttention"),
-        nextAction: t("documents.workspaceNextActionNeedsAttention")
+        nextAction: t("documents.workspaceNextActionNeedsAttention"),
+        nextActionHref: firstFailedDocument ? `/documents/${firstFailedDocument.id}` : "/documents",
+        nextActionLabel: t("documents.workspaceNextActionLinkNeedsAttention")
       } as const;
     }
 
@@ -157,16 +169,20 @@ export function DocumentsPage() {
       return {
         badgeColor: "yellow",
         badgeLabel: t("documents.workspaceStatusProcessing"),
-        nextAction: t("documents.workspaceNextActionProcessing")
+        nextAction: t("documents.workspaceNextActionProcessing"),
+        nextActionHref: firstProcessingDocument ? `/documents/${firstProcessingDocument.id}` : "/documents",
+        nextActionLabel: t("documents.workspaceNextActionLinkProcessing")
       } as const;
     }
 
     return {
       badgeColor: "indigo",
       badgeLabel: t("documents.workspaceStatusReady"),
-      nextAction: t("documents.workspaceNextActionReady")
+      nextAction: t("documents.workspaceNextActionReady"),
+      nextActionHref: "/traces",
+      nextActionLabel: t("documents.workspaceNextActionLinkReady")
     } as const;
-  }, [failedCount, hasActiveKnowledgeBase, hasProcessingDocuments, t]);
+  }, [failedCount, firstFailedDocument, firstProcessingDocument, hasActiveKnowledgeBase, hasProcessingDocuments, t]);
 
   const noActiveKnowledgeBaseStatePanel = (
     <StatePanel
@@ -596,6 +612,17 @@ export function DocumentsPage() {
                 <span className="workspace-meta-value">{workspaceSurfaceState.nextAction}</span>
               </div>
             </div>
+            <Button
+              className="workspace-button"
+              color="indigo"
+              component={Link}
+              radius="xl"
+              size="xs"
+              to={workspaceSurfaceState.nextActionHref}
+              variant="light"
+            >
+              {workspaceSurfaceState.nextActionLabel}
+            </Button>
           </Stack>
         </Paper>
       </div>
@@ -641,8 +668,8 @@ export function DocumentsPage() {
               <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3">
                 <Text className="workspace-table-hint">
                   {locale === "zh"
-                    ? "先扫状态、Chunk 数和更新时间，再进入文档详情查看 run 失败摘要，最后看 trace 诊断顺序。"
-                    : "Scan status, chunk count, and update time first, then open Document Detail for run failure summary before Trace diagnostics."}
+                    ? "先扫状态、Chunk 数和更新时间，再进入文档详情查看一行 run 失败摘要，最后再看 trace 诊断。"
+                    : "Scan status, chunk count, and update time first, then open Document Detail for a one-line run failure summary before Trace diagnostics."}
                 </Text>
                 <Badge color={failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
                   {failedCount > 0

@@ -46,3 +46,11 @@ test("web snapshot comparison type keeps additive sourceFamilyDeltas and issueHo
     /export type KnowledgeBaseDocumentRunIssueHotspotShift = \{[\s\S]*sourceFamily: string;[\s\S]*leftIssueSignalScore: number;[\s\S]*rightIssueSignalScore: number;[\s\S]*issueSignalDelta: number;[\s\S]*leftIssueConcentration: number;[\s\S]*rightIssueConcentration: number;[\s\S]*issueConcentrationDelta: number;/
   );
 });
+
+test("document detail failure summary copy keeps one-line summary plus trace follow-up contract", async () => {
+  const source = await readFile(resolve(__dirname, "../src/i18n/messages.ts"), "utf8");
+
+  assert.match(source, /primaryStatusSummaryFailed:[\s\S]*What happened: \{runSummary\}/);
+  assert.match(source, /primaryStatusNextActionFailed:[\s\S]*one-line run failure summary[\s\S]*trace diagnostics/);
+  assert.match(source, /workspaceNextActionNeedsAttention:[\s\S]*latest run failure summary[\s\S]*trace diagnostics/);
+});

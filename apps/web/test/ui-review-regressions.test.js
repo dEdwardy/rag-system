@@ -113,6 +113,10 @@ test("documents and trace list emphasize readable workspace summaries over spars
   assert.match(documentsSource, /workspace-subpanel/);
   assert.match(detailSource, /workspace-detail-secondary-grid|workspace-collection-grid/);
   assert.match(detailSource, /useDocumentRuns/);
+  assert.match(detailSource, /documents\.detail\.primaryStatus/);
+  assert.match(detailSource, /documents\.detail\.nextAction/);
+  assert.match(detailSource, /primaryStatusSummary/);
+  assert.match(detailSource, /primaryStatusNextAction/);
   assert.match(detailSource, /Document runs|文档 runs/);
   assert.match(detailSource, /traceReturnHref/);
   assert.match(detailSource, /traceFocusNextStep/);

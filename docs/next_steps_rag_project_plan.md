@@ -66,6 +66,9 @@
    - `feed` URL 入口
    - `sitemap` URL 入口
 2. `Document Detail / Usage / Trace` 与 `Report center / eval` 的当前一轮阅读路径、参数 carry-through 和 focused regression 也已完成收口
+   - 其中 `Document Detail` 已将 ingestion / run 状态与下一步动作收敛到单一主状态区域，保持 scan-first 阅读路径不变
+   - `Documents` 工作台主状态 readout 已补齐失败 / 进行中 / 就绪三态的单一下一步跳转，分别指向失败文档诊断、进行中 run 观察与 trace 结果路径
+   - 失败态文案契约进一步收紧为“一行失败摘要 + 既有 trace follow-up”，优先产品语言，后端底层字段保持次级诊断位
 3. 因此，后续更适合做的是：
    - 已完成区域内的 bounded maintenance
    - 或基于现有产品状态选择新的明确小波次

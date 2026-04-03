@@ -17,6 +17,9 @@
 - `docs / stage alignment` 和当前这轮 `P4 web capability carry-through` 收口已完成；接下来更适合：
   - 在 `P4/P5/P6` 已完成收口的基础上做 bounded maintenance
   - 或选择一个新的明确产品波次，并保持单线推进
+- `Document Detail -> Run -> Trace` 路径补齐了一项可读性维护：文档详情把当前 ingestion 状态与 next action 收敛到一个主状态区域，降低首屏来回扫读成本。
+- Documents 工作台的主状态 readout 进一步补齐了状态到动作的窄路径：失败态可直达失败文档诊断、进行中可直达当前 run 观察、就绪态可直达 trace 结果。
+- 同一路径补齐 failure summary 文案契约：失败主摘要先用产品语言说明发生了什么，再引导到既有 trace 诊断后续动作，不把后端底层字段作为主视图。
 
 ## Current Priorities
 

@@ -12,9 +12,10 @@ import {
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
+import { buildRunSummaryText } from "../../components/document-runs/document-run-observability";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useDeleteDocument,
@@ -24,7 +25,7 @@ import {
   useReindexDocument
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
-import type { JsonValue } from "../../types/api";
+import type { DocumentRunRecord, JsonValue } from "../../types/api";
 
 function formatJson(value: JsonValue | unknown) {
   if (value == null) {
@@ -32,6 +33,16 @@ function formatJson(value: JsonValue | unknown) {
   }
 
   return JSON.stringify(value, null, 2);
+}
+
+function getLatestRun(runs: DocumentRunRecord[]) {
+  return runs.reduce<DocumentRunRecord | null>((latest, run) => {
+    if (!latest) {
+      return run;
+    }
+
+    return new Date(run.startedAt).getTime() > new Date(latest.startedAt).getTime() ? run : latest;
+  }, null);
 }
 
 export function DocumentDetailPage() {
@@ -54,6 +65,48 @@ export function DocumentDetailPage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const { formatDateTime, locale, t } = useI18n();
   const traceReturnHref = sourceTraceId ? `/traces/${sourceTraceId}#trace-detail-retrieved-chunks` : null;
+  const latestRun = useMemo(() => getLatestRun(runsQuery.data ?? []), [runsQuery.data]);
+  const latestRunSummary = useMemo(() => {
+    if (runsQuery.isLoading) {
+      return t("documents.detail.primaryStatusRunSummaryLoading");
+    }
+
+    if (!latestRun) {
+      return t("documents.detail.primaryStatusRunSummaryMissing");
+    }
+
+    return buildRunSummaryText(latestRun, locale);
+  }, [latestRun, locale, runsQuery.isLoading, t]);
+  const primaryStatusSummary = useMemo(() => {
+    if (!document) {
+      return null;
+    }
+
+    if (document.status === "failed") {
+      return t("documents.detail.primaryStatusSummaryFailed", { runSummary: latestRunSummary });
+    }
+
+    if (document.status === "pending" || document.status === "processing") {
+      return t("documents.detail.primaryStatusSummaryProcessing", { runSummary: latestRunSummary });
+    }
+
+    return t("documents.detail.primaryStatusSummaryReady", { runSummary: latestRunSummary });
+  }, [document, latestRunSummary, t]);
+  const primaryStatusNextAction = useMemo(() => {
+    if (!document) {
+      return null;
+    }
+
+    if (document.status === "failed") {
+      return t("documents.detail.primaryStatusNextActionFailed");
+    }
+
+    if (document.status === "pending" || document.status === "processing") {
+      return t("documents.detail.primaryStatusNextActionProcessing");
+    }
+
+    return t("documents.detail.primaryStatusNextActionReady");
+  }, [document, t]);
 
   useEffect(() => {
     if (!focusedChunkId || !chunksQuery.data) {
@@ -217,7 +270,7 @@ export function DocumentDetailPage() {
                   <Stack gap="md">
                     <Group justify="space-between" wrap="nowrap">
                       <Text className="workspace-section-heading">
-                        {t("documents.detail.documentStatus")}
+                        {t("documents.detail.primaryStatus")}
                       </Text>
                       <Badge
                         color={document.status === "ready" ? "indigo" : document.status === "failed" ? "red" : "yellow"}
@@ -271,18 +324,15 @@ export function DocumentDetailPage() {
 
                     <Divider color="var(--app-border)" />
 
-                    {document.status === "pending" || document.status === "processing" ? (
-                      <Alert color="yellow" radius="xl" variant="light">
-                        {t("documents.detail.processingAlert")}
-                      </Alert>
-                    ) : null}
-                    {document.status === "failed" ? (
-                      <Alert color="red" radius="xl" variant="light">
-                        {t("documents.detail.failedAlert")}
-                      </Alert>
-                    ) : null}
+                    <Text c="var(--app-text-secondary)" size="sm">
+                      {primaryStatusSummary}
+                    </Text>
 
                     <div className="workspace-meta-list">
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{t("documents.detail.nextAction")}</span>
+                        <span className="workspace-meta-value">{primaryStatusNextAction}</span>
+                      </div>
                       <div className="workspace-meta-row">
                         <span className="workspace-meta-label">{t("common.fields.stage")}</span>
                         <span className="workspace-meta-value">
