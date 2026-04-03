@@ -2,7 +2,7 @@
 
 > 文档角色：`current-primary`
 > 当前使用方式：作为现阶段任务方向、优先级判断和阶段边界的主文档；`docs/current-progress.md` 负责记录近期完成情况和验证基线。
-更新时间：2026-04-02
+更新时间：2026-04-04
 
 ## 1. 当前判断
 
@@ -26,6 +26,7 @@
 更准确的状态是：
 
 - `P3`：开发完成，进入维护态
+- `P4`：当前这一轮 web capability carry-through 收口已完成
 - `P5`：工程完成，进入基线治理 / 使用态
 - `P6`：已完成一轮 bounded closeout，后续只做小型可读性维护
 
@@ -35,60 +36,51 @@
 
 ## 2. 当前优先级
 
-### Priority A: 阶段判断与文档同步
+### Priority A: bounded maintenance and docs freshness
 
 目标：
 
-- 先把代码现实、项目状态、计划文档保持一致
+- 保持代码现实、项目状态、计划文档持续一致
 - 避免继续把已完成阶段描述成“当前主线”
+- 对 `P3/P4/P5/P6` 已完成区域只做窄范围维护
 
 边界：
 
-- 只做状态判断、文档和最小 bookkeeping 对齐
+- 只做状态判断、文档和最小 bookkeeping 对齐，或已完成区域内的小型回归修补
 - 不借机扩写新 roadmap，不引入新的大架构方案
 
 完成标准：
 
 - `current-context` / `current-progress` / `project-status-overview` / 本文档口径一致
-- 明确 `P3/P5/P6` 为维护或治理边界，而不是默认主开发波次
-- 明确后续执行顺序，避免重新回到“多方向并行”的模糊状态
+- 明确 `P3/P4/P5/P6` 的当前边界，避免把已完成收口重新写成待开发主线
+- 明确后续若开启新产品波次，需要先完成主线选择，避免重新回到“多方向并行”的模糊状态
 
-### Priority B: P4 web capability carry-through
+### Priority B: next product increment selection
 
-如果继续做产品增量，最合适的下一条主线仍然是 `P4`，但要严格收窄为“承接已有 backend 能力”，不是新的 backend 扩展。
+当前这轮 `P4 web capability carry-through` 收口已经完成。如果继续做产品增量，下一步更适合先选择一个新的明确小波次，而不是继续把当前这轮 `P4` 收口写成待完成主线。
 
 当前代码现实：
 
-1. `DocumentsPage` 对现有 source family 的基础承载已经落地
+1. `DocumentsPage` 对现有 source family 的基础承载和第一轮收口已经落地
    - `web page` URL 入口
    - `feed` URL 入口
    - `sitemap` URL 入口
-2. 因此，后续 `P4` 更适合继续做：
-   - web 侧收口与体验打磨
-   - focused contract / regression 补齐
-   - 已有入口与文档/状态页的一致性修正
-3. 保持现有 API contract，不重做 source 管理后台
-4. 保持 `PC Web` 优先，不展开移动端适配
+2. `Document Detail / Usage / Trace` 与 `Report center / eval` 的当前一轮阅读路径、参数 carry-through 和 focused regression 也已完成收口
+3. 因此，后续更适合做的是：
+   - 已完成区域内的 bounded maintenance
+   - 或基于现有产品状态选择新的明确小波次
+4. 保持现有 API contract，不重做 source 管理后台
+5. 保持 `PC Web` 优先，不展开移动端适配
 
 建议执行顺序：
 
-1. `Documents / Knowledge Base`
-   - 统一 source-entry、上传入口、空态和错误态表达
-   - 补 active knowledge base 缺失时的引导和跳转
-   - 收紧列表页与 run/详情页之间的入口路径
-2. `Document Detail / Usage / Trace`
-   - 统一 document run、failure summary、trace 诊断摘要的阅读路径
-   - 优先做 scan-first 信息编排，而不是加新数据面
-3. `Report center / eval`
-   - 补参数 carry-through、页面内一致性和 focused contract
-   - 保持 live eval API contract，不另开离线报表体系
-4. focused regression
-   - 锁定 `DocumentsPage` source-entry
-   - 锁定 document-run observability
-   - 锁定 trace/report 关键契约
+1. 在 `P3/P4/P5/P6` 已完成区域内继续做 bounded maintenance
+2. 如果开启新的产品增量，先明确单一主线和最小收口目标
+3. 对新主线采用 focused contract / regression 先行，而不是同时打开多个并行方向
 
 不做：
 
+- 不把当前这轮 `P4` 已完成收口重新写成待开发 backlog
 - 不新增 source family
 - 不做 source platform / plugin 化
 - 不重写现有 backend ingestion contract
@@ -114,13 +106,14 @@
 | P1 | done | auth/login 最小闭环已完成 |
 | P2 | done | owner-only ACL baseline 已完成 |
 | P3 | done / maintenance only | source family 和 guardrails 已落地 |
-| P4 | next likely wave | 更适合继续收口已有 backend 能力到 web |
+| P4 | done / bounded follow-up only | 当前这轮 web capability carry-through 收口已完成，后续只做小型维护 |
 | P5 | done / governance only | eval runner / baseline / replay / report / quality gate 已落地 |
 | P6 | done / bounded follow-up only | observability readability 已完成，不扩成平台化改造 |
 
 ## 4. 不做什么
 
 - 不把 `P3` / `P5` 重新当作默认下一条 feature wave
+- 不把当前这轮 `P4` 收口重新当作默认下一条 feature wave
 - 不做 broad refactor、架构重写、schema / persistence 大改
 - 不做新的 source family 扩展，除非已有 family 内能力被证明无法满足明确需求
 - 不把 observability 扩成新的平台方向
@@ -152,4 +145,4 @@
 
 ## 6. 一句话结论
 
-`P0`、`P1`、`P2` 已完成，`P3`、`P5`、`P6` 已完成主开发并进入维护/治理边界；当前最合理的推进方式是先完成 docs 对齐，然后沿 `P4 web capability carry-through` 按 `Documents / KB -> Detail / Usage / Trace -> Report / eval -> focused regression` 的顺序持续收口。
+`P0`、`P1`、`P2` 已完成，`P3`、当前这轮 `P4`、`P5`、`P6` 均已完成当前范围内的主开发或收口；接下来最合理的推进方式是维持 bounded maintenance，并在需要新增量时先选择一条新的明确单线主线。

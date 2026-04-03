@@ -49,3 +49,4 @@ __pycache__/
 ragas_results/
 p5-test.json
 package-lock.json
+.opencode/

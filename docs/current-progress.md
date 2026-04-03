@@ -2,18 +2,19 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-更新时间：2026-04-02
+更新时间：2026-04-04
 
 ## Current Snapshot
 
 - 当前默认方式仍是：单线推进、小步增量、每轮收口。
 - 代码现实已明显前于旧计划表述：
   - `P3` external-source family + guardrails：开发已完成，当前只保留维护态 follow-up
+  - `P4` 当前这一轮 web capability carry-through：收口已完成，当前只保留 bounded follow-up
   - `P5` eval / regression baseline：工程能力已完成，当前只保留基线治理和使用态 follow-up
-- 因此，`P3` / `P5` 不应再被视为“下一步主开发波次”。
+- 因此，`P3` / 当前这轮 `P4` / `P5` 不应再被视为“下一步主开发波次”。
 - 当前更合适的下一步是：
-  - 先完成阶段判断与文档同步
-  - 再从 `P4 web capability carry-through` 的后续收口，或新的明确产品波次里选一个最小增量
+  - 在已完成区域内继续做 bounded maintenance
+  - 或从新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments
 
@@ -63,7 +64,7 @@
 
 - `P4 DocumentsPage source-entry carry-through` 已完成基础承接
   - web 侧已具备 `web page` / `feed` / `sitemap` 三类 URL 入口
-  - 当前若继续推进 `P4`，更适合做现有入口的收口、测试和体验打磨，而不是把入口承接继续记为待开发
+  - 当前这轮 `P4` 收口已完成；后续若继续改动，更适合作为 bounded maintenance，而不是把入口承接继续记为待开发
   - 本轮已补一个小范围收口：`DocumentsPage` 在无 active knowledge base 时不再对文档列表和 source-entry 走隐式 `default-kb` 兜底，而是切到显式空态与引导动作
   - 当前 source-entry 收口口径：三类 URL 入口都带有前端 `http/https` 校验、提交中忙态与提交成功后的行内状态反馈；focused web regression 已补齐并锁定这组行为
   - 当前 source-entry 进一步统一为单一路径：字段错误只保留一处主状态表达，`busy` / `empty` / `no-active-kb` / `success` 在 `web page` / `feed` / `sitemap` 三个入口下保持一致，且页头不再把无 active knowledge base 误显示为 `Default KB`
@@ -90,17 +91,16 @@
 - `P3` 仍允许在现有 source family 内做小型回归修补，但不再重开新的 source expansion wave。
 - `P5` 仍允许在现有 eval / replay / report / quality gate 契约内做维护，但不再把它描述成当前主开发方向。
 - `P6` 仍保持 scan-first readability 和 docs sync 边界，不扩成平台化重写。
+- 当前这轮 `P4` 只保留已完成页面收口范围内的小型 follow-up，不再把它写回默认主线。
 - 当前真正需要推进的新增量，更适合落在：
-  - `P4 web capability carry-through` 的后续收口
-  - 或新的明确产品波次
+  - 新的明确产品波次
+  - 或已完成区域内的 bounded maintenance
 
 ## Next Execution Order
 
-✅ 1. `docs / stage alignment` - 已完成
-✅ 2. `P4 Documents / Knowledge Base` 第一轮收口 - 已完成（documents-page-helpers）
-✅ 3. `Document Detail / Usage / Trace` 诊断路径收口 - 已完成（trace-detail-page-helpers, usage-page-helpers）
-✅ 4. `Report center / eval` 参数与契约收口 - 已完成（report-center-page-helpers）
-✅ 5. focused regression + bounded maintenance - 已完成（ESLint 配置、lint 修复、构建验证）
+1. bounded maintenance in completed areas
+2. keep docs and stage judgment fresh
+3. choose the next single product increment before opening a new wave
 
 ## Focused Validation Baseline
 
@@ -120,5 +120,5 @@
 ## Notes
 
 - 本文件已从 append-only 长日志收瘦为当前摘要；更早的详细完成记录请按需从 git history 回看。
-- 当前阶段判断已经按代码现实收正：`P3` / `P5` 是已完成主开发的阶段，不再默认作为下一步主线。
+- 当前阶段判断已经按代码现实收正：`P3` / 当前这轮 `P4` / `P5` 是已完成主开发或收口的阶段，不再默认作为下一步主线。
 - 具体下一步方向以 [docs/next_steps_rag_project_plan.md](D:\FeProjects\rag-system\docs\next_steps_rag_project_plan.md) 的更新版口径为主。
