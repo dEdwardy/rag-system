@@ -13,6 +13,10 @@ import {
   useDocuments,
   useKnowledgeBases
 } from "../../features/api/hooks";
+import {
+  getPrimaryAssistantForKnowledgeBase,
+  getPrimaryKnowledgeBase
+} from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { AskStreamEvent, AskStreamFinalData, Citation, Message } from "../../types/api";
 import { buildCitationContext, formatConversationUpdatedAt, formatMessageTime } from "./chat-page-helpers";
@@ -197,13 +201,13 @@ export function ChatPage() {
 
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
-  const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb", activeKnowledgeBase != null);
+  const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", activeKnowledgeBase != null);
   const conversationsQuery = useConversations();
-  const activeAssistant = assistantsQuery.data?.[0] ?? null;
+  const activeAssistant = getPrimaryAssistantForKnowledgeBase(assistantsQuery.data, activeKnowledgeBase?.id ?? null);
   const messagesQuery = useConversationMessages(activeConversationId);
   const tracesQuery = useConversationTraces(activeConversationId);
-  const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "default-assistant");
+  const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "");
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
   const chatCopy = useMemo(

@@ -17,6 +17,7 @@ import {
   useKnowledgeBases,
   useReindexDocument
 } from "../../features/api/hooks";
+import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
   buildKnowledgeBaseWorkspaceNextAction,
@@ -29,7 +30,7 @@ type RunRecord = Parameters<NonNullable<ComponentProps<typeof DocumentRunList>["
 export function KnowledgeBasePage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
-  const knowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
+  const knowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const hasKnowledgeBase = knowledgeBase != null;
   const documentsQuery = useDocuments(knowledgeBase?.id ?? "", hasKnowledgeBase);
   const reindexMutation = useReindexDocument();

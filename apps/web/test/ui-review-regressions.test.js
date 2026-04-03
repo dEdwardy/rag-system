@@ -17,6 +17,7 @@ const traceListPath = resolve(__dirname, "../src/pages/traces/TraceListPage.tsx"
 const traceDetailPath = resolve(__dirname, "../src/pages/traces/TraceDetailPage.tsx");
 const reportCenterPath = resolve(__dirname, "../src/pages/reports/ReportCenterPage.tsx");
 const reportCenterHelpersPath = resolve(__dirname, "../src/pages/reports/report-center-page-helpers.ts");
+const workspaceSelectionPath = resolve(__dirname, "../src/features/api/workspace-selection.ts");
 const loginPagePath = resolve(__dirname, "../src/pages/auth/LoginPage.tsx");
 const globalCssPath = resolve(__dirname, "../src/styles/global.css");
 const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
@@ -229,10 +230,14 @@ test("chat and trace detail surface higher-level workspace summaries before diag
   const chatSource = readFileSync(chatPagePath, "utf8");
   const traceSource = readFileSync(traceDetailPath, "utf8");
   const statePanelSource = readFileSync(resolve(__dirname, "../src/components/StatePanel.tsx"), "utf8");
+  const workspaceSelectionSource = readFileSync(workspaceSelectionPath, "utf8");
 
   assert.match(chatSource, /workspace-chat-summary/);
+  assert.match(chatSource, /getPrimaryKnowledgeBase/);
+  assert.match(chatSource, /getPrimaryAssistantForKnowledgeBase/);
   assert.match(chatSource, /resolveWorkspaceStatus\(/);
   assert.match(chatSource, /readyToAsk:\s*t\("chat\.copy\.readyToAsk"\)/);
+  assert.match(workspaceSelectionSource, /return assistants\?\.find\(assistant => assistant\.kbId === knowledgeBaseId\) \?\? null/);
   assert.ok(
     traceSource.indexOf('Execution summary') < traceSource.indexOf('Request / response / steps'),
     'Trace Detail should scan execution summary before request / response / steps'

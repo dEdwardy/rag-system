@@ -29,6 +29,10 @@ import {
   useUpdateAssistant,
   useUpdateRetrievalProfile
 } from "../../features/api/hooks";
+import {
+  getPrimaryAssistantForKnowledgeBase,
+  getPrimaryKnowledgeBase
+} from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
   AssistantConfigFormValues,
@@ -40,14 +44,14 @@ import {
 export function AssistantPage() {
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
-  const knowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(knowledgeBase?.id ?? "default-kb", knowledgeBase != null);
+  const knowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
+  const documentsQuery = useDocuments(knowledgeBase?.id ?? "", knowledgeBase != null);
   const conversationsQuery = useConversations();
   const retrievalProfilesQuery = useRetrievalProfiles();
-  const assistant = assistantsQuery.data?.[0] ?? null;
+  const assistant = getPrimaryAssistantForKnowledgeBase(assistantsQuery.data, knowledgeBase?.id ?? null);
   const retrievalProfile =
     retrievalProfilesQuery.data?.find(profile => profile.id === assistant?.retrievalProfileId) ?? null;
-  const updateAssistantMutation = useUpdateAssistant(assistant?.id ?? "default-assistant");
+  const updateAssistantMutation = useUpdateAssistant(assistant?.id ?? "");
   const updateRetrievalProfileMutation = useUpdateRetrievalProfile(
     retrievalProfile?.id ?? "default-retrieval-profile"
   );

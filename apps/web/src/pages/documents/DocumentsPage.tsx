@@ -26,13 +26,14 @@ import {
   useReindexDocument,
   useUploadDocument
 } from "../../features/api/hooks";
+import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
 
 type SourceEntryKind = "webPage" | "feed" | "sitemap";
 
 export function DocumentsPage() {
   const knowledgeBasesQuery = useKnowledgeBases();
-  const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
+  const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const hasActiveKnowledgeBase = activeKnowledgeBase != null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "");

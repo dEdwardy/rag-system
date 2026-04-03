@@ -13,6 +13,7 @@ import {
   useKnowledgeBaseDocumentRunSummary,
   useKnowledgeBases
 } from "../../features/api/hooks";
+import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
   buildRunSummaryActionTarget,
@@ -36,7 +37,7 @@ export function UsagePage() {
   const issueTrend1hQuery = useAuditEvents({ issueOnly: true, sinceHours: 1, limit: 100 });
   const issueTrend6hQuery = useAuditEvents({ issueOnly: true, sinceHours: 6, limit: 100 });
   const issueTrend24hQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 100 });
-  const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
+  const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const hasActiveKnowledgeBase = activeKnowledgeBase != null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
   const runSummary1hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 1 });

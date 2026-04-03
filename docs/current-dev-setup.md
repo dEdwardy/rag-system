@@ -108,6 +108,12 @@ Default seeded IDs:
 - retrieval profile: `default-retrieval-profile`
 - assistant: `default-assistant`
 
+Test-data cleanup reminder:
+
+- keep the default seeded baseline minimal and stable; if extra smoke/demo `KB`, `assistant`, or `document` records are retained for backend verification, make sure they do not become the default frontend path by accident
+- this matters more now that the frontend is temporarily aligned to a `single primary KB`: leftover test data can silently become the first visible KB and make chat/documents look broken or point at the wrong corpus
+- after any manual smoke run against a shared/dev database, either clean up the temporary records you added or explicitly isolate them so they do not hijack the default user flow
+
 ## Start API
 
 Stable way in the current environment:
