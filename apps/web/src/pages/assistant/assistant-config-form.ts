@@ -7,7 +7,7 @@ import type {
 } from "../../types/api";
 
 export const DEFAULT_ANSWER_POLICY: Required<AnswerPolicy> = {
-  responseStyle: "concise",
+  responseStyle: "balanced",
   tone: "neutral",
   outputFormat: "paragraph",
   language: "auto",

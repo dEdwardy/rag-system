@@ -221,6 +221,10 @@ export function AssistantPage() {
                       {...form.getInputProps("description")}
                     />
 
+                    <Alert color="gray" radius="xl" variant="light">
+                      {t("assistant.copy.systemPromptHint")}
+                    </Alert>
+
                     <Textarea
                       autosize
                       classNames={{ input: "workspace-input" }}
@@ -234,11 +238,24 @@ export function AssistantPage() {
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                   <Stack gap="md">
                     <div>
+                      <Text className="workspace-section-heading">
+                        {t("assistant.copy.recommendedDefaults")}
+                      </Text>
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {t("assistant.copy.recommendedDefaultsCopy")}
+                      </Text>
+                    </div>
+
+                    <div>
                       <Text className="workspace-section-heading">{t("assistant.answerPolicySection")}</Text>
                       <Text c="var(--app-text-muted)" size="sm">
                         {t("assistant.copy.answerPolicyCopy")}
                       </Text>
                     </div>
+
+                    <Alert color="indigo" radius="xl" variant="light">
+                      {t("assistant.answerPolicyRecommendedHint")}
+                    </Alert>
 
                     <Grid gutter="md">
                       <Grid.Col span={{ base: 12, md: 4 }}>
@@ -348,6 +365,10 @@ export function AssistantPage() {
                       </Text>
                     </div>
 
+                    <Alert color="indigo" radius="xl" variant="light">
+                      {t("assistant.retrievalRecommendedHint")}
+                    </Alert>
+
                     <Grid gutter="md">
                       <Grid.Col span={{ base: 12, md: 4 }}>
                         <NumberInput
@@ -378,6 +399,28 @@ export function AssistantPage() {
                         />
                       </Grid.Col>
                     </Grid>
+                  </Stack>
+                </Paper>
+
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  data-testid="assistant-retrieval-strategy-section"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Stack gap="md">
+                    <div>
+                      <Text className="workspace-section-heading">
+                        {t("assistant.copy.advancedTuning")}
+                      </Text>
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {t("assistant.copy.advancedTuningCopy")}
+                      </Text>
+                    </div>
+
+                    <Alert color="gray" radius="xl" variant="light">
+                      {t("assistant.advancedRetrievalHint")}
+                    </Alert>
 
                     <Switch
                       checked={form.values.enableHybrid}
@@ -394,16 +437,7 @@ export function AssistantPage() {
                     <Alert color="blue" radius="xl" variant="light">
                       {t("assistant.note")}
                     </Alert>
-                  </Stack>
-                </Paper>
 
-                <Paper
-                  className="workspace-panel-hover workspace-panel-muted"
-                  data-testid="assistant-retrieval-strategy-section"
-                  p="lg"
-                  radius="xl"
-                >
-                  <Stack gap="md">
                     <div>
                       <Text className="workspace-section-heading">{t("assistant.retrievalStrategySection")}</Text>
                       <Text c="var(--app-text-muted)" size="sm">

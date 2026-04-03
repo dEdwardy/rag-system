@@ -406,12 +406,26 @@ export const messages = {
         heroSubtitle: "Keep policy, retrieval tuning, and filters in one workspace without changing the current payload semantics.",
         assistantIdentity: "Assistant identity",
         assistantIdentityCopy: "Name, status, description, and system prompt stay in one control surface.",
+        systemPromptHint:
+          "Most users can keep the current system prompt unchanged and tune the recommended defaults below first.",
+        recommendedDefaults: "Recommended defaults",
+        recommendedDefaultsCopy:
+          "If you do not want to tune retrieval manually, keep this section close to the default setup for the most stable day-to-day use.",
+        advancedTuning: "Advanced tuning",
+        advancedTuningCopy:
+          "Only adjust this section when you already know what retrieval issue you are trying to fix. Otherwise keep it unchanged.",
         answerPolicyCopy: "Control tone, structure, citation policy, and fallback behavior without changing backend semantics.",
         retrievalCopy: "Tune retrieval depth and rerank behavior while keeping the same payload contract.",
         workspaceStatus: "Workspace status",
         saveCheckpoint: "Save checkpoint",
         saveCheckpointCopy: "Submit once to persist both assistant policy and retrieval profile changes together."
       },
+      answerPolicyRecommendedHint:
+        "Recommended default: balanced + required citations + say insufficient context + include missing information.",
+      retrievalRecommendedHint:
+        "Recommended default: topK 3, chunk window 0, hybrid off, rerank off. Change these only when retrieval behavior is clearly off.",
+      advancedRetrievalHint:
+        "Hybrid, rerank, explicit strategy override, and filters are advanced controls. Use them only when retrieval is obviously too noisy or missing key hits.",
       retrievalStrategySection: "Retrieval strategy override",
       retrievalStrategyHelp:
         "Optionally persist an explicit strategyJson override. Turn it off to fall back to the legacy flat retrieval fields.",
@@ -915,12 +929,20 @@ export const messages = {
         heroSubtitle: "把回答策略、检索参数和过滤条件收进同一套配置工作台中，不改变现有提交语义。",
         assistantIdentity: "助手身份",
         assistantIdentityCopy: "名称、状态、描述和 system prompt 保持在同一块主控制面板中。",
+        systemPromptHint: "大多数情况下可以先保持当前 system prompt 不动，优先调整下面这组推荐默认值。",
+        recommendedDefaults: "推荐默认",
+        recommendedDefaultsCopy: "如果你暂时不想手动调检索，就尽量保持这一组接近默认配置，日常使用会更稳。",
+        advancedTuning: "高级调优",
+        advancedTuningCopy: "只有在你已经知道要修什么检索问题时，再调整这一组；否则建议保持不动。",
         answerPolicyCopy: "只收紧输入层级、分组和可读性，不改变 answer policy 的字段含义。",
         retrievalCopy: "保留现有 retrieval tuning 字段和提交逻辑，只优化配置层级与可扫读性。",
         workspaceStatus: "工作台状态",
         saveCheckpoint: "保存检查点",
         saveCheckpointCopy: "一次提交同时持久化 assistant policy 和 retrieval profile。"
       },
+      answerPolicyRecommendedHint: "推荐默认：balanced + 必须引用 + 明确说明上下文不足 + 补充缺失信息提示。",
+      retrievalRecommendedHint: "推荐默认：topK 3、chunk window 0、hybrid 关闭、rerank 关闭。只有在检索明显不对时再改。",
+      advancedRetrievalHint: "hybrid、rerank、显式 strategy override 和 filters 都属于高级控制；只有在检索明显过噪或漏召时再动。",
       retrievalStrategySection: "检索策略覆盖",
       retrievalStrategyHelp: "可选地保存显式 strategyJson 覆盖；关闭后回退到现有平铺 retrieval 字段推导出的默认策略。",
       strategyOverrideEnabled: "使用显式检索策略覆盖",

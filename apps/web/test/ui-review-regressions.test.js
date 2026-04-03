@@ -10,6 +10,7 @@ const appShellPath = resolve(__dirname, "../src/app/AppShell.tsx");
 const chatPagePath = resolve(__dirname, "../src/pages/chat/ChatPage.tsx");
 const documentsPath = resolve(__dirname, "../src/pages/documents/DocumentsPage.tsx");
 const documentDetailPath = resolve(__dirname, "../src/pages/documents/DocumentDetailPage.tsx");
+const assistantPagePath = resolve(__dirname, "../src/pages/assistant/AssistantPage.tsx");
 const knowledgeBasePath = resolve(__dirname, "../src/pages/knowledge-base/KnowledgeBasePage.tsx");
 const usagePath = resolve(__dirname, "../src/pages/usage/UsagePage.tsx");
 const usageHelpersPath = resolve(__dirname, "../src/pages/usage/usage-page-helpers.ts");
@@ -100,10 +101,25 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
 });
 
 test("assistant copy avoids exposing backend field names and trace raw payload is secondary", () => {
+  const assistantSource = readFileSync(assistantPagePath, "utf8");
   const messagesSource = readFileSync(messagesPath, "utf8");
   const traceSource = readFileSync(traceDetailPath, "utf8");
 
   assert.doesNotMatch(messagesSource, /enableHybrid|enableRerank/);
+  assert.match(assistantSource, /assistant\.copy\.recommendedDefaults/);
+  assert.match(assistantSource, /assistant\.copy\.advancedTuning/);
+  assert.match(assistantSource, /assistant\.copy\.systemPromptHint/);
+  assert.match(assistantSource, /assistant\.answerPolicyRecommendedHint/);
+  assert.match(assistantSource, /assistant\.retrievalRecommendedHint/);
+  assert.match(assistantSource, /assistant\.advancedRetrievalHint/);
+  assert.match(messagesSource, /recommendedDefaults: "Recommended defaults"/);
+  assert.match(messagesSource, /advancedTuning: "Advanced tuning"/);
+  assert.match(messagesSource, /systemPromptHint:/);
+  assert.match(messagesSource, /answerPolicyRecommendedHint:/);
+  assert.match(messagesSource, /retrievalRecommendedHint:/);
+  assert.match(messagesSource, /advancedRetrievalHint:/);
+  assert.match(messagesSource, /recommendedDefaults: "推荐默认"/);
+  assert.match(messagesSource, /advancedTuning: "高级调优"/);
   assert.match(traceSource, /<details[\s\S]*common\.fields\.rawPayload/);
 });
 

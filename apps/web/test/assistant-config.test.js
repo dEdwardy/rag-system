@@ -50,7 +50,7 @@ test("assistant config defaults apply when answer policy is missing", async () =
     }
   );
 
-  assert.equal(values.responseStyle, "concise");
+  assert.equal(values.responseStyle, "balanced");
   assert.equal(values.tone, "neutral");
   assert.equal(values.outputFormat, "paragraph");
   assert.equal(values.language, "auto");
