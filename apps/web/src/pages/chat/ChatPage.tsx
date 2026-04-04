@@ -6,6 +6,7 @@ import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelco
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAskAssistantStream,
+  useAuthMe,
   useAssistants,
   useConversationMessages,
   useConversations,
@@ -206,6 +207,7 @@ export function ChatPage() {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const assistantsQuery = useAssistants();
+  const authMeQuery = useAuthMe();
   const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", activeKnowledgeBase != null);
@@ -312,6 +314,8 @@ export function ChatPage() {
     conversationsQuery.data?.find(conversation => conversation.id === activeConversationId) ?? null;
   const conversationCount = conversationsQuery.data?.length ?? 0;
   const documentCount = documentsQuery.data?.length ?? 0;
+  const isOauthOnboardingActive =
+    authMeQuery.data?.loginProvenance.type === "oauth_session" && !(documentCount > 0 && conversationCount > 0);
   const workspaceStatus = resolveWorkspaceStatus({
     copy: chatCopy,
     hasKnowledgeBase: activeKnowledgeBase != null,
@@ -415,6 +419,46 @@ export function ChatPage() {
       pageLabel: pageNo => t("common.misc.pageLong", { pageNo })
     });
 
+  const summaryCards = [
+    {
+      key: "knowledge-base",
+      hint: activeKnowledgeBase ? chatCopy.currentKnowledgeBaseHintHasKb : chatCopy.currentKnowledgeBaseHintNoKb,
+      label: chatCopy.currentKnowledgeBase,
+      value: activeKnowledgeBase?.name ?? chatCopy.noKnowledgeBaseName
+    },
+    {
+      key: "assistant",
+      hint: activeAssistant ? chatCopy.currentAssistantHintHasAssistant : chatCopy.currentAssistantHintNoAssistant,
+      label: chatCopy.currentAssistant,
+      value: activeAssistant?.name ?? chatCopy.noAssistantName
+    },
+    {
+      key: "workspace",
+      hint: activeConversation ? chatCopy.currentWorkspaceHintHasConversation : chatCopy.currentWorkspaceHintNewConversation,
+      label: chatCopy.currentWorkspace,
+      value: activeConversation?.title ?? chatCopy.newConversationDraft
+    },
+    {
+      key: "ask-status",
+      hint: activeAssistant ? chatCopy.askStatusHintHasAssistant : chatCopy.askStatusHintNoAssistant,
+      label: chatCopy.askStatus,
+      value: workspaceStatus
+    },
+    {
+      key: "diagnostics",
+      hint: t("chat.copy.citationsCount", {
+        conversationCount,
+        citationCount: citationItems.length
+      }),
+      label: chatCopy.citationsAndTrace,
+      value: activeTraceId ?? chatCopy.waitingForNextTrace
+    }
+  ];
+
+  const visibleSummaryCards = isOauthOnboardingActive
+    ? summaryCards.filter(card => card.key === "knowledge-base" || card.key === "assistant" || card.key === "ask-status")
+    : summaryCards;
+
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
@@ -461,59 +505,15 @@ export function ChatPage() {
               documentCount={documentCount}
             />
 
-            <div className="workspace-chat-summary grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryCard
-                hint={
-                  activeKnowledgeBase
-                    ? chatCopy.currentKnowledgeBaseHintHasKb
-                    : chatCopy.currentKnowledgeBaseHintNoKb
-                }
-                label={chatCopy.currentKnowledgeBase}
-                value={activeKnowledgeBase?.name ?? chatCopy.noKnowledgeBaseName}
-              />
-              <SummaryCard
-                hint={
-                  activeAssistant
-                    ? chatCopy.currentAssistantHintHasAssistant
-                    : chatCopy.currentAssistantHintNoAssistant
-                }
-                label={chatCopy.currentAssistant}
-                value={activeAssistant?.name ?? chatCopy.noAssistantName}
-              />
-              <SummaryCard
-                hint={
-                  activeConversation
-                    ? chatCopy.currentWorkspaceHintHasConversation
-                    : chatCopy.currentWorkspaceHintNewConversation
-                }
-                label={chatCopy.currentWorkspace}
-                value={
-                  activeConversation?.title ??
-                  chatCopy.newConversationDraft
-                }
-              />
-              <SummaryCard
-                hint={
-                  activeAssistant
-                    ? chatCopy.askStatusHintHasAssistant
-                    : chatCopy.askStatusHintNoAssistant
-                }
-                label={chatCopy.askStatus}
-                value={workspaceStatus}
-              />
-              <SummaryCard
-                hint={
-                  t("chat.copy.citationsCount", {
-                    conversationCount,
-                    citationCount: citationItems.length
-                  })
-                }
-                label={chatCopy.citationsAndTrace}
-                value={
-                  activeTraceId ??
-                  chatCopy.waitingForNextTrace
-                }
-              />
+            <div
+              className={[
+                "workspace-chat-summary grid gap-3 md:grid-cols-2",
+                isOauthOnboardingActive ? "xl:grid-cols-3" : "xl:grid-cols-4"
+              ].join(" ")}
+            >
+              {visibleSummaryCards.map(card => (
+                <SummaryCard hint={card.hint} key={card.key} label={card.label} value={card.value} />
+              ))}
             </div>
 
             {activeKnowledgeBase == null ? (

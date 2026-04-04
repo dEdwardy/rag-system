@@ -22,7 +22,7 @@ function GroupLoader() {
     <Stack aria-live="polite" gap={6} role="status">
       <Loader color="indigo" size="sm" />
       <Text c="var(--app-text-muted)" size="xs">
-        Loading latest trace...
+        Loading latest diagnostic trace...
       </Text>
     </Stack>
   );
@@ -113,7 +113,10 @@ export function TraceListPage() {
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <div className="workspace-hero-copy">
-            <Text className="workspace-hero-kicker">RAG System / Trace</Text>
+            <Text className="workspace-link" component={Link} size="sm" to="/workbench">
+              {t("common.actions.backToWorkbench")}
+            </Text>
+            <Text className="workspace-hero-kicker">Workbench</Text>
             <Title
               order={3}
               c="var(--app-text)"
@@ -195,11 +198,11 @@ export function TraceListPage() {
         color="indigo"
         component={Link}
         radius="xl"
-        to="/"
+        to="/workbench"
         variant="light"
         w="fit-content"
       >
-        {t("trace.copy.backToChat")}
+        {t("common.actions.backToWorkbench")}
       </Button>
     </Stack>
   );

@@ -26,13 +26,13 @@ export function buildRunSummaryActionTarget(args: {
 }): RunSummaryActionTarget {
   if (args.latestFailureDocumentId) {
     return {
-      label: args.locale === "zh" ? "打开失败文档" : "Open failed document",
+      label: args.locale === "zh" ? "打开异常资料" : "Open item with issues",
       to: `/documents/${args.latestFailureDocumentId}`
     };
   }
 
   return {
-    label: args.locale === "zh" ? "查看运行摘要" : "Open run summary",
+    label: args.locale === "zh" ? "查看运行摘要" : "Open operations summary",
     to: "/knowledge-base"
   };
 }
@@ -134,7 +134,7 @@ export function generateAlertItems(params: {
         locale === "zh"
           ? "健康探针未返回 ok，优先检查 API 进程与基础依赖。"
           : "Health probe is not ok; check API process and dependencies first.",
-      actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
+      actionLabel: locale === "zh" ? "打开诊断" : "Open diagnostics",
       actionTo: "/traces"
     });
   }
@@ -190,7 +190,7 @@ export function generateAlertItems(params: {
         locale === "zh"
           ? `最近 ${timeRange}h 问题事件 ${recentIssueCount} 条（阈值 >= 5）。`
           : `${recentIssueCount} issue events in the last ${timeRange}h (threshold >= 5).`,
-      actionLabel: locale === "zh" ? "查看 Trace" : "Open traces",
+      actionLabel: locale === "zh" ? "打开诊断" : "Open diagnostics",
       actionTo: "/traces"
     });
   }

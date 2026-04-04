@@ -12,7 +12,7 @@ const APP_SHELL_THEME = {
 } as const;
 
 type NavIconProps = {
-  type: "chat" | "documents" | "knowledge" | "assistant" | "trace" | "usage" | "report";
+  type: "chat" | "documents" | "knowledge" | "assistant" | "workbench" | "trace" | "usage" | "report";
 };
 
 type NavItem = {
@@ -24,17 +24,21 @@ type NavItem = {
 };
 
 type NavGroup = {
+  key: "main" | "setup" | "advanced";
   heading: string;
   items: NavItem[];
+  collapsible?: boolean;
 };
 
 type Locale = "zh" | "en";
 
 const APP_SHELL_TEXT: Record<Locale, {
   mainHeading: string;
-  tracingHeading: string;
+  setupHeading: string;
+  advancedHeading: string;
+  workbenchHome: string;
   chat: string;
-  documents: string;
+  library: string;
   knowledgeBase: string;
   assistant: string;
   traceLog: string;
@@ -43,27 +47,31 @@ const APP_SHELL_TEXT: Record<Locale, {
   fallbackActiveLabel: string;
 }> = {
   zh: {
-    mainHeading: "主要功能",
-    tracingHeading: "追踪与分析",
+    mainHeading: "开始使用",
+    setupHeading: "工作区设置",
+    advancedHeading: "管理工作台",
+    workbenchHome: "概览",
     chat: "对话",
-    documents: "文档",
-    knowledgeBase: "知识库",
-    assistant: "助手配置",
-    traceLog: "Trace 日志",
-    usage: "使用统计",
-    reportCenter: "报告中心",
+    library: "资料库",
+    knowledgeBase: "工作区设置",
+    assistant: "回答设置",
+    traceLog: "诊断",
+    usage: "运行概览",
+    reportCenter: "质量报告",
     fallbackActiveLabel: "对话"
   },
   en: {
-    mainHeading: "Main",
-    tracingHeading: "Tracing",
+    mainHeading: "Use",
+    setupHeading: "Setup",
+    advancedHeading: "Workbench",
+    workbenchHome: "Overview",
     chat: "Chat",
-    documents: "Documents",
-    knowledgeBase: "Knowledge Base",
-    assistant: "Assistant",
-    traceLog: "Trace log",
-    usage: "Usage",
-    reportCenter: "Report center",
+    library: "Library",
+    knowledgeBase: "Workspace settings",
+    assistant: "Answer settings",
+    traceLog: "Diagnostics",
+    usage: "Operations overview",
+    reportCenter: "Quality reports",
     fallbackActiveLabel: "Chat"
   }
 };
@@ -73,17 +81,27 @@ function buildNavGroups(locale: Locale, badges: { documentBadge: string | null; 
 
   return [
     {
+      key: "main",
       heading: text.mainHeading,
       items: [
         { to: "/", label: text.chat, badge: badges.conversationBadge, end: true, icon: "chat" },
-        { to: "/documents", label: text.documents, badge: badges.documentBadge, icon: "documents" },
+        { to: "/documents", label: text.library, badge: badges.documentBadge, icon: "documents" }
+      ]
+    },
+    {
+      key: "setup",
+      heading: text.setupHeading,
+      items: [
         { to: "/knowledge-base", label: text.knowledgeBase, icon: "knowledge" },
         { to: "/assistant", label: text.assistant, icon: "assistant" }
       ]
     },
     {
-      heading: text.tracingHeading,
+      key: "advanced",
+      heading: text.advancedHeading,
+      collapsible: true,
       items: [
+        { to: "/workbench", label: text.workbenchHome, icon: "workbench" },
         { to: "/traces", label: text.traceLog, icon: "trace" },
         { to: "/usage", label: text.usage, icon: "usage" },
         { to: "/reports", label: text.reportCenter, icon: "report" }
@@ -142,17 +160,26 @@ function NavIcon({ type }: NavIconProps) {
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" />
             </>
           )
-          : type === "assistant"
-            ? (
-              <>
-                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.6.13 1.26.13 1.6.13a2 2 0 1 1 0 4h-.09c-.25 0-.96 0-1.51.87z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
-              </>
-            )
-            : type === "trace"
+            : type === "assistant"
               ? (
-                <path d="M22 12h-4l-3 9-6-18-3 9H2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                <>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.6.13 1.26.13 1.6.13a2 2 0 1 1 0 4h-.09c-.25 0-.96 0-1.51.87z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+                </>
               )
+              : type === "workbench"
+                ? (
+                  <>
+                    <rect height="7" rx="1.5" stroke="currentColor" strokeWidth="2" width="7" x="3" y="3" />
+                    <rect height="7" rx="1.5" stroke="currentColor" strokeWidth="2" width="7" x="14" y="3" />
+                    <rect height="7" rx="1.5" stroke="currentColor" strokeWidth="2" width="7" x="3" y="14" />
+                    <rect height="7" rx="1.5" stroke="currentColor" strokeWidth="2" width="7" x="14" y="14" />
+                  </>
+                )
+              : type === "trace"
+                ? (
+                  <path d="M22 12h-4l-3 9-6-18-3 9H2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                )
               : (
                 <>
                   <line x1="18" x2="18" y1="20" y2="10" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
@@ -193,6 +220,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   const { themeLayout, setThemeLayout } = useThemePreferences();
   const [isHydrated, setIsHydrated] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isAdvancedNavOpen, setIsAdvancedNavOpen] = useState(false);
   const mobileNavToggleRef = useRef<HTMLButtonElement | null>(null);
   const firstMobileNavLinkRef = useRef<HTMLAnchorElement | null>(null);
   const knowledgeBasesQuery = useKnowledgeBases(isHydrated);
@@ -219,6 +247,8 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
       closeNavigationMenu: t("appShell.copy.closeNavigationMenu"),
       mobileWorkspaceMenu: t("appShell.copy.mobileWorkspaceMenu"),
       workspaceNavigation: t("appShell.copy.workspaceNavigation"),
+      showAdvancedTools: t("appShell.copy.showAdvancedTools"),
+      hideAdvancedTools: t("appShell.copy.hideAdvancedTools"),
       reportCenter: t("appShell.copy.reportCenter"),
       currentIdentityHeading: t("appShell.copy.currentIdentityHeading"),
       currentIdentityDescription: t("appShell.copy.currentIdentityDescription"),
@@ -276,6 +306,10 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
     () => buildNavGroups(localeKey, { documentBadge, conversationBadge }),
     [conversationBadge, documentBadge, localeKey]
   );
+  const hasActiveAdvancedRoute = links
+    .find(group => group.key === "advanced")
+    ?.items.some(item => isLinkActivePath(location.pathname, item)) ?? false;
+  const isAdvancedNavExpanded = isAdvancedNavOpen || hasActiveAdvancedRoute;
 
   const activeLabel = getActiveLabel(location.pathname, links, localeKey);
   const oauthProviderLabel = loginProvenance.oauthProvider?.toUpperCase() ?? appShellCopy.oauthProviderUnknown;
@@ -292,6 +326,14 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
         navigate("/login", { replace: true });
       }
     });
+  }
+
+  function getGroupToggleLabel(group: NavGroup) {
+    if (!group.collapsible) {
+      return group.heading;
+    }
+
+    return isAdvancedNavExpanded ? appShellCopy.hideAdvancedTools : appShellCopy.showAdvancedTools;
   }
 
   return (
@@ -326,10 +368,25 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
           <nav aria-label={appShellCopy.workspaceMenu} className="flex-1 px-4 py-5">
             {links.map(group => (
               <div className="mb-6" key={group.heading}>
-                <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
-                  {group.heading}
-                </div>
-                {group.items.map(item => {
+                {group.collapsible ? (
+                  <button
+                    aria-expanded={isAdvancedNavExpanded}
+                    aria-label={getGroupToggleLabel(group)}
+                    className="mb-2.5 flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)] transition duration-300 hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+                    onClick={() => setIsAdvancedNavOpen(current => !isAdvancedNavExpanded || !current)}
+                    type="button"
+                  >
+                    <span>{group.heading}</span>
+                    <svg aria-hidden="true" className={["h-4 w-4 transition duration-300", isAdvancedNavExpanded ? "rotate-180" : ""].join(" ")} fill="none" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                    </svg>
+                  </button>
+                ) : (
+                  <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
+                    {group.heading}
+                  </div>
+                )}
+                {(group.collapsible && !isAdvancedNavExpanded ? [] : group.items).map(item => {
                   const isActive = isLinkActivePath(location.pathname, item);
 
                   return (
@@ -548,10 +605,25 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                 <nav aria-label={appShellCopy.mobileWorkspaceMenu} className="flex-1 overflow-y-auto px-4 py-5">
                   {links.map((group, groupIndex) => (
                     <div className="mb-6" key={`mobile-${group.heading}`}>
-                      <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
-                        {group.heading}
-                      </div>
-                      {group.items.map((item, itemIndex) => {
+                      {group.collapsible ? (
+                        <button
+                          aria-expanded={isAdvancedNavExpanded}
+                          aria-label={getGroupToggleLabel(group)}
+                          className="mb-2.5 flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)] transition duration-300 hover:bg-[var(--app-surface)] hover:text-[var(--app-text)]"
+                          onClick={() => setIsAdvancedNavOpen(current => !isAdvancedNavExpanded || !current)}
+                          type="button"
+                        >
+                          <span>{group.heading}</span>
+                          <svg aria-hidden="true" className={["h-4 w-4 transition duration-300", isAdvancedNavExpanded ? "rotate-180" : ""].join(" ")} fill="none" viewBox="0 0 24 24">
+                            <path d="m6 9 6 6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[1px] text-[var(--app-text-muted)]">
+                          {group.heading}
+                        </div>
+                      )}
+                      {(group.collapsible && !isAdvancedNavExpanded ? [] : group.items).map((item, itemIndex) => {
                         const isActive = isLinkActivePath(location.pathname, item);
 
                         return (

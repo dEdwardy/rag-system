@@ -486,7 +486,7 @@ export function DocumentDetailPage() {
                           to="/documents"
                           variant="light"
                         >
-                          {locale === "zh" ? "回到文档工作台" : "Back to documents workspace"}
+                          {locale === "zh" ? "回到资料库" : "Back to library"}
                         </Button>
                       </Group>
                     </Stack>

@@ -201,12 +201,12 @@ export function DocumentsPage() {
     () => [
       {
         key: "total",
-        label: locale === "zh" ? "文档总数" : "Total documents",
+        label: locale === "zh" ? "资料总数" : "Total items",
         value: documentCount,
         subtle:
           locale === "zh"
-            ? "当前知识库下全部文档"
-            : "All documents in the active knowledge base"
+            ? "当前资料库中的全部资料"
+            : "All library items in the current workspace library"
       },
       {
         key: "ready",
@@ -214,8 +214,8 @@ export function DocumentsPage() {
         value: readyCount,
         subtle:
           locale === "zh"
-            ? "已完成切分与索引"
-            : "Indexed and available for retrieval"
+            ? "已经可以用于提问"
+            : "Ready to use in chat"
       },
       {
         key: "processing",
@@ -223,8 +223,8 @@ export function DocumentsPage() {
         value: processingCount,
         subtle:
           locale === "zh"
-            ? "等待上传或重建完成"
-            : "Waiting for upload or reindex to finish"
+            ? "正在导入或更新中"
+            : "Being added or refreshed"
       },
       {
         key: "failed",
@@ -232,8 +232,8 @@ export function DocumentsPage() {
         value: failedCount,
         subtle:
           locale === "zh"
-            ? "失败文档建议重试或删除"
-            : "Failed documents should be retried or removed"
+            ? "有资料需要重试或清理"
+            : "Some items need retry or cleanup"
       }
     ],
     [documentCount, failedCount, locale, processingCount, readyCount]
@@ -433,7 +433,7 @@ export function DocumentsPage() {
             <Box className="workspace-hero-icon">DOC</Box>
             <div className="workspace-hero-copy">
               <Text className="workspace-hero-kicker">
-                {locale === "zh" ? "文档工作台" : "Knowledge documents"}
+                {locale === "zh" ? "资料库" : "Library"}
               </Text>
               <Title
                 order={3}
@@ -447,7 +447,7 @@ export function DocumentsPage() {
               </Text>
               <Group gap="xs" mt="sm">
                 <Badge color="gray" radius="sm" variant="light">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}
                 </Badge>
                 <Badge
                   color={workspaceSurfaceState.badgeColor}
@@ -467,7 +467,7 @@ export function DocumentsPage() {
                     : t("documents.currentKnowledgeBaseHintNoKb")}
                 </Text>
                 <Badge color="gray" radius="sm" variant="light">
-                  {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}`}
+                  {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}`}
                 </Badge>
                 <FileButton onChange={handleUploadFile}>
                   {props => (
@@ -596,19 +596,19 @@ export function DocumentsPage() {
           <Stack gap="md">
             <div>
               <Text className="workspace-section-heading">
-                {locale === "zh" ? "当前工作提示" : "Workspace readout"}
+                {locale === "zh" ? "当前资料概览" : "Library snapshot"}
               </Text>
               <Text className="workspace-section-copy">
                 {locale === "zh"
-                  ? "这一页只承担文档资产管理，不在首屏堆叠过多解释。优先看状态、数量和待处理队列。"
-                  : "This page stays focused on document operations. Use the top summary to scan readiness, volume, and queue pressure first."}
+                  ? "这一页主要用来管理资料。先看可用数量、处理中项目和需要处理的失败项。"
+                  : "This page stays focused on library management. Start with readiness, items in progress, and anything that needs attention."}
               </Text>
             </div>
             <div className="workspace-meta-list">
               <div className="workspace-meta-row">
-                <span className="workspace-meta-label">{locale === "zh" ? "当前知识库" : "Current KB"}</span>
+                <span className="workspace-meta-label">{locale === "zh" ? "当前资料空间" : "Current library"}</span>
                 <span className="workspace-meta-value">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动知识库" : "No active KB")}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}
                 </span>
               </div>
               <div className="workspace-meta-row">
@@ -636,12 +636,12 @@ export function DocumentsPage() {
           <Group justify="space-between" wrap="nowrap">
             <div>
               <Text className="workspace-section-heading">
-                {locale === "zh" ? "文档列表" : "Document workspace"}
+                {locale === "zh" ? "资料列表" : "Library items"}
               </Text>
               <Text className="workspace-section-copy">
                 {locale === "zh"
-                  ? "保留现有列表逻辑，只继续收紧头部、表格层级、按钮密度和空态表达。"
-                  : "Keep the existing list logic and tighten hierarchy, spacing, and state density only."}
+                  ? "在这里查看每份资料的当前状态、更新时间，以及是否已经可以用于问答。"
+                  : "Review each item here to see whether it is ready, still updating, or needs attention."}
               </Text>
             </div>
             {documentCount ? (
@@ -672,8 +672,8 @@ export function DocumentsPage() {
               <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3">
                 <Text className="workspace-table-hint">
                   {locale === "zh"
-                    ? "先扫状态、Chunk 数和更新时间，再进入文档详情查看一行 run 失败摘要，最后再看 trace 诊断。"
-                    : "Scan status, chunk count, and update time first, then open Document Detail for a one-line run failure summary before Trace diagnostics."}
+                    ? "先看状态、片段数和更新时间；如果某份资料异常，再进入详情继续排查。"
+                    : "Scan status, chunk count, and update time first, then open item details only when something looks off."}
                 </Text>
                 <Badge color={failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
                   {failedCount > 0

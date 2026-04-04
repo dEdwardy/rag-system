@@ -341,12 +341,18 @@ export function TraceDetailPage() {
     <Stack gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
         <Stack gap="sm">
-          <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/traces">
-            {locale === "zh" ? "返回 Trace 列表" : "Back to trace list"}
-          </Text>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/workbench">
+              {locale === "zh" ? "返回工作台概览" : "Back to workbench overview"}
+            </Text>
+            <Text c="var(--app-text-muted)" size="sm">/</Text>
+            <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/traces">
+              {locale === "zh" ? "返回诊断列表" : "Back to diagnostics list"}
+            </Text>
+          </div>
           <div className="workspace-hero-split">
             <div className="workspace-hero-copy">
-              <Text className="workspace-hero-kicker">Trace detail</Text>
+              <Text className="workspace-hero-kicker">Workbench</Text>
               <Title
                 order={3}
                 c="var(--app-text)"
@@ -370,8 +376,8 @@ export function TraceDetailPage() {
                 </Group>
                 <Text className="workspace-hero-sidecopy" ta="right">
                   {locale === "zh"
-                    ? "保留 trace 原始数据、引用、chunk 深链和评分展示，只进一步统一 B 主题 panel 语言。"
-                    : "Keep raw payload, citations, chunk deep links, and scoring intact while tightening the B-theme panel language."}
+                    ? "保留 Trace 原始数据、引用、chunk 深链和评分展示，只把页面更明确地收成诊断视图。"
+                    : "Keep raw payload, citations, chunk deep links, and scoring intact while framing the page more clearly as diagnostics."}
                 </Text>
               </Stack>
             ) : null}
@@ -402,14 +408,14 @@ export function TraceDetailPage() {
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
-              <Text className="workspace-section-heading">
-                {locale === "zh" ? "单一路径排查（scan-first）" : "Single diagnostic path (scan-first)"}
-              </Text>
-              <Text className="workspace-section-copy">
-                {locale === "zh"
-                  ? "按同一顺序扫读：先进入文档详情，再看 run 失败摘要，最后按 trace 诊断顺序继续。"
-                  : "Follow one order: open Document Detail first, scan run failure summary second, then continue with ordered trace diagnostics."}
-              </Text>
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "建议排查路径" : "Suggested diagnostic path"}
+                  </Text>
+                  <Text className="workspace-section-copy">
+                    {locale === "zh"
+                      ? "按同一顺序查看：先进入文档详情，再看运行失败摘要，最后继续查看诊断详情。"
+                      : "Follow one order: open Document Detail first, review the run failure summary second, then continue through diagnostics."}
+                  </Text>
               <div className="workspace-meta-list">
                 <div className="workspace-meta-row">
                   <span className="workspace-meta-label">{locale === "zh" ? "步骤 1：文档详情" : "Step 1: Document Detail"}</span>
@@ -419,18 +425,18 @@ export function TraceDetailPage() {
                         {scanFirstDocumentTitle ?? scanFirstDocumentTarget}
                       </Anchor>
                     ) : locale === "zh" ? (
-                      "当前 trace 未提供可跳转的文档。"
+                      "当前诊断记录没有可跳转的文档。"
                     ) : (
-                      "No document deep link is available for this trace."
+                      "No document deep link is available for this diagnostic record."
                     )}
                   </span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 2：run 失败摘要" : "Step 2: Run failure summary"}</span>
+                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 2：运行失败摘要" : "Step 2: Run failure summary"}</span>
                   <span className="workspace-meta-value">{runFailureSummary}</span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 3：trace 诊断顺序" : "Step 3: Trace diagnostics order"}</span>
+                  <span className="workspace-meta-label">{locale === "zh" ? "步骤 3：诊断查看顺序" : "Step 3: Diagnostics review order"}</span>
                   <span className="workspace-meta-value">
                     {locale === "zh"
                       ? "问题线索 -> 检索线索 -> 回答线索"
@@ -523,14 +529,14 @@ export function TraceDetailPage() {
 
               <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
                 <Stack gap="xs">
-                  <Text className="workspace-section-heading">
-                    {locale === "zh" ? "失败类别" : "Failure categories"}
-                  </Text>
-                  <Text c="var(--app-text-muted)" size="xs">
-                    {locale === "zh"
-                      ? "按 no-hit / fallback / slow-path / timeout / source-failure 归类当前 trace，便于快速定位问题类型。"
-                      : "Categorizes this trace into no-hit, fallback, slow-path, timeout, and source-failure for faster triage."}
-                  </Text>
+                    <Text className="workspace-section-heading">
+                      {locale === "zh" ? "失败类别" : "Failure categories"}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === "zh"
+                        ? "按 no-hit / fallback / slow-path / timeout / source-failure 归类当前 Trace，便于快速定位问题类型。"
+                        : "Categorizes this trace into no-hit, fallback, slow-path, timeout, and source-failure for faster triage."}
+                    </Text>
                   {failureTaxonomy.length > 0 ? (
                     <Group gap="xs">
                       {failureTaxonomy.map(category => (
@@ -552,11 +558,11 @@ export function TraceDetailPage() {
               {diagnosticSummarySlice ? (
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
                   <Stack gap="xs">
-                    <Text className="workspace-section-heading">
-                      {locale === "zh" ? "诊断摘要切片（快速扫描）" : "Diagnostic summary slice (scan-first)"}
-                    </Text>
-                    <Text c="var(--app-text-muted)" size="xs">
-                      {locale === "zh"
+                      <Text className="workspace-section-heading">
+                        {locale === "zh" ? "诊断摘要切片" : "Diagnostic summary slice"}
+                      </Text>
+                      <Text c="var(--app-text-muted)" size="xs">
+                        {locale === "zh"
                         ? "先看问题、检索和回答三条线索，快速决定下一步排查方向。"
                         : "Scan issue, retrieval, and answer signals to quickly determine next steps."}
                     </Text>
@@ -725,7 +731,7 @@ export function TraceDetailPage() {
                 <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
                   <Stack gap="md">
                     <Text className="workspace-section-heading">
-                      {locale === "zh" ? "Trace 元数据" : "Trace metadata"}
+                      {locale === "zh" ? "诊断元数据" : "Diagnostic metadata"}
                     </Text>
                     <div className="workspace-metadata-grid">
                       <div className="workspace-metadata-item">
@@ -768,9 +774,9 @@ export function TraceDetailPage() {
                       {locale === "zh" ? "页内快速跳转" : "In-page quick jumps"}
                     </Text>
                     <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "优先跳到 chunk、引用或原始载荷区，不必反复滚动。"
-                        : "Jump directly to chunks, citations, or raw payload without rescanning the whole page."}
+                        {locale === "zh"
+                          ? "优先跳到 chunk、引用或原始载荷区，不必反复滚动。"
+                          : "Jump directly to chunks, citations, or raw payload without rescanning the whole diagnostics page."}
                     </Text>
                     <Stack gap={6}>
                       <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`} size="sm">

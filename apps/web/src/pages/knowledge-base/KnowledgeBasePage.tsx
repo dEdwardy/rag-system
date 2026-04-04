@@ -38,6 +38,7 @@ export function KnowledgeBasePage() {
   const reindexMutation = useReindexDocument();
   const [runFilter, setRunFilter] = useState<RunFilter>("all");
   const [isCreateKnowledgeBaseOpen, setIsCreateKnowledgeBaseOpen] = useState(false);
+  const [isActivityExpanded, setIsActivityExpanded] = useState(false);
   const [createKnowledgeBaseName, setCreateKnowledgeBaseName] = useState("");
   const [createKnowledgeBaseDescription, setCreateKnowledgeBaseDescription] = useState("");
   const [recentlyCreatedKnowledgeBaseName, setRecentlyCreatedKnowledgeBaseName] = useState<string | null>(null);
@@ -309,9 +310,7 @@ export function KnowledgeBasePage() {
           <Group gap="md" wrap="nowrap">
             <Box className="workspace-hero-icon">KB</Box>
             <div className="workspace-hero-copy">
-              <Text className="workspace-hero-kicker">
-                {locale === "zh" ? "知识库工作台" : "Knowledge workspace"}
-              </Text>
+              <Text className="workspace-hero-kicker">{locale === "zh" ? "工作区设置" : "Workspace setup"}</Text>
               <Title
                 c="var(--app-text)"
                 order={3}
@@ -355,11 +354,11 @@ export function KnowledgeBasePage() {
                 {t("knowledgeBase.actions.openAssistant")}
               </Button>
             </Group>
-            <Text className="workspace-hero-sidecopy" ta="right">
-              {locale === "zh"
-                ? "用同一套工作台语言集中展示 corpus 覆盖、处理状态和助手绑定关系。"
-                : "Keep the operational summary tight and readable without pushing metrics into a long side rail."}
-            </Text>
+              <Text className="workspace-hero-sidecopy" ta="right">
+                {locale === "zh"
+                  ? "先确认当前资料归属、可用状态和助手连接，再决定是否继续补资料或调整助手。"
+                  : "Review the current library target, readiness, and assistant connection before adding more material or tuning behavior."}
+              </Text>
           </Stack>
         </div>
       </Paper>
@@ -485,7 +484,7 @@ export function KnowledgeBasePage() {
                   <Group align="flex-start" justify="space-between" wrap="nowrap">
                     <div>
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "知识库身份" : "Knowledge base identity"}
+                        {locale === "zh" ? "当前资料空间" : "Current library space"}
                       </Text>
                       <Title c="var(--app-text)" order={2} style={{ fontFamily: "var(--app-font-display)" }}>
                         {knowledgeBase.name}
@@ -529,12 +528,12 @@ export function KnowledgeBasePage() {
                 <Stack gap="md">
                   <div>
                     <Text className="workspace-section-heading">
-                      {locale === "zh" ? "工作台读数" : "Workspace readout"}
+                        {locale === "zh" ? "当前设置概览" : "Setup snapshot"}
                     </Text>
                     <Text className="workspace-section-copy">
                       {locale === "zh"
-                        ? "把当前可检索资料、处理中任务和助手绑定关系压缩到一眼能扫完的摘要里。"
-                        : "Keep corpus coverage, queue state, and assistant binding in one compact operational readout."}
+                        ? "把当前可用资料、正在更新的条目和助手连接状态压缩成一眼能扫完的概览。"
+                        : "Keep the ready items, in-progress updates, and assistant connection in one quick summary."}
                     </Text>
                   </div>
 
@@ -566,19 +565,19 @@ export function KnowledgeBasePage() {
                       <Text c="var(--app-text-muted)" size="sm">
                         {summary.tone === "processing"
                           ? locale === "zh"
-                            ? "当前仍有 ingestion 正在队列中推进。"
-                            : "Active ingestion is still moving through the queue."
+                            ? "当前仍有资料在导入或更新中。"
+                            : "Some library items are still being added or refreshed."
                           : summary.tone === "failed"
                             ? locale === "zh"
-                              ? "部分资料需要处理后，检索质量才会稳定。"
-                              : "Some source material needs attention before retrieval quality stabilizes."
+                              ? "部分资料还需要处理，之后回答会更稳定。"
+                              : "Some library items still need attention before answers become more reliable."
                             : summary.tone === "ready"
                               ? locale === "zh"
-                                ? "当前资料已经可以稳定用于检索和助手问答。"
-                                : "The current corpus is ready for retrieval and assistant usage."
+                                ? "当前资料已经可以稳定用于提问和助手回答。"
+                                : "The current library is ready for chat and assistant responses."
                               : locale === "zh"
-                                ? "先添加文档，再逐步形成知识库主体。"
-                                : "Add source documents to start shaping the knowledge base."}
+                                ? "先添加资料，再逐步建立这个工作区的知识范围。"
+                                : "Add library items first to shape what this workspace can answer."}
                       </Text>
                     </Stack>
                   </Paper>
@@ -586,7 +585,7 @@ export function KnowledgeBasePage() {
                   <Paper className="workspace-subpanel" p="md" radius="xl">
                     <Stack gap={8}>
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "下一步动作" : "Next action"}
+                        {locale === "zh" ? "推荐下一步" : "Recommended next step"}
                       </Text>
                       <Text c="var(--app-text)" fw={600} size="sm">
                         {t(nextAction.labelKey)}
@@ -615,7 +614,7 @@ export function KnowledgeBasePage() {
                             to={`/documents/${latestFailure.documentId}`}
                             variant="light"
                           >
-                            {locale === "zh" ? "打开最新失败文档" : "Open latest failed document"}
+                            {locale === "zh" ? "查看最新异常资料" : "Open latest item with issues"}
                           </Button>
                         ) : null}
                       </Group>
@@ -628,53 +627,77 @@ export function KnowledgeBasePage() {
                 <Stack gap="md">
                   <div>
                     <Text className="workspace-section-heading">
-                      {locale === "zh" ? "Recent source runs" : "Recent source runs"}
+                        {locale === "zh" ? "更新详情" : "Activity details"}
                     </Text>
                     <Text className="workspace-section-copy">
                       {locale === "zh"
-                        ? "先承载最近执行概况、最新失败上下文和最小 run 列表，不把这里扩成诊断工作台。"
-                        : "Surface a recent execution readout, the latest failure anchor, and a small run list without turning this page into a diagnostics workbench."}
+                        ? "日常先看上面的设置概览；只有在资料导入或更新看起来不对时，再展开这里查看细节。"
+                        : "Start with the setup snapshot above. Expand this only when an add or refresh needs a closer look."}
                     </Text>
                   </div>
 
-                  <SegmentedControl
-                    data={runFilterOptions}
-                    onChange={handleRunFilterChange}
-                    radius="xl"
-                    size="sm"
-                    value={runFilter}
-                  />
-
                   {runSummaryQuery.isLoading ? (
                     <StatePanel
-                      title={locale === "zh" ? "加载 run 摘要中" : "Loading run summary"}
+                      title={locale === "zh" ? "加载更新摘要中" : "Loading activity summary"}
                       description={
                         locale === "zh"
-                          ? "正在读取最近 72 小时 source runs。"
-                          : "Fetching the most recent 72 hours of source runs."
+                          ? "正在读取最近 72 小时的资料更新记录。"
+                          : "Fetching the most recent 72 hours of library activity."
                       }
-                      tone="loading"
-                    />
-                  ) : null}
+                       tone="loading"
+                     />
+                   ) : runSummaryMetrics.length > 0 ? (
+                    <div className="workspace-metric-grid">
+                      {runSummaryMetrics.map(metric => (
+                        <Paper className="workspace-subpanel" key={metric.key} p="md" radius="xl">
+                          <Text className="workspace-section-heading">{metric.heading}</Text>
+                          <Text c="var(--app-text)" fw={700} mt={6} size={metric.valueSize}>
+                            {metric.value}
+                          </Text>
+                        </Paper>
+                      ))}
+                    </div>
+                   ) : null}
 
-                  {runSummaryMetrics.length > 0 ? (
+                  <Group justify="space-between" wrap="wrap">
+                    <Text c="var(--app-text-muted)" size="sm">
+                      {locale === "zh"
+                        ? "这里保留最近 72 小时的资料更新和异常线索。"
+                        : "This keeps the last 72 hours of library updates and issue context."}
+                    </Text>
+                    <Button
+                      className="workspace-button"
+                      color="gray"
+                      onClick={() => setIsActivityExpanded(current => !current)}
+                      radius="xl"
+                      size="xs"
+                      variant="light"
+                    >
+                      {isActivityExpanded
+                        ? locale === "zh"
+                          ? "收起更新详情"
+                          : "Hide activity details"
+                        : locale === "zh"
+                          ? "展开更新详情"
+                          : "Show activity details"}
+                    </Button>
+                  </Group>
+
+                  {isActivityExpanded && runSummaryMetrics.length > 0 ? (
                     <>
-                      <div className="workspace-metric-grid">
-                        {runSummaryMetrics.map(metric => (
-                          <Paper className="workspace-subpanel" key={metric.key} p="md" radius="xl">
-                            <Text className="workspace-section-heading">{metric.heading}</Text>
-                            <Text c="var(--app-text)" fw={700} mt={6} size={metric.valueSize}>
-                              {metric.value}
-                            </Text>
-                          </Paper>
-                        ))}
-                      </div>
+                      <SegmentedControl
+                        data={runFilterOptions}
+                        onChange={handleRunFilterChange}
+                        radius="xl"
+                        size="sm"
+                        value={runFilter}
+                      />
 
                       {latestFailure ? (
                         <Paper className="workspace-focus-banner" p="md" radius="xl">
                           <Stack gap={6}>
                             <Text c="var(--app-text)" fw={700} size="sm">
-                              {locale === "zh" ? "最新失败上下文" : "Latest failure context"}
+                              {locale === "zh" ? "最近异常记录" : "Latest issue context"}
                             </Text>
                             <Group gap="xs">
                               <Badge color="red" variant="light">
@@ -686,7 +709,7 @@ export function KnowledgeBasePage() {
                             </Group>
                             <Text c="var(--app-text-secondary)" size="sm">
                               {latestFailure.message ??
-                                (locale === "zh" ? "暂无 message。" : "No failure message recorded.")}
+                                (locale === "zh" ? "暂时没有更多异常说明。" : "No additional issue details were recorded.")}
                             </Text>
                             <Group gap="xs">
                               <Button
@@ -698,7 +721,7 @@ export function KnowledgeBasePage() {
                                 to={`/documents/${latestFailure.documentId}`}
                                 variant="light"
                               >
-                                {locale === "zh" ? "查看文档" : "Open document"}
+                                {locale === "zh" ? "查看资料" : "Open item"}
                               </Button>
                             </Group>
                           </Stack>
@@ -711,95 +734,36 @@ export function KnowledgeBasePage() {
             </div>
           </div>
 
-          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-            <Stack gap="xs">
-              <Title c="var(--app-text)" order={4}>
-                {t("knowledgeBase.summary.title")}
-              </Title>
-              <Text c="var(--app-text-muted)">
-                {t("knowledgeBase.summary.caption", {
-                  documents: documents.length,
-                  chunks: summary.chunkCount,
-                  assistants: assistantCount
-                })}
-              </Text>
-              {documents.length === 0 ? (
-                <StatePanel
-                  title={t("knowledgeBase.states.noDocumentsTitle")}
-                  description={t("knowledgeBase.states.noDocumentsDescription")}
-                  action={
-                    <Button className="workspace-button" color="indigo" component={Link} radius="xl" size="xs" to="/documents" variant="light">
-                      {t("knowledgeBase.actions.openDocuments")}
-                    </Button>
-                  }
-                />
-              ) : (
-                <Grid gutter="md">
-                  <Grid.Col span={{ base: 12, md: 4 }}>
-                    <Paper className="workspace-subpanel" p="md" radius="xl">
-                      <Text className="workspace-section-heading">
-                        {locale === "zh" ? "语料覆盖" : "Corpus coverage"}
-                      </Text>
-                      <Text c="var(--app-text)" fw={600} mt={6} size="sm">
-                        {summary.readyCount} ready / {documents.length} total
-                      </Text>
-                    </Paper>
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 12, md: 4 }}>
-                    <Paper className="workspace-subpanel" p="md" radius="xl">
-                      <Text className="workspace-section-heading">
-                        {locale === "zh" ? "检索材料" : "Retrieval material"}
-                      </Text>
-                      <Text c="var(--app-text)" fw={600} mt={6} size="sm">
-                        {summary.chunkCount} chunks available for retrieval.
-                      </Text>
-                    </Paper>
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 12, md: 4 }}>
-                    <Paper className="workspace-subpanel" p="md" radius="xl">
-                      <Text className="workspace-section-heading">
-                        {locale === "zh" ? "助手绑定" : "Assistant binding"}
-                      </Text>
-                      <Text c="var(--app-text)" fw={600} mt={6} size="sm">
-                        {assistantCount} assistant{assistantCount === 1 ? "" : "s"} currently attached.
-                      </Text>
-                    </Paper>
-                  </Grid.Col>
-                </Grid>
-              )}
-            </Stack>
-          </Paper>
-
-          {recentRunsQuery.isError ? (
+          {isActivityExpanded && recentRunsQuery.isError ? (
             <StatePanel
-              title={locale === "zh" ? "加载 recent runs 失败" : "Failed to load recent runs"}
+              title={locale === "zh" ? "加载最近更新失败" : "Failed to load recent activity"}
               description={
                 recentRunsQuery.error instanceof Error
                   ? recentRunsQuery.error.message
                   : locale === "zh"
-                    ? "最近 source runs 暂时不可用。"
-                    : "Recent source runs are currently unavailable."
+                    ? "最近的资料更新记录暂时不可用。"
+                    : "Recent library activity is currently unavailable."
               }
               tone="error"
             />
-          ) : (
+          ) : isActivityExpanded ? (
             <DocumentRunList
-              title={locale === "zh" ? "Knowledge base recent runs" : "Knowledge base recent runs"}
+              title={locale === "zh" ? "最近更新记录" : "Recent update activity"}
               description={
                 locale === "zh"
-                  ? "按最近时间展示已有 source/document runs，先优先承载状态、触发方式、来源类型、起止时间和失败上下文。"
-                  : "Recent source/document runs ordered by time, carrying status, trigger, source type, timing, and failure context first."
+                  ? "按时间展示最近的资料导入与更新记录，优先帮助你判断哪些内容已经就绪，哪些还需要处理。"
+                  : "Recent add and refresh runs ordered by time so you can quickly see what is ready and what still needs attention."
               }
               runs={recentRunsQuery.data ?? []}
-              emptyTitle={locale === "zh" ? "暂无 recent runs" : "No recent runs yet"}
+              emptyTitle={locale === "zh" ? "还没有更新记录" : "No recent activity yet"}
               emptyDescription={
                 locale === "zh"
-                  ? "当前知识库还没有可展示的 source run 历史。"
-                  : "This knowledge base does not have recent source run history yet."
+                  ? "当前工作区还没有可展示的资料更新记录。"
+                  : "This workspace does not have recent library activity yet."
               }
               onReindexRun={handleReindexRun}
             />
-          )}
+          ) : null}
         </>
       ) : null}
     </Stack>

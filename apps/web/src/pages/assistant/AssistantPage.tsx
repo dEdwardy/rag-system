@@ -17,7 +17,7 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { StatePanel } from "../../components/StatePanel";
@@ -58,6 +58,8 @@ export function AssistantPage() {
   );
   const { t } = useI18n();
   const documentCount = documentsQuery.data?.length ?? 0;
+  const [isAdvancedTuningExpanded, setIsAdvancedTuningExpanded] = useState(false);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
 
   const form = useForm<AssistantConfigFormValues>({
     initialValues: createAssistantConfigFormValues(assistant, retrievalProfile),
@@ -67,6 +69,13 @@ export function AssistantPage() {
   useEffect(() => {
     form.setValues(createAssistantConfigFormValues(assistant, retrievalProfile));
   }, [assistant, retrievalProfile]);
+
+  useEffect(() => {
+    setIsAdvancedTuningExpanded(
+      Boolean(retrievalProfile?.enableHybrid || retrievalProfile?.enableRerank || retrievalProfile?.strategyJson)
+    );
+    setIsFiltersExpanded(Boolean(retrievalProfile?.filtersJson && Object.keys(retrievalProfile.filtersJson).length > 0));
+  }, [retrievalProfile]);
 
   const isLoading = assistantsQuery.isLoading || retrievalProfilesQuery.isLoading;
   const assistantErrorMessage =
@@ -444,128 +453,150 @@ export function AssistantPage() {
                   radius="xl"
                 >
                   <Stack gap="md">
-                    <div>
-                      <Text className="workspace-section-heading">
-                        {t("assistant.copy.advancedTuning")}
-                      </Text>
-                      <Text c="var(--app-text-muted)" size="sm">
-                        {t("assistant.copy.advancedTuningCopy")}
-                      </Text>
-                    </div>
+                    <Group align="flex-start" justify="space-between" wrap="wrap">
+                      <div>
+                        <Text className="workspace-section-heading">
+                          {t("assistant.copy.advancedTuning")}
+                        </Text>
+                        <Text c="var(--app-text-muted)" size="sm">
+                          {t("assistant.copy.advancedTuningCopy")}
+                        </Text>
+                      </div>
+                      <Button
+                        className="workspace-button"
+                        color="gray"
+                        onClick={() => setIsAdvancedTuningExpanded(current => !current)}
+                        radius="xl"
+                        size="xs"
+                        variant="light"
+                      >
+                        {isAdvancedTuningExpanded ? t("assistant.hideAdvancedTuning") : t("assistant.showAdvancedTuning")}
+                      </Button>
+                    </Group>
 
-                    <Alert color="gray" radius="xl" variant="light">
-                      {t("assistant.advancedRetrievalHint")}
-                    </Alert>
+                    {isAdvancedTuningExpanded ? (
+                      <>
+                        <Alert color="gray" radius="xl" variant="light">
+                          {t("assistant.advancedRetrievalHint")}
+                        </Alert>
 
-                    <Switch
-                      checked={form.values.enableHybrid}
-                      label={t("assistant.hybridLabel")}
-                      onChange={event => form.setFieldValue("enableHybrid", event.currentTarget.checked)}
-                    />
+                        <Switch
+                          checked={form.values.enableHybrid}
+                          label={t("assistant.hybridLabel")}
+                          onChange={event => form.setFieldValue("enableHybrid", event.currentTarget.checked)}
+                        />
 
-                    <Switch
-                      checked={form.values.enableRerank}
-                      label={t("assistant.rerankLabel")}
-                      onChange={event => form.setFieldValue("enableRerank", event.currentTarget.checked)}
-                    />
+                        <Switch
+                          checked={form.values.enableRerank}
+                          label={t("assistant.rerankLabel")}
+                          onChange={event => form.setFieldValue("enableRerank", event.currentTarget.checked)}
+                        />
 
-                    <Alert color="blue" radius="xl" variant="light">
-                      {t("assistant.note")}
-                    </Alert>
+                        <Alert color="blue" radius="xl" variant="light">
+                          {t("assistant.note")}
+                        </Alert>
 
-                    <div>
-                      <Text className="workspace-section-heading">{t("assistant.retrievalStrategySection")}</Text>
-                      <Text c="var(--app-text-muted)" size="sm">
-                        {t("assistant.retrievalStrategyHelp")}
-                      </Text>
-                    </div>
+                        <div>
+                          <Text className="workspace-section-heading">{t("assistant.retrievalStrategySection")}</Text>
+                          <Text c="var(--app-text-muted)" size="sm">
+                            {t("assistant.retrievalStrategyHelp")}
+                          </Text>
+                        </div>
 
-                    <Switch
-                      checked={form.values.strategyOverrideEnabled}
-                      data-testid="assistant-strategy-override-toggle"
-                      label={t("assistant.strategyOverrideEnabled")}
-                      onChange={event =>
-                        form.setFieldValue("strategyOverrideEnabled", event.currentTarget.checked)
-                      }
-                    />
+                        <Switch
+                          checked={form.values.strategyOverrideEnabled}
+                          data-testid="assistant-strategy-override-toggle"
+                          label={t("assistant.strategyOverrideEnabled")}
+                          onChange={event =>
+                            form.setFieldValue("strategyOverrideEnabled", event.currentTarget.checked)
+                          }
+                        />
 
-                    {form.values.strategyOverrideEnabled ? (
-                      <Grid gutter="md">
-                        <Grid.Col span={{ base: 12, md: 4 }}>
-                          <NativeSelect
-                            classNames={{ input: "workspace-input" }}
-                            data-testid="assistant-strategy-mode"
-                            data={[
-                              { value: "vector", label: t("assistant.retrievalModeVector") },
-                              { value: "hybrid", label: t("assistant.retrievalModeHybrid") },
-                              { value: "lexical", label: t("assistant.retrievalModeLexical") }
-                            ]}
-                            label={t("assistant.candidateSelectionMode")}
-                            {...form.getInputProps("candidateSelectionMode")}
-                          />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 4 }}>
-                          <NumberInput
-                            classNames={{ input: "workspace-input" }}
-                            label={t("assistant.candidateMultiplier")}
-                            max={10}
-                            min={1}
-                            {...form.getInputProps("candidateMultiplier")}
-                          />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 4 }}>
-                          <NumberInput
-                            classNames={{ input: "workspace-input" }}
-                            label={t("assistant.minCandidates")}
-                            max={100}
-                            min={1}
-                            {...form.getInputProps("minCandidates")}
-                          />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 6 }}>
-                          <NumberInput
-                            classNames={{ input: "workspace-input" }}
-                            decimalScale={2}
-                            label={t("assistant.hybridVectorWeight")}
-                            max={1}
-                            min={0}
-                            step={0.1}
-                            {...form.getInputProps("hybridVectorWeight")}
-                          />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 6 }}>
-                          <NumberInput
-                            classNames={{ input: "workspace-input" }}
-                            decimalScale={2}
-                            label={t("assistant.hybridLexicalWeight")}
-                            max={1}
-                            min={0}
-                            step={0.1}
-                            {...form.getInputProps("hybridLexicalWeight")}
-                          />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 6 }}>
-                          <Switch
-                            checked={form.values.queryRewriteEnabled}
-                            label={t("assistant.queryRewriteEnabled")}
-                            onChange={event =>
-                              form.setFieldValue("queryRewriteEnabled", event.currentTarget.checked)
-                            }
-                          />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 6 }}>
-                          <Switch
-                            checked={form.values.rerankStrategyEnabled}
-                            label={t("assistant.rerankStrategyEnabled")}
-                            onChange={event =>
-                              form.setFieldValue("rerankStrategyEnabled", event.currentTarget.checked)
-                            }
-                          />
-                        </Grid.Col>
-                      </Grid>
+                        {form.values.strategyOverrideEnabled ? (
+                          <Grid gutter="md">
+                            <Grid.Col span={{ base: 12, md: 4 }}>
+                              <NativeSelect
+                                classNames={{ input: "workspace-input" }}
+                                data-testid="assistant-strategy-mode"
+                                data={[
+                                  { value: "vector", label: t("assistant.retrievalModeVector") },
+                                  { value: "hybrid", label: t("assistant.retrievalModeHybrid") },
+                                  { value: "lexical", label: t("assistant.retrievalModeLexical") }
+                                ]}
+                                label={t("assistant.candidateSelectionMode")}
+                                {...form.getInputProps("candidateSelectionMode")}
+                              />
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, md: 4 }}>
+                              <NumberInput
+                                classNames={{ input: "workspace-input" }}
+                                label={t("assistant.candidateMultiplier")}
+                                max={10}
+                                min={1}
+                                {...form.getInputProps("candidateMultiplier")}
+                              />
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, md: 4 }}>
+                              <NumberInput
+                                classNames={{ input: "workspace-input" }}
+                                label={t("assistant.minCandidates")}
+                                max={100}
+                                min={1}
+                                {...form.getInputProps("minCandidates")}
+                              />
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, md: 6 }}>
+                              <NumberInput
+                                classNames={{ input: "workspace-input" }}
+                                decimalScale={2}
+                                label={t("assistant.hybridVectorWeight")}
+                                max={1}
+                                min={0}
+                                step={0.1}
+                                {...form.getInputProps("hybridVectorWeight")}
+                              />
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, md: 6 }}>
+                              <NumberInput
+                                classNames={{ input: "workspace-input" }}
+                                decimalScale={2}
+                                label={t("assistant.hybridLexicalWeight")}
+                                max={1}
+                                min={0}
+                                step={0.1}
+                                {...form.getInputProps("hybridLexicalWeight")}
+                              />
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, md: 6 }}>
+                              <Switch
+                                checked={form.values.queryRewriteEnabled}
+                                label={t("assistant.queryRewriteEnabled")}
+                                onChange={event =>
+                                  form.setFieldValue("queryRewriteEnabled", event.currentTarget.checked)
+                                }
+                              />
+                            </Grid.Col>
+                            <Grid.Col span={{ base: 12, md: 6 }}>
+                              <Switch
+                                checked={form.values.rerankStrategyEnabled}
+                                label={t("assistant.rerankStrategyEnabled")}
+                                onChange={event =>
+                                  form.setFieldValue("rerankStrategyEnabled", event.currentTarget.checked)
+                                }
+                              />
+                            </Grid.Col>
+                          </Grid>
+                        ) : (
+                          <Alert color="gray" radius="xl" variant="light">
+                            {t("assistant.retrievalStrategyDefaultNote")}
+                          </Alert>
+                        )}
+                      </>
                     ) : (
                       <Alert color="gray" radius="xl" variant="light">
-                        {t("assistant.retrievalStrategyDefaultNote")}
+                        {form.values.enableHybrid || form.values.enableRerank || form.values.strategyOverrideEnabled
+                          ? t("assistant.advancedTuningCustomSummary")
+                          : t("assistant.advancedTuningDefaultSummary")}
                       </Alert>
                     )}
                   </Stack>
@@ -573,101 +604,129 @@ export function AssistantPage() {
 
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                   <Stack gap="md">
-                    <div>
-                      <Text className="workspace-section-heading">{t("assistant.retrievalFiltersSection")}</Text>
-                      <Text c="var(--app-text-muted)" size="sm">
-                        {t("assistant.filterHelp")}
-                      </Text>
-                    </div>
+                    <Group align="flex-start" justify="space-between" wrap="wrap">
+                      <div>
+                        <Text className="workspace-section-heading">{t("assistant.retrievalFiltersSection")}</Text>
+                        <Text c="var(--app-text-muted)" size="sm">
+                          {t("assistant.filterHelp")}
+                        </Text>
+                      </div>
+                      <Button
+                        className="workspace-button"
+                        color="gray"
+                        onClick={() => setIsFiltersExpanded(current => !current)}
+                        radius="xl"
+                        size="xs"
+                        variant="light"
+                      >
+                        {isFiltersExpanded ? t("assistant.hideFilters") : t("assistant.showFilters")}
+                      </Button>
+                    </Group>
 
-                    <Grid gutter="md">
-                      <Grid.Col span={{ base: 12, md: 6 }}>
-                        <Textarea
-                          autosize
-                          classNames={{ input: "workspace-input" }}
-                          description={t("assistant.listFieldHint")}
-                          label={t("assistant.documentIdsInclude")}
-                          minRows={2}
-                          {...form.getInputProps("documentIdsInclude")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 6 }}>
-                        <Textarea
-                          autosize
-                          classNames={{ input: "workspace-input" }}
-                          description={t("assistant.listFieldHint")}
-                          label={t("assistant.documentIdsExclude")}
-                          minRows={2}
-                          {...form.getInputProps("documentIdsExclude")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 4 }}>
-                        <Textarea
-                          autosize
-                          classNames={{ input: "workspace-input" }}
-                          description={t("assistant.listFieldHint")}
-                          label={t("assistant.sectionTitlesInclude")}
-                          minRows={2}
-                          {...form.getInputProps("sectionTitlesInclude")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 4 }}>
-                        <Textarea
-                          autosize
-                          classNames={{ input: "workspace-input" }}
-                          description={t("assistant.listFieldHint")}
-                          label={t("assistant.sectionTitlesExclude")}
-                          minRows={2}
-                          {...form.getInputProps("sectionTitlesExclude")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 4 }}>
-                        <Textarea
-                          autosize
-                          classNames={{ input: "workspace-input" }}
-                          description={t("assistant.listFieldHint")}
-                          label={t("assistant.sectionTitlesContains")}
-                          minRows={2}
-                          {...form.getInputProps("sectionTitlesContains")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 4 }}>
-                        <Textarea
-                          autosize
-                          classNames={{ input: "workspace-input" }}
-                          description={t("assistant.listFieldHint")}
-                          label={t("assistant.pageNumbersInclude")}
-                          minRows={2}
-                          {...form.getInputProps("pageNumbersInclude")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 4 }}>
-                        <Textarea
-                          autosize
-                          classNames={{ input: "workspace-input" }}
-                          description={t("assistant.listFieldHint")}
-                          label={t("assistant.pageNumbersExclude")}
-                          minRows={2}
-                          {...form.getInputProps("pageNumbersExclude")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 2 }}>
-                        <NumberInput
-                          classNames={{ input: "workspace-input" }}
-                          label={t("assistant.pageNumbersMin")}
-                          min={0}
-                          {...form.getInputProps("pageNumbersMin")}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 2 }}>
-                        <NumberInput
-                          classNames={{ input: "workspace-input" }}
-                          label={t("assistant.pageNumbersMax")}
-                          min={0}
-                          {...form.getInputProps("pageNumbersMax")}
-                        />
-                      </Grid.Col>
-                    </Grid>
+                    {isFiltersExpanded ? (
+                      <Grid gutter="md">
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <Textarea
+                            autosize
+                            classNames={{ input: "workspace-input" }}
+                            description={t("assistant.listFieldHint")}
+                            label={t("assistant.documentIdsInclude")}
+                            minRows={2}
+                            {...form.getInputProps("documentIdsInclude")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <Textarea
+                            autosize
+                            classNames={{ input: "workspace-input" }}
+                            description={t("assistant.listFieldHint")}
+                            label={t("assistant.documentIdsExclude")}
+                            minRows={2}
+                            {...form.getInputProps("documentIdsExclude")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <Textarea
+                            autosize
+                            classNames={{ input: "workspace-input" }}
+                            description={t("assistant.listFieldHint")}
+                            label={t("assistant.sectionTitlesInclude")}
+                            minRows={2}
+                            {...form.getInputProps("sectionTitlesInclude")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <Textarea
+                            autosize
+                            classNames={{ input: "workspace-input" }}
+                            description={t("assistant.listFieldHint")}
+                            label={t("assistant.sectionTitlesExclude")}
+                            minRows={2}
+                            {...form.getInputProps("sectionTitlesExclude")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <Textarea
+                            autosize
+                            classNames={{ input: "workspace-input" }}
+                            description={t("assistant.listFieldHint")}
+                            label={t("assistant.sectionTitlesContains")}
+                            minRows={2}
+                            {...form.getInputProps("sectionTitlesContains")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <Textarea
+                            autosize
+                            classNames={{ input: "workspace-input" }}
+                            description={t("assistant.listFieldHint")}
+                            label={t("assistant.pageNumbersInclude")}
+                            minRows={2}
+                            {...form.getInputProps("pageNumbersInclude")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 4 }}>
+                          <Textarea
+                            autosize
+                            classNames={{ input: "workspace-input" }}
+                            description={t("assistant.listFieldHint")}
+                            label={t("assistant.pageNumbersExclude")}
+                            minRows={2}
+                            {...form.getInputProps("pageNumbersExclude")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 2 }}>
+                          <NumberInput
+                            classNames={{ input: "workspace-input" }}
+                            label={t("assistant.pageNumbersMin")}
+                            min={0}
+                            {...form.getInputProps("pageNumbersMin")}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, md: 2 }}>
+                          <NumberInput
+                            classNames={{ input: "workspace-input" }}
+                            label={t("assistant.pageNumbersMax")}
+                            min={0}
+                            {...form.getInputProps("pageNumbersMax")}
+                          />
+                        </Grid.Col>
+                      </Grid>
+                    ) : (
+                      <Alert color="gray" radius="xl" variant="light">
+                        {form.values.documentIdsInclude ||
+                        form.values.documentIdsExclude ||
+                        form.values.sectionTitlesInclude ||
+                        form.values.sectionTitlesExclude ||
+                        form.values.sectionTitlesContains ||
+                        form.values.pageNumbersInclude ||
+                        form.values.pageNumbersExclude ||
+                        form.values.pageNumbersMin != null ||
+                        form.values.pageNumbersMax != null
+                          ? t("assistant.filtersCustomSummary")
+                          : t("assistant.filtersDefaultSummary")}
+                      </Alert>
+                    )}
                   </Stack>
                 </Paper>
               </Stack>

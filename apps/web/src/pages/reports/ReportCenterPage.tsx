@@ -125,9 +125,9 @@ export function ReportCenterPage() {
   const showPreRunGuidance = !runEvalMutation.data && !runEvalMutation.isError && !runEvalMutation.isPending;
   const hasRunItems = (runEvalMutation.data?.items.length ?? 0) > 0;
   const baselineSnapshotPlaceholder =
-    locale === "zh" ? "scan-first：本次 run 未绑定 baseline snapshot" : "scan-first: this run is not linked to a baseline snapshot";
+    locale === "zh" ? "本次质量检查未绑定 baseline snapshot" : "This quality check is not linked to a baseline snapshot";
   const baselineVersionPlaceholder =
-    locale === "zh" ? "scan-first：baseline version 暂不可读（先绑定 baseline snapshot）" : "scan-first: baseline version is unavailable until a baseline snapshot is linked";
+    locale === "zh" ? "baseline version 暂不可读（需先绑定 baseline snapshot）" : "Baseline version is unavailable until a baseline snapshot is linked";
   const resultNextAction = getReportCenterResultNextAction({
     locale,
     hasRunDiffSummary: runDiffSummary != null,
@@ -374,14 +374,17 @@ export function ReportCenterPage() {
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <div className="workspace-hero-copy">
-            <div className="workspace-hero-kicker">{locale === "zh" ? "P5 v1 质量报告" : "P5 v1 quality reports"}</div>
+            <Link className="workspace-link text-sm" to="/workbench">
+              {locale === "zh" ? "返回工作台概览" : "Back to workbench overview"}
+            </Link>
+            <div className="workspace-hero-kicker">{locale === "zh" ? "管理工作台" : "Workbench"}</div>
             <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-0.03em] text-[var(--app-text)]">
-              {locale === "zh" ? "报告中心" : "Report center"}
+              {locale === "zh" ? "质量报告" : "Quality reports"}
             </h1>
             <p className="mt-2 text-sm text-[var(--app-text-muted)]">
               {locale === "zh"
-                ? "把评测输出和质量汇总集中在同一页面，维持 scan-first 的回归与 Trace 复盘路径。"
-                : "Keep eval outputs and quality summaries in one scan-first page for regression checks and trace-guided replay."}
+                ? "这是从工作台概览进入的质量页，把质量检查、回归差异和导出能力收在一起。"
+                : "This quality page is entered from the workbench overview so checks, regression diffs, and exports stay in one place."}
             </p>
           </div>
           <Badge color={evalRunStatusColor} radius="sm" variant="light" size="lg">
@@ -392,14 +395,14 @@ export function ReportCenterPage() {
 
       <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
         <Stack gap="md">
-          <div>
-            <div className="workspace-section-heading">{locale === "zh" ? "评测执行" : "Eval run"}</div>
-            <p className="mt-2 text-sm text-[var(--app-text-muted)]">
-              {locale === "zh"
-                ? "固定 P5 v1 输入参数并触发一次 question-set run，保持可扫读的对比上下文。"
-                : "Run one question-set eval with fixed P5 v1 inputs to keep comparisons scan-first and consistent."}
-            </p>
-          </div>
+            <div>
+              <div className="workspace-section-heading">{locale === "zh" ? "运行质量检查" : "Run quality check"}</div>
+              <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                {locale === "zh"
+                  ? "用一组固定输入触发一次质量检查，便于后续对比结果、回归差异和弱项。"
+                  : "Run one check with fixed inputs so the page can compare summary results, regressions, and weakest items consistently."}
+              </p>
+            </div>
 
           <form className="grid gap-4 md:grid-cols-3" onSubmit={onRunEvalSubmit}>
             <TextInput
@@ -429,7 +432,7 @@ export function ReportCenterPage() {
 
             <div className="md:col-span-3">
               <Button className="workspace-button w-full" color="indigo" loading={runEvalMutation.isPending} radius="xl" type="submit" variant="light" size="md">
-                {locale === "zh" ? "执行评测 Run" : "Run eval"}
+                {locale === "zh" ? "开始质量检查" : "Run quality check"}
               </Button>
             </div>
           </form>
@@ -440,10 +443,10 @@ export function ReportCenterPage() {
                 runEvalMutation.error instanceof Error
                   ? runEvalMutation.error.message
                   : locale === "zh"
-                    ? "评测 run 执行失败。"
-                    : "Eval run failed."
-              }
-              title={locale === "zh" ? "运行失败" : "Run failed"}
+                    ? "质量检查执行失败。"
+                    : "Quality check failed."
+               }
+              title={locale === "zh" ? "质量检查失败" : "Quality check failed"}
               tone="error"
             />
           ) : null}
@@ -453,20 +456,20 @@ export function ReportCenterPage() {
               <StatePanel
                 description={
                   locale === "zh"
-                    ? "先执行一次 question-set run，再从质量摘要、差异摘要和弱项列表开始 scan-first 复盘。"
-                    : "Run one question-set eval first, then scan quality summary, diff summary, and weakest items for replay."}
-                title={locale === "zh" ? "先跑一次 scan-first run" : "Start with one scan-first run"}
+                    ? "先执行一次质量检查，再从质量摘要、差异摘要和弱项列表开始查看。"
+                    : "Run one quality check first, then review the quality summary, diff summary, and weakest items."}
+                title={locale === "zh" ? "先跑一次质量检查" : "Start with one quality check"}
                 tone="empty"
               />
               <Text c="var(--app-text-muted)" data-testid="report-center-pre-run-path" size="xs">
                 {locale === "zh"
-                  ? "scan path: Eval run（触发首轮）→ Report center（查看质量/差异/弱项）"
-                  : "scan path: Eval run (trigger first run) -> Report center (review quality/diff/weakest items)"}
+                  ? "建议路径：质量检查（触发首轮）→ 质量报告（查看摘要/差异/弱项）"
+                  : "Suggested path: quality check (trigger first run) -> quality reports (review summary/diff/weakest items)"}
               </Text>
               <Paper className="workspace-subpanel" p="md" radius="xl">
                 <Stack gap="xs">
                   <Text className="workspace-section-heading">
-                    {locale === "zh" ? "当前运行上下文" : "Current run context"}
+                    {locale === "zh" ? "当前检查上下文" : "Current check context"}
                   </Text>
                   <div className="grid gap-2 md:grid-cols-3">
                     {preRunContextRows.map(row => (
@@ -488,13 +491,13 @@ export function ReportCenterPage() {
           <Stack gap="md" align="center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
             <Text c="var(--app-text)" size="lg">
-              {locale === "zh" ? "正在执行评测，请稍候..." : "Running evaluation, please wait..."}
-            </Text>
-            <Text c="var(--app-text-muted)" size="sm">
-              {locale === "zh" ? "系统正在处理您的评测请求，这可能需要一些时间。" : "The system is processing your evaluation request, which may take some time."}
-            </Text>
-          </Stack>
-        </Paper>
+                {locale === "zh" ? "正在执行质量检查，请稍候..." : "Running quality check, please wait..."}
+              </Text>
+              <Text c="var(--app-text-muted)" size="sm">
+                {locale === "zh" ? "系统正在处理这次质量检查，这可能需要一些时间。" : "The system is processing this quality check, which may take some time."}
+              </Text>
+            </Stack>
+          </Paper>
       ) : runEvalMutation.data ? (
         <Stack gap="md">
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
@@ -538,11 +541,11 @@ export function ReportCenterPage() {
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "结果速读路径" : "Result scan path"}</div>
+              <div className="workspace-section-heading">{locale === "zh" ? "结果速读路径" : "Result review path"}</div>
               <Text c="var(--app-text-muted)" size="sm">
                 {locale === "zh"
-                  ? "按 当前输入 -> 结果摘要 -> 差异 -> 弱项 -> 下一步 的顺序一屏扫读。"
-                  : "Scan in one pass: current inputs -> summary -> diff -> weakest items -> next action."}
+                  ? "按 当前输入 -> 结果摘要 -> 差异 -> 弱项 -> 下一步 的顺序快速查看。"
+                  : "Review in one pass: current inputs -> summary -> diff -> weakest items -> next action."}
               </Text>
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="workspace-meta-row">
@@ -559,17 +562,17 @@ export function ReportCenterPage() {
                   </span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "差异摘要" : "Diff summary"}</span>
+                  <span className="workspace-meta-label">{locale === "zh" ? "回归差异" : "Regression diff"}</span>
                   <span className="workspace-meta-value">
                     {runDiffSummary
                       ? `${runDiffSummary.regressedMetricCount} regressed · ${runDiffSummary.improvedMetricCount} improved`
                       : locale === "zh"
-                        ? "baseline 差异暂不可读"
-                        : "baseline diff unavailable"}
+                          ? "baseline 差异暂不可读"
+                          : "baseline diff unavailable"}
                   </span>
                 </div>
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "弱项路径" : "Weakest-item path"}</span>
+                  <span className="workspace-meta-label">{locale === "zh" ? "弱项聚焦" : "Weakest-item focus"}</span>
                   <span className="workspace-meta-value">
                     {firstRegressionDrilldownItem
                       ? `#${firstRegressionDrilldownItem.index} · ${firstRegressionDrilldownItem.severity} · ${firstRegressionDrilldownItem.reasonCodes
@@ -593,7 +596,7 @@ export function ReportCenterPage() {
           {runEvalMutation.data?.summary && (
             <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
               <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "质量指标雷达图" : "Quality metrics radar"}</div>
+                <div className="workspace-section-heading">{locale === "zh" ? "质量概览雷达图" : "Quality overview radar"}</div>
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart outerRadius={90} width={730} height={250} data={radarData}>
@@ -601,7 +604,7 @@ export function ReportCenterPage() {
                       <PolarAngleAxis dataKey="subject" />
                       <PolarRadiusAxis angle={30} domain={[0, 100]} />
                       <Radar
-                        name={locale === "zh" ? "当前评测" : "Current Eval"}
+                        name={locale === "zh" ? "当前检查" : "Current check"}
                         dataKey="A"
                         stroke="#8884d8"
                         fill="#8884d8"
@@ -618,7 +621,7 @@ export function ReportCenterPage() {
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "质量分布" : "Quality distribution"}</div>
+                <div className="workspace-section-heading">{locale === "zh" ? "质量分布" : "Quality distribution"}</div>
               {qualitySummaryRows.length > 0 ? (
                 <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
                   <div>
@@ -658,7 +661,7 @@ export function ReportCenterPage() {
                 </div>
               ) : (
                 <Text c="var(--app-text-muted)" size="sm">
-                  {locale === "zh" ? "暂无可汇总的质量结果。" : "No quality results available yet."}
+                  {locale === "zh" ? "暂时还没有可汇总的质量结果。" : "No quality results are available yet."}
                 </Text>
               )}
             </Stack>
@@ -668,7 +671,7 @@ export function ReportCenterPage() {
           {answerStatusDistribution.length > 0 && (
             <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
               <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "答案状态分布" : "Answer status distribution"}</div>
+                <div className="workspace-section-heading">{locale === "zh" ? "回答状态分布" : "Answer status distribution"}</div>
                 <div className="grid gap-2 md:grid-cols-3">
                    {answerStatusDistribution.map((item) => (
                     <div className="workspace-meta-row workspace-table-number" key={item.status}>
@@ -685,7 +688,7 @@ export function ReportCenterPage() {
           {errorTypeDistribution.length > 0 && (
             <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
               <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "错误类型分布" : "Error type distribution"}</div>
+                <div className="workspace-section-heading">{locale === "zh" ? "问题类型分布" : "Issue type distribution"}</div>
                 <div className="grid gap-2 md:grid-cols-3">
                    {errorTypeDistribution.map((item) => (
                     <div className="workspace-meta-row workspace-table-number" key={item.code}>
@@ -702,7 +705,7 @@ export function ReportCenterPage() {
           {qualityGate && (
             <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
               <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "质量门控" : "Quality gate"}</div>
+                <div className="workspace-section-heading">{locale === "zh" ? "质量门槛" : "Quality gate"}</div>
                 <div className="grid gap-2 md:grid-cols-2">
                   <div className="workspace-meta-row">
                     <span className="workspace-meta-label">{locale === "zh" ? "模式" : "Mode"}</span>
@@ -749,7 +752,7 @@ export function ReportCenterPage() {
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "Run 差异摘要" : "Run diff summary"}</div>
+              <div className="workspace-section-heading">{locale === "zh" ? "运行差异摘要" : "Run diff summary"}</div>
               {runDiffSummary ? (
                 <>
                   <Text c="var(--app-text-muted)" size="sm">
@@ -779,7 +782,7 @@ export function ReportCenterPage() {
               ) : (
                 <Text c="var(--app-text-muted)" size="sm">
                   {locale === "zh"
-                    ? "当前 run 缺少可用差异摘要（通常需 baseline 对照已就绪）。"
+                    ? "当前检查缺少可用差异摘要（通常需 baseline 对照已就绪）。"
                     : "Run diff summary is unavailable for this comparison (baseline delta not ready)."}
                 </Text>
               )}
@@ -792,7 +795,7 @@ export function ReportCenterPage() {
               <Text c="var(--app-text-muted)" size="sm">
                 {locale === "zh"
                   ? "按严重程度列出最需要优先复盘的问题。"
-                  : "Prioritized per-question regressions so review can focus on weakest items first."}
+                  : "Prioritize per-question regressions so review can focus on the weakest items first."}
               </Text>
               {runEvalMutation.data.baselineComparison?.failureDrilldown ? (
                 <>
@@ -815,7 +818,7 @@ export function ReportCenterPage() {
                     </div>
                   ) : (
                     <Text c="var(--app-text-muted)" size="sm">
-                      {locale === "zh" ? "当前 run 未检测到题目级回归。" : "No per-question regressions detected in this run."}
+                      {locale === "zh" ? "当前检查未检测到题目级回归。" : "No per-question regressions were detected in this check."}
                     </Text>
                   )}
                 </>
@@ -823,7 +826,7 @@ export function ReportCenterPage() {
                 <Text c="var(--app-text-muted)" size="sm">
                   {locale === "zh"
                     ? "当前 baseline 缺少题目级对照数据（通常需在最新格式 baseline 初始化后可用）。"
-                    : "Per-question drilldown is unavailable for this baseline (initialize baseline with latest run format)."}
+                    : "Per-question drilldown is unavailable for this baseline (initialize the baseline with the latest run format)."}
                 </Text>
               )}
             </Stack>
@@ -867,11 +870,11 @@ export function ReportCenterPage() {
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "报告导出" : "Report export"}</div>
+              <div className="workspace-section-heading">{locale === "zh" ? "报告导出" : "Export reports"}</div>
               <Text c="var(--app-text-muted)" size="sm">
                 {locale === "zh"
-                  ? "将本次评测结果导出为可复用文件，便于存档和分享。"
-                  : "Export this eval run into reusable files for storage and sharing."}
+                  ? "把这次质量检查结果导出为可复用文件，便于存档和分享。"
+                  : "Export this quality check into reusable files for storage and sharing."}
               </Text>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -917,8 +920,8 @@ export function ReportCenterPage() {
                 <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
                   <Text className="workspace-table-hint flex-shrink-0">
                     {locale === "zh"
-                      ? "按题逐行扫状态、质量和主问题；Trace 列保留直接跳转。"
-                      : "Scan each row by status, quality, and primary issue; the trace column keeps a direct jump."}
+                      ? "按题逐行查看状态、质量和主问题；Trace 列保留直接跳转。"
+                      : "Review each row by status, quality, and primary issue; the trace column keeps a direct jump."}
                   </Text>
                   <div className="flex flex-wrap items-center gap-3 flex-grow sm:flex-grow-0">
                     <Select
@@ -999,7 +1002,7 @@ export function ReportCenterPage() {
                       <Table.Th onClick={() => requestSort('usedFallback')}>
                         {locale === "zh" ? "Fallback" : "Fallback"} {sortConfig?.key === 'usedFallback' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
                       </Table.Th>
-                      <Table.Th>{locale === "zh" ? "Trace / 问题" : "Trace / issue"}</Table.Th>
+                      <Table.Th>{locale === "zh" ? "诊断 / 问题" : "Diagnostics / issue"}</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -1052,7 +1055,7 @@ export function ReportCenterPage() {
                                 to={`/traces/${item.traceId}`}
                                 variant="light"
                               >
-                                {locale === "zh" ? "打开 Trace" : "Open trace"}
+                                {locale === "zh" ? "打开诊断" : "Open diagnostics"}
                               </Button>
                             ) : (
                               <Text c="var(--app-text-muted)" size="xs">-</Text>
@@ -1075,10 +1078,10 @@ export function ReportCenterPage() {
             <StatePanel
               description={
                 locale === "zh"
-                  ? "当前 run 没有返回可展示题目。请先检查 question-set 输入，再执行一次 scan-first run。"
-                  : "This run did not return any displayable items. Verify the question-set input and run one scan-first eval again."
-              }
-              title={locale === "zh" ? "本次 run 暂无题目结果" : "This run has no eval items yet"}
+                    ? "这次质量检查没有返回可展示题目。请先检查 question-set 输入，再执行一次检查。"
+                    : "This quality check did not return any displayable items. Verify the question-set input and run it again."
+               }
+              title={locale === "zh" ? "这次检查还没有题目结果" : "This check has no item results yet"}
               tone="empty"
             />
           )}

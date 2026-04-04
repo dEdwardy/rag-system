@@ -104,12 +104,12 @@ export function UsagePage() {
 
   // 生成指标数据
   const generateMetrics = () => [
-    { label: locale === "zh" ? "知识库" : "Knowledge bases", value: knowledgeBasesQuery.data?.length ?? 0 },
-    { label: locale === "zh" ? "文档" : "Documents", value: documents.length },
+    { label: locale === "zh" ? "资料库" : "Libraries", value: knowledgeBasesQuery.data?.length ?? 0 },
+    { label: locale === "zh" ? "资料" : "Library items", value: documents.length },
     { label: locale === "zh" ? "Chunk" : "Chunks", value: totalChunks },
     { label: locale === "zh" ? "助手" : "Assistants", value: assistants.length },
     { label: locale === "zh" ? "会话" : "Conversations", value: conversations.length },
-    { label: locale === "zh" ? "就绪文档" : "Ready docs", value: readyDocuments }
+    { label: locale === "zh" ? "可用资料" : "Ready items", value: readyDocuments }
   ];
 
   const metrics = useMemo(() => generateMetrics(), [
@@ -516,15 +516,18 @@ export function UsagePage() {
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="workspace-hero-copy">
-            <div className="workspace-hero-kicker">{locale === "zh" ? "桌面端使用统计" : "Desktop usage"}</div>
-            <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-0.03em] text-[var(--app-text)]">
-              {locale === "zh" ? "使用统计" : "Usage"}
-            </h1>
-            <p className="mt-2 text-sm text-[var(--app-text-muted)]">
-              {locale === "zh"
-                ? "只展示当前前端已经拿到的真实工作区数据，不伪造任何统计项。"
-                : "Show only real workspace data already available to the frontend, with no fabricated metrics."}
-            </p>
+             <Link className="workspace-link text-sm" to="/workbench">
+               {locale === "zh" ? "返回工作台概览" : "Back to workbench overview"}
+             </Link>
+              <div className="workspace-hero-kicker">{locale === "zh" ? "管理工作台" : "Workbench"}</div>
+             <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-semibold tracking-[-0.03em] text-[var(--app-text)]">
+               {locale === "zh" ? "运行概览" : "Operations overview"}
+             </h1>
+             <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+               {locale === "zh"
+                ? "这里汇总管理侧需要快速扫读的真实运行信号，不把它混进普通用户主路径。"
+                : "This view groups real operational signals for the workbench without mixing them into the primary user path."}
+             </p>
           </div>
 
           <div className="flex flex-col items-start md:items-end gap-3 w-full md:w-auto">
@@ -549,15 +552,15 @@ export function UsagePage() {
                   ? `处理中 ${processingDocuments}`
                   : `${processingDocuments} processing`
                 : locale === "zh"
-                  ? "桌面视图"
-                  : "Desktop view"}
-            </Badge>
-            <p className="max-w-sm text-sm leading-6 text-[var(--app-text-muted)] md:text-right">
-              {locale === "zh"
-                ? "这里聚合知识库、文档、助手和会话的当前真实数据，作为独立于“知识库”的唯一路由页面。"
-                : "This page aggregates current real knowledge-base, document, assistant, and conversation data on a dedicated route separate from the knowledge base."}
-            </p>
-          </div>
+                  ? "工作台视图"
+                  : "Workbench view"}
+             </Badge>
+             <p className="max-w-sm text-sm leading-6 text-[var(--app-text-muted)] md:text-right">
+                {locale === "zh"
+                 ? "这是从工作台概览进入的运行观察页，用来集中查看资料状态、趋势和健康信号。"
+                 : "This operations page is entered from the workbench overview so state, trends, and health signals stay grouped together."}
+              </p>
+           </div>
         </div>
       </Paper>
 
@@ -586,7 +589,7 @@ export function UsagePage() {
                 (locale === "zh" ? "加载数据时发生未知错误" : "An unknown error occurred while loading data")}
 
 ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check your network connection or try again later."}`}
-          title={locale === "zh" ? "统计数据加载失败" : "Failed to load usage data"}
+          title={locale === "zh" ? "运行数据加载失败" : "Failed to load operations data"}
           tone="error"
         />
       ) : null}
@@ -601,10 +604,10 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
           ))}
           <div className="flex justify-center mt-4">
             <div className="animate-pulse text-sm text-[var(--app-text-muted)]">
-              {locale === "zh" ? "加载统计数据中..." : "Loading usage data..."}
+              {locale === "zh" ? "加载运行数据中..." : "Loading operations data..."}
             </div>
           </div>
-          <span className="sr-only">{locale === "zh" ? "加载统计中" : "Loading usage"}</span>
+          <span className="sr-only">{locale === "zh" ? "加载运行数据中" : "Loading operations"}</span>
         </div>
       ) : null}
 
@@ -625,15 +628,15 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
             <StatePanel
               action={
                 <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
-                  {locale === "zh" ? "先创建知识库" : "Create a knowledge base first"}
+                  {locale === "zh" ? "先创建工作区资料库" : "Create a workspace library first"}
                 </Button>
               }
               description={
                 locale === "zh"
-                  ? "当前没有可用知识库，Usage 页保持 scan-first：请先在 Knowledge base 页面创建一个知识库，再查看语料状态与 P6 信号。"
-                  : "No active knowledge base yet. Usage stays scan-first: create one in the knowledge base page before scanning corpus state and P6 signals."
+                  ? "当前还没有可用的工作区资料库。先在工作区设置里创建资料归属，再回来查看运行信号。"
+                  : "There is no active workspace library yet. Create one in workspace settings before scanning operational signals here."
               }
-              title={locale === "zh" ? "还没有可扫描的知识库" : "No active knowledge base to scan"}
+              title={locale === "zh" ? "还没有可观察的工作区资料库" : "No active workspace library to inspect"}
             />
           ) : null}
 
@@ -642,11 +645,11 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
               <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
                 <div className="flex flex-col gap-4">
                   <div>
-                    <div className="workspace-section-heading">{locale === "zh" ? "当前语料状态" : "Current corpus state"}</div>
+                    <div className="workspace-section-heading">{locale === "zh" ? "当前资料状态" : "Current library state"}</div>
                     <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                       {locale === "zh"
-                        ? "使用当前知识库下的真实文档状态，帮助判断桌面端工作区是否处于可检索状态。"
-                        : "Use the real document states under the current knowledge base to understand desktop workspace readiness."}
+                        ? "基于当前工作区资料库里的真实资料状态，快速判断这个工作区是否适合继续使用。"
+                        : "Use the real item states under the current workspace library to judge whether the workspace is ready for normal use."}
                     </p>
                   </div>
 
@@ -694,23 +697,23 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
               <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                 <div className="flex h-full items-center justify-center text-center text-sm text-[var(--app-text-muted)]">
                   {locale === "zh"
-                    ? "创建知识库后，这里会显示当前语料状态。"
-                    : "Current corpus state will appear here after a knowledge base is created."}
+                     ? "创建工作区资料库后，这里会显示当前资料状态。"
+                     : "Current library state will appear here after a workspace library is created."}
                 </div>
               </Paper>
             )}
 
             <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
               <div className="flex flex-col gap-4">
-                <div className="workspace-section-heading">{locale === "zh" ? "桌面端入口" : "Desktop entry points"}</div>
+                <div className="workspace-section-heading">{locale === "zh" ? "工作台快捷入口" : "Workbench shortcuts"}</div>
                 <Button className="workspace-button w-full" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
-                  {locale === "zh" ? "打开知识库" : "Open knowledge base"}
+                  {locale === "zh" ? "打开工作区设置" : "Open workspace settings"}
                 </Button>
                 <Button className="workspace-button w-full" color="indigo" component={Link} radius="xl" to="/documents" variant="light">
-                  {locale === "zh" ? "打开文档" : "Open documents"}
+                  {locale === "zh" ? "打开资料库" : "Open library"}
                 </Button>
                 <Button className="workspace-button w-full" color="indigo" component={Link} radius="xl" to="/assistant" variant="light">
-                  {locale === "zh" ? "打开助手配置" : "Open assistant"}
+                  {locale === "zh" ? "打开回答设置" : "Open answer settings"}
                 </Button>
               </div>
             </Paper>
@@ -719,15 +722,15 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
           <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="workspace-section-heading">{locale === "zh" ? "P5 v1 报告中心" : "P5 v1 report center"}</div>
+                <div className="workspace-section-heading">{locale === "zh" ? "质量报告" : "Quality reports"}</div>
                 <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                   {locale === "zh"
-                    ? "评测输出和质量汇总已收敛到独立报告页，保持这里的 scan-first 使用页边界，避免扩展成通用仪表盘。"
-                    : "Eval outputs and quality summaries now live in a dedicated report page, keeping this usage route scan-first instead of becoming a generic dashboard surface."}
+                    ? "评测输出和质量汇总放在独立报告页里，当前页只保留运行观察，不扩成通用大盘。"
+                    : "Evaluation output and quality summaries live in a dedicated report page so this screen can stay focused on operations."}
                 </p>
               </div>
               <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/reports" variant="light">
-                {locale === "zh" ? "打开报告中心" : "Open report center"}
+                {locale === "zh" ? "打开质量报告" : "Open quality reports"}
               </Button>
             </div>
           </Paper>
@@ -737,11 +740,11 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
               <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 健康看板" : "P6 v1 health dashboard"}</div>
+                  <div className="workspace-section-heading">{locale === "zh" ? "运行健康看板" : "Operations health board"}</div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
-                      ? "聚合 API 存活、文档运行摘要和问题事件，提供 scan-first 的工作区可运行性快速判断。"
-                      : "Combine API heartbeat, document-run summary, and issue events into one scan-first operational check for workspace readiness."}
+                      ? "把 API 状态、资料更新摘要和问题事件收在一起，方便管理侧快速判断工作区是否稳定。"
+                      : "Combine API status, library-update summary, and issue events into one quick operational check for workspace stability."}
                   </p>
                 </div>
                 <Badge color={healthPanelErrorMessage ? "red" : "indigo"} radius="sm" variant="light">
@@ -750,15 +753,15 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
                       ? "部分信号加载失败"
                       : "partial signal load failure"
                     : locale === "zh"
-                      ? "轻量运行视图"
-                      : "light operational view"}
+                        ? "轻量观察视图"
+                        : "light operations view"}
                 </Badge>
               </div>
 
               {healthPanelErrorMessage ? (
                 <StatePanel
                   description={healthPanelErrorMessage}
-                  title={locale === "zh" ? "健康看板信号加载失败" : "Failed to load health dashboard signals"}
+                  title={locale === "zh" ? "运行健康信号加载失败" : "Failed to load operations health signals"}
                   tone="error"
                 />
               ) : null}
@@ -768,20 +771,20 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
                   <StatePanel
                     action={
                       <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
-                        {locale === "zh" ? "先跑一次扫描" : "Start with one scan-first run"}
+                        {locale === "zh" ? "先跑一次资料更新" : "Start with one library update run"}
                       </Button>
                     }
                     description={
                       locale === "zh"
-                        ? "当前知识库还没有文档运行记录。先在 Knowledge base 页触发一次文档扫描/重跑，再回到这里查看 P6 健康信号。首轮运行完成前，这里的趋势/告警/异常/差异/热点面板会保持收起，避免误读。"
-                        : "This knowledge base has no document-run history yet. Trigger one document scan/re-run in the knowledge base page before reading P6 health signals here. Until the first run lands, trend/alert/anomaly/diff/hotspot panels stay collapsed to avoid false zero-signal reading."
+                        ? "当前工作区资料库还没有更新记录。先在工作区设置或资料库里触发一次资料导入/重跑，再回到这里查看运行健康信号。首轮运行完成前，这里的趋势、告警和异常面板会保持收起，避免误读。"
+                        : "This workspace library has no update history yet. Trigger one add or re-run flow from workspace settings or the library before reading the operations health signals here. Until the first run lands, the trend, alert, and anomaly panels stay collapsed to avoid false zero-signal reading."
                     }
-                    title={locale === "zh" ? "P6 预运行引导（scan-first）" : "P6 pre-run guidance (scan-first)"}
+                    title={locale === "zh" ? "预运行引导" : "Pre-run guidance"}
                   />
                   <p className="text-xs text-[var(--app-text-muted)]" data-testid="usage-p6-pre-run-path">
                     {locale === "zh"
-                      ? "scan path：Knowledge base（触发扫描）→ Usage（回看 P6 信号）。"
-                      : "scan path: Knowledge base (trigger scan) → Usage (review P6 signals)."}
+                      ? "建议路径：工作区设置/资料库（触发更新）→ Workbench（回看运行信号）。"
+                      : "Suggested path: workspace settings/library (trigger an update) -> workbench (review operational signals)."}
                   </p>
                 </div>
               ) : (
@@ -811,7 +814,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
 
                   <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
                 <div className="workspace-subpanel rounded-[20px] p-4">
-                  <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 趋势视图" : "P6 v1 trend view"}</div>
+                  <div className="workspace-section-heading">{locale === "zh" ? "趋势视图" : "Trend view"}</div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
                       ? "按 1h / 6h / 24h 时间窗查看关键健康与失败指标的变化。"
@@ -850,11 +853,11 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
                 </div>
 
                 <div className="workspace-subpanel rounded-[20px] p-4">
-                  <div className="workspace-section-heading">{locale === "zh" ? "P6 v1 告警视图" : "P6 v1 alert view"}</div>
+                  <div className="workspace-section-heading">{locale === "zh" ? "告警视图" : "Alert view"}</div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
                       ? "把重要 warning 与阈值问题收敛在一个列表里，便于快速排查。"
-                      : "Keep important warnings and threshold issues in one scan-first list."}
+                        : "Keep important warnings and threshold issues in one quick-scan list."}
                   </p>
                   {latestFailureAnchor ? (
                     <div className="mt-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3 text-sm">
@@ -883,13 +886,13 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
                           className="inline-block text-[13px] font-medium text-[var(--app-accent)]"
                           to="/traces"
                         >
-                          {locale === "zh" ? "继续 trace 诊断顺序" : "Continue to trace diagnostics order"}
+                          {locale === "zh" ? "继续诊断路径" : "Continue to diagnostics"}
                         </Link>
                       </div>
                       <p className="mt-2 text-xs text-[var(--app-text-muted)]">
                         {locale === "zh"
-                          ? "按同一路径：文档详情 -> run 失败摘要 -> trace 诊断顺序。"
-                          : "Follow one path: Document Detail -> Run failure summary -> Trace diagnostics order."}
+                          ? "按同一路径：文档详情 -> 运行失败摘要 -> 诊断详情。"
+                          : "Follow one path: Document Detail -> Run failure summary -> Diagnostics."}
                       </p>
                     </div>
                   ) : null}
@@ -954,7 +957,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
 
                 <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
                   <div className="workspace-section-heading">
-                    {locale === "zh" ? "P6 v1 异常聚类视图" : "P6 v1 anomaly clustering view"}
+                    {locale === "zh" ? "异常聚类视图" : "Anomaly clustering view"}
                   </div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
@@ -1009,7 +1012,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
 
                 <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
                   <div className="workspace-section-heading">
-                    {locale === "zh" ? "P6 v1 回归差异视图" : "P6 v1 regression diff view"}
+                    {locale === "zh" ? "回归差异视图" : "Regression diff view"}
                   </div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
@@ -1061,7 +1064,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
 
                 <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
                   <div className="workspace-section-heading">
-                    {locale === "zh" ? "P6 v1 快照窗口差异" : "P6 v1 snapshot window diff"}
+                    {locale === "zh" ? "快照窗口差异" : "Snapshot window diff"}
                   </div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
@@ -1176,7 +1179,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
 
                 <div className="workspace-subpanel rounded-[20px] p-4 xl:col-span-3">
                   <div className="workspace-section-heading">
-                    {locale === "zh" ? "P6 v1 source-family 热点" : "P6 v1 source-family hotspot"}
+                    {locale === "zh" ? "source-family 热点" : "Source-family hotspot"}
                   </div>
                   <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                     {locale === "zh"
@@ -1214,7 +1217,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
 
                 <div className="flex flex-col gap-2 xl:col-span-3 xl:flex-row">
                   <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/traces" variant="light">
-                    {locale === "zh" ? "查看 Trace" : "Open traces"}
+                    {locale === "zh" ? "打开诊断" : "Open diagnostics"}
                   </Button>
                   <Button
                     className="workspace-button"
