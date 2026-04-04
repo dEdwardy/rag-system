@@ -537,6 +537,7 @@ export function ChatPage() {
   const visibleSummaryCards = isOauthOnboardingActive
     ? summaryCards.filter(card => card.key === "knowledge-base" || card.key === "assistant" || card.key === "ask-status")
     : summaryCards;
+  const mobileSummaryCards = visibleSummaryCards.filter(card => card.key === "ask-status");
   const showReducedCitationsPanel = isOauthOnboardingActive && activeConversationId == null && activeStreamTurn == null;
 
   const historySection = (
@@ -751,12 +752,13 @@ export function ChatPage() {
               documentCount={documentCount}
             />
 
-            <div
-              className={[
-                "workspace-chat-summary grid gap-3 md:grid-cols-2",
-                "xl:grid-cols-3"
-              ].join(" ")}
-            >
+            <div className="workspace-chat-summary grid gap-3 md:hidden">
+              {mobileSummaryCards.map(card => (
+                <SummaryCard hint={card.hint} key={card.key} label={card.label} value={card.value} />
+              ))}
+            </div>
+
+            <div className="hidden workspace-chat-summary gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
               {visibleSummaryCards.map(card => (
                 <SummaryCard hint={card.hint} key={card.key} label={card.label} value={card.value} />
               ))}
@@ -804,15 +806,18 @@ export function ChatPage() {
 
                 return (
                   <div
-                    className={["flex gap-4", isAssistant ? "max-w-[85%]" : "ml-auto max-w-[85%] flex-row-reverse"].join(" ")}
+                    className={[
+                      "flex gap-3 md:gap-4",
+                      isAssistant ? "max-w-[92%] md:max-w-[85%]" : "ml-auto max-w-[92%] md:max-w-[85%] flex-row-reverse"
+                    ].join(" ")}
                     key={message.id}
                   >
                     <div
-                      className={[
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] text-[13px] font-semibold",
-                        isAssistant
-                          ? "bg-[linear-gradient(135deg,rgba(99,102,241,0.2)_0%,rgba(99,102,241,0.1)_100%)] text-[#818cf8]"
-                          : "bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-white"
+                        className={[
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] text-[12px] font-semibold md:h-9 md:w-9 md:rounded-[14px] md:text-[13px]",
+                          isAssistant
+                            ? "bg-[linear-gradient(135deg,rgba(99,102,241,0.2)_0%,rgba(99,102,241,0.1)_100%)] text-[#818cf8]"
+                            : "bg-[linear-gradient(135deg,#10b981_0%,#059669_100%)] text-white"
                       ].join(" ")}
                     >
                       {isAssistant ? "AI" : "U"}
@@ -821,7 +826,7 @@ export function ChatPage() {
                     <div className="min-w-0 flex-1">
                       <div
                         className={[
-                          "rounded-[20px] px-5 py-4 text-sm leading-7 shadow-[0_8px_32px_rgba(0,0,0,0.24)]",
+                          "rounded-[18px] px-4 py-3.5 text-sm leading-7 shadow-[0_8px_32px_rgba(0,0,0,0.24)] md:rounded-[20px] md:px-5 md:py-4",
                           isAssistant
                             ? "rounded-tl-[6px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text)]"
                             : "rounded-tr-[6px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-white"
@@ -886,10 +891,10 @@ export function ChatPage() {
               </span>
             </div>
 
-            <div className="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-2 transition duration-300 focus-within:border-[var(--app-accent)] focus-within:shadow-[0_0_0_3px_var(--app-accent-glow)]">
+            <div className="rounded-[22px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-3 transition duration-300 focus-within:border-[var(--app-accent)] focus-within:shadow-[0_0_0_3px_var(--app-accent-glow)] md:rounded-[24px]">
               <div className="flex items-end gap-3">
                 <textarea
-                  className="min-h-6 max-h-[120px] flex-1 resize-none bg-transparent px-4 py-3 text-sm text-[var(--app-text)] placeholder:text-[var(--app-text-muted)]"
+                  className="min-h-[96px] max-h-[220px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 text-[var(--app-text)] placeholder:text-[var(--app-text-muted)] md:min-h-[120px]"
                   disabled={!canAsk}
                   name="question"
                   onChange={event => setComposerValue(event.target.value)}
@@ -900,7 +905,7 @@ export function ChatPage() {
                     }
                   }}
                   placeholder={chatCopy.askInputPlaceholder}
-                  rows={1}
+                  rows={3}
                   spellCheck
                   value={composerValue}
                 />
