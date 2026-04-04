@@ -4,8 +4,10 @@ import {
   DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
   DEFAULT_AUTH_SESSION_COOKIE_NAME
 } from "./auth.constants";
+import { AuthRateLimit } from "./auth-rate-limit.decorator";
 import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
 import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
+import { AuthRuntimeConfigService } from "./auth-runtime-config";
 import {
   loginSchema,
   oauthCallbackQuerySchema,
@@ -24,9 +26,13 @@ export const AUTH_OAUTH_PROVIDER_ROUTE_SHAPES = {
 @PublicRoute()
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
+  ) {}
 
   @Post("login")
+  @AuthRateLimit("login")
   async login(
     @Body() body: unknown,
     @Res({ passthrough: true }) response: { setHeader: (name: string, value: string | string[]) => void }
@@ -72,6 +78,7 @@ export class AuthController {
   }
 
   @Get("oauth/:provider/start")
+  @AuthRateLimit("oauth_start")
   async oauthProviderStart(
     @Param() params: unknown,
     @Res() response: {
@@ -93,6 +100,7 @@ export class AuthController {
   }
 
   @Get("oauth/:provider/callback")
+  @AuthRateLimit("oauth_callback")
   async oauthProviderCallback(
     @Param() params: unknown,
     @Query() query: unknown,
@@ -111,6 +119,7 @@ export class AuthController {
   }
 
   @Get("github/callback")
+  @AuthRateLimit("oauth_callback")
   async githubOauthCallback(
     @Query() query: unknown,
     @Req()
@@ -160,20 +169,7 @@ export class AuthController {
   }
 
   private resolveOauthSuccessRedirectUrl(): string {
-    const configuredUrl = (process.env.AUTH_OAUTH_SUCCESS_REDIRECT_URI ?? process.env.AUTH_WEB_SUCCESS_REDIRECT_URI ?? "").trim();
-    if (configuredUrl.length > 0) {
-      return configuredUrl;
-    }
-
-    const firstCorsOrigin = (process.env.CORS_ORIGIN ?? "")
-      .split(",")
-      .map(value => value.trim())
-      .find(value => value.length > 0);
-    if (firstCorsOrigin) {
-      return firstCorsOrigin;
-    }
-
-    return "http://localhost:5173";
+    return this.authRuntimeConfig.getConfig().oauthSuccessRedirectUrl;
   }
 
   @Get("me")
@@ -265,18 +261,17 @@ export class AuthController {
   }
 
   private resolveCookieName() {
-    const cookieName = (process.env.AUTH_SESSION_COOKIE_NAME ?? DEFAULT_AUTH_SESSION_COOKIE_NAME).trim();
+    const cookieName = this.authRuntimeConfig.getConfig().sessionCookieName;
     return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_SESSION_COOKIE_NAME;
   }
 
   private resolveOauthStateCookieName() {
-    const cookieName = (process.env.AUTH_OAUTH_STATE_COOKIE_NAME ?? DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME).trim();
+    const cookieName = this.authRuntimeConfig.getConfig().oauthStateCookieName;
     return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
   }
 
   private resolveLoginProvenanceCookieName() {
-    const cookieName =
-      (process.env.AUTH_LOGIN_PROVENANCE_COOKIE_NAME ?? DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME).trim();
+    const cookieName = this.authRuntimeConfig.getConfig().loginProvenanceCookieName;
     return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME;
   }
 

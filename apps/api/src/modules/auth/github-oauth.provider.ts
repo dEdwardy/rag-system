@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException, ServiceUnavailableException } from "@nestjs/common";
+import { AuthRuntimeConfigService } from "./auth-runtime-config";
 
 export type GithubOauthIdentity = {
   subject: string;
@@ -14,6 +15,8 @@ export const GITHUB_OAUTH_PROVIDER = Symbol("GITHUB_OAUTH_PROVIDER");
 
 @Injectable()
 export class HttpGithubOauthProvider implements GithubOauthProvider {
+  constructor(private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()) {}
+
   async exchangeCodeForIdentity(input: { code: string }): Promise<GithubOauthIdentity> {
     const config = this.resolveConfig();
     const accessToken = await this.exchangeCodeForToken({
@@ -42,11 +45,12 @@ export class HttpGithubOauthProvider implements GithubOauthProvider {
     tokenUrl: string;
     userUrl: string;
   } {
-    const clientId = (process.env.AUTH_GITHUB_CLIENT_ID ?? "").trim();
-    const clientSecret = (process.env.AUTH_GITHUB_CLIENT_SECRET ?? "").trim();
-    const redirectUri = (process.env.AUTH_GITHUB_REDIRECT_URI ?? "").trim();
-    const tokenUrl = (process.env.AUTH_GITHUB_TOKEN_URL ?? "https://github.com/login/oauth/access_token").trim();
-    const userUrl = (process.env.AUTH_GITHUB_USER_URL ?? "https://api.github.com/user").trim();
+    const config = this.authRuntimeConfig.getConfig().github;
+    const clientId = config.clientId;
+    const clientSecret = config.clientSecret;
+    const redirectUri = config.redirectUri;
+    const tokenUrl = config.tokenUrl;
+    const userUrl = config.userUrl;
 
     if (clientId.length === 0 || clientSecret.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(

@@ -4,6 +4,7 @@ export type QueueProvider = "database" | "pgmq";
 
 export type QueueRuntimeConfig = {
   provider: QueueProvider;
+  queuePrefix: string | null;
   enableDocumentIngestionWorker: boolean;
   databasePollIntervalMs: number;
   databaseRetryDelayMs: number;
@@ -40,12 +41,18 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
 
   return {
     provider,
+    queuePrefix: readOptionalString(env.QUEUE_PREFIX),
     enableDocumentIngestionWorker: env.DOCUMENT_INGESTION_WORKER_ENABLED !== "false",
     databasePollIntervalMs,
     databaseRetryDelayMs,
     databaseMaxAttempts,
     pgmqVisibilityTimeoutSeconds
   };
+}
+
+function readOptionalString(value: string | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number, envName: string) {

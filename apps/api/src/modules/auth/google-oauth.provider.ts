@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException, ServiceUnavailableException } from "@nestjs/common";
+import { AuthRuntimeConfigService } from "./auth-runtime-config";
 
 export type GoogleOauthIdentity = {
   subject: string;
@@ -14,6 +15,8 @@ export const GOOGLE_OAUTH_PROVIDER = Symbol("GOOGLE_OAUTH_PROVIDER");
 
 @Injectable()
 export class HttpGoogleOauthProvider implements GoogleOauthProvider {
+  constructor(private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()) {}
+
   async exchangeCodeForIdentity(input: { code: string }): Promise<GoogleOauthIdentity> {
     const config = this.resolveConfig();
     const accessToken = await this.exchangeCodeForToken({
@@ -42,11 +45,12 @@ export class HttpGoogleOauthProvider implements GoogleOauthProvider {
     tokenUrl: string;
     userUrl: string;
   } {
-    const clientId = (process.env.AUTH_GOOGLE_CLIENT_ID ?? "").trim();
-    const clientSecret = (process.env.AUTH_GOOGLE_CLIENT_SECRET ?? "").trim();
-    const redirectUri = (process.env.AUTH_GOOGLE_REDIRECT_URI ?? "").trim();
-    const tokenUrl = (process.env.AUTH_GOOGLE_TOKEN_URL ?? "https://oauth2.googleapis.com/token").trim();
-    const userUrl = (process.env.AUTH_GOOGLE_USER_URL ?? "https://openidconnect.googleapis.com/v1/userinfo").trim();
+    const config = this.authRuntimeConfig.getConfig().google;
+    const clientId = config.clientId;
+    const clientSecret = config.clientSecret;
+    const redirectUri = config.redirectUri;
+    const tokenUrl = config.tokenUrl;
+    const userUrl = config.userUrl;
 
     if (clientId.length === 0 || clientSecret.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(

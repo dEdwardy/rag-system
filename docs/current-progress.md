@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-更新时间：2026-04-04
+更新时间：2026-04-05
 
 ## Current Snapshot
 
@@ -17,6 +17,35 @@
   - 或从新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments
+
+- `api best-practices hardening wave` 已完成一轮窄范围后端维护收口
+  - `apps/api/src/modules/assistants/assistants.controller.ts` 现在会在 `ask/stream` 首字节发出前保留正常 HTTP 失败语义；只有流真正开始后，才回落到 NDJSON `error` event 诊断，避免把 `404/5xx` 预流式失败吞成 `200`
+  - `apps/api/src/common/http-exception.filter.ts` 提取了统一异常响应构建逻辑，streaming controller 可在 pre-stream 阶段复用现有错误 JSON 结构，而不是单独拼装返回体
+  - `apps/api/src/modules/auth/auth.service.ts` 已把 OAuth 回调后的本地持久化阶段收敛到单个事务：身份链接、用户创建/复用、默认 workspace 初始化、session 创建同属一个写入边界
+  - `apps/api/src/modules/auth/auth.controller.ts`、`auth.module.ts`、`auth-rate-limit.guard.ts` 为公开 auth 路由补了基于路由 metadata 的限流保护，当前覆盖 `login`、OAuth start、OAuth callback
+  - `apps/api/src/modules/auth/auth-runtime-config.ts`、`apps/api/src/infra/env/api-runtime-config.ts` 与 `apps/api/src/infra/queue/queue-runtime-config.ts` 收敛了 auth / bootstrap / queue 的运行时配置读取，减少散落的 `process.env` 分支
+  - 本轮继续保留后端输入校验 hardening 的既有约束：若后续恢复该方向，优先保留 `Zod` 作为单一 schema/type source，通过 `ZodValidationPipe` 承接 `@Body()` / `@Query()` 校验，并配合 `ParseUUIDPipe` 等参数 pipe；不为了类型安全切回 `class-validator` / `class-transformer` DTO 栈
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/api test:file -- test/auth-provider-boundary.test.js test/ask-stream-controller.test.js test/http-exception-filter.test.js`
+
+- `web local bootstrap performance guardrail` narrowed two first-load regressions in the current maintenance wave
+  - `apps/web/src/lib/api.ts` now prefers the existing Vite `/api` same-origin proxy during local dev unless `VITE_API_BASE_URL` is explicitly set, removing avoidable browser CORS preflight overhead from the normal `5173 -> 3000` path
+  - `apps/web/src/app/AuthenticatedAppShell.tsx` no longer returns a blank screen while `GET /auth/me` is pending; the app now renders a lightweight loading shell immediately so first paint is not blocked on auth bootstrap visibility
+  - `apps/web/src/app/AppShell.tsx` now defers non-critical sidebar metrics (`documents` / `conversations` badges) until browser idle time instead of requesting them during the first shell bootstrap on every route
+  - `apps/web/src/i18n/messages.ts` is now split into `messages.en.ts` and `messages.zh.ts`, `apps/web/src/main.tsx` boots with only the active locale catalog, and `apps/web/src/i18n/I18nProvider.tsx` lazy-loads the other locale on demand; the production build now emits separate locale chunks and reduces the main `index` bundle from the earlier ~`462 KB` snapshot to ~`408 KB`
+  - `apps/web/src/app/router.tsx` now lazy-loads the authenticated root route too, so `AuthenticatedAppShell` / `AppShell` no longer ride inside the entry bundle; the production build now emits a dedicated `AuthenticatedAppShell-*` chunk and further reduces the main `index` bundle from ~`408 KB` to ~`350 KB`
+  - `apps/web/src/app/App.tsx` now lazy-loads `AppRouter`, moving `RouterProvider` and the router definition out of the entry bundle; the production build now emits a dedicated `AppRouter-*` chunk and further reduces the main `index` bundle from ~`350 KB` to ~`255 KB`
+  - `apps/web/src/pages/reports/ReportCenterPage.tsx` now lazy-loads a dedicated `ReportCharts` submodule, so `recharts` is no longer bundled into the main report page chunk; the production build now reduces `ReportCenterPage-*` from ~`439 KB` to ~`71 KB` and emits a separate `ReportCharts-*` chunk for chart-heavy diagnostics
+  - `apps/web/src/pages/assistant/AssistantPage.tsx` now lazy-loads `AssistantSettingsForm`, moving `@mantine/form` and the full answer-settings form body out of the page shell; the production build now reduces `AssistantPage-*` from ~`69 KB` to ~`12 KB` and emits a separate `AssistantSettingsForm-*` chunk for the heavy settings UI
+  - `apps/web/src/pages/usage/UsagePage.tsx` now lazy-loads `UsageHealthBoard`, moving the large operations-health JSX block out of the page shell; the production build now reduces `UsagePage-*` from ~`41 KB` to ~`24 KB` and emits a separate `UsageHealthBoard-*` chunk for the deeper operational panels
+  - `apps/web/src/pages/chat/ChatPage.tsx` now lazy-loads `ChatWorkspacePanels`, moving the secondary history / citations workspace out of the primary chat page shell; the production build now reduces `ChatPage-*` from ~`36.6 KB` to ~`32.6 KB` and emits a separate `ChatWorkspacePanels-*` chunk for the sidebar workflow
+  - `apps/web/src/pages/traces/TraceDetailPage.tsx` now lazy-loads `TraceDetailSupportPanels`, moving metadata / quick jumps / query comparison plus citations / raw payload out of the primary trace review path; the production build now reduces `TraceDetailPage-*` from ~`34.7 KB` to ~`30.6 KB` and emits a separate `TraceDetailSupportPanels-*` chunk for the auxiliary diagnostics workflow
+  - `apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx` now lazy-loads `KnowledgeBaseActivityPanel`, moving the recent activity summary, expandable run filters, and run list workflow out of the primary workspace snapshot shell; the production build now reduces `KnowledgeBasePage-*` from ~`25.4 KB` to ~`16.0 KB` and emits separate `KnowledgeBaseActivityPanel-*` and slimmed `DocumentRunList-*` chunks for the deeper maintenance workflow
+  - `apps/web/src/pages/documents/DocumentsPage.tsx` now lazy-loads `DocumentsSourceEntryPanel`, moving the web/feed/sitemap source-entry forms and related mutation state out of the primary library snapshot and table shell; the production build now reduces `DocumentsPage-*` from ~`18.5 KB` to ~`14.6 KB` and emits a separate `DocumentsSourceEntryPanel-*` chunk for that secondary source-ingestion workflow
+  - `apps/web/src/pages/documents/DocumentDetailPage.tsx` now lazy-loads `DocumentDetailChunksPanel`, moving the chunk query, trace-focused chunk review flow, and metadata payload rendering out of the primary document status shell; the production build now reduces `DocumentDetailPage-*` from ~`15.4 KB` to ~`10.8 KB` and emits a separate `DocumentDetailChunksPanel-*` chunk for the deeper chunk-inspection workflow
+  - focused validation:
+    - `pnpm --filter @rag-system/web build`
 
 - `opencode loop sequential executor` now consumes the active materialized queue in order
   - root `pnpm loop:start|stop|status` now uses the repo-local Node harness under `.opencode/loop/harness/`
@@ -142,3 +171,4 @@
 - 本文件已从 append-only 长日志收瘦为当前摘要；更早的详细完成记录请按需从 git history 回看。
 - 当前阶段判断已经按代码现实收正：`P3` / 当前这轮 `P4` / `P5` 是已完成主开发或收口的阶段，不再默认作为下一步主线。
 - 具体下一步方向以 [docs/next_steps_rag_project_plan.md](D:\FeProjects\rag-system\docs\next_steps_rag_project_plan.md) 的更新版口径为主。
+- API review 已记录一条后续 hardening 约束：若补齐后端输入校验与异常映射，优先沿用现有 `Zod schema`，通过 `ZodValidationPipe` 承接 `@Body()` / `@Query()` 校验，并为路由参数补 `ParseUUIDPipe` 等参数 pipe；暂不为了“全局验证”或类型安全把现有校验体系整体切到 `class-validator` / `class-transformer` DTO 栈。

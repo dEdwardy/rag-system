@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const { test } = require("node:test");
 const { HttpException, HttpStatus } = require("@nestjs/common");
 const { GlobalHttpExceptionFilter } = require("../src/common/http-exception.filter.ts");
 

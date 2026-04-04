@@ -9,17 +9,6 @@ import { compare } from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "../../infra/database/prisma.service";
 import {
-  DEFAULT_DEV_LOGIN_EMAIL,
-  DEFAULT_DEV_LOGIN_PASSWORD,
-  DEFAULT_DEV_TENANT_ID,
-  DEFAULT_AUTH_SESSION_TTL_HOURS,
-  DEFAULT_GITHUB_OAUTH_AUTHORIZE_URL,
-  DEFAULT_GOOGLE_OAUTH_AUTHORIZE_URL,
-  DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS,
-  DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
-  isAuthDevDefaultUserModeEnabled
-} from "./auth.constants";
-import {
   resolveCurrentAuthIdentity,
   type AuthIdentity,
   type RequestAuthContext
@@ -41,6 +30,9 @@ import {
   OIDC_OAUTH_PROVIDER,
   type OidcOauthProvider
 } from "./oidc-oauth.provider";
+import { AuthRuntimeConfigService } from "./auth-runtime-config";
+
+type AuthWriteClient = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class AuthService {
@@ -51,7 +43,8 @@ export class AuthService {
     @Inject(GOOGLE_OAUTH_PROVIDER)
     private readonly googleOauthProvider: GoogleOauthProvider = new HttpGoogleOauthProvider(),
     @Inject(OIDC_OAUTH_PROVIDER)
-    private readonly oidcOauthProvider: OidcOauthProvider = new HttpOidcOauthProvider()
+    private readonly oidcOauthProvider: OidcOauthProvider = new HttpOidcOauthProvider(),
+    private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
   ) {}
 
   async startOauthProvider(input: {
@@ -139,119 +132,135 @@ export class AuthService {
     const normalizedEmail = typeof providerIdentity.email === "string" ? this.normalizeEmail(providerIdentity.email) : "";
     const now = new Date();
 
-    const existingLink = await this.prisma.authIdentityLink.findUnique({
-      where: {
-        provider_subject: {
-          provider: input.provider,
-          subject: providerIdentity.subject
+    return this.runAuthWriteTransaction(async (prisma) => {
+      const existingLink = await prisma.authIdentityLink.findUnique({
+        where: {
+          provider_subject: {
+            provider: input.provider,
+            subject: providerIdentity.subject
+          }
+        },
+        select: {
+          id: true,
+          userId: true,
+          user: {
+            select: {
+              id: true,
+              tenantId: true,
+              role: true,
+              status: true
+            }
+          }
         }
-      },
-      select: {
-        id: true,
-        userId: true,
-        user: {
+      });
+
+      let user = existingLink?.user ?? null;
+      if (user != null && user.status !== "active") {
+        throw new UnauthorizedException("Linked account is inactive.");
+      }
+
+      if (user == null && normalizedEmail.length > 0) {
+        user = await prisma.user.findUnique({
+          where: {
+            email: normalizedEmail
+          },
           select: {
             id: true,
             tenantId: true,
             role: true,
             status: true
           }
+        });
+
+        if (user != null && user.status !== "active") {
+          throw new UnauthorizedException("Account is inactive.");
         }
       }
-    });
 
-    let user = existingLink?.user ?? null;
-    if (user != null && user.status !== "active") {
-      throw new UnauthorizedException("Linked account is inactive.");
-    }
+      if (user == null) {
+        const tenantId = this.resolveOauthDefaultTenantId();
+        const tenant = await prisma.tenant.findUnique({
+          where: {
+            id: tenantId
+          },
+          select: {
+            id: true
+          }
+        });
 
-    if (user == null && normalizedEmail.length > 0) {
-      user = await this.prisma.user.findUnique({
-        where: {
-          email: normalizedEmail
-        },
-        select: {
-          id: true,
-          tenantId: true,
-          role: true,
-          status: true
+        if (tenant == null) {
+          throw new ServiceUnavailableException("Default tenant is not available for OAuth login.");
         }
-      });
 
-      if (user != null && user.status !== "active") {
-        throw new UnauthorizedException("Account is inactive.");
-      }
-    }
-
-    if (user == null) {
-      const tenantId = this.resolveOauthDefaultTenantId();
-      const tenant = await this.prisma.tenant.findUnique({
-        where: {
-          id: tenantId
-        },
-        select: {
-          id: true
-        }
-      });
-
-      if (tenant == null) {
-        throw new ServiceUnavailableException("Default tenant is not available for OAuth login.");
+        const displayName = this.resolveOauthDisplayName(input.provider, providerIdentity.profileSnapshot, normalizedEmail);
+        user = await prisma.user.create({
+          data: {
+            tenantId,
+            name: displayName ?? `${input.provider}-${providerIdentity.subject}`,
+            displayName,
+            email: normalizedEmail.length > 0 ? normalizedEmail : null,
+            status: "active"
+          },
+          select: {
+            id: true,
+            tenantId: true,
+            role: true,
+            status: true
+          }
+        });
       }
 
-      const displayName = this.resolveOauthDisplayName(input.provider, providerIdentity.profileSnapshot, normalizedEmail);
-      user = await this.prisma.user.create({
-        data: {
-          tenantId,
-          name: displayName ?? `${input.provider}-${providerIdentity.subject}`,
-          displayName,
-          email: normalizedEmail.length > 0 ? normalizedEmail : null,
-          status: "active"
-        },
-        select: {
-          id: true,
-          tenantId: true,
-          role: true,
-          status: true
-        }
-      });
-    }
+      if (existingLink == null) {
+        await prisma.authIdentityLink.create({
+          data: {
+            userId: user.id,
+            provider: input.provider,
+            subject: providerIdentity.subject,
+            emailSnapshot: normalizedEmail.length > 0 ? normalizedEmail : null,
+            profileSnapshot,
+            lastLoginAt: now
+          }
+        });
+      } else {
+        await prisma.authIdentityLink.update({
+          where: {
+            id: existingLink.id
+          },
+          data: {
+            userId: user.id,
+            emailSnapshot: normalizedEmail.length > 0 ? normalizedEmail : null,
+            profileSnapshot,
+            lastLoginAt: now
+          }
+        });
+      }
 
-    if (existingLink == null) {
-      await this.prisma.authIdentityLink.create({
-        data: {
+      await this.ensureDefaultWorkspaceForUser(
+        {
           userId: user.id,
-          provider: input.provider,
-          subject: providerIdentity.subject,
-          emailSnapshot: normalizedEmail.length > 0 ? normalizedEmail : null,
-          profileSnapshot,
-          lastLoginAt: now
-        }
-      });
-    } else {
-      await this.prisma.authIdentityLink.update({
-        where: {
-          id: existingLink.id
+          tenantId: user.tenantId
         },
-        data: {
+        prisma
+      );
+
+      return this.createSessionResultForUser(
+        {
           userId: user.id,
-          emailSnapshot: normalizedEmail.length > 0 ? normalizedEmail : null,
-          profileSnapshot,
-          lastLoginAt: now
-        }
-      });
+          tenantId: user.tenantId,
+          role: user.role,
+          now
+        },
+        prisma
+      );
+    });
+  }
+
+  private runAuthWriteTransaction<T>(callback: (prisma: AuthWriteClient) => Promise<T>): Promise<T> {
+    if (typeof this.prisma.$transaction !== "function") {
+      return callback(this.prisma);
     }
 
-    await this.ensureDefaultWorkspaceForUser({
-      userId: user.id,
-      tenantId: user.tenantId
-    });
-
-    return this.createSessionResultForUser({
-      userId: user.id,
-      tenantId: user.tenantId,
-      role: user.role,
-      now
-    });
+    return this.prisma.$transaction(async (prisma) => callback(prisma as AuthWriteClient));
   }
 
   async logout(input: { sessionId?: string | null }): Promise<{ ok: true }> {
@@ -283,32 +292,39 @@ export class AuthService {
       requiredEnv: string[];
     }>;
   } {
-    const isDevelopmentLike = process.env.NODE_ENV !== "production";
-    const configuredLocalEmail = (process.env.AUTH_DEV_DEFAULT_USER_EMAIL ?? DEFAULT_DEV_LOGIN_EMAIL).trim();
-    const configuredLocalPassword = (process.env.AUTH_DEV_DEFAULT_USER_PASSWORD ?? DEFAULT_DEV_LOGIN_PASSWORD).trim();
+    const config = this.authRuntimeConfig.getConfig();
 
     return {
       local: {
         enabled: true,
         defaultCredentials:
-          isDevelopmentLike && isAuthDevDefaultUserModeEnabled() && configuredLocalEmail.length > 0 && configuredLocalPassword.length > 0
+          config.isDevelopmentLike &&
+          config.localDevCredentials.enabled &&
+          config.localDevCredentials.email.length > 0 &&
+          config.localDevCredentials.password.length > 0
             ? {
-                email: configuredLocalEmail,
-                password: configuredLocalPassword
+                email: config.localDevCredentials.email,
+                password: config.localDevCredentials.password
               }
             : null
       },
       oauth: {
         github: {
-          configured: this.hasRequiredEnvValues(["AUTH_GITHUB_CLIENT_ID", "AUTH_GITHUB_CLIENT_SECRET", "AUTH_GITHUB_REDIRECT_URI"]),
+          configured:
+            config.github.clientId.length > 0 && config.github.clientSecret.length > 0 && config.github.redirectUri.length > 0,
           requiredEnv: ["AUTH_GITHUB_CLIENT_ID", "AUTH_GITHUB_CLIENT_SECRET", "AUTH_GITHUB_REDIRECT_URI"]
         },
         google: {
-          configured: this.hasRequiredEnvValues(["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET", "AUTH_GOOGLE_REDIRECT_URI"]),
+          configured:
+            config.google.clientId.length > 0 && config.google.clientSecret.length > 0 && config.google.redirectUri.length > 0,
           requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET", "AUTH_GOOGLE_REDIRECT_URI"]
         },
         oidc: {
-          configured: this.hasRequiredEnvValues(["AUTH_OIDC_ISSUER", "AUTH_OIDC_CLIENT_ID", "AUTH_OIDC_CLIENT_SECRET", "AUTH_OIDC_REDIRECT_URI"]),
+          configured:
+            config.oidc.issuer.length > 0 &&
+            config.oidc.clientId.length > 0 &&
+            config.oidc.clientSecret.length > 0 &&
+            config.oidc.redirectUri.length > 0,
           requiredEnv: ["AUTH_OIDC_ISSUER", "AUTH_OIDC_CLIENT_ID", "AUTH_OIDC_CLIENT_SECRET", "AUTH_OIDC_REDIRECT_URI"]
         }
       }
@@ -390,13 +406,7 @@ export class AuthService {
   }
 
   private resolveSessionTtlMs(): number {
-    const rawTtlHours = (process.env.AUTH_SESSION_TTL_HOURS ?? `${DEFAULT_AUTH_SESSION_TTL_HOURS}`).trim();
-    const parsed = Number.parseInt(rawTtlHours, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return DEFAULT_AUTH_SESSION_TTL_HOURS * 60 * 60 * 1000;
-    }
-
-    return parsed * 60 * 60 * 1000;
+    return this.authRuntimeConfig.getConfig().sessionTtlHours * 60 * 60 * 1000;
   }
 
   private async createSessionResultForUser(input: {
@@ -404,10 +414,10 @@ export class AuthService {
     tenantId: string;
     role: AuthIdentity["role"];
     now?: Date;
-  }): Promise<{ identity: AuthIdentity; expiresAt: string }> {
+  }, prisma: AuthWriteClient = this.prisma): Promise<{ identity: AuthIdentity; expiresAt: string }> {
     const now = input.now ?? new Date();
     const expiresAt = new Date(now.getTime() + this.resolveSessionTtlMs());
-    const session = await this.prisma.authSession.create({
+    const session = await prisma.authSession.create({
       data: {
         userId: input.userId,
         expiresAt,
@@ -433,22 +443,22 @@ export class AuthService {
   private async ensureDefaultWorkspaceForUser(input: {
     userId: string;
     tenantId: string;
-  }) {
+  }, prisma: AuthWriteClient) {
     if (
-      this.prisma.knowledgeBase == null ||
-      this.prisma.retrievalProfile == null ||
-      this.prisma.assistant == null ||
-      typeof this.prisma.knowledgeBase.findFirst !== "function" ||
-      typeof this.prisma.knowledgeBase.create !== "function" ||
-      typeof this.prisma.retrievalProfile.findFirst !== "function" ||
-      typeof this.prisma.retrievalProfile.create !== "function" ||
-      typeof this.prisma.assistant.findFirst !== "function" ||
-      typeof this.prisma.assistant.create !== "function"
+      prisma.knowledgeBase == null ||
+      prisma.retrievalProfile == null ||
+      prisma.assistant == null ||
+      typeof prisma.knowledgeBase.findFirst !== "function" ||
+      typeof prisma.knowledgeBase.create !== "function" ||
+      typeof prisma.retrievalProfile.findFirst !== "function" ||
+      typeof prisma.retrievalProfile.create !== "function" ||
+      typeof prisma.assistant.findFirst !== "function" ||
+      typeof prisma.assistant.create !== "function"
     ) {
       return;
     }
 
-    const existingKnowledgeBase = await this.prisma.knowledgeBase.findFirst({
+    const existingKnowledgeBase = await prisma.knowledgeBase.findFirst({
       where: {
         tenantId: input.tenantId,
         ownerId: input.userId
@@ -458,7 +468,7 @@ export class AuthService {
       }
     });
 
-    const knowledgeBase = existingKnowledgeBase ?? await this.prisma.knowledgeBase.create({
+    const knowledgeBase = existingKnowledgeBase ?? await prisma.knowledgeBase.create({
       data: {
         tenantId: input.tenantId,
         ownerId: input.userId,
@@ -471,7 +481,7 @@ export class AuthService {
       }
     });
 
-    const existingRetrievalProfile = await this.prisma.retrievalProfile.findFirst({
+    const existingRetrievalProfile = await prisma.retrievalProfile.findFirst({
       where: {
         tenantId: input.tenantId,
         ownerId: input.userId
@@ -481,7 +491,7 @@ export class AuthService {
       }
     });
 
-    const retrievalProfile = existingRetrievalProfile ?? await this.prisma.retrievalProfile.create({
+    const retrievalProfile = existingRetrievalProfile ?? await prisma.retrievalProfile.create({
       data: {
         tenantId: input.tenantId,
         ownerId: input.userId,
@@ -497,7 +507,7 @@ export class AuthService {
       }
     });
 
-    const existingAssistant = await this.prisma.assistant.findFirst({
+    const existingAssistant = await prisma.assistant.findFirst({
       where: {
         tenantId: input.tenantId,
         kbId: knowledgeBase.id
@@ -511,7 +521,7 @@ export class AuthService {
       return;
     }
 
-    await this.prisma.assistant.create({
+    await prisma.assistant.create({
       data: {
         tenantId: input.tenantId,
         kbId: knowledgeBase.id,
@@ -529,8 +539,7 @@ export class AuthService {
   }
 
   private resolveOauthDefaultTenantId(): string {
-    const configured = (process.env.AUTH_DEFAULT_TENANT_ID ?? "").trim();
-    return configured.length > 0 ? configured : DEFAULT_DEV_TENANT_ID;
+    return this.authRuntimeConfig.getConfig().defaultTenantId;
   }
 
   private exchangeProviderIdentity(input: {
@@ -655,8 +664,9 @@ export class AuthService {
     stateCookieName: string;
     stateTtlSeconds: number;
   } {
-    const clientId = (process.env.AUTH_GITHUB_CLIENT_ID ?? "").trim();
-    const redirectUri = (process.env.AUTH_GITHUB_REDIRECT_URI ?? "").trim();
+    const config = this.authRuntimeConfig.getConfig();
+    const clientId = config.github.clientId;
+    const redirectUri = config.github.redirectUri;
 
     if (clientId.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(
@@ -664,29 +674,16 @@ export class AuthService {
       );
     }
 
-    const authorizeUrl = (process.env.AUTH_GITHUB_AUTHORIZE_URL ?? DEFAULT_GITHUB_OAUTH_AUTHORIZE_URL).trim();
-    const scope = (process.env.AUTH_GITHUB_SCOPE ?? "read:user user:email").trim() || "read:user user:email";
-    const stateCookieName =
-      (process.env.AUTH_OAUTH_STATE_COOKIE_NAME ?? DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME).trim() ||
-      DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
-
-    const rawStateTtlSeconds =
-      (process.env.AUTH_OAUTH_STATE_TTL_SECONDS ?? `${DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS}`).trim();
-    const parsedStateTtlSeconds = Number.parseInt(rawStateTtlSeconds, 10);
-    const stateTtlSeconds = Number.isFinite(parsedStateTtlSeconds) && parsedStateTtlSeconds > 0
-      ? parsedStateTtlSeconds
-      : DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS;
-
     return {
-      authorizeUrl,
+      authorizeUrl: config.github.authorizeUrl,
       queryParams: {
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope,
+        scope: config.github.scope,
         state
       },
-      stateCookieName,
-      stateTtlSeconds
+      stateCookieName: config.oauthStateCookieName,
+      stateTtlSeconds: config.oauthStateTtlSeconds
     };
   }
 
@@ -696,8 +693,9 @@ export class AuthService {
     stateCookieName: string;
     stateTtlSeconds: number;
   } {
-    const clientId = (process.env.AUTH_GOOGLE_CLIENT_ID ?? "").trim();
-    const redirectUri = (process.env.AUTH_GOOGLE_REDIRECT_URI ?? "").trim();
+    const config = this.authRuntimeConfig.getConfig();
+    const clientId = config.google.clientId;
+    const redirectUri = config.google.redirectUri;
 
     if (clientId.length === 0 || redirectUri.length === 0) {
       throw new ServiceUnavailableException(
@@ -705,30 +703,17 @@ export class AuthService {
       );
     }
 
-    const authorizeUrl = (process.env.AUTH_GOOGLE_AUTHORIZE_URL ?? DEFAULT_GOOGLE_OAUTH_AUTHORIZE_URL).trim();
-    const scope = (process.env.AUTH_GOOGLE_SCOPE ?? "openid email profile").trim() || "openid email profile";
-    const stateCookieName =
-      (process.env.AUTH_OAUTH_STATE_COOKIE_NAME ?? DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME).trim() ||
-      DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
-
-    const rawStateTtlSeconds =
-      (process.env.AUTH_OAUTH_STATE_TTL_SECONDS ?? `${DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS}`).trim();
-    const parsedStateTtlSeconds = Number.parseInt(rawStateTtlSeconds, 10);
-    const stateTtlSeconds = Number.isFinite(parsedStateTtlSeconds) && parsedStateTtlSeconds > 0
-      ? parsedStateTtlSeconds
-      : DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS;
-
     return {
-      authorizeUrl,
+      authorizeUrl: config.google.authorizeUrl,
       queryParams: {
         client_id: clientId,
         redirect_uri: redirectUri,
-        scope,
+        scope: config.google.scope,
         state,
         response_type: "code"
       },
-      stateCookieName,
-      stateTtlSeconds
+      stateCookieName: config.oauthStateCookieName,
+      stateTtlSeconds: config.oauthStateTtlSeconds
     };
   }
 
@@ -781,12 +766,5 @@ export class AuthService {
 
   private generateOauthState(): string {
     return randomBytes(24).toString("base64url");
-  }
-
-  private hasRequiredEnvValues(keys: string[]): boolean {
-    return keys.every(key => {
-      const value = process.env[key];
-      return typeof value === "string" && value.trim().length > 0;
-    });
   }
 }

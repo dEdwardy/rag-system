@@ -11,6 +11,8 @@ const {
   DocumentPermissionHook,
   ResourcePermissionHook
 } = require("../src/modules/auth/auth-route-policy.ts");
+const { AUTH_RATE_LIMIT_KEY } = require("../src/modules/auth/auth-rate-limit.decorator.ts");
+const { AuthRateLimitGuard } = require("../src/modules/auth/auth-rate-limit.guard.ts");
 const { AuthRoutePolicyGuard } = require("../src/modules/auth/auth-route-policy.guard.ts");
 const {
   resolveCurrentAuthIdentity,
@@ -30,6 +32,15 @@ const { DocumentsController } = require("../src/modules/documents/documents.cont
 const { KnowledgeBasesController } = require("../src/modules/knowledge-bases/knowledge-bases.controller.ts");
 const { RetrievalProfilesController } = require("../src/modules/retrieval-profiles/retrieval-profiles.controller.ts");
 const { TracesController } = require("../src/modules/traces/traces.controller.ts");
+
+function createTransactionalPrismaMock(prisma) {
+  return {
+    ...prisma,
+    async $transaction(callback) {
+      return callback(this);
+    }
+  };
+}
 
 test("SessionCookieAuthProvider returns null when session cookie is missing", async () => {
   const provider = new SessionCookieAuthProvider({
@@ -1040,7 +1051,7 @@ test("AuthService completeOauthProviderCallback reuses local user by email, crea
   };
 
   const authService = new AuthService(
-    {
+    createTransactionalPrismaMock({
       authIdentityLink: {
         findUnique: async ({ where }) => {
           calls.linkLookup = where;
@@ -1068,7 +1079,7 @@ test("AuthService completeOauthProviderCallback reuses local user by email, crea
           return { id: "session-github-1" };
         }
       }
-    },
+    }),
     {
       exchangeCodeForIdentity: async ({ code }) => {
         assert.equal(code, "github-code-123");
@@ -1120,7 +1131,7 @@ test("AuthService completeOauthProviderCallback supports Google with the same id
   };
 
   const authService = new AuthService(
-    {
+    createTransactionalPrismaMock({
       authIdentityLink: {
         findUnique: async ({ where }) => {
           calls.linkLookup = where;
@@ -1148,7 +1159,7 @@ test("AuthService completeOauthProviderCallback supports Google with the same id
           return { id: "session-google-1" };
         }
       }
-    },
+    }),
     {
       exchangeCodeForIdentity: async () => {
         throw new Error("github provider should not be used for google callback");
@@ -1205,7 +1216,7 @@ test("AuthService completeOauthProviderCallback supports OIDC with the same iden
   };
 
   const authService = new AuthService(
-    {
+    createTransactionalPrismaMock({
       authIdentityLink: {
         findUnique: async ({ where }) => {
           calls.linkLookup = where;
@@ -1233,7 +1244,7 @@ test("AuthService completeOauthProviderCallback supports OIDC with the same iden
           return { id: "session-oidc-1" };
         }
       }
-    },
+    }),
     {
       exchangeCodeForIdentity: async () => {
         throw new Error("github provider should not be used for oidc callback");
@@ -1301,7 +1312,7 @@ test("AuthService completeOauthProviderCallback provisions a default workspace f
   };
 
   const authService = new AuthService(
-    {
+    createTransactionalPrismaMock({
       authIdentityLink: {
         findUnique: async () => null,
         create: async ({ data }) => {
@@ -1363,7 +1374,7 @@ test("AuthService completeOauthProviderCallback provisions a default workspace f
           return { id: "session-oauth-new-1" };
         }
       }
-    },
+    }),
     {
       exchangeCodeForIdentity: async ({ code }) => {
         assert.equal(code, "github-code-new-1");
@@ -2100,6 +2111,67 @@ test("AuthRoutePolicyGuard allows public routes without identity", () => {
   assert.equal(allowed, true);
 });
 
+test("AuthRateLimitGuard allows requests when no auth rate-limit metadata is present", () => {
+  const guard = new AuthRateLimitGuard(
+    {
+      getAllAndOverride: () => undefined
+    },
+    {
+      getConfig: () => ({
+        rateLimits: {
+          login: { windowMs: 60_000, maxAttempts: 2 },
+          oauth_start: { windowMs: 60_000, maxAttempts: 2 },
+          oauth_callback: { windowMs: 60_000, maxAttempts: 2 }
+        }
+      })
+    }
+  );
+
+  const allowed = guard.canActivate({
+    getHandler: () => "handler",
+    getClass: () => "controller",
+    switchToHttp: () => ({
+      getRequest: () => ({ headers: {}, socket: { remoteAddress: "127.0.0.1" } })
+    })
+  });
+
+  assert.equal(allowed, true);
+});
+
+test("AuthRateLimitGuard throttles repeated login attempts from the same client", () => {
+  const guard = new AuthRateLimitGuard(
+    {
+      getAllAndOverride: () => "login"
+    },
+    {
+      getConfig: () => ({
+        rateLimits: {
+          login: { windowMs: 60_000, maxAttempts: 2 },
+          oauth_start: { windowMs: 60_000, maxAttempts: 5 },
+          oauth_callback: { windowMs: 60_000, maxAttempts: 5 }
+        }
+      })
+    }
+  );
+
+  const context = {
+    getHandler: () => "handler",
+    getClass: () => "controller",
+    switchToHttp: () => ({
+      getRequest: () => ({
+        headers: {
+          "x-forwarded-for": "203.0.113.8, 10.0.0.1"
+        },
+        socket: { remoteAddress: "127.0.0.1" }
+      })
+    })
+  };
+
+  assert.equal(guard.canActivate(context), true);
+  assert.equal(guard.canActivate(context), true);
+  assert.throws(() => guard.canActivate(context), /Too many authentication attempts/);
+});
+
 test("AuthRoutePolicyGuard rejects authenticated routes without session identity", () => {
   const guard = new AuthRoutePolicyGuard({
     getAllAndOverride: () => "authenticated"
@@ -2241,5 +2313,9 @@ test("owner-scoped business controllers are marked authenticated while auth and 
   assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController), "public");
   assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController.prototype.me), "authenticated");
   assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, AuthController.prototype.checkPermission), "authenticated");
+  assert.equal(Reflect.getMetadata(AUTH_RATE_LIMIT_KEY, AuthController.prototype.login), "login");
+  assert.equal(Reflect.getMetadata(AUTH_RATE_LIMIT_KEY, AuthController.prototype.oauthProviderStart), "oauth_start");
+  assert.equal(Reflect.getMetadata(AUTH_RATE_LIMIT_KEY, AuthController.prototype.oauthProviderCallback), "oauth_callback");
+  assert.equal(Reflect.getMetadata(AUTH_RATE_LIMIT_KEY, AuthController.prototype.githubOauthCallback), "oauth_callback");
   assert.equal(Reflect.getMetadata(AUTH_ROUTE_POLICY_KEY, HealthController), "public");
 });

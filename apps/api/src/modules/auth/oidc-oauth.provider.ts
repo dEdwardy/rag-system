@@ -5,6 +5,7 @@ import {
   DEFAULT_OIDC_OAUTH_SCOPE,
   DEFAULT_OIDC_WELL_KNOWN_PATH
 } from "./auth.constants";
+import { AuthRuntimeConfigService } from "./auth-runtime-config";
 
 export type OidcOauthStartConfig = {
   issuer: string;
@@ -40,7 +41,22 @@ export const OIDC_OAUTH_PROVIDER = Symbol("OIDC_OAUTH_PROVIDER");
 
 @Injectable()
 export class HttpOidcOauthProvider implements OidcOauthProvider {
+  constructor(private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()) {}
+
   resolveStartConfig(): OidcOauthStartConfig {
+    const authConfig = this.authRuntimeConfig.getConfig();
+    if (authConfig.oidc.issuer.length === 0) {
+      throw new ServiceUnavailableException(
+        "OIDC OAuth config is not configured. Required env: AUTH_OIDC_ISSUER."
+      );
+    }
+
+    if (authConfig.oidc.clientId.length === 0 || authConfig.oidc.redirectUri.length === 0) {
+      throw new ServiceUnavailableException(
+        "OIDC OAuth start is not configured. Required env: AUTH_OIDC_ISSUER, AUTH_OIDC_CLIENT_ID, AUTH_OIDC_REDIRECT_URI."
+      );
+    }
+
     const baseConfig = this.resolveBaseConfig();
 
     if (baseConfig.clientId.length === 0 || baseConfig.redirectUri.length === 0) {
@@ -49,30 +65,31 @@ export class HttpOidcOauthProvider implements OidcOauthProvider {
       );
     }
 
-    const scope = (process.env.AUTH_OIDC_SCOPE ?? DEFAULT_OIDC_OAUTH_SCOPE).trim() || DEFAULT_OIDC_OAUTH_SCOPE;
-    const stateCookieName =
-      (process.env.AUTH_OAUTH_STATE_COOKIE_NAME ?? DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME).trim() ||
-      DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME;
-
-    const rawStateTtlSeconds =
-      (process.env.AUTH_OAUTH_STATE_TTL_SECONDS ?? `${DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS}`).trim();
-    const parsedStateTtlSeconds = Number.parseInt(rawStateTtlSeconds, 10);
-    const stateTtlSeconds = Number.isFinite(parsedStateTtlSeconds) && parsedStateTtlSeconds > 0
-      ? parsedStateTtlSeconds
-      : DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS;
-
     return {
       issuer: baseConfig.issuer,
       discoveryUrl: baseConfig.discoveryUrl,
       clientId: baseConfig.clientId,
       redirectUri: baseConfig.redirectUri,
-      scope,
-      stateCookieName,
-      stateTtlSeconds
+      scope: authConfig.oidc.scope || DEFAULT_OIDC_OAUTH_SCOPE,
+      stateCookieName: authConfig.oauthStateCookieName || DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
+      stateTtlSeconds: authConfig.oauthStateTtlSeconds || DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS
     };
   }
 
   resolveCallbackConfig(): OidcOauthCallbackConfig {
+    const authConfig = this.authRuntimeConfig.getConfig();
+    if (authConfig.oidc.issuer.length === 0) {
+      throw new ServiceUnavailableException(
+        "OIDC OAuth config is not configured. Required env: AUTH_OIDC_ISSUER."
+      );
+    }
+
+    if (authConfig.oidc.clientId.length === 0 || authConfig.oidc.clientSecret.length === 0 || authConfig.oidc.redirectUri.length === 0) {
+      throw new ServiceUnavailableException(
+        "OIDC OAuth callback is not configured. Required env: AUTH_OIDC_ISSUER, AUTH_OIDC_CLIENT_ID, AUTH_OIDC_CLIENT_SECRET, AUTH_OIDC_REDIRECT_URI."
+      );
+    }
+
     const baseConfig = this.resolveBaseConfig();
 
     if (baseConfig.clientId.length === 0 || baseConfig.clientSecret.length === 0 || baseConfig.redirectUri.length === 0) {
@@ -223,7 +240,8 @@ export class HttpOidcOauthProvider implements OidcOauthProvider {
     clientSecret: string;
     redirectUri: string;
   } {
-    const rawIssuer = (process.env.AUTH_OIDC_ISSUER ?? "").trim();
+    const config = this.authRuntimeConfig.getConfig().oidc;
+    const rawIssuer = config.issuer;
     if (rawIssuer.length === 0) {
       throw new ServiceUnavailableException(
         "OIDC OAuth config is not configured. Required env: AUTH_OIDC_ISSUER."
@@ -235,10 +253,10 @@ export class HttpOidcOauthProvider implements OidcOauthProvider {
 
     return {
       issuer,
-      discoveryUrl,
-      clientId: (process.env.AUTH_OIDC_CLIENT_ID ?? "").trim(),
-      clientSecret: (process.env.AUTH_OIDC_CLIENT_SECRET ?? "").trim(),
-      redirectUri: (process.env.AUTH_OIDC_REDIRECT_URI ?? "").trim()
+      discoveryUrl: config.discoveryUrl || discoveryUrl,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      redirectUri: config.redirectUri
     };
   }
 }

@@ -2,7 +2,7 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、硬边界、最小验证和高频入口，详细历史按需回看其他文档。
-更新时间：2026-04-04
+更新时间：2026-04-05
 
 ## Current Mainline
 
@@ -17,6 +17,12 @@
 - `docs / stage alignment` 和当前这轮 `P4 web capability carry-through` 收口已完成；接下来更适合：
   - 在 `P4/P5/P6` 已完成收口的基础上做 bounded maintenance
   - 或选择一个新的明确产品波次，并保持单线推进
+- 最近一轮 `API best-practices hardening` 维护已完成当前范围收口：
+  - 修正了 `assistants/:id/ask/stream` 的 pre-stream HTTP 错误语义
+  - 为公开 auth 路由补了限流
+  - 为 OAuth onboarding / 默认 workspace 初始化补了事务边界
+  - 收敛了 auth / bootstrap / queue 的运行时配置读取
+  - 后端输入校验体系仍保留 `Zod-first` 方向，暂未切回 DTO 验证栈
 - 当前前端主路径已进一步收口到普通用户闭环：`资料库 -> 回答设置 -> 对话`，并在 `Chat` 首屏补了 setup-first onboarding、统一 readiness 状态和收窄后的 onboarding 摘要区。
 - 当前 `P5` 已从“能看报告”推进到“能治理一轮质量问题”的使用态：
   - `质量报告` 现在可维护本地 reviewed/pending 状态、结论分类、本轮改进重点、本地复盘记录和改后复查建议
@@ -36,6 +42,7 @@
 ## Current Priorities
 
 - `bounded stability maintenance`：保留 `P3/P5/P6` 范围内的小型回归修补，但不再把它们描述成主开发方向。
+- `API maintenance hardening`：后端 best-practices 本轮已完成一个窄范围收口；后续若继续推进，仍应限定在小型安全性/一致性/可维护性修补，不扩成后端重构波次。
 - `quality-governance usage follow-up`：当前最合理的 `P5` 后续已变成使用态维护，而不是继续扩工程能力；优先保持现有 reports / trace / settings 治理闭环的可用性、可读性和 docs 同步。
 - `next product increment selection`：如果继续做产品增量，优先从已完成的当前收口基础上选择一个新的明确小波次，而不是重新把 `P3/P4/P5` 包装成未完成主线。
 - `docs freshness`：继续保持阶段判断、状态摘要和执行边界同步，避免文档再次落后于代码现实。

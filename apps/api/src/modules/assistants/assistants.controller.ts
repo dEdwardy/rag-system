@@ -4,6 +4,7 @@ import { AssistantsService } from "./assistants.service";
 import { AskAssistantService } from "./ask-assistant.service";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
+import { buildHttpExceptionResponse } from "../../common/http-exception.filter";
 
 @AuthenticatedRoute()
 @Controller("assistants")
@@ -73,8 +74,8 @@ export class AssistantsController {
       }
     };
 
-    requestWithEvents.on?.("aborted", abortStream);
-    requestWithEvents.on?.("close", abortStream);
+    requestWithEvents?.on?.("aborted", abortStream);
+    requestWithEvents?.on?.("close", abortStream);
     response?.on?.("close", abortStream);
 
     const writeEvent = (event: Record<string, unknown>) => {
@@ -104,16 +105,9 @@ export class AssistantsController {
         return;
       }
 
-      if (!streamStarted && this.isAuthDenialHttpException(error)) {
-        const payload = error.getResponse();
-        response.status(error.getStatus());
-        if (typeof payload === "string") {
-          response.json({
-            message: payload
-          });
-        } else {
-          response.json(payload);
-        }
+      if (!streamStarted) {
+        const result = buildHttpExceptionResponse(error, `/assistants/${id}/ask/stream`);
+        response.status(result.statusCode).json(result.body);
         return;
       }
 
@@ -126,10 +120,6 @@ export class AssistantsController {
       streamFinished = true;
       response.end();
     }
-  }
-
-  private isAuthDenialHttpException(error: unknown): error is HttpException {
-    return error instanceof HttpException && (error.getStatus() === 401 || error.getStatus() === 403);
   }
 
   private isAbortError(error: unknown) {

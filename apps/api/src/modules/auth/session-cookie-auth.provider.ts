@@ -3,10 +3,14 @@ import { PrismaService } from "../../infra/database/prisma.service";
 import type { AuthIdentity } from "./auth-identity.contract";
 import type { AuthIdentityProvider, AuthProviderRequest } from "./auth-provider.contract";
 import { DEFAULT_AUTH_SESSION_COOKIE_NAME } from "./auth.constants";
+import { AuthRuntimeConfigService } from "./auth-runtime-config";
 
 @Injectable()
 export class SessionCookieAuthProvider implements AuthIdentityProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
+  ) {}
 
   async resolveIdentity(input: { request: AuthProviderRequest }): Promise<AuthIdentity | null> {
     const sessionId = this.readSessionId(input.request.headers);
@@ -69,7 +73,7 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
       return null;
     }
 
-    const cookieName = (process.env.AUTH_SESSION_COOKIE_NAME ?? DEFAULT_AUTH_SESSION_COOKIE_NAME).trim();
+    const cookieName = this.authRuntimeConfig.getConfig().sessionCookieName;
     if (!cookieName) {
       return null;
     }

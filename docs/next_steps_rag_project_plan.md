@@ -2,7 +2,7 @@
 
 > 文档角色：`current-primary`
 > 当前使用方式：作为现阶段任务方向、优先级判断和阶段边界的主文档；`docs/current-progress.md` 负责记录近期完成情况和验证基线。
-更新时间：2026-04-04
+更新时间：2026-04-05
 
 ## 1. 当前判断
 
@@ -99,11 +99,14 @@
 - `P3` source-family 内稳定性修补
 - `P5` baseline / replay / report 使用侧维护
 - `P6` readability / docs sync
+- API best-practices hardening follow-up（后续仅保留剩余小项，如参数校验接入 pipe、异常映射一致性维护、少量安全加固）
 
 要求：
 
 - 必须是窄范围、回归导向、可验证的小改
 - 不得重新包装成新的 feature wave
+- 已完成的本轮 API hardening 收口包括：streaming pre-start 错误语义修正、公开 auth 路由限流、OAuth onboarding 事务边界、以及 auth/bootstrap/queue 运行时配置收敛
+- 若恢复后端输入校验 hardening，优先保留现有 `Zod` 作为单一 schema / type source，通过自定义 `ZodValidationPipe` 承接 `@Body()` / `@Query()` 校验，并对 `id` 等路由参数补 `ParseUUIDPipe`；不默认把当前 API 校验体系整体迁回 `class-validator` / `class-transformer` DTO 栈。
 
 ## 3. 阶段状态
 

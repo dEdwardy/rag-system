@@ -1,7 +1,9 @@
+import { resolveQueueRuntimeConfig } from "./queue-runtime-config";
+
 const DEFAULT_DOCUMENT_INGESTION_QUEUE = "document-ingestion";
 
 export function getDocumentIngestionQueueName() {
-  const prefix = process.env.QUEUE_PREFIX?.trim();
+  const prefix = resolveQueueRuntimeConfig().queuePrefix;
 
   if (!prefix) {
     return DEFAULT_DOCUMENT_INGESTION_QUEUE;
