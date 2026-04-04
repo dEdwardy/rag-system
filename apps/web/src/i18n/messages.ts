@@ -104,7 +104,7 @@ export const messages = {
     },
     chat: {
       title: "Chat",
-      subtitle: "Ask the default assistant against your current knowledge base.",
+      subtitle: "Ask the current assistant against the current primary knowledge base.",
       conversations: "Conversations",
       latestCitations: "Latest Citations",
       askPlaceholder: "Ask a question about the uploaded knowledge base",
@@ -131,7 +131,7 @@ export const messages = {
         waitingForNextTrace: "Waiting for next trace",
         currentWorkspaceHintHasConversation: "The active conversation drives the latest citations and trace view.",
         currentWorkspaceHintNewConversation: "A new question will start a fresh conversation.",
-        askStatusHintHasAssistant: "The default assistant is bound and ready for questions.",
+        askStatusHintHasAssistant: "The current assistant is bound and ready for questions.",
         askStatusHintNoAssistant: "Restore assistant configuration before sending questions.",
         citationsCount: "{conversationCount} conversations, {citationCount} current citations.",
         inputSection: "Ask composer",
@@ -190,7 +190,7 @@ export const messages = {
     },
     documents: {
       title: "Documents",
-      subtitle: "Upload files into the default knowledge base and monitor processing status.",
+      subtitle: "Upload files into the current primary knowledge base and monitor processing status.",
       uploadSuccess: "Uploaded {fileName}",
       uploadError: "Upload failed.",
       processingBanner: "Some documents are still processing. The table refreshes automatically.",
@@ -313,7 +313,7 @@ export const messages = {
     },
     knowledgeBase: {
       title: "Knowledge Base",
-      subtitle: "Overview of the current default knowledge base.",
+      subtitle: "Overview of the current primary knowledge base.",
       actions: {
         create: "Create knowledge base",
         openDocuments: "Open documents",
@@ -377,7 +377,7 @@ export const messages = {
     },
     assistant: {
       title: "Assistant",
-      subtitle: "Edit the default assistant and retrieval configuration.",
+      subtitle: "Edit the current assistant and retrieval configuration.",
       loadingTitle: "Loading configuration",
       loadingDescription: "Loading assistant settings and retrieval profile.",
       assistantLoadError: "Failed to load assistant.",
@@ -657,7 +657,7 @@ export const messages = {
     },
     chat: {
       title: "对话",
-      subtitle: "基于当前知识库向默认助手提问。",
+      subtitle: "基于当前主知识库向当前助手提问。",
       conversations: "会话列表",
       latestCitations: "最新引用",
       askPlaceholder: "输入关于已上传知识库的问题",
@@ -684,7 +684,7 @@ export const messages = {
         waitingForNextTrace: "等待本轮 Trace",
         currentWorkspaceHintHasConversation: "当前会话会继承最新引用和 Trace 视图。",
         currentWorkspaceHintNewConversation: "新问题会自动创建新的会话记录。",
-        askStatusHintHasAssistant: "默认助手已绑定，可以直接发起提问。",
+        askStatusHintHasAssistant: "当前助手已绑定，可以直接发起提问。",
         askStatusHintNoAssistant: "需要先恢复助手配置。",
         citationsCount: "{conversationCount} 个会话，{citationCount} 条当前引用。",
         inputSection: "提问输入区",
@@ -742,7 +742,7 @@ export const messages = {
     },
     documents: {
       title: "文档",
-      subtitle: "向默认知识库上传文档并跟踪处理状态。",
+      subtitle: "向当前主知识库上传文档并跟踪处理状态。",
       uploadSuccess: "已上传 {fileName}",
       uploadError: "上传失败。",
       processingBanner: "部分文档仍在处理中，表格会自动刷新。",
@@ -861,7 +861,7 @@ export const messages = {
     },
     knowledgeBase: {
       title: "知识库",
-      subtitle: "查看当前默认知识库的概览。",
+      subtitle: "查看当前主知识库的概览。",
       actions: {
         create: "创建知识库",
         openDocuments: "打开文档页",
@@ -923,7 +923,7 @@ export const messages = {
     },
     assistant: {
       title: "助手",
-      subtitle: "编辑默认助手及其检索配置。",
+      subtitle: "编辑当前助手及其检索配置。",
       loadingTitle: "加载配置中",
       loadingDescription: "正在加载助手设置和检索配置。",
       assistantLoadError: "加载助手失败。",

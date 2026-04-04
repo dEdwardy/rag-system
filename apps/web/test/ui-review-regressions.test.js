@@ -20,9 +20,11 @@ const reportCenterPath = resolve(__dirname, "../src/pages/reports/ReportCenterPa
 const reportCenterHelpersPath = resolve(__dirname, "../src/pages/reports/report-center-page-helpers.ts");
 const workspaceSelectionPath = resolve(__dirname, "../src/features/api/workspace-selection.ts");
 const loginPagePath = resolve(__dirname, "../src/pages/auth/LoginPage.tsx");
+const oauthWorkspaceWelcomePath = resolve(__dirname, "../src/components/auth/OauthWorkspaceWelcome.tsx");
 const globalCssPath = resolve(__dirname, "../src/styles/global.css");
 const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
 const apiTypesPath = resolve(__dirname, "../src/types/api.ts");
+const apiHooksPath = resolve(__dirname, "../src/features/api/hooks.ts");
 const indexHtmlPath = resolve(__dirname, "../index.html");
 
 test("shell and chat do not present unfinished controls as active interactions", () => {
@@ -31,6 +33,10 @@ test("shell and chat do not present unfinished controls as active interactions",
 
   assert.doesNotMatch(shellSource, /aria-label=\{locale === "zh" \? "褰撳墠鐭ヨ瘑搴? : "Current knowledge base"\}[\s\S]*type="button"/);
   assert.match(shellSource, /aria-hidden="true"[\s\S]*appShellCopy\.currentKnowledgeBase/);
+  assert.match(shellSource, /getPrimaryKnowledgeBase\(knowledgeBasesQuery\.data\)/);
+  assert.doesNotMatch(shellSource, /useDocuments\(activeKnowledgeBase\?\.id \?\? "default-kb"/);
+  assert.match(shellSource, /aria-modal="true"/);
+  assert.doesNotMatch(shellSource, /polyline points="6 9 12 15 18 9"/);
 
   assert.doesNotMatch(chatSource, /"浼氳瘽" : "Conversations"[\s\S]*type="button"[\s\S]*"寮曠敤" : "Citations"[\s\S]*type="button"/);
   assert.match(chatSource, /chatCopy\.currentCitations/);
@@ -61,7 +67,18 @@ test("app shell shows a compact current identity card for auth context", () => {
   assert.match(shellSource, /currentIdentity\.authSource/);
   assert.match(shellSource, /loginProvenance\.type/);
   assert.match(shellSource, /appShellCopy\.oauthSessionPrefix/);
-  assert.match(shellSource, /Local session|本地会话/);
+  assert.match(shellSource, /appShellCopy\.localSessionValue/);
+});
+
+test("oauth workspace welcome avoids over-promising automatic setup", () => {
+  const welcomeSource = readFileSync(oauthWorkspaceWelcomePath, "utf8");
+  const messagesSource = readFileSync(messagesPath, "utf8");
+
+  assert.doesNotMatch(welcomeSource, /already created a personal knowledge base and assistant|自动创建了专属助手|已经自动补齐个人知识库和助手/);
+  assert.match(welcomeSource, /Current primary KB|当前主知识库/);
+  assert.match(welcomeSource, /assistant setup in this product follows the current primary knowledge base|这个产品里的助手配置始终跟随当前主知识库/);
+  assert.match(messagesSource, /subtitle: "Ask the current assistant against the current primary knowledge base\."/);
+  assert.match(messagesSource, /subtitle: "向当前主知识库上传文档并跟踪处理状态。"/);
 });
 
 test("web auth me contract includes additive login provenance shape", () => {
@@ -107,6 +124,17 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
   assert.match(messagesSource, /modalTitle: "Create the first knowledge base"/);
   assert.match(messagesSource, /emptyTitle: "先创建第一个知识库"/);
   assert.match(messagesSource, /emptyAction: "创建知识库"/);
+});
+
+test("knowledge base creation promotes the new KB into the active workspace cache immediately", () => {
+  const hooksSource = readFileSync(apiHooksPath, "utf8");
+
+  assert.match(hooksSource, /queryClient\.setQueryData<KnowledgeBase\[]>\(\["knowledge-bases"\],/);
+  assert.match(hooksSource, /knowledgeBase\.id !== createdKnowledgeBase\.id/);
+  assert.match(hooksSource, /return \[createdKnowledgeBase, \.\.\.otherKnowledgeBases\]\.sort\(/);
+  assert.match(hooksSource, /new Date\(right\.createdAt\)\.getTime\(\) - new Date\(left\.createdAt\)\.getTime\(\)/);
+  assert.match(hooksSource, /await Promise\.all\(\[/);
+  assert.match(hooksSource, /invalidateQueries\(\{ queryKey: \["knowledge-bases"\] \}\)/);
 });
 
 test("assistant copy avoids exposing backend field names and trace raw payload is secondary", () => {

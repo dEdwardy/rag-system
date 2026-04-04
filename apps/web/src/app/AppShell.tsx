@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useConversations, useDocuments, useKnowledgeBases, useLogout } from "../features/api/hooks";
+import { getPrimaryKnowledgeBase } from "../features/api/workspace-selection";
 import { useI18n } from "../i18n/I18nProvider";
 import type { AuthIdentity, AuthMeResponse } from "../types/api";
 import { useThemePreferences } from "./theme-preferences";
@@ -195,8 +196,8 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   const mobileNavToggleRef = useRef<HTMLButtonElement | null>(null);
   const firstMobileNavLinkRef = useRef<HTMLAnchorElement | null>(null);
   const knowledgeBasesQuery = useKnowledgeBases(isHydrated);
-  const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb", isHydrated);
+  const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", isHydrated && activeKnowledgeBase != null);
   const conversationsQuery = useConversations(isHydrated);
   const isChatRoute = location.pathname === "/";
   const localeKey = locale === "zh" ? "zh" : "en";
@@ -278,6 +279,8 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
 
   const activeLabel = getActiveLabel(location.pathname, links, localeKey);
   const oauthProviderLabel = loginProvenance.oauthProvider?.toUpperCase() ?? appShellCopy.oauthProviderUnknown;
+  const currentKnowledgeBaseLabel =
+    activeKnowledgeBase?.name ?? (knowledgeBasesQuery.isLoading ? appShellCopy.loadingKnowledgeBase : appShellCopy.noKnowledgeBase);
   const loginSessionBadgeText =
     loginProvenance.type === "oauth_session"
       ? `${appShellCopy.oauthSessionPrefix} · ${oauthProviderLabel}`
@@ -366,17 +369,19 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                   {activeKnowledgeBase?.name?.slice(0, 1).toUpperCase() ?? "K"}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
-                    {activeKnowledgeBase?.name ?? appShellCopy.noKnowledgeBase}
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
-                    {documentsQuery.isSuccess
-                      ? appShellCopy.documentCount(documentsQuery.data.length)
-                      : appShellCopy.loading}
+                    <div className="truncate text-[13px] font-semibold text-[var(--app-text)]">
+                      {currentKnowledgeBaseLabel}
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] text-[#10b981]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#10b981] animate-[pulse-status_2s_ease-in-out_infinite]" />
+                      {documentsQuery.isSuccess
+                        ? appShellCopy.documentCount(documentsQuery.data.length)
+                        : currentKnowledgeBaseLabel === appShellCopy.noKnowledgeBase
+                          ? appShellCopy.noKnowledgeBase
+                          : appShellCopy.loading}
+                    </div>
                   </div>
                 </div>
-              </div>
 
               <div className="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-bg)]/80 p-3" data-testid="current-identity-card">
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -441,10 +446,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                 title={appShellCopy.currentKnowledgeBase}
               >
                 <span className="h-2 w-2 rounded-full bg-[#10b981]" />
-                {activeKnowledgeBase?.name ?? appShellCopy.loadingKnowledgeBase}
-                <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-                  <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                </svg>
+                {currentKnowledgeBaseLabel}
               </div>
             </div>
 
@@ -508,6 +510,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
               />
 
               <div
+                aria-modal="true"
                 aria-label={appShellCopy.mobileWorkspaceMenu}
                 className="absolute inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col border-r border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-[0_24px_64px_rgba(0,0,0,0.45)]"
                 data-testid="mobile-nav-drawer"

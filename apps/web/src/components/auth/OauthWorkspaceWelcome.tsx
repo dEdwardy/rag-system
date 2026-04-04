@@ -88,30 +88,38 @@ function buildEnglishCopy(input: {
   assistantCount: number;
 }) {
   if (input.context === "knowledge") {
+    const hasAssistant = input.assistantCount > 0;
     return {
-      kicker: `${input.providerLabel} workspace ready`,
-      title: "Your personal knowledge workspace is provisioned.",
+      kicker: `${input.providerLabel} workspace setup`,
+      title: input.documentCount > 0 ? "Your knowledge base has real source material now." : "Start by setting up the current knowledge base.",
       description:
-        input.assistantCount > 0
-          ? "We already created a personal knowledge base and assistant for this OAuth account. Add source files first so retrieval has real material to work with."
-          : "We created your personal knowledge base. Add source files first, then the assistant workspace will have material to retrieve from.",
-      pills: ["Personal knowledge base", `${input.assistantCount} assistant ready`, `${input.documentCount} documents indexed`],
+        input.documentCount > 0
+          ? hasAssistant
+            ? "The current knowledge base already has documents and at least one bound assistant. Review the workspace or move on to asking questions."
+            : "The current knowledge base already has documents, but you should still review assistant binding before treating chat as fully ready."
+          : hasAssistant
+            ? "A knowledge base and assistant exist for this workspace, but retrieval will stay thin until you add source files."
+            : "This workspace still needs the first source files, and you may also need to finish assistant binding before asking questions.",
+      pills: ["Current primary KB", `${input.assistantCount} assistant linked`, `${input.documentCount} documents available`],
       actions: [
         { label: "Upload documents", to: "/documents", tone: "primary" as const },
-        { label: "Open assistant", to: "/assistant", tone: "secondary" as const }
+        { label: hasAssistant ? "Open assistant" : "Review assistant setup", to: "/assistant", tone: "secondary" as const }
       ]
     };
   }
 
   if (input.context === "assistant") {
+    const hasAssistant = input.assistantCount > 0;
     return {
-      kicker: `${input.providerLabel} assistant ready`,
-      title: "Your assistant is configured for this account.",
+      kicker: `${input.providerLabel} assistant setup`,
+      title: hasAssistant ? "Review the current assistant before tuning it further." : "This workspace still needs an assistant for the current KB.",
       description:
-        input.documentCount === 0
-          ? "The assistant and retrieval profile are ready, but the knowledge base is still empty. Upload documents first, then come back to tune prompting and retrieval behavior."
-          : "The assistant is ready. You can tune prompt and retrieval settings here, then jump back to chat for the first OAuth session run.",
-      pills: ["Assistant provisioned", `${input.documentCount} documents available`, `${input.conversationCount} chats so far`],
+        !hasAssistant
+          ? "Assistant setup in this product follows the current primary knowledge base. Review the KB and document state first, then restore or bind an assistant for the same workspace context."
+          : input.documentCount === 0
+            ? "The assistant exists, but the knowledge base is still empty. Upload documents first, then come back to tune prompting and retrieval behavior."
+            : "The assistant exists and the knowledge base already has material. Tune settings here only when you need to improve answer behavior or retrieval quality.",
+      pills: [hasAssistant ? "Assistant bound" : "Assistant not yet bound", `${input.documentCount} documents available`, `${input.conversationCount} chats so far`],
       actions: [
         { label: input.documentCount === 0 ? "Upload documents" : "Open chat", to: input.documentCount === 0 ? "/documents" : "/", tone: "primary" as const },
         { label: "Open knowledge base", to: "/knowledge-base", tone: "secondary" as const }
@@ -120,15 +128,15 @@ function buildEnglishCopy(input: {
   }
 
   return {
-    kicker: `${input.providerLabel} chat workspace ready`,
-    title: input.documentCount === 0 ? "Your assistant is live, but it still needs source material." : "Your OAuth workspace is ready for the first chat.",
+    kicker: `${input.providerLabel} chat workspace`,
+    title: input.documentCount === 0 ? "Chat still needs source material from the current KB." : "The current workspace is ready to continue in chat.",
     description:
       input.documentCount === 0
-        ? "We already created a personal assistant for this OAuth account. Upload a few files first, then ask the assistant against your own knowledge base instead of the shared seed data."
+        ? "Before treating chat as ready, upload a few files into the current knowledge base so retrieval uses your own workspace material instead of an empty corpus."
         : input.conversationCount === 0
-          ? "Your knowledge base and assistant are ready. Start the first conversation to verify the OAuth workspace end to end."
-          : "The OAuth workspace is already active. Jump back into chat or refine your assistant settings as needed.",
-    pills: ["Personal assistant ready", `${input.documentCount} documents available`, `${input.conversationCount} conversations`],
+          ? "The current workspace has material available. Start the first conversation when you are ready to verify chat end to end."
+          : "This workspace is already active. Continue the conversation or refine knowledge-base and assistant setup if answers still look off.",
+    pills: ["Current workspace chat", `${input.documentCount} documents available`, `${input.conversationCount} conversations`],
     actions: [
       { label: input.documentCount === 0 ? "Upload documents" : "Start chatting", to: input.documentCount === 0 ? "/documents" : "/", tone: "primary" as const },
       { label: "Open knowledge base", to: "/knowledge-base", tone: "secondary" as const }
@@ -144,30 +152,38 @@ function buildChineseCopy(input: {
   assistantCount: number;
 }) {
   if (input.context === "knowledge") {
+    const hasAssistant = input.assistantCount > 0;
     return {
-      kicker: `${input.providerLabel} 工作区已就绪`,
-      title: "你的个人知识库工作区已经创建好了。",
+      kicker: `${input.providerLabel} 工作区设置`,
+      title: input.documentCount > 0 ? "当前知识库已经有可用资料了。" : "先把当前知识库工作区建立起来。",
       description:
-        input.assistantCount > 0
-          ? "这个 OAuth 账号已经自动补齐个人知识库和助手。下一步先上传文档，让检索真正有内容可用。"
-          : "这个 OAuth 账号已经自动补齐个人知识库。先上传文档，助手页里的检索和回答能力才会有真实资料可用。",
-      pills: ["个人知识库", `已就绪助手 ${input.assistantCount} 个`, `已索引文档 ${input.documentCount} 份`],
+        input.documentCount > 0
+          ? hasAssistant
+            ? "当前知识库已经有文档，也至少绑定了一个助手。现在更适合回看工作区状态，或者直接进入提问。"
+            : "当前知识库已经有文档，但在把 Chat 当成完全可用之前，仍然应该先确认助手绑定状态。"
+          : hasAssistant
+            ? "当前工作区已经有知识库和助手，但如果还没有文档，检索结果仍然会偏空。"
+            : "当前工作区还缺第一批资料，而且在继续提问前，也可能还需要先补齐助手绑定。",
+      pills: ["当前主知识库", `已绑定助手 ${input.assistantCount} 个`, `可用文档 ${input.documentCount} 份`],
       actions: [
         { label: "去上传文档", to: "/documents", tone: "primary" as const },
-        { label: "打开助手页", to: "/assistant", tone: "secondary" as const }
+        { label: hasAssistant ? "打开助手页" : "查看助手设置", to: "/assistant", tone: "secondary" as const }
       ]
     };
   }
 
   if (input.context === "assistant") {
+    const hasAssistant = input.assistantCount > 0;
     return {
-      kicker: `${input.providerLabel} 助手已就绪`,
-      title: "这个账号的专属助手已经配置完成。",
+      kicker: `${input.providerLabel} 助手设置`,
+      title: hasAssistant ? "先确认当前助手，再决定是否继续调参。" : "当前工作区还没有给这个知识库绑定助手。",
       description:
-        input.documentCount === 0
-          ? "助手和检索配置已经建好，但知识库还是空的。先上传文档，再回来微调 prompt 和检索参数。"
-          : "助手已经可用。你可以在这里继续调整 prompt 和检索参数，然后回到聊天页完成第一次 OAuth 会话验证。",
-      pills: ["助手已自动创建", `可用文档 ${input.documentCount} 份`, `历史对话 ${input.conversationCount} 条`],
+        !hasAssistant
+          ? "这个产品里的助手配置始终跟随当前主知识库。先确认知识库和文档状态，再为同一个工作区上下文补齐或恢复助手绑定。"
+          : input.documentCount === 0
+            ? "助手已经存在，但知识库还是空的。先上传文档，再回来微调 prompt 和检索参数。"
+            : "助手已经存在，知识库里也有资料。只有在确实想改善回答风格或检索质量时，再继续调这些参数。",
+      pills: [hasAssistant ? "已绑定助手" : "尚未绑定助手", `可用文档 ${input.documentCount} 份`, `历史对话 ${input.conversationCount} 条`],
       actions: [
         { label: input.documentCount === 0 ? "先上传文档" : "去聊天", to: input.documentCount === 0 ? "/documents" : "/", tone: "primary" as const },
         { label: "查看知识库", to: "/knowledge-base", tone: "secondary" as const }
@@ -176,15 +192,15 @@ function buildChineseCopy(input: {
   }
 
   return {
-    kicker: `${input.providerLabel} 对话工作区已就绪`,
-    title: input.documentCount === 0 ? "助手已经可用，但还缺少可检索资料。" : "OAuth 工作区已经可以开始第一次对话了。",
+    kicker: `${input.providerLabel} 对话工作区`,
+    title: input.documentCount === 0 ? "Chat 还缺当前知识库里的可检索资料。" : "当前工作区已经可以继续在 Chat 中使用。",
     description:
       input.documentCount === 0
-        ? "这个 OAuth 账号已经自动创建了专属助手。先上传几份文档，再开始提问，这样回答就会基于你自己的知识库，而不是共享 seed 数据。"
+        ? "在把 Chat 当成就绪前，先往当前知识库里上传几份文档，这样检索才能落到你自己的工作区资料上，而不是空语料。"
         : input.conversationCount === 0
-          ? "你的知识库和助手已经准备好了。现在直接开始第一次对话，就能完整验证 OAuth 登录后的工作区链路。"
-          : "当前 OAuth 工作区已经处于可用状态，你可以继续提问，或者回到知识库和助手页做进一步配置。",
-    pills: ["专属助手已就绪", `可用文档 ${input.documentCount} 份`, `历史对话 ${input.conversationCount} 条`],
+          ? "当前工作区已经有资料可用了。准备好后，直接开始第一轮对话即可验证整条链路。"
+          : "当前工作区已经处于可用状态。你可以继续提问，或者回到知识库和助手页做进一步调整。",
+    pills: ["当前工作区 Chat", `可用文档 ${input.documentCount} 份`, `历史对话 ${input.conversationCount} 条`],
     actions: [
       { label: input.documentCount === 0 ? "去上传文档" : "开始聊天", to: input.documentCount === 0 ? "/documents" : "/", tone: "primary" as const },
       { label: "打开知识库", to: "/knowledge-base", tone: "secondary" as const }

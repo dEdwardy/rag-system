@@ -150,10 +150,22 @@ export function useCreateKnowledgeBase() {
         method: "POST",
         body: payload
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      queryClient.invalidateQueries({ queryKey: ["assistants"] });
+    onSuccess: async createdKnowledgeBase => {
+      queryClient.setQueryData<KnowledgeBase[]>(["knowledge-bases"], currentKnowledgeBases => {
+        const otherKnowledgeBases = (currentKnowledgeBases ?? []).filter(
+          knowledgeBase => knowledgeBase.id !== createdKnowledgeBase.id
+        );
+
+        return [createdKnowledgeBase, ...otherKnowledgeBases].sort(
+          (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+        );
+      });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] }),
+        queryClient.invalidateQueries({ queryKey: ["documents"] }),
+        queryClient.invalidateQueries({ queryKey: ["assistants"] })
+      ]);
     }
   });
 }
