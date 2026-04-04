@@ -135,8 +135,8 @@ export const messages = {
         waitingForNextTrace: "Waiting for diagnostics",
         currentWorkspaceHintHasConversation: "The active conversation drives the latest sources and diagnostics view.",
         currentWorkspaceHintNewConversation: "A new question will start a fresh conversation.",
-        askStatusHintHasAssistant: "The current assistant is bound and ready for questions.",
-        askStatusHintNoAssistant: "Restore assistant configuration before sending questions.",
+        askStatusHintHasAssistant: "This status now follows the current library readiness before sending questions.",
+        askStatusHintNoAssistant: "Connect answer settings before sending questions.",
         citationsCount: "{conversationCount} conversations, {citationCount} current citations.",
         inputSection: "Ask composer",
         inputHelpCanAsk: "Press Enter to send. Sources stay visible on the right, with diagnostics available when needed.",
@@ -153,7 +153,10 @@ export const messages = {
         preparingAnswer: "Preparing answer",
         retrievingContext: "Retrieving context",
         generatingAnswer: "Generating answer",
-        assistantUnavailable: "Assistant unavailable",
+        noDocuments: "Library still empty",
+        libraryNeedsAttention: "Library needs review",
+        libraryUpdating: "Library updating",
+        answerSettingsNeeded: "Answer settings needed",
         inProgress: "In progress",
         readyToAsk: "Ready to ask",
         noModel: "No model",
@@ -181,6 +184,21 @@ export const messages = {
         noAssistantForKnowledgeBaseDescription:
           "The current workspace library is {knowledgeBaseName}. Connect or restore one assistant for this library before sending questions.",
         noAssistantForKnowledgeBaseAction: "Open answer settings",
+        noDocumentsTitle: "Add library items before chatting",
+        noDocumentsDescription:
+          "The current workspace library is {knowledgeBaseName}, but it does not have source material yet. Add the first files or links before starting chat.",
+        noDocumentsAction: "Open library",
+        processingDocumentsTitle: "Library updates are still running",
+        processingDocumentsDescription:
+          "{count} library items are still being added or refreshed. Let them finish first so chat uses the latest material.",
+        processingDocumentsAction: "Review library status",
+        failedDocumentsTitle: "Some library items need attention",
+        failedDocumentsDescription:
+          "{count} library items still need retry or cleanup. Review those items first, then continue to chat.",
+        failedDocumentsAction: "Open library",
+        onboardingDiagnosticsTitle: "Diagnostics appear after the first answer",
+        onboardingDiagnosticsDescription:
+          "Keep the focus on setup first. After the first question, this area will show sources and optional diagnostics.",
         assistantErrorTitle: "Failed to load assistant.",
         askError: "Ask request failed.",
         noTraceTitle: "No diagnostics yet",
@@ -197,7 +215,7 @@ export const messages = {
       subtitle: "Add files or links to the current workspace library, then check when they are ready to use.",
       uploadSuccess: "Uploaded {fileName}",
       uploadError: "Upload failed.",
-      processingBanner: "Some library items are still updating. The table refreshes automatically.",
+      processingBanner: "Some library items are still updating. Wait for the refresh to finish before treating chat as fully ready.",
       loadKbError: "Failed to load workspace library.",
       loadDocumentsError: "Failed to load library items.",
       loadingTitle: "Loading library",
@@ -215,11 +233,13 @@ export const messages = {
       workspaceNextActionNeedsAttention:
         "Open the failed item first, check the latest error summary, then retry or clean it up if needed.",
       workspaceNextActionProcessing: "Wait for the current updates to finish, then review the refreshed item states.",
-      workspaceNextActionReady: "Upload a file or save one source link, then check the list below.",
+      workspaceNextActionReady: "The library is ready for chat. Move on to chat now, or keep adding more source material here.",
       workspaceNextActionLinkNoActiveKnowledgeBase: "Open workspace settings",
       workspaceNextActionLinkNeedsAttention: "Open the failed item",
       workspaceNextActionLinkProcessing: "Open the in-progress item",
       workspaceNextActionLinkReady: "Open chat",
+      readyBannerTitle: "Library ready for chat",
+      readyBannerDescription: "{count} library items are ready. You can move on to chat now, or keep expanding this library.",
       currentKnowledgeBaseLabel: "Current library target",
       currentKnowledgeBaseHintHasKb: "Files and links added here go into the current workspace library.",
       currentKnowledgeBaseHintNoKb: "Create a workspace library first so new library items have a clear home.",
@@ -307,6 +327,10 @@ export const messages = {
         traceFocusTitle: "Focused from trace",
         traceFocusDescription: "This chunk was opened from trace {traceId}.",
         traceFocusNextStep: "Review the focused chunk first, then jump back to the same trace context or return to the document workspace.",
+        traceFocusReviewHeading: "1",
+        traceFocusReviewChunk: "Start with the chunk text itself and confirm whether it actually supports the answer you were reviewing.",
+        traceFocusReviewSelection: "Then check the trace badges here for rank, score, primary-vs-neighbor, and whether the answer cited this chunk.",
+        traceFocusReviewReturn: "After that, jump back to diagnostics to decide whether retrieval, citations, or the final answer need the next review.",
         traceRankLabel: "Trace rank #{rank}",
         traceScoreLabel: "Trace score {score}",
         tracePrimary: "Primary",
@@ -321,7 +345,8 @@ export const messages = {
       actions: {
         create: "Create workspace library",
         openDocuments: "Open library",
-        openAssistant: "Open assistant"
+        openAssistant: "Open answer settings",
+        openChat: "Open chat"
       },
       create: {
         modalTitle: "Create the first workspace library",
@@ -363,8 +388,11 @@ export const messages = {
         addDocuments: "Add library items before changing anything else.",
         reviewFailedDocuments: "Review the items with issues before adding more material.",
         waitForProcessing: "Wait for the current updates to finish, then check the refreshed states.",
-        bindAssistant: "The library is ready. Connect or review an assistant before asking questions.",
-        workspaceReady: "This workspace is ready. Review assistant behavior or move on to chat."
+        bindAssistant: "The library is ready. Connect or review answer settings before asking questions.",
+        workspaceReady: "This workspace is ready. The best next step is to move on to chat."
+      },
+      feedback: {
+        title: "Current best next step"
       },
       states: {
         loadingTitle: "Loading workspace settings",
@@ -453,6 +481,10 @@ export const messages = {
         "Hybrid search, rerank, explicit strategy override, and filters are advanced controls. Use them only when results are too noisy or missing key hits.",
       showAdvancedTuning: "Show advanced controls",
       hideAdvancedTuning: "Hide advanced controls",
+      showAssistantBasics: "Show basics",
+      hideAssistantBasics: "Hide basics",
+      assistantBasicsSummary:
+        "Current answer settings: {name}, status {status}. Expand this section only when you need to review the name, description, or system prompt.",
       advancedTuningDefaultSummary: "Advanced search controls are currently using the default behavior.",
       advancedTuningCustomSummary: "Custom advanced search controls are currently active for this assistant.",
       retrievalStrategySection: "Advanced search strategy",
@@ -704,8 +736,8 @@ export const messages = {
         waitingForNextTrace: "等待诊断记录",
         currentWorkspaceHintHasConversation: "当前会话会继承最新来源与诊断视图。",
         currentWorkspaceHintNewConversation: "新问题会自动创建新的会话记录。",
-        askStatusHintHasAssistant: "当前助手已绑定，可以直接发起提问。",
-        askStatusHintNoAssistant: "需要先恢复助手配置。",
+        askStatusHintHasAssistant: "这里的状态会跟随当前资料空间是否真的已经可以提问。",
+        askStatusHintNoAssistant: "需要先连接回答设置，再继续提问。",
         citationsCount: "{conversationCount} 个会话，{citationCount} 条当前引用。",
         inputSection: "提问输入区",
         inputHelpCanAsk: "按 Enter 直接发送，来源会保留在右侧，需要时也可继续进入诊断。",
@@ -722,7 +754,10 @@ export const messages = {
         preparingAnswer: "正在准备回答",
         retrievingContext: "正在检索上下文",
         generatingAnswer: "正在生成回答",
-        assistantUnavailable: "助手不可用",
+        noDocuments: "资料仍未补齐",
+        libraryNeedsAttention: "资料需要处理",
+        libraryUpdating: "资料更新中",
+        answerSettingsNeeded: "还缺回答设置",
         inProgress: "处理中",
         readyToAsk: "准备提问",
         noModel: "未记录模型",
@@ -749,6 +784,21 @@ export const messages = {
         noAssistantForKnowledgeBaseDescription:
           "当前资料空间是 {knowledgeBaseName}。请先为这个资料空间连接或恢复一个助手，再继续提问。",
         noAssistantForKnowledgeBaseAction: "打开回答设置",
+        noDocumentsTitle: "先补资料，再开始对话",
+        noDocumentsDescription:
+          "当前资料空间是 {knowledgeBaseName}，但还没有可用于检索的资料。先补第一批文件或链接，再开始提问。",
+        noDocumentsAction: "打开资料库",
+        processingDocumentsTitle: "资料还在更新中",
+        processingDocumentsDescription:
+          "当前还有 {count} 份资料正在导入或刷新。等更新完成后再提问，结果会更稳定。",
+        processingDocumentsAction: "查看资料状态",
+        failedDocumentsTitle: "有资料还需要处理",
+        failedDocumentsDescription:
+          "当前还有 {count} 份资料需要重试或清理。先处理这些资料，再继续提问。",
+        failedDocumentsAction: "打开资料库",
+        onboardingDiagnosticsTitle: "第一次回答后，这里才会出现诊断",
+        onboardingDiagnosticsDescription:
+          "现在先把注意力放在准备工作上。等完成第一轮提问后，这里会显示来源和按需诊断。",
         assistantErrorTitle: "加载助手失败。",
         askError: "提问请求失败。",
         noTraceTitle: "还没有诊断记录",
@@ -765,7 +815,7 @@ export const messages = {
       subtitle: "把文件或链接加入当前资料空间，然后在这里查看它们何时可以用于问答。",
       uploadSuccess: "已上传 {fileName}",
       uploadError: "上传失败。",
-      processingBanner: "部分资料仍在更新中，表格会自动刷新。",
+      processingBanner: "部分资料仍在更新中。等刷新完成后，再把 Chat 当成完全可用。",
       loadKbError: "加载资料空间失败。",
       loadDocumentsError: "加载资料失败。",
       loadingTitle: "加载资料库中",
@@ -780,11 +830,13 @@ export const messages = {
       workspaceNextActionNoActiveKnowledgeBase: "请先创建资料空间，再开始添加文件、保存链接或查看资料状态。",
       workspaceNextActionNeedsAttention: "先打开失败资料查看错误摘要，再决定重试还是清理。",
       workspaceNextActionProcessing: "等待当前更新完成，再回来查看最新状态。",
-      workspaceNextActionReady: "上传文件或保存一个链接，然后到下方列表查看状态。",
+      workspaceNextActionReady: "资料库已经可以支持提问。现在更适合去对话，或者继续在这里补充资料。",
       workspaceNextActionLinkNoActiveKnowledgeBase: "打开工作区设置",
       workspaceNextActionLinkNeedsAttention: "打开失败资料",
       workspaceNextActionLinkProcessing: "打开更新中资料",
       workspaceNextActionLinkReady: "打开对话",
+      readyBannerTitle: "资料库已可用于对话",
+      readyBannerDescription: "当前已有 {count} 份资料可以用于提问。你现在可以去对话，也可以继续扩充资料库。",
       currentKnowledgeBaseLabel: "当前资料空间",
       currentKnowledgeBaseHintHasKb: "这一页上传的文件和来源 URL 都会进入当前资料空间。",
       currentKnowledgeBaseHintNoKb: "请先创建资料空间，再开始上传文件或保存来源链接。",
@@ -871,6 +923,10 @@ export const messages = {
         traceFocusTitle: "来自 Trace 的定位",
         traceFocusDescription: "当前 chunk 从 Trace {traceId} 跳转而来。",
         traceFocusNextStep: "先查看当前定位的 chunk，再返回同一条 Trace 上下文，或回到资料库继续排查。",
+        traceFocusReviewHeading: "1",
+        traceFocusReviewChunk: "先看这个 chunk 本身的内容，确认它是否真的支撑了你正在复盘的那条回答。",
+        traceFocusReviewSelection: "再结合这里的 Trace 标记判断它为什么会被命中：排名、分数、主命中/邻近扩展，以及回答是否引用了它。",
+        traceFocusReviewReturn: "看完后返回诊断页，再继续判断问题更像出在检索、引用，还是最终回答本身。",
         traceRankLabel: "Trace 排名 #{rank}",
         traceScoreLabel: "Trace 分数 {score}",
         tracePrimary: "主命中",
@@ -885,7 +941,8 @@ export const messages = {
       actions: {
         create: "创建工作区资料库",
         openDocuments: "打开资料库",
-        openAssistant: "打开助手页"
+        openAssistant: "打开回答设置",
+        openChat: "打开对话"
       },
       create: {
         modalTitle: "先创建第一个工作区资料库",
@@ -898,7 +955,7 @@ export const messages = {
         cancel: "取消",
         success: "已创建工作区资料库：{name}。",
         nextStepTitle: "{name} 现在已经成为当前工作区资料库。",
-        nextStepDescription: "现在先去添加第一批资料，让对话和助手都能基于真实内容工作。",
+        nextStepDescription: "现在先去添加第一批资料，让对话和回答设置都能基于真实内容工作。",
         nextStepPrimaryAction: "打开资料库",
         nextStepDismiss: "先收起",
         error: "创建工作区资料库失败。",
@@ -926,8 +983,11 @@ export const messages = {
         addDocuments: "先补充资料，再继续做后续设置。",
         reviewFailedDocuments: "先处理异常资料，再继续补充新的内容。",
         waitForProcessing: "先等待当前更新完成，再回来看新的状态。",
-        bindAssistant: "资料已经就绪，下一步更适合连接或检查助手。",
-        workspaceReady: "当前工作区已经就绪，可以继续检查助手表现或直接去提问。"
+        bindAssistant: "资料已经就绪，下一步更适合连接或检查回答设置。",
+        workspaceReady: "当前工作区已经就绪，下一步更适合直接去提问。"
+      },
+      feedback: {
+        title: "当前最合适的下一步"
       },
       states: {
         loadingTitle: "加载工作区设置中",
@@ -996,6 +1056,7 @@ export const messages = {
         systemPromptHint: "大多数情况下可以先保持当前 system prompt 不动，优先使用下面这组推荐回答设置。",
         recommendedDefaults: "推荐回答设置",
         recommendedDefaultsCopy: "如果你暂时不想手动调整搜索，尽量保持这一组接近默认配置，日常使用通常会更稳。",
+        assistantIdentityCollapsedCopy: "名称、状态和 prompt 保留在这里；只有在需要核对或微调时再展开。",
         advancedTuning: "高级搜索控制",
         advancedTuningCopy: "只有在回答明显漏内容或噪声太多时，再调整这一组；否则建议保持不动。",
         answerPolicyCopy: "决定日常回答的语气、结构、引用方式和上下文不足时的处理方式。",
@@ -1009,6 +1070,9 @@ export const messages = {
       advancedRetrievalHint: "混合搜索、重排、显式策略覆盖和过滤器都属于高级控制；只有在结果明显过噪或漏召时再动。",
       showAdvancedTuning: "展开高级控制",
       hideAdvancedTuning: "收起高级控制",
+      showAssistantBasics: "展开基础信息",
+      hideAssistantBasics: "收起基础信息",
+      assistantBasicsSummary: "当前回答设置：{name}，状态为 {status}。需要时再展开查看名称、描述和 system prompt。",
       advancedTuningDefaultSummary: "当前高级搜索控制仍在使用默认行为。",
       advancedTuningCustomSummary: "当前助手已经启用了自定义高级搜索控制。",
       retrievalStrategySection: "高级搜索策略",

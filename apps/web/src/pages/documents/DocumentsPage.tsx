@@ -180,7 +180,7 @@ export function DocumentsPage() {
       badgeColor: "indigo",
       badgeLabel: t("documents.workspaceStatusReady"),
       nextAction: t("documents.workspaceNextActionReady"),
-      nextActionHref: "/traces",
+      nextActionHref: "/",
       nextActionLabel: t("documents.workspaceNextActionLinkReady")
     } as const;
   }, [failedCount, firstFailedDocument, firstProcessingDocument, hasActiveKnowledgeBase, hasProcessingDocuments, t]);
@@ -578,6 +578,23 @@ export function DocumentsPage() {
       {hasProcessingDocuments ? (
         <Alert color="yellow" radius="xl" variant="light">
           {t("documents.processingBanner")}
+        </Alert>
+      ) : null}
+      {hasActiveKnowledgeBase && readyCount > 0 && !hasProcessingDocuments && failedCount === 0 ? (
+        <Alert color="teal" radius="xl" variant="light">
+          <Group align="flex-start" justify="space-between" wrap="wrap">
+            <div>
+              <Text c="var(--app-text)" fw={700} size="sm">
+                {t("documents.readyBannerTitle")}
+              </Text>
+              <Text c="var(--app-text-muted)" mt={4} size="sm">
+                {t("documents.readyBannerDescription", { count: readyCount })}
+              </Text>
+            </div>
+            <Button className="workspace-button" color="teal" component={Link} radius="xl" size="xs" to="/" variant="light">
+              {t("documents.workspaceNextActionLinkReady")}
+            </Button>
+          </Group>
         </Alert>
       ) : null}
 

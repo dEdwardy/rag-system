@@ -17,6 +17,11 @@
 - `docs / stage alignment` 和当前这轮 `P4 web capability carry-through` 收口已完成；接下来更适合：
   - 在 `P4/P5/P6` 已完成收口的基础上做 bounded maintenance
   - 或选择一个新的明确产品波次，并保持单线推进
+- 当前前端主路径已进一步收口到普通用户闭环：`资料库 -> 回答设置 -> 对话`，并在 `Chat` 首屏补了 setup-first onboarding、统一 readiness 状态和收窄后的 onboarding 摘要区。
+- 当前 `P5` 已从“能看报告”推进到“能治理一轮质量问题”的使用态：
+  - `质量报告` 现在可维护本地 reviewed/pending 状态、结论分类、本轮改进重点、本地复盘记录和改后复查建议
+  - `质量报告 -> 诊断 -> 文档详情 -> 回答设置 -> 回质量报告` 的窄闭环已经打通
+  - 上述治理状态仍保持前端本地持久化边界，不引入新的后端 review schema
 - `Document Detail -> Run -> Trace` 路径补齐了一项可读性维护：文档详情把当前 ingestion 状态与 next action 收敛到一个主状态区域，降低首屏来回扫读成本。
 - Documents 工作台的主状态 readout 进一步补齐了状态到动作的窄路径：失败态可直达失败文档诊断、进行中可直达当前 run 观察、就绪态可直达 trace 结果。
 - 同一路径补齐 failure summary 文案契约：失败主摘要先用产品语言说明发生了什么，再引导到既有 trace 诊断后续动作，不把后端底层字段作为主视图。
@@ -31,6 +36,7 @@
 ## Current Priorities
 
 - `bounded stability maintenance`：保留 `P3/P5/P6` 范围内的小型回归修补，但不再把它们描述成主开发方向。
+- `quality-governance usage follow-up`：当前最合理的 `P5` 后续已变成使用态维护，而不是继续扩工程能力；优先保持现有 reports / trace / settings 治理闭环的可用性、可读性和 docs 同步。
 - `next product increment selection`：如果继续做产品增量，优先从已完成的当前收口基础上选择一个新的明确小波次，而不是重新把 `P3/P4/P5` 包装成未完成主线。
 - `docs freshness`：继续保持阶段判断、状态摘要和执行边界同步，避免文档再次落后于代码现实。
 

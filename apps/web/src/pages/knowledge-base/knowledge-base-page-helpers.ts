@@ -66,7 +66,7 @@ export type KnowledgeBaseWorkspaceNextAction = {
     | "knowledgeBase.nextAction.waitForProcessing"
     | "knowledgeBase.nextAction.bindAssistant"
     | "knowledgeBase.nextAction.workspaceReady";
-  actionHref: "/documents" | "/assistant";
+  actionHref: "/documents" | "/assistant" | "/";
 };
 
 export function buildKnowledgeBaseWorkspaceNextAction({
@@ -116,6 +116,6 @@ export function buildKnowledgeBaseWorkspaceNextAction({
   return {
     action: "workspace_ready",
     labelKey: "knowledgeBase.nextAction.workspaceReady",
-    actionHref: "/assistant"
+    actionHref: "/"
   };
 }

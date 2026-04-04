@@ -9,7 +9,7 @@ import {
   Text,
   Title
 } from "@mantine/core";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useConversationMessages, useTrace } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -49,7 +49,8 @@ type TraceDiagnosticSummarySlice = {
 const TRACE_DETAIL_SECTION_IDS = {
   retrievedChunks: "trace-detail-retrieved-chunks",
   citations: "trace-detail-citations",
-  rawPayload: "trace-detail-raw-payload"
+  rawPayload: "trace-detail-raw-payload",
+  requestResponse: "trace-detail-request-response"
 } as const;
 
 
@@ -223,6 +224,7 @@ function formatScore(value: number | null) {
 
 export function TraceDetailPage() {
   const { traceId = null } = useParams();
+  const [searchParams] = useSearchParams();
   const traceQuery = useTrace(traceId);
   const trace = traceQuery.data;
   const conversationMessagesQuery = useConversationMessages(trace?.conversationId ?? null);
@@ -234,6 +236,10 @@ export function TraceDetailPage() {
   const citationsByChunkId = new Map(citations.map(citation => [citation.chunkId, citation]));
   const rankedEntries = buildRankedEntries(scores, retrievedChunkIds);
   const hasRewrite = Boolean(trace?.rewrittenQuery);
+  const reportSource = searchParams.get("from") === "report";
+  const reportQuestion = searchParams.get("question");
+  const reportHandling = searchParams.get("handling");
+  const reportPriority = searchParams.get("priority");
   const traceSummary = trace?.traceSummary ?? null;
   const diagnosticSummarySlice = trace
     ? buildTraceDiagnosticSummarySlice(
@@ -336,6 +342,37 @@ export function TraceDetailPage() {
         }
       ]
     : [];
+  const reviewFocusItems = trace
+    ? [
+        {
+          key: "issue",
+          label: locale === "zh" ? "先看问题线索" : "Start with issue signal",
+          value:
+            diagnosticSummarySlice?.issueLine ??
+            (locale === "zh" ? "当前没有额外问题线索。" : "No additional issue signal is available."),
+          href: "#trace-detail-review-focus",
+          actionLabel: locale === "zh" ? "留在当前区块" : "Stay here"
+        },
+        {
+          key: "retrieval",
+          label: locale === "zh" ? "再看检索与引用" : "Then check retrieval and citations",
+          value:
+            diagnosticSummarySlice?.retrievalLine ??
+            (locale === "zh" ? "暂无检索来源诊断摘要。" : "No retrieval-source diagnostic summary available."),
+          href: `#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`,
+          actionLabel: locale === "zh" ? "查看命中 Chunk" : "Go to retrieved chunks"
+        },
+        {
+          key: "answer",
+          label: locale === "zh" ? "最后看回答与原始载荷" : "Finish with answer and raw payload",
+          value:
+            diagnosticSummarySlice?.answerLine ??
+            (locale === "zh" ? "暂无回答状态溯源摘要。" : "No answer-status provenance summary available."),
+          href: `#${TRACE_DETAIL_SECTION_IDS.requestResponse}`,
+          actionLabel: locale === "zh" ? "查看请求与响应" : "Go to request and response"
+        }
+      ]
+    : [];
 
   return (
     <Stack gap="md">
@@ -396,6 +433,41 @@ export function TraceDetailPage() {
 
       {trace ? (
         <>
+          {reportSource && (reportQuestion || reportHandling || reportPriority) ? (
+            <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+              <Stack gap="sm">
+                <div className="workspace-section-heading">
+                  {locale === "zh" ? "来自质量报告的复盘上下文" : "Review context from quality reports"}
+                </div>
+                <Text c="var(--app-text-muted)" size="sm">
+                  {locale === "zh"
+                    ? "这条诊断是从质量报告跳进来的。先按这里的治理上下文理解问题，再继续看下面的复盘顺序。"
+                    : "This trace was opened from quality reports. Read it through the governance context below before following the review order underneath."}
+                </Text>
+                <div className="workspace-meta-list">
+                  {reportPriority ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">{locale === "zh" ? "优先级" : "Priority"}</span>
+                      <span className="workspace-meta-value">{reportPriority}</span>
+                    </div>
+                  ) : null}
+                  {reportHandling ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">{locale === "zh" ? "处理建议" : "Handling strategy"}</span>
+                      <span className="workspace-meta-value">{reportHandling}</span>
+                    </div>
+                  ) : null}
+                  {reportQuestion ? (
+                    <div className="workspace-meta-row">
+                      <span className="workspace-meta-label">{locale === "zh" ? "题目" : "Question"}</span>
+                      <span className="workspace-meta-value">{reportQuestion}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </Stack>
+            </Paper>
+          ) : null}
+
           <div className="workspace-scan-grid">
             {traceScanItems.map(item => (
               <div className="workspace-scan-card" key={item.key}>
@@ -405,6 +477,44 @@ export function TraceDetailPage() {
               </div>
             ))}
           </div>
+
+          <Paper className="workspace-panel-hover workspace-panel-strong" id="trace-detail-review-focus" p="lg" radius="xl">
+            <Stack gap="md">
+              <Group justify="space-between" wrap="nowrap">
+                <div>
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "首屏复盘顺序" : "First-screen review order"}
+                  </Text>
+                  <Text className="workspace-section-copy">
+                    {locale === "zh"
+                      ? "从质量报告跳进来时，先看问题线索，再看检索与引用，最后再展开回答正文和原始载荷。"
+                      : "When entering from quality reports, review issue signal first, then retrieval/citations, and only then expand the answer body or raw payload."}
+                  </Text>
+                </div>
+                {failureTaxonomy.length > 0 ? (
+                  <Group gap="xs" justify="flex-end">
+                    {failureTaxonomy.map(category => (
+                      <Badge color={getFailureTaxonomyColor(category)} key={category} variant="light">
+                        {getFailureTaxonomyLabel(category, locale)}
+                      </Badge>
+                    ))}
+                  </Group>
+                ) : null}
+              </Group>
+
+              <div className="workspace-diagnostic-grid">
+                {reviewFocusItems.map(item => (
+                  <div className="workspace-diagnostic-item workspace-diagnostic-item-issue" key={item.key}>
+                    <div className="workspace-diagnostic-label">{item.label}</div>
+                    <div className="workspace-diagnostic-value">{item.value}</div>
+                    <Anchor href={item.href} mt={10} size="sm">
+                      {item.actionLabel}
+                    </Anchor>
+                  </div>
+                ))}
+              </div>
+            </Stack>
+          </Paper>
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
@@ -527,63 +637,6 @@ export function TraceDetailPage() {
                 </Paper>
               </div>
 
-              <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
-                <Stack gap="xs">
-                    <Text className="workspace-section-heading">
-                      {locale === "zh" ? "失败类别" : "Failure categories"}
-                    </Text>
-                    <Text c="var(--app-text-muted)" size="xs">
-                      {locale === "zh"
-                        ? "按 no-hit / fallback / slow-path / timeout / source-failure 归类当前 Trace，便于快速定位问题类型。"
-                        : "Categorizes this trace into no-hit, fallback, slow-path, timeout, and source-failure for faster triage."}
-                    </Text>
-                  {failureTaxonomy.length > 0 ? (
-                    <Group gap="xs">
-                      {failureTaxonomy.map(category => (
-                        <Badge color={getFailureTaxonomyColor(category)} key={category} variant="light">
-                          {getFailureTaxonomyLabel(category, locale)}
-                        </Badge>
-                      ))}
-                    </Group>
-                  ) : (
-                    <Text c="var(--app-text-secondary)" size="sm">
-                      {locale === "zh"
-                        ? "当前 trace 未命中以上失败类别。"
-                        : "No failure category was detected for this trace."}
-                    </Text>
-                  )}
-                </Stack>
-              </Paper>
-
-              {diagnosticSummarySlice ? (
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
-                  <Stack gap="xs">
-                      <Text className="workspace-section-heading">
-                        {locale === "zh" ? "诊断摘要切片" : "Diagnostic summary slice"}
-                      </Text>
-                      <Text c="var(--app-text-muted)" size="xs">
-                        {locale === "zh"
-                        ? "先看问题、检索和回答三条线索，快速决定下一步排查方向。"
-                        : "Scan issue, retrieval, and answer signals to quickly determine next steps."}
-                    </Text>
-                    <div className="workspace-diagnostic-grid">
-                      <div className="workspace-diagnostic-item workspace-diagnostic-item-issue">
-                        <div className="workspace-diagnostic-label">{locale === "zh" ? "问题线索" : "Issue signal"}</div>
-                        <div className="workspace-diagnostic-value">{diagnosticSummarySlice.issueLine}</div>
-                      </div>
-                      <div className="workspace-diagnostic-item workspace-diagnostic-item-retrieval">
-                        <div className="workspace-diagnostic-label">{locale === "zh" ? "检索线索" : "Retrieval signal"}</div>
-                        <div className="workspace-diagnostic-value">{diagnosticSummarySlice.retrievalLine}</div>
-                      </div>
-                      <div className="workspace-diagnostic-item workspace-diagnostic-item-answer">
-                        <div className="workspace-diagnostic-label">{locale === "zh" ? "回答线索" : "Answer signal"}</div>
-                        <div className="workspace-diagnostic-value">{diagnosticSummarySlice.answerLine}</div>
-                      </div>
-                    </div>
-                  </Stack>
-                </Paper>
-              ) : null}
-
               {traceSummary ? (
                 <div className="workspace-meta-list">
                   <div className="workspace-meta-row">
@@ -657,7 +710,13 @@ export function TraceDetailPage() {
                   </Stack>
                 </Paper>
 
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="md" radius="lg">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  id={TRACE_DETAIL_SECTION_IDS.requestResponse}
+                  p="md"
+                  radius="lg"
+                  style={{ scrollMarginTop: "96px" }}
+                >
                   <Stack gap="xs">
                     <Text className="workspace-section-heading">{locale === "zh" ? "响应" : "Response"}</Text>
                     <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
@@ -781,6 +840,9 @@ export function TraceDetailPage() {
                     <Stack gap={6}>
                       <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.retrievedChunks}`} size="sm">
                         {locale === "zh" ? "查看命中 Chunk" : "Go to retrieved chunks"}
+                      </Anchor>
+                      <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.requestResponse}`} size="sm">
+                        {locale === "zh" ? "查看请求与响应" : "Go to request and response"}
                       </Anchor>
                       <Anchor href={`#${TRACE_DETAIL_SECTION_IDS.citations}`} size="sm">
                         {locale === "zh" ? "查看引用" : "Go to citations"}

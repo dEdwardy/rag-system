@@ -463,6 +463,20 @@ export function DocumentDetailPage() {
                       <Text c="var(--app-text-muted)" size="sm">
                         {t("documents.detail.traceFocusNextStep")}
                       </Text>
+                      <div className="workspace-meta-list">
+                        <div className="workspace-meta-row">
+                          <span className="workspace-meta-label">{t("documents.detail.traceFocusReviewHeading")}</span>
+                          <span className="workspace-meta-value">{t("documents.detail.traceFocusReviewChunk")}</span>
+                        </div>
+                        <div className="workspace-meta-row">
+                          <span className="workspace-meta-label">2</span>
+                          <span className="workspace-meta-value">{t("documents.detail.traceFocusReviewSelection")}</span>
+                        </div>
+                        <div className="workspace-meta-row">
+                          <span className="workspace-meta-label">3</span>
+                          <span className="workspace-meta-value">{t("documents.detail.traceFocusReviewReturn")}</span>
+                        </div>
+                      </div>
                       <Group gap="xs">
                         {traceReturnHref ? (
                           <Button

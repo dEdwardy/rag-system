@@ -76,6 +76,20 @@ export function KnowledgeBasePage() {
       }),
     [assistantCount, documents]
   );
+  const nextActionButtonLabel =
+    nextAction.actionHref === "/documents"
+      ? t("knowledgeBase.actions.openDocuments")
+      : nextAction.actionHref === "/assistant"
+        ? t("knowledgeBase.actions.openAssistant")
+        : t("knowledgeBase.actions.openChat");
+  const nextActionTone =
+    nextAction.action === "review_failed_documents"
+      ? "red"
+      : nextAction.action === "wait_for_processing"
+        ? "yellow"
+        : nextAction.action === "workspace_ready"
+          ? "teal"
+          : "indigo";
 
   const metricCards = useMemo(
     () => [
@@ -458,6 +472,32 @@ export function KnowledgeBasePage() {
             </Alert>
           ) : null}
 
+          {documents.length > 0 ? (
+            <Alert color={nextActionTone} radius="xl" variant="light">
+              <Group align="flex-start" justify="space-between" wrap="wrap">
+                <div>
+                  <Text c="var(--app-text)" fw={700} size="sm">
+                    {t("knowledgeBase.feedback.title")}
+                  </Text>
+                  <Text c="var(--app-text-muted)" mt={4} size="sm">
+                    {t(nextAction.labelKey)}
+                  </Text>
+                </div>
+                <Button
+                  className="workspace-button"
+                  color={nextActionTone}
+                  component={Link}
+                  radius="xl"
+                  size="xs"
+                  to={nextAction.actionHref}
+                  variant="light"
+                >
+                  {nextActionButtonLabel}
+                </Button>
+              </Group>
+            </Alert>
+          ) : null}
+
           <OauthWorkspaceWelcome
             assistantCount={assistantCount}
             context="knowledge"
@@ -600,9 +640,7 @@ export function KnowledgeBasePage() {
                           to={nextAction.actionHref}
                           variant="light"
                         >
-                          {nextAction.actionHref === "/documents"
-                            ? t("knowledgeBase.actions.openDocuments")
-                            : t("knowledgeBase.actions.openAssistant")}
+                          {nextActionButtonLabel}
                         </Button>
                         {nextAction.action === "review_failed_documents" && latestFailure ? (
                           <Button

@@ -73,6 +73,26 @@
   - fixed-question eval runner、baseline snapshot / compare、quality gate、report export、approved baseline manifest、demo replay pin 都已落地
   - 当前剩余事项更偏向基线治理和使用，而不是继续补工程能力
 
+- `P5 quality governance usage loop` 已完成一轮前端使用态收口
+  - `ReportCenterPage` 已从只读结果页推进到可操作的质量治理工作台：
+    - 优先复盘题目 / Top 3 issues
+    - review progress、本地 reviewed / pending 状态
+    - 本地结论分类（检索 / 引用 / 回答 / 暂不处理）
+    - 结论分布驱动的 current improvement focus
+    - focus-specific troubleshooting path、第一条相关 diagnostics 跳转
+    - quality gate 的 pass / warn / fail 治理提示
+    - report-to-trace carry-through context
+    - 本地复盘记录、改后复查建议、复制/导出本地复盘摘要
+  - `TraceDetailPage` 已补 report-driven 首屏复盘顺序和来自质量报告的上下文提示，减少从报告进入后的重新定向成本
+  - `DocumentDetailPage` 已补 focused chunk 的首屏检查顺序，明确先看 chunk 内容、再看命中依据、最后回诊断判断问题归因
+  - `AssistantPage` 已补稳定锚点与来自质量报告的回流提示，使 `质量报告 -> 回答设置 -> 回质量报告` 成为明确路径
+  - 边界保持不变：以上全部为前端本地治理层，不新增 backend review/persistence contract
+
+- `normal-user readiness loop` 已完成一轮前端收口
+  - `Library / Workspace settings / Chat` 现已统一为同一套 readiness 判断和下一步动作模型
+  - `Chat` 首屏 onboarding 明确收敛到三步：添加资料 -> 确认回答设置 -> 开始聊天
+  - `资料库 -> 回答设置 -> 对话` 的完成路径已补齐，ready 态不再误导到 diagnostics 或回设置页
+
 - `P6 observability readability pass` 已完成 bounded closeout
   - Usage / Report center / Trace Detail 已完成 scan-first readability + docs sync
   - 保持边界不变：不扩成 observability platform

@@ -18,7 +18,7 @@ import {
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -43,6 +43,7 @@ import {
 } from "./assistant-config-form";
 
 export function AssistantPage() {
+  const [searchParams] = useSearchParams();
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
   const knowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
@@ -56,10 +57,14 @@ export function AssistantPage() {
   const updateRetrievalProfileMutation = useUpdateRetrievalProfile(
     retrievalProfile?.id ?? "default-retrieval-profile"
   );
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const documentCount = documentsQuery.data?.length ?? 0;
+  const [isBasicsExpanded, setIsBasicsExpanded] = useState(false);
   const [isAdvancedTuningExpanded, setIsAdvancedTuningExpanded] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const reportSource = searchParams.get("from") === "report";
+  const reportFocus = searchParams.get("focus");
+  const reportReturnTo = searchParams.get("returnTo") ?? "/reports";
 
   const form = useForm<AssistantConfigFormValues>({
     initialValues: createAssistantConfigFormValues(assistant, retrievalProfile),
@@ -155,6 +160,26 @@ export function AssistantPage() {
         documentCount={documentsQuery.data?.length ?? 0}
       />
 
+      {reportSource && reportFocus ? (
+        <Alert color="indigo" radius="xl" variant="light">
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              {locale === "zh" ? "来自质量报告的设置复查" : "Settings review from quality reports"}
+            </Text>
+            <Text c="var(--app-text-muted)" size="sm">
+              {locale === "zh"
+                ? `当前是按“${reportFocus}”这个改进重点跳到这里。先检查对应设置块，改完后回质量报告继续复查。`
+                : `You arrived here from quality reports for the focus "${reportFocus}". Review the matching settings section here, then return to quality reports to verify the result.`}
+            </Text>
+            <Group gap="xs">
+              <Button className="workspace-button" color="indigo" component={Link} radius="xl" size="xs" to={reportReturnTo} variant="subtle">
+                {locale === "zh" ? "返回质量报告复查" : "Return to quality reports"}
+              </Button>
+            </Group>
+          </Stack>
+        </Alert>
+      ) : null}
+
       {isLoading ? (
         <StatePanel
           description={t("assistant.loadingDescription")}
@@ -219,67 +244,90 @@ export function AssistantPage() {
               <Stack gap="md">
                 <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
                   <Stack gap="md">
-                    <div>
-                      <Text className="workspace-section-heading">
-                        {t("assistant.copy.assistantIdentity")}
-                      </Text>
-                      <Text c="var(--app-text-muted)" size="sm">
-                        {t("assistant.copy.assistantIdentityCopy")}
-                      </Text>
-                    </div>
+                    <Group align="flex-start" justify="space-between" wrap="wrap">
+                      <div>
+                        <Text className="workspace-section-heading">
+                          {t("assistant.copy.assistantIdentity")}
+                        </Text>
+                        <Text c="var(--app-text-muted)" size="sm">
+                          {t("assistant.copy.assistantIdentityCopy")}
+                        </Text>
+                      </div>
+                      <Button
+                        className="workspace-button"
+                        color="gray"
+                        onClick={() => setIsBasicsExpanded(current => !current)}
+                        radius="xl"
+                        size="xs"
+                        variant="light"
+                      >
+                        {isBasicsExpanded ? t("assistant.hideAssistantBasics") : t("assistant.showAssistantBasics")}
+                      </Button>
+                    </Group>
 
-                    <Grid gutter="md">
-                      <Grid.Col span={{ base: 12, md: 8 }}>
+                    {isBasicsExpanded ? (
+                      <>
+                        <Grid gutter="md">
+                          <Grid.Col span={{ base: 12, md: 8 }}>
+                            <TextInput
+                              classNames={{ input: "workspace-input" }}
+                              data-testid="assistant-name-value"
+                              label={t("assistant.assistantName")}
+                              {...form.getInputProps("name")}
+                            />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, md: 4 }}>
+                            <TextInput
+                              classNames={{ input: "workspace-input" }}
+                              label={t("assistant.status")}
+                              readOnly
+                              value={t(`common.status.${form.values.status}`)}
+                            />
+                          </Grid.Col>
+                        </Grid>
+
+                        <Switch
+                          checked={form.values.status === "active"}
+                          label={
+                            form.values.status === "active"
+                              ? t("assistant.assistantIsActive")
+                              : t("assistant.assistantIsInactive")
+                          }
+                          onChange={event =>
+                            form.setFieldValue("status", event.currentTarget.checked ? "active" : "inactive")
+                          }
+                        />
+
                         <TextInput
                           classNames={{ input: "workspace-input" }}
-                          data-testid="assistant-name-value"
-                          label={t("assistant.assistantName")}
-                          {...form.getInputProps("name")}
+                          label={t("common.fields.description")}
+                          {...form.getInputProps("description")}
                         />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, md: 4 }}>
-                        <TextInput
+
+                        <Alert color="gray" radius="xl" variant="light">
+                          {t("assistant.copy.systemPromptHint")}
+                        </Alert>
+
+                        <Textarea
+                          autosize
                           classNames={{ input: "workspace-input" }}
-                          label={t("assistant.status")}
-                          readOnly
-                          value={t(`common.status.${form.values.status}`)}
+                          label={t("common.fields.systemPrompt")}
+                          minRows={6}
+                          {...form.getInputProps("systemPrompt")}
                         />
-                      </Grid.Col>
-                    </Grid>
-
-                    <Switch
-                      checked={form.values.status === "active"}
-                      label={
-                        form.values.status === "active"
-                          ? t("assistant.assistantIsActive")
-                          : t("assistant.assistantIsInactive")
-                      }
-                      onChange={event =>
-                        form.setFieldValue("status", event.currentTarget.checked ? "active" : "inactive")
-                      }
-                    />
-
-                    <TextInput
-                      classNames={{ input: "workspace-input" }}
-                      label={t("common.fields.description")}
-                      {...form.getInputProps("description")}
-                    />
-
-                    <Alert color="gray" radius="xl" variant="light">
-                      {t("assistant.copy.systemPromptHint")}
-                    </Alert>
-
-                    <Textarea
-                      autosize
-                      classNames={{ input: "workspace-input" }}
-                      label={t("common.fields.systemPrompt")}
-                      minRows={6}
-                      {...form.getInputProps("systemPrompt")}
-                    />
+                      </>
+                    ) : (
+                      <Alert color="gray" radius="xl" variant="light">
+                        {t("assistant.assistantBasicsSummary", {
+                          name: form.values.name,
+                          status: t(`common.status.${form.values.status}`)
+                        })}
+                      </Alert>
+                    )}
                   </Stack>
                 </Paper>
 
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Paper className="workspace-panel-hover workspace-panel-muted" id="assistant-answer-policy-section" p="lg" radius="xl" style={{ scrollMarginTop: "96px" }}>
                   <Stack gap="md">
                     <div>
                       <Text className="workspace-section-heading">
@@ -400,7 +448,7 @@ export function AssistantPage() {
                   </Stack>
                 </Paper>
 
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Paper className="workspace-panel-hover workspace-panel-muted" id="assistant-retrieval-section" p="lg" radius="xl" style={{ scrollMarginTop: "96px" }}>
                   <Stack gap="md">
                     <div>
                       <Text className="workspace-section-heading">{t("assistant.retrievalSection")}</Text>
@@ -449,8 +497,10 @@ export function AssistantPage() {
                 <Paper
                   className="workspace-panel-hover workspace-panel-muted"
                   data-testid="assistant-retrieval-strategy-section"
+                  id="assistant-advanced-tuning-section"
                   p="lg"
                   radius="xl"
+                  style={{ scrollMarginTop: "96px" }}
                 >
                   <Stack gap="md">
                     <Group align="flex-start" justify="space-between" wrap="wrap">
@@ -602,7 +652,7 @@ export function AssistantPage() {
                   </Stack>
                 </Paper>
 
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Paper className="workspace-panel-hover workspace-panel-muted" id="assistant-filters-section" p="lg" radius="xl" style={{ scrollMarginTop: "96px" }}>
                   <Stack gap="md">
                     <Group align="flex-start" justify="space-between" wrap="wrap">
                       <div>
