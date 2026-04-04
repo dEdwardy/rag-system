@@ -257,7 +257,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
       authSourceLabel: t("appShell.copy.authSourceLabel"),
       loginSessionLabel: t("appShell.copy.loginSessionLabel"),
       localSessionValue: t("appShell.copy.localSessionValue"),
-      oauthSessionPrefix: t("appShell.copy.oauthSessionPrefix"),
+      oauthSessionPrefix: (provider: string) => t("appShell.copy.oauthSessionPrefix", { provider }),
       oauthProviderUnknown: t("appShell.copy.oauthProviderUnknown"),
       sessionIdLabel: t("appShell.copy.sessionIdLabel"),
       noSessionValue: t("appShell.copy.noSessionValue"),
@@ -317,7 +317,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
     activeKnowledgeBase?.name ?? (knowledgeBasesQuery.isLoading ? appShellCopy.loadingKnowledgeBase : appShellCopy.noKnowledgeBase);
   const loginSessionBadgeText =
     loginProvenance.type === "oauth_session"
-      ? `${appShellCopy.oauthSessionPrefix} · ${oauthProviderLabel}`
+      ? appShellCopy.oauthSessionPrefix(oauthProviderLabel)
       : appShellCopy.localSessionValue;
 
   function onLogoutClick() {
@@ -474,8 +474,8 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden" id="workspace-main">
-          <header className="sticky top-0 z-50 flex h-[70px] items-center justify-between border-b border-[var(--app-border)] bg-[rgba(22,22,29,0.8)] px-4 backdrop-blur-xl md:px-8">
-            <div className="flex min-w-0 items-center gap-4">
+          <header className="sticky top-0 z-50 flex min-h-[70px] items-center justify-between border-b border-[var(--app-border)] bg-[rgba(22,22,29,0.8)] px-4 py-3 backdrop-blur-xl md:h-[70px] md:px-8 md:py-0">
+            <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-4">
               <button
                 aria-controls="mobile-nav-drawer"
                 aria-expanded={isMobileNavOpen}
@@ -492,10 +492,14 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                   <line x1="4" x2="20" y1="17" y2="17" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
                 </svg>
               </button>
-              <div className="flex items-center gap-2 text-[13px]">
-                <span className="text-[var(--app-text-muted)]">RAG System</span>
-                <span className="text-[var(--app-text-muted)]/50">/</span>
-                <span className="truncate font-medium text-[var(--app-text)]">{activeLabel}</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-medium text-[var(--app-text-muted)] md:hidden">RAG System</div>
+                <div className="hidden items-center gap-2 text-[13px] md:flex">
+                  <span className="text-[var(--app-text-muted)]">RAG System</span>
+                  <span className="text-[var(--app-text-muted)]/50">/</span>
+                  <span className="truncate font-medium text-[var(--app-text)]">{activeLabel}</span>
+                </div>
+                <div className="truncate text-sm font-medium text-[var(--app-text)] md:hidden">{activeLabel}</div>
               </div>
               <div
                 aria-hidden="true"
@@ -507,20 +511,22 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <ActionButton label={appShellCopy.search}>
-                <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                  <line stroke="currentColor" strokeWidth="2" x1="21" x2="16.65" y1="21" y2="16.65" />
-                </svg>
-              </ActionButton>
-              <ActionButton label={appShellCopy.notifications}>
-                <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" />
-                </svg>
-              </ActionButton>
-              <div className="flex rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-[3px]">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="hidden items-center gap-3 md:flex">
+                <ActionButton label={appShellCopy.search}>
+                  <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
+                    <line stroke="currentColor" strokeWidth="2" x1="21" x2="16.65" y1="21" y2="16.65" />
+                  </svg>
+                </ActionButton>
+                <ActionButton label={appShellCopy.notifications}>
+                  <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                </ActionButton>
+              </div>
+              <div className="hidden rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-[3px] md:flex">
                 <button
                   aria-label={appShellCopy.switchToChinese}
                   aria-pressed={locale === "zh"}
@@ -547,13 +553,16 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                 </button>
               </div>
               <button
-                className="rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition duration-300 hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="hidden rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-2 text-xs font-medium text-[var(--app-text-secondary)] transition duration-300 hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-60 md:inline-flex"
                 disabled={logoutMutation.isPending}
                 onClick={onLogoutClick}
                 type="button"
               >
                 {logoutMutation.isPending ? (locale === "zh" ? "退出中..." : "Logging out...") : appShellCopy.logout}
               </button>
+              <div className="max-w-[45vw] truncate rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1.5 text-[11px] font-medium text-[var(--app-text-secondary)] md:hidden">
+                {currentKnowledgeBaseLabel}
+              </div>
             </div>
           </header>
 
@@ -657,6 +666,43 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
                     </div>
                   ))}
                 </nav>
+
+                <div className="border-t border-[var(--app-border)] px-4 py-4">
+                  <div className="mb-3 flex rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] p-[3px]">
+                    <button
+                      aria-label={appShellCopy.switchToChinese}
+                      aria-pressed={locale === "zh"}
+                      className={[
+                        "flex-1 rounded-md px-3 py-2 text-xs font-medium transition duration-300",
+                        locale === "zh" ? "bg-[var(--app-accent)] text-white" : "text-[var(--app-text-muted)]"
+                      ].join(" ")}
+                      onClick={() => setLocale("zh")}
+                      type="button"
+                    >
+                      中文
+                    </button>
+                    <button
+                      aria-label={appShellCopy.switchToEnglish}
+                      aria-pressed={locale === "en"}
+                      className={[
+                        "flex-1 rounded-md px-3 py-2 text-xs font-medium transition duration-300",
+                        locale === "en" ? "bg-[var(--app-accent)] text-white" : "text-[var(--app-text-muted)]"
+                      ].join(" ")}
+                      onClick={() => setLocale("en")}
+                      type="button"
+                    >
+                      English
+                    </button>
+                  </div>
+                  <button
+                    className="flex w-full items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2.5 text-sm font-medium text-[var(--app-text-secondary)] transition duration-300 hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={logoutMutation.isPending}
+                    onClick={onLogoutClick}
+                    type="button"
+                  >
+                    {logoutMutation.isPending ? (locale === "zh" ? "退出中..." : "Logging out...") : appShellCopy.logout}
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}

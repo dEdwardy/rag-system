@@ -460,95 +460,31 @@ export function DocumentsPage() {
             </div>
           </Group>
 
-              <Stack align="flex-end" gap={10}>
-                <Text className="workspace-hero-sidecopy" ta="right">
-                  {activeKnowledgeBase
-                    ? t("documents.currentKnowledgeBaseHintHasKb")
-                    : t("documents.currentKnowledgeBaseHintNoKb")}
-                </Text>
-                <Badge color="gray" radius="sm" variant="light">
-                  {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}`}
-                </Badge>
-                <FileButton onChange={handleUploadFile}>
-                  {props => (
-                    <Button
-                    {...props}
-                    className="workspace-button"
-                    color="indigo"
-                    disabled={!hasActiveKnowledgeBase}
-                    loading={uploadMutation.isPending}
-                    radius="xl"
-                  >
-                    {t("common.actions.uploadDocument")}
-                  </Button>
-                )}
-              </FileButton>
-              <Stack className="w-full" gap={6} maw={360}>
-                <Text c="var(--app-text-secondary)" fw={600} size="xs">
-                  {t("documents.sourceEntryHeading")}
-                </Text>
-                <Text c="var(--app-text-muted)" size="xs">
-                  {t("documents.sourceEntryScanPath")}
-                </Text>
-              </Stack>
-              {hasActiveKnowledgeBase ? (
-                <>
-                  {sourceEntrySections.map(section => (
-                    <Stack className="w-full" gap={6} key={section.key} maw={360}>
-                      <Text c="var(--app-text-secondary)" fw={600} size="xs">
-                        {section.title}
-                      </Text>
-                      <Text c="var(--app-text-muted)" size="xs">
-                        {section.description}
-                      </Text>
-                      <TextInput
-                        disabled={isAnySourceSubmissionPending}
-                        error={section.inlineError != null}
-                        onChange={event => {
-                          section.onChange(event.currentTarget.value);
-                        }}
-                        placeholder={section.inputPlaceholder}
-                        radius="xl"
-                        type="url"
-                        value={section.value}
-                      />
-                      <Text aria-live="polite" c={section.status.tone} size="xs">
-                        {section.status.message}
-                      </Text>
-                      <Button
-                        className="workspace-button"
-                        color="indigo"
-                        disabled={!activeKnowledgeBase || section.value.trim().length === 0 || isAnySourceSubmissionPending}
-                        loading={section.isSubmitting}
-                        onClick={section.onSubmit}
-                        radius="xl"
-                        variant="light"
-                      >
-                        {section.submitAction}
-                      </Button>
-                    </Stack>
-                  ))}
-                </>
-              ) : (
-                <StatePanel
-                  action={
-                    <Button
-                      className="workspace-button"
-                      color="indigo"
-                      component={Link}
-                      radius="xl"
-                      to="/knowledge-base"
-                      variant="light"
-                    >
-                      {t("documents.noActiveKnowledgeBaseAction")}
-                    </Button>
-                  }
-                  description={t("documents.sourceEntryNoActiveKnowledgeBaseDescription")}
-                  title={t("documents.sourceEntryNoActiveKnowledgeBaseTitle")}
-                />
+          <Stack align="flex-end" gap={10}>
+            <Text className="workspace-hero-sidecopy" ta="right">
+              {activeKnowledgeBase
+                ? t("documents.currentKnowledgeBaseHintHasKb")
+                : t("documents.currentKnowledgeBaseHintNoKb")}
+            </Text>
+            <Badge color="gray" radius="sm" variant="light">
+              {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}`}
+            </Badge>
+            <FileButton onChange={handleUploadFile}>
+              {props => (
+                <Button
+                  {...props}
+                  className="workspace-button"
+                  color="indigo"
+                  disabled={!hasActiveKnowledgeBase}
+                  loading={uploadMutation.isPending}
+                  radius="xl"
+                >
+                  {t("common.actions.uploadDocument")}
+                </Button>
               )}
-            </Stack>
-          </div>
+            </FileButton>
+          </Stack>
+        </div>
       </Paper>
 
       {knowledgeBasesQuery.isError ? (
@@ -647,6 +583,79 @@ export function DocumentsPage() {
           </Stack>
         </Paper>
       </div>
+
+      <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+        <Stack gap="md">
+          <Group justify="space-between" wrap="wrap">
+            <div>
+              <Text className="workspace-section-heading">{t("documents.sourceEntryHeading")}</Text>
+              <Text className="workspace-section-copy">{t("documents.sourceEntryScanPath")}</Text>
+            </div>
+            <Badge color="gray" radius="sm" variant="light">
+              {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}
+            </Badge>
+          </Group>
+
+          {hasActiveKnowledgeBase ? (
+            <div className="grid gap-4 xl:grid-cols-3">
+              {sourceEntrySections.map(section => (
+                <Paper className="workspace-subpanel" key={section.key} p="md" radius="lg">
+                  <Stack gap="xs">
+                    <Text c="var(--app-text-secondary)" fw={600} size="sm">
+                      {section.title}
+                    </Text>
+                    <Text c="var(--app-text-muted)" size="sm">
+                      {section.description}
+                    </Text>
+                    <TextInput
+                      disabled={isAnySourceSubmissionPending}
+                      error={section.inlineError != null}
+                      onChange={event => {
+                        section.onChange(event.currentTarget.value);
+                      }}
+                      placeholder={section.inputPlaceholder}
+                      radius="xl"
+                      type="url"
+                      value={section.value}
+                    />
+                    <Text aria-live="polite" c={section.status.tone} size="xs">
+                      {section.status.message}
+                    </Text>
+                    <Button
+                      className="workspace-button"
+                      color="indigo"
+                      disabled={!activeKnowledgeBase || section.value.trim().length === 0 || isAnySourceSubmissionPending}
+                      loading={section.isSubmitting}
+                      onClick={section.onSubmit}
+                      radius="xl"
+                      variant="light"
+                    >
+                      {section.submitAction}
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))}
+            </div>
+          ) : (
+            <StatePanel
+              action={
+                <Button
+                  className="workspace-button"
+                  color="indigo"
+                  component={Link}
+                  radius="xl"
+                  to="/knowledge-base"
+                  variant="light"
+                >
+                  {t("documents.noActiveKnowledgeBaseAction")}
+                </Button>
+              }
+              description={t("documents.sourceEntryNoActiveKnowledgeBaseDescription")}
+              title={t("documents.sourceEntryNoActiveKnowledgeBaseTitle")}
+            />
+          )}
+        </Stack>
+      </Paper>
 
       <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
         <Stack gap="md">

@@ -30,7 +30,19 @@ export const messages = {
         intelligentWorkspace: "Intelligent answer workspace",
         noKnowledgeBase: "No workspace library",
         loading: "Loading",
-        documentCount: "{count} documents"
+        documentCount: "{count} documents",
+        currentIdentityHeading: "Current identity",
+        currentIdentityDescription: "Active session",
+        userIdLabel: "User",
+        tenantIdLabel: "Tenant",
+        authSourceLabel: "Auth source",
+        loginSessionLabel: "Login session",
+        localSessionValue: "Local session",
+        oauthSessionPrefix: "OAuth via {provider}",
+        oauthProviderUnknown: "provider",
+        sessionIdLabel: "Session ID",
+        noSessionValue: "Not available",
+        logout: "Log out"
       }
     },
     common: {
@@ -149,6 +161,7 @@ export const messages = {
         conversationLabel: "Conversation",
         currentCitations: "Sources",
         viewTrace: "Open diagnostics",
+        diagnosticsReady: "Diagnostics ready",
         answerFailed: "Answer failed",
         preparingAnswer: "Preparing answer",
         retrievingContext: "Retrieving context",
@@ -631,7 +644,19 @@ export const messages = {
         intelligentWorkspace: "智能问答工作区",
         noKnowledgeBase: "未选择资料空间",
         loading: "加载中",
-        documentCount: "{count} 个文档"
+        documentCount: "{count} 个文档",
+        currentIdentityHeading: "当前身份",
+        currentIdentityDescription: "当前会话",
+        userIdLabel: "用户",
+        tenantIdLabel: "租户",
+        authSourceLabel: "认证来源",
+        loginSessionLabel: "登录方式",
+        localSessionValue: "本地会话",
+        oauthSessionPrefix: "OAuth 登录：{provider}",
+        oauthProviderUnknown: "未知提供方",
+        sessionIdLabel: "会话 ID",
+        noSessionValue: "暂无",
+        logout: "退出登录"
       }
     },
     common: {
@@ -750,6 +775,7 @@ export const messages = {
         conversationLabel: "会话记录",
         currentCitations: "来源",
         viewTrace: "打开诊断",
+        diagnosticsReady: "诊断已生成",
         answerFailed: "本轮回答失败",
         preparingAnswer: "正在准备回答",
         retrievingContext: "正在检索上下文",

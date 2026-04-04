@@ -208,8 +208,41 @@ async function ensureWebRunning() {
   const server = createServer(async (request, response) => {
     try {
       const requestPath = decodeURIComponent((request.url || "/").split("?")[0]);
+
+      if (requestPath.startsWith("/api")) {
+        const upstreamPath = request.url?.replace(/^\/api(?=\/|$)/, "") ?? "/";
+        const bodyChunks = [];
+        for await (const chunk of request) {
+          bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+
+        const upstreamResponse = await fetch(`${apiBaseUrl}${upstreamPath}`, {
+          method: request.method,
+          headers: {
+            "content-type": request.headers["content-type"] ?? "application/json",
+            cookie: request.headers.cookie ?? ""
+          },
+          body: bodyChunks.length > 0 ? Buffer.concat(bodyChunks) : undefined
+        });
+
+        response.statusCode = upstreamResponse.status;
+        const contentType = upstreamResponse.headers.get("content-type");
+        if (contentType) {
+          response.setHeader("Content-Type", contentType);
+        }
+        const setCookie = upstreamResponse.headers.getSetCookie?.() ?? [];
+        if (setCookie.length > 0) {
+          response.setHeader("Set-Cookie", setCookie);
+        }
+        response.end(Buffer.from(await upstreamResponse.arrayBuffer()));
+        return;
+      }
+
       const relativePath = requestPath === "/" ? "index.html" : requestPath.replace(/^\//, "");
-      const filePath = resolve(webDistRoot, relativePath);
+      const requestedFilePath = resolve(webDistRoot, relativePath);
+      const filePath = requestPath === "/" || relativePath.includes(".")
+        ? requestedFilePath
+        : resolve(webDistRoot, "index.html");
 
       if (!filePath.startsWith(webDistRoot)) {
         response.statusCode = 403;
@@ -237,6 +270,33 @@ async function ensureWebRunning() {
 
   await waitForHttp(webBaseUrl, "Web preview");
   return server;
+}
+
+async function loginWithDefaultCredentials(page) {
+  const providersResponse = await fetch(`${apiBaseUrl}/auth/providers`, {
+    signal: createAbortSignal(5000)
+  });
+  assert.equal(providersResponse.ok, true);
+
+  const providers = await providersResponse.json();
+  const defaultCredentials = providers?.local?.defaultCredentials ?? null;
+
+  assert.ok(defaultCredentials, "Expected local default credentials for smoke login.");
+
+  await page.goto(`${webBaseUrl}/login`, {
+    timeout: 10000,
+    waitUntil: "networkidle"
+  });
+
+  if (page.url().includes("/login")) {
+    await page.locator('input[name="email"]').fill(defaultCredentials.email);
+    await page.locator('input[name="password"]').fill(defaultCredentials.password);
+    await page.locator('button[type="submit"]').click();
+  }
+
+  await page.waitForURL(url => !url.pathname.startsWith("/login"), {
+    timeout: 10000
+  });
 }
 
 async function stopProcess(child) {
@@ -383,10 +443,7 @@ test("PC Web smoke: knowledge base overview loads real data and navigates to ass
     const page = await browser.newPage();
 
     try {
-      await page.goto(`${webBaseUrl}/`, {
-        timeout: 10000,
-        waitUntil: "networkidle"
-      });
+      await loginWithDefaultCredentials(page);
       await page.locator('a[href="/knowledge-base"]').click();
       await page.waitForURL("**/knowledge-base", {
         timeout: 5000

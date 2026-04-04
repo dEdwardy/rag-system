@@ -59,7 +59,7 @@ export function AssistantPage() {
   );
   const { locale, t } = useI18n();
   const documentCount = documentsQuery.data?.length ?? 0;
-  const [isBasicsExpanded, setIsBasicsExpanded] = useState(false);
+  const [isBasicsExpanded, setIsBasicsExpanded] = useState(true);
   const [isAdvancedTuningExpanded, setIsAdvancedTuningExpanded] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const reportSource = searchParams.get("from") === "report";
@@ -113,7 +113,7 @@ export function AssistantPage() {
   return (
     <Stack data-testid="assistant-page" gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
-        <div className="workspace-hero-split">
+        <div className="workspace-hero-split gap-4 md:items-center">
           <Group gap="md" wrap="nowrap">
             <Box className="workspace-hero-icon">CFG</Box>
             <div className="workspace-hero-copy">
@@ -130,11 +130,20 @@ export function AssistantPage() {
               <Text c="var(--app-text-muted)" mt={4} size="sm">
                 {t("assistant.subtitle")}
               </Text>
+              <Text c="var(--app-text-secondary)" mt="sm" size="sm">
+                {assistant
+                  ? (locale === "zh"
+                    ? "先确认助手身份与回答策略，再按需进入检索调优。"
+                    : "Start with the assistant identity and answer policy, then move into retrieval tuning only when needed.")
+                  : (locale === "zh"
+                    ? "先准备好当前资料空间的回答设置，再继续调整策略。"
+                    : "Set up answer settings for the active library first, then tune the policy as needed.")}
+              </Text>
             </div>
           </Group>
 
           {assistant ? (
-            <Stack align="flex-end" gap={10}>
+            <Stack align="flex-end" gap={8}>
               <Group gap="xs">
                 <Badge color={assistant.status === "active" ? "indigo" : "gray"} radius="sm" variant="light">
                   {t(`common.status.${assistant.status}`)}
@@ -145,8 +154,12 @@ export function AssistantPage() {
                   </Badge>
                 ) : null}
               </Group>
-              <Text className="workspace-hero-sidecopy" ta="right">
-                {t("assistant.copy.heroSubtitle")}
+              <Text className="workspace-hero-sidecopy" maw={320} size="sm" ta="right">
+                {documentCount > 0
+                  ? (locale === "zh"
+                    ? `${documentCount} 份资料已可用于当前助手配置。`
+                    : `${documentCount} library items are available for this assistant configuration.`)
+                  : t("assistant.copy.heroSubtitle")}
               </Text>
             </Stack>
           ) : null}
@@ -330,18 +343,9 @@ export function AssistantPage() {
                 <Paper className="workspace-panel-hover workspace-panel-muted" id="assistant-answer-policy-section" p="lg" radius="xl" style={{ scrollMarginTop: "96px" }}>
                   <Stack gap="md">
                     <div>
-                      <Text className="workspace-section-heading">
-                        {t("assistant.copy.recommendedDefaults")}
-                      </Text>
-                      <Text c="var(--app-text-muted)" size="sm">
-                        {t("assistant.copy.recommendedDefaultsCopy")}
-                      </Text>
-                    </div>
-
-                    <div>
                       <Text className="workspace-section-heading">{t("assistant.answerPolicySection")}</Text>
                       <Text c="var(--app-text-muted)" size="sm">
-                        {t("assistant.copy.answerPolicyCopy")}
+                        {t("assistant.copy.recommendedDefaultsCopy")}
                       </Text>
                     </div>
 
