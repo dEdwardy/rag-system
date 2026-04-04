@@ -231,6 +231,7 @@ export function ChatPage() {
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
   const [composerValue, setComposerValue] = useState("");
   const [didAutoSelectConversation, setDidAutoSelectConversation] = useState(false);
+  const [desktopPanel, setDesktopPanel] = useState<"history" | "citations">("history");
   const [mobilePanel, setMobilePanel] = useState<"history" | "citations" | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
@@ -258,10 +259,6 @@ export function ChatPage() {
       currentAssistant: t("chat.copy.currentAssistant"),
       currentAssistantHintHasAssistant: t("chat.copy.currentAssistantHintHasAssistant"),
       currentAssistantHintNoAssistant: t("chat.copy.currentAssistantHintNoAssistant"),
-      currentWorkspaceHintHasConversation: t("chat.copy.currentWorkspaceHintHasConversation"),
-      currentWorkspaceHintNewConversation: t("chat.copy.currentWorkspaceHintNewConversation"),
-      currentWorkspace: t("chat.copy.currentWorkspace"),
-      newConversationDraft: t("chat.copy.newConversationDraft"),
       noActiveKnowledgeBase: t("chat.copy.noActiveKnowledgeBase"),
       noDocuments: t("chat.copy.noDocuments"),
       libraryNeedsAttention: t("chat.copy.libraryNeedsAttention"),
@@ -271,8 +268,6 @@ export function ChatPage() {
       askStatusHintHasAssistant: t("chat.copy.askStatusHintHasAssistant"),
       askStatusHintNoAssistant: t("chat.copy.askStatusHintNoAssistant"),
       askStatus: t("chat.copy.askStatus"),
-      citationsAndTrace: t("chat.copy.citationsAndTrace"),
-      waitingForNextTrace: t("chat.copy.waitingForNextTrace"),
       inputSection: t("chat.copy.inputSection"),
       inputHelpCanAsk: t("chat.copy.inputHelpCanAsk"),
       inputHelpDisabled: t("chat.copy.inputHelpDisabled"),
@@ -284,7 +279,6 @@ export function ChatPage() {
       conversationLabel: t("chat.copy.conversationLabel"),
       currentCitations: t("chat.copy.currentCitations"),
       viewTrace: t("chat.copy.viewTrace"),
-      diagnosticsReady: t("chat.copy.diagnosticsReady"),
       answerFailed: t("chat.copy.answerFailed"),
       preparingAnswer: t("chat.copy.preparingAnswer"),
       retrievingContext: t("chat.copy.retrievingContext"),
@@ -533,25 +527,10 @@ export function ChatPage() {
       value: activeAssistant?.name ?? chatCopy.answerSettingsNeeded
     },
     {
-      key: "workspace",
-      hint: activeConversation ? chatCopy.currentWorkspaceHintHasConversation : chatCopy.currentWorkspaceHintNewConversation,
-      label: chatCopy.currentWorkspace,
-      value: activeConversation?.title ?? chatCopy.newConversationDraft
-    },
-    {
       key: "ask-status",
       hint: activeAssistant ? chatCopy.askStatusHintHasAssistant : chatCopy.askStatusHintNoAssistant,
       label: chatCopy.askStatus,
       value: workspaceStatus
-    },
-    {
-      key: "diagnostics",
-      hint: t("chat.copy.citationsCount", {
-        conversationCount,
-        citationCount: citationItems.length
-      }),
-      label: chatCopy.citationsAndTrace,
-      value: activeTraceId ? chatCopy.diagnosticsReady : chatCopy.waitingForNextTrace
     }
   ];
 
@@ -729,12 +708,22 @@ export function ChatPage() {
                 {chatCopy.heroTitle}
               </h2>
               <p className="mt-0.5 text-xs text-[var(--app-text-muted)]">
-                {chatCopy.heroSubtitle}
+                {activeConversation
+                  ? activeConversation.title
+                  : chatCopy.heroSubtitle}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+            {activeTraceId ? (
+              <Link
+                className="hidden rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--app-text-secondary)] transition hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)] md:inline-flex"
+                to={`/traces/${activeTraceId}`}
+              >
+                {chatCopy.viewTrace}
+              </Link>
+            ) : null}
             {latestModelName ? (
               <span className="hidden rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--app-text-secondary)] md:inline-flex">
                 {latestModelName}
@@ -765,7 +754,7 @@ export function ChatPage() {
             <div
               className={[
                 "workspace-chat-summary grid gap-3 md:grid-cols-2",
-                isOauthOnboardingActive ? "xl:grid-cols-3" : "xl:grid-cols-4"
+                "xl:grid-cols-3"
               ].join(" ")}
             >
               {visibleSummaryCards.map(card => (
@@ -985,8 +974,33 @@ export function ChatPage() {
 
       <aside className="hidden min-h-0 flex-col bg-[var(--app-bg-elevated)] xl:flex">
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          {historySection}
-          {citationsSection}
+          <div className="mb-5 flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-bg)] p-1">
+            <button
+              className={[
+                "flex-1 rounded-full px-3 py-2 text-sm font-medium transition duration-300",
+                desktopPanel === "history"
+                  ? "bg-[rgba(99,102,241,0.14)] text-[#c7d2fe]"
+                  : "text-[var(--app-text-secondary)]"
+              ].join(" ")}
+              onClick={() => setDesktopPanel("history")}
+              type="button"
+            >
+              {chatCopy.history}
+            </button>
+            <button
+              className={[
+                "flex-1 rounded-full px-3 py-2 text-sm font-medium transition duration-300",
+                desktopPanel === "citations"
+                  ? "bg-[rgba(99,102,241,0.14)] text-[#c7d2fe]"
+                  : "text-[var(--app-text-secondary)]"
+              ].join(" ")}
+              onClick={() => setDesktopPanel("citations")}
+              type="button"
+            >
+              {chatCopy.currentCitations}
+            </button>
+          </div>
+          {desktopPanel === "history" ? historySection : citationsSection}
         </div>
       </aside>
     </div>
