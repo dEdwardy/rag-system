@@ -118,12 +118,19 @@ test("knowledge base page uses a compact metric grid instead of a long side rail
   assert.match(source, /useCreateKnowledgeBase/);
   assert.match(source, /knowledgeBase\.states\.emptyAction/);
   assert.match(source, /knowledgeBase\.create\.modalTitle/);
+  assert.match(source, /recentlyCreatedKnowledgeBaseName === knowledgeBase\.name && documents\.length === 0/);
+  assert.match(source, /data-testid="knowledge-base-create-success-guide"/);
+  assert.match(source, /knowledgeBase\.create\.nextStepTitle/);
+  assert.match(source, /to="\/documents"/);
   assert.match(source, /data-testid="knowledge-base-create-empty-action"/);
   assert.match(messagesSource, /emptyTitle: "Create the first knowledge base"/);
   assert.match(messagesSource, /emptyAction: "Create knowledge base"/);
   assert.match(messagesSource, /modalTitle: "Create the first knowledge base"/);
+  assert.match(messagesSource, /nextStepTitle: "\{name\} is now the current primary knowledge base\."/);
+  assert.match(messagesSource, /nextStepPrimaryAction: "Upload documents"/);
   assert.match(messagesSource, /emptyTitle: "先创建第一个知识库"/);
   assert.match(messagesSource, /emptyAction: "创建知识库"/);
+  assert.match(messagesSource, /nextStepTitle: "\{name\} 现在已经成为当前主知识库。"/);
 });
 
 test("knowledge base creation promotes the new KB into the active workspace cache immediately", () => {

@@ -330,6 +330,10 @@ export const messages = {
         submit: "Create knowledge base",
         cancel: "Cancel",
         success: "Knowledge base created: {name}.",
+        nextStepTitle: "{name} is now the current primary knowledge base.",
+        nextStepDescription: "Upload the first source documents now so chat and assistant setup have real workspace material to use.",
+        nextStepPrimaryAction: "Upload documents",
+        nextStepDismiss: "Dismiss",
         error: "Failed to create knowledge base.",
         nameRequired: "Enter a knowledge base name before creating it."
       },
@@ -877,6 +881,10 @@ export const messages = {
         submit: "创建知识库",
         cancel: "取消",
         success: "已创建知识库：{name}。",
+        nextStepTitle: "{name} 现在已经成为当前主知识库。",
+        nextStepDescription: "现在先去上传第一批资料，让 Chat 和 Assistant 都能落到真实的工作区语料上。",
+        nextStepPrimaryAction: "去上传文档",
+        nextStepDismiss: "先收起",
         error: "创建知识库失败。",
         nameRequired: "请先输入知识库名称，再继续创建。"
       },

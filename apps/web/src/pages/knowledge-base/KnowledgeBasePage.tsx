@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Grid, Group, Modal, Paper, SegmentedControl, Stack, Text, TextInput, Textarea, Title } from "@mantine/core";
+import { Alert, Badge, Box, Button, Grid, Group, Modal, Paper, SegmentedControl, Stack, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { type ComponentProps, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -40,6 +40,7 @@ export function KnowledgeBasePage() {
   const [isCreateKnowledgeBaseOpen, setIsCreateKnowledgeBaseOpen] = useState(false);
   const [createKnowledgeBaseName, setCreateKnowledgeBaseName] = useState("");
   const [createKnowledgeBaseDescription, setCreateKnowledgeBaseDescription] = useState("");
+  const [recentlyCreatedKnowledgeBaseName, setRecentlyCreatedKnowledgeBaseName] = useState<string | null>(null);
   const runStatusFilter = runFilter === "all" ? undefined : runFilter;
   const recentRunsQuery = useKnowledgeBaseDocumentRuns(knowledgeBase?.id ?? null, {
     limit: 6,
@@ -210,6 +211,7 @@ export function KnowledgeBasePage() {
         color: "teal",
         message: t("knowledgeBase.create.success", { name: normalizedName })
       });
+      setRecentlyCreatedKnowledgeBaseName(normalizedName);
       setCreateKnowledgeBaseName("");
       setCreateKnowledgeBaseDescription("");
       setIsCreateKnowledgeBaseOpen(false);
@@ -427,6 +429,36 @@ export function KnowledgeBasePage() {
 
       {knowledgeBase ? (
         <>
+          {recentlyCreatedKnowledgeBaseName === knowledgeBase.name && documents.length === 0 ? (
+            <Alert color="teal" data-testid="knowledge-base-create-success-guide" radius="xl" variant="light">
+              <Group align="flex-start" justify="space-between" wrap="wrap">
+                <div>
+                  <Text c="var(--app-text)" fw={700} size="sm">
+                    {t("knowledgeBase.create.nextStepTitle", { name: knowledgeBase.name })}
+                  </Text>
+                  <Text c="var(--app-text-muted)" mt={4} size="sm">
+                    {t("knowledgeBase.create.nextStepDescription")}
+                  </Text>
+                </div>
+                <Group gap="xs">
+                  <Button className="workspace-button" color="teal" component={Link} radius="xl" size="xs" to="/documents" variant="light">
+                    {t("knowledgeBase.create.nextStepPrimaryAction")}
+                  </Button>
+                  <Button
+                    className="workspace-button"
+                    color="gray"
+                    onClick={() => setRecentlyCreatedKnowledgeBaseName(null)}
+                    radius="xl"
+                    size="xs"
+                    variant="subtle"
+                  >
+                    {t("knowledgeBase.create.nextStepDismiss")}
+                  </Button>
+                </Group>
+              </Group>
+            </Alert>
+          ) : null}
+
           <OauthWorkspaceWelcome
             assistantCount={assistantCount}
             context="knowledge"
