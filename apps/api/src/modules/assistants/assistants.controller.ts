@@ -1,10 +1,11 @@
 import { Body, Controller, Get, HttpException, Param, Patch, Post, Req, Res } from "@nestjs/common";
-import { askAssistantSchema, updateAssistantSchema } from "./assistant.schemas";
+import { AskAssistantInput, askAssistantSchema, UpdateAssistantInput, updateAssistantSchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantService } from "./ask-assistant.service";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import { buildHttpExceptionResponse } from "../../common/http-exception.filter";
+import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
 @AuthenticatedRoute()
 @Controller("assistants")
@@ -24,7 +25,7 @@ export class AssistantsController {
   }
 
   @Get(":id")
-  getAssistant(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+  getAssistant(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
@@ -33,8 +34,11 @@ export class AssistantsController {
   }
 
   @Patch(":id")
-  updateAssistant(@Param("id") id: string, @Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
-    const input = updateAssistantSchema.parse(body);
+  updateAssistant(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(updateAssistantSchema)) input: UpdateAssistantInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
@@ -43,8 +47,11 @@ export class AssistantsController {
   }
 
   @Post(":id/ask")
-  async askAssistant(@Param("id") id: string, @Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
-    const input = askAssistantSchema.parse(body);
+  async askAssistant(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(askAssistantSchema)) input: AskAssistantInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     return this.askAssistantService.askAssistant({
       assistantId: id,
       question: input.question,
@@ -55,12 +62,11 @@ export class AssistantsController {
 
   @Post(":id/ask/stream")
   async askAssistantStream(
-    @Param("id") id: string,
-    @Body() body: unknown,
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(askAssistantSchema)) input: AskAssistantInput,
     @Res() response: any,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const input = askAssistantSchema.parse(body);
     let streamStarted = false;
     let streamFinished = false;
     const abortController = new AbortController();

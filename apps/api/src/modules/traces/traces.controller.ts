@@ -2,7 +2,8 @@ import { Controller, Get, Param, Query, Req } from "@nestjs/common";
 import { TracesService } from "./traces.service";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
-import { listTracesSchema } from "../documents/document.schemas";
+import { ListTracesInput, listTracesSchema } from "../documents/document.schemas";
+import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
 @AuthenticatedRoute()
 @Controller("traces")
@@ -10,16 +11,15 @@ export class TracesController {
   constructor(private readonly tracesService: TracesService) {}
 
   @Get()
-  listTraces(@Query() query: unknown, @Req() request?: ApiRequestWithAuthContext) {
+  listTraces(@Query(new ZodValidationPipe(listTracesSchema)) query: ListTracesInput, @Req() request?: ApiRequestWithAuthContext) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
-    const input = listTracesSchema.parse(query);
-    return this.tracesService.listTraces(input, authContext.identity);
+    return this.tracesService.listTraces(query, authContext.identity);
   }
 
   @Get(":id")
-  getTrace(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+  getTrace(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });

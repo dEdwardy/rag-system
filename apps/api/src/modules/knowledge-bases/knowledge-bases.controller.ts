@@ -1,8 +1,14 @@
 import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
-import { createKnowledgeBaseSchema, updateKnowledgeBaseSchema } from "./knowledge-base.schemas";
+import {
+  CreateKnowledgeBaseInput,
+  createKnowledgeBaseSchema,
+  UpdateKnowledgeBaseInput,
+  updateKnowledgeBaseSchema
+} from "./knowledge-base.schemas";
 import { KnowledgeBasesService } from "./knowledge-bases.service";
+import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
 @AuthenticatedRoute()
 @Controller("knowledge-bases")
@@ -19,7 +25,7 @@ export class KnowledgeBasesController {
   }
 
   @Get(":id")
-  getKnowledgeBase(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+  getKnowledgeBase(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
@@ -28,8 +34,10 @@ export class KnowledgeBasesController {
   }
 
   @Post()
-  createKnowledgeBase(@Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
-    const input = createKnowledgeBaseSchema.parse(body);
+  createKnowledgeBase(
+    @Body(new ZodValidationPipe(createKnowledgeBaseSchema)) input: CreateKnowledgeBaseInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
@@ -38,8 +46,11 @@ export class KnowledgeBasesController {
   }
 
   @Patch(":id")
-  updateKnowledgeBase(@Param("id") id: string, @Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
-    const input = updateKnowledgeBaseSchema.parse(body);
+  updateKnowledgeBase(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(updateKnowledgeBaseSchema)) input: UpdateKnowledgeBaseInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });

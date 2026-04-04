@@ -8,10 +8,15 @@ import { AuthRateLimit } from "./auth-rate-limit.decorator";
 import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
 import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
 import { AuthRuntimeConfigService } from "./auth-runtime-config";
+import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import {
+  LoginInput,
+  OauthCallbackQueryInput,
+  OauthProviderParamInput,
   loginSchema,
   oauthCallbackQuerySchema,
   oauthProviderParamSchema,
+  PermissionCheckInput,
   permissionCheckSchema
 } from "./auth.schemas";
 import { AuthService } from "./auth.service";
@@ -34,10 +39,9 @@ export class AuthController {
   @Post("login")
   @AuthRateLimit("login")
   async login(
-    @Body() body: unknown,
+    @Body(new ZodValidationPipe(loginSchema)) input: LoginInput,
     @Res({ passthrough: true }) response: { setHeader: (name: string, value: string | string[]) => void }
   ) {
-    const input = loginSchema.parse(body);
     const result = await this.authService.login({
       email: input.email,
       password: input.password
@@ -80,13 +84,12 @@ export class AuthController {
   @Get("oauth/:provider/start")
   @AuthRateLimit("oauth_start")
   async oauthProviderStart(
-    @Param() params: unknown,
+    @Param(new ZodValidationPipe(oauthProviderParamSchema)) input: OauthProviderParamInput,
     @Res() response: {
       setHeader: (name: string, value: string | string[]) => void;
       redirect: (statusCode: number, url: string) => void;
     }
   ) {
-    const input = oauthProviderParamSchema.parse(params);
     const start = await this.authService.startOauthProvider({
       provider: input.provider
     });
@@ -102,8 +105,8 @@ export class AuthController {
   @Get("oauth/:provider/callback")
   @AuthRateLimit("oauth_callback")
   async oauthProviderCallback(
-    @Param() params: unknown,
-    @Query() query: unknown,
+    @Param(new ZodValidationPipe(oauthProviderParamSchema)) params: OauthProviderParamInput,
+    @Query(new ZodValidationPipe(oauthCallbackQuerySchema)) query: OauthCallbackQueryInput,
     @Req()
     request: {
       headers?: {
@@ -121,7 +124,7 @@ export class AuthController {
   @Get("github/callback")
   @AuthRateLimit("oauth_callback")
   async githubOauthCallback(
-    @Query() query: unknown,
+    @Query(new ZodValidationPipe(oauthCallbackQuerySchema)) query: OauthCallbackQueryInput,
     @Req()
     request: {
       headers?: {
@@ -137,8 +140,8 @@ export class AuthController {
   }
 
   private async completeOauthProviderCallback(
-    params: unknown,
-    query: unknown,
+    params: OauthProviderParamInput,
+    query: OauthCallbackQueryInput,
     request: {
       headers?: {
         cookie?: string | string[];
@@ -149,21 +152,18 @@ export class AuthController {
       redirect: (statusCode: number, url: string) => void;
     }
   ) {
-    const providerInput = oauthProviderParamSchema.parse(params);
-    const callbackInput = oauthCallbackQuerySchema.parse(query);
-
     const expectedState = this.readNamedCookie(request.headers, this.resolveOauthStateCookieName());
     const result = await this.authService.completeOauthProviderCallback({
-      provider: providerInput.provider,
-      code: callbackInput.code,
-      state: callbackInput.state,
+      provider: params.provider,
+      code: query.code,
+      state: query.state,
       expectedState
     });
 
     response.setHeader("Set-Cookie", [
       this.buildClearOauthStateCookieValue(),
       this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
-      this.buildLoginProvenanceCookieValue(providerInput.provider, result.expiresAt)
+      this.buildLoginProvenanceCookieValue(params.provider, result.expiresAt)
     ]);
     response.redirect(302, this.resolveOauthSuccessRedirectUrl());
   }
@@ -192,9 +192,10 @@ export class AuthController {
 
   @Post("permissions/check")
   @AuthenticatedRoute()
-  checkPermission(@Body() body: unknown, @Req() request?: ApiRequestWithAuthContext) {
-    const input = permissionCheckSchema.parse(body);
-
+  checkPermission(
+    @Body(new ZodValidationPipe(permissionCheckSchema)) input: PermissionCheckInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     return this.authService.checkPermission({
       authContext: request?.authContext,
       action: input.action,

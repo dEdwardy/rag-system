@@ -24,10 +24,12 @@
   - `apps/api/src/modules/auth/auth.service.ts` 已把 OAuth 回调后的本地持久化阶段收敛到单个事务：身份链接、用户创建/复用、默认 workspace 初始化、session 创建同属一个写入边界
   - `apps/api/src/modules/auth/auth.controller.ts`、`auth.module.ts`、`auth-rate-limit.guard.ts` 为公开 auth 路由补了基于路由 metadata 的限流保护，当前覆盖 `login`、OAuth start、OAuth callback
   - `apps/api/src/modules/auth/auth-runtime-config.ts`、`apps/api/src/infra/env/api-runtime-config.ts` 与 `apps/api/src/infra/queue/queue-runtime-config.ts` 收敛了 auth / bootstrap / queue 的运行时配置读取，减少散落的 `process.env` 分支
-  - 本轮继续保留后端输入校验 hardening 的既有约束：若后续恢复该方向，优先保留 `Zod` 作为单一 schema/type source，通过 `ZodValidationPipe` 承接 `@Body()` / `@Query()` 校验，并配合 `ParseUUIDPipe` 等参数 pipe；不为了类型安全切回 `class-validator` / `class-transformer` DTO 栈
+  - 后续遗留项也已按 `Zod-first` 方向补齐一个窄范围增量：新增通用 `ZodValidationPipe`，并把多组 controller 的 `@Body()` / `@Query()` 手动 `schema.parse(...)` 提升到 Nest pipe 层；对当前仓库以 `cuid` 为主的 `id` 路由参数补的是 `trim + non-empty string` 参数 pipe，而不是误用 `ParseUUIDPipe`
+  - 当前约束同步收敛为：继续保留 `Zod` 作为单一 schema/type source，通过 `ZodValidationPipe` 承接 `@Body()` / `@Query()` 校验，并按仓库实际主键形态为路由参数补合适的参数 pipe；不为了类型安全切回 `class-validator` / `class-transformer` DTO 栈
   - focused validation:
     - `pnpm --filter @rag-system/api typecheck`
     - `pnpm --filter @rag-system/api test:file -- test/auth-provider-boundary.test.js test/ask-stream-controller.test.js test/http-exception-filter.test.js`
+    - `pnpm --filter @rag-system/api test:file -- test/zod-validation-pipe.test.js test/auth-provider-boundary.test.js test/ask-stream-controller.test.js test/http-exception-filter.test.js test/kb-document-access.test.js test/knowledge-bases-auth-write-path.test.js test/retrieval-profiles-auth-scope.test.js test/eval-question-sets.service.test.js`
 
 - `web local bootstrap performance guardrail` narrowed two first-load regressions in the current maintenance wave
   - `apps/web/src/lib/api.ts` now prefers the existing Vite `/api` same-origin proxy during local dev unless `VITE_API_BASE_URL` is explicitly set, removing avoidable browser CORS preflight overhead from the normal `5173 -> 3000` path
@@ -171,4 +173,4 @@
 - 本文件已从 append-only 长日志收瘦为当前摘要；更早的详细完成记录请按需从 git history 回看。
 - 当前阶段判断已经按代码现实收正：`P3` / 当前这轮 `P4` / `P5` 是已完成主开发或收口的阶段，不再默认作为下一步主线。
 - 具体下一步方向以 [docs/next_steps_rag_project_plan.md](D:\FeProjects\rag-system\docs\next_steps_rag_project_plan.md) 的更新版口径为主。
-- API review 已记录一条后续 hardening 约束：若补齐后端输入校验与异常映射，优先沿用现有 `Zod schema`，通过 `ZodValidationPipe` 承接 `@Body()` / `@Query()` 校验，并为路由参数补 `ParseUUIDPipe` 等参数 pipe；暂不为了“全局验证”或类型安全把现有校验体系整体切到 `class-validator` / `class-transformer` DTO 栈。
+- API review 的输入校验 follow-up 已继续推进一小步：当前 controller 侧 `@Body()` / `@Query()` 已开始迁移到 `ZodValidationPipe`，路由参数按仓库主键实际形态补的是非空字符串参数 pipe；仍不为了“全局验证”或类型安全把现有校验体系整体切到 `class-validator` / `class-transformer` DTO 栈。

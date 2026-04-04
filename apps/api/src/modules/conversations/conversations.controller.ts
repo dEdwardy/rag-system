@@ -2,9 +2,10 @@ import { Controller, Get, Param, Query, Req } from "@nestjs/common";
 import { ConversationsService } from "./conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { TracesService } from "../traces/traces.service";
-import { listConversationTracesSchema } from "../documents/document.schemas";
+import { ListConversationTracesInput, listConversationTracesSchema } from "../documents/document.schemas";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
+import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
 @AuthenticatedRoute()
 @Controller("conversations")
@@ -24,7 +25,7 @@ export class ConversationsController {
   }
 
   @Get(":id")
-  getConversation(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+  getConversation(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
@@ -32,7 +33,7 @@ export class ConversationsController {
   }
 
   @Get(":id/messages")
-  async listConversationMessages(@Param("id") id: string, @Req() request?: ApiRequestWithAuthContext) {
+  async listConversationMessages(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
@@ -41,12 +42,15 @@ export class ConversationsController {
   }
 
   @Get(":id/traces")
-  async listConversationTraces(@Param("id") id: string, @Query() query: unknown, @Req() request?: ApiRequestWithAuthContext) {
+  async listConversationTraces(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Query(new ZodValidationPipe(listConversationTracesSchema)) query: ListConversationTracesInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
     await this.conversationsService.getConversation(id, authContext.identity);
-    const input = listConversationTracesSchema.parse(query);
-    return this.tracesService.listConversationTraces(id, input, authContext.identity);
+    return this.tracesService.listConversationTraces(id, query, authContext.identity);
   }
 }

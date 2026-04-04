@@ -17,9 +17,7 @@ test("KnowledgeBasesController derives create identity from request auth context
   await controller.createKnowledgeBase(
     {
       name: "KB from auth",
-      description: "desc",
-      tenantId: "tenant-from-body",
-      ownerId: "owner-from-body"
+      description: "desc"
     },
     {
       authContext: {
