@@ -9,7 +9,7 @@ function resolveApiBaseUrl() {
     return configuredBaseUrl;
   }
 
-  if (supportsSameOriginApiBase(window.location)) {
+  if (supportsSameOriginApiBase()) {
     return "/api";
   }
 
@@ -25,12 +25,20 @@ function normalizeConfiguredApiBaseUrl(value: string | undefined) {
   return trimmedValue.replace(/\/+$/, "");
 }
 
-function supportsSameOriginApiBase(location: Location) {
-  return !isLocalViteDevOrigin(location);
+function supportsSameOriginApiBase() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  return hasViteDevProxy() || !isLocalViteDevOrigin(window.location);
 }
 
 function isLocalViteDevOrigin(location: Location) {
   return isLoopbackHostname(location.hostname) && location.port === LOCAL_VITE_DEV_PORT;
+}
+
+function hasViteDevProxy() {
+  return typeof import.meta.env.DEV === "boolean" && import.meta.env.DEV;
 }
 
 function resolveLocalhostApiBase(location: Location) {

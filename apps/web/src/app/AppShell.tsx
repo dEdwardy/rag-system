@@ -212,21 +212,23 @@ type AppShellProps = {
   loginProvenance: AuthMeResponse["loginProvenance"];
 };
 
+type IdleHandle = number;
+
 export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const logoutMutation = useLogout();
   const { locale, setLocale, t } = useI18n();
   const { themeLayout, setThemeLayout } = useThemePreferences();
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isShellMetricsEnabled, setIsShellMetricsEnabled] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isAdvancedNavOpen, setIsAdvancedNavOpen] = useState(false);
   const mobileNavToggleRef = useRef<HTMLButtonElement | null>(null);
   const firstMobileNavLinkRef = useRef<HTMLAnchorElement | null>(null);
-  const knowledgeBasesQuery = useKnowledgeBases(isHydrated);
+  const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", isHydrated && activeKnowledgeBase != null);
-  const conversationsQuery = useConversations(isHydrated);
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", isShellMetricsEnabled && activeKnowledgeBase != null);
+  const conversationsQuery = useConversations(isShellMetricsEnabled);
   const isChatRoute = location.pathname === "/";
   const localeKey = locale === "zh" ? "zh" : "en";
   const appShellCopy = useMemo(
@@ -267,7 +269,25 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
   );
 
   useEffect(() => {
-    setIsHydrated(true);
+    const fallbackTimeout = window.setTimeout(() => {
+      setIsShellMetricsEnabled(true);
+    }, 1500);
+
+    if (typeof window.requestIdleCallback !== "function") {
+      return () => {
+        window.clearTimeout(fallbackTimeout);
+      };
+    }
+
+    const idleHandle: IdleHandle = window.requestIdleCallback(() => {
+      window.clearTimeout(fallbackTimeout);
+      setIsShellMetricsEnabled(true);
+    });
+
+    return () => {
+      window.clearTimeout(fallbackTimeout);
+      window.cancelIdleCallback?.(idleHandle);
+    };
   }, []);
 
   useEffect(() => {

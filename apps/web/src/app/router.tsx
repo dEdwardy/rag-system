@@ -1,5 +1,4 @@
 import { createBrowserRouter } from "react-router-dom";
-import { AuthenticatedAppShell } from "./AuthenticatedAppShell";
 
 export const router = createBrowserRouter([
   {
@@ -12,7 +11,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/",
-    element: <AuthenticatedAppShell />,
+    lazy: async () => {
+      const { AuthenticatedAppShell } = await import("./AuthenticatedAppShell");
+
+      return { Component: AuthenticatedAppShell };
+    },
     children: [
       {
         index: true,

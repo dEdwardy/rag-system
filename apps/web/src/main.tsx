@@ -9,6 +9,8 @@ import {
   normalizeThemeColor,
   normalizeThemeLayout
 } from "./app/theme-preferences";
+import { getInitialLocale } from "./i18n/I18nProvider";
+import { loadMessages } from "./i18n/messages";
 import { readStorageItem } from "./lib/browser-storage";
 import "./styles/global.css";
 
@@ -21,8 +23,15 @@ document.documentElement.style.colorScheme = getThemeColorScheme(
   initialThemeColor ?? DEFAULT_THEME_PREFERENCES.themeColor
 );
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+async function bootstrap() {
+  const initialLocale = getInitialLocale();
+  const initialMessages = await loadMessages(initialLocale);
+
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <App initialLocale={initialLocale} initialMessages={initialMessages} />
+    </React.StrictMode>
+  );
+}
+
+void bootstrap();

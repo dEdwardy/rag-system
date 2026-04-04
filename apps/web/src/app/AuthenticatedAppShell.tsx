@@ -8,7 +8,17 @@ export function AuthenticatedAppShell() {
   const authMeQuery = useAuthMe();
 
   if (authMeQuery.isPending) {
-    return null;
+    return (
+      <div className="flex h-screen items-center justify-center bg-[var(--app-bg)] px-6 text-center">
+        <div className="space-y-3">
+          <div className="mx-auto h-10 w-10 rounded-full border-2 border-[var(--app-border)] border-t-[var(--app-accent)] animate-spin" />
+          <div>
+            <p className="text-sm font-medium text-[var(--app-text)]">Loading workspace</p>
+            <p className="mt-1 text-xs text-[var(--app-text-muted)]">Checking your session and preparing the app shell.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (isUnauthorized(authMeQuery.error)) {

@@ -1,12 +1,11 @@
 import { Badge, Button, Paper, Select, Stack, Table, Text, TextInput, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { writeStorageItem } from "../../lib/browser-storage";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import {
   buildEvalRunCarryThroughPreview,
   mergeSearchParamsWithEvalRunParams,
@@ -17,6 +16,24 @@ import {
   getRegressionReasonLabel,
   getReportCenterResultNextAction
 } from "./report-center-page-helpers";
+
+const ReportCharts = lazy(async () => {
+  const module = await import("./ReportCharts");
+
+  return { default: module.ReportCharts };
+});
+
+const ReportResultsTable = lazy(async () => {
+  const module = await import("./ReportResultsTable");
+
+  return { default: module.ReportResultsTable };
+});
+
+const ReportAnalysisPanels = lazy(async () => {
+  const module = await import("./ReportAnalysisPanels");
+
+  return { default: module.ReportAnalysisPanels };
+});
 
 function buildTraceReviewLink(args: {
   traceId: string;
@@ -633,7 +650,7 @@ function getQualityGateMetricStrategy(args: {
 export function ReportCenterPage() {
   const assistantsQuery = useAssistants();
   const runEvalMutation = useRunEvalQuestionSet();
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const [questionSetId, setQuestionSetId] = useState(() => searchParams.get("questionSetId") ?? "");
   const [assistantId, setAssistantId] = useState(() => searchParams.get("assistantId") ?? "");
@@ -1993,696 +2010,109 @@ export function ReportCenterPage() {
             </Paper>
           ) : null}
 
-          {/* 质量指标雷达图 */}
-          {runEvalMutation.data?.summary && (
-            <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-              <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "质量概览雷达图" : "Quality overview radar"}</div>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart outerRadius={90} width={730} height={250} data={radarData}>
-                      <PolarGrid />
-                      <PolarAngleAxis dataKey="subject" />
-                      <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                      <Radar
-                        name={locale === "zh" ? "当前检查" : "Current check"}
-                        dataKey="A"
-                        stroke="#8884d8"
-                        fill="#8884d8"
-                        fillOpacity={0.6}
-                      />
-                      <Legend />
-                      <Tooltip />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Stack>
-            </Paper>
-          )}
-
-          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-            <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "质量分布" : "Quality distribution"}</div>
-              {qualitySummaryRows.length > 0 ? (
-                <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
-                  <div>
-                    {qualitySummaryRows.map(row => (
-                      <div className="workspace-meta-row workspace-table-number" key={row.quality}>
-                        <span className="workspace-meta-label">{row.quality}</span>
-                        <span className="workspace-meta-value">{row.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={qualityDistributionData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }: { name?: string | number; percent?: number }) => {
-                            const labelName = name == null ? (locale === "zh" ? "未命名" : "Unnamed") : String(name);
-                            const labelPercent = typeof percent === "number" ? percent : 0;
-                            return `${labelName}: ${(labelPercent * 100).toFixed(0)}%`;
-                          }}
-                        >
-                          {qualityDistributionData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              ) : (
-                <Text c="var(--app-text-muted)" size="sm">
-                  {locale === "zh" ? "暂时还没有可汇总的质量结果。" : "No quality results are available yet."}
-                </Text>
-              )}
-            </Stack>
-          </Paper>
-
-          {/* 答案状态分布 */}
-          {answerStatusDistribution.length > 0 && (
-            <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-              <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "回答状态分布" : "Answer status distribution"}</div>
-                <div className="grid gap-2 md:grid-cols-3">
-                   {answerStatusDistribution.map((item) => (
-                    <div className="workspace-meta-row workspace-table-number" key={item.status}>
-                      <span className="workspace-meta-label">{item.status}</span>
-                      <span className="workspace-meta-value">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </Stack>
-            </Paper>
-          )}
-
-          {/* 错误类型分布 */}
-          {errorTypeDistribution.length > 0 && (
-            <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-              <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "问题类型分布" : "Issue type distribution"}</div>
-                <div className="grid gap-2 md:grid-cols-3">
-                   {errorTypeDistribution.map((item) => (
-                    <div className="workspace-meta-row workspace-table-number" key={item.code}>
-                      <span className="workspace-meta-label">{item.code}</span>
-                      <span className="workspace-meta-value">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </Stack>
-            </Paper>
-          )}
-
-          {/* 质量门控信息 */}
-          {qualityGate && (
-            <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-              <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "质量门槛" : "Quality gate"}</div>
-                {qualityGatePresentation ? (
-                  <Paper className="workspace-subpanel" p="md" radius="xl">
-                    <Stack gap="xs">
-                      <Badge color={qualityGatePresentation.color} variant="light" w="fit-content">
-                        {qualityGatePresentation.label}
-                      </Badge>
-                      <Text c="var(--app-text-muted)" size="sm">
-                        {qualityGatePresentation.detail}
-                      </Text>
-                      {topBreachedMetric ? (
-                        <div className="workspace-meta-row">
-                          <span className="workspace-meta-label">{locale === "zh" ? "优先修复指标" : "Fix first"}</span>
-                          <span className="workspace-meta-value text-right">
-                            {getQualityGateMetricLabel(topBreachedMetric.metric, locale)} · {getQualityGateMetricStrategy({ metric: topBreachedMetric.metric, limitType: topBreachedMetric.limitType, locale })}
-                          </span>
-                        </div>
-                      ) : null}
-                    </Stack>
-                  </Paper>
-                ) : null}
-                <div className="grid gap-2 md:grid-cols-2">
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "模式" : "Mode"}</span>
-                    <span className="workspace-meta-value">{qualityGate.mode}</span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "状态" : "Status"}</span>
-                    <span className="workspace-meta-value">{qualityGate.status}</span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "限制版本" : "Limit version"}</span>
-                    <span className="workspace-meta-value">{qualityGate.limitVersion}</span>
-                  </div>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">{locale === "zh" ? "违规指标数" : "Breached metrics"}</span>
-                    <span className="workspace-meta-value">{qualityGate.breachedMetricCount}</span>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <Text c="var(--app-text-muted)" size="sm">
-                    {qualityGate.message}
-                  </Text>
-                </div>
-                {qualityGate.breachedMetrics && qualityGate.breachedMetrics.length > 0 && (
-                  <div className="mt-2">
-                    <Text c="var(--app-text)" size="sm" fw={600}>
-                      {locale === "zh" ? "违规指标：" : "Breached metrics:"}
-                    </Text>
-                    <div className="grid gap-2 mt-1">
-                      {qualityGate.breachedMetrics.map((metric, index) => (
-                        <div className="workspace-meta-row" key={index}>
-                          <span className="workspace-meta-label">{getQualityGateMetricLabel(metric.metric, locale)}</span>
-                          <span className="workspace-meta-value">
-                            {metric.current} vs {metric.limit} ({metric.limitType})
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Stack>
-            </Paper>
-          )}
-
-          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-            <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "运行差异摘要" : "Run diff summary"}</div>
-              {runDiffSummary ? (
-                <>
-                  <Text c="var(--app-text-muted)" size="sm">
-                    {runDiffSummary.headline}
-                  </Text>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div className="workspace-meta-row">
-                      <span className="workspace-meta-label">regressedMetrics</span>
-                      <span className="workspace-meta-value">{runDiffSummary.regressedMetricCount}</span>
-                    </div>
-                    <div className="workspace-meta-row">
-                      <span className="workspace-meta-label">improvedMetrics</span>
-                      <span className="workspace-meta-value">{runDiffSummary.improvedMetricCount}</span>
-                    </div>
-                  </div>
-                  {runDiffSummary.topRegressionReasons.length > 0 ? (
-                    <div className="grid gap-2">
-                      {runDiffSummary.topRegressionReasons.map(reason => (
-                        <div className="workspace-meta-row" key={reason.reasonCode}>
-                           <span className="workspace-meta-label">{getRegressionReasonLabel(reason.reasonCode, locale)}</span>
-                          <span className="workspace-meta-value">{reason.count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <Text c="var(--app-text-muted)" size="sm">
-                  {locale === "zh"
-                    ? "当前检查缺少可用差异摘要（通常需 baseline 对照已就绪）。"
-                    : "Run diff summary is unavailable for this comparison (baseline delta not ready)."}
-                </Text>
-              )}
-            </Stack>
-          </Paper>
-
-          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-            <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "回归弱项聚焦" : "Regression weakest items"}</div>
-              <Text c="var(--app-text-muted)" size="sm">
-                {locale === "zh"
-                  ? "按严重程度列出最需要优先复盘的问题。"
-                  : "Prioritize per-question regressions so review can focus on the weakest items first."}
-              </Text>
-              {runEvalMutation.data.baselineComparison?.failureDrilldown ? (
-                <>
-                  <div className="workspace-meta-row">
-                    <span className="workspace-meta-label">regressedQuestionCount</span>
-                    <span className="workspace-meta-value">{runEvalMutation.data.baselineComparison.failureDrilldown.regressedQuestionCount}</span>
-                  </div>
-                  {regressionDrilldownItems.length > 0 ? (
-                    <div className="grid gap-2">
-                      {regressionDrilldownItems.map(item => (
-                        <div className="workspace-meta-row" key={`${item.index}-${item.question}`}>
-                          <div className="min-w-0">
-                            <span className="workspace-meta-label">
-                              #{item.index} · {item.severity}
-                            </span>
-                            <div className="mt-1 text-xs text-[var(--app-text-muted)] line-clamp-2">{item.question}</div>
-                          </div>
-                          <div className="flex flex-col items-end gap-2 text-right">
-                            <span className="workspace-meta-value text-right">
-                               {item.reasonCodes.map(code => getRegressionReasonLabel(code, locale)).join("; ")}
-                            </span>
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <Button
-                                className="workspace-button"
-                                color="indigo"
-                                onClick={() => focusRunItem(item.index, item.question)}
-                                radius="xl"
-                                size="xs"
-                                variant="subtle"
-                              >
-                                {locale === "zh" ? "定位结果行" : "Focus row"}
-                              </Button>
-                              {runItemsByKey.get(getEvalItemKey(item.index, item.question))?.traceId ? (
-                                <Button
-                                  className="workspace-button"
-                                  color="indigo"
-                                  component={Link}
-                                  radius="xl"
-                                  size="xs"
-                                  to={buildTraceReviewLink({
-                                    traceId: runItemsByKey.get(getEvalItemKey(item.index, item.question))?.traceId ?? "",
-                                    question: item.question,
-                                    handlingTitle: locale === "zh" ? "回归弱项复盘" : "Weakest-item review",
-                                    priorityLabel: locale === "zh" ? `回归弱项 #${item.index}` : `Weakest item #${item.index}`
-                                  })}
-                                  variant="subtle"
-                                >
-                                  {locale === "zh" ? "打开诊断" : "Open diagnostics"}
-                                </Button>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <Text c="var(--app-text-muted)" size="sm">
-                      {locale === "zh" ? "当前检查未检测到题目级回归。" : "No per-question regressions were detected in this check."}
-                    </Text>
-                  )}
-                </>
-              ) : (
-                <Text c="var(--app-text-muted)" size="sm">
-                  {locale === "zh"
-                    ? "当前 baseline 缺少题目级对照数据（通常需在最新格式 baseline 初始化后可用）。"
-                    : "Per-question drilldown is unavailable for this baseline (initialize the baseline with the latest run format)."}
-                </Text>
-              )}
-            </Stack>
-          </Paper>
-
-          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-            <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "运行上下文" : "Run context"}</div>
-              <div className="grid gap-2 md:grid-cols-2">
-                <div className="workspace-meta-row">
-                   <span className="workspace-meta-label">{getRunContextLabel("questionSetId", locale)}</span>
-                  <span className="workspace-meta-value">{runEvalMutation.data.questionSetId}</span>
-                </div>
-                <div className="workspace-meta-row">
-                   <span className="workspace-meta-label">{getRunContextLabel("assistantId", locale)}</span>
-                  <span className="workspace-meta-value">{runEvalMutation.data.assistantId}</span>
-                </div>
-                <div className="workspace-meta-row">
-                   <span className="workspace-meta-label">{getRunContextLabel("baselineSnapshotId", locale)}</span>
-                  <span className="workspace-meta-value">
-                    {formatBaselineMetadataValue(runEvalMutation.data.baselineSnapshotId, baselineSnapshotPlaceholder)}
-                  </span>
-                </div>
-                <div className="workspace-meta-row">
-                   <span className="workspace-meta-label">{getRunContextLabel("baselineVersion", locale)}</span>
-                  <span className="workspace-meta-value">
-                    {formatBaselineMetadataValue(runEvalMutation.data.baselineVersion, baselineVersionPlaceholder)}
-                  </span>
-                </div>
-                <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">startedAt</span>
-                  <span className="workspace-meta-value">{formatDateTime(runEvalMutation.data.startedAt)}</span>
-                </div>
-                <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">finishedAt</span>
-                  <span className="workspace-meta-value">{formatDateTime(runEvalMutation.data.finishedAt)}</span>
-                </div>
-              </div>
-            </Stack>
-          </Paper>
-
-          <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
-            <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "报告导出" : "Export reports"}</div>
-              <Text c="var(--app-text-muted)" size="sm">
-                {locale === "zh"
-                  ? "把这次质量检查结果导出为可复用文件，便于存档和分享。"
-                  : "Export this quality check into reusable files for storage and sharing."}
-              </Text>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  className="workspace-button"
-                  color="indigo"
-                  onClick={() => downloadReport("markdown")}
-                  loading={exporting === "markdown"}
-                  radius="xl"
-                  size="xs"
-                  variant="light"
-                >
-                  Markdown
-                </Button>
-                <Button
-                  className="workspace-button"
-                  color="indigo"
-                  onClick={() => downloadReport("json")}
-                  loading={exporting === "json"}
-                  radius="xl"
-                  size="xs"
-                  variant="light"
-                >
-                  JSON
-                </Button>
-                <Button
-                  className="workspace-button"
-                  color="indigo"
-                  onClick={() => downloadReport("html")}
-                  loading={exporting === "html"}
-                  radius="xl"
-                  size="xs"
-                  variant="light"
-                >
-                  HTML
-                </Button>
-              </div>
-            </Stack>
-          </Paper>
-
-          {hasRunItems ? (
-            <div className="workspace-table-shell overflow-x-auto">
-              <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
-                  <Text className="workspace-table-hint flex-shrink-0">
-                    {locale === "zh"
-                      ? "按题逐行查看状态、质量和主问题；Trace 列保留直接跳转。"
-                      : "Review each row by status, quality, and primary issue; the trace column keeps a direct jump."}
-                  </Text>
-                  <div className="flex flex-wrap items-center gap-3 flex-grow sm:flex-grow-0">
-                    <Select
-                      data={statusOptions.map(option => ({ value: option, label: option }))}
-                      label={locale === "zh" ? "状态筛选" : "Status filter"}
-                      onChange={value => setFilterStatus(value ?? "")}
-                      placeholder={locale === "zh" ? "全部状态" : "All statuses"}
-                      value={filterStatus || null}
-                      size="xs"
-                    />
-                    <Select
-                      data={qualityOptions.map(option => ({ value: option, label: option }))}
-                      label={locale === "zh" ? "质量筛选" : "Quality filter"}
-                      onChange={value => setFilterQuality(value ?? "")}
-                      placeholder={locale === "zh" ? "全部质量" : "All quality"}
-                      value={filterQuality || null}
-                      size="xs"
-                    />
-                    <Select
-                      data={[
-                        { value: "pending", label: locale === "zh" ? "待复盘" : "Pending review" },
-                        { value: "reviewed", label: locale === "zh" ? "已复盘" : "Reviewed" }
-                      ]}
-                      label={locale === "zh" ? "复盘状态" : "Review state"}
-                      onChange={value => setFilterReviewState((value as "pending" | "reviewed" | null) ?? "")}
-                      placeholder={locale === "zh" ? "全部复盘状态" : "All review states"}
-                      value={filterReviewState || null}
-                      size="xs"
-                    />
-                    <Select
-                      data={[
-                        { value: "retrieval", label: locale === "zh" ? "检索问题" : "Retrieval issue" },
-                        { value: "citation", label: locale === "zh" ? "引用问题" : "Citation issue" },
-                        { value: "answer", label: locale === "zh" ? "回答问题" : "Answer issue" },
-                        { value: "skip", label: locale === "zh" ? "暂不处理" : "Skip for now" }
-                      ]}
-                      label={locale === "zh" ? "处理结论" : "Conclusion"}
-                      onChange={value => setFilterConclusion((value as ReviewConclusion | null) ?? "")}
-                      placeholder={locale === "zh" ? "全部结论" : "All conclusions"}
-                      value={filterConclusion || null}
-                      size="xs"
-                    />
-                  </div>
-                </div>
-                <Badge color={runEvalMutation.isError ? "red" : "indigo"} radius="sm" variant="light">
-                  {locale === "zh"
-                    ? `${sortedAndFilteredItems.length} 条结果`
-                    : `${sortedAndFilteredItems.length} results`}
-                </Badge>
-              </div>
-              <Table.ScrollContainer minWidth={1040}>
-                <Table
-                  className="workspace-table"
-                  highlightOnHover
-                  striped="odd"
-                  styles={{
-                    table: {
-                      color: "var(--app-text)"
-                    },
-                    thead: {
-                      background: "rgba(255,255,255,0.03)"
-                    },
-                    tr: {
-                      borderColor: "var(--app-border)"
-                    },
-                    th: {
-                      color: "var(--app-text-secondary)",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      fontSize: 12,
-                      letterSpacing: "0.04em",
-                      cursor: "pointer"
-                    },
-                    td: {
-                      color: "var(--app-text)"
-                    }
-                  }}
-                >
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th onClick={() => requestSort('index')}>
-                        # {sortConfig?.key === 'index' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th onClick={() => requestSort('status')}>
-                        {locale === "zh" ? "状态" : "Status"} {sortConfig?.key === 'status' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th onClick={() => requestSort('question')}>
-                        {locale === "zh" ? "问题" : "Question"} {sortConfig?.key === 'question' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th onClick={() => requestSort('answerStatus')}>
-                        {locale === "zh" ? "答案状态" : "Answer status"} {sortConfig?.key === 'answerStatus' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th onClick={() => requestSort('qualityOverall')}>
-                        {locale === "zh" ? "质量" : "Quality"} {sortConfig?.key === 'qualityOverall' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th onClick={() => requestSort('qualityPrimaryIssue')}>
-                        {locale === "zh" ? "主问题" : "Primary issue"} {sortConfig?.key === 'qualityPrimaryIssue' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th onClick={() => requestSort('citationCount')}>
-                        {locale === "zh" ? "引用数" : "Citations"} {sortConfig?.key === 'citationCount' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th onClick={() => requestSort('usedFallback')}>
-                        {locale === "zh" ? "Fallback" : "Fallback"} {sortConfig?.key === 'usedFallback' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
-                      </Table.Th>
-                      <Table.Th>{locale === "zh" ? "诊断 / 问题" : "Diagnostics / issue"}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {sortedAndFilteredItems.map(item => {
-                      const itemKey = getEvalItemKey(item.index, item.question);
-                      const isReviewed = reviewedItemKeySet.has(itemKey);
-                      const reviewConclusion = reviewConclusions[itemKey] ?? null;
-                      const reviewConclusionPresentation = reviewConclusion
-                        ? getReviewConclusionPresentation(reviewConclusion, locale)
-                        : null;
-                      const reviewSignal = getReviewSignal(item, locale);
-
-                      return (
-                      <Table.Tr
-                        key={itemKey}
-                        ref={node => {
-                          itemRowRefs.current[itemKey] = node;
-                        }}
-                        style={
-                          focusedItemKey === itemKey
-                            ? {
-                                background: "rgba(99, 102, 241, 0.14)",
-                                boxShadow: "inset 0 0 0 1px rgba(129, 140, 248, 0.4)"
-                              }
-                            : undefined
-                        }
-                      >
-                        <Table.Td>
-                          <Text className="workspace-table-number" fw={600} size="sm">
-                            {item.index}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <div className="workspace-table-badge-stack">
-                            <Badge color={item.status === "succeeded" ? "indigo" : "red"} radius="sm" variant="light">
-                              {item.status}
-                            </Badge>
-                            {item.error?.code ? <Text className="workspace-table-cell-meta">{item.error.code}</Text> : null}
-                          </div>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text className="workspace-table-cell-title-main" lineClamp={3} size="sm">
-                            {item.question}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <div className="workspace-table-badge-stack">
-                            <Badge color={item.answerStatus === "grounded" ? "teal" : item.answerStatus === "insufficient_context" ? "yellow" : "gray"} radius="sm" variant="light">
-                              {getAnswerStatusReviewLabel(item.answerStatus, locale)}
-                            </Badge>
-                          </div>
-                        </Table.Td>
-                        <Table.Td>
-                          <div className="workspace-table-badge-stack">
-                            <Badge color={getQualitySignalColor(item.qualityOverall)} radius="sm" variant="light">
-                              {item.qualityOverall ?? "-"}
-                            </Badge>
-                          </div>
-                        </Table.Td>
-                        <Table.Td>
-                          <Stack gap={4}>
-                            <Badge color={reviewSignal.color} radius="sm" variant="light" w="fit-content">
-                              {reviewSignal.title}
-                            </Badge>
-                            <Text className="workspace-table-cell-copy" lineClamp={2}>{reviewSignal.detail}</Text>
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td>
-                          <Stack gap={2}>
-                            <Text className="workspace-table-number" fw={600} size="sm">{item.citationCount}</Text>
-                            <Text className="workspace-table-cell-meta">
-                              {item.citationCount === 0
-                                ? locale === "zh"
-                                  ? "无引用"
-                                  : "none"
-                                : item.citationCount === 1
-                                  ? locale === "zh"
-                                    ? "单条引用"
-                                    : "single"
-                                  : locale === "zh"
-                                    ? "多条引用"
-                                    : "multiple"}
-                            </Text>
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge
-                            color={item.usedFallback == null ? "gray" : item.usedFallback ? "orange" : "teal"}
-                            radius="sm"
-                            variant="light"
-                          >
-                            {item.usedFallback == null
-                              ? "-"
-                              : item.usedFallback
-                                ? locale === "zh"
-                                  ? "已触发"
-                                  : "triggered"
-                                : locale === "zh"
-                                  ? "未触发"
-                                  : "not used"}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td className="workspace-table-action">
-                          <Stack gap={4}>
-                            {focusedItemKey === itemKey ? (
-                              <Badge color="indigo" radius="sm" variant="light">
-                                {locale === "zh" ? "当前复盘焦点" : "Current review focus"}
-                              </Badge>
-                            ) : null}
-                            <Badge color={isReviewed ? "teal" : "gray"} radius="sm" variant="light">
-                              {isReviewed
-                                ? locale === "zh"
-                                  ? "已复盘"
-                                  : "Reviewed"
-                                : locale === "zh"
-                                  ? "待复盘"
-                                  : "Pending review"}
-                            </Badge>
-                            {reviewConclusionPresentation ? (
-                              <Badge color={reviewConclusionPresentation.color} radius="sm" variant="light">
-                                {reviewConclusionPresentation.label}
-                              </Badge>
-                            ) : null}
-                            <Button
-                              className="workspace-button"
-                              color={isReviewed ? "gray" : "teal"}
-                              onClick={() => toggleReviewedItem(item.index, item.question)}
-                              radius="xl"
-                              size="xs"
-                              variant={isReviewed ? "subtle" : "light"}
-                            >
-                              {isReviewed
-                                ? locale === "zh"
-                                  ? "取消已复盘"
-                                  : "Mark as pending"
-                                : locale === "zh"
-                                  ? "标记已复盘"
-                                  : "Mark reviewed"}
-                            </Button>
-                            <Select
-                              allowDeselect
-                              data={[
-                                { value: "retrieval", label: locale === "zh" ? "检索问题" : "Retrieval issue" },
-                                { value: "citation", label: locale === "zh" ? "引用问题" : "Citation issue" },
-                                { value: "answer", label: locale === "zh" ? "回答问题" : "Answer issue" },
-                                { value: "skip", label: locale === "zh" ? "暂不处理" : "Skip for now" }
-                              ]}
-                              onChange={value => updateReviewConclusion(item.index, item.question, (value as ReviewConclusion | null) ?? null)}
-                              placeholder={locale === "zh" ? "写处理结论" : "Set conclusion"}
-                              radius="xl"
-                              size="xs"
-                              value={reviewConclusion}
-                            />
-                            {item.traceId ? (
-                              <Button
-                                className="workspace-button"
-                                color="indigo"
-                                component={Link}
-                                radius="xl"
-                                size="xs"
-                                to={buildTraceReviewLink({
-                                  traceId: item.traceId,
-                                  question: item.question,
-                                  handlingTitle: reviewSignal.title,
-                                  priorityLabel: locale === "zh" ? `结果行 #${item.index}` : `Result row #${item.index}`
-                                })}
-                                variant="light"
-                              >
-                                {locale === "zh" ? "打开诊断" : "Open diagnostics"}
-                              </Button>
-                            ) : (
-                              <Text c="var(--app-text-muted)" size="xs">-</Text>
-                            )}
-                            {item.traceId ? <Text className="workspace-table-cell-meta">{item.traceId}</Text> : null}
-                            {item.error?.message ? (
-                              <Text className="workspace-table-cell-copy" lineClamp={3} size="xs">
-                                {item.error.message}
-                              </Text>
-                            ) : null}
-                          </Stack>
-                        </Table.Td>
-                      </Table.Tr>
-                    );})}
-                  </Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
-            </div>
-          ) : (
-            <StatePanel
-              description={
-                locale === "zh"
-                    ? "这次质量检查没有返回可展示题目。请先检查 question-set 输入，再执行一次检查。"
-                    : "This quality check did not return any displayable items. Verify the question-set input and run it again."
-               }
-              title={locale === "zh" ? "这次检查还没有题目结果" : "This check has no item results yet"}
-              tone="empty"
+          <Suspense fallback={<ReportAnalysisPanelsFallback locale={locale} />}>
+            <ReportAnalysisPanels
+              answerStatusDistribution={answerStatusDistribution}
+              buildTraceReviewLink={buildTraceReviewLink}
+              downloadReport={downloadReport}
+              errorTypeDistribution={errorTypeDistribution}
+              exporting={exporting}
+              firstRegressionDrilldownItem={firstRegressionDrilldownItem}
+              focusRunItem={focusRunItem}
+              formatBaselineMetadataValue={formatBaselineMetadataValue}
+              formatDateTime={formatDateTime}
+              getEvalItemKey={getEvalItemKey}
+              getQualityGateMetricLabel={getQualityGateMetricLabel}
+              getQualityGateMetricStrategy={getQualityGateMetricStrategy}
+              getRegressionReasonLabel={getRegressionReasonLabel}
+              locale={locale}
+              priorityReplayItem={priorityReplayItem}
+              qualityDistributionData={qualityDistributionData}
+              qualityGate={qualityGate}
+              qualityGatePresentation={qualityGatePresentation}
+              qualitySummaryRows={qualitySummaryRows}
+              radarData={radarData}
+              regressionDrilldownItems={regressionDrilldownItems}
+              runDiffSummary={runDiffSummary}
+              runEvalData={runEvalMutation.data}
+              runItemsByKey={runItemsByKey}
+              t={t}
+              topBreachedMetric={topBreachedMetric}
             />
-          )}
+          </Suspense>
+
+          <Suspense fallback={<ReportResultsTableFallback locale={locale} />}>
+            <ReportResultsTable
+              buildTraceReviewLink={buildTraceReviewLink}
+              filterConclusion={filterConclusion}
+              filterQuality={filterQuality}
+              filterReviewState={filterReviewState}
+              filterStatus={filterStatus}
+              focusedItemKey={focusedItemKey}
+              getAnswerStatusReviewLabel={getAnswerStatusReviewLabel}
+              getEvalItemKey={getEvalItemKey}
+              getQualitySignalColor={getQualitySignalColor}
+              getReviewConclusionPresentation={getReviewConclusionPresentation}
+              getReviewSignal={getReviewSignal}
+              hasRunError={runEvalMutation.isError}
+              hasRunItems={hasRunItems}
+              itemRowRefs={itemRowRefs}
+              locale={locale}
+              qualityOptions={qualityOptions}
+              requestSort={requestSort}
+              reviewConclusions={reviewConclusions}
+              reviewedItemKeySet={reviewedItemKeySet}
+              setFilterConclusion={setFilterConclusion}
+              setFilterQuality={setFilterQuality}
+              setFilterReviewState={setFilterReviewState}
+              setFilterStatus={setFilterStatus}
+              sortConfig={sortConfig}
+              sortedAndFilteredItems={sortedAndFilteredItems}
+              statusOptions={statusOptions}
+              toggleReviewedItem={toggleReviewedItem}
+              updateReviewConclusion={updateReviewConclusion}
+            />
+          </Suspense>
         </Stack>
       ) : null}
     </div>
+  );
+}
+
+function ReportChartFallback({ heightClassName, locale }: { heightClassName: string; locale: "zh" | "en" }) {
+  return (
+    <div className={`${heightClassName} flex items-center justify-center rounded-[24px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)]`}>
+      <Text c="var(--app-text-muted)" size="sm">
+        {locale === "zh" ? "正在加载图表..." : "Loading charts..."}
+      </Text>
+    </div>
+  );
+}
+
+function ReportResultsTableFallback({ locale }: { locale: "zh" | "en" }) {
+  return (
+    <StatePanel
+      description={
+        locale === "zh"
+          ? "正在准备结果表、筛选器和复盘交互。"
+          : "Preparing the results table, filters, and review interactions."
+      }
+      title={locale === "zh" ? "加载结果表" : "Loading results table"}
+      tone="loading"
+    />
+  );
+}
+
+function ReportAnalysisPanelsFallback({ locale }: { locale: "zh" | "en" }) {
+  return (
+    <StatePanel
+      description={
+        locale === "zh"
+          ? "正在准备分布、门槛、差异和导出分析面板。"
+          : "Preparing distributions, gate summaries, diffs, and export panels."
+      }
+      title={locale === "zh" ? "加载分析面板" : "Loading analysis panels"}
+      tone="loading"
+    />
   );
 }
