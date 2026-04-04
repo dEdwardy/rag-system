@@ -298,7 +298,7 @@ model ChunkEmbedding {
   modelName    String
   dimensions   Int
   metadataJson Json?
-  embedding    Unsupported("vector(768)")
+  embedding    Unsupported("vector(1024)")
   updatedAt    DateTime
 
   @@index([kbId])

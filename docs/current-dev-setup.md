@@ -175,18 +175,34 @@ Notes:
   - that stale mix caused `start:prod` / `start:dev` to pick inconsistent runtime artifacts, which surfaced as `GET /auth/me` returning `404` and one prod boot failing with `Cannot find module '../../infra/storage/storage.module'`
 - Current prevention baseline:
   - `pnpm --filter @rag-system/api build` always runs a clean rebuild first
-  - `pnpm --filter @rag-system/api start:dev` now uses the same clean-build runtime path as `start:prod` instead of reusing potentially stale watch output
+  - `pnpm --filter @rag-system/api start:dev` now cleans stale `dist` / `tsconfig.tsbuildinfo`, runs `prisma generate`, then starts `tsx watch src/main.ts`
   - `pnpm --filter @rag-system/api start:prod` resolves the built entry through the same nested-layout-aware helper
   - the build finalize step now writes a minimal `dist/packages/shared/package.json` with `"type": "module"` so Node does not reparse emitted shared files with runtime warnings
 - Current tradeoff:
-  - `start:dev` is currently a stability-first local boot path, not a hot-reload watch path
-  - this was chosen because the previous Windows watch startup could drift across mixed `dist` layouts after environment switches
+  - `start:dev` has returned to a real hot-reload watch path for day-to-day backend work
+  - `.env` / `.env.local` changes are still process-level config changes, so they continue to require a manual restart
+  - the startup cleanup remains in place so Windows / WSL switches do not reuse stale build artifacts
 - Prisma CLI config is now sourced from `apps/api/prisma.config.ts` instead of deprecated `package.json#prisma`.
 - If you manually run Nest/Node commands outside the package scripts after changing OS/runtime environment, prefer a clean rebuild first instead of reusing old `dist/`.
 - In the current local environment, `qwen2.5:7b` has been verified for `/api/generate`, and `nomic-embed-text` has been verified for `/api/embed`.
 - If you switch to a different dedicated embedding model later, update `OLLAMA_EMBEDDING_MODEL` and re-check `OLLAMA_EMBEDDING_DIMENSIONS` against the actual Ollama response length.
 - `OLLAMA_EMBEDDING_DIMENSIONS` is optional and acts as a strict guardrail: when set, the backend rejects Ollama embedding responses whose vector length does not match the configured dimension.
 - `OLLAMA_EMBEDDING_DIMENSIONS` now also requires Ollama embedding provider config (`OLLAMA_BASE_URL` + `OLLAMA_EMBEDDING_MODEL` or `OLLAMA_MODEL`); setting it alone now fails fast at startup/config resolution instead of being silently ignored.
+- For OpenAI-compatible hosted providers such as Volcengine Ark, the current API also supports two embedding request modes:
+
+```text
+OPENAI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+OPENAI_CHAT_MODEL=<chat-endpoint-id>
+OPENAI_EMBEDDING_MODEL=<embedding-endpoint-id>
+OPENAI_EMBEDDING_DIMENSIONS=1024
+OPENAI_EMBEDDING_API_MODE=multimodal_text
+VECTOR_STORE_PROVIDER=pgvector
+VECTOR_STORE_PGVECTOR_DIMENSIONS=1024
+```
+
+- `OPENAI_EMBEDDING_API_MODE=standard` keeps the normal `/embeddings` request shape with string input.
+- `OPENAI_EMBEDDING_API_MODE=multimodal_text` switches to `/embeddings/multimodal` and sends text as `{ type: "text", text: ... }` items.
+- `VECTOR_STORE_PGVECTOR_DIMENSIONS` must match the active embedding output size. With pgvector, this is part of the database column type, so changing embedding size also requires a schema migration and a fresh reindex.
 - If a KB still contains old local `fallback:hash-v1` vectors, the first successful reindex with a dedicated embedding provider now replaces those legacy fallback vectors for that KB so reindex can recover without manual vector cleanup.
 - external source fetch runtime now also supports:
 

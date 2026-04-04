@@ -18,7 +18,7 @@ test("resolveVectorStoreRuntimeConfig resolves pgvector provider with defaults",
   assert.deepEqual(config, {
     provider: "pgvector",
     tableName: "ChunkEmbedding",
-    dimensions: 768
+    dimensions: 1024
   });
 });
 

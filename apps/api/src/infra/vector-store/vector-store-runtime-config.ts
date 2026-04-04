@@ -37,7 +37,7 @@ export function resolveVectorStoreRuntimeConfig(env: NodeJS.ProcessEnv = process
     );
   }
 
-  const rawDimensions = env.VECTOR_STORE_PGVECTOR_DIMENSIONS?.trim() || "768";
+  const rawDimensions = env.VECTOR_STORE_PGVECTOR_DIMENSIONS?.trim() || "1024";
   const dimensions = Number.parseInt(rawDimensions, 10);
   if (!Number.isInteger(dimensions) || dimensions <= 0) {
     throw new VectorStoreRuntimeConfigError(

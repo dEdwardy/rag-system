@@ -33,8 +33,8 @@
 
 - `api build/start cross-environment hardening` 完成了 Windows / WSL 切换下的 narrow backend startup closeout
   - 根因是 API 旧构建产物和增量状态残留会造成 `apps/api/dist` 混合布局，进一步导致运行时模块缺失和 `/auth/*` 路由未注册
-  - `apps/api/package.json` 现在在 `build` 前稳定清理构建产物，`start:dev` 和 `start:prod` 共享 clean-build runtime boot path
-  - `apps/api/scripts/start-dev.mjs`、`apps/api/scripts/start-prod.mjs` 现在都通过 `apps/api/scripts/resolve-built-api-entry.mjs` 解析实际 built entry
+  - `apps/api/package.json` 现在在 `build` 前稳定清理构建产物，`start:prod` 继续使用 clean-build runtime boot path
+  - `apps/api/scripts/start-dev.mjs` 已重新收回真正的 watch/dev 语义：启动前清理旧构建产物并执行 `prisma generate`，然后进入 `tsx watch src/main.ts`
   - 同区域 warning cleanup 已完成：
     - Prisma seed 配置从废弃的 `package.json#prisma` 迁到 `apps/api/prisma.config.ts`
     - build finalize 会给 `apps/api/dist/packages/shared/package.json` 写入 `"type": "module"`，去掉 Node runtime reparsing warning

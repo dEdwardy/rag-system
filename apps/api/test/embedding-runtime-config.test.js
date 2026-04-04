@@ -46,6 +46,7 @@ test("resolveEmbeddingRuntimeConfig keeps Ollama first, OpenAI second, and fallb
     provider: "openai",
     apiKey: "test-key",
     apiUrl: "https://api.openai.com/v1/embeddings",
+    apiMode: "standard",
     model: "text-embedding-3-small",
     modelSource: "default:OPENAI_EMBEDDING_MODEL",
     expectedDimensions: 1536
@@ -62,6 +63,7 @@ test("resolveEmbeddingRuntimeConfig derives OpenAI embedding endpoint from OPENA
     provider: "openai",
     apiKey: "test-key",
     apiUrl: "https://openai-proxy.local/v1/embeddings",
+    apiMode: "standard",
     model: "text-embedding-3-small",
     modelSource: "default:OPENAI_EMBEDDING_MODEL",
     expectedDimensions: 1536
@@ -155,7 +157,7 @@ test("resolveEmbeddingRuntimeConfig rejects incomplete Ollama config", () => {
   );
 });
 
-test("resolveEmbeddingRuntimeConfig rejects unsupported OpenAI embedding models", () => {
+test("resolveEmbeddingRuntimeConfig rejects custom OpenAI-compatible embedding models without explicit dimensions", () => {
   assert.throws(
     () =>
       resolveEmbeddingRuntimeConfig({
@@ -165,8 +167,65 @@ test("resolveEmbeddingRuntimeConfig rejects unsupported OpenAI embedding models"
     error => {
       assert.ok(error instanceof EmbeddingRuntimeConfigError);
       assert.match(error.message, /OPENAI_EMBEDDING_MODEL/);
+      assert.match(error.message, /OPENAI_EMBEDDING_DIMENSIONS/);
       assert.match(error.message, /text-embedding-3-small/);
       assert.match(error.message, /Resolved OpenAI embedding endpoint: https:\/\/api\.openai\.com\/v1\/embeddings\./);
+      return true;
+    }
+  );
+});
+
+test("resolveEmbeddingRuntimeConfig accepts custom OpenAI-compatible embedding models with explicit dimensions", () => {
+  const config = resolveEmbeddingRuntimeConfig({
+    OPENAI_API_KEY: "test-key",
+    OPENAI_BASE_URL: "https://openai-proxy.local/v1/",
+    OPENAI_EMBEDDING_MODEL: "custom-embedding-model",
+    OPENAI_EMBEDDING_DIMENSIONS: "1024"
+  });
+
+  assert.deepEqual(config.providers[0], {
+    provider: "openai",
+    apiKey: "test-key",
+    apiUrl: "https://openai-proxy.local/v1/embeddings",
+    apiMode: "standard",
+    model: "custom-embedding-model",
+    modelSource: "env:OPENAI_EMBEDDING_MODEL",
+    expectedDimensions: 1024
+  });
+});
+
+test("resolveEmbeddingRuntimeConfig supports multimodal text mode for OpenAI-compatible embeddings", () => {
+  const config = resolveEmbeddingRuntimeConfig({
+    OPENAI_API_KEY: "test-key",
+    OPENAI_BASE_URL: "https://openai-proxy.local/v1",
+    OPENAI_EMBEDDING_MODEL: "multimodal-embedding-model",
+    OPENAI_EMBEDDING_DIMENSIONS: "1024",
+    OPENAI_EMBEDDING_API_MODE: "multimodal_text"
+  });
+
+  assert.deepEqual(config.providers[0], {
+    provider: "openai",
+    apiKey: "test-key",
+    apiUrl: "https://openai-proxy.local/v1/embeddings/multimodal",
+    apiMode: "multimodal_text",
+    model: "multimodal-embedding-model",
+    modelSource: "env:OPENAI_EMBEDDING_MODEL",
+    expectedDimensions: 1024
+  });
+});
+
+test("resolveEmbeddingRuntimeConfig rejects invalid OpenAI embedding API mode", () => {
+  assert.throws(
+    () =>
+      resolveEmbeddingRuntimeConfig({
+        OPENAI_API_KEY: "test-key",
+        OPENAI_EMBEDDING_MODEL: "custom-embedding-model",
+        OPENAI_EMBEDDING_DIMENSIONS: "1024",
+        OPENAI_EMBEDDING_API_MODE: "multimodal_image"
+      }),
+    error => {
+      assert.ok(error instanceof EmbeddingRuntimeConfigError);
+      assert.match(error.message, /OPENAI_EMBEDDING_API_MODE/);
       return true;
     }
   );
@@ -242,6 +301,143 @@ test("EmbeddingService rejects incompatible OpenAI dimensions with an explicit e
             assert.match(error.message, /Resolved OpenAI embedding endpoint: https:\/\/api\.openai\.com\/v1\/embeddings/);
             return true;
           });
+        }
+      );
+    }
+  );
+});
+
+test("EmbeddingService sends multimodal text payloads for OpenAI-compatible embedding providers", async () => {
+  const service = new EmbeddingService();
+
+  await withEnv(
+    {
+      OLLAMA_BASE_URL: undefined,
+      OLLAMA_MODEL: undefined,
+      OLLAMA_EMBEDDING_MODEL: undefined,
+      OPENAI_API_KEY: "test-key",
+      OPENAI_BASE_URL: "https://openai-proxy.local/v1",
+      OPENAI_EMBEDDING_MODEL: "multimodal-embedding-model",
+      OPENAI_EMBEDDING_DIMENSIONS: "1024",
+      OPENAI_EMBEDDING_API_MODE: "multimodal_text"
+    },
+    async () => {
+      const capturedRequests = [];
+
+      await withFetchMock(
+        async (url, init) => {
+          capturedRequests.push({ url, init });
+
+          return {
+            ok: true,
+            json: async () => ({
+              data: { embedding: new Array(1024).fill(0.1) }
+            })
+          };
+        },
+        async () => {
+          const [embedding] = await service.embedTexts(["hello world"]);
+
+          assert.equal(embedding.dimensions, 1024);
+          assert.equal(capturedRequests.length, 1);
+          assert.equal(capturedRequests[0].url, "https://openai-proxy.local/v1/embeddings/multimodal");
+
+          const body = JSON.parse(capturedRequests[0].init.body);
+          assert.deepEqual(body, {
+            model: "multimodal-embedding-model",
+            dimensions: 1024,
+            input: [{ type: "text", text: "hello world" }]
+          });
+        }
+      );
+    }
+  );
+});
+
+test("EmbeddingService accepts multimodal text responses that return a single data.embedding object", async () => {
+  const service = new EmbeddingService();
+
+  await withEnv(
+    {
+      OLLAMA_BASE_URL: undefined,
+      OLLAMA_MODEL: undefined,
+      OLLAMA_EMBEDDING_MODEL: undefined,
+      OPENAI_API_KEY: "test-key",
+      OPENAI_BASE_URL: "https://openai-proxy.local/v1",
+      OPENAI_EMBEDDING_MODEL: "multimodal-embedding-model",
+      OPENAI_EMBEDDING_DIMENSIONS: "1024",
+      OPENAI_EMBEDDING_API_MODE: "multimodal_text"
+    },
+    async () => {
+      await withFetchMock(
+        async () => ({
+          ok: true,
+          json: async () => ({
+            data: { embedding: new Array(1024).fill(0.1) }
+          })
+        }),
+        async () => {
+          const [embedding] = await service.embedTexts(["hello world"]);
+
+          assert.equal(embedding.dimensions, 1024);
+          assert.equal(embedding.provider, "openai");
+          assert.equal(embedding.model, "multimodal-embedding-model");
+          assert.equal(embedding.vector.length, 1024);
+        }
+      );
+    }
+  );
+});
+
+test("EmbeddingService sends multimodal text inputs one by one when the provider only returns one embedding object", async () => {
+  const service = new EmbeddingService();
+
+  await withEnv(
+    {
+      OLLAMA_BASE_URL: undefined,
+      OLLAMA_MODEL: undefined,
+      OLLAMA_EMBEDDING_MODEL: undefined,
+      OPENAI_API_KEY: "test-key",
+      OPENAI_BASE_URL: "https://openai-proxy.local/v1",
+      OPENAI_EMBEDDING_MODEL: "multimodal-embedding-model",
+      OPENAI_EMBEDDING_DIMENSIONS: "1024",
+      OPENAI_EMBEDDING_API_MODE: "multimodal_text"
+    },
+    async () => {
+      const capturedRequests = [];
+
+      await withFetchMock(
+        async (url, init) => {
+          capturedRequests.push({ url, init });
+
+          return {
+            ok: true,
+            json: async () => ({
+              data: { embedding: new Array(1024).fill(0.2) }
+            })
+          };
+        },
+        async () => {
+          const embeddings = await service.embedTexts(["hello world", "react hooks"]);
+
+          assert.equal(embeddings.length, 2);
+          assert.equal(capturedRequests.length, 2);
+          assert.equal(capturedRequests[0].url, "https://openai-proxy.local/v1/embeddings/multimodal");
+          assert.equal(capturedRequests[1].url, "https://openai-proxy.local/v1/embeddings/multimodal");
+
+          const bodies = capturedRequests.map(request => JSON.parse(request.init.body));
+          assert.deepEqual(bodies, [
+            {
+              model: "multimodal-embedding-model",
+              dimensions: 1024,
+              input: [{ type: "text", text: "hello world" }]
+            },
+            {
+              model: "multimodal-embedding-model",
+              dimensions: 1024,
+              input: [{ type: "text", text: "react hooks" }]
+            }
+          ]);
         }
       );
     }

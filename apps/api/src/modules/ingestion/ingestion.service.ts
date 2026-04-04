@@ -31,6 +31,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
+    this.logger.log("IngestionService onModuleInit entered.");
     const runtimeConfig = this.runtimeConfig ?? this.queueRuntimeConfigService.getConfig();
 
     if (!runtimeConfig.enableDocumentIngestionWorker) {
@@ -62,7 +63,9 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
 
   private async startPgmqWorker() {
     this.logger.log("Starting pgmq-backed document ingestion worker.");
+    this.logger.log("Ensuring pgmq ingestion queue is ready.");
     await this.queueService.ensureDocumentIngestionQueueReady();
+    this.logger.log("Pgmq ingestion queue is ready.");
 
     this.databasePollTimer = setInterval(() => {
       void this.runWorkerPollSafely("pgmq", () => this.pollPgmqQueue());

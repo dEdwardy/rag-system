@@ -10,6 +10,8 @@ const OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL: Record<string, number> = {
   "text-embedding-ada-002": 1536
 };
 
+const OPENAI_EMBEDDING_API_MODES = ["standard", "multimodal_text"] as const;
+
 export type EmbeddingProvider = "ollama" | "openai" | "fallback";
 
 export type EmbeddingModelSource =
@@ -53,6 +55,7 @@ export type OpenAiEmbeddingRuntimeConfig = {
   provider: "openai";
   apiKey: string;
   apiUrl: string;
+  apiMode: (typeof OPENAI_EMBEDDING_API_MODES)[number];
   model: string;
   modelSource: Extract<EmbeddingModelSource, "env:OPENAI_EMBEDDING_MODEL" | "default:OPENAI_EMBEDDING_MODEL">;
   expectedDimensions: number;
@@ -207,6 +210,8 @@ function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbe
 function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbeddingRuntimeConfig | null {
   const apiKey = readOptionalString(env.OPENAI_API_KEY);
   const explicitModel = readOptionalString(env.OPENAI_EMBEDDING_MODEL);
+  const explicitDimensions = readOptionalPositiveInteger(env.OPENAI_EMBEDDING_DIMENSIONS, "OPENAI_EMBEDDING_DIMENSIONS");
+  const apiMode = resolveOpenAiEmbeddingApiMode(env.OPENAI_EMBEDDING_API_MODE);
   const configuredBaseUrl = readOptionalString(env.OPENAI_BASE_URL);
   const openAiBaseUrl = configuredBaseUrl
     ? normalizeConfiguredBaseUrl(configuredBaseUrl, "OPENAI_BASE_URL")
@@ -225,24 +230,44 @@ function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbe
   }
 
   const model = explicitModel ?? DEFAULT_OPENAI_EMBEDDING_MODEL;
-  const expectedDimensions = OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL[model];
+  const expectedDimensions = OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL[model] ?? explicitDimensions;
 
   if (!expectedDimensions) {
     const endpointHint = ` Resolved OpenAI embedding endpoint: ${openAiBaseUrl}/embeddings.`;
+    const customModelHint = explicitModel
+      ? " For custom OpenAI-compatible embedding models, set OPENAI_EMBEDDING_DIMENSIONS to the provider's embedding size."
+      : "";
 
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported. Supported values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.${endpointHint}`
+      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported without explicit dimensions. Supported built-in values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.${customModelHint}${endpointHint}`
     );
   }
 
   return {
     provider: "openai",
     apiKey,
-    apiUrl: `${openAiBaseUrl}/embeddings`,
+    apiUrl: `${openAiBaseUrl}${apiMode === "multimodal_text" ? "/embeddings/multimodal" : "/embeddings"}`,
+    apiMode,
     model,
     modelSource: explicitModel ? "env:OPENAI_EMBEDDING_MODEL" : "default:OPENAI_EMBEDDING_MODEL",
     expectedDimensions
   };
+}
+
+function resolveOpenAiEmbeddingApiMode(rawValue: string | undefined): (typeof OPENAI_EMBEDDING_API_MODES)[number] {
+  const normalizedValue = rawValue?.trim();
+
+  if (!normalizedValue) {
+    return "standard";
+  }
+
+  if ((OPENAI_EMBEDDING_API_MODES as readonly string[]).includes(normalizedValue)) {
+    return normalizedValue as (typeof OPENAI_EMBEDDING_API_MODES)[number];
+  }
+
+  throw new EmbeddingRuntimeConfigError(
+    `Invalid embedding config: OPENAI_EMBEDDING_API_MODE="${normalizedValue}" is unsupported. Expected one of: ${OPENAI_EMBEDDING_API_MODES.join(", ")}.`
+  );
 }
 
 function validateResolvedEmbeddingDimensions(

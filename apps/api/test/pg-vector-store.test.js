@@ -76,7 +76,7 @@ test("PgVectorStoreService exposes active and indexed embedding diagnostics for 
 test("PgVectorStoreService rejects indexing when embedding dimensions do not match configured pgvector dimensions", async () => {
   await withPgVectorEnv(
     {
-      VECTOR_STORE_PGVECTOR_DIMENSIONS: "768"
+      VECTOR_STORE_PGVECTOR_DIMENSIONS: "1024"
     },
     async () => {
       const service = new PgVectorStoreService(createFakePrisma());
@@ -113,7 +113,7 @@ test("PgVectorStoreService rejects indexing when embedding dimensions do not mat
         }),
         error => {
           assert.ok(error instanceof VectorStoreCompatibilityError);
-          assert.match(error.message, /pgvector store dimension 768d/);
+          assert.match(error.message, /pgvector store dimension 1024d/);
           return true;
         }
       );
@@ -155,13 +155,13 @@ test("PgVectorStoreService replaces legacy fallback vectors when indexing with a
             provider: "ollama",
             model: "nomic-embed-text",
             modelName: "ollama:nomic-embed-text",
-            dimensions: 768,
+            dimensions: 1024,
             provenance: {
               modelSource: "env:OLLAMA_EMBEDDING_MODEL",
               dimensionsSource: "provider_response",
               fallback: "none"
             },
-            vector: new Array(768).fill(0)
+            vector: new Array(1024).fill(0)
           })
         }
       ]
@@ -210,7 +210,7 @@ async function withPgVectorEnv(overridesOrCallback, callbackMaybe) {
 
   process.env.VECTOR_STORE_PROVIDER = "pgvector";
   process.env.VECTOR_STORE_PGVECTOR_TABLE = overrides.VECTOR_STORE_PGVECTOR_TABLE ?? "ChunkEmbedding";
-  process.env.VECTOR_STORE_PGVECTOR_DIMENSIONS = overrides.VECTOR_STORE_PGVECTOR_DIMENSIONS ?? "768";
+  process.env.VECTOR_STORE_PGVECTOR_DIMENSIONS = overrides.VECTOR_STORE_PGVECTOR_DIMENSIONS ?? "1024";
 
   try {
     await callback();

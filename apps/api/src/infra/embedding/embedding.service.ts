@@ -105,6 +105,45 @@ export class EmbeddingService {
   }
 
   private async embedWithOpenAI(providerConfig: OpenAiEmbeddingRuntimeConfig, input: string[]): Promise<EmbeddingVector[]> {
+    if (providerConfig.apiMode === "multimodal_text") {
+      const embeddings: EmbeddingVector[] = [];
+
+      for (const text of input) {
+        const response = await fetch(providerConfig.apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${providerConfig.apiKey}`
+          },
+          body: JSON.stringify({
+            model: providerConfig.model,
+            dimensions: providerConfig.expectedDimensions,
+            input: [{ type: "text", text }]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`OpenAI embedding request failed with status ${response.status}.`);
+        }
+
+        const data = (await response.json()) as {
+          data?: { embedding?: number[] };
+        };
+
+        if (!data.data || !Array.isArray(data.data.embedding)) {
+          throw new Error("OpenAI embedding response shape is invalid.");
+        }
+
+        const dimensions = resolveProviderResponseDimensions(providerConfig, [data.data.embedding]);
+        embeddings.push({
+          vector: data.data.embedding,
+          ...createResolvedEmbeddingConfigFromProviderResponse(providerConfig, dimensions)
+        });
+      }
+
+      return embeddings;
+    }
+
     const response = await fetch(providerConfig.apiUrl, {
       method: "POST",
       headers: {
@@ -113,6 +152,7 @@ export class EmbeddingService {
       },
       body: JSON.stringify({
         model: providerConfig.model,
+        dimensions: providerConfig.expectedDimensions,
         input
       })
     });
@@ -122,10 +162,15 @@ export class EmbeddingService {
     }
 
     const data = (await response.json()) as {
-      data?: Array<{ embedding: number[]; index: number }>;
+      data?: Array<{ embedding: number[]; index: number }> | { embedding?: number[] };
     };
 
-    const sortedItems = [...(data.data ?? [])].sort((left, right) => left.index - right.index);
+    const sortedItems = Array.isArray(data.data)
+      ? [...data.data].sort((left, right) => left.index - right.index)
+      : input.length === 1 && data.data && Array.isArray(data.data.embedding)
+        ? [{ embedding: data.data.embedding, index: 0 }]
+        : [];
+
     if (sortedItems.length !== input.length || sortedItems.some(item => !Array.isArray(item.embedding))) {
       throw new Error("OpenAI embedding response shape is invalid.");
     }
