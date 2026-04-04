@@ -9,10 +9,11 @@ import {
   normalizeThemeColor,
   normalizeThemeLayout
 } from "./app/theme-preferences";
+import { readStorageItem } from "./lib/browser-storage";
 import "./styles/global.css";
 
-const initialThemeColor = normalizeThemeColor(window.localStorage.getItem(THEME_COLOR_STORAGE_KEY));
-const initialThemeLayout = normalizeThemeLayout(window.localStorage.getItem(THEME_LAYOUT_STORAGE_KEY));
+const initialThemeColor = normalizeThemeColor(readStorageItem(window.localStorage, THEME_COLOR_STORAGE_KEY));
+const initialThemeLayout = normalizeThemeLayout(readStorageItem(window.localStorage, THEME_LAYOUT_STORAGE_KEY));
 
 document.documentElement.dataset.themeColor = initialThemeColor ?? DEFAULT_THEME_PREFERENCES.themeColor;
 document.documentElement.dataset.themeLayout = initialThemeLayout ?? DEFAULT_THEME_PREFERENCES.themeLayout;

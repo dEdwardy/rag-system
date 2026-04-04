@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import { writeStorageItem } from "../../lib/browser-storage";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import {
   buildEvalRunCarryThroughPreview,
@@ -878,15 +879,16 @@ export function ReportCenterPage() {
       return;
     }
 
-    window.localStorage.setItem(
+    writeStorageItem(
+      window.localStorage,
       reviewStateStorageKey,
-        JSON.stringify({
-          reviewedItemKeys,
-          reviewConclusions,
-          reviewNote,
-          reviewUpdatedAt
-        })
-      );
+      JSON.stringify({
+        reviewedItemKeys,
+        reviewConclusions,
+        reviewNote,
+        reviewUpdatedAt
+      })
+    );
   }, [reviewConclusions, reviewNote, reviewStateStorageKey, reviewUpdatedAt, reviewedItemKeys]);
 
   // 图表颜色配置

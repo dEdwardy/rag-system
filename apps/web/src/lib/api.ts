@@ -56,7 +56,11 @@ type RequestOptions = {
 
 export type ApiRequestError = Error & {
   status?: number;
+  code?: string;
 };
+
+const API_UNREACHABLE_CODE = "API_UNREACHABLE";
+const API_UNREACHABLE_MESSAGE = "Cannot reach the API service. Start the backend and refresh the page.";
 
 type StreamErrorPayload = {
   type: "error";
@@ -67,22 +71,31 @@ type StreamErrorPayload = {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
-  const response = await fetch(resolveApiUrl(path), {
-    method: options.method ?? "GET",
-    credentials: "include",
-    headers:
-      options.body instanceof FormData
-        ? undefined
-        : {
-            "Content-Type": "application/json"
-          },
-    body:
-      options.body == null
-        ? undefined
-        : options.body instanceof FormData
-          ? options.body
-          : JSON.stringify(options.body)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(resolveApiUrl(path), {
+      method: options.method ?? "GET",
+      credentials: "include",
+      headers:
+        options.body instanceof FormData
+          ? undefined
+          : {
+              "Content-Type": "application/json"
+            },
+      body:
+        options.body == null
+          ? undefined
+          : options.body instanceof FormData
+            ? options.body
+            : JSON.stringify(options.body)
+    });
+  } catch (error) {
+    throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
+      cause: error,
+      code: API_UNREACHABLE_CODE
+    });
+  }
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}.`;
@@ -94,9 +107,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
       // ignore parsing failures
     }
 
-    const error = new Error(message) as ApiRequestError;
-    error.status = response.status;
-    throw error;
+    throw createApiRequestError(message, { status: response.status });
   }
 
   return (await response.json()) as T;
@@ -108,15 +119,24 @@ export async function apiStreamRequest<TEvent>(
     onEvent: (event: TEvent) => void;
   }
 ) {
-  const response = await fetch(resolveApiUrl(path), {
-    method: options.method ?? "GET",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/x-ndjson"
-    },
-    body: options.body == null ? undefined : JSON.stringify(options.body)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(resolveApiUrl(path), {
+      method: options.method ?? "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/x-ndjson"
+      },
+      body: options.body == null ? undefined : JSON.stringify(options.body)
+    });
+  } catch (error) {
+    throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
+      cause: error,
+      code: API_UNREACHABLE_CODE
+    });
+  }
 
   if (!response.ok || !response.body) {
     let message = `Request failed with status ${response.status}.`;
@@ -128,9 +148,7 @@ export async function apiStreamRequest<TEvent>(
       // ignore parsing failures
     }
 
-    const error = new Error(message) as ApiRequestError;
-    error.status = response.status;
-    throw error;
+    throw createApiRequestError(message, { status: response.status });
   }
 
   const reader = response.body.getReader();
@@ -195,4 +213,23 @@ function isStreamErrorPayload(event: unknown): event is StreamErrorPayload {
 
   const candidate = event as Partial<StreamErrorPayload>;
   return candidate.type === "error" && typeof candidate.message === "string";
+}
+
+function createApiRequestError(
+  message: string,
+  options: {
+    status?: number;
+    code?: string;
+    cause?: unknown;
+  } = {}
+) {
+  const error = new Error(message) as ApiRequestError & { cause?: unknown };
+  error.status = options.status;
+  error.code = options.code;
+  error.cause = options.cause;
+  return error;
+}
+
+export function isApiUnavailableError(error: unknown) {
+  return typeof error === "object" && error != null && (error as ApiRequestError).code === API_UNREACHABLE_CODE;
 }

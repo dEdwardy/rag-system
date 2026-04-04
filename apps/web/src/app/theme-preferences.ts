@@ -1,4 +1,5 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { readStorageItem, writeStorageItem } from "../lib/browser-storage";
 
 export type ThemeColorMode = "constrained-light" | "creative-dark";
 export type ThemeLayoutMode = "default-app" | "workspace-app";
@@ -43,8 +44,8 @@ export function normalizeThemeLayout(value: string | null | undefined): ThemeLay
 
 export function getStoredThemePreferences(storage: StorageLike): ThemePreferences {
   return {
-    themeColor: normalizeThemeColor(storage.getItem(THEME_COLOR_STORAGE_KEY)),
-    themeLayout: normalizeThemeLayout(storage.getItem(THEME_LAYOUT_STORAGE_KEY))
+    themeColor: normalizeThemeColor(readStorageItem(storage, THEME_COLOR_STORAGE_KEY)),
+    themeLayout: normalizeThemeLayout(readStorageItem(storage, THEME_LAYOUT_STORAGE_KEY))
   };
 }
 
@@ -56,8 +57,8 @@ export function getDocumentThemeDataset(storage: StorageLike): {
 }
 
 export function setStoredThemePreferences(storage: StorageWriterLike, preferences: ThemePreferences) {
-  storage.setItem(THEME_COLOR_STORAGE_KEY, preferences.themeColor);
-  storage.setItem(THEME_LAYOUT_STORAGE_KEY, preferences.themeLayout);
+  writeStorageItem(storage, THEME_COLOR_STORAGE_KEY, preferences.themeColor);
+  writeStorageItem(storage, THEME_LAYOUT_STORAGE_KEY, preferences.themeLayout);
 }
 
 export function getInitialThemePreferences(): ThemePreferences {

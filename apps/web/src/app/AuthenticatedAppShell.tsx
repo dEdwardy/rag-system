@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
+import { BackendUnavailableScreen } from "../components/BackendUnavailableScreen";
 import { useAuthMe } from "../features/api/hooks";
-import type { ApiRequestError } from "../lib/api";
+import { isApiUnavailableError, type ApiRequestError } from "../lib/api";
 import { AppShell } from "./AppShell";
 
 export function AuthenticatedAppShell() {
@@ -12,6 +13,10 @@ export function AuthenticatedAppShell() {
 
   if (isUnauthorized(authMeQuery.error)) {
     return <Navigate replace to="/login" />;
+  }
+
+  if (isApiUnavailableError(authMeQuery.error)) {
+    return <BackendUnavailableScreen />;
   }
 
   if (authMeQuery.isError) {

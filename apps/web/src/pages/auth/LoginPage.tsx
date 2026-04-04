@@ -1,8 +1,9 @@
 import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { BackendUnavailableScreen } from "../../components/BackendUnavailableScreen";
 import { useI18n } from "../../i18n/I18nProvider";
 import { useAuthMe, useAuthProviders, useLogin } from "../../features/api/hooks";
-import { resolveApiUrl } from "../../lib/api";
+import { isApiUnavailableError, resolveApiUrl } from "../../lib/api";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -22,6 +23,10 @@ export function LoginPage() {
 
   if (authMeQuery.data?.identity != null) {
     return <Navigate replace to="/" />;
+  }
+
+  if (isApiUnavailableError(authMeQuery.error) || isApiUnavailableError(authProvidersQuery.error)) {
+    return <BackendUnavailableScreen />;
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {

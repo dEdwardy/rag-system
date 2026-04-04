@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { readStorageItem, writeStorageItem } from "../lib/browser-storage";
 import { messages, type SupportedLocale } from "./messages";
 
 type TranslationValues = Record<string, string | number>;
@@ -41,7 +42,7 @@ function getInitialLocale(): SupportedLocale {
     return "zh";
   }
 
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  const stored = readStorageItem(window.localStorage, STORAGE_KEY);
   if (stored === "zh" || stored === "en") {
     return stored;
   }
@@ -66,7 +67,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, locale);
+    writeStorageItem(window.localStorage, STORAGE_KEY, locale);
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
   }, [locale]);
 
