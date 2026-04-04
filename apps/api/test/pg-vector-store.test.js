@@ -121,6 +121,58 @@ test("PgVectorStoreService rejects indexing when embedding dimensions do not mat
   );
 });
 
+test("PgVectorStoreService replaces legacy fallback vectors when indexing with a dedicated embedding config", async () => {
+  await withPgVectorEnv(async () => {
+    const fakePrisma = createFakePrisma({
+      queryResponses: [
+        [
+          {
+            modelName: "fallback:hash-v1",
+            dimensions: 256,
+            recordCount: 2,
+            documentCount: 1
+          }
+        ]
+      ]
+    });
+    const service = new PgVectorStoreService(fakePrisma);
+
+    await service.replaceDocumentVectors({
+      kbId: "kb-1",
+      documentId: "doc-2",
+      records: [
+        {
+          id: "chunk-2",
+          kbId: "kb-1",
+          documentId: "doc-2",
+          chunkId: "chunk-2",
+          chunkIndex: 0,
+          sectionTitle: "Overview",
+          pageNo: 1,
+          content: "replacement content",
+          metadata: {},
+          embedding: createEmbedding({
+            provider: "ollama",
+            model: "nomic-embed-text",
+            modelName: "ollama:nomic-embed-text",
+            dimensions: 768,
+            provenance: {
+              modelSource: "env:OLLAMA_EMBEDDING_MODEL",
+              dimensionsSource: "provider_response",
+              fallback: "none"
+            },
+            vector: new Array(768).fill(0)
+          })
+        }
+      ]
+    });
+
+    assert.equal(fakePrisma.executeCalls.length, 2);
+    assert.equal(fakePrisma.executeCalls[0].values.length, 1);
+    assert.equal(fakePrisma.executeCalls[0].values[0], "kb-1");
+  });
+});
+
 function createEmbedding(input) {
   return input;
 }

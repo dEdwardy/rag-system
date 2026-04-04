@@ -6,7 +6,8 @@ import {
   assertCompatibleEmbeddingConfigs,
   buildEmbeddingDiagnostics,
   summarizeUpsertEmbeddings,
-  parseEmbeddingModelName
+  parseEmbeddingModelName,
+  shouldReplaceIndexedFallbackDuringIndexing
 } from "./vector-store.shared";
 import { resolveVectorStoreRuntimeConfig } from "./vector-store-runtime-config";
 import {
@@ -53,7 +54,15 @@ export class PgVectorStoreService implements VectorStore {
 
     const existingIndexedEmbedding = await this.readIndexedEmbeddingSummary(input.kbId, input.documentId);
 
-    if (nextDocumentEmbedding && existingIndexedEmbedding) {
+    const shouldReplaceIndexedFallback =
+      nextDocumentEmbedding &&
+      existingIndexedEmbedding &&
+      shouldReplaceIndexedFallbackDuringIndexing({
+        active: nextDocumentEmbedding,
+        indexed: existingIndexedEmbedding
+      });
+
+    if (nextDocumentEmbedding && existingIndexedEmbedding && !shouldReplaceIndexedFallback) {
       assertCompatibleEmbeddingConfigs({
         kbId: input.kbId,
         active: nextDocumentEmbedding,
@@ -63,7 +72,11 @@ export class PgVectorStoreService implements VectorStore {
     }
 
     await this.prisma.$transaction(async transaction => {
-      await transaction.$executeRaw(this.buildDeleteDocumentVectorsSql(input.kbId, input.documentId));
+      await transaction.$executeRaw(
+        shouldReplaceIndexedFallback
+          ? this.buildDeleteKnowledgeBaseVectorsSql(input.kbId)
+          : this.buildDeleteDocumentVectorsSql(input.kbId, input.documentId)
+      );
 
       if (input.records.length === 0) {
         return;
@@ -136,6 +149,13 @@ export class PgVectorStoreService implements VectorStore {
     return Prisma.sql`
       DELETE FROM ${this.tableIdentifier()}
       WHERE "kbId" = ${kbId} AND "documentId" = ${documentId}
+    `;
+  }
+
+  private buildDeleteKnowledgeBaseVectorsSql(kbId: string) {
+    return Prisma.sql`
+      DELETE FROM ${this.tableIdentifier()}
+      WHERE "kbId" = ${kbId}
     `;
   }
 

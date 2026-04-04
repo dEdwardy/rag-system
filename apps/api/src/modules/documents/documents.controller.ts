@@ -93,6 +93,13 @@ export class DocumentsController {
     return this.documentsService.createDocument(knowledgeBaseId, input, authContext.identity);
   }
 
+  @Post("knowledge-bases/:id/reindex")
+  reindexKnowledgeBase(@Param("id") knowledgeBaseId: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+
+    return this.documentsService.reindexKnowledgeBase(knowledgeBaseId, authContext.identity);
+  }
+
   @Post("knowledge-bases/:id/documents/web-page")
   createWebPageDocument(
     @Param("id") knowledgeBaseId: string,

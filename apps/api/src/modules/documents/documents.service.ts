@@ -105,6 +105,32 @@ export class DocumentsService {
     return this.documentRunsService.getKnowledgeBaseRunComparison(knowledgeBaseId, input);
   }
 
+  async reindexKnowledgeBase(knowledgeBaseId: string, scope?: DocumentAccessScope | null) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+
+    const documents = await this.prisma.document.findMany({
+      where: {
+        kbId: knowledgeBaseId
+      },
+      select: {
+        id: true
+      },
+      orderBy: {
+        updatedAt: "desc"
+      }
+    });
+
+    for (const document of documents) {
+      await this.reindexDocument(document.id);
+    }
+
+    return {
+      knowledgeBaseId,
+      requestedCount: documents.length,
+      documentIds: documents.map(document => document.id)
+    };
+  }
+
   async getDocument(id: string, scope?: DocumentAccessScope | null) {
     const document = await this.prisma.document.findUnique({
       where: {

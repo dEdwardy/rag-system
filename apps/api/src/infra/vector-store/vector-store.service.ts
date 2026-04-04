@@ -6,6 +6,7 @@ import {
   assertCompatibleEmbeddingConfigs,
   buildEmbeddingDiagnostics,
   matchesVectorStoreFilters,
+  shouldReplaceIndexedFallbackDuringIndexing,
   summarizeIndexedEmbedding,
   summarizeUpsertEmbeddings
 } from "./vector-store.shared";
@@ -23,6 +24,26 @@ export class VectorStoreService implements VectorStore {
       records.filter(record => record.documentId !== input.documentId),
       input.kbId
     );
+
+    if (
+      nextDocumentEmbedding &&
+      existingIndexedEmbedding &&
+      shouldReplaceIndexedFallbackDuringIndexing({
+        active: nextDocumentEmbedding,
+        indexed: existingIndexedEmbedding
+      })
+    ) {
+      const migratedRecords = input.records.map(({ embedding, ...record }) => ({
+        ...record,
+        modelName: embedding.modelName,
+        dimensions: embedding.dimensions,
+        vector: embedding.vector,
+        updatedAt: new Date().toISOString()
+      }));
+
+      await this.writeKnowledgeBaseVectors(input.kbId, migratedRecords);
+      return;
+    }
 
     if (nextDocumentEmbedding && existingIndexedEmbedding) {
       assertCompatibleEmbeddingConfigs({

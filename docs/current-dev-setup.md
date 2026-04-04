@@ -140,6 +140,15 @@ Health check:
 curl http://localhost:3000/health
 ```
 
+Knowledge-base-wide rebuild endpoint:
+
+```bash
+curl -X POST http://localhost:3000/knowledge-bases/<kbId>/reindex
+```
+
+- this requests reindex for every document currently in the KB
+- if the KB only contains legacy local `fallback:hash-v1` vectors, the first successful dedicated-provider reindex will replace those old fallback vectors for that KB
+
 The API will use Ollama automatically when these environment values are present:
 
 ```text
@@ -178,6 +187,7 @@ Notes:
 - If you switch to a different dedicated embedding model later, update `OLLAMA_EMBEDDING_MODEL` and re-check `OLLAMA_EMBEDDING_DIMENSIONS` against the actual Ollama response length.
 - `OLLAMA_EMBEDDING_DIMENSIONS` is optional and acts as a strict guardrail: when set, the backend rejects Ollama embedding responses whose vector length does not match the configured dimension.
 - `OLLAMA_EMBEDDING_DIMENSIONS` now also requires Ollama embedding provider config (`OLLAMA_BASE_URL` + `OLLAMA_EMBEDDING_MODEL` or `OLLAMA_MODEL`); setting it alone now fails fast at startup/config resolution instead of being silently ignored.
+- If a KB still contains old local `fallback:hash-v1` vectors, the first successful reindex with a dedicated embedding provider now replaces those legacy fallback vectors for that KB so reindex can recover without manual vector cleanup.
 - external source fetch runtime now also supports:
 
 ```text

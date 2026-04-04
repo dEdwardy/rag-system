@@ -30,6 +30,10 @@ test("DocumentsController passes request identity to knowledge-base and document
       calls.push({ type: "list-kb-documents", knowledgeBaseId, input, identity });
       return [];
     },
+    reindexKnowledgeBase: async (knowledgeBaseId, identity) => {
+      calls.push({ type: "reindex-kb", knowledgeBaseId, identity });
+      return { knowledgeBaseId, requestedCount: 0, documentIds: [] };
+    },
     createDocument: async (knowledgeBaseId, input, identity) => {
       calls.push({ type: "create-document", knowledgeBaseId, input, identity });
       return { id: "document-1" };
@@ -42,6 +46,7 @@ test("DocumentsController passes request identity to knowledge-base and document
 
   const request = buildRequest();
   await controller.listKnowledgeBaseDocuments("kb-1", {}, request);
+  await controller.reindexKnowledgeBase("kb-1", request);
   await controller.createDocument(
     "kb-1",
     {
@@ -60,6 +65,16 @@ test("DocumentsController passes request identity to knowledge-base and document
       type: "list-kb-documents",
       knowledgeBaseId: "kb-1",
       input: {},
+      identity: {
+        userId: "user-auth",
+        tenantId: "tenant-auth",
+        sessionId: "session-1",
+        authSource: "session"
+      }
+    },
+    {
+      type: "reindex-kb",
+      knowledgeBaseId: "kb-1",
       identity: {
         userId: "user-auth",
         tenantId: "tenant-auth",
@@ -95,6 +110,66 @@ test("DocumentsController passes request identity to knowledge-base and document
       }
     }
   ]);
+});
+
+test("DocumentsService reindexKnowledgeBase scopes KB access and requests each document reindex", async () => {
+  const kbChecks = [];
+  const listCalls = [];
+  const reindexCalls = [];
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    knowledgeBasesService: {
+      getKnowledgeBase: async (knowledgeBaseId, scope) => {
+        kbChecks.push({ knowledgeBaseId, scope });
+        return { id: knowledgeBaseId };
+      }
+    },
+    prisma: {
+      document: {
+        findMany: async args => {
+          listCalls.push(args);
+          return [{ id: "doc-2" }, { id: "doc-1" }];
+        }
+      }
+    },
+    reindexDocument: async documentId => {
+      reindexCalls.push(documentId);
+      return { id: documentId };
+    }
+  });
+
+  const result = await DocumentsService.prototype.reindexKnowledgeBase.call(fakeService, "kb-1", {
+    tenantId: "tenant-auth",
+    userId: "user-auth"
+  });
+
+  assert.deepEqual(kbChecks, [
+    {
+      knowledgeBaseId: "kb-1",
+      scope: {
+        tenantId: "tenant-auth",
+        userId: "user-auth"
+      }
+    }
+  ]);
+  assert.deepEqual(listCalls, [
+    {
+      where: {
+        kbId: "kb-1"
+      },
+      select: {
+        id: true
+      },
+      orderBy: {
+        updatedAt: "desc"
+      }
+    }
+  ]);
+  assert.deepEqual(reindexCalls, ["doc-2", "doc-1"]);
+  assert.deepEqual(result, {
+    knowledgeBaseId: "kb-1",
+    requestedCount: 2,
+    documentIds: ["doc-2", "doc-1"]
+  });
 });
 
 test("DocumentsService scopes getDocument by owning knowledge-base identity", async () => {

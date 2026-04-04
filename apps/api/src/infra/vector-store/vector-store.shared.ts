@@ -202,6 +202,13 @@ export function assertCompatibleEmbeddingConfigs(input: {
   );
 }
 
+export function shouldReplaceIndexedFallbackDuringIndexing(input: {
+  active: VectorStoreEmbeddingDiagnostics["active"];
+  indexed: IndexedEmbeddingDiagnostics;
+}) {
+  return input.active.provider !== "fallback" && input.indexed.provider === "fallback";
+}
+
 export function parseEmbeddingModelName(modelName: string, kbId: string) {
   const separatorIndex = modelName.indexOf(":");
   const provider = separatorIndex > 0 ? modelName.slice(0, separatorIndex) : null;
