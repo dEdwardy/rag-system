@@ -180,3 +180,62 @@ test("IngestionService skips run failure write when guarded document update affe
   assert.equal(documentUpdates.length, 1);
   assert.deepEqual(failedRuns, []);
 });
+
+test("IngestionService logs and swallows worker poll failures", async () => {
+  const loggedErrors = [];
+  const service = Object.assign(Object.create(IngestionService.prototype), {
+    logger: {
+      error: (message, stack) => {
+        loggedErrors.push({ message, stack });
+      }
+    }
+  });
+
+  await IngestionService.prototype.runWorkerPollSafely.call(service, "pgmq", async () => {
+    throw new Error("database temporarily unavailable");
+  });
+
+  assert.equal(loggedErrors.length, 1);
+  assert.match(loggedErrors[0].message, /Document ingestion pgmq worker poll failed/);
+  assert.match(loggedErrors[0].message, /database temporarily unavailable/);
+});
+
+test("IngestionService logs and swallows pgmq startup failures", async () => {
+  const loggedErrors = [];
+  const fakeService = Object.assign(Object.create(IngestionService.prototype), {
+    logger: {
+      log: () => {},
+      error: (message, stack) => {
+        loggedErrors.push({ message, stack });
+      }
+    },
+    runtimeConfig: {
+      provider: "pgmq",
+      enableDocumentIngestionWorker: true,
+      databasePollIntervalMs: 1000,
+      databaseRetryDelayMs: 5000,
+      databaseMaxAttempts: 3,
+      pgmqVisibilityTimeoutSeconds: 300
+    },
+    queueRuntimeConfigService: {
+      getConfig: () => ({
+        provider: "pgmq",
+        enableDocumentIngestionWorker: true,
+        databasePollIntervalMs: 1000,
+        databaseRetryDelayMs: 5000,
+        databaseMaxAttempts: 3,
+        pgmqVisibilityTimeoutSeconds: 300
+      })
+    },
+    startPgmqWorker: async () => {
+      throw new Error("database unavailable during queue startup");
+    }
+  });
+
+  IngestionService.prototype.onModuleInit.call(fakeService);
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(loggedErrors.length, 1);
+  assert.match(loggedErrors[0].message, /Document ingestion pgmq startup worker poll failed/);
+  assert.match(loggedErrors[0].message, /database unavailable during queue startup/);
+});

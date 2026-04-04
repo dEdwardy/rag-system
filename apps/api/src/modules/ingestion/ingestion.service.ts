@@ -44,7 +44,9 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (runtimeConfig.provider === "pgmq") {
-      void this.startPgmqWorker();
+      void this.startPgmqWorker().catch(error => {
+        this.logWorkerLoopError("pgmq startup", error);
+      });
       return;
     }
   }
@@ -52,10 +54,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private startDatabaseWorker() {
     this.logger.log("Starting database-backed document ingestion worker.");
     this.databasePollTimer = setInterval(() => {
-      void this.pollDatabaseQueue();
+      void this.runWorkerPollSafely("database", () => this.pollDatabaseQueue());
     }, this.runtimeConfig.databasePollIntervalMs);
 
-    void this.pollDatabaseQueue();
+    void this.runWorkerPollSafely("database", () => this.pollDatabaseQueue());
   }
 
   private async startPgmqWorker() {
@@ -63,10 +65,18 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     await this.queueService.ensureDocumentIngestionQueueReady();
 
     this.databasePollTimer = setInterval(() => {
-      void this.pollPgmqQueue();
+      void this.runWorkerPollSafely("pgmq", () => this.pollPgmqQueue());
     }, this.runtimeConfig.databasePollIntervalMs);
 
-    void this.pollPgmqQueue();
+    void this.runWorkerPollSafely("pgmq", () => this.pollPgmqQueue());
+  }
+
+  private async runWorkerPollSafely(workerName: string, operation: () => Promise<void>) {
+    try {
+      await operation();
+    } catch (error) {
+      this.logWorkerLoopError(workerName, error);
+    }
   }
 
   private async pollDatabaseQueue() {
@@ -365,6 +375,11 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
 
     return DocumentRunFailedStage.parsing;
+  }
+
+  private logWorkerLoopError(workerName: string, error: unknown) {
+    const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker polling error.");
+    this.logger.error(`Document ingestion ${workerName} worker poll failed: ${normalizedError.message}`, normalizedError.stack);
   }
 
   async onModuleDestroy() {
