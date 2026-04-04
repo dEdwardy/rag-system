@@ -61,6 +61,21 @@ export class AssistantsController {
   ) {
     const input = askAssistantSchema.parse(body);
     let streamStarted = false;
+    let streamFinished = false;
+    const abortController = new AbortController();
+    const requestWithEvents = request as ApiRequestWithAuthContext & {
+      on?: (event: string, listener: () => void) => void;
+    };
+
+    const abortStream = () => {
+      if (!streamFinished && !abortController.signal.aborted) {
+        abortController.abort();
+      }
+    };
+
+    requestWithEvents.on?.("aborted", abortStream);
+    requestWithEvents.on?.("close", abortStream);
+    response?.on?.("close", abortStream);
 
     const writeEvent = (event: Record<string, unknown>) => {
       if (!streamStarted) {
@@ -79,11 +94,16 @@ export class AssistantsController {
         question: input.question,
         conversationId: input.conversationId,
         authContext: request?.authContext,
+        signal: abortController.signal,
         onEvent: event => {
           writeEvent(event);
         }
       });
     } catch (error) {
+      if (this.isAbortError(error) || abortController.signal.aborted) {
+        return;
+      }
+
       if (!streamStarted && this.isAuthDenialHttpException(error)) {
         const payload = error.getResponse();
         response.status(error.getStatus());
@@ -103,12 +123,17 @@ export class AssistantsController {
         ...diagnostics
       });
     } finally {
+      streamFinished = true;
       response.end();
     }
   }
 
   private isAuthDenialHttpException(error: unknown): error is HttpException {
     return error instanceof HttpException && (error.getStatus() === 401 || error.getStatus() === 403);
+  }
+
+  private isAbortError(error: unknown) {
+    return error instanceof Error && error.name === "AbortError";
   }
 
   private buildStreamErrorDiagnostics(error: unknown) {

@@ -49,6 +49,9 @@ export class LlmService {
       try {
         return await this.generateOllamaAnswerStream(runtimeConfig, input);
       } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
         const message = error instanceof Error ? error.message : "Unknown Ollama error.";
         this.logger.warn(`Falling back after Ollama stream error: ${message}`);
       }
@@ -58,6 +61,9 @@ export class LlmService {
       try {
         return await this.generateOpenAIAnswerStream(runtimeConfig, input);
       } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
         const message = error instanceof Error ? error.message : "Unknown LLM error.";
         this.logger.warn(`Falling back after OpenAI stream error: ${message}`);
       }
@@ -73,6 +79,9 @@ export class LlmService {
       try {
         return await this.rewriteQueryWithOllama(runtimeConfig, input);
       } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
         const message = error instanceof Error ? error.message : "Unknown Ollama error.";
         this.logger.warn(`Falling back after Ollama rewrite error: ${message}`);
       }
@@ -82,6 +91,9 @@ export class LlmService {
       try {
         return await this.rewriteQueryWithOpenAI(runtimeConfig, input);
       } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
         const message = error instanceof Error ? error.message : "Unknown LLM error.";
         this.logger.warn(`Falling back to local query rewrite: ${message}`);
       }
@@ -200,6 +212,7 @@ export class LlmService {
       headers: {
         "Content-Type": "application/json"
       },
+      signal: input.signal,
       body: JSON.stringify({
         model: runtimeConfig.ollamaModel,
         prompt: prompt.fullPrompt,
@@ -255,6 +268,7 @@ export class LlmService {
         "Content-Type": "application/json",
         Authorization: `Bearer ${runtimeConfig.openAiApiKey}`
       },
+      signal: input.signal,
       body: JSON.stringify({
         model: runtimeConfig.openAiChatModel,
         temperature: runtimeConfig.answerTemperature,
@@ -632,6 +646,10 @@ export class LlmService {
 
   private normalizeRewriteOutput(value: string | null | undefined) {
     return value?.replace(/^["'`\s]+|["'`\s]+$/g, "").replace(/\s+/g, " ").trim() ?? "";
+  }
+
+  private isAbortError(error: unknown) {
+    return error instanceof Error && error.name === "AbortError";
   }
 
   private parseAnswerOutput(rawAnswer: string): Omit<GenerateAnswerOutput, "modelName" | "promptId" | "usedFallback"> {

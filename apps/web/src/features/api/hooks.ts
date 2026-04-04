@@ -497,6 +497,7 @@ export function useAskAssistantStream(assistantId: string) {
       question: string;
       conversationId?: string;
       onEvent: (event: AskStreamEvent) => void;
+      signal?: AbortSignal;
     }) => {
       await apiStreamRequest<AskStreamEvent>(`/assistants/${assistantId}/ask/stream`, {
         method: "POST",
@@ -504,6 +505,7 @@ export function useAskAssistantStream(assistantId: string) {
           question: payload.question,
           conversationId: payload.conversationId
         },
+        signal: payload.signal,
         onEvent: payload.onEvent
       });
     },

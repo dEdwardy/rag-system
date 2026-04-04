@@ -131,6 +131,68 @@ test("LlmService fallback stream aligns no-hit deltas with say_insufficient_cont
   assert.deepEqual(result.missingInformation, ["No relevant supporting sources were retrieved."]);
 });
 
+test("LlmService rethrows AbortError during native answer streaming instead of falling back", async () => {
+  const service = createLlmService({
+    answerPrompt: {
+      promptId: "answer.v2",
+      systemPrompt: "system prompt",
+      userPrompt: "user prompt",
+      fullPrompt: "system\n\nuser"
+    }
+  });
+
+  const controller = new AbortController();
+
+  await assert.rejects(
+    () =>
+      withFetchMock(
+        (_, init) =>
+          new Promise((_, reject) => {
+            init.signal.addEventListener(
+              "abort",
+              () => {
+                const error = new Error("stream aborted");
+                error.name = "AbortError";
+                reject(error);
+              },
+              { once: true }
+            );
+
+            controller.abort();
+          }),
+        () =>
+          withEnv(
+            {
+              OLLAMA_BASE_URL: undefined,
+              OLLAMA_MODEL: undefined,
+              OPENAI_API_KEY: "test-key",
+              OPENAI_BASE_URL: "https://openai-proxy.local/v1",
+              OPENAI_CHAT_MODEL: "chat-model"
+            },
+            () =>
+              service.generateAnswerStream({
+                question: "Where is the marker?",
+                systemPrompt: "system prompt",
+                answerPolicy: {
+                  responseStyle: "concise",
+                  tone: "neutral",
+                  outputFormat: "paragraph",
+                  language: "auto",
+                  citationMode: "required",
+                  maxCitations: 3,
+                  noAnswerBehavior: "say_insufficient_context",
+                  includeMissingInformation: true
+                },
+                chunks: [],
+                signal: controller.signal,
+                onDelta: () => {}
+              })
+          )
+      ),
+    error => error instanceof Error && error.name === "AbortError"
+  );
+});
+
 test("LlmService recovers readable answer text from malformed structured payloads", () => {
   const service = createLlmService({
     answerPrompt: {

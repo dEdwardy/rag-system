@@ -52,6 +52,7 @@ export function resolveApiUrl(path: string) {
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
+  signal?: AbortSignal;
 };
 
 export type ApiRequestError = Error & {
@@ -77,6 +78,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     response = await fetch(resolveApiUrl(path), {
       method: options.method ?? "GET",
       credentials: "include",
+      signal: options.signal,
       headers:
         options.body instanceof FormData
           ? undefined
@@ -91,6 +93,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
             : JSON.stringify(options.body)
     });
   } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
       cause: error,
       code: API_UNREACHABLE_CODE
@@ -125,6 +131,7 @@ export async function apiStreamRequest<TEvent>(
     response = await fetch(resolveApiUrl(path), {
       method: options.method ?? "GET",
       credentials: "include",
+      signal: options.signal,
       headers: {
         "Content-Type": "application/json",
         Accept: "application/x-ndjson"
@@ -132,6 +139,10 @@ export async function apiStreamRequest<TEvent>(
       body: options.body == null ? undefined : JSON.stringify(options.body)
     });
   } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
       cause: error,
       code: API_UNREACHABLE_CODE
@@ -213,6 +224,12 @@ function isStreamErrorPayload(event: unknown): event is StreamErrorPayload {
 
   const candidate = event as Partial<StreamErrorPayload>;
   return candidate.type === "error" && typeof candidate.message === "string";
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
 }
 
 function createApiRequestError(

@@ -322,6 +322,70 @@ test("AskAssistantService stream scopes existing conversation lookup to current 
   ]);
 });
 
+test("AskAssistantService stream rethrows AbortError without marking the trace as failed", async () => {
+  const updateTraceCalls = [];
+  const controller = new AbortController();
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: "chunk-1",
+            documentId: "document-1",
+            documentTitle: "Document 1",
+            chunkIndex: 0,
+            content: "marker content",
+            score: 0.9,
+            isPrimary: true,
+            pageNo: 1,
+            sectionTitle: "Facts"
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (...args) => {
+        updateTraceCalls.push(args);
+        return {};
+      }
+    },
+    llm: {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async input => {
+        controller.abort();
+        const error = new Error("stream aborted");
+        error.name = "AbortError";
+        throw error;
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      service.askAssistantStream({
+        assistantId: "assistant-1",
+        question: "stop this stream",
+        signal: controller.signal,
+        onEvent: () => {}
+      }),
+    error => error instanceof Error && error.name === "AbortError"
+  );
+
+  assert.deepEqual(updateTraceCalls, []);
+});
+
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
   const events = [];
   let providerStreamCalls = 0;

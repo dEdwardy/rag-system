@@ -70,6 +70,7 @@ function buildDisplayedMessages(
 function resolveStreamStatusLabel(
   copy: {
     answerFailed: string;
+    answerStopped: string;
     preparingAnswer: string;
     retrievingContext: string;
     generatingAnswer: string;
@@ -84,6 +85,10 @@ function resolveStreamStatusLabel(
     return copy.answerFailed;
   }
 
+   if (activeStreamTurn.assistantMessage.status === "stopped") {
+    return copy.answerStopped;
+  }
+
   if (activeStreamTurn.phase === "started") {
     return copy.preparingAnswer;
   }
@@ -93,6 +98,21 @@ function resolveStreamStatusLabel(
   }
 
   return copy.generatingAnswer;
+}
+
+function isAbortError(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error != null &&
+    "cause" in error &&
+    isAbortError((error as { cause?: unknown }).cause)
+  ) {
+    return true;
+  }
+
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
 }
 
 function resolveWorkspaceStatus(input: {
@@ -184,7 +204,7 @@ function IconButton({
       ].join(" ")}
       disabled={isDisabled}
       onClick={onClick}
-      title={isDisabled ? disabledHint ?? label : undefined}
+      title={isDisabled ? disabledHint ?? label : label}
       type="button"
     >
       {children}
@@ -233,7 +253,9 @@ export function ChatPage() {
   const [didAutoSelectConversation, setDidAutoSelectConversation] = useState(false);
   const [desktopPanel, setDesktopPanel] = useState<"history" | "citations">("history");
   const [mobilePanel, setMobilePanel] = useState<"history" | "citations" | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const streamAbortControllerRef = useRef<AbortController | null>(null);
 
   const assistantsQuery = useAssistants();
   const authMeQuery = useAuthMe();
@@ -279,7 +301,11 @@ export function ChatPage() {
       conversationLabel: t("chat.copy.conversationLabel"),
       currentCitations: t("chat.copy.currentCitations"),
       viewTrace: t("chat.copy.viewTrace"),
+      copyAnswer: t("chat.copy.copyAnswer"),
+      copiedAnswer: t("chat.copy.copiedAnswer"),
+      stopGenerating: t("chat.copy.stopGenerating"),
       answerFailed: t("chat.copy.answerFailed"),
+      answerStopped: t("chat.copy.answerStopped"),
       preparingAnswer: t("chat.copy.preparingAnswer"),
       retrievingContext: t("chat.copy.retrievingContext"),
       generatingAnswer: t("chat.copy.generatingAnswer"),
@@ -293,8 +319,8 @@ export function ChatPage() {
   );
 
   const latestTrace = tracesQuery.data?.[0] ?? null;
-  const latestModelName = activeStreamTurn?.latestResult?.modelName ?? latestTrace?.modelName ?? null;
-  const canAsk = activeAssistant != null && !askStreamMutation.isPending;
+  const canAsk = activeAssistant != null;
+  const canSubmitQuestion = activeAssistant != null && !askStreamMutation.isPending;
   const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(activeStreamTurn, activeConversationId);
 
   useEffect(() => {
@@ -465,9 +491,35 @@ export function ChatPage() {
     [handleFinalStreamEvent]
   );
 
+  const handleCopyAnswer = useCallback(
+    async (messageId: string, content: string) => {
+      if (!content.trim()) {
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(content);
+        setCopiedMessageId(messageId);
+        window.setTimeout(() => {
+          setCopiedMessageId(current => (current === messageId ? null : current));
+        }, 2000);
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : t("chat.states.copyError")
+        });
+      }
+    },
+    [t]
+  );
+
+  const stopGenerating = useCallback(() => {
+    streamAbortControllerRef.current?.abort();
+  }, []);
+
   const submitQuestion = async () => {
     const question = composerValue.trim();
-    if (!question || !activeAssistant) {
+    if (!question || !activeAssistant || askStreamMutation.isPending) {
       return;
     }
 
@@ -480,16 +532,34 @@ export function ChatPage() {
       latestResult: null
     });
     setComposerValue("");
+    const abortController = new AbortController();
+    streamAbortControllerRef.current = abortController;
 
     try {
       await askStreamMutation.mutateAsync({
         question,
         conversationId: activeConversationId ?? undefined,
+        signal: abortController.signal,
         onEvent: event => {
           handleAskStreamEvent(event as AskStreamEvent);
         }
       });
     } catch (error) {
+      if (isAbortError(error)) {
+        setActiveStreamTurn(current =>
+          current == null
+            ? current
+            : {
+                ...current,
+                assistantMessage: {
+                  ...current.assistantMessage,
+                  status: "stopped"
+                }
+              }
+        );
+        return;
+      }
+
       setActiveStreamTurn(current =>
         current && current.assistantMessage.status !== "error"
           ? {
@@ -505,6 +575,8 @@ export function ChatPage() {
         color: "red",
         message: error instanceof Error ? error.message : t("chat.states.askError")
       });
+    } finally {
+      streamAbortControllerRef.current = null;
     }
   };
 
@@ -725,11 +797,6 @@ export function ChatPage() {
                 {chatCopy.viewTrace}
               </Link>
             ) : null}
-            {latestModelName ? (
-              <span className="hidden rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--app-text-secondary)] md:inline-flex">
-                {latestModelName}
-              </span>
-            ) : null}
             <IconButton
               disabledHint={chatCopy.moreActionsHint}
               label={chatCopy.moreActions}
@@ -801,8 +868,12 @@ export function ChatPage() {
                   "status" in message && message.role === "assistant" && message.status === "streaming";
                 const isErroredAssistant =
                   "status" in message && message.role === "assistant" && message.status === "error";
+                const isStoppedAssistant =
+                  "status" in message && message.role === "assistant" && message.status === "stopped";
                 const traceId = "traceId" in message ? message.traceId : null;
                 const messageTime = "createdAt" in message ? formatMessageTime(message.createdAt, locale) : null;
+                const canCopyAssistantAnswer = isAssistant && message.content.trim().length > 0;
+                const isCopied = copiedMessageId === message.id;
 
                 return (
                   <div
@@ -845,6 +916,9 @@ export function ChatPage() {
                         {isErroredAssistant && "errorMessage" in message ? (
                           <p className="mt-3 text-sm text-red-300">{message.errorMessage}</p>
                         ) : null}
+                        {isStoppedAssistant ? (
+                          <p className="mt-3 text-sm text-amber-200">{chatCopy.answerStopped}</p>
+                        ) : null}
                       </div>
 
                       <div className="mt-2.5 flex items-center gap-3 px-1">
@@ -852,9 +926,26 @@ export function ChatPage() {
                           {messageTime ?? (isStreamingAssistant ? streamStatusLabel : "")}
                         </span>
                         {traceId ? (
-                          <Link className="text-[11px] text-[var(--app-text-muted)] transition hover:text-[var(--app-text)]" title={traceId} to={`/traces/${traceId}`}>
-                            {chatCopy.viewTrace}
+                          <Link title={traceId} to={`/traces/${traceId}`}>
+                            <IconButton label={chatCopy.viewTrace}>
+                              <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <path d="M4 12h4l2.5-5 3 10 2-5H20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                              </svg>
+                            </IconButton>
                           </Link>
+                        ) : null}
+                        {canCopyAssistantAnswer ? (
+                          <IconButton
+                            label={isCopied ? chatCopy.copiedAnswer : chatCopy.copyAnswer}
+                            onClick={() => {
+                              void handleCopyAnswer(message.id, message.content);
+                            }}
+                          >
+                            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <rect height="13" rx="2" stroke="currentColor" strokeWidth="2" width="13" x="8" y="8" />
+                              <path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                            </svg>
+                          </IconButton>
                         ) : null}
                       </div>
                     </div>
@@ -895,11 +986,10 @@ export function ChatPage() {
               <div className="flex items-end gap-3">
                 <textarea
                   className="min-h-[96px] max-h-[220px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 text-[var(--app-text)] placeholder:text-[var(--app-text-muted)] md:min-h-[120px]"
-                  disabled={!canAsk}
                   name="question"
                   onChange={event => setComposerValue(event.target.value)}
                   onKeyDown={event => {
-                    if (event.key === "Enter" && !event.shiftKey) {
+                    if (event.key === "Enter" && !event.shiftKey && canSubmitQuestion) {
                       event.preventDefault();
                       void submitQuestion();
                     }
@@ -922,14 +1012,23 @@ export function ChatPage() {
                     </svg>
                   </button>
                   <button
+                    aria-label={askStreamMutation.isPending ? chatCopy.stopGenerating : t("common.actions.ask")}
                     className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-white shadow-[0_4px_16px_var(--app-accent-glow)] transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_24px_var(--app-accent-glow)] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={!canAsk}
-                    type="submit"
+                    disabled={askStreamMutation.isPending ? false : !canSubmitQuestion}
+                    onClick={askStreamMutation.isPending ? stopGenerating : undefined}
+                    title={askStreamMutation.isPending ? chatCopy.stopGenerating : t("common.actions.ask")}
+                    type={askStreamMutation.isPending ? "button" : "submit"}
                   >
-                    <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
-                      <line stroke="currentColor" strokeWidth="2" x1="22" x2="11" y1="2" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" />
-                    </svg>
+                    {askStreamMutation.isPending ? (
+                      <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
+                        <rect fill="currentColor" height="10" rx="1.5" width="10" x="7" y="7" />
+                      </svg>
+                    ) : (
+                      <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
+                        <line stroke="currentColor" strokeWidth="2" x1="22" x2="11" y1="2" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </div>

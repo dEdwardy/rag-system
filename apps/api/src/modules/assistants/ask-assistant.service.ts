@@ -346,6 +346,7 @@ export class AskAssistantService {
     question: string;
     conversationId?: string;
     authContext?: RequestAuthContext | null;
+    signal?: AbortSignal;
     onEvent: (
       event:
         | { type: "status"; phase: "started" | "retrieving" | "generating" }
@@ -391,7 +392,8 @@ export class AskAssistantService {
     });
     const rewritten = retrievalStrategy.queryRewrite.enabled
       ? await this.llmService.rewriteQuery({
-          question: input.question
+          question: input.question,
+          signal: input.signal
         })
       : {
           rewrittenQuery: null,
@@ -502,6 +504,7 @@ export class AskAssistantService {
                   chunks: retrievedChunks,
                   contextGroups
                 }),
+                signal: input.signal,
                 onDelta: async delta => {
                   await input.onEvent({
                     type: "answer_delta",
@@ -646,6 +649,10 @@ export class AskAssistantService {
 
       return finalResult;
     } catch (error) {
+      if (this.isAbortError(error)) {
+        throw error;
+      }
+
       const message = error instanceof Error ? error.message : "Unknown ask pipeline error.";
       await this.tracesService.updateTrace(trace.id, {
         latencyMs: Date.now() - startedAt,
@@ -681,6 +688,10 @@ export class AskAssistantService {
       noAnswerBehavior: input?.noAnswerBehavior ?? "say_insufficient_context",
       includeMissingInformation: input?.includeMissingInformation ?? true
     } as const;
+  }
+
+  private isAbortError(error: unknown) {
+    return error instanceof Error && error.name === "AbortError";
   }
 
   private resolveAnswerAttribution(answeringMetadata: unknown): TraceCitationAttribution | null {

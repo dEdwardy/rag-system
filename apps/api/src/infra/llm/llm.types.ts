@@ -28,6 +28,7 @@ export type GenerateAnswerInput = {
 
 export type GenerateAnswerStreamInput = GenerateAnswerInput & {
   onDelta: (delta: string) => void | Promise<void>;
+  signal?: AbortSignal;
 };
 
 export type GenerateAnswerOutput = {
@@ -60,6 +61,7 @@ export type GenerateAnswerStreamOutput = {
 
 export type RewriteQueryInput = {
   question: string;
+  signal?: AbortSignal;
 };
 
 export type RewriteQueryOutput = {
