@@ -55,5 +55,4 @@ jobs:
             else
               git checkout --detach "$TARGET_REF"
             fi
-            docker compose build app
             docker compose up -d app
