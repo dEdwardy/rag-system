@@ -1,0 +1,36 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Stable git tag or commit to roll back to
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Roll back on server
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          TARGET_REF: ${{ inputs.target_ref }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: TARGET_REF,DEPLOY_PATH
+          script_stop: true
+          script: |
+            set -eu
+            cd "$DEPLOY_PATH"
+            git fetch origin --tags --prune
+            git checkout --detach "$TARGET_REF"
+            docker compose build app
+            docker compose up -d app

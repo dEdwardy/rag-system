@@ -84,6 +84,8 @@ The production deployment uses a single container that bundles:
 
 Production runtime env is currently sourced from `apps/api/.env`.
 
+The current production build is configured for a subpath deployment at `/ragora`, so the public app URL is expected to be `https://<your-domain>/ragora/` and the OAuth callback path is expected to be `https://<your-domain>/ragora/api/auth/oauth/github/callback`.
+
 Start the production container from the repository root:
 
 ```bash
@@ -97,6 +99,38 @@ Notes:
 - `docker-compose.yml` is now scoped to the app container only; PostgreSQL, queue runtime, storage, and vector store are expected to use the external Supabase-backed production configuration from `apps/api/.env`
 - the API validates critical env from the container process environment at startup, so production deployment should inject env into the container instead of relying on a root-level `.env`
 - if you change production secrets or provider settings, update `apps/api/.env` before rebuilding/restarting the container
+
+## GitHub Actions Deploy
+
+The repository now includes two production-oriented GitHub Actions workflows:
+
+- `ci.yml`: install, build, typecheck, and fast API validation
+- `docker-image.yml`: optional workflow that builds the production image and pushes it to `ghcr.io/<owner>/<repo>`
+- `deploy.yml`: manual deployment that SSHes to the server, checks out the requested `branch/tag/commit`, and runs `docker compose build app && docker compose up -d app`
+- `rollback.yml`: manual rollback that SSHes to the server, checks out the requested stable `tag/commit`, and rebuilds/restarts the app
+
+Server-side deployment assumptions:
+
+- the server already has Docker and Docker Compose installed
+- the repository is already checked out on the server at a stable path
+- production env stays on the server, for example `apps/api/.env.production`
+- the server runs `docker compose` from the repository root
+
+Required GitHub secrets for `deploy.yml`:
+
+- `SSH_HOST`
+- `SSH_USER`
+- `SSH_PRIVATE_KEY`
+- `SSH_PORT` (optional; defaults to `22`)
+- `DEPLOY_PATH`: absolute repository path on the server, such as `/home/deploy/rag-system`
+
+Recommended personal-project release pattern:
+
+- tag each stable release before production deploy
+- use `deploy.yml` with `target_ref=main` for normal releases
+- use `rollback.yml` with a stable tag or commit when rollback is needed
+
+The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path, but the default deployment path is now server-local build from the checked-out repository.
 
 ### 7. Optional OpenCode harness
 

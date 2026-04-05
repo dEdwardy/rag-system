@@ -166,7 +166,8 @@ Notes:
 - Repository-root `.env` is not part of the runtime path for the API.
 - CORS behavior now differs by runtime mode:
   - development / non-production: allow request origins dynamically so local multi-port frontend work is not blocked by fixed origin lists
-  - production: do not enable application-level CORS; handle cross-origin policy at the reverse proxy / gateway layer such as Nginx
+- production: do not enable application-level CORS; handle cross-origin policy at the reverse proxy / gateway layer such as Nginx
+- current production web build target is the `/ragora` subpath, so reverse-proxy routing and OAuth callback config should use `/ragora/...` paths instead of assuming a dedicated subdomain
 - The API build/start scripts now clear `apps/api/dist` and `apps/api/tsconfig.tsbuildinfo` before rebuilding.
 - This cleanup is intentional for cross-environment compatibility: after switching between Ubuntu/WSL and Windows, stale incremental output can leave mixed `dist` layouts behind and cause missing routes or missing runtime modules.
 - Root cause summary for the April 1, 2026 Windows issue:
@@ -258,6 +259,29 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 - `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
 - vector storage still defaults to the local filesystem; set `VECTOR_STORE_PROVIDER=pgvector` to switch vector persistence/search to PostgreSQL `pgvector`
 - current pgvector support is intentionally scoped to the verified `nomic-embed-text` setup and expects `VECTOR_STORE_PGVECTOR_DIMENSIONS=768`
+
+## GitHub Actions production image and deploy
+
+- `.github/workflows/ci.yml` remains the code-validation workflow: install, Prisma generate, build, typecheck, and fast API tests
+- `.github/workflows/docker-image.yml` remains available as an optional GHCR image build path on `main` pushes or manual runs
+- `.github/workflows/deploy.yml` is the default manual production deploy entrypoint: it SSHes to the target server, checks out the requested `branch/tag/commit`, then runs `docker compose build app` plus `docker compose up -d app`
+- `.github/workflows/rollback.yml` is the matching manual rollback entrypoint: it SSHes to the target server, checks out the requested stable `tag/commit`, then rebuilds/restarts the app
+- the production compose path still accepts `APP_IMAGE`; local default stays `rag-system:latest`, but the current recommended personal-project deployment path is server-local build from the checked-out repository
+- expected server baseline for `deploy.yml`:
+  - Docker and Docker Compose already installed
+  - repository already checked out on the server
+  - production env file kept on the server, for example `apps/api/.env.production`
+  - deploy command executed from the repository root
+- required GitHub secrets for deploy:
+  - `SSH_HOST`
+  - `SSH_USER`
+  - `SSH_PRIVATE_KEY`
+  - `DEPLOY_PATH`
+  - optional `SSH_PORT` (defaults to `22`)
+- recommended release discipline for rollback safety:
+  - create a git tag before each production release
+  - deploy from an explicit `target_ref` instead of relying on an implicit floating working tree state
+  - use `rollback.yml` with the previous stable tag when application code must be reverted
 - applying the pgvector migration to a remote/shared database is a schema write: validate locally first, then use the approved remote rollout path (`prisma migrate deploy`), not `migrate dev` or `db push`
 - this avoids write/read drift when the API is started from different directories (for example repo root vs `apps/api`) while still allowing environment-specific absolute paths on Windows/WSL/Linux
 - optional OpenCode harness note: root `package.json` now points `loop:*` / `opencode:loop` scripts at the repo-local Node harness under `.opencode/loop/harness/`; the runner consumes the current materialized queue in order, reuses the same OpenCode session across a compact wave when possible, and uses `opencode run --agent build` / `opencode run --continue --agent build` for each pending item; spawned session titles include the current task index and remaining task count such as `[1/4 | left 3] ...`; each item is also protected by `OPENCODE_LOOP_ITEM_TIMEOUT_MS` (default `1200000`) so a stuck task is killed and marked `needs_replan`; structured JSON error events are also treated as queue failures instead of false `completed` results; use those commands directly on Windows or WSL/Linux

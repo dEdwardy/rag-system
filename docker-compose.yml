@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: rag-system:latest
+    image: ${APP_IMAGE:-rag-system:latest}
     restart: unless-stopped
     init: true
     env_file:

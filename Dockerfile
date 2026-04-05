@@ -19,7 +19,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 RUN pnpm --filter @rag-system/api build
-RUN VITE_API_BASE_URL=/api pnpm --filter @rag-system/web build
+RUN VITE_APP_BASE_PATH=/ragora/ pnpm --filter @rag-system/web build
 
 FROM node:24-bookworm-slim AS runtime
 

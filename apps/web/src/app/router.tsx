@@ -110,7 +110,17 @@ export const router = createBrowserRouter([
       }
     ]
   }
-]);
+], {
+  basename: resolveRouterBasename(import.meta.env.BASE_URL)
+});
+
+function resolveRouterBasename(baseUrl: string) {
+  if (!baseUrl || baseUrl === "/") {
+    return undefined;
+  }
+
+  return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+}
 
 function AppRouteHydrateFallback() {
   return (

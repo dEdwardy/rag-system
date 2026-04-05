@@ -10,7 +10,7 @@ function resolveApiBaseUrl() {
   }
 
   if (supportsSameOriginApiBase()) {
-    return "/api";
+    return resolveSameOriginApiBase(import.meta.env.BASE_URL);
   }
 
   return resolveLocalhostApiBase(window.location);
@@ -43,6 +43,21 @@ function hasViteDevProxy() {
 
 function resolveLocalhostApiBase(location: Location) {
   return `${location.protocol}//${normalizeLoopbackHostname(location.hostname)}:${LOCAL_API_PORT}`;
+}
+
+function resolveSameOriginApiBase(baseUrl: string | undefined) {
+  const normalizedBasePath = normalizeBasePath(baseUrl);
+  return normalizedBasePath === "/" ? "/api" : `${normalizedBasePath}/api`;
+}
+
+function normalizeBasePath(value: string | undefined) {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue || trimmedValue === "/") {
+    return "/";
+  }
+
+  const withoutTrailingSlash = trimmedValue.endsWith("/") ? trimmedValue.slice(0, -1) : trimmedValue;
+  return withoutTrailingSlash.startsWith("/") ? withoutTrailingSlash : `/${withoutTrailingSlash}`;
 }
 
 function isLoopbackHostname(hostname: string) {
