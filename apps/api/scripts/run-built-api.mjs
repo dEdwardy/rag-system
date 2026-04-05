@@ -7,7 +7,7 @@ export function runBuiltApi({ apiRoot }) {
   const legacyEntry = resolve(apiRoot, "dist", "main.js");
   const nestedEntry = resolve(apiRoot, "dist", "apps/api/src/main.js");
   const entry = resolveBuiltApiEntry(apiRoot);
-  const candidateEnvFiles = [resolve(apiRoot, ".env.local"), resolve(apiRoot, ".env")];
+  const candidateEnvFiles = [resolve(apiRoot, ".env.production"), resolve(apiRoot, ".env.local"), resolve(apiRoot, ".env")];
   const envFileArgs = candidateEnvFiles.flatMap(filePath =>
     existsSync(filePath) ? ["--env-file", filePath] : []
   );
