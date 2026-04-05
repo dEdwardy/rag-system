@@ -43,7 +43,6 @@ COPY --from=build /app/apps/api/scripts ./apps/api/scripts
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=build /app/packages/shared/src ./packages/shared/src
-COPY --from=build /app/apps/api/.env.production ./apps/api/.env.production
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/start.sh /app/docker/start.sh
