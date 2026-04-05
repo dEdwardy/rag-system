@@ -1,9 +1,9 @@
-const assert = require("node:assert/strict");
-const { test } = require("node:test");
-const { NotFoundException } = require("@nestjs/common");
+import assert from "node:assert/strict";
+import { NotFoundException } from "@nestjs/common";
+import { test } from "vitest";
 
-const { AssistantsController } = require("../src/modules/assistants/assistants.controller.ts");
-const { AskAssistantError } = require("../src/modules/assistants/ask-assistant.error.ts");
+import { AskAssistantError } from "../src/modules/assistants/ask-assistant.error.ts";
+import { AssistantsController } from "../src/modules/assistants/assistants.controller.ts";
 
 test("askAssistantStream appends structured error diagnostics after stream events have started", async () => {
   const controller = new AssistantsController(
