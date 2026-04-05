@@ -6,7 +6,7 @@ on:
       target_ref:
         description: Git branch, tag, or commit to deploy
         required: false
-        default: main
+        default: master
 
 jobs:
   deploy:
