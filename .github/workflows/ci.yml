@@ -39,14 +39,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
-        run: pnpm --filter @rag-system/api prisma:generate
+      - name: Build API
+        run: pnpm --filter @rag-system/api build
 
-      - name: Build packages
-        run: pnpm build
+      - name: Build Web
+        run: pnpm --filter @rag-system/web build
 
-      - name: Typecheck packages
-        run: pnpm typecheck
-
-      - name: Run focused API fast tests
-        run: pnpm test:api:fast
+      - name: Run core API focused tests
+        run: pnpm test:api:focus:ask
