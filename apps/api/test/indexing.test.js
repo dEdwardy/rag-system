@@ -1,6 +1,7 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
-const { IndexingService } = require("../src/modules/indexing/indexing.service.ts");
+import assert from "node:assert/strict";
+import { test } from "vitest";
+
+import { IndexingService } from "../src/modules/indexing/indexing.service.ts";
 
 test("IndexingService forwards resolved embedding records to the vector store", async () => {
   const document = {

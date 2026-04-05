@@ -63,7 +63,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     question: "where?",
     systemPrompt: "answer",
     answerPolicy: {
-      responseStyle: "concise",
+      responseStyle: "balanced",
       citationMode: "required",
       maxCitations: 1,
       noAnswerBehavior: "say_insufficient_context"
@@ -101,7 +101,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     promptId: "answer.v2",
     usedFallback: false,
     answerPolicy: {
-      responseStyle: "concise",
+      responseStyle: "balanced",
       tone: "neutral",
       outputFormat: "paragraph",
       language: "auto",
@@ -310,7 +310,7 @@ test("AnsweringService localizes fallback-generation quality summaries for Chine
     question: "\u8fd9\u4e2a\u6587\u6863\u91cc\u63d0\u5230\u4e86\u4ec0\u4e48\uff1f",
     systemPrompt: "answer",
     answerPolicy: {
-      responseStyle: "concise",
+      responseStyle: "balanced",
       tone: "neutral",
       outputFormat: "paragraph",
       language: "same_as_question",
@@ -647,7 +647,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     promptId: "answer.v2",
     usedFallback: false,
     answerPolicy: {
-      responseStyle: "concise",
+      responseStyle: "balanced",
       tone: "neutral",
       outputFormat: "paragraph",
       language: "auto",
