@@ -280,10 +280,7 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
   - `SSH_PRIVATE_KEY`
   - `DEPLOY_PATH`
   - optional `SSH_PORT` (defaults to `22`)
-- recommended GitHub Environments layout:
-  - `dev` environment for `deploy-dev.yml`
-  - `production` environment for `deploy.yml`
-  - keep identical secret names in each environment so both workflows can keep using `secrets.SSH_*` and `secrets.DEPLOY_PATH`
+- keep deploy secrets in repository-level GitHub Actions secrets for the simplest setup (`SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, optional `SSH_PORT`, and `DEPLOY_PATH`)
 - recommended release discipline for rollback safety:
   - use `deploy-dev.yml` for manual dev refreshes before promoting a ref toward production
   - create a git tag before each production release
