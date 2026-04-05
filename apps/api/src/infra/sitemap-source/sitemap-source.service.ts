@@ -1,5 +1,12 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
+import {
+  assertRobotsAllowUrl,
+  fetchWithRetry,
+  isUrlWithinDomainBoundary,
+  isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
+  resolveSourceFetchRuntimeConfig
+} from "../http/fetch-with-retry";
 import { WebPageService } from "../web-page/web-page.service";
 
 type FetchSitemapOptions = {
@@ -10,6 +17,7 @@ type FetchSitemapOptions = {
 type ExtractSitemapOptions = {
   url: string;
   maxPages: number;
+  sourceBoundaryUrl?: string;
 };
 
 type FetchedSitemap = {
@@ -18,39 +26,41 @@ type FetchedSitemap = {
 };
 
 type SitemapFetchDiagnostics = {
-  sourceKind?: "sitemap";
-  schemaVersion?: 2;
+  sourceKind: "sitemap";
+  schemaVersion: 2;
   retryable: boolean;
+  contentTypeFallbackApplied?: boolean;
+  upstreamContentType?: string;
   attemptedPageCount: number;
   succeededPageCount: number;
   failedPageCount: number;
-  retryableFailureCount?: number;
-  nonRetryableFailureCount?: number;
+  retryableFailureCount: number;
+  nonRetryableFailureCount: number;
   failedPageUrls: string[];
-  failedPages?: Array<{
+  failedPages: Array<{
     url: string;
     code: string;
     message: string;
     retryable: boolean;
   }>;
-  failedPagesTruncated?: boolean;
-  failedPagesOmittedCount?: number;
+  failedPagesTruncated: boolean;
+  failedPagesOmittedCount: number;
   partial: boolean;
-  attemptedChildSitemapCount?: number;
-  succeededChildSitemapCount?: number;
-  failedChildSitemapCount?: number;
-  failedChildSitemapUrls?: string[];
-  failedChildSitemaps?: Array<{
+  attemptedChildSitemapCount: number;
+  succeededChildSitemapCount: number;
+  failedChildSitemapCount: number;
+  failedChildSitemapUrls: string[];
+  failedChildSitemaps: Array<{
     url: string;
     code: string;
     message: string;
     retryable: boolean;
   }>;
-  failedChildSitemapsTruncated?: boolean;
-  failedChildSitemapsOmittedCount?: number;
-  boundaryHit?: boolean;
-  boundaryReasons?: string[];
-  boundary?: {
+  failedChildSitemapsTruncated: boolean;
+  failedChildSitemapsOmittedCount: number;
+  boundaryHit: boolean;
+  boundaryReasons: string[];
+  boundary: {
     maxPages: number;
     maxChildSitemaps: number;
     totalExtractedPageUrlCount: number;
@@ -75,6 +85,11 @@ type ChildSitemapFailure = {
 type ExtractPageUrlsResult = {
   urls: string[];
   totalExtractedCount: number;
+};
+
+type SitemapPayloadAcceptance = {
+  contentTypeFallbackApplied: boolean;
+  upstreamContentType: string;
 };
 
 type ResolvedSitemapPages = {
@@ -107,6 +122,15 @@ type ResolvedSitemapPages = {
 // Keep sitemap-index expansion bounded so one request cannot fan out indefinitely.
 const MAX_CHILD_SITEMAPS = 20;
 const MAX_FAILURE_SUMMARY_ITEMS = 10;
+const SITEMAP_BOUNDARY_REASON_MAX_PAGES_REACHED = "MAX_PAGES_REACHED";
+const SITEMAP_BOUNDARY_REASON_MAX_CHILD_SITEMAPS_REACHED = "MAX_CHILD_SITEMAPS_REACHED";
+const NESTED_SITEMAP_INDEX_UNSUPPORTED_MESSAGE = "Nested sitemap indexes are not supported.";
+const URLSET_TAG_PATTERN = /<(?:[a-z0-9_-]+:)?urlset\b/i;
+const SITEMAP_INDEX_TAG_PATTERN = /<(?:[a-z0-9_-]+:)?sitemapindex\b/i;
+const SITEMAP_URL_ENTRY_PATTERN =
+  /<(?:[a-z0-9_-]+:)?url\b[^>]*>[\s\S]*?<(?:[a-z0-9_-]+:)?loc\b[^>]*>([\s\S]*?)<\/(?:[a-z0-9_-]+:)?loc>[\s\S]*?<\/(?:[a-z0-9_-]+:)?url>/gi;
+const CHILD_SITEMAP_ENTRY_PATTERN =
+  /<(?:[a-z0-9_-]+:)?sitemap\b[^>]*>[\s\S]*?<(?:[a-z0-9_-]+:)?loc\b[^>]*>([\s\S]*?)<\/(?:[a-z0-9_-]+:)?loc>[\s\S]*?<\/(?:[a-z0-9_-]+:)?sitemap>/gi;
 
 @Injectable()
 export class SitemapSourceService {
@@ -117,6 +141,7 @@ export class SitemapSourceService {
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(options.url);
       response = await fetchWithRetry({
         url: options.url,
         timeoutMs: fetchConfig.timeoutMs,
@@ -126,21 +151,17 @@ export class SitemapSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+      throw this.buildFetchException("Failed to fetch sitemap", error);
     }
 
     if (!response.ok) {
       throw this.buildUpstreamFetchError("Failed to fetch sitemap", response.status);
     }
 
-    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isSupportedSitemapContentType(contentType)) {
-      throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
-    }
-
     const xml = await response.text();
-    const resolvedSitemap = await this.resolvePageUrls(xml, options);
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    const payloadAcceptance = this.assertSupportedSitemapPayload(contentType, xml);
+    const resolvedSitemap = await this.resolvePageUrls(xml, options, payloadAcceptance);
     const builtSitemap = await this.buildCombinedContent(
       options.url,
       resolvedSitemap.pageUrls,
@@ -163,15 +184,20 @@ export class SitemapSourceService {
       throw new BadRequestException("Sitemap payload is empty.");
     }
 
-    if (!/<urlset\b/i.test(normalizedXml)) {
+    if (!URLSET_TAG_PATTERN.test(normalizedXml)) {
       throw new BadRequestException("Unsupported sitemap format. Only direct urlset sitemaps are supported.");
     }
 
-    const extractedUrls = [...normalizedXml.matchAll(/<url\b[^>]*>[\s\S]*?<loc\b[^>]*>([\s\S]*?)<\/loc>[\s\S]*?<\/url>/gi)]
+    const extractedUrls = [...normalizedXml.matchAll(SITEMAP_URL_ENTRY_PATTERN)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
       .filter(url => this.isHttpUrl(url));
+    const sourceBoundaryUrl = options.sourceBoundaryUrl ?? options.url;
 
-    const allUniqueUrls = [...new Set(extractedUrls)];
+    for (const extractedUrl of extractedUrls) {
+      this.assertSitemapUrlWithinDomainBoundary(extractedUrl, sourceBoundaryUrl, "page");
+    }
+
+    const allUniqueUrls = this.deduplicateSitemapUrls(extractedUrls);
     const selectedUrls = allUniqueUrls.slice(0, options.maxPages);
 
     if (!selectedUrls.length) {
@@ -184,52 +210,69 @@ export class SitemapSourceService {
     };
   }
 
-  private async resolvePageUrls(xml: string, options: ExtractSitemapOptions): Promise<ResolvedSitemapPages> {
+  private async resolvePageUrls(
+    xml: string,
+    options: ExtractSitemapOptions,
+    rootPayloadAcceptance: SitemapPayloadAcceptance
+  ): Promise<ResolvedSitemapPages> {
     const normalizedXml = xml.trim();
     if (!normalizedXml) {
       throw new BadRequestException("Sitemap payload is empty.");
     }
 
-    if (/<urlset\b/i.test(normalizedXml)) {
+    if (URLSET_TAG_PATTERN.test(normalizedXml)) {
       const extracted = this.extractPageUrlsWithStats(normalizedXml, options);
       const droppedPageUrlCount = Math.max(0, extracted.totalExtractedCount - extracted.urls.length);
       const boundaryHit = droppedPageUrlCount > 0;
       return {
         pageUrls: extracted.urls,
-        diagnostics: boundaryHit
-          ? {
-              retryable: false,
-              partial: true,
-              attemptedPageCount: extracted.urls.length,
-              succeededPageCount: extracted.urls.length,
-              failedPageCount: 0,
-              failedPageUrls: [],
-              retryableFailureCount: 0,
-              nonRetryableFailureCount: 0,
-              boundaryHit: true,
-              boundaryReasons: ["MAX_PAGES_REACHED"],
-              boundary: {
-                maxPages: options.maxPages,
-                maxChildSitemaps: MAX_CHILD_SITEMAPS,
-                totalExtractedPageUrlCount: extracted.totalExtractedCount,
-                selectedPageUrlCount: extracted.urls.length,
-                droppedPageUrlCount,
-                totalExtractedChildSitemapCount: 0,
-                selectedChildSitemapCount: 0,
-                droppedChildSitemapCount: 0
-              }
-            }
-          : null
+        diagnostics:
+          boundaryHit || rootPayloadAcceptance.contentTypeFallbackApplied
+            ? ({
+                retryable: false,
+                partial: true,
+                attemptedPageCount: extracted.urls.length,
+                succeededPageCount: extracted.urls.length,
+                failedPageCount: 0,
+                failedPageUrls: [],
+                retryableFailureCount: 0,
+                nonRetryableFailureCount: 0,
+                contentTypeFallbackApplied: rootPayloadAcceptance.contentTypeFallbackApplied,
+                upstreamContentType: rootPayloadAcceptance.upstreamContentType,
+                boundaryHit,
+                boundaryReasons: boundaryHit ? [SITEMAP_BOUNDARY_REASON_MAX_PAGES_REACHED] : [],
+                boundary: {
+                  maxPages: options.maxPages,
+                  maxChildSitemaps: MAX_CHILD_SITEMAPS,
+                  totalExtractedPageUrlCount: extracted.totalExtractedCount,
+                  selectedPageUrlCount: extracted.urls.length,
+                  droppedPageUrlCount,
+                  totalExtractedChildSitemapCount: 0,
+                  selectedChildSitemapCount: 0,
+                  droppedChildSitemapCount: 0
+                },
+                attemptedChildSitemapCount: 0,
+                succeededChildSitemapCount: 0,
+                failedChildSitemapCount: 0,
+                failedChildSitemapUrls: [],
+                failedChildSitemaps: [],
+                failedChildSitemapsTruncated: false,
+                failedChildSitemapsOmittedCount: 0,
+                failedPages: [],
+                failedPagesTruncated: false,
+                failedPagesOmittedCount: 0
+              } as Partial<SitemapFetchDiagnostics>)
+            : null
       };
     }
 
-    if (!/<sitemapindex\b/i.test(normalizedXml)) {
+    if (!SITEMAP_INDEX_TAG_PATTERN.test(normalizedXml)) {
       throw new BadRequestException(
         "Unsupported sitemap format. Only direct urlset and one-level sitemapindex payloads are supported."
       );
     }
 
-    const childSitemapUrls = this.extractChildSitemapUrls(normalizedXml);
+    const childSitemapUrls = this.extractChildSitemapUrls(normalizedXml, options.url);
     if (!childSitemapUrls.length) {
       throw new BadRequestException("Extracted sitemap child URLs are empty.");
     }
@@ -244,6 +287,8 @@ export class SitemapSourceService {
     let maxPagesLimitReached = false;
     let totalExtractedPageUrlCount = 0;
     let droppedPageUrlCount = 0;
+    let contentTypeFallbackApplied = rootPayloadAcceptance.contentTypeFallbackApplied;
+    let fallbackUpstreamContentType = rootPayloadAcceptance.upstreamContentType;
 
     for (const childSitemapUrl of selectedChildSitemapUrls) {
       if (collectedPageUrls.length >= options.maxPages) {
@@ -254,7 +299,12 @@ export class SitemapSourceService {
       let childXml: string;
 
       try {
-        childXml = await this.fetchSitemapXml(childSitemapUrl);
+        const childSitemapResult = await this.fetchSitemapXml(childSitemapUrl);
+        childXml = childSitemapResult.xml;
+        if (childSitemapResult.contentTypeFallbackApplied) {
+          contentTypeFallbackApplied = true;
+          fallbackUpstreamContentType = childSitemapResult.upstreamContentType;
+        }
       } catch (error) {
         failedChildSitemapUrls.push(childSitemapUrl);
         childSitemapFailures.push({
@@ -266,19 +316,22 @@ export class SitemapSourceService {
 
       const normalizedChildXml = childXml.trim();
 
-      if (/<sitemapindex\b/i.test(normalizedChildXml)) {
-        throw new BadRequestException("Nested sitemap indexes are not supported.");
+      if (SITEMAP_INDEX_TAG_PATTERN.test(normalizedChildXml)) {
+        // Keep nested sitemapindex payloads as an explicit unsupported boundary (one-level only).
+        throw new BadRequestException(NESTED_SITEMAP_INDEX_UNSUPPORTED_MESSAGE);
       }
 
       const extractedChildPageUrls = this.extractPageUrlsWithStats(normalizedChildXml, {
         ...options,
         url: childSitemapUrl,
-        maxPages: options.maxPages
+        maxPages: options.maxPages,
+        sourceBoundaryUrl: options.url
       });
       totalExtractedPageUrlCount += extractedChildPageUrls.totalExtractedCount;
 
       for (const pageUrl of extractedChildPageUrls.urls) {
-        if (seenPageUrls.has(pageUrl)) {
+        const pageDedupKey = this.normalizeSitemapUrlForDedup(pageUrl);
+        if (seenPageUrls.has(pageDedupKey)) {
           continue;
         }
 
@@ -288,7 +341,7 @@ export class SitemapSourceService {
           break;
         }
 
-        seenPageUrls.add(pageUrl);
+        seenPageUrls.add(pageDedupKey);
         collectedPageUrls.push(pageUrl);
       }
 
@@ -310,15 +363,15 @@ export class SitemapSourceService {
     const nonRetryableFailureCount = childSitemapFailures.length - retryableFailureCount;
     const boundaryHit = droppedChildSitemapCount > 0 || maxPagesLimitReached;
     const boundaryReasons = [
-      ...(maxPagesLimitReached ? ["MAX_PAGES_REACHED"] : []),
-      ...(droppedChildSitemapCount > 0 ? ["MAX_CHILD_SITEMAPS_REACHED"] : [])
+      ...(maxPagesLimitReached ? [SITEMAP_BOUNDARY_REASON_MAX_PAGES_REACHED] : []),
+      ...(droppedChildSitemapCount > 0 ? [SITEMAP_BOUNDARY_REASON_MAX_CHILD_SITEMAPS_REACHED] : [])
     ];
 
     return {
       pageUrls: collectedPageUrls,
       diagnostics:
-        failedChildSitemapUrls.length > 0 || boundaryHit
-          ? {
+        failedChildSitemapUrls.length > 0 || boundaryHit || contentTypeFallbackApplied
+          ? ({
               ...this.buildFailureSummary(
                 childSitemapFailures,
                 "failedChildSitemaps",
@@ -338,6 +391,8 @@ export class SitemapSourceService {
                 retryableFailureCount,
                 nonRetryableFailureCount,
                 retryable: retryableFailureCount > 0,
+                contentTypeFallbackApplied: contentTypeFallbackApplied,
+                upstreamContentType: fallbackUpstreamContentType,
                 boundaryHit,
                 boundaryReasons,
                 boundary: {
@@ -350,8 +405,15 @@ export class SitemapSourceService {
                   selectedChildSitemapCount: selectedChildSitemapUrls.length,
                   droppedChildSitemapCount
                 },
-                partial: true
-              }
+                partial: true,
+                attemptedPageCount: 0,
+                succeededPageCount: 0,
+                failedPageCount: 0,
+                failedPageUrls: [],
+                failedPages: [],
+                failedPagesTruncated: false,
+                failedPagesOmittedCount: 0
+              } as Partial<SitemapFetchDiagnostics>)
           : null
     };
   }
@@ -406,10 +468,19 @@ export class SitemapSourceService {
     );
     const pageNonRetryableFailureCount = pageFailures.length - pageRetryableFailureCount;
 
-    const diagnostics =
-      failedPageUrls.length > 0 || existingDiagnostics?.partial
+    const diagnostics = failedPageUrls.length > 0 || existingDiagnostics?.partial
         ? {
-            ...(existingDiagnostics ?? {}),
+            ...(existingDiagnostics ?? {
+              attemptedChildSitemapCount: 0,
+              succeededChildSitemapCount: 0,
+              failedChildSitemapCount: 0,
+              failedChildSitemapUrls: [],
+              failedChildSitemaps: [],
+              failedChildSitemapsTruncated: false,
+              failedChildSitemapsOmittedCount: 0,
+              contentTypeFallbackApplied: false,
+              upstreamContentType: "unknown"
+            }),
             ...this.buildFailureSummary(
               pageFailures,
               "failedPages",
@@ -432,31 +503,30 @@ export class SitemapSourceService {
             retryable:
               pageFailures.some(failure => this.isRetryableFetchError(failure.error)) ||
               existingDiagnostics?.retryable === true,
-            partial: true
+            partial: true,
+            boundaryHit: existingDiagnostics?.boundaryHit ?? false,
+            boundaryReasons: existingDiagnostics?.boundaryReasons ?? [],
+            boundary: existingDiagnostics?.boundary ?? {
+              maxPages: pageUrls.length,
+              maxChildSitemaps: MAX_CHILD_SITEMAPS,
+              totalExtractedPageUrlCount: pageUrls.length,
+              selectedPageUrlCount: pageUrls.length,
+              droppedPageUrlCount: 0,
+              totalExtractedChildSitemapCount: existingDiagnostics?.attemptedChildSitemapCount ?? 0,
+              selectedChildSitemapCount: existingDiagnostics?.attemptedChildSitemapCount ?? 0,
+              droppedChildSitemapCount: 0
+            }
           }
         : null;
 
     return {
       content,
       diagnostics: diagnostics
-        ? {
+        ? ({
             ...diagnostics,
             sourceKind: "sitemap" as const,
-            schemaVersion: 2 as const,
-            boundaryHit: diagnostics.boundaryHit ?? false,
-            boundaryReasons: diagnostics.boundaryReasons ?? [],
-            boundary:
-              diagnostics.boundary ?? {
-                maxPages: pageUrls.length,
-                maxChildSitemaps: MAX_CHILD_SITEMAPS,
-                totalExtractedPageUrlCount: pageUrls.length,
-                selectedPageUrlCount: pageUrls.length,
-                droppedPageUrlCount: 0,
-                totalExtractedChildSitemapCount: diagnostics.attemptedChildSitemapCount ?? 0,
-                selectedChildSitemapCount: diagnostics.attemptedChildSitemapCount ?? 0,
-                droppedChildSitemapCount: 0
-              }
-          }
+            schemaVersion: 2 as const
+          } as SitemapFetchDiagnostics)
         : null
     };
   }
@@ -465,11 +535,76 @@ export class SitemapSourceService {
     return contentType.startsWith("application/xml") || contentType.startsWith("text/xml");
   }
 
-  private extractChildSitemapUrls(xml: string) {
-    return [...xml.matchAll(/<sitemap\b[^>]*>[\s\S]*?<loc\b[^>]*>([\s\S]*?)<\/loc>[\s\S]*?<\/sitemap>/gi)]
+  private isContentTypeFallbackEligible(contentType: string) {
+    return !contentType || contentType.startsWith("text/plain");
+  }
+
+  private looksLikeSitemapPayload(payload: string) {
+    const normalizedPayload = payload.trim();
+    return URLSET_TAG_PATTERN.test(normalizedPayload) || SITEMAP_INDEX_TAG_PATTERN.test(normalizedPayload);
+  }
+
+  private assertSupportedSitemapPayload(contentType: string, payload: string): SitemapPayloadAcceptance {
+    if (this.isSupportedSitemapContentType(contentType)) {
+      return {
+        contentTypeFallbackApplied: false,
+        upstreamContentType: contentType || "unknown"
+      };
+    }
+
+    if (this.isContentTypeFallbackEligible(contentType) && this.looksLikeSitemapPayload(payload)) {
+      return {
+        contentTypeFallbackApplied: true,
+        upstreamContentType: contentType || "unknown"
+      };
+    }
+
+    throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
+  }
+
+  private extractChildSitemapUrls(xml: string, sourceBoundaryUrl: string) {
+    const extractedChildSitemapUrls = [...xml.matchAll(CHILD_SITEMAP_ENTRY_PATTERN)]
       .map(match => this.decodeEntities(this.stripCdata(match[1])).trim())
-      .filter(url => this.isHttpUrl(url))
-      .filter((url, index, urls) => urls.indexOf(url) === index);
+      .filter(url => this.isHttpUrl(url));
+
+    for (const childSitemapUrl of extractedChildSitemapUrls) {
+      this.assertSitemapUrlWithinDomainBoundary(childSitemapUrl, sourceBoundaryUrl, "child sitemap");
+    }
+
+    return this.deduplicateSitemapUrls(extractedChildSitemapUrls);
+  }
+
+  private deduplicateSitemapUrls(urls: string[]) {
+    const deduplicatedUrls: string[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const url of urls) {
+      const dedupKey = this.normalizeSitemapUrlForDedup(url);
+      if (seenKeys.has(dedupKey)) {
+        continue;
+      }
+
+      seenKeys.add(dedupKey);
+      deduplicatedUrls.push(url);
+    }
+
+    return deduplicatedUrls;
+  }
+
+  private normalizeSitemapUrlForDedup(url: string) {
+    const normalizedUrl = url.trim();
+
+    if (!normalizedUrl) {
+      return "";
+    }
+
+    try {
+      const parsed = new URL(normalizedUrl);
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return normalizedUrl;
+    }
   }
 
   private isHttpUrl(value: string) {
@@ -496,11 +631,12 @@ export class SitemapSourceService {
       .replace(/&apos;/gi, "'");
   }
 
-  private async fetchSitemapXml(url: string) {
+  private async fetchSitemapXml(url: string): Promise<{ xml: string } & SitemapPayloadAcceptance> {
     let response: Response;
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(url);
       response = await fetchWithRetry({
         url,
         timeoutMs: fetchConfig.timeoutMs,
@@ -510,20 +646,21 @@ export class SitemapSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch sitemap: ${message}`);
+      throw this.buildFetchException("Failed to fetch sitemap", error);
     }
 
     if (!response.ok) {
       throw this.buildUpstreamFetchError("Failed to fetch sitemap", response.status);
     }
 
+    const xml = await response.text();
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isSupportedSitemapContentType(contentType)) {
-      throw new BadRequestException(`Unsupported sitemap content type: ${contentType || "unknown"}.`);
-    }
+    const payloadAcceptance = this.assertSupportedSitemapPayload(contentType, xml);
 
-    return response.text();
+    return {
+      xml,
+      ...payloadAcceptance
+    };
   }
 
   private normalizePageFetchError(error: unknown) {
@@ -551,13 +688,26 @@ export class SitemapSourceService {
       : new BadRequestException(message);
   }
 
+  private buildFetchException(prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    const normalizedMessage = normalizeSourceFetchFailureMessage(message);
+    const wrappedMessage = `${prefix}: ${normalizedMessage}`;
+    const retryable = error instanceof Error ? isRetryableFetchException(error) : true;
+
+    return retryable ? new BadGatewayException(wrappedMessage) : new BadRequestException(wrappedMessage);
+  }
+
   private isRetryableUpstreamStatus(status: number) {
     return status === 408 || status === 429 || status >= 500;
   }
 
   private buildAllPagesFailedError(pageFailures: PageFetchFailure[]) {
     const firstFailure = pageFailures[0]?.error;
-    const message = "Failed to fetch sitemap pages: all sitemap pages failed.";
+    const firstFailedUrl = pageFailures[0]?.url ?? "unknown";
+    const retryTimeoutDetail = this.readRetryTimeoutFailureDetail(firstFailure);
+    const message =
+      `Failed to fetch sitemap pages: all sitemap pages failed. First failed page URL: ${firstFailedUrl}.` +
+      (retryTimeoutDetail ? ` Retry/timeout detail: ${retryTimeoutDetail}.` : "");
 
     if (firstFailure instanceof BadRequestException) {
       return new BadRequestException(message);
@@ -572,7 +722,12 @@ export class SitemapSourceService {
 
   private buildAllChildSitemapsFailedError(childSitemapFailures: ChildSitemapFailure[]) {
     const firstFailure = childSitemapFailures[0]?.error;
-    const message = "Failed to fetch sitemap index children: all child sitemap fetches failed.";
+    const firstFailedUrl = childSitemapFailures[0]?.url ?? "unknown";
+    const retryTimeoutDetail = this.readRetryTimeoutFailureDetail(firstFailure);
+    const message =
+      "Failed to fetch sitemap index children: all child sitemap fetches failed." +
+      ` First failed child sitemap URL: ${firstFailedUrl}.` +
+      (retryTimeoutDetail ? ` Retry/timeout detail: ${retryTimeoutDetail}.` : "");
 
     if (firstFailure instanceof BadRequestException) {
       return new BadRequestException(message);
@@ -591,6 +746,23 @@ export class SitemapSourceService {
     }
 
     return "Unknown fetch error.";
+  }
+
+  private readRetryTimeoutFailureDetail(error: unknown) {
+    if (!(error instanceof Error)) {
+      return null;
+    }
+
+    const normalizedMessage = normalizeSourceFetchFailureMessage(error.message)
+      .replace(/^Failed to fetch\s+(web page|feed|sitemap):\s*/i, "")
+      .trim();
+
+    if (!normalizedMessage) {
+      return null;
+    }
+
+    const isRetryTimeoutMessage = /timed out|timeout|fetch failed|network error/i.test(normalizedMessage);
+    return isRetryTimeoutMessage ? normalizedMessage.replace(/[.]+$/g, "") : null;
   }
 
   private isRetryableFetchError(error: unknown) {
@@ -634,5 +806,15 @@ export class SitemapSourceService {
       [truncatedKey]: omittedCount > 0,
       [omittedCountKey]: omittedCount
     };
+  }
+
+  private assertSitemapUrlWithinDomainBoundary(url: string, sourceBoundaryUrl: string, urlKind: "page" | "child sitemap") {
+    if (isUrlWithinDomainBoundary(url, sourceBoundaryUrl)) {
+      return;
+    }
+
+    throw new BadRequestException(
+      `Sitemap ${urlKind} URL is outside source domain boundary: ${url}.`
+    );
   }
 }

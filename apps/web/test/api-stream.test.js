@@ -1,7 +1,9 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { resolve } = require("node:path");
-const { pathToFileURL } = require("node:url");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const apiModuleUrl = pathToFileURL(resolve(__dirname, "../src/lib/api.ts")).href;
 

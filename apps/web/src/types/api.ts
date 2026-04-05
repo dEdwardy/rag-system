@@ -1,6 +1,7 @@
 import type {
   TraceAnswerStatus,
   TraceAnswerStatusSource,
+  TraceAnswerAttributionSummary,
   TraceAnswerTextSource,
   TraceCitationAttribution,
   TraceCitationSelectionSource,
@@ -9,13 +10,71 @@ import type {
   TraceFallbackReason,
   TraceGenerationMode,
   TraceInsufficientContextReason,
+  TraceMissingInformationSource,
   TracePrimaryIssue,
   TraceQualityOverall,
+  RetrievalStrategySummary,
   TraceResolvedLanguage,
   TraceRetrievalMode,
   TraceRetrievalQuerySource,
   TraceSummary
 } from "@rag-system/shared";
+
+export type AuthIdentity = {
+  userId: string;
+  tenantId: string;
+  role: string;
+  sessionId: string | null;
+  authSource: string;
+};
+
+export type AuthMeResponse = {
+  identity: AuthIdentity | null;
+  currentIdentity: AuthIdentity;
+  loginProvenance: {
+    type: "local_session" | "oauth_session";
+    oauthProvider: "github" | "google" | "oidc" | null;
+  };
+};
+
+export type AuthProvidersResponse = {
+  local: {
+    enabled: true;
+    defaultCredentials: {
+      email: string;
+      password: string;
+    } | null;
+  };
+  oauth: {
+    github: {
+      configured: boolean;
+      requiredEnv: string[];
+    };
+    google: {
+      configured: boolean;
+      requiredEnv: string[];
+    };
+    oidc: {
+      configured: boolean;
+      requiredEnv: string[];
+    };
+  };
+};
+
+export type HealthResponse = {
+  status: "ok";
+};
+
+export type AuditEventRecord = {
+  id: string;
+  kind: "trace" | "document_run";
+  entityId: string;
+  event: string;
+  status: string;
+  occurredAt: string;
+  summary: string | null;
+  details: Record<string, unknown>;
+};
 
 export type StringIncludeExcludeFilter = {
   include?: string[];
@@ -231,6 +290,16 @@ export type KnowledgeBaseDocumentRunSummary = {
   byStatus: Record<DocumentRunStatus, number>;
   byTrigger: Record<DocumentRunTrigger, number>;
   bySourceType: Record<string, number>;
+  bySourceFamily: Record<
+    string,
+    {
+      totalRuns: number;
+      failedRuns: number;
+      retryableFailures: number;
+      nonRetryableFailures: number;
+      runsWithBoundaryHit: number;
+    }
+  >;
   retryableFailures: number;
   nonRetryableFailures: number;
   failureByStage: Record<string, number>;
@@ -243,6 +312,107 @@ export type KnowledgeBaseDocumentRunSummary = {
   latestSkipped: KnowledgeBaseDocumentRunSummaryAnchor | null;
   latestFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
 };
+
+export type KnowledgeBaseDocumentRunComparisonRunSnapshot = {
+  runId: string;
+  documentId: string;
+  version: number;
+  trigger: DocumentRunTrigger;
+  status: DocumentRunStatus;
+  failedStage: DocumentRunFailedStage;
+  failureSummary: KnowledgeBaseDocumentRunFailureSummary | null;
+  sourceType: string;
+  sourceName: string;
+  boundarySummary: KnowledgeBaseDocumentRunBoundarySummary | null;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
+export type KnowledgeBaseDocumentRunComparisonRunDifference = {
+  metric: string;
+  left: string | number | boolean | null;
+  right: string | number | boolean | null;
+  summary: string;
+};
+
+export type KnowledgeBaseDocumentRunComparisonSnapshotDifference = {
+  metric: string;
+  left: number;
+  right: number;
+  delta: number;
+  trend: "up" | "down";
+  summary: string;
+};
+
+export type KnowledgeBaseDocumentRunComparisonSourceFamilyDelta = {
+  sourceFamily: string;
+  left: {
+    totalRuns: number;
+    failedRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  };
+  right: {
+    totalRuns: number;
+    failedRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  };
+  deltas: {
+    totalRuns: number;
+    failedRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  };
+};
+
+export type KnowledgeBaseDocumentRunIssueHotspot = {
+  sourceFamily: string;
+  totalRuns: number;
+  issueSignalScore: number;
+  issueConcentration: number;
+};
+
+export type KnowledgeBaseDocumentRunIssueHotspotShift = {
+  sourceFamily: string;
+  leftIssueSignalScore: number;
+  rightIssueSignalScore: number;
+  issueSignalDelta: number;
+  leftIssueConcentration: number;
+  rightIssueConcentration: number;
+  issueConcentrationDelta: number;
+};
+
+export type KnowledgeBaseDocumentRunIssueHotspotSlice = {
+  leftHotspot: KnowledgeBaseDocumentRunIssueHotspot | null;
+  rightHotspot: KnowledgeBaseDocumentRunIssueHotspot | null;
+  dominantShift: KnowledgeBaseDocumentRunIssueHotspotShift | null;
+};
+
+export type KnowledgeBaseDocumentRunComparison =
+  | {
+      mode: "run";
+      left: KnowledgeBaseDocumentRunComparisonRunSnapshot;
+      right: KnowledgeBaseDocumentRunComparisonRunSnapshot;
+      meaningfulDifferences: KnowledgeBaseDocumentRunComparisonRunDifference[];
+    }
+  | {
+      mode: "snapshot";
+      left: {
+        sinceHours: number;
+        summary: KnowledgeBaseDocumentRunSummary;
+      };
+      right: {
+        sinceHours: number;
+        summary: KnowledgeBaseDocumentRunSummary;
+      };
+      meaningfulDifferences: KnowledgeBaseDocumentRunComparisonSnapshotDifference[];
+      sourceFamilyDeltas?: KnowledgeBaseDocumentRunComparisonSourceFamilyDelta[];
+      issueHotspotSlice?: KnowledgeBaseDocumentRunIssueHotspotSlice;
+    };
 
 export type DocumentChunk = {
   id: string;
@@ -295,11 +465,13 @@ export type ContextGroup = {
 export type AskRetrievalMetadata = {
   strategy: RetrievalStrategy;
   filters: RetrievalProfileFilters | null;
+  strategySummary?: RetrievalStrategySummary;
   queryRewrite: {
     enabled: boolean;
     applied: boolean;
-    finalQuerySource: "rewritten" | "original_disabled" | "original_unchanged";
+    finalQuerySource: TraceRetrievalQuerySource;
     usedFallback: boolean | null;
+    modelName: string | null;
     promptId: string | null;
   };
   execution: {
@@ -307,9 +479,9 @@ export type AskRetrievalMetadata = {
     topK: number;
     scoreThreshold: number;
     chunkWindow: number;
-    actualMode: "vector" | "hybrid" | "lexical";
+    actualMode: TraceRetrievalMode;
     usedFallback: boolean;
-    fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+    fallbackReason: TraceFallbackReason | null;
     rerankApplied: boolean;
     chunkWindowApplied: boolean;
     vectorSearchAttempted: boolean;
@@ -333,39 +505,197 @@ export type AskAnsweringMetadata = {
   promptId: string;
   usedFallback: boolean;
   answerPolicy: AnswerPolicy;
-  resolvedLanguage: "en" | "zh";
-  generationMode: "generated" | "deterministic_bypass";
-  contextMode: "chunks" | "context_groups";
+  resolvedLanguage: TraceResolvedLanguage;
+  generationMode: TraceGenerationMode;
+  contextMode: TraceContextMode;
   inputChunkCount: number;
   promptContextCount: number;
   contextGroupCount: number;
   citationCountBeforeLimit: number;
   citationCount: number;
   citationLimitHit: boolean;
-  citationAttribution: "explicit" | "heuristic" | "none";
-  citationSelectionSource: "structured" | "inline_markers" | "heuristic" | "none";
+  citationAttribution: TraceCitationAttribution;
+  citationSelectionSource: TraceCitationSelectionSource;
   missingInformationCount: number;
-  missingInformationSource: "none" | "model" | "deterministic_default" | "suppressed_by_policy";
-  answerTextSource: "model" | "deterministic_policy";
-  insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
-  answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy";
-  answerStatus: "grounded" | "insufficient_context";
+  missingInformationSource: TraceMissingInformationSource;
+  answerTextSource: TraceAnswerTextSource;
+  insufficientContextReason: TraceInsufficientContextReason | null;
+  answerStatusSource: TraceAnswerStatusSource;
+  answerStatus: TraceAnswerStatus;
 };
 
 export type AskQualityEvaluation = {
-  overall: "strong" | "partial" | "weak";
+  overall: TraceQualityOverall;
   grounding: "grounded" | "partially_grounded" | "ungrounded";
   completeness: "complete" | "partial" | "insufficient";
-  primaryIssue:
-    | "none"
-    | "no_retrieval_hits"
-    | "insufficient_context"
-    | "missing_information"
-    | "low_retrieval_score"
-    | "fallback_generation"
-    | "other";
+  primaryIssue: TracePrimaryIssue;
   flags: string[];
   summary: string;
+};
+
+export type EvalQuestionSetRunItem = {
+  index: number;
+  question: string;
+  status: "succeeded" | "failed";
+  traceId: string | null;
+  conversationId: string | null;
+  answerStatus: string | null;
+  qualityOverall: string | null;
+  qualityPrimaryIssue: string | null;
+  citationCount: number;
+  usedFallback: boolean | null;
+  error: {
+    message: string;
+    code: string | null;
+  } | null;
+};
+
+export type EvalQuestionSetRunSummary = {
+  total: number;
+  succeeded: number;
+  failed: number;
+  successRate: number;
+  groundedRate: number;
+  strongRate: number;
+  fallbackRate: number;
+  averageCitationCount: number;
+};
+
+export type EvalQuestionSetRunComparisonMetric = {
+  metric:
+    | "succeeded"
+    | "failed"
+    | "successRate"
+    | "groundedRate"
+    | "strongRate"
+    | "fallbackRate"
+    | "averageCitationCount";
+  current: number;
+  baseline: number;
+  delta: number;
+};
+
+export type EvalQuestionSetRunQualityGateMode = "warn" | "fail";
+
+export type EvalQuestionSetRunQualityGate = {
+  mode: EvalQuestionSetRunQualityGateMode;
+  status: "passed" | "warning" | "failed";
+  limitVersion: string;
+  breachedMetricCount: number;
+  breachedMetrics: Array<{
+    metric: "successRate" | "groundedRate" | "strongRate" | "fallbackRate" | "averageCitationCount";
+    limitType: "min" | "max";
+    limit: number;
+    current: number;
+    delta: number;
+  }>;
+  message: string;
+};
+
+export type EvalQuestionSetFailureDrilldownItem = {
+  index: number;
+  question: string;
+  severity: "critical" | "high" | "medium";
+  reasonCodes: Array<
+    "became_failed" | "became_insufficient_context" | "quality_degraded" | "fallback_introduced" | "citations_decreased"
+  >;
+  baseline: {
+    status: "succeeded" | "failed";
+    answerStatus: string | null;
+    qualityOverall: string | null;
+    qualityPrimaryIssue: string | null;
+    citationCount: number;
+    usedFallback: boolean | null;
+  };
+  current: {
+    status: "succeeded" | "failed";
+    answerStatus: string | null;
+    qualityOverall: string | null;
+    qualityPrimaryIssue: string | null;
+    citationCount: number;
+    usedFallback: boolean | null;
+    error: {
+      message: string;
+      code: string | null;
+    } | null;
+  };
+};
+
+export type EvalQuestionSetRunResult = {
+  questionSetId: string;
+  baselineSnapshotId: string;
+  baselineVersion: number;
+  assistantId: string;
+  startedAt: string;
+  finishedAt: string;
+  totals: {
+    total: number;
+    succeeded: number;
+    failed: number;
+  };
+  items: EvalQuestionSetRunItem[];
+  summary?: EvalQuestionSetRunSummary;
+  qualityGate?: EvalQuestionSetRunQualityGate;
+  baselineComparison?: {
+    hasPinnedBaselineEvalResult: boolean;
+    baselineCapturedAt: string | null;
+    baselineInitialized: boolean;
+    comparisonMeaningful: boolean;
+    questionSetDrift: {
+      hasDrift: boolean;
+      currentQuestionCount: number;
+      baselineQuestionCount: number;
+      addedQuestionCount: number;
+      removedQuestionCount: number;
+      unchangedQuestionCount: number;
+    };
+    deltas?: {
+      metrics: EvalQuestionSetRunComparisonMetric[];
+      meaningfulDeltas: EvalQuestionSetRunComparisonMetric[];
+    };
+    failureDrilldown?: {
+      regressedQuestionCount: number;
+      weakestItems: EvalQuestionSetFailureDrilldownItem[];
+    };
+    diffSummary?: {
+      headline: string;
+      regressedMetricCount: number;
+      improvedMetricCount: number;
+      unchangedMetricCount: number;
+      regressedQuestionCount: number;
+      regressedMetrics: EvalQuestionSetRunComparisonMetric[];
+      improvedMetrics: EvalQuestionSetRunComparisonMetric[];
+      topRegressionReasons: Array<{
+        reasonCode:
+          | "became_failed"
+          | "became_insufficient_context"
+          | "quality_degraded"
+          | "fallback_introduced"
+          | "citations_decreased";
+        count: number;
+      }>;
+    };
+  };
+  reportExports?: {
+    markdown: {
+      format: "markdown";
+      fileName: string;
+      mimeType: string;
+      content: string;
+    };
+    json: {
+      format: "json";
+      fileName: string;
+      mimeType: string;
+      content: string;
+    };
+    html: {
+      format: "html";
+      fileName: string;
+      mimeType: string;
+      content: string;
+    };
+  };
 };
 
 export type AskResponse = {
@@ -378,9 +708,31 @@ export type AskResponse = {
   citations: Citation[];
   retrievedChunks: RetrievedChunk[];
   contextGroups?: ContextGroup[];
+  strategySummary?: RetrievalStrategySummary;
+  strategyReadabilityLabel?: TraceSummary["strategyReadabilityLabel"];
+  retrievalModeProvenanceSentence?: TraceSummary["retrievalModeProvenanceSentence"];
+  rewriteReadabilityLabel?: TraceSummary["rewriteReadabilityLabel"];
   retrievalMetadata?: AskRetrievalMetadata;
+  answerAttributionSummary?: TraceAnswerAttributionSummary;
+  answerAttributionReadabilitySentence?: TraceSummary["answerAttributionReadabilitySentence"];
+  answerAttribution?: TraceCitationAttribution | null;
+  answerAttributionSource?: TraceCitationSelectionSource | null;
+  answerEvidenceSource?: TraceCitationSelectionSource | null;
+  answerEvidenceSourceReadabilityLabel?: TraceSummary["answerEvidenceSourceReadabilityLabel"];
+  answerEvidenceSourceReadabilitySentence?: TraceSummary["answerEvidenceSourceReadabilitySentence"];
+  answerTextSource?: TraceAnswerTextSource | null;
+  answerTextSourceReadabilityLabel?: TraceSummary["answerTextSourceReadabilityLabel"];
+  answerTextSourceReadabilitySentence?: TraceSummary["answerTextSourceReadabilitySentence"];
+  answerStatusSource?: TraceAnswerStatusSource | null;
+  answerStatusSourceReadabilityLabel?: TraceSummary["answerStatusSourceReadabilityLabel"];
+  answerStatusSourceReadabilitySentence?: TraceSummary["answerStatusSourceReadabilitySentence"];
+  answerProvenanceSentence?: TraceSummary["answerProvenanceSentence"];
+  answerProvenanceReadabilitySentence?: TraceSummary["answerProvenanceReadabilitySentence"];
+  missingInformationSource?: TraceSummary["missingInformationSource"];
+  missingInformationProvenanceSentence?: TraceSummary["missingInformationProvenanceSentence"];
+  missingInformationSourceReadabilityLabel?: TraceSummary["missingInformationSourceReadabilityLabel"];
   answeringMetadata?: AskAnsweringMetadata;
-  answerStatus?: "grounded" | "insufficient_context";
+  answerStatus?: TraceAnswerStatus;
   missingInformation?: string[];
   qualityEvaluation?: AskQualityEvaluation;
 };
@@ -466,8 +818,10 @@ export type TraceRecord = {
 };
 
 export type {
+  RetrievalStrategySummary,
   TraceAnswerStatus,
   TraceAnswerStatusSource,
+  TraceAnswerAttributionSummary,
   TraceAnswerTextSource,
   TraceCitationAttribution,
   TraceCitationSelectionSource,
@@ -476,6 +830,7 @@ export type {
   TraceFallbackReason,
   TraceGenerationMode,
   TraceInsufficientContextReason,
+  TraceMissingInformationSource,
   TracePrimaryIssue,
   TraceQualityOverall,
   TraceResolvedLanguage,

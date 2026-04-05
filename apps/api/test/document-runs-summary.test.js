@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { DocumentRunsService } = require("../src/modules/document-runs/document-runs.service.ts");
 const { DocumentsService } = require("../src/modules/documents/documents.service.ts");
 const {
+  compareKnowledgeBaseDocumentRunsSchema,
   listConversationTracesSchema,
   listDocumentRunsSchema,
   listKnowledgeBaseDocumentRunsSchema,
@@ -24,6 +25,26 @@ test("operational list schemas keep explicit limit support while only bounded en
   assert.throws(() => listKnowledgeBaseDocumentsSchema.parse({ limit: "101" }));
   assert.throws(() => listDocumentRunsSchema.parse({ limit: "0" }));
   assert.throws(() => listConversationTracesSchema.parse({ limit: "101" }));
+});
+
+test("document-run comparison schema supports run-pair or snapshot-pair modes", () => {
+  assert.deepEqual(compareKnowledgeBaseDocumentRunsSchema.parse({ leftRunId: "run-a", rightRunId: "run-b" }), {
+    issueOnly: false,
+    leftRunId: "run-a",
+    rightRunId: "run-b"
+  });
+  assert.deepEqual(
+    compareKnowledgeBaseDocumentRunsSchema.parse({ leftSinceHours: "1", rightSinceHours: "24", issueOnly: "true" }),
+    {
+      issueOnly: true,
+      leftSinceHours: 1,
+      rightSinceHours: 24
+    }
+  );
+  assert.throws(() => compareKnowledgeBaseDocumentRunsSchema.parse({ leftRunId: "run-a" }));
+  assert.throws(() =>
+    compareKnowledgeBaseDocumentRunsSchema.parse({ leftRunId: "run-a", rightRunId: "run-b", leftSinceHours: 1, rightSinceHours: 24 })
+  );
 });
 
 test("DocumentsService listKnowledgeBaseDocuments applies bounded limit semantics", async () => {
@@ -58,6 +79,418 @@ test("DocumentsService listKnowledgeBaseDocuments applies bounded limit semantic
       }
     }
   ]);
+});
+
+test("DocumentRunsService run comparison highlights meaningful run-level differences", async () => {
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findFirst: async args => {
+          if (args.where.id === "run-left") {
+            return {
+              id: "run-left",
+              documentId: "doc-1",
+              version: 2,
+              trigger: "external_resync",
+              status: "failed",
+              failedStage: "source_fetch",
+              diagnosticsJson: {
+                code: "EXTERNAL_SOURCE_FETCH_FAILED",
+                failedStage: "source_fetch",
+                retryable: true,
+                message: "temporary upstream failure"
+              },
+              startedAt: new Date("2026-03-22T10:01:00.000Z"),
+              finishedAt: new Date("2026-03-22T10:02:00.000Z"),
+              document: {
+                sourceType: "web_page",
+                sourceName: "https://example.com/down"
+              }
+            };
+          }
+
+          return {
+            id: "run-right",
+            documentId: "doc-1",
+            version: 3,
+            trigger: "external_resync",
+            status: "ready",
+            failedStage: null,
+            diagnosticsJson: null,
+            startedAt: new Date("2026-03-22T10:03:00.000Z"),
+            finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+            document: {
+              sourceType: "web_page",
+              sourceName: "https://example.com/down"
+            }
+          };
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftRunId: "run-left",
+    rightRunId: "run-right",
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "run");
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "status"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "failureCode"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "retryable"));
+});
+
+test("DocumentRunsService snapshot comparison highlights summary metric deltas", async () => {
+  let callCount = 0;
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return [
+              {
+                documentId: "doc-1",
+                version: 2,
+                trigger: "external_resync",
+                status: "failed",
+                failedStage: "source_fetch",
+                diagnosticsJson: {
+                  code: "EXTERNAL_SOURCE_FETCH_FAILED",
+                  failedStage: "source_fetch",
+                  retryable: true,
+                  message: "temporary upstream failure"
+                },
+                startedAt: new Date("2026-03-22T10:01:00.000Z"),
+                finishedAt: new Date("2026-03-22T10:02:00.000Z"),
+                document: {
+                  sourceType: "web_page",
+                  sourceName: "https://example.com/down"
+                }
+              }
+            ];
+          }
+
+          return [
+            {
+              documentId: "doc-1",
+              version: 3,
+              trigger: "external_resync",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: {
+                code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+                failedStage: "source_fetch",
+                retryable: false,
+                boundaryHit: true,
+                boundaryReasons: ["MAX_ITEMS_LIMIT_REACHED"],
+                boundary: {
+                  droppedByLimitCount: 2
+                },
+                message: "partial"
+              },
+              startedAt: new Date("2026-03-22T10:03:00.000Z"),
+              finishedAt: new Date("2026-03-22T10:04:00.000Z"),
+              document: {
+                sourceType: "feed",
+                sourceName: "https://example.com/feed.xml"
+              }
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftSinceHours: 1,
+    rightSinceHours: 24,
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "snapshot");
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "failedRuns"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "retryableFailures"));
+  assert.ok(result.meaningfulDifferences.some(diff => diff.metric === "runsWithBoundaryHit"));
+  assert.deepEqual(result.issueHotspotSlice, {
+    leftHotspot: {
+      sourceFamily: "web",
+      totalRuns: 1,
+      issueSignalScore: 1,
+      issueConcentration: 1
+    },
+    rightHotspot: {
+      sourceFamily: "feed",
+      totalRuns: 1,
+      issueSignalScore: 2,
+      issueConcentration: 2
+    },
+    dominantShift: {
+      sourceFamily: "feed",
+      leftIssueSignalScore: 0,
+      rightIssueSignalScore: 2,
+      issueSignalDelta: 2,
+      leftIssueConcentration: 0,
+      rightIssueConcentration: 2,
+      issueConcentrationDelta: 2
+    }
+  });
+  assert.deepEqual(result.sourceFamilyDeltas, [
+    {
+      sourceFamily: "feed",
+      left: {
+        totalRuns: 0,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      right: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 1,
+        runsWithBoundaryHit: 1
+      },
+      deltas: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 1,
+        runsWithBoundaryHit: 1
+      }
+    },
+    {
+      sourceFamily: "web",
+      left: {
+        totalRuns: 1,
+        failedRuns: 1,
+        retryableFailures: 1,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      right: {
+        totalRuns: 0,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      deltas: {
+        totalRuns: -1,
+        failedRuns: -1,
+        retryableFailures: -1,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      }
+    }
+  ]);
+});
+
+test("DocumentRunsService snapshot comparison keeps issueHotspotSlice keys with null values when no issue hotspot or meaningful shift exists", async () => {
+  let callCount = 0;
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return [
+              {
+                documentId: "doc-left-1",
+                version: 1,
+                trigger: "upload",
+                status: "ready",
+                failedStage: null,
+                diagnosticsJson: null,
+                startedAt: new Date("2026-03-22T09:01:00.000Z"),
+                finishedAt: new Date("2026-03-22T09:02:00.000Z"),
+                document: {
+                  sourceType: "upload",
+                  sourceName: "left-1.md"
+                }
+              }
+            ];
+          }
+
+          return [
+            {
+              documentId: "doc-right-1",
+              version: 1,
+              trigger: "upload",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: null,
+              startedAt: new Date("2026-03-22T09:03:00.000Z"),
+              finishedAt: new Date("2026-03-22T09:04:00.000Z"),
+              document: {
+                sourceType: "upload",
+                sourceName: "right-1.md"
+              }
+            },
+            {
+              documentId: "doc-right-2",
+              version: 1,
+              trigger: "upload",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: null,
+              startedAt: new Date("2026-03-22T09:05:00.000Z"),
+              finishedAt: new Date("2026-03-22T09:06:00.000Z"),
+              document: {
+                sourceType: "upload",
+                sourceName: "right-2.md"
+              }
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftSinceHours: 1,
+    rightSinceHours: 24,
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "snapshot");
+  assert.deepEqual(result.sourceFamilyDeltas, [
+    {
+      sourceFamily: "upload",
+      left: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      right: {
+        totalRuns: 2,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      },
+      deltas: {
+        totalRuns: 1,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      }
+    }
+  ]);
+  assert.deepEqual(result.issueHotspotSlice, {
+    leftHotspot: null,
+    rightHotspot: null,
+    dominantShift: null
+  });
+});
+
+test("DocumentRunsService snapshot comparison keeps dominantShift deterministic when issue concentration and signal deltas tie", async () => {
+  let callCount = 0;
+  const partialIssueDiagnostics = {
+    code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+    failedStage: "source_fetch",
+    retryable: false,
+    boundaryHit: true,
+    boundaryReasons: ["MAX_ITEMS_LIMIT_REACHED"],
+    boundary: {
+      droppedByLimitCount: 1
+    },
+    message: "partial"
+  };
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return [
+              {
+                documentId: "doc-left-web",
+                version: 1,
+                trigger: "external_resync",
+                status: "ready",
+                failedStage: null,
+                diagnosticsJson: null,
+                startedAt: new Date("2026-03-22T08:01:00.000Z"),
+                finishedAt: new Date("2026-03-22T08:02:00.000Z"),
+                document: {
+                  sourceType: "web_page",
+                  sourceName: "https://example.com/left-web"
+                }
+              },
+              {
+                documentId: "doc-left-feed",
+                version: 1,
+                trigger: "external_resync",
+                status: "ready",
+                failedStage: null,
+                diagnosticsJson: null,
+                startedAt: new Date("2026-03-22T08:03:00.000Z"),
+                finishedAt: new Date("2026-03-22T08:04:00.000Z"),
+                document: {
+                  sourceType: "feed",
+                  sourceName: "https://example.com/left-feed.xml"
+                }
+              }
+            ];
+          }
+
+          return [
+            {
+              documentId: "doc-right-web",
+              version: 2,
+              trigger: "external_resync",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: partialIssueDiagnostics,
+              startedAt: new Date("2026-03-22T08:05:00.000Z"),
+              finishedAt: new Date("2026-03-22T08:06:00.000Z"),
+              document: {
+                sourceType: "web_page",
+                sourceName: "https://example.com/right-web"
+              }
+            },
+            {
+              documentId: "doc-right-feed",
+              version: 2,
+              trigger: "external_resync",
+              status: "ready",
+              failedStage: null,
+              diagnosticsJson: partialIssueDiagnostics,
+              startedAt: new Date("2026-03-22T08:07:00.000Z"),
+              finishedAt: new Date("2026-03-22T08:08:00.000Z"),
+              document: {
+                sourceType: "feed",
+                sourceName: "https://example.com/right-feed.xml"
+              }
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  const result = await DocumentRunsService.prototype.getKnowledgeBaseRunComparison.call(fakeService, "default-kb", {
+    leftSinceHours: 6,
+    rightSinceHours: 24,
+    issueOnly: false
+  });
+
+  assert.equal(result.mode, "snapshot");
+  assert.deepEqual(result.issueHotspotSlice.dominantShift, {
+    sourceFamily: "feed",
+    leftIssueSignalScore: 0,
+    rightIssueSignalScore: 2,
+    issueSignalDelta: 2,
+    leftIssueConcentration: 0,
+    rightIssueConcentration: 2,
+    issueConcentrationDelta: 2
+  });
 });
 
 test("DocumentRunsService summary exposes latest retryable failure and latest skipped run", async () => {
@@ -400,6 +833,29 @@ test("DocumentRunsService list and summary expose a consistent minimal failure s
     droppedPageUrlCount: 0,
     droppedChildSitemapCount: 0,
     droppedFeedEntryCount: 2
+  });
+  assert.deepEqual(summary.bySourceFamily, {
+    feed: {
+      totalRuns: 1,
+      failedRuns: 0,
+      retryableFailures: 0,
+      nonRetryableFailures: 1,
+      runsWithBoundaryHit: 1
+    },
+    web: {
+      totalRuns: 1,
+      failedRuns: 1,
+      retryableFailures: 1,
+      nonRetryableFailures: 0,
+      runsWithBoundaryHit: 0
+    },
+    upload: {
+      totalRuns: 1,
+      failedRuns: 0,
+      retryableFailures: 0,
+      nonRetryableFailures: 0,
+      runsWithBoundaryHit: 0
+    }
   });
 });
 
@@ -1046,6 +1502,15 @@ test("DocumentRunsService summary applies narrow run filters before aggregating 
   assert.deepEqual(summary.bySourceType, {
     feed: 1
   });
+  assert.deepEqual(summary.bySourceFamily, {
+    feed: {
+      totalRuns: 1,
+      failedRuns: 1,
+      retryableFailures: 1,
+      nonRetryableFailures: 0,
+      runsWithBoundaryHit: 0
+    }
+  });
   assert.deepEqual(summary.latestFailure, {
     documentId: "doc-feed-failed",
     version: 5,
@@ -1431,6 +1896,146 @@ test("DocumentRunsService summary prefers a newer partial-ready run over an olde
       failedStage: "source_fetch",
       retryable: false,
       message: "Feed source completed with partial entry validation failures."
+    }
+  });
+});
+
+test("DocumentRunsService summary exposes web-page body-missing partial diagnostics in summary anchors", async () => {
+  const runs = [
+    {
+      documentId: "doc-web-body-missing",
+      version: 1,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Web page source completed with body-missing diagnostics.",
+        bodyMissing: true,
+        bodyQualityLow: false,
+        partial: true
+      },
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/body-missing"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-web-body-missing",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-missing",
+    message: "Web page source completed with body-missing diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with body-missing diagnostics."
+    }
+  });
+  assert.deepEqual(summary.latestPartialSourceFailure, {
+    documentId: "doc-web-body-missing",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-missing",
+    message: "Web page source completed with body-missing diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with body-missing diagnostics."
+    }
+  });
+});
+
+test("DocumentRunsService summary exposes web-page low body-quality partial diagnostics in summary anchors", async () => {
+  const runs = [
+    {
+      documentId: "doc-web-body-quality-low",
+      version: 1,
+      trigger: "external_resync",
+      status: "ready",
+      failedStage: null,
+      diagnosticsJson: {
+        code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+        failedStage: "source_fetch",
+        retryable: false,
+        message: "Web page source completed with low body-quality diagnostics.",
+        bodyMissing: false,
+        bodyQualityLow: true,
+        partial: true
+      },
+      startedAt: new Date("2026-03-22T10:05:00.000Z"),
+      finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+      document: {
+        sourceType: "web_page",
+        sourceName: "https://example.com/body-quality-low"
+      }
+    }
+  ];
+
+  const fakeService = Object.assign(Object.create(DocumentRunsService.prototype), {
+    prisma: {
+      documentRun: {
+        findMany: async () => runs
+      }
+    }
+  });
+
+  const summary = await DocumentRunsService.prototype.getKnowledgeBaseRunSummary.call(fakeService, "default-kb");
+
+  assert.deepEqual(summary.latestFailure, {
+    documentId: "doc-web-body-quality-low",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-quality-low",
+    message: "Web page source completed with low body-quality diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with low body-quality diagnostics."
+    }
+  });
+  assert.deepEqual(summary.latestPartialSourceFailure, {
+    documentId: "doc-web-body-quality-low",
+    version: 1,
+    trigger: "external_resync",
+    failedStage: "source_fetch",
+    sourceType: "web_page",
+    sourceName: "https://example.com/body-quality-low",
+    message: "Web page source completed with low body-quality diagnostics.",
+    finishedAt: new Date("2026-03-22T10:06:00.000Z"),
+    failureSummary: {
+      code: "EXTERNAL_SOURCE_PARTIAL_SUCCESS",
+      failedStage: "source_fetch",
+      retryable: false,
+      message: "Web page source completed with low body-quality diagnostics."
     }
   });
 });

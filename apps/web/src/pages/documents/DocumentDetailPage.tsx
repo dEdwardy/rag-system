@@ -5,32 +5,50 @@ import {
   Button,
   Divider,
   Group,
+  Modal,
   Paper,
   Stack,
   Text,
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
+import { buildRunSummaryText } from "../../components/document-runs/document-run-observability";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useDeleteDocument,
   useDocument,
-  useDocumentChunks,
   useDocumentRuns,
   useReindexDocument
 } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
-import type { JsonValue } from "../../types/api";
+import type { DocumentRunRecord } from "../../types/api";
 
-function formatJson(value: JsonValue | unknown) {
-  if (value == null) {
-    return "null";
-  }
+const DocumentDetailChunksPanel = lazy(async () => {
+  const module = await import("./DocumentDetailChunksPanel");
+  return { default: module.DocumentDetailChunksPanel };
+});
 
-  return JSON.stringify(value, null, 2);
+function DocumentDetailChunksFallback({ locale }: { locale: "zh" | "en" }) {
+  return (
+    <StatePanel
+      description={locale === "zh" ? "正在准备资料切片检查区。" : "Preparing the document chunk review panel."}
+      title={locale === "zh" ? "加载资料切片" : "Loading document chunks"}
+      tone="loading"
+    />
+  );
+}
+
+function getLatestRun(runs: DocumentRunRecord[]) {
+  return runs.reduce<DocumentRunRecord | null>((latest, run) => {
+    if (!latest) {
+      return run;
+    }
+
+    return new Date(run.startedAt).getTime() > new Date(latest.startedAt).getTime() ? run : latest;
+  }, null);
 }
 
 export function DocumentDetailPage() {
@@ -44,38 +62,131 @@ export function DocumentDetailPage() {
   const focusedIsPrimary = searchParams.get("isPrimary");
   const focusedIsCited = searchParams.get("isCited") === "1";
   const documentQuery = useDocument(documentId);
-  const chunksQuery = useDocumentChunks(documentId);
   const runsQuery = useDocumentRuns(documentId);
   const reindexMutation = useReindexDocument();
   const deleteMutation = useDeleteDocument();
   const document = documentQuery.data;
-  const chunkRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const { formatDateTime, t, locale } = useI18n();
-
-  useEffect(() => {
-    if (!focusedChunkId || !chunksQuery.data) {
-      return;
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const { formatDateTime, locale, t } = useI18n();
+  const traceReturnHref = sourceTraceId ? `/traces/${sourceTraceId}#trace-detail-retrieved-chunks` : null;
+  const latestRun = useMemo(() => getLatestRun(runsQuery.data ?? []), [runsQuery.data]);
+  const latestRunSummary = useMemo(() => {
+    if (runsQuery.isLoading) {
+      return t("documents.detail.primaryStatusRunSummaryLoading");
     }
 
-    const hasTargetChunk = chunksQuery.data.some(chunk => chunk.id === focusedChunkId);
-    if (!hasTargetChunk) {
-      return;
+    if (!latestRun) {
+      return t("documents.detail.primaryStatusRunSummaryMissing");
     }
 
-    const timeoutId = window.setTimeout(() => {
-      chunkRefs.current[focusedChunkId]?.scrollIntoView({
-        behavior: "smooth",
-        block: "center"
-      });
-    }, 50);
+    return buildRunSummaryText(latestRun, locale);
+  }, [latestRun, locale, runsQuery.isLoading, t]);
+  const primaryStatusSummary = useMemo(() => {
+    if (!document) {
+      return null;
+    }
 
-    return () => window.clearTimeout(timeoutId);
-  }, [focusedChunkId, chunksQuery.data]);
+    if (document.status === "failed") {
+      return t("documents.detail.primaryStatusSummaryFailed", { runSummary: latestRunSummary });
+    }
+
+    if (document.status === "pending" || document.status === "processing") {
+      return t("documents.detail.primaryStatusSummaryProcessing", { runSummary: latestRunSummary });
+    }
+
+    return t("documents.detail.primaryStatusSummaryReady", { runSummary: latestRunSummary });
+  }, [document, latestRunSummary, t]);
+  const primaryStatusNextAction = useMemo(() => {
+    if (!document) {
+      return null;
+    }
+
+    if (document.status === "failed") {
+      return t("documents.detail.primaryStatusNextActionFailed");
+    }
+
+    if (document.status === "pending" || document.status === "processing") {
+      return t("documents.detail.primaryStatusNextActionProcessing");
+    }
+
+    return t("documents.detail.primaryStatusNextActionReady");
+  }, [document, t]);
 
   return (
     <Stack gap="md">
+      <Modal
+        centered
+        closeOnClickOutside={!deleteMutation.isPending}
+        closeOnEscape={!deleteMutation.isPending}
+        data-testid="document-delete-confirmation"
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setIsDeleteConfirmOpen(false);
+          }
+        }}
+        opened={isDeleteConfirmOpen}
+        title={t("documents.detail.deleteDialogTitle")}
+      >
+        <Stack gap="md">
+          <Text c="var(--app-text-secondary)" size="sm">
+            {document
+              ? t("documents.detail.deleteDialogDescriptionWithTitle", { title: document.title })
+              : t("documents.detail.deleteDialogDescriptionFallback")}
+          </Text>
+
+          <Group justify="flex-end">
+            <Button
+              data-testid="document-delete-cancel"
+              disabled={deleteMutation.isPending}
+              onClick={() => setIsDeleteConfirmOpen(false)}
+              radius="xl"
+              type="button"
+              variant="default"
+            >
+              {t("documents.detail.deleteCancel")}
+            </Button>
+            <Button
+              color="red"
+              data-testid="document-delete-confirm"
+              loading={deleteMutation.isPending}
+              onClick={async () => {
+                if (!document) {
+                  return;
+                }
+
+                try {
+                  await deleteMutation.mutateAsync({
+                    documentId: document.id
+                  });
+                  setIsDeleteConfirmOpen(false);
+                  notifications.show({
+                    color: "indigo",
+                    message: t("documents.detail.deleteSuccess", { title: document.title })
+                  });
+                  navigate("/documents");
+                } catch (error) {
+                  notifications.show({
+                    color: "red",
+                    message: error instanceof Error ? error.message : t("documents.detail.deleteError")
+                  });
+                }
+              }}
+              radius="xl"
+              type="button"
+            >
+              {t("common.actions.delete")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Paper className="workspace-hero" p="lg" radius="xl">
         <Stack gap={10}>
+          {traceReturnHref ? (
+            <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to={traceReturnHref}>
+              {t("documents.detail.backToTrace")}
+            </Text>
+          ) : null}
           <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/documents">
             {t("common.actions.backToDocuments")}
           </Text>
@@ -84,7 +195,7 @@ export function DocumentDetailPage() {
               <Box className="workspace-hero-icon">DOC</Box>
               <div className="workspace-hero-copy">
                 <Text className="workspace-hero-kicker">
-                  {locale === "zh" ? "文档详情" : "Document detail"}
+                  {t("documents.detail.kicker")}
                 </Text>
                 <Title
                   order={3}
@@ -113,9 +224,7 @@ export function DocumentDetailPage() {
                   </Badge>
                 </Group>
                 <Text className="workspace-hero-sidecopy" ta="right">
-                  {locale === "zh"
-                    ? "保留现有 trace 深链和 chunk 聚焦能力，只继续收紧信息层级、状态分区和阅读密度。"
-                    : "Keep the same trace deep-link flow and tighten hierarchy, focus states, and reading density only."}
+                  {t("documents.detail.detailHeroCopy")}
                 </Text>
               </Stack>
             ) : null}
@@ -145,7 +254,7 @@ export function DocumentDetailPage() {
                   <Stack gap="md">
                     <Group justify="space-between" wrap="nowrap">
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "文档状态" : "Document status"}
+                        {t("documents.detail.primaryStatus")}
                       </Text>
                       <Badge
                         color={document.status === "ready" ? "indigo" : document.status === "failed" ? "red" : "yellow"}
@@ -186,24 +295,9 @@ export function DocumentDetailPage() {
                       <Button
                         className="workspace-button"
                         color="red"
+                        data-testid="document-delete-trigger"
                         loading={deleteMutation.isPending}
-                        onClick={async () => {
-                          try {
-                            await deleteMutation.mutateAsync({
-                              documentId: document.id
-                            });
-                            notifications.show({
-                              color: "indigo",
-                              message: t("documents.detail.deleteSuccess", { title: document.title })
-                            });
-                            navigate("/documents");
-                          } catch (error) {
-                            notifications.show({
-                              color: "red",
-                              message: error instanceof Error ? error.message : t("documents.detail.deleteError")
-                            });
-                          }
-                        }}
+                        onClick={() => setIsDeleteConfirmOpen(true)}
                         radius="xl"
                         size="xs"
                         variant="light"
@@ -214,18 +308,15 @@ export function DocumentDetailPage() {
 
                     <Divider color="var(--app-border)" />
 
-                    {document.status === "pending" || document.status === "processing" ? (
-                      <Alert color="yellow" radius="xl" variant="light">
-                        {t("documents.detail.processingAlert")}
-                      </Alert>
-                    ) : null}
-                    {document.status === "failed" ? (
-                      <Alert color="red" radius="xl" variant="light">
-                        {t("documents.detail.failedAlert")}
-                      </Alert>
-                    ) : null}
+                    <Text c="var(--app-text-secondary)" size="sm">
+                      {primaryStatusSummary}
+                    </Text>
 
                     <div className="workspace-meta-list">
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">{t("documents.detail.nextAction")}</span>
+                        <span className="workspace-meta-value">{primaryStatusNextAction}</span>
+                      </div>
                       <div className="workspace-meta-row">
                         <span className="workspace-meta-label">{t("common.fields.stage")}</span>
                         <span className="workspace-meta-value">
@@ -259,12 +350,10 @@ export function DocumentDetailPage() {
                 <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
                   <Stack gap="sm">
                     <Text className="workspace-section-heading">
-                      {locale === "zh" ? "存储与诊断" : "Storage and diagnostics"}
+                      {t("documents.detail.storageAndDiagnostics")}
                     </Text>
                     <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "保留底层存储标识和错误信息，但降为次级信息区。"
-                        : "Keep the storage key and error details available, but treat them as secondary diagnostics."}
+                      {t("documents.detail.storageAndDiagnosticsCopy")}
                     </Text>
                     <pre className="workspace-code-block workspace-code-block-scroll">{document.storageKey}</pre>
                     {document.errorMessage ? (
@@ -279,218 +368,37 @@ export function DocumentDetailPage() {
                   <Alert color="red" radius="xl" variant="light">
                     {runsQuery.error instanceof Error
                       ? runsQuery.error.message
-                      : locale === "zh"
-                        ? "加载文档 runs 失败。"
-                        : "Failed to load document runs."}
+                      : t("documents.detail.runsLoadError")}
                   </Alert>
                 ) : (
                   <DocumentRunList
-                    title={locale === "zh" ? "文档 runs" : "Document runs"}
-                    description={
-                      locale === "zh"
-                        ? "按版本和时间查看该文档的 upload / reindex / external resync 历史。"
-                        : "Review the upload, reindex, and external resync history for this document by version and time."
-                    }
+                    title={t("documents.detail.runsTitle")}
+                    description={t("documents.detail.runsDescription")}
                     runs={runsQuery.data ?? []}
-                    emptyTitle={locale === "zh" ? "暂无文档 runs" : "No document runs yet"}
-                    emptyDescription={
-                      locale === "zh"
-                        ? "当前文档还没有可展示的执行历史。"
-                        : "This document does not have execution history yet."
-                    }
+                    emptyTitle={t("documents.detail.runsEmptyTitle")}
+                    emptyDescription={t("documents.detail.runsEmptyDescription")}
                   />
                 )}
               </Stack>
             </div>
           </div>
 
-          <div className="workspace-page-main-stack">
-            <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
-              <Stack gap="md">
-                <Group justify="space-between" wrap="nowrap">
-                  <div>
-                    <Text className="workspace-section-heading">{t("documents.detail.chunksTitle")}</Text>
-                    <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "Chunk 列表逻辑不变，只继续压缩间距、聚焦态和来自 trace 的定位信息。"
-                        : "The chunk list keeps its logic unchanged and only tightens hierarchy, focus state, and density."}
-                    </Text>
-                  </div>
-                  <Badge color="indigo" variant="light">
-                    {chunksQuery.data?.length ?? 0}
-                  </Badge>
-                </Group>
-
-                {chunksQuery.isLoading ? (
-                  <StatePanel
-                    description={t("documents.detail.subtitle")}
-                    title={t("documents.detail.chunksTitle")}
-                    tone="loading"
-                  />
-                ) : null}
-                {chunksQuery.isError ? (
-                  <Alert color="red" radius="xl" variant="light">
-                    {chunksQuery.error instanceof Error ? chunksQuery.error.message : t("documents.detail.chunksLoadError")}
-                  </Alert>
-                ) : null}
-
-                {focusedChunkId && sourceTraceId ? (
-                  <Paper className="workspace-focus-banner" p="md" radius="xl">
-                    <Stack gap={6}>
-                      <Text c="var(--app-text)" fw={700} size="sm">
-                        {t("documents.detail.traceFocusTitle")}
-                      </Text>
-                      <Text c="var(--app-text-secondary)" size="sm">
-                        {t("documents.detail.traceFocusDescription", { traceId: sourceTraceId })}
-                      </Text>
-                      <Group gap="xs">
-                        {focusedRank ? (
-                          <Badge variant="light">{t("documents.detail.traceRankLabel", { rank: focusedRank })}</Badge>
-                        ) : null}
-                        {focusedScore ? (
-                          <Badge color="blue" variant="light">
-                            {t("documents.detail.traceScoreLabel", { score: focusedScore })}
-                          </Badge>
-                        ) : null}
-                        {focusedIsPrimary === "1" ? (
-                          <Badge color="indigo" variant="light">
-                            {t("documents.detail.tracePrimary")}
-                          </Badge>
-                        ) : focusedIsPrimary === "0" ? (
-                          <Badge color="gray" variant="light">
-                            {t("documents.detail.traceNeighbor")}
-                          </Badge>
-                        ) : null}
-                        {focusedIsCited ? (
-                          <Badge color="blue" variant="light">
-                            {t("documents.detail.traceCited")}
-                          </Badge>
-                        ) : null}
-                      </Group>
-                    </Stack>
-                  </Paper>
-                ) : null}
-
-                <div className="workspace-collection-grid">
-                  {chunksQuery.data?.map(chunk => (
-                    <Paper
-                      className="workspace-panel-hover"
-                      key={chunk.id}
-                      p="md"
-                      radius="lg"
-                      ref={node => {
-                        chunkRefs.current[chunk.id] = node;
-                      }}
-                      style={{
-                        background:
-                          focusedChunkId === chunk.id
-                            ? "linear-gradient(180deg, rgba(99, 102, 241, 0.16) 0%, rgba(99, 102, 241, 0.08) 100%)"
-                            : "linear-gradient(180deg, rgba(30, 30, 38, 0.96) 0%, rgba(24, 24, 31, 0.98) 100%)",
-                        border:
-                          focusedChunkId === chunk.id
-                            ? "1px solid rgba(99, 102, 241, 0.32)"
-                            : "1px solid rgba(255,255,255,0.06)",
-                        boxShadow:
-                          focusedChunkId === chunk.id
-                            ? "0 18px 36px rgba(99, 102, 241, 0.16)"
-                            : "0 12px 24px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255,255,255,0.02)"
-                      }}
-                    >
-                      <Stack gap="sm">
-                        <Group align="flex-start" justify="space-between" wrap="nowrap">
-                          <Stack gap={8}>
-                            <Group gap="xs">
-                              <Badge color="indigo" variant="light">
-                                #{chunk.chunkIndex}
-                              </Badge>
-                              {focusedChunkId === chunk.id ? (
-                                <Badge color="indigo" variant="filled">
-                                  {t("common.misc.focused")}
-                                </Badge>
-                              ) : null}
-                              {focusedChunkId === chunk.id && focusedIsPrimary === "1" ? (
-                                <Badge color="indigo" variant="light">
-                                  {t("documents.detail.tracePrimary")}
-                                </Badge>
-                              ) : null}
-                              {focusedChunkId === chunk.id && focusedIsPrimary === "0" ? (
-                                <Badge color="gray" variant="light">
-                                  {t("documents.detail.traceNeighbor")}
-                                </Badge>
-                              ) : null}
-                              {focusedChunkId === chunk.id && focusedIsCited ? (
-                                <Badge color="blue" variant="light">
-                                  {t("documents.detail.traceCited")}
-                                </Badge>
-                              ) : null}
-                              {focusedChunkId === chunk.id && focusedRank ? (
-                                <Badge variant="light">
-                                  {t("documents.detail.traceRankLabel", { rank: focusedRank })}
-                                </Badge>
-                              ) : null}
-                              {chunk.pageNo != null ? (
-                                <Badge color="blue" variant="light">
-                                  {t("common.misc.pageShort", { pageNo: chunk.pageNo })}
-                                </Badge>
-                              ) : null}
-                            </Group>
-
-                            {chunk.sectionTitle ? (
-                              <Text c="var(--app-text)" fw={600}>
-                                {chunk.sectionTitle}
-                              </Text>
-                            ) : null}
-                          </Stack>
-
-                          <Text c="var(--app-text-muted)" size="xs">
-                            {chunk.id}
-                          </Text>
-                        </Group>
-
-                        <div className="workspace-content-block">
-                          <Stack gap={8}>
-                            <Text c="var(--app-text-muted)" size="xs">
-                              {t("common.misc.tokenCount")}: {chunk.tokenCount}
-                            </Text>
-                            <Text c="var(--app-text-secondary)" size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                              {chunk.content}
-                            </Text>
-                          </Stack>
-                        </div>
-
-                        {chunk.metadataJson ? (
-                          <pre className="workspace-code-block workspace-code-block-scroll">
-                            {formatJson(chunk.metadataJson)}
-                          </pre>
-                        ) : null}
-                      </Stack>
-                    </Paper>
-                  ))}
-                </div>
-
-                {chunksQuery.data?.length === 0 ? (
-                  <StatePanel
-                    description={t("documents.detail.noChunks")}
-                    title={t("documents.detail.chunksTitle")}
-                  />
-                ) : null}
-                {focusedChunkId && chunksQuery.data && !chunksQuery.data.some(chunk => chunk.id === focusedChunkId) ? (
-                  <Alert color="yellow" radius="xl" variant="light">
-                    {t("documents.detail.linkedChunkMissing")}
-                  </Alert>
-                ) : null}
-                {sourceTraceId ? (
-                  <Text c="var(--app-text-muted)" size="sm">
-                    <Text className="workspace-link" component={Link} inherit to={`/traces/${sourceTraceId}`}>
-                      {t("documents.detail.backToTrace")}
-                    </Text>
-                  </Text>
-                ) : null}
-              </Stack>
-            </Paper>
+            <div className="workspace-page-main-stack">
+              <Suspense fallback={<DocumentDetailChunksFallback locale={locale} />}>
+                <DocumentDetailChunksPanel
+                  documentId={document.id}
+                  focusedChunkId={focusedChunkId}
+                  focusedIsCited={focusedIsCited}
+                  focusedIsPrimary={focusedIsPrimary}
+                  focusedRank={focusedRank}
+                  focusedScore={focusedScore}
+                  sourceTraceId={sourceTraceId}
+                  traceReturnHref={traceReturnHref}
+                />
+              </Suspense>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
     </Stack>
   );
 }

@@ -1,4 +1,5 @@
-import { createContext, createElement, useContext, useEffect, useState } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { readStorageItem, writeStorageItem } from "../lib/browser-storage";
 
 export type ThemeColorMode = "constrained-light" | "creative-dark";
 export type ThemeLayoutMode = "default-app" | "workspace-app";
@@ -19,6 +20,16 @@ export const DEFAULT_THEME_PREFERENCES: ThemePreferences = {
 type StorageLike = Pick<Storage, "getItem">;
 type StorageWriterLike = Pick<Storage, "setItem">;
 
+export function getThemeColorScheme(themeColor: ThemeColorMode): "light" | "dark" {
+  return themeColor === "constrained-light" ? "light" : "dark";
+}
+
+function applyThemeDataset(preferences: ThemePreferences) {
+  document.documentElement.dataset.themeColor = preferences.themeColor;
+  document.documentElement.dataset.themeLayout = preferences.themeLayout;
+  document.documentElement.style.colorScheme = getThemeColorScheme(preferences.themeColor);
+}
+
 export function normalizeThemeColor(value: string | null | undefined): ThemeColorMode {
   return value === "constrained-light" || value === "creative-dark"
     ? value
@@ -33,8 +44,8 @@ export function normalizeThemeLayout(value: string | null | undefined): ThemeLay
 
 export function getStoredThemePreferences(storage: StorageLike): ThemePreferences {
   return {
-    themeColor: normalizeThemeColor(storage.getItem(THEME_COLOR_STORAGE_KEY)),
-    themeLayout: normalizeThemeLayout(storage.getItem(THEME_LAYOUT_STORAGE_KEY))
+    themeColor: normalizeThemeColor(readStorageItem(storage, THEME_COLOR_STORAGE_KEY)),
+    themeLayout: normalizeThemeLayout(readStorageItem(storage, THEME_LAYOUT_STORAGE_KEY))
   };
 }
 
@@ -46,8 +57,8 @@ export function getDocumentThemeDataset(storage: StorageLike): {
 }
 
 export function setStoredThemePreferences(storage: StorageWriterLike, preferences: ThemePreferences) {
-  storage.setItem(THEME_COLOR_STORAGE_KEY, preferences.themeColor);
-  storage.setItem(THEME_LAYOUT_STORAGE_KEY, preferences.themeLayout);
+  writeStorageItem(storage, THEME_COLOR_STORAGE_KEY, preferences.themeColor);
+  writeStorageItem(storage, THEME_LAYOUT_STORAGE_KEY, preferences.themeLayout);
 }
 
 export function getInitialThemePreferences(): ThemePreferences {
@@ -68,23 +79,35 @@ const ThemePreferencesContext = createContext<ThemePreferencesContextValue | nul
 export function ThemePreferencesProvider({ children }: { children: React.ReactNode }) {
   const [preferences, setPreferences] = useState<ThemePreferences>(getInitialThemePreferences);
 
+  const setThemeColor = useCallback((themeColor: ThemeColorMode) => {
+    setPreferences(current => (current.themeColor === themeColor ? current : { ...current, themeColor }));
+  }, []);
+
+  const setThemeLayout = useCallback((themeLayout: ThemeLayoutMode) => {
+    setPreferences(current => (current.themeLayout === themeLayout ? current : { ...current, themeLayout }));
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      ...preferences,
+      setThemeColor,
+      setThemeLayout
+    }),
+    [preferences, setThemeColor, setThemeLayout]
+  );
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       setStoredThemePreferences(window.localStorage, preferences);
     }
 
-    document.documentElement.dataset.themeColor = preferences.themeColor;
-    document.documentElement.dataset.themeLayout = preferences.themeLayout;
+    applyThemeDataset(preferences);
   }, [preferences]);
 
   return createElement(
     ThemePreferencesContext.Provider,
     {
-      value: {
-        ...preferences,
-        setThemeColor: themeColor => setPreferences(current => ({ ...current, themeColor })),
-        setThemeLayout: themeLayout => setPreferences(current => ({ ...current, themeLayout }))
-      }
+      value
     },
     children
   );

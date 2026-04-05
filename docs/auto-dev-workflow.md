@@ -41,7 +41,7 @@ Interpretation:
 7. If the task has no related spec / plan in `docs/superpowers/specs/` or `docs/superpowers/plans/`, create them first using the superpowers workflow.
 8. Run the smallest sufficient validation first; run broader validation when the change touches shared or critical paths.
 9. Update docs incrementally when behavior, workflow, setup, or progress changes.
-10. Commit and push after validation passes.
+10. Commit after validation passes; push and open a PR when the current wave is stable, green, and unlikely to conflict.
 11. At the end of every session, output a copy-paste-ready handoff summary for the next new chat.
 
 ## Session Start Checklist
@@ -111,6 +111,7 @@ When a task needs superpowers design/planning docs:
 - add plan under `docs/superpowers/plans/`
 
 Update docs incrementally, not by rewriting unrelated sections.
+- New docs should follow the same layer split: one main mechanism doc, one workflow/practice doc, and one status/progress doc; avoid repeating the same mechanism in multiple places.
 
 ## Commit Policy
 
@@ -125,6 +126,18 @@ Commit message style:
 - `feat: ...`
 - `fix: ...`
 - `refactor: ...`
+
+## Push / PR Policy
+
+- push after the relevant validation passes
+- if the task yields multiple commits, push the branch promptly after each clearly bounded, independently verifiable sub-increment; avoid leaving already-finished commits unpushed for long
+- this applies to both frontend and backend tasks
+- prefer a normal push to the current branch instead of force-pushing
+- open or update the PR against the branch required by the task flow; for current web-only work, that is usually `dev`
+- when subsequent changes stay on the same branch, treat the existing PR as the sync target; avoid repeating "new PR" wording unless the branch changes or the user asks for a new PR
+- if a PR is already open, keep using the same PR when the same branch is updated
+- resolve conflicts locally before pushing, then rerun the smallest relevant validation
+- keep the PR scope limited to the current task; do not mix unrelated cleanup or backend changes into a frontend PR
 
 ## Parallel Work Policy
 

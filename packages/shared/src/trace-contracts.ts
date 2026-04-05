@@ -27,6 +27,21 @@ export type TraceCitationAttribution = "explicit" | "heuristic" | "none";
 
 export type TraceCitationSelectionSource = "structured" | "inline_markers" | "heuristic" | "none";
 
+export type TraceAnswerAttributionReadability = `${TraceCitationAttribution}:${TraceCitationSelectionSource}`;
+
+export type TraceAnswerAttributionSummary = {
+  attribution: TraceCitationAttribution | null;
+  source: TraceCitationSelectionSource | null;
+  readability: TraceAnswerAttributionReadability | null;
+  attributionLabel: string | null;
+  // Uses the same "<kind> evidence source" wording as answerEvidenceSourceReadabilityLabel.
+  sourceLabel: string | null;
+  readabilityLabel: string | null;
+  readabilityHint: string | null;
+  readabilityResolvedLabel: string;
+  readabilitySentence: string | null;
+};
+
 export type TraceInsufficientContextReason = "no_retrieval_hits" | "retrieved_context_insufficient";
 
 export type TraceAnswerTextSource = "model" | "deterministic_policy";
@@ -37,6 +52,19 @@ export type TraceMissingInformationSource = "none" | "model" | "deterministic_de
 
 export type TraceFailedStage = "retrieval" | "answering";
 
+export type RetrievalStrategySummary = {
+  retrievalMode: TraceRetrievalMode | null;
+  strategyMode: TraceRetrievalMode | null;
+  retrievalQuerySource: TraceRetrievalQuerySource | null;
+  rewriteEnabled: boolean;
+  rewriteApplied: boolean;
+  rewriteUsedFallback: boolean | null;
+  rewritePromptId: string | null;
+  rewriteModelName: string | null;
+  fallbackReason: TraceFallbackReason | null;
+  usedFallback: boolean | null;
+};
+
 export type TraceSummary = {
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
@@ -44,25 +72,49 @@ export type TraceSummary = {
   primaryIssue: TracePrimaryIssue | null;
   retrievalMode: TraceRetrievalMode | null;
   retrievalQuerySource: TraceRetrievalQuerySource | null;
+  strategyReadabilityLabel: string;
+  retrievalModeProvenanceSentence: string;
+  rewriteReadabilityLabel: string;
+  strategySummary: RetrievalStrategySummary;
   generationMode: TraceGenerationMode | null;
   contextMode: TraceContextMode | null;
   rewriteApplied: boolean;
   fallbackReason: TraceFallbackReason | null;
   resolvedLanguage: TraceResolvedLanguage | null;
+  answerAttributionSummary: TraceAnswerAttributionSummary;
+  answerAttributionReadabilitySentence: string;
+  answerAttribution: TraceCitationAttribution | null;
+  answerAttributionSource: TraceCitationSelectionSource | null;
+  answerEvidenceSource: TraceCitationSelectionSource | null;
+  answerEvidenceSourceReadabilityLabel: string;
+  answerEvidenceSourceReadabilitySentence: string;
   citationAttribution: TraceCitationAttribution | null;
   citationSelectionSource: TraceCitationSelectionSource | null;
   missingInformationCount: number;
+  missingInformationCountReadabilityLabel: string;
   missingInformationSource: TraceMissingInformationSource | null;
+  missingInformationSourceReadabilityLabel: string;
   insufficientContextReason: TraceInsufficientContextReason | null;
+  missingInformationProvenanceSentence: string;
   answerTextSource: TraceAnswerTextSource | null;
+  answerTextSourceReadabilityLabel: string;
+  answerTextSourceReadabilitySentence: string;
   answerStatusSource: TraceAnswerStatusSource | null;
+  answerStatusSourceReadabilityLabel: string;
+  answerStatusSourceReadabilitySentence: string;
+  answerProvenanceReadabilitySentence: string;
+  answerProvenanceSentence: string;
   failedStage: TraceFailedStage | null;
+  failedStageReadabilityLabel: string;
   failureMessage: string | null;
+  failureReadabilitySentence: string;
   candidateLimit: number;
   vectorCandidateCount: number;
   lexicalCandidateCount: number;
   mergedCandidateCount: number;
   rankedCandidateCount: number;
+  candidateCountReadabilityLabel: string;
+  candidateCountReadabilitySentence: string;
   vectorCandidateLimitHit: boolean;
   lexicalCandidateLimitHit: boolean;
   rankingTopKHit: boolean;
@@ -72,7 +124,10 @@ export type TraceSummary = {
   inputChunkCount: number;
   promptContextCount: number;
   contextGroupCount: number;
+  contextReadabilitySentence: string;
   citationCount: number;
+  citationCountReadabilityLabel: string;
+  citationCountReadabilitySentence: string;
   citationCountBeforeLimit: number;
   citationLimitHit: boolean;
   usedFallback: boolean;

@@ -58,7 +58,7 @@ if (!useVitest) {
 const result = spawnSync(
   process.execPath,
   useVitest
-    ? [vitestCliPath, "run", "--maxWorkers=1", ...normalizedArgs]
+    ? [vitestCliPath, "run", "--pool=forks", "--maxWorkers=1", ...normalizedArgs]
     : [tsxCliPath, "--test", "--test-concurrency=1", ...normalizedArgs],
   {
     cwd: apiRoot,

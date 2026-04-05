@@ -1,30 +1,60 @@
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
-import { createKnowledgeBaseSchema, updateKnowledgeBaseSchema } from "./knowledge-base.schemas";
+import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
+import {
+  CreateKnowledgeBaseInput,
+  createKnowledgeBaseSchema,
+  UpdateKnowledgeBaseInput,
+  updateKnowledgeBaseSchema
+} from "./knowledge-base.schemas";
 import { KnowledgeBasesService } from "./knowledge-bases.service";
+import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
+@AuthenticatedRoute()
 @Controller("knowledge-bases")
 export class KnowledgeBasesController {
   constructor(private readonly knowledgeBasesService: KnowledgeBasesService) {}
 
   @Get()
-  listKnowledgeBases() {
-    return this.knowledgeBasesService.listKnowledgeBases();
+  listKnowledgeBases(@Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.knowledgeBasesService.listKnowledgeBases(authContext.identity);
   }
 
   @Get(":id")
-  getKnowledgeBase(@Param("id") id: string) {
-    return this.knowledgeBasesService.getKnowledgeBase(id);
+  getKnowledgeBase(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.knowledgeBasesService.getKnowledgeBase(id, authContext.identity);
   }
 
   @Post()
-  createKnowledgeBase(@Body() body: unknown) {
-    const input = createKnowledgeBaseSchema.parse(body);
-    return this.knowledgeBasesService.createKnowledgeBase(input);
+  createKnowledgeBase(
+    @Body(new ZodValidationPipe(createKnowledgeBaseSchema)) input: CreateKnowledgeBaseInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.knowledgeBasesService.createKnowledgeBase(input, authContext.identity);
   }
 
   @Patch(":id")
-  updateKnowledgeBase(@Param("id") id: string, @Body() body: unknown) {
-    const input = updateKnowledgeBaseSchema.parse(body);
-    return this.knowledgeBasesService.updateKnowledgeBase(id, input);
+  updateKnowledgeBase(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(updateKnowledgeBaseSchema)) input: UpdateKnowledgeBaseInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.knowledgeBasesService.updateKnowledgeBase(id, input, authContext.identity);
   }
 }

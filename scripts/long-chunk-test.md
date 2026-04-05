@@ -1,4 +1,4 @@
-﻿# Long Chunk Test
+# Long Chunk Test
 
 ## Overview
 

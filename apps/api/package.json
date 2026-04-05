@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "start": "nest start",
-    "start:dev": "nest start --watch",
-    "build": "pnpm run prisma:generate && nest build",
+    "start:dev": "nest start --watch --env-file .env.local",
+    "start:prod": "node scripts/start-prod.mjs",
+    "build": "rimraf dist tsconfig.tsbuildinfo && pnpm run prisma:generate && nest build",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run test:all",
     "test:all": "pnpm run test:fast && pnpm run test:integration && pnpm run test:e2e",
@@ -16,12 +17,14 @@
     "test:fast:infra": "vitest run --maxWorkers=1 test/fetch-with-retry.test.js test/http-exception-filter.test.js test/traces.service.test.js",
     "test:fast": "vitest run --maxWorkers=1 test/answering.test.js test/ask-failures.test.js test/ask-stream-controller.test.js test/ask-stream-retrieval-failure.test.js test/ask-stream-service.test.js test/ask-success.test.js test/chunking.test.js test/document-runs-summary.test.js test/external-source-sync.test.js test/fetch-with-retry.test.js test/http-exception-filter.test.js test/ingestion.orchestrator.test.js test/llm-answer-stream.test.js test/llm.test.js test/parsing.test.js test/prompt-manager.test.js test/retrieval.test.js test/traces.service.test.js",
     "test:file": "node scripts/run-test-file.mjs",
+    "eval:runner:p5-v1": "node scripts/run-p5-v1-eval-runner.mjs",
     "test:integration": "node scripts/ensure-build.mjs && node --test --test-concurrency=1 test/assistants-api.test.js test/retrieval-profile-filters.test.js test/retrieval-profile-strategy.test.js",
     "test:focus:ask": "pnpm run test:fast:assistants && pnpm run test:fast:retrieval",
     "test:focus:llm-retrieval": "pnpm run test:fast:llm && pnpm run test:fast:retrieval",
     "test:focus:documents": "pnpm run test:fast:documents && pnpm run test:fast:infra",
     "test:focus:sources": "pnpm run test:fast:documents && pnpm run test:e2e:sources",
     "test:focus:api-config": "pnpm run test:integration && pnpm run test:fast:assistants",
+    "test:focus:acl": "node scripts/run-test-file.mjs test/auth-provider-boundary.test.js test/resource-access-policy.contract.test.js test/knowledge-bases-auth-write-path.test.js test/kb-document-access.test.js",
     "test:e2e:chains": "node scripts/ensure-build.mjs && node --test --test-concurrency=1 test/api-flow.test.js test/document-chain-e2e.test.js test/ask-chain-e2e.test.js test/ask-stream-e2e.test.js",
     "test:e2e:sources": "node scripts/ensure-build.mjs && node --test --test-concurrency=1 test/web-page-source-e2e.test.js test/feed-source-e2e.test.js test/sitemap-source-e2e.test.js",
     "test:e2e": "node scripts/ensure-build.mjs && node --test --test-concurrency=1 test/api-flow.test.js test/ask-chain-e2e.test.js test/ask-stream-e2e.test.js test/document-chain-e2e.test.js test/feed-source-e2e.test.js test/sitemap-source-e2e.test.js test/web-page-source-e2e.test.js",
@@ -30,17 +33,14 @@
     "prisma:migrate": "pnpm exec prisma migrate dev",
     "prisma:seed": "node prisma/seed.js"
   },
-  "prisma": {
-    "seed": "node prisma/seed.js"
-  },
   "dependencies": {
-    "@rag-system/shared": "workspace:*",
     "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@prisma/client": "^6.5.0",
-    "bullmq": "^5.58.0",
-    "ioredis": "^5.8.1",
+    "@rag-system/shared": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "mammoth": "^1.12.0",
     "multer": "^2.0.2",
     "pdf-parse": "^2.4.5",
@@ -52,13 +52,16 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
+    "@prisma/config": "^6.19.2",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.13.10",
+    "@vitest/coverage-v8": "3.2.4",
     "docx": "^9.6.1",
     "eslint": "^9.22.0",
     "prisma": "^6.5.0",
+    "rimraf": "^6.1.0",
     "tsx": "^4.19.4",
-    "vitest": "^3.2.4",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
   }
 }

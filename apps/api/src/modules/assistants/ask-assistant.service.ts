@@ -3,10 +3,26 @@ import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
 import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
+import {
+  buildAnswerEvidenceSourceReadabilityLabel,
+  buildAnswerAttributionSummary
+} from "../answering/answer-attribution-summary";
+import {
+  buildAnswerProvenanceFields,
+  buildAnswerSourceReadability,
+} from "../answering/answer-source-readability";
+import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
+import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
+import { resolveRequestAuthContext, type RequestAuthContext } from "../auth/auth-identity.contract";
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
 import { RetrievalService } from "../retrieval/retrieval.service";
+import {
+  buildRewriteReadabilityLabel,
+  buildRetrievalModeProvenanceSentence,
+  buildStrategyReadabilityLabel
+} from "../retrieval/strategy-readability";
 import {
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -17,6 +33,13 @@ import { TracesService } from "../traces/traces.service";
 import { answerPolicySchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantError } from "./ask-assistant.error";
+import type {
+  TraceAnswerAttributionSummary,
+  RetrievalStrategySummary,
+  TraceCitationAttribution,
+  TraceCitationSelectionSource,
+  TraceSummary
+} from "@rag-system/shared";
 
 type AskResultChunk = {
   chunkId: string;
@@ -34,6 +57,10 @@ type AskResultChunk = {
   rerankScore?: number;
 };
 
+type AskRetrievalMetadataJson = Prisma.InputJsonObject & {
+  strategySummary?: RetrievalStrategySummary;
+};
+
 @Injectable()
 export class AskAssistantService {
   constructor(
@@ -46,18 +73,27 @@ export class AskAssistantService {
     private readonly llmService: LlmService
   ) {}
 
-  async askAssistant(input: { assistantId: string; question: string; conversationId?: string }) {
-    const assistant = await this.assistantsService.getAssistant(input.assistantId);
+  async askAssistant(input: {
+    assistantId: string;
+    question: string;
+    conversationId?: string;
+    authContext?: RequestAuthContext | null;
+    documentVersions?: Record<string, number>;
+  }) {
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext
+    });
+    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
 
     const conversation =
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId)
+        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
         : await this.conversationsService.createConversation({
-            tenantId: assistant.tenantId,
-            userId: "default-user",
+            tenantId: authContext.identity.tenantId,
+            userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
@@ -101,7 +137,8 @@ export class AskAssistantService {
       retrievalProfile,
       retrievalStrategy,
       retrievalFilters,
-      rewritten
+      rewritten,
+      documentVersions: input.documentVersions
     });
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
@@ -110,6 +147,7 @@ export class AskAssistantService {
       strategy: retrievalStrategy,
       filters: retrievalFilters,
       rewrittenQuery: rewritten.rewrittenQuery,
+      rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
       rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
       rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
       originalQuestion: input.question,
@@ -120,6 +158,23 @@ export class AskAssistantService {
       contextGroups,
       embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
+    }) as AskRetrievalMetadataJson;
+    const strategyReadabilityLabel = buildStrategyReadabilityLabel({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+    });
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+    });
+    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
+      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
     });
 
     const trace = await this.tracesService.createTrace({
@@ -157,7 +212,7 @@ export class AskAssistantService {
       });
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id);
+      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
@@ -172,6 +227,55 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
+      const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+        answerEvidenceSourceReadabilityLabel
+      );
+      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+          : null
+      );
+      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+          : null
+      );
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = buildAnswerProvenanceFields({
+        answerTextSource,
+        answerStatusSource,
+        answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
+        answerTextSourceReadabilityLabel,
+        answerStatusSourceReadabilityLabel,
+        answerAttributionReadabilitySentence
+      });
+      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
+        missingInformationSource,
+        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
+        missingInformationCount: this.resolveMissingInformationCount({
+          answeringMetadata: resolvedAnswerResult.answeringMetadata,
+          missingInformation: resolvedAnswerResult.missingInformation
+        })
+      });
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -181,7 +285,31 @@ export class AskAssistantService {
         citations: resolvedAnswerResult.citations,
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
         contextGroups: resolvedAnswerResult.contextGroups,
+        strategySummary: retrievalMetadata.strategySummary,
+        strategyReadabilityLabel,
+        rewriteReadabilityLabel,
+        retrievalModeProvenanceSentence,
         retrievalMetadata,
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence,
+        answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSource,
+        answerEvidenceSource: answerAttributionSource,
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence,
+        answerProvenanceSentence,
+        answerProvenanceReadabilitySentence,
+        missingInformationSource,
+        missingInformationProvenanceSentence,
+        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
+          missingInformationSource
+        }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -217,6 +345,8 @@ export class AskAssistantService {
     assistantId: string;
     question: string;
     conversationId?: string;
+    authContext?: RequestAuthContext | null;
+    signal?: AbortSignal;
     onEvent: (
       event:
         | { type: "status"; phase: "started" | "retrieving" | "generating" }
@@ -224,25 +354,28 @@ export class AskAssistantService {
         | { type: "final"; data: Record<string, unknown> }
     ) => void | Promise<void>;
   }) {
-    await input.onEvent({
-      type: "status",
-      phase: "started"
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext
     });
-
-    const assistant = await this.assistantsService.getAssistant(input.assistantId);
+    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
 
     const conversation =
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId)
+        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
         : await this.conversationsService.createConversation({
-            tenantId: assistant.tenantId,
-            userId: "default-user",
+            tenantId: authContext.identity.tenantId,
+            userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
+
+    await input.onEvent({
+      type: "status",
+      phase: "started"
+    });
 
     const userMessage = await this.messagesService.createMessage({
       conversationId: conversation.id,
@@ -259,7 +392,8 @@ export class AskAssistantService {
     });
     const rewritten = retrievalStrategy.queryRewrite.enabled
       ? await this.llmService.rewriteQuery({
-          question: input.question
+          question: input.question,
+          signal: input.signal
         })
       : {
           rewrittenQuery: null,
@@ -298,6 +432,7 @@ export class AskAssistantService {
       strategy: retrievalStrategy,
       filters: retrievalFilters,
       rewrittenQuery: rewritten.rewrittenQuery,
+      rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
       rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
       rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
       originalQuestion: input.question,
@@ -308,6 +443,23 @@ export class AskAssistantService {
       contextGroups,
       embedding: retrievalResult.embedding,
       execution: retrievalResult.execution
+    }) as AskRetrievalMetadataJson;
+    const strategyReadabilityLabel = buildStrategyReadabilityLabel({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+    });
+    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
+      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+    });
+    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
+      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
     });
 
     const trace = await this.tracesService.createTrace({
@@ -352,6 +504,7 @@ export class AskAssistantService {
                   chunks: retrievedChunks,
                   contextGroups
                 }),
+                signal: input.signal,
                 onDelta: async delta => {
                   await input.onEvent({
                     type: "answer_delta",
@@ -384,7 +537,7 @@ export class AskAssistantService {
       });
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id);
+      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
@@ -399,6 +552,55 @@ export class AskAssistantService {
         status: TraceStatus.success
       });
 
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
+      const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
+      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
+        answerEvidenceSourceReadabilityLabel
+      );
+      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+          : null
+      );
+      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+          : null
+      );
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = buildAnswerProvenanceFields({
+        answerTextSource,
+        answerStatusSource,
+        answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
+        answerTextSourceReadabilityLabel,
+        answerStatusSourceReadabilityLabel,
+        answerAttributionReadabilitySentence
+      });
+      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
+      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
+        missingInformationSource,
+        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
+        missingInformationCount: this.resolveMissingInformationCount({
+          answeringMetadata: resolvedAnswerResult.answeringMetadata,
+          missingInformation: resolvedAnswerResult.missingInformation
+        })
+      });
       const finalResult = {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -408,7 +610,31 @@ export class AskAssistantService {
         citations: resolvedAnswerResult.citations,
         retrievedChunks: resolvedAnswerResult.retrievedChunks,
         contextGroups: resolvedAnswerResult.contextGroups,
+        strategySummary: retrievalMetadata.strategySummary,
+        strategyReadabilityLabel,
+        rewriteReadabilityLabel,
+        retrievalModeProvenanceSentence,
         retrievalMetadata,
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence,
+        answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
+        answerAttributionSource,
+        answerEvidenceSource: answerAttributionSource,
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence,
+        answerProvenanceSentence,
+        answerProvenanceReadabilitySentence,
+        missingInformationSource,
+        missingInformationProvenanceSentence,
+        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
+          missingInformationSource
+        }),
         answeringMetadata: resolvedAnswerResult.answeringMetadata,
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
@@ -423,6 +649,10 @@ export class AskAssistantService {
 
       return finalResult;
     } catch (error) {
+      if (this.isAbortError(error)) {
+        throw error;
+      }
+
       const message = error instanceof Error ? error.message : "Unknown ask pipeline error.";
       await this.tracesService.updateTrace(trace.id, {
         latencyMs: Date.now() - startedAt,
@@ -460,6 +690,105 @@ export class AskAssistantService {
     } as const;
   }
 
+  private isAbortError(error: unknown) {
+    return error instanceof Error && error.name === "AbortError";
+  }
+
+  private resolveAnswerAttribution(answeringMetadata: unknown): TraceCitationAttribution | null {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const attribution = (answeringMetadata as Record<string, unknown>).citationAttribution;
+    return attribution === "explicit" || attribution === "heuristic" || attribution === "none"
+      ? attribution
+      : null;
+  }
+
+  private resolveAnswerAttributionSource(answeringMetadata: unknown): TraceCitationSelectionSource | null {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).citationSelectionSource;
+    return source === "structured" || source === "inline_markers" || source === "heuristic" || source === "none"
+      ? source
+      : null;
+  }
+
+  private resolveAnswerAttributionSummary(answeringMetadata: unknown): TraceAnswerAttributionSummary {
+    return buildAnswerAttributionSummary({
+      attribution: this.resolveAnswerAttribution(answeringMetadata),
+      source: this.resolveAnswerAttributionSource(answeringMetadata)
+    });
+  }
+
+  private resolveAnswerTextSource(answeringMetadata: unknown): TraceSummary["answerTextSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).answerTextSource;
+    return source === "model" || source === "deterministic_policy" ? source : null;
+  }
+
+  private resolveAnswerStatusSource(answeringMetadata: unknown): TraceSummary["answerStatusSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).answerStatusSource;
+    return source === "model" || source === "inferred_from_retrieval" || source === "deterministic_policy"
+      ? source
+      : null;
+  }
+
+  private readString(value: unknown): string | null {
+    return typeof value === "string" ? value : null;
+  }
+
+  private buildAnswerEvidenceSourceReadabilitySentence(
+    answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
+  ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
+    return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
+  }
+
+  private resolveMissingInformationSource(answeringMetadata: unknown): TraceSummary["missingInformationSource"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const source = (answeringMetadata as Record<string, unknown>).missingInformationSource;
+    return source === "none" || source === "model" || source === "deterministic_default" || source === "suppressed_by_policy"
+      ? source
+      : null;
+  }
+
+  private resolveInsufficientContextReason(answeringMetadata: unknown): TraceSummary["insufficientContextReason"] {
+    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+      return null;
+    }
+
+    const reason = (answeringMetadata as Record<string, unknown>).insufficientContextReason;
+    return reason === "no_retrieval_hits" || reason === "retrieved_context_insufficient"
+      ? reason
+      : null;
+  }
+
+  private resolveMissingInformationCount(input: {
+    answeringMetadata: unknown;
+    missingInformation: unknown;
+  }) {
+    if (typeof input.answeringMetadata === "object" && input.answeringMetadata !== null) {
+      const count = (input.answeringMetadata as Record<string, unknown>).missingInformationCount;
+      if (typeof count === "number") {
+        return count;
+      }
+    }
+
+    return Array.isArray(input.missingInformation) ? input.missingInformation.length : 0;
+  }
+
   private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {
     return chunks.map(chunk => ({
       chunkId: chunk.chunkId,
@@ -491,6 +820,7 @@ export class AskAssistantService {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
     rewrittenQuery: string | null;
+    rewriteModelName: string | null;
     rewritePromptId: string | null;
     rewriteUsedFallback: boolean | null;
     originalQuestion: string;
@@ -518,19 +848,35 @@ export class AskAssistantService {
       rankedCandidateCount: number;
     };
   }): Prisma.InputJsonValue {
+    const rewriteApplied = Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion);
+    const retrievalQuerySource = !input.strategy.queryRewrite.enabled
+      ? "original_disabled"
+      : rewriteApplied
+        ? "rewritten"
+        : "original_unchanged";
+
     return {
       strategy: input.strategy,
       filters: input.filters ?? null,
       queryRewrite: {
         enabled: input.strategy.queryRewrite.enabled,
-        applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
-        finalQuerySource: !input.strategy.queryRewrite.enabled
-          ? "original_disabled"
-          : input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
-            ? "rewritten"
-            : "original_unchanged",
+        applied: rewriteApplied,
+        finalQuerySource: retrievalQuerySource,
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        modelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+      },
+      strategySummary: {
+        retrievalMode: input.execution.actualMode,
+        strategyMode: input.strategy.candidateSelection.mode,
+        retrievalQuerySource,
+        rewriteEnabled: input.strategy.queryRewrite.enabled,
+        rewriteApplied,
+        rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        rewritePromptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null,
+        rewriteModelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
+        fallbackReason: input.execution.fallbackReason,
+        usedFallback: input.execution.usedFallback
       },
       embedding: input.embedding ?? null,
       execution: {
@@ -583,6 +929,7 @@ export class AskAssistantService {
       usedFallback: boolean | null;
       promptId: string | null;
     };
+    documentVersions?: Record<string, number>;
   }) {
     try {
       return await this.retrievalService.retrieve({
@@ -594,7 +941,8 @@ export class AskAssistantService {
         enableHybrid: input.retrievalProfile.enableHybrid,
         enableRerank: input.retrievalProfile.enableRerank,
         filters: input.retrievalFilters,
-        strategy: input.retrievalStrategy
+        strategy: input.retrievalStrategy,
+        documentVersions: input.documentVersions
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown retrieval pipeline error.";
@@ -609,6 +957,7 @@ export class AskAssistantService {
           strategy: input.retrievalStrategy,
           filters: input.retrievalFilters,
           rewrittenQuery: input.rewritten.rewrittenQuery,
+          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.modelName : null,
           rewritePromptId: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.promptId : null,
           rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.usedFallback : null,
           originalQuestion: input.userQuery,
@@ -639,6 +988,7 @@ export class AskAssistantService {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
     rewrittenQuery: string | null;
+    rewriteModelName: string | null;
     rewritePromptId: string | null;
     rewriteUsedFallback: boolean | null;
     originalQuestion: string;
@@ -651,19 +1001,35 @@ export class AskAssistantService {
       message: string;
     };
   }): Prisma.InputJsonValue {
+    const rewriteApplied = Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion);
+    const retrievalQuerySource = !input.strategy.queryRewrite.enabled
+      ? "original_disabled"
+      : rewriteApplied
+        ? "rewritten"
+        : "original_unchanged";
+
     return {
       strategy: input.strategy,
       filters: input.filters ?? null,
       queryRewrite: {
         enabled: input.strategy.queryRewrite.enabled,
-        applied: Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion),
-        finalQuerySource: !input.strategy.queryRewrite.enabled
-          ? "original_disabled"
-          : input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
-            ? "rewritten"
-            : "original_unchanged",
+        applied: rewriteApplied,
+        finalQuerySource: retrievalQuerySource,
         usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        modelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
         promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+      },
+      strategySummary: {
+        retrievalMode: null,
+        strategyMode: input.strategy.candidateSelection.mode,
+        retrievalQuerySource,
+        rewriteEnabled: input.strategy.queryRewrite.enabled,
+        rewriteApplied,
+        rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
+        rewritePromptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null,
+        rewriteModelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
+        fallbackReason: null,
+        usedFallback: null
       },
       embedding: input.embedding ?? null,
       execution: {
@@ -680,15 +1046,15 @@ export class AskAssistantService {
   }
 
   private withFailureMetadata(
-    retrievalMetadata: Prisma.InputJsonValue,
+    retrievalMetadata: AskRetrievalMetadataJson,
     failure: { stage: "answering"; message: string }
-  ): Prisma.InputJsonValue {
+  ): AskRetrievalMetadataJson {
     return {
       ...(retrievalMetadata as Record<string, unknown>),
       failure: {
         stage: failure.stage,
         message: failure.message
       }
-    } as Prisma.InputJsonValue;
+    } as AskRetrievalMetadataJson;
   }
 }

@@ -1,0 +1,867 @@
+{
+  "schemaVersion": "p5-baseline-manifest.v1",
+  "waveId": "baseline-manifest-wave",
+  "status": "baseline_with_annotations",
+  "storage": {
+    "canonicalPath": "apps/api/scripts/baseline-manifest-with-annotations.json",
+    "boundary": "repo-tracked baseline manifest with annotations"
+  },
+  "baselineSource": {
+    "declarationId": "baseline-source",
+    "sourceType": "eval_question_set",
+    "sourceVersion": "baseline-question-set-v1",
+    "sourceSnapshotRef": "apps/api/scripts/baseline-question-set.json"
+  },
+  "questionSet": {
+    "id": "baseline-question-set-with-annotations",
+    "version": "v1",
+    "questions": [
+      {
+        "id": "q1-capability-summary",
+        "question": "Summarize the core capabilities of this knowledge base system and provide examples of supported features.",
+        "capabilitySurfaceId": "system-overview-capabilities",
+        "annotations": {
+          "intent": "Verify the assistant can provide a comprehensive summary of the system's core capabilities with specific examples.",
+          "expectedAnswerPoints": [
+            "Identifies key capabilities such as document ingestion, retrieval, and grounded answering.",
+            "Provides specific examples of supported features like web page ingestion, sitemap processing, and feed support.",
+            "Explains how the system generates grounded answers with citations.",
+            "Mentions evaluation and monitoring capabilities."
+          ],
+          "mustNotMiss": [
+            "Must not fabricate unsupported capabilities.",
+            "Should provide concrete examples rather than vague statements."
+          ],
+          "acceptableExpressionRange": [
+            "Comprehensive paragraph with examples",
+            "Bullet list of capabilities with supporting examples"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "system-capability-reference",
+            "minimumRequiredFactClass": "core_capabilities_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q2-source-ingestion",
+        "question": "What types of external sources can be ingested into the knowledge base?",
+        "capabilitySurfaceId": "external-source-ingestion",
+        "annotations": {
+          "intent": "Verify the assistant can accurately list supported external source types for ingestion.",
+          "expectedAnswerPoints": [
+            "Lists web pages as a supported source type.",
+            "Mentions RSS/Atom feeds as supported sources.",
+            "Includes sitemaps as a supported source type.",
+            "May mention any other supported external source types."
+          ],
+          "mustNotMiss": [
+            "Must not list unsupported source types.",
+            "Should be specific about the types of sources supported."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of supported source types",
+            "Short paragraph enumerating source types"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "source-family-contract-reference",
+            "minimumRequiredFactClass": "supported_source_family_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q3-no-hit-handling",
+        "question": "How does the system handle queries for which no relevant information is found?",
+        "capabilitySurfaceId": "no-hit-handling",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's behavior when no relevant information is found for a query.",
+          "expectedAnswerPoints": [
+            "Explains that the system recognizes when no relevant information is found.",
+            "Describes the fallback mechanism for no-hit scenarios.",
+            "Mentions that the system will not fabricate information.",
+            "Explains how the system communicates insufficient context to the user."
+          ],
+          "mustNotMiss": [
+            "Must not suggest the system will fabricate information.",
+            "Should emphasize the non-hallucinatory nature of the response."
+          ],
+          "acceptableExpressionRange": [
+            "Short explanation of no-hit handling",
+            "Two-part response: behavior description + user communication"
+          ],
+          "criticalEvidenceExpectation": null
+        }
+      },
+      {
+        "id": "q4-citation-support",
+        "question": "Does the system provide citations for the information it provides? If so, how are they presented?",
+        "capabilitySurfaceId": "citation-support",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's citation capabilities and presentation style.",
+          "expectedAnswerPoints": [
+            "Confirms that the system provides citations for information.",
+            "Describes how citations are presented in the answer.",
+            "Explains the purpose of citations (grounding, traceability).",
+            "May mention any limitations or characteristics of the citation system."
+          ],
+          "mustNotMiss": [
+            "Must accurately represent whether citations are supported.",
+            "Should describe the citation presentation style clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Direct answer with citation description",
+            "Short paragraph explaining citation support and presentation"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "citation-or-traceable-source-reference",
+            "minimumRequiredFactClass": "citation_capability_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q5-document-types",
+        "question": "What types of documents are supported for ingestion?",
+        "capabilitySurfaceId": "document-types-support",
+        "annotations": {
+          "intent": "Verify the assistant can list the types of documents supported for ingestion.",
+          "expectedAnswerPoints": [
+            "Lists the primary document types supported for ingestion.",
+            "May mention any limitations or requirements for document ingestion.",
+            "Explains how different document types are processed."
+          ],
+          "mustNotMiss": [
+            "Must not list unsupported document types.",
+            "Should be specific about the types of documents supported."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of supported document types",
+            "Short paragraph enumerating document types"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "document-type-reference",
+            "minimumRequiredFactClass": "supported_document_type_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q6-retrieval-strategy",
+        "question": "How does the system determine which information to retrieve for a given query?",
+        "capabilitySurfaceId": "retrieval-strategy",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's retrieval strategy for matching queries to information.",
+          "expectedAnswerPoints": [
+            "Explains the use of embeddings for semantic similarity.",
+            "Describes how relevance scoring is performed.",
+            "Mentions any filtering or reranking mechanisms.",
+            "Explains how context is considered in retrieval."
+          ],
+          "mustNotMiss": [
+            "Must not oversimplify the retrieval process.",
+            "Should accurately describe the key components of the retrieval strategy."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of retrieval strategy",
+            "Step-by-step description of the retrieval process"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "retrieval-strategy-reference",
+            "minimumRequiredFactClass": "retrieval_strategy_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q7-auth-system",
+        "question": "What authentication methods are supported by the system?",
+        "capabilitySurfaceId": "authentication-support",
+        "annotations": {
+          "intent": "Verify the assistant can list the authentication methods supported by the system.",
+          "expectedAnswerPoints": [
+            "Lists the primary authentication methods supported.",
+            "May mention any authentication protocols or standards used.",
+            "Explains how authentication is integrated into the system."
+          ],
+          "mustNotMiss": [
+            "Must not list unsupported authentication methods.",
+            "Should be specific about the authentication methods supported."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of authentication methods",
+            "Short paragraph enumerating authentication methods"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "authentication-method-reference",
+            "minimumRequiredFactClass": "supported_authentication_method_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q8-conversation-support",
+        "question": "Does the system support multi-turn conversations? If so, how is context maintained?",
+        "capabilitySurfaceId": "conversation-support",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's support for multi-turn conversations and context maintenance.",
+          "expectedAnswerPoints": [
+            "Confirms whether the system supports multi-turn conversations.",
+            "Explains how context is maintained across turns.",
+            "Describes any limitations or characteristics of the conversation support.",
+            "May mention how context affects retrieval and answering."
+          ],
+          "mustNotMiss": [
+            "Must accurately represent whether multi-turn conversations are supported.",
+            "Should explain the context maintenance mechanism clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Direct answer with context maintenance explanation",
+            "Short paragraph explaining conversation support and context handling"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "conversation-support-reference",
+            "minimumRequiredFactClass": "conversation_support_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q9-performance-metrics",
+        "question": "What metrics are used to evaluate the performance of the system?",
+        "capabilitySurfaceId": "performance-metrics",
+        "annotations": {
+          "intent": "Verify the assistant can list the metrics used to evaluate system performance.",
+          "expectedAnswerPoints": [
+            "Lists key performance metrics used for evaluation.",
+            "Explains how these metrics are calculated or measured.",
+            "May mention how metrics are used to assess system quality.",
+            "Describes any benchmarking or comparison approaches."
+          ],
+          "mustNotMiss": [
+            "Must list relevant performance metrics.",
+            "Should explain how metrics contribute to evaluation."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of performance metrics",
+            "Short paragraph enumerating metrics with explanations"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "performance-metrics-reference",
+            "minimumRequiredFactClass": "performance_metrics_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q10-error-handling",
+        "question": "How does the system handle errors during ingestion or retrieval?",
+        "capabilitySurfaceId": "error-handling",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's error handling mechanisms during ingestion and retrieval.",
+          "expectedAnswerPoints": [
+            "Describes how errors during ingestion are detected and handled.",
+            "Explains how errors during retrieval are managed.",
+            "Mentions any error logging or reporting mechanisms.",
+            "Describes how the system communicates errors to users."
+          ],
+          "mustNotMiss": [
+            "Must not downplay error handling importance.",
+            "Should explain both ingestion and retrieval error handling."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of error handling mechanisms",
+            "Separate sections for ingestion and retrieval error handling"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "error-handling-reference",
+            "minimumRequiredFactClass": "error_handling_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q11-vector-storage",
+        "question": "How are embeddings stored and managed in the system?",
+        "capabilitySurfaceId": "vector-storage",
+        "annotations": {
+          "intent": "Verify the assistant can explain how embeddings are stored and managed in the system.",
+          "expectedAnswerPoints": [
+            "Describes the vector storage mechanism used.",
+            "Explains how embeddings are indexed for efficient retrieval.",
+            "Mentions any optimization techniques for vector storage.",
+            "Describes how vector storage scales with document volume."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe the vector storage approach.",
+            "Should explain the management aspects of embeddings."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of vector storage and management",
+            "Step-by-step description of embedding storage lifecycle"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "vector-storage-reference",
+            "minimumRequiredFactClass": "vector_storage_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q12-chunking-strategy",
+        "question": "How does the system chunk documents for better retrieval?",
+        "capabilitySurfaceId": "chunking-strategy",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's document chunking strategy for improved retrieval.",
+          "expectedAnswerPoints": [
+            "Describes the chunking algorithm or approach used.",
+            "Explains how chunk size is determined.",
+            "Mentions any overlap between chunks.",
+            "Describes how chunking improves retrieval quality."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe the chunking strategy.",
+            "Should explain how chunking benefits retrieval."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of chunking strategy",
+            "Step-by-step description of the chunking process"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "chunking-strategy-reference",
+            "minimumRequiredFactClass": "chunking_strategy_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q13-external-sources",
+        "question": "Can the system ingest data from external websites? If so, what limitations exist?",
+        "capabilitySurfaceId": "external-sources-ingestion",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's ability to ingest data from external websites and any limitations.",
+          "expectedAnswerPoints": [
+            "Confirms whether the system can ingest data from external websites.",
+            "Lists any limitations on external website ingestion.",
+            "Explains how external website data is processed.",
+            "May mention any security or performance considerations."
+          ],
+          "mustNotMiss": [
+            "Must accurately represent the system's ability to ingest external websites.",
+            "Should clearly state any limitations of external source ingestion."
+          ],
+          "acceptableExpressionRange": [
+            "Direct answer with limitations explanation",
+            "Short paragraph explaining external website ingestion capabilities"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "external-source-reference",
+            "minimumRequiredFactClass": "external_source_ingestion_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q14-evaluation-process",
+        "question": "How can the quality of the system's answers be evaluated?",
+        "capabilitySurfaceId": "answer-quality-evaluation",
+        "annotations": {
+          "intent": "Verify the assistant can explain the process for evaluating the quality of the system's answers.",
+          "expectedAnswerPoints": [
+            "Describes the evaluation metrics used for answer quality.",
+            "Explains the evaluation process or methodology.",
+            "Mentions any tools or reports used for evaluation.",
+            "Describes how evaluation results are used to improve the system."
+          ],
+          "mustNotMiss": [
+            "Must list relevant evaluation metrics.",
+            "Should explain the evaluation process clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of answer quality evaluation",
+            "Step-by-step description of the evaluation process"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "evaluation-process-reference",
+            "minimumRequiredFactClass": "evaluation_process_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q15-knowledge-base-management",
+        "question": "How can users manage and organize their knowledge bases?",
+        "capabilitySurfaceId": "knowledge-base-management",
+        "annotations": {
+          "intent": "Verify the assistant can explain how users can manage and organize their knowledge bases.",
+          "expectedAnswerPoints": [
+            "Describes the tools or interfaces for knowledge base management.",
+            "Explains how users can organize documents within knowledge bases.",
+            "Mentions any versioning or lifecycle management features.",
+            "Describes how users can monitor and maintain knowledge base quality."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe knowledge base management capabilities.",
+            "Should explain organization methods clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of knowledge base management",
+            "Step-by-step description of organization methods"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "knowledge-base-management-reference",
+            "minimumRequiredFactClass": "knowledge_base_management_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q16-fallback-behavior",
+        "question": "What fallback mechanisms does the system use when it cannot provide a fully grounded answer?",
+        "capabilitySurfaceId": "fallback-mechanisms",
+        "annotations": {
+          "intent": "Verify the assistant can explain the system's fallback mechanisms when it cannot provide a fully grounded answer.",
+          "expectedAnswerPoints": [
+            "Describes the fallback mechanisms used when context is insufficient.",
+            "Explains how the system communicates fallback to users.",
+            "Mentions any limitations of fallback responses.",
+            "Describes how fallback behavior aligns with guardrails."
+          ],
+          "mustNotMiss": [
+            "Must not suggest the system will fabricate information in fallback.",
+            "Should emphasize the non-hallucinatory nature of fallback responses."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of fallback mechanisms",
+            "Short paragraph describing fallback behavior"
+          ],
+          "criticalEvidenceExpectation": null
+        }
+      },
+      {
+        "id": "q17-traceability",
+        "question": "How does the system track and trace the processing of queries and answers?",
+        "capabilitySurfaceId": "traceability",
+        "annotations": {
+          "intent": "Verify the assistant can explain how the system tracks and traces query and answer processing.",
+          "expectedAnswerPoints": [
+            "Describes the tracing mechanisms used in the system.",
+            "Explains how processing steps are logged and recorded.",
+            "Mentions any tools or interfaces for viewing traces.",
+            "Describes how traceability aids in debugging and improvement."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe the traceability features.",
+            "Should explain how tracing benefits system monitoring."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of traceability mechanisms",
+            "Step-by-step description of the tracing process"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "traceability-reference",
+            "minimumRequiredFactClass": "traceability_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q18-llm-integration",
+        "question": "How is the LLM integrated into the system's workflow?",
+        "capabilitySurfaceId": "llm-integration",
+        "annotations": {
+          "intent": "Verify the assistant can explain how the LLM is integrated into the system's workflow.",
+          "expectedAnswerPoints": [
+            "Describes the role of the LLM in the system architecture.",
+            "Explains how the LLM is used in the answer generation process.",
+            "Mentions any prompt engineering or context management for the LLM.",
+            "Describes how the LLM interacts with retrieval components."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe the LLM's role in the workflow.",
+            "Should explain the integration points clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of LLM integration",
+            "Step-by-step description of the LLM workflow"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "llm-integration-reference",
+            "minimumRequiredFactClass": "llm_integration_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q19-baseline-comparison",
+        "question": "How does the system compare current performance against baseline metrics?",
+        "capabilitySurfaceId": "baseline-comparison",
+        "annotations": {
+          "intent": "Verify the assistant can explain how the system compares current performance against baseline metrics.",
+          "expectedAnswerPoints": [
+            "Describes the baseline metrics used for comparison.",
+            "Explains how current performance is measured and compared.",
+            "Mentions any reporting or visualization of baseline comparisons.",
+            "Describes how baseline comparisons are used to identify regressions or improvements."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe the baseline comparison process.",
+            "Should explain how comparisons aid in system evaluation."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of baseline comparison",
+            "Step-by-step description of the comparison process"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "baseline-comparison-reference",
+            "minimumRequiredFactClass": "baseline_comparison_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q20-security-features",
+        "question": "What security features are implemented to protect sensitive information?",
+        "capabilitySurfaceId": "security-features",
+        "annotations": {
+          "intent": "Verify the assistant can list the security features implemented to protect sensitive information.",
+          "expectedAnswerPoints": [
+            "Lists key security features implemented in the system.",
+            "Explains how sensitive information is protected.",
+            "Mentions any access control or authentication mechanisms.",
+            "Describes how security is maintained during data processing."
+          ],
+          "mustNotMiss": [
+            "Must list relevant security features.",
+            "Should explain how security features protect sensitive information."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of security features",
+            "Short paragraph enumerating security features with explanations"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "security-features-reference",
+            "minimumRequiredFactClass": "security_features_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q21-sitemap-ingestion",
+        "question": "How does the system handle sitemap ingestion and what level of depth is supported?",
+        "capabilitySurfaceId": "sitemap-ingestion",
+        "annotations": {
+          "intent": "Verify the assistant can explain how the system handles sitemap ingestion and the supported depth level.",
+          "expectedAnswerPoints": [
+            "Describes the sitemap ingestion process.",
+            "Explains the level of depth supported for sitemap processing.",
+            "Mentions any limitations or considerations for sitemap ingestion.",
+            "Describes how sitemap data is processed and stored."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe the sitemap ingestion process.",
+            "Should clearly state the supported depth level."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of sitemap ingestion",
+            "Short paragraph describing sitemap processing and depth support"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "sitemap-ingestion-reference",
+            "minimumRequiredFactClass": "sitemap_ingestion_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q22-feed-ingestion",
+        "question": "What types of feeds are supported for ingestion and how often are they refreshed?",
+        "capabilitySurfaceId": "feed-ingestion",
+        "annotations": {
+          "intent": "Verify the assistant can explain the types of feeds supported for ingestion and their refresh frequency.",
+          "expectedAnswerPoints": [
+            "Lists the types of feeds supported for ingestion.",
+            "Explains how often feeds are refreshed.",
+            "Mentions any configuration options for feed refresh.",
+            "Describes how feed data is processed and stored."
+          ],
+          "mustNotMiss": [
+            "Must list relevant feed types.",
+            "Should clearly state the refresh frequency."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of supported feed types with refresh information",
+            "Short paragraph explaining feed ingestion and refresh policies"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "feed-ingestion-reference",
+            "minimumRequiredFactClass": "feed_ingestion_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q23-answer-quality",
+        "question": "How is the quality of answers assessed and what factors contribute to a high-quality answer?",
+        "capabilitySurfaceId": "answer-quality-assessment",
+        "annotations": {
+          "intent": "Verify the assistant can explain how answer quality is assessed and the factors contributing to high-quality answers.",
+          "expectedAnswerPoints": [
+            "Describes the metrics and criteria used to assess answer quality.",
+            "Explains the factors that contribute to high-quality answers.",
+            "Mentions how answer quality is monitored and improved.",
+            "Describes the role of grounding and citations in answer quality."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe answer quality assessment methods.",
+            "Should list key factors contributing to high-quality answers."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of answer quality assessment",
+            "Step-by-step description of quality factors and assessment process"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "answer-quality-reference",
+            "minimumRequiredFactClass": "answer_quality_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q24-retrieval-filters",
+        "question": "Can users apply filters to control what information is retrieved for their queries?",
+        "capabilitySurfaceId": "retrieval-filters",
+        "annotations": {
+          "intent": "Verify the assistant can explain whether users can apply filters to control retrieved information.",
+          "expectedAnswerPoints": [
+            "Confirms whether users can apply filters to retrieval.",
+            "Describes the types of filters available.",
+            "Explains how filters are applied during retrieval.",
+            "Mentions any limitations or considerations for filter usage."
+          ],
+          "mustNotMiss": [
+            "Must accurately represent whether retrieval filters are supported.",
+            "Should clearly describe the filter capabilities."
+          ],
+          "acceptableExpressionRange": [
+            "Direct answer with filter capabilities explanation",
+            "Short paragraph explaining retrieval filter support"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "retrieval-filters-reference",
+            "minimumRequiredFactClass": "retrieval_filters_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q25-document-runs",
+        "question": "What are document runs and how are they used in the system?",
+        "capabilitySurfaceId": "document-runs",
+        "annotations": {
+          "intent": "Verify the assistant can explain what document runs are and how they are used in the system.",
+          "expectedAnswerPoints": [
+            "Defines what document runs are in the system context.",
+            "Explains how document runs are created and managed.",
+            "Describes the purpose and usage of document runs.",
+            "Mentions any features or capabilities related to document runs."
+          ],
+          "mustNotMiss": [
+            "Must accurately define document runs.",
+            "Should clearly explain their usage in the system."
+          ],
+          "acceptableExpressionRange": [
+            "Clear definition and explanation of document runs",
+            "Short paragraph describing document runs and their usage"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "document-runs-reference",
+            "minimumRequiredFactClass": "document_runs_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q26-api-endpoints",
+        "question": "What API endpoints are available for interacting with the system programmatically?",
+        "capabilitySurfaceId": "api-endpoints",
+        "annotations": {
+          "intent": "Verify the assistant can list the API endpoints available for programmatic interaction.",
+          "expectedAnswerPoints": [
+            "Lists key API endpoints for system interaction.",
+            "Describes the purpose of each major endpoint.",
+            "Mentions any authentication requirements for API access.",
+            "Describes how the API can be used to integrate with the system."
+          ],
+          "mustNotMiss": [
+            "Must list relevant API endpoints.",
+            "Should describe the purpose of each endpoint clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of API endpoints with descriptions",
+            "Short paragraph enumerating API endpoints and their purposes"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "api-endpoints-reference",
+            "minimumRequiredFactClass": "api_endpoints_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q27-user-roles",
+        "question": "What user roles are supported and what permissions do they have?",
+        "capabilitySurfaceId": "user-roles",
+        "annotations": {
+          "intent": "Verify the assistant can list the supported user roles and their permissions.",
+          "expectedAnswerPoints": [
+            "Lists the user roles supported by the system.",
+            "Describes the permissions associated with each role.",
+            "Explains how roles are assigned and managed.",
+            "Mentions any role-based access control mechanisms."
+          ],
+          "mustNotMiss": [
+            "Must list relevant user roles.",
+            "Should describe the permissions for each role clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of user roles with permissions",
+            "Short paragraph enumerating user roles and their capabilities"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "user-roles-reference",
+            "minimumRequiredFactClass": "user_roles_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q28-embedding-models",
+        "question": "What embedding models are supported and how are they configured?",
+        "capabilitySurfaceId": "embedding-models",
+        "annotations": {
+          "intent": "Verify the assistant can list the supported embedding models and their configuration options.",
+          "expectedAnswerPoints": [
+            "Lists the embedding models supported by the system.",
+            "Describes how embedding models are configured.",
+            "Explains the role of embedding models in the system workflow.",
+            "Mentions any performance or quality considerations for different models."
+          ],
+          "mustNotMiss": [
+            "Must list relevant embedding models.",
+            "Should explain the configuration options clearly."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of embedding models with configuration details",
+            "Short paragraph enumerating models and their setup"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "embedding-models-reference",
+            "minimumRequiredFactClass": "embedding_models_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q29-queue-management",
+        "question": "How does the system manage ingestion and processing queues?",
+        "capabilitySurfaceId": "queue-management",
+        "annotations": {
+          "intent": "Verify the assistant can explain how the system manages ingestion and processing queues.",
+          "expectedAnswerPoints": [
+            "Describes the queue management system used.",
+            "Explains how ingestion and processing tasks are queued.",
+            "Mentions any prioritization or scheduling mechanisms.",
+            "Describes how queue status is monitored and managed."
+          ],
+          "mustNotMiss": [
+            "Must accurately describe the queue management approach.",
+            "Should explain both ingestion and processing queue management."
+          ],
+          "acceptableExpressionRange": [
+            "Detailed explanation of queue management",
+            "Step-by-step description of the queue management process"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "queue-management-reference",
+            "minimumRequiredFactClass": "queue_management_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "q30-reporting-capabilities",
+        "question": "What reporting capabilities does the system provide for evaluating performance?",
+        "capabilitySurfaceId": "reporting-capabilities",
+        "annotations": {
+          "intent": "Verify the assistant can list the reporting capabilities provided for performance evaluation.",
+          "expectedAnswerPoints": [
+            "Lists the reporting capabilities available in the system.",
+            "Describes the types of reports generated.",
+            "Explains how reports are used to evaluate performance.",
+            "Mentions any visualization or export options for reports."
+          ],
+          "mustNotMiss": [
+            "Must list relevant reporting capabilities.",
+            "Should explain how reports aid in performance evaluation."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of reporting capabilities",
+            "Short paragraph enumerating reporting features and their uses"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "reporting-capabilities-reference",
+            "minimumRequiredFactClass": "reporting_capabilities_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      }
+    ]
+  },
+  "annotationLayers": {
+    "defaultLayerRequired": [
+      "intent",
+      "expectedAnswerPoints",
+      "mustNotMiss",
+      "acceptableExpressionRange"
+    ],
+    "criticalEvidenceLayerOptional": {
+      "field": "criticalEvidenceExpectation",
+      "requiredFieldsWhenPresent": [
+        "expectedEvidenceType",
+        "minimumRequiredFactClass",
+        "failureWhenEvidenceMissing"
+      ],
+      "criticalQuestionIds": [
+        "q1-capability-summary",
+        "q2-source-ingestion",
+        "q4-citation-support",
+        "q5-document-types",
+        "q6-retrieval-strategy",
+        "q7-auth-system",
+        "q8-conversation-support",
+        "q9-performance-metrics",
+        "q10-error-handling",
+        "q11-vector-storage",
+        "q12-chunking-strategy",
+        "q13-external-sources",
+        "q14-evaluation-process",
+        "q15-knowledge-base-management",
+        "q17-traceability",
+        "q18-llm-integration",
+        "q19-baseline-comparison",
+        "q20-security-features",
+        "q21-sitemap-ingestion",
+        "q22-feed-ingestion",
+        "q23-answer-quality",
+        "q24-retrieval-filters",
+        "q25-document-runs",
+        "q26-api-endpoints",
+        "q27-user-roles",
+        "q28-embedding-models",
+        "q29-queue-management",
+        "q30-reporting-capabilities"
+      ]
+    }
+  }
+}

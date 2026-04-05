@@ -1,24 +1,36 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { readFile } = require("node:fs/promises");
-const { resolve } = require("node:path");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 test("web ask response type covers current backend retrievalMetadata execution shape", async () => {
   const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
+  const sharedSource = await readFile(resolve(__dirname, "../../../packages/shared/src/trace-contracts.ts"), "utf8");
 
   assert.match(source, /retrievalMetadata\?:\s*AskRetrievalMetadata;/);
+  assert.match(source, /export type AskRetrievalMetadata = \{[\s\S]*strategySummary\?:\s*RetrievalStrategySummary;/);
+  assert.match(source, /export type AskResponse = \{[\s\S]*strategySummary\?:\s*RetrievalStrategySummary;/);
+  assert.match(sharedSource, /rewriteApplied:\s*boolean;/);
+  assert.match(sharedSource, /rewriteEnabled:\s*boolean;/);
+  assert.match(sharedSource, /rewriteUsedFallback:\s*boolean \| null;/);
+  assert.match(sharedSource, /rewritePromptId:\s*string \| null;/);
+  assert.match(sharedSource, /rewriteModelName:\s*string \| null;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*enabled: boolean;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*applied: boolean;/);
-  assert.match(source, /queryRewrite:\s*\{[\s\S]*finalQuerySource: "rewritten" \| "original_disabled" \| "original_unchanged";/);
+  assert.match(source, /queryRewrite:\s*\{[\s\S]*finalQuerySource: TraceRetrievalQuerySource;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*usedFallback: boolean \| null;/);
+  assert.match(source, /queryRewrite:\s*\{[\s\S]*modelName: string \| null;/);
   assert.match(source, /queryRewrite:\s*\{[\s\S]*promptId: string \| null;/);
   assert.match(source, /execution:\s*\{[\s\S]*retrievalQuery: string;/);
   assert.match(source, /execution:\s*\{[\s\S]*topK: number;/);
   assert.match(source, /execution:\s*\{[\s\S]*scoreThreshold: number;/);
   assert.match(source, /execution:\s*\{[\s\S]*chunkWindow: number;/);
-  assert.match(source, /execution:\s*\{[\s\S]*actualMode: "vector" \| "hybrid" \| "lexical";/);
+  assert.match(source, /execution:\s*\{[\s\S]*actualMode: TraceRetrievalMode;/);
   assert.match(source, /execution:\s*\{[\s\S]*usedFallback: boolean;/);
-  assert.match(source, /execution:\s*\{[\s\S]*fallbackReason: "vector_error" \| "no_ranked_candidates" \| null;/);
+  assert.match(source, /execution:\s*\{[\s\S]*fallbackReason: TraceFallbackReason \| null;/);
   assert.match(source, /execution:\s*\{[\s\S]*rerankApplied: boolean;/);
   assert.match(source, /execution:\s*\{[\s\S]*chunkWindowApplied: boolean;/);
   assert.match(source, /execution:\s*\{[\s\S]*vectorSearchAttempted: boolean;/);

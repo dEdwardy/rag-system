@@ -6,6 +6,7 @@ import { ParsingService } from "../../infra/parsing/parsing.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { DocumentRunsService } from "../document-runs/document-runs.service";
 import { IndexingService } from "../indexing/indexing.service";
+import { ErrorCode, createErrorDiagnostics } from "../../common/error-codes";
 
 export type DocumentIngestionJobData = {
   documentId: string;
@@ -20,7 +21,7 @@ export type DocumentIngestionJob = {
 type IngestionFailedStage = "parsing" | "chunking" | "indexing";
 
 type IngestionDiagnostics = {
-  code: string;
+  code: ErrorCode;
   failedStage: IngestionFailedStage;
   retryable: boolean;
   documentVersion: number;
@@ -68,14 +69,16 @@ export class DocumentIngestionProcessor {
     if (typeof job.data.documentVersion === "number" && document.version !== job.data.documentVersion) {
       await this.documentRunsService.markRunSkipped(document.id, job.data.documentVersion, {
         failedStage: DocumentRunFailedStage.stale_guard,
-        diagnosticsJson: {
-          code: "INGESTION_RUN_SUPERSEDED",
-          failedStage: "stale_guard",
-          retryable: false,
-          documentVersion: job.data.documentVersion,
-          message: "Skipped stale ingestion job because a newer document version is already active.",
-          currentDocumentVersion: document.version
-        }
+        diagnosticsJson: createErrorDiagnostics(
+          ErrorCode.INGESTION_RUN_SUPERSEDED,
+          "stale_guard",
+          false,
+          job.data.documentVersion,
+          "Skipped stale ingestion job because a newer document version is already active.",
+          {
+            currentDocumentVersion: document.version
+          }
+        )
       });
       this.logger.warn(
         `Skipping stale ingestion job for document ${document.id}: job version ${job.data.documentVersion}, current version ${document.version}.`
@@ -107,12 +110,12 @@ export class DocumentIngestionProcessor {
 
       if (!normalizedContent) {
         throw new IngestionProcessError({
-          code: "INGESTION_EMPTY_CONTENT",
+          code: ErrorCode.INGESTION_EMPTY_CONTENT,
           failedStage: "parsing",
           retryable: false,
           documentVersion: document.version,
           message: "Parsed content is empty."
-        });
+        } as IngestionDiagnostics);
       }
 
       if (!(await this.ensureCurrentDocumentVersion(document))) {
@@ -185,13 +188,15 @@ export class DocumentIngestionProcessor {
     try {
       return await this.storageService.readFileByStorageKey(document.storageKey);
     } catch (error) {
-      throw new IngestionProcessError({
-        code: "INGESTION_STORAGE_READ_FAILED",
-        failedStage: "parsing",
-        retryable: true,
-        documentVersion: document.version,
-        message: error instanceof Error ? error.message : "Unknown storage read error."
-      });
+      throw new IngestionProcessError(
+        createErrorDiagnostics(
+          ErrorCode.INGESTION_PARSING_FAILED,
+          "parsing",
+          true,
+          document.version,
+          error instanceof Error ? error.message : "Unknown storage read error."
+        ) as IngestionDiagnostics
+      );
     }
   }
 
@@ -208,13 +213,15 @@ export class DocumentIngestionProcessor {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown parsing error.";
 
-      throw new IngestionProcessError({
-        code: this.resolveParsingErrorCode(message),
-        failedStage: "parsing",
-        retryable: false,
-        documentVersion: document.version,
-        message
-      });
+      throw new IngestionProcessError(
+        createErrorDiagnostics(
+          this.resolveParsingErrorCode(message),
+          "parsing",
+          false,
+          document.version,
+          message
+        ) as IngestionDiagnostics
+      );
     }
   }
 
@@ -226,16 +233,16 @@ export class DocumentIngestionProcessor {
     return this.buildGenericIngestionDiagnostics("indexing", documentVersion, error);
   }
 
-  private resolveParsingErrorCode(message: string) {
+  private resolveParsingErrorCode(message: string): ErrorCode {
     if (message.startsWith("Unsupported file type for ingestion:")) {
-      return "INGESTION_UNSUPPORTED_FILE_TYPE";
+      return ErrorCode.INGESTION_UNSUPPORTED_FILE_TYPE;
     }
 
     if (message.includes("content is empty")) {
-      return "INGESTION_EMPTY_CONTENT";
+      return ErrorCode.INGESTION_EMPTY_CONTENT;
     }
 
-    return "INGESTION_PARSING_FAILED";
+    return ErrorCode.INGESTION_PARSING_FAILED;
   }
 
   private async rebuildDocumentChunks(
@@ -265,7 +272,7 @@ export class DocumentIngestionProcessor {
       return chunks;
     } catch (error) {
       throw new IngestionProcessError(
-        this.buildGenericIngestionDiagnostics("chunking", document.version, error)
+        this.buildGenericIngestionDiagnostics("chunking", document.version, error) as IngestionDiagnostics
       );
     }
   }
@@ -275,7 +282,7 @@ export class DocumentIngestionProcessor {
       await this.indexingService.indexDocument(document.id, document.version);
     } catch (error) {
       throw new IngestionProcessError(
-        this.buildGenericIngestionDiagnostics("indexing", document.version, error)
+        this.buildGenericIngestionDiagnostics("indexing", document.version, error) as IngestionDiagnostics
       );
     }
   }
@@ -297,12 +304,12 @@ export class DocumentIngestionProcessor {
       });
     } catch (error) {
       throw new IngestionProcessError({
-        code: "INGESTION_STATE_WRITE_FAILED",
+        code: ErrorCode.INGESTION_STATE_WRITE_FAILED,
         failedStage: "parsing",
         retryable: true,
         documentVersion,
         message: error instanceof Error ? error.message : "Unknown document state update error."
-      });
+      } as IngestionDiagnostics);
     }
   }
 
@@ -312,19 +319,29 @@ export class DocumentIngestionProcessor {
     error: unknown
   ): IngestionDiagnostics {
     const message = error instanceof Error ? error.message : "Unknown ingestion error.";
+    let errorCode: ErrorCode;
 
-    return {
-      code:
-        failedStage === "chunking"
-          ? "INGESTION_CHUNKING_FAILED"
-          : failedStage === "indexing"
-            ? "INGESTION_INDEXING_FAILED"
-            : "INGESTION_PARSING_FAILED",
+    switch (failedStage) {
+      case "parsing":
+        errorCode = ErrorCode.INGESTION_PARSING_FAILED;
+        break;
+      case "chunking":
+        errorCode = ErrorCode.INGESTION_CHUNKING_FAILED;
+        break;
+      case "indexing":
+        errorCode = ErrorCode.INGESTION_INDEXING_FAILED;
+        break;
+      default:
+        errorCode = ErrorCode.INGESTION_PARSING_FAILED;
+    }
+
+    return createErrorDiagnostics(
+      errorCode,
       failedStage,
-      retryable: failedStage !== "parsing",
+      failedStage !== "parsing",
       documentVersion,
       message
-    };
+    ) as IngestionDiagnostics;
   }
 
   private toDocumentRunFailedStage(failedStage: IngestionFailedStage) {
@@ -387,14 +404,16 @@ export class DocumentIngestionProcessor {
 
     await this.documentRunsService.markRunSkipped(document.id, document.version, {
       failedStage: DocumentRunFailedStage.stale_guard,
-      diagnosticsJson: {
-        code: "INGESTION_RUN_SUPERSEDED",
-        failedStage: "stale_guard",
-        retryable: false,
-        documentVersion: document.version,
-        message: "Skipped stale ingestion job because a newer document version became active during processing.",
-        currentDocumentVersion: currentDocument.version
-      }
+      diagnosticsJson: createErrorDiagnostics(
+        ErrorCode.INGESTION_RUN_SUPERSEDED,
+        "stale_guard",
+        false,
+        document.version,
+        "Skipped stale ingestion job because a newer document version became active during processing.",
+        {
+          currentDocumentVersion: currentDocument.version
+        }
+      )
     });
     this.logger.warn(
       `Stopping stale ingestion job for document ${document.id}: job version ${document.version}, current version ${currentDocument.version}.`

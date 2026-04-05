@@ -75,7 +75,7 @@ export type AnsweringMetadata = {
 };
 
 const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
-  responseStyle: "concise",
+  responseStyle: "balanced",
   tone: "neutral",
   outputFormat: "paragraph",
   language: "auto",

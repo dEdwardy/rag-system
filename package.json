@@ -3,6 +3,10 @@
   "private": true,
   "packageManager": "pnpm@10.5.2",
   "scripts": {
+    "opencode:loop": "node .opencode/loop/harness/control.mjs",
+    "loop:start": "node .opencode/loop/harness/control.mjs start",
+    "loop:stop": "node .opencode/loop/harness/control.mjs stop",
+    "loop:status": "node .opencode/loop/harness/control.mjs status",
     "dev:web": "pnpm --filter @rag-system/web dev",
     "dev:api": "pnpm --filter @rag-system/api start:dev",
     "build": "pnpm -r build",
@@ -22,9 +26,13 @@
     "test:api:focus:documents": "pnpm --filter @rag-system/api test:focus:documents",
     "test:api:focus:sources": "pnpm --filter @rag-system/api test:focus:sources",
     "test:api:focus:api-config": "pnpm --filter @rag-system/api test:focus:api-config",
+    "test:api:focus:acl": "pnpm --filter @rag-system/api test:focus:acl",
     "test:api:e2e:chains": "pnpm --filter @rag-system/api test:e2e:chains",
     "test:api:e2e:sources": "pnpm --filter @rag-system/api test:e2e:sources",
     "test:api:e2e": "pnpm --filter @rag-system/api test:e2e",
     "test:web-smoke": "pnpm --filter @rag-system/api build && pnpm --filter @rag-system/web build && node --test apps/web/test/pc-web-smoke.test.js"
+  },
+  "dependencies": {
+    "recharts": "^3.8.1"
   }
 }

@@ -1,5 +1,11 @@
 import { BadGatewayException, BadRequestException, Injectable } from "@nestjs/common";
-import { fetchWithRetry, resolveSourceFetchRuntimeConfig } from "../http/fetch-with-retry";
+import {
+  assertRobotsAllowUrl,
+  fetchWithRetry,
+  isRetryableFetchException,
+  normalizeSourceFetchFailureMessage,
+  resolveSourceFetchRuntimeConfig
+} from "../http/fetch-with-retry";
 
 type FetchFeedOptions = {
   url: string;
@@ -53,6 +59,8 @@ type FeedFetchDiagnostics = {
   };
   failedEntriesTruncated: boolean;
   failedEntriesOmittedCount: number;
+  contentTypeFallbackApplied?: boolean;
+  upstreamContentType?: string;
   partial: boolean;
 };
 
@@ -79,6 +87,7 @@ export class FeedSourceService {
     const fetchConfig = resolveSourceFetchRuntimeConfig();
 
     try {
+      await assertRobotsAllowUrl(options.url);
       response = await fetchWithRetry({
         url: options.url,
         timeoutMs: fetchConfig.timeoutMs,
@@ -88,8 +97,7 @@ export class FeedSourceService {
         }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown fetch error.";
-      throw new BadGatewayException(`Failed to fetch feed: ${message}`);
+      throw this.buildFetchException("Failed to fetch feed", error);
     }
 
     if (!response.ok) {
@@ -97,11 +105,31 @@ export class FeedSourceService {
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    if (!this.isSupportedFeedContentType(contentType)) {
+    const diagnosticsContentType = this.normalizeDiagnosticsContentType(contentType);
+    const payload = await response.text();
+    const xmlPayloadByFallback = this.isFallbackSniffingContentType(contentType) && this.looksLikeFeedXmlPayload(payload);
+
+    if (!this.isSupportedFeedContentType(contentType) && !xmlPayloadByFallback) {
       throw new BadRequestException(`Unsupported feed content type: ${contentType || "unknown"}.`);
     }
 
-    return this.extractFromXml(await response.text(), options);
+    const extracted = this.extractFromXml(payload, options);
+
+    if (!xmlPayloadByFallback) {
+      return extracted;
+    }
+
+    return {
+      ...extracted,
+      diagnostics: {
+        ...(extracted.diagnostics ?? this.buildEmptyPartialDiagnostics()),
+        sourceKind: "feed",
+        schemaVersion: 2,
+        contentTypeFallbackApplied: true,
+        upstreamContentType: diagnosticsContentType,
+        partial: true
+      }
+    };
   }
 
   extractFromXml(xml: string, options: ExtractFeedOptions): FetchedFeed {
@@ -127,7 +155,9 @@ export class FeedSourceService {
     const title = this.extractTextValue(channelBlock ?? xml, "title");
     const description = this.extractTextByPattern(channelBlock ?? xml, /<description\b[^>]*>([\s\S]*?)<\/description>/i);
     const allItemBlocks = this.extractBlocks(channelBlock ?? xml, "item");
-    const itemBlocks = allItemBlocks.slice(0, options.maxItems);
+    const itemBlocks = this.selectEntryBlocksByFreshness(allItemBlocks, options.maxItems, block =>
+      this.extractTextByPattern(block, /<(?:pubDate|dc:date)\b[^>]*>([\s\S]*?)<\/(?:pubDate|dc:date)>/i)
+    );
     const entries = itemBlocks.map(block => ({
       title: this.extractTextValue(block, "title"),
       summary: this.extractTextByPattern(block, /<(?:description|content:encoded)\b[^>]*>([\s\S]*?)<\/(?:description|content:encoded)>/i),
@@ -153,7 +183,9 @@ export class FeedSourceService {
     const title = this.extractTextValue(xml, "title");
     const description = this.extractTextValue(xml, "subtitle");
     const allEntryBlocks = this.extractBlocks(xml, "entry");
-    const entryBlocks = allEntryBlocks.slice(0, options.maxItems);
+    const entryBlocks = this.selectEntryBlocksByFreshness(allEntryBlocks, options.maxItems, block =>
+      this.extractTextByPattern(block, /<(?:updated|published)\b[^>]*>([\s\S]*?)<\/(?:updated|published)>/i)
+    );
     const entries = entryBlocks.map(block => ({
       title: this.extractTextValue(block, "title"),
       summary: this.extractTextByPattern(block, /<(?:summary|content)\b[^>]*>([\s\S]*?)<\/(?:summary|content)>/i),
@@ -204,7 +236,7 @@ export class FeedSourceService {
         return;
       }
 
-      const dedupKey = this.buildEntryDedupKey(entry);
+      const dedupKey = this.buildEntryDedupKey(entry, input.sourceUrl);
       if (seenEntryKeys.has(dedupKey)) {
         skippedDuplicateEntryRefs.push(entry.link ?? entry.title ?? "Untitled");
         return;
@@ -236,7 +268,10 @@ export class FeedSourceService {
     }
 
     if (input.entries.length > 0 && failedEntries.length === input.entries.length) {
-      throw new BadRequestException("Extracted feed content is empty: all feed entries were invalid.");
+      const firstFailedEntryRef = failedEntries[0]?.ref ?? "unknown";
+      throw new BadRequestException(
+        `Extracted feed content is empty: all feed entries were invalid. First failed entry ref: ${firstFailedEntryRef}.`
+      );
     }
 
     if (!content) {
@@ -280,12 +315,87 @@ export class FeedSourceService {
     };
   }
 
-  private buildEntryDedupKey(entry: FeedEntry) {
+  private buildEntryDedupKey(entry: FeedEntry, sourceUrl: string) {
     const normalizedTitle = entry.title?.trim().toLowerCase() ?? "";
-    const normalizedLink = entry.link?.trim().toLowerCase() ?? "";
+    const normalizedLink = this.normalizeEntryLinkForDedup(entry.link, sourceUrl);
     const normalizedPublishedAt = entry.publishedAt?.trim().toLowerCase() ?? "";
     const normalizedSummary = entry.summary?.trim().toLowerCase() ?? "";
-    return [normalizedLink, normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
+
+    if (normalizedLink) {
+      return `link:${normalizedLink}`;
+    }
+
+    return [normalizedTitle, normalizedPublishedAt, normalizedSummary].join("|");
+  }
+
+  private normalizeEntryLinkForDedup(link: string | null, sourceUrl: string) {
+    const normalizedLink = link?.trim().toLowerCase() ?? "";
+    if (!normalizedLink) {
+      return "";
+    }
+
+    try {
+      const parsed = new URL(normalizedLink, sourceUrl);
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return normalizedLink;
+    }
+  }
+
+  private selectEntryBlocksByFreshness(
+    allBlocks: string[],
+    maxItems: number,
+    getPublishedAt: (block: string) => string | null
+  ) {
+    if (allBlocks.length <= maxItems) {
+      return allBlocks;
+    }
+
+    const blocksWithPublishedAt = allBlocks.map((block, index) => ({
+      block,
+      index,
+      timestamp: this.resolveFeedTimestamp(getPublishedAt(block))
+    }));
+    const hasAnyTimestamp = blocksWithPublishedAt.some(item => item.timestamp !== null);
+    const hasMissingTimestamp = blocksWithPublishedAt.some(item => item.timestamp === null);
+
+    if (!hasAnyTimestamp || hasMissingTimestamp) {
+      return allBlocks.slice(0, maxItems);
+    }
+
+    const newestBlocks = [...blocksWithPublishedAt]
+      .sort((left, right) => {
+        if (left.timestamp === null && right.timestamp === null) {
+          return left.index - right.index;
+        }
+
+        if (left.timestamp === null) {
+          return 1;
+        }
+
+        if (right.timestamp === null) {
+          return -1;
+        }
+
+        if (left.timestamp === right.timestamp) {
+          return left.index - right.index;
+        }
+
+        return right.timestamp - left.timestamp;
+      })
+      .slice(0, maxItems);
+
+    return newestBlocks.sort((left, right) => left.index - right.index).map(item => item.block);
+  }
+
+  private resolveFeedTimestamp(value: string | null) {
+    if (!value) {
+      return null;
+    }
+
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : null;
   }
 
   private validateEntry(entry: FeedEntry): FeedEntryFailure | null {
@@ -304,6 +414,35 @@ export class FeedSourceService {
     };
   }
 
+  private buildEmptyPartialDiagnostics(): FeedFetchDiagnostics {
+    return {
+      sourceKind: "feed",
+      schemaVersion: 2,
+      attemptedEntryCount: 0,
+      succeededEntryCount: 0,
+      failedEntryCount: 0,
+      retryableFailureCount: 0,
+      nonRetryableFailureCount: 0,
+      failedEntryRefs: [],
+      failedEntries: [],
+      skippedDuplicateEntryCount: 0,
+      skippedDuplicateEntryRefs: [],
+      skippedDuplicatesTruncated: false,
+      skippedDuplicatesOmittedCount: 0,
+      boundaryHit: false,
+      boundaryReasons: [],
+      boundary: {
+        maxItems: 0,
+        totalExtractedEntryCount: 0,
+        selectedEntryCount: 0,
+        droppedByLimitCount: 0
+      },
+      failedEntriesTruncated: false,
+      failedEntriesOmittedCount: 0,
+      partial: true
+    };
+  }
+
   private isSupportedFeedContentType(contentType: string) {
     return (
       contentType.startsWith("application/rss+xml") ||
@@ -313,11 +452,40 @@ export class FeedSourceService {
     );
   }
 
+  private isFallbackSniffingContentType(contentType: string) {
+    return !contentType || contentType.startsWith("text/plain");
+  }
+
+  private looksLikeFeedXmlPayload(payload: string) {
+    return /<rss\b|<feed\b/i.test(payload);
+  }
+
+  private normalizeDiagnosticsContentType(contentType: string) {
+    if (!contentType) {
+      return "unknown";
+    }
+
+    return contentType
+      .split(";")
+      .map(part => part.trim())
+      .filter(Boolean)
+      .join("; ");
+  }
+
   private buildUpstreamFetchError(prefix: string, status: number) {
     const message = `${prefix}: upstream responded with ${status}.`;
     return this.isRetryableUpstreamStatus(status)
       ? new BadGatewayException(message)
       : new BadRequestException(message);
+  }
+
+  private buildFetchException(prefix: string, error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown fetch error.";
+    const normalizedMessage = normalizeSourceFetchFailureMessage(message);
+    const wrappedMessage = `${prefix}: ${normalizedMessage}`;
+    const retryable = error instanceof Error ? isRetryableFetchException(error) : true;
+
+    return retryable ? new BadGatewayException(wrappedMessage) : new BadRequestException(wrappedMessage);
   }
 
   private isRetryableUpstreamStatus(status: number) {
@@ -345,12 +513,45 @@ export class FeedSourceService {
   }
 
   private extractAtomLink(value: string) {
-    const hrefMatch = value.match(/<link\b[^>]*href="([^"]+)"[^>]*?(?:rel="alternate")?[^>]*\/?>/i);
-    if (hrefMatch) {
-      return this.decodeEntities(hrefMatch[1]).trim();
+    const linkTags = [...value.matchAll(/<link\b[^>]*\/?>/gi)].map(match => match[0]);
+    let fallbackHref: string | null = null;
+
+    for (const tag of linkTags) {
+      const href = this.extractXmlAttribute(tag, "href");
+      if (!href) {
+        continue;
+      }
+
+      const rel = this.extractXmlAttribute(tag, "rel")?.toLowerCase() ?? null;
+      const relIncludesAlternate = rel
+        ?.split(/\s+/)
+        .map(token => token.trim())
+        .filter(Boolean)
+        .includes("alternate");
+      if (relIncludesAlternate) {
+        return this.decodeEntities(href).trim();
+      }
+
+      if (!fallbackHref) {
+        fallbackHref = href;
+      }
+    }
+
+    if (fallbackHref) {
+      return this.decodeEntities(fallbackHref).trim();
     }
 
     return this.extractTextValue(value, "link");
+  }
+
+  private extractXmlAttribute(value: string, attributeName: string) {
+    const pattern = new RegExp(`\\b${attributeName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i");
+    const match = value.match(pattern);
+    if (!match) {
+      return null;
+    }
+
+    return match[1] ?? match[2] ?? null;
   }
 
   private normalizeText(value: string) {

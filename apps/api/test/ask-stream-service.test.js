@@ -132,6 +132,258 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, null);
   assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
   assert.equal(finalResult.answeringMetadata.generationMode, "generated");
+  assert.equal(finalResult.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
+  assert.equal(finalResult.answerEvidenceSource, "none");
+  assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(finalResult.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(finalResult.answerTextSource, "model");
+  assert.equal(finalResult.answerTextSourceReadabilityLabel, "model-generated answer text");
+  assert.equal(finalResult.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
+  assert.equal(finalResult.answerStatusSource, "model");
+  assert.equal(finalResult.answerStatusSourceReadabilityLabel, "model-decided answer status");
+  assert.equal(finalResult.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(
+    finalResult.answerProvenanceSentence,
+    "Answer text source is model; status source is model; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    finalResult.answerProvenanceReadabilitySentence,
+    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none."
+  );
+  assert.equal(finalResult.missingInformationSource, "none");
+  assert.equal(
+    finalResult.missingInformationProvenanceSentence,
+    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+  );
+  assert.equal(finalResult.missingInformationSourceReadabilityLabel, "no missing-information items");
+  assert.equal(
+    finalResult.strategyReadabilityLabel,
+    "vector retrieval via original_unchanged; fallback: none; fallback used: no."
+  );
+  assert.equal(
+    finalResult.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is vector; fallback was not used."
+  );
+  assert.equal(
+    finalResult.rewriteReadabilityLabel,
+    "rewrite enabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+  );
+  assert.equal(events[5].data.answerEvidenceSource, "none");
+  assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
+  assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(events[5].data.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(events[5].data.answerTextSource, "model");
+  assert.equal(events[5].data.answerTextSourceReadabilityLabel, "model-generated answer text");
+  assert.equal(events[5].data.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
+  assert.equal(events[5].data.answerStatusSource, "model");
+  assert.equal(events[5].data.answerStatusSourceReadabilityLabel, "model-decided answer status");
+  assert.equal(events[5].data.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(
+    events[5].data.answerProvenanceSentence,
+    "Answer text source is model; status source is model; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    events[5].data.answerProvenanceReadabilitySentence,
+    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none."
+  );
+  assert.equal(events[5].data.missingInformationSource, "none");
+  assert.equal(
+    events[5].data.missingInformationProvenanceSentence,
+    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+  );
+  assert.equal(events[5].data.missingInformationSourceReadabilityLabel, "no missing-information items");
+  assert.equal(
+    events[5].data.strategyReadabilityLabel,
+    "vector retrieval via original_unchanged; fallback: none; fallback used: no."
+  );
+  assert.equal(
+    events[5].data.retrievalModeProvenanceSentence,
+    "Resolved retrieval mode is vector; fallback was not used."
+  );
+  assert.equal(
+    events[5].data.rewriteReadabilityLabel,
+    "rewrite enabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+  );
+});
+
+test("AskAssistantService stream uses request current identity when creating a new conversation", async () => {
+  const createConversationCalls = [];
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async input => {
+        createConversationCalls.push(input);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async input => {
+        input.onDelta("Hello from stream");
+        return {
+          rawAnswer: "Hello from stream",
+          modelName: "test-model",
+          promptId: "answer.v2",
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "stream identity?",
+    authContext: {
+      identity: null,
+      currentIdentity: {
+        userId: "user-42",
+        tenantId: "tenant-42",
+        sessionId: "session-42",
+        authSource: "session"
+      }
+    },
+    onEvent: () => {}
+  });
+
+  assert.deepEqual(createConversationCalls, [
+    {
+      tenantId: "tenant-42",
+      userId: "user-42",
+      assistantId: "assistant-1",
+      title: "stream identity?"
+    }
+  ]);
+});
+
+test("AskAssistantService stream scopes existing conversation lookup to current identity", async () => {
+  const getConversationCalls = [];
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async () => {
+        throw new Error("should not create a new conversation in this test");
+      },
+      getConversation: async (...args) => {
+        getConversationCalls.push(args);
+        return { id: "conversation-1" };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async input => {
+        input.onDelta("delta");
+        return {
+          rawAnswer: "delta",
+          modelName: "test-model",
+          promptId: "answer.v2",
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  await service.askAssistantStream({
+    assistantId: "assistant-1",
+    question: "stream existing conversation",
+    conversationId: "conversation-1",
+    authContext: {
+      identity: {
+        userId: "user-88",
+        tenantId: "tenant-88",
+        sessionId: "session-88",
+        authSource: "session"
+      },
+      currentIdentity: {
+        userId: "user-88",
+        tenantId: "tenant-88",
+        sessionId: "session-88",
+        authSource: "session"
+      }
+    },
+    onEvent: () => {}
+  });
+
+  assert.deepEqual(getConversationCalls, [
+    [
+      "conversation-1",
+      {
+        userId: "user-88",
+        tenantId: "tenant-88",
+        sessionId: "session-88",
+        authSource: "session"
+      }
+    ]
+  ]);
+});
+
+test("AskAssistantService stream rethrows AbortError without marking the trace as failed", async () => {
+  const updateTraceCalls = [];
+  const controller = new AbortController();
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: "chunk-1",
+            documentId: "document-1",
+            documentTitle: "Document 1",
+            chunkIndex: 0,
+            content: "marker content",
+            score: 0.9,
+            isPrimary: true,
+            pageNo: 1,
+            sectionTitle: "Facts"
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: "vector",
+          usedFallback: false
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: "trace-1" }),
+      updateTrace: async (...args) => {
+        updateTraceCalls.push(args);
+        return {};
+      }
+    },
+    llm: {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async input => {
+        controller.abort();
+        const error = new Error("stream aborted");
+        error.name = "AbortError";
+        throw error;
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      service.askAssistantStream({
+        assistantId: "assistant-1",
+        question: "stop this stream",
+        signal: controller.signal,
+        onEvent: () => {}
+      }),
+    error => error instanceof Error && error.name === "AbortError"
+  );
+
+  assert.deepEqual(updateTraceCalls, []);
 });
 
 test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
@@ -273,10 +525,44 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   );
   assert.equal(events[3].delta, "deterministic fallback for: What detail is missing?");
   assert.equal(events[4].data.answer, "deterministic fallback for: What detail is missing?");
+  assert.equal(events[4].data.answerEvidenceSource, "none");
+  assert.equal(events[4].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(events[4].data.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(
+    events[4].data.answerProvenanceSentence,
+    "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    events[4].data.answerProvenanceReadabilitySentence,
+    "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
+  );
   assert.equal(finalResult.answer, "deterministic fallback for: What detail is missing?");
   assert.equal(finalResult.answeringMetadata.usedFallback, true);
   assert.equal(finalResult.answeringMetadata.answerTextSource, "deterministic_policy");
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(finalResult.answerEvidenceSource, "none");
+  assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
+  assert.equal(finalResult.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(finalResult.answerTextSource, "deterministic_policy");
+  assert.equal(finalResult.answerTextSourceReadabilityLabel, "deterministic policy answer text");
+  assert.equal(
+    finalResult.answerTextSourceReadabilitySentence,
+    "Answer text source is deterministic policy answer text."
+  );
+  assert.equal(finalResult.answerStatusSource, "deterministic_policy");
+  assert.equal(finalResult.answerStatusSourceReadabilityLabel, "deterministic policy answer status");
+  assert.equal(
+    finalResult.answerStatusSourceReadabilitySentence,
+    "Answer status source is deterministic policy answer status."
+  );
+  assert.equal(
+    finalResult.answerProvenanceSentence,
+    "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
+  );
+  assert.equal(
+    finalResult.answerProvenanceReadabilitySentence,
+    "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
+  );
 });
 
 test("AskAssistantService preserves best_effort stream no-hit answers instead of using deterministic bypass", async () => {
@@ -489,6 +775,12 @@ test("AskAssistantService forwards fallback-local no-hit best_effort metadata in
   );
   assert.equal(finalResult.answeringMetadata.answerStatusSource, "model");
   assert.equal(finalResult.answeringMetadata.missingInformationSource, "model");
+  assert.equal(finalResult.missingInformationSource, "model");
+  assert.equal(
+    finalResult.missingInformationProvenanceSentence,
+    "Missing-information source is model; insufficient-context reason is no_retrieval_hits; missing-information count is 1."
+  );
+  assert.equal(finalResult.missingInformationSourceReadabilityLabel, "model-reported missing-information items");
 });
 
 test("AskAssistantService stream preserves fallback_generation as the primary quality issue in final payload and trace", async () => {

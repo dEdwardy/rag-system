@@ -4,9 +4,13 @@ import {
   DocumentRunTrigger,
   Prisma
 } from "@prisma/client";
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
-import { ListDocumentRunsInput, ListKnowledgeBaseDocumentRunsInput } from "../documents/document.schemas";
+import {
+  CompareKnowledgeBaseDocumentRunsInput,
+  ListDocumentRunsInput,
+  ListKnowledgeBaseDocumentRunsInput
+} from "../documents/document.schemas";
 
 @Injectable()
 export class DocumentRunsService {
@@ -66,6 +70,16 @@ export class DocumentRunsService {
       external_resync: 0
     };
     const bySourceType: Record<string, number> = {};
+    const bySourceFamily: Record<
+      string,
+      {
+        totalRuns: number;
+        failedRuns: number;
+        retryableFailures: number;
+        nonRetryableFailures: number;
+        runsWithBoundaryHit: number;
+      }
+    > = {};
     const failureByStage: Record<string, number> = {};
     const boundaryStats = {
       runsWithBoundaryHit: 0,
@@ -79,12 +93,26 @@ export class DocumentRunsService {
     const latestCompletedRuns = this.getLatestCompletedRunsByDocument(filteredRuns);
 
     for (const run of filteredRuns) {
+      const sourceFamily = this.resolveSourceFamily(run.document.sourceType);
       byStatus[run.status] += 1;
       byTrigger[run.trigger] += 1;
       bySourceType[run.document.sourceType] = (bySourceType[run.document.sourceType] ?? 0) + 1;
+      bySourceFamily[sourceFamily] ??= {
+        totalRuns: 0,
+        failedRuns: 0,
+        retryableFailures: 0,
+        nonRetryableFailures: 0,
+        runsWithBoundaryHit: 0
+      };
+      bySourceFamily[sourceFamily].totalRuns += 1;
+
+      if (run.status === DocumentRunStatus.failed) {
+        bySourceFamily[sourceFamily].failedRuns += 1;
+      }
     }
 
     for (const run of latestCompletedRuns) {
+      const sourceFamily = this.resolveSourceFamily(run.document.sourceType);
       const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
 
       if (!this.shouldCountFailureSummary(run.status, failureSummary) || !failureSummary) {
@@ -97,13 +125,16 @@ export class DocumentRunsService {
 
       if (failureSummary.retryable) {
         retryableFailures += 1;
+        bySourceFamily[sourceFamily].retryableFailures += 1;
       } else {
         nonRetryableFailures += 1;
+        bySourceFamily[sourceFamily].nonRetryableFailures += 1;
       }
 
       const boundarySummary = this.extractBoundarySummary(run.diagnosticsJson);
       if (boundarySummary) {
         boundaryStats.runsWithBoundaryHit += 1;
+        bySourceFamily[sourceFamily].runsWithBoundaryHit += 1;
         boundaryStats.droppedPageUrlCount += boundarySummary.droppedPageUrlCount;
         boundaryStats.droppedChildSitemapCount += boundarySummary.droppedChildSitemapCount;
         boundaryStats.droppedFeedEntryCount += boundarySummary.droppedFeedEntryCount;
@@ -146,6 +177,7 @@ export class DocumentRunsService {
       byStatus,
       byTrigger,
       bySourceType,
+      bySourceFamily,
       retryableFailures,
       nonRetryableFailures,
       failureByStage,
@@ -156,6 +188,418 @@ export class DocumentRunsService {
       latestSkipped: latestSkipped ? this.buildRunSummaryAnchor(latestSkipped) : null,
       latestFailure: latestFailure ? this.buildRunSummaryAnchor(latestFailure) : null
     };
+  }
+
+  async getKnowledgeBaseRunComparison(knowledgeBaseId: string, input: CompareKnowledgeBaseDocumentRunsInput) {
+    if (typeof input.leftRunId === "string" && typeof input.rightRunId === "string") {
+      const [leftRun, rightRun] = await Promise.all([
+        this.getKnowledgeBaseRunById(knowledgeBaseId, input.leftRunId),
+        this.getKnowledgeBaseRunById(knowledgeBaseId, input.rightRunId)
+      ]);
+      const leftSnapshot = this.buildRunComparisonSnapshot(leftRun);
+      const rightSnapshot = this.buildRunComparisonSnapshot(rightRun);
+
+      return {
+        mode: "run",
+        left: leftSnapshot,
+        right: rightSnapshot,
+        meaningfulDifferences: this.buildRunMeaningfulDifferences(leftSnapshot, rightSnapshot)
+      };
+    }
+
+    const leftSinceHours = input.leftSinceHours as number;
+    const rightSinceHours = input.rightSinceHours as number;
+    const summaryFilters = {
+      documentId: input.documentId,
+      sourceType: input.sourceType,
+      status: input.status,
+      trigger: input.trigger,
+      issueOnly: input.issueOnly
+    } as const;
+    const [leftSnapshot, rightSnapshot] = await Promise.all([
+      this.getKnowledgeBaseRunSummary(knowledgeBaseId, {
+        ...summaryFilters,
+        sinceHours: leftSinceHours
+      }),
+      this.getKnowledgeBaseRunSummary(knowledgeBaseId, {
+        ...summaryFilters,
+        sinceHours: rightSinceHours
+      })
+    ]);
+    const sourceFamilyDeltas = this.buildSourceFamilyDeltas(leftSnapshot, rightSnapshot);
+
+    return {
+      mode: "snapshot",
+      left: {
+        sinceHours: leftSinceHours,
+        summary: leftSnapshot
+      },
+      right: {
+        sinceHours: rightSinceHours,
+        summary: rightSnapshot
+      },
+      meaningfulDifferences: this.buildSummaryMeaningfulDifferences(leftSnapshot, rightSnapshot),
+      sourceFamilyDeltas,
+      issueHotspotSlice: this.buildIssueHotspotSlice(leftSnapshot, rightSnapshot, sourceFamilyDeltas)
+    };
+  }
+
+  private async getKnowledgeBaseRunById(knowledgeBaseId: string, runId: string) {
+    const run = await this.prisma.documentRun.findFirst({
+      where: {
+        id: runId,
+        document: {
+          kbId: knowledgeBaseId
+        }
+      },
+      select: {
+        id: true,
+        documentId: true,
+        version: true,
+        trigger: true,
+        status: true,
+        failedStage: true,
+        diagnosticsJson: true,
+        startedAt: true,
+        finishedAt: true,
+        document: {
+          select: {
+            sourceType: true,
+            sourceName: true
+          }
+        }
+      }
+    });
+
+    if (!run) {
+      throw new NotFoundException(`Document run ${runId} not found.`);
+    }
+
+    return run;
+  }
+
+  private buildRunComparisonSnapshot(run: {
+    id: string;
+    documentId: string;
+    version: number;
+    trigger: DocumentRunTrigger;
+    status: DocumentRunStatus;
+    failedStage: DocumentRunFailedStage | null;
+    diagnosticsJson: Prisma.JsonValue | null;
+    startedAt: Date;
+    finishedAt: Date | null;
+    document: {
+      sourceType: string;
+      sourceName: string;
+    };
+  }) {
+    const failureSummary = this.buildFailureSummary(run.diagnosticsJson, run.failedStage);
+    const boundarySummary = this.extractBoundarySummary(run.diagnosticsJson);
+
+    return {
+      runId: run.id,
+      documentId: run.documentId,
+      version: run.version,
+      trigger: run.trigger,
+      status: run.status,
+      failedStage: this.resolveOutputFailedStage(run.status, run.failedStage, failureSummary),
+      failureSummary,
+      sourceType: run.document.sourceType,
+      sourceName: run.document.sourceName,
+      boundarySummary,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt
+    };
+  }
+
+  private buildRunMeaningfulDifferences(
+    left: ReturnType<DocumentRunsService["buildRunComparisonSnapshot"]>,
+    right: ReturnType<DocumentRunsService["buildRunComparisonSnapshot"]>
+  ) {
+    const differences: Array<{
+      metric: string;
+      left: string | number | boolean | null;
+      right: string | number | boolean | null;
+      summary: string;
+    }> = [];
+
+    if (left.status !== right.status) {
+      differences.push({
+        metric: "status",
+        left: left.status,
+        right: right.status,
+        summary: `status changed from ${left.status} to ${right.status}`
+      });
+    }
+
+    if (left.failedStage !== right.failedStage) {
+      differences.push({
+        metric: "failedStage",
+        left: left.failedStage,
+        right: right.failedStage,
+        summary: `failed stage changed from ${left.failedStage ?? "none"} to ${right.failedStage ?? "none"}`
+      });
+    }
+
+    if ((left.failureSummary?.code ?? null) !== (right.failureSummary?.code ?? null)) {
+      differences.push({
+        metric: "failureCode",
+        left: left.failureSummary?.code ?? null,
+        right: right.failureSummary?.code ?? null,
+        summary: `failure code changed from ${left.failureSummary?.code ?? "none"} to ${right.failureSummary?.code ?? "none"}`
+      });
+    }
+
+    if ((left.failureSummary?.retryable ?? false) !== (right.failureSummary?.retryable ?? false)) {
+      differences.push({
+        metric: "retryable",
+        left: left.failureSummary?.retryable ?? false,
+        right: right.failureSummary?.retryable ?? false,
+        summary: `retryability changed from ${left.failureSummary?.retryable ?? false} to ${right.failureSummary?.retryable ?? false}`
+      });
+    }
+
+    const leftBoundaryHit = left.boundarySummary !== null;
+    const rightBoundaryHit = right.boundarySummary !== null;
+    if (leftBoundaryHit !== rightBoundaryHit) {
+      differences.push({
+        metric: "boundaryHit",
+        left: leftBoundaryHit,
+        right: rightBoundaryHit,
+        summary: `boundary-hit changed from ${leftBoundaryHit} to ${rightBoundaryHit}`
+      });
+    }
+
+    return differences;
+  }
+
+  private buildSummaryMeaningfulDifferences(
+    left: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    right: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>
+  ) {
+    const differences: Array<{
+      metric: string;
+      left: number;
+      right: number;
+      delta: number;
+      trend: "up" | "down";
+      summary: string;
+    }> = [];
+    const trackedMetrics = [
+      { metric: "totalRuns", left: left.totalRuns, right: right.totalRuns },
+      { metric: "failedRuns", left: left.byStatus.failed, right: right.byStatus.failed },
+      { metric: "retryableFailures", left: left.retryableFailures, right: right.retryableFailures },
+      { metric: "nonRetryableFailures", left: left.nonRetryableFailures, right: right.nonRetryableFailures },
+      {
+        metric: "runsWithBoundaryHit",
+        left: left.boundaryStats.runsWithBoundaryHit,
+        right: right.boundaryStats.runsWithBoundaryHit
+      }
+    ];
+
+    for (const item of trackedMetrics) {
+      const delta = item.right - item.left;
+      if (delta === 0) {
+        continue;
+      }
+
+      differences.push({
+        metric: item.metric,
+        left: item.left,
+        right: item.right,
+        delta,
+        trend: delta > 0 ? "up" : "down",
+        summary: `${item.metric} changed by ${delta > 0 ? "+" : ""}${delta} (${item.left} -> ${item.right})`
+      });
+    }
+
+    return differences;
+  }
+
+  private buildSourceFamilyDeltas(
+    left: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    right: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>
+  ) {
+    const sourceFamilies = Array.from(
+      new Set([...Object.keys(left.bySourceFamily), ...Object.keys(right.bySourceFamily)])
+    ).sort((a, b) => a.localeCompare(b));
+
+    return sourceFamilies
+      .map(sourceFamily => {
+        const leftBucket = left.bySourceFamily[sourceFamily] ?? {
+          totalRuns: 0,
+          failedRuns: 0,
+          retryableFailures: 0,
+          nonRetryableFailures: 0,
+          runsWithBoundaryHit: 0
+        };
+        const rightBucket = right.bySourceFamily[sourceFamily] ?? {
+          totalRuns: 0,
+          failedRuns: 0,
+          retryableFailures: 0,
+          nonRetryableFailures: 0,
+          runsWithBoundaryHit: 0
+        };
+        const deltas = {
+          totalRuns: rightBucket.totalRuns - leftBucket.totalRuns,
+          failedRuns: rightBucket.failedRuns - leftBucket.failedRuns,
+          retryableFailures: rightBucket.retryableFailures - leftBucket.retryableFailures,
+          nonRetryableFailures: rightBucket.nonRetryableFailures - leftBucket.nonRetryableFailures,
+          runsWithBoundaryHit: rightBucket.runsWithBoundaryHit - leftBucket.runsWithBoundaryHit
+        };
+
+        return {
+          sourceFamily,
+          left: leftBucket,
+          right: rightBucket,
+          deltas
+        };
+      })
+      .filter(
+        item =>
+          item.deltas.totalRuns !== 0 ||
+          item.deltas.failedRuns !== 0 ||
+          item.deltas.retryableFailures !== 0 ||
+          item.deltas.nonRetryableFailures !== 0 ||
+          item.deltas.runsWithBoundaryHit !== 0
+      );
+  }
+
+  private buildIssueHotspotSlice(
+    left: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    right: Awaited<ReturnType<DocumentRunsService["getKnowledgeBaseRunSummary"]>>,
+    sourceFamilyDeltas: ReturnType<DocumentRunsService["buildSourceFamilyDeltas"]>
+  ) {
+    const leftHotspot = this.resolveTopIssueHotspot(left.bySourceFamily);
+    const rightHotspot = this.resolveTopIssueHotspot(right.bySourceFamily);
+
+    const dominantShift = sourceFamilyDeltas
+      .map(item => {
+        const leftIssueSignalScore = this.buildIssueSignalScore(item.left);
+        const rightIssueSignalScore = this.buildIssueSignalScore(item.right);
+        const leftIssueConcentration = this.buildIssueConcentration(item.left);
+        const rightIssueConcentration = this.buildIssueConcentration(item.right);
+
+        return {
+          sourceFamily: item.sourceFamily,
+          leftIssueSignalScore,
+          rightIssueSignalScore,
+          issueSignalDelta: rightIssueSignalScore - leftIssueSignalScore,
+          leftIssueConcentration,
+          rightIssueConcentration,
+          issueConcentrationDelta: rightIssueConcentration - leftIssueConcentration
+        };
+      })
+      .filter(item => item.issueSignalDelta !== 0 || item.issueConcentrationDelta !== 0)
+      .sort((a, b) => this.compareDominantShiftCandidates(a, b))[0] ?? null;
+
+    return {
+      leftHotspot,
+      rightHotspot,
+      dominantShift
+    };
+  }
+
+  private compareDominantShiftCandidates(
+    a: {
+      sourceFamily: string;
+      leftIssueSignalScore: number;
+      rightIssueSignalScore: number;
+      issueSignalDelta: number;
+      leftIssueConcentration: number;
+      rightIssueConcentration: number;
+      issueConcentrationDelta: number;
+    },
+    b: {
+      sourceFamily: string;
+      leftIssueSignalScore: number;
+      rightIssueSignalScore: number;
+      issueSignalDelta: number;
+      leftIssueConcentration: number;
+      rightIssueConcentration: number;
+      issueConcentrationDelta: number;
+    }
+  ) {
+    const concentrationDeltaGap = Math.abs(b.issueConcentrationDelta) - Math.abs(a.issueConcentrationDelta);
+    if (concentrationDeltaGap !== 0) {
+      return concentrationDeltaGap;
+    }
+
+    const issueSignalDeltaGap = Math.abs(b.issueSignalDelta) - Math.abs(a.issueSignalDelta);
+    if (issueSignalDeltaGap !== 0) {
+      return issueSignalDeltaGap;
+    }
+
+    const rightConcentrationGap = b.rightIssueConcentration - a.rightIssueConcentration;
+    if (rightConcentrationGap !== 0) {
+      return rightConcentrationGap;
+    }
+
+    const rightSignalGap = b.rightIssueSignalScore - a.rightIssueSignalScore;
+    if (rightSignalGap !== 0) {
+      return rightSignalGap;
+    }
+
+    return a.sourceFamily.localeCompare(b.sourceFamily);
+  }
+
+  private resolveTopIssueHotspot(
+    bySourceFamily: Record<
+      string,
+      {
+        totalRuns: number;
+        failedRuns: number;
+        retryableFailures: number;
+        nonRetryableFailures: number;
+        runsWithBoundaryHit: number;
+      }
+    >
+  ) {
+    const candidates = Object.entries(bySourceFamily)
+      .map(([sourceFamily, bucket]) => {
+        const issueSignalScore = this.buildIssueSignalScore(bucket);
+        return {
+          sourceFamily,
+          totalRuns: bucket.totalRuns,
+          issueSignalScore,
+          issueConcentration: this.buildIssueConcentration(bucket)
+        };
+      })
+      .filter(item => item.issueSignalScore > 0)
+      .sort((a, b) => {
+        if (b.issueConcentration !== a.issueConcentration) {
+          return b.issueConcentration - a.issueConcentration;
+        }
+
+        if (b.issueSignalScore !== a.issueSignalScore) {
+          return b.issueSignalScore - a.issueSignalScore;
+        }
+
+        return a.sourceFamily.localeCompare(b.sourceFamily);
+      });
+
+    return candidates[0] ?? null;
+  }
+
+  private buildIssueSignalScore(bucket: {
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  }) {
+    return bucket.retryableFailures + bucket.nonRetryableFailures + bucket.runsWithBoundaryHit;
+  }
+
+  private buildIssueConcentration(bucket: {
+    totalRuns: number;
+    retryableFailures: number;
+    nonRetryableFailures: number;
+    runsWithBoundaryHit: number;
+  }) {
+    if (bucket.totalRuns <= 0) {
+      return 0;
+    }
+
+    return this.buildIssueSignalScore(bucket) / bucket.totalRuns;
   }
 
   async listKnowledgeBaseRuns(knowledgeBaseId: string, input: ListKnowledgeBaseDocumentRunsInput) {
@@ -753,5 +1197,25 @@ export class DocumentRunsService {
     return {
       gte: cutoff
     } satisfies Prisma.DateTimeFilter;
+  }
+
+  private resolveSourceFamily(sourceType: string) {
+    if (sourceType === "web_page") {
+      return "web";
+    }
+
+    if (sourceType === "feed") {
+      return "feed";
+    }
+
+    if (sourceType === "sitemap") {
+      return "sitemap";
+    }
+
+    if (sourceType === "upload") {
+      return "upload";
+    }
+
+    return "other";
   }
 }

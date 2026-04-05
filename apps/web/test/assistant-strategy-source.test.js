@@ -1,7 +1,10 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
-const { resolve } = require("node:path");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const assistantPagePath = resolve(__dirname, "../src/pages/assistant/AssistantPage.tsx");
 

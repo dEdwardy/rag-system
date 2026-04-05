@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="RAG System is a local workspace for chatting with documents, managing knowledge bases, and inspecting traces."
+    />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%234f46e5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='18' fill='url(%23g)'/%3E%3Cpath d='M21 17h14c9 0 14 6 14 15s-5 15-14 15H21V17zm13 23c6 0 9-3 9-8s-3-8-9-8h-6v16h6z' fill='white'/%3E%3C/svg%3E"
@@ -41,6 +45,7 @@
         document.documentElement.dataset.themeColor = themeColor;
         document.documentElement.dataset.themeLayout = themeLayout;
         document.documentElement.style.backgroundColor = themeColor === "constrained-light" ? "#f3f7f6" : "#0f1017";
+        document.documentElement.style.colorScheme = themeColor === "constrained-light" ? "light" : "dark";
       })();
     </script>
   </head>

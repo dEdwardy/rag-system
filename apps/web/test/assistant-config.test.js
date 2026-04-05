@@ -1,7 +1,9 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { resolve } = require("node:path");
-const { pathToFileURL } = require("node:url");
+import test from "node:test";
+import assert from "node:assert/strict";
+import { resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const helperModuleUrl = pathToFileURL(
   resolve(__dirname, "../src/pages/assistant/assistant-config-form.ts")
@@ -48,7 +50,7 @@ test("assistant config defaults apply when answer policy is missing", async () =
     }
   );
 
-  assert.equal(values.responseStyle, "concise");
+  assert.equal(values.responseStyle, "balanced");
   assert.equal(values.tone, "neutral");
   assert.equal(values.outputFormat, "paragraph");
   assert.equal(values.language, "auto");

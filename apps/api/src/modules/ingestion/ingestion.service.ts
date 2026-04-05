@@ -1,4 +1,5 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { DocumentProcessingStage, DocumentRunFailedStage, DocumentStatus } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { getDocumentIngestionQueueName } from "../../infra/queue/queue.constants";
@@ -8,22 +9,21 @@ import { DocumentRunsService } from "../document-runs/document-runs.service";
 import { DocumentIngestionProcessor } from "./document-ingestion.processor";
 import type { DocumentIngestionJob } from "./document-ingestion.processor";
 
-const { Worker } = require("bullmq");
-
 @Injectable()
 export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IngestionService.name);
-  private readonly connection;
-  private worker?: any;
+  private readonly runtimeConfig;
+  private databasePollTimer?: NodeJS.Timeout;
+  private databasePollInFlight = false;
 
   constructor(
-    private readonly queueService: QueueService,
-    private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
+    @Inject(QueueService) private readonly queueService: QueueService,
+    @Inject(QueueRuntimeConfigService) private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
     private readonly documentIngestionProcessor: DocumentIngestionProcessor,
     private readonly prisma: PrismaService,
     private readonly documentRunsService: DocumentRunsService
   ) {
-    this.connection = this.queueRuntimeConfigService.createRedisConnection();
+    this.runtimeConfig = this.queueRuntimeConfigService.getConfig();
   }
 
   enqueueDocument(documentId: string, documentVersion?: number) {
@@ -31,22 +31,267 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    if (!this.queueRuntimeConfigService.getConfig().enableDocumentIngestionWorker) {
+    this.logger.log("IngestionService onModuleInit entered.");
+    const runtimeConfig = this.runtimeConfig ?? this.queueRuntimeConfigService.getConfig();
+
+    if (!runtimeConfig.enableDocumentIngestionWorker) {
       this.logger.log("Document ingestion worker startup disabled by runtime config.");
       return;
     }
 
-    this.worker = new Worker(
-      getDocumentIngestionQueueName(),
-      async (job: DocumentIngestionJob) => this.documentIngestionProcessor.processDocument(job),
-      {
-        connection: this.connection
+    if (runtimeConfig.provider === "database") {
+      this.startDatabaseWorker();
+      return;
+    }
+
+    if (runtimeConfig.provider === "pgmq") {
+      void Promise.resolve().then(() => this.startPgmqWorker()).catch(error => {
+        this.logWorkerLoopError("pgmq startup", error);
+      });
+      return;
+    }
+  }
+
+  private startDatabaseWorker() {
+    this.logger.log("Starting database-backed document ingestion worker.");
+    this.databasePollTimer = setInterval(() => {
+      void this.runWorkerPollSafely("database", () => this.pollDatabaseQueue());
+    }, this.runtimeConfig.databasePollIntervalMs);
+
+    void this.runWorkerPollSafely("database", () => this.pollDatabaseQueue());
+  }
+
+  private async startPgmqWorker() {
+    this.logger.log("Starting pgmq-backed document ingestion worker.");
+    this.logger.log("Ensuring pgmq ingestion queue is ready.");
+    await this.queueService.ensureDocumentIngestionQueueReady();
+    this.logger.log("Pgmq ingestion queue is ready.");
+
+    this.databasePollTimer = setInterval(() => {
+      void this.runWorkerPollSafely("pgmq", () => this.pollPgmqQueue());
+    }, this.runtimeConfig.databasePollIntervalMs);
+
+    void this.runWorkerPollSafely("pgmq", () => this.pollPgmqQueue());
+  }
+
+  private async runWorkerPollSafely(workerName: string, operation: () => Promise<void>) {
+    try {
+      await operation();
+    } catch (error) {
+      this.logWorkerLoopError(workerName, error);
+    }
+  }
+
+  private async pollDatabaseQueue() {
+    if (this.databasePollInFlight) {
+      return;
+    }
+
+    this.databasePollInFlight = true;
+
+    try {
+      while (true) {
+        const job = await this.claimNextDatabaseJob();
+        if (!job) {
+          break;
+        }
+
+        await this.processDatabaseJob(job);
       }
+    } finally {
+      this.databasePollInFlight = false;
+    }
+  }
+
+  private async pollPgmqQueue() {
+    if (this.databasePollInFlight) {
+      return;
+    }
+
+    this.databasePollInFlight = true;
+
+    try {
+      while (true) {
+        const job = await this.claimNextPgmqJob();
+        if (!job) {
+          break;
+        }
+
+        await this.processPgmqJob(job);
+      }
+    } finally {
+      this.databasePollInFlight = false;
+    }
+  }
+
+  private async claimNextDatabaseJob() {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }>>(
+      Prisma.sql`
+        WITH next_job AS (
+          SELECT "id"
+          FROM "IngestionQueueJob"
+          WHERE "queueName" = ${getDocumentIngestionQueueName()}
+            AND "status" = 'pending'
+            AND "availableAt" <= NOW()
+          ORDER BY "availableAt" ASC, "createdAt" ASC
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE "IngestionQueueJob"
+        SET
+          "status" = 'processing',
+          "lockedAt" = NOW(),
+          "attempts" = "attempts" + 1,
+          "updatedAt" = NOW()
+        WHERE "id" IN (SELECT "id" FROM next_job)
+        RETURNING "id", "documentId", "documentVersion", "attempts", "maxAttempts"
+      `
     );
 
-    this.worker.on("failed", (job: { id?: string; data?: DocumentIngestionJob["data"]; attemptsMade?: number; opts?: { attempts?: number } } | undefined, error: Error) => {
-      void this.handleFailedJob(job, error);
-    });
+    return rows[0] ?? null;
+  }
+
+  private async claimNextPgmqJob() {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        msg_id: bigint | number;
+        read_ct: number;
+        message: { documentId?: string; documentVersion?: number | null } | null;
+      }>
+    >(
+      Prisma.sql`
+        SELECT msg_id, read_ct, message
+        FROM pgmq.read(
+          ${getDocumentIngestionQueueName()},
+          ${this.runtimeConfig.pgmqVisibilityTimeoutSeconds}::integer,
+          1::integer,
+          NULL::jsonb
+        )
+      `
+    );
+
+    return rows[0] ?? null;
+  }
+
+  private async processDatabaseJob(job: { id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }) {
+    try {
+      await this.documentIngestionProcessor.processDocument({
+        id: job.id,
+        data: {
+          documentId: job.documentId,
+          documentVersion: job.documentVersion ?? undefined
+        }
+      });
+
+      await this.prisma.$executeRaw(
+        Prisma.sql`
+          UPDATE "IngestionQueueJob"
+          SET
+            "status" = 'completed',
+            "lockedAt" = NULL,
+            "lastError" = NULL,
+            "updatedAt" = NOW()
+          WHERE "id" = ${job.id}
+        `
+      );
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker error.");
+      const shouldRetry = job.attempts < job.maxAttempts;
+      const nextAvailableAt = new Date(Date.now() + this.runtimeConfig.databaseRetryDelayMs);
+
+      await this.prisma.$executeRaw(
+        Prisma.sql`
+          UPDATE "IngestionQueueJob"
+          SET
+            "status" = ${shouldRetry ? "pending" : "failed"},
+            "availableAt" = ${shouldRetry ? nextAvailableAt : new Date()},
+            "lockedAt" = NULL,
+            "lastError" = ${normalizedError.message},
+            "updatedAt" = NOW()
+          WHERE "id" = ${job.id}
+        `
+      );
+
+      await this.handleFailedJob(
+        {
+          id: job.id,
+          data: {
+            documentId: job.documentId,
+            documentVersion: job.documentVersion ?? undefined
+          },
+          attemptsMade: job.attempts,
+          opts: {
+            attempts: job.maxAttempts
+          }
+        },
+        normalizedError
+      );
+    }
+  }
+
+  private async processPgmqJob(job: {
+    msg_id: bigint | number;
+    read_ct: number;
+    message: { documentId?: string; documentVersion?: number | null } | null;
+  }) {
+    const message = job.message ?? {};
+    const documentId = typeof message.documentId === "string" ? message.documentId : undefined;
+    const documentVersion = typeof message.documentVersion === "number" ? message.documentVersion : undefined;
+
+    if (!documentId) {
+      await this.prisma.$executeRaw(
+        Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
+      );
+      return;
+    }
+
+    try {
+      await this.documentIngestionProcessor.processDocument({
+        id: `pgmq-${String(job.msg_id)}`,
+        data: {
+          documentId,
+          documentVersion
+        }
+      });
+
+      await this.prisma.$executeRaw(
+        Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
+      );
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker error.");
+      const shouldRetry = job.read_ct < this.runtimeConfig.databaseMaxAttempts;
+
+      if (shouldRetry) {
+        await this.prisma.$executeRaw(
+          Prisma.sql`
+            SELECT pgmq.set_vt(
+              ${getDocumentIngestionQueueName()},
+              ${job.msg_id},
+              ${Math.max(1, Math.ceil(this.runtimeConfig.databaseRetryDelayMs / 1000))}::integer
+            )
+          `
+        );
+      } else {
+        await this.prisma.$executeRaw(
+          Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
+        );
+      }
+
+      await this.handleFailedJob(
+        {
+          id: `pgmq-${String(job.msg_id)}`,
+          data: {
+            documentId,
+            documentVersion
+          },
+          attemptsMade: job.read_ct,
+          opts: {
+            attempts: this.runtimeConfig.databaseMaxAttempts
+          }
+        },
+        normalizedError
+      );
+    }
   }
 
   private async handleFailedJob(
@@ -135,8 +380,15 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     return DocumentRunFailedStage.parsing;
   }
 
+  private logWorkerLoopError(workerName: string, error: unknown) {
+    const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker polling error.");
+    this.logger.error(`Document ingestion ${workerName} worker poll failed: ${normalizedError.message}`, normalizedError.stack);
+  }
+
   async onModuleDestroy() {
-    await this.worker?.close();
-    await this.connection.quit();
+    if (this.databasePollTimer) {
+      clearInterval(this.databasePollTimer);
+      this.databasePollTimer = undefined;
+    }
   }
 }

@@ -1,0 +1,7 @@
+ragas>=0.1.0
+datasets>=2.14.0
+openai>=1.0.0
+pandas>=2.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+jupyter>=1.0.0  # 可选，用于分析

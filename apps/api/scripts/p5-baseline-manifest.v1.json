@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "p5-baseline-manifest.v1",
+  "waveId": "p5-baseline-manifest-wave",
+  "status": "approved_baseline_v1_materialized",
+  "storage": {
+    "canonicalPath": "apps/api/scripts/p5-baseline-manifest.v1.json",
+    "boundary": "repo-tracked baseline manifest; not a new runtime storage layer"
+  },
+  "baselineSource": {
+    "declarationId": "p5-engineering-baseline-v1-source",
+    "sourceType": "eval_question_set_demo_replay_seed",
+    "sourceVersion": "p5-v1-demo-replay.questions.v1",
+    "sourceSnapshotRef": "apps/api/src/modules/eval-question-sets/eval-question-sets.service.ts#P5_V1_DEMO_REPLAY_QUESTIONS"
+  },
+  "runnerReplayBinding": {
+    "replayId": "p5-v1",
+    "endpointPath": "/eval/question-sets/demo-replays/p5-v1/run",
+    "approvedShortlistSet": "p5-demo-shortlist-4plus1",
+    "approvedReplayDemoId": "demo-eval-report-replay",
+    "approvedReplayCapabilitySurfaceId": "eval-report-replay"
+  },
+  "questionSet": {
+    "id": "p5-engineering-baseline-v1",
+    "version": "v1",
+    "questions": [
+      {
+        "id": "p5-v1-q1-capability-summary",
+        "question": "Summarize one key capability of this knowledge base and cite evidence.",
+        "capabilitySurfaceId": "ask-grounded-capability-summary",
+        "annotations": {
+          "intent": "Verify the assistant can summarize a concrete KB capability with grounding context.",
+          "expectedAnswerPoints": [
+            "Names at least one concrete capability supported by the current system.",
+            "Keeps the summary concise and tied to repository-relevant behavior.",
+            "Includes evidence/citation-style grounding in the answer."
+          ],
+          "mustNotMiss": [
+            "Capability statement must stay within currently landed scope.",
+            "Should not claim unsupported new platform features."
+          ],
+          "acceptableExpressionRange": [
+            "Short paragraph",
+            "Bullet list with one capability plus evidence"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "citation_or_traceable_source_reference",
+            "minimumRequiredFactClass": "one_concrete_capability_fact",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "p5-v1-q2-source-family-support",
+        "question": "What source families are currently supported for external ingestion?",
+        "capabilitySurfaceId": "external-source-family-readability",
+        "annotations": {
+          "intent": "Verify supported external source families are listed accurately and without expansion drift.",
+          "expectedAnswerPoints": [
+            "Covers web page source.",
+            "Covers feed source (RSS/Atom).",
+            "Covers sitemap urlset and root sitemapindex expansion (one layer)."
+          ],
+          "mustNotMiss": [
+            "Do not claim unsupported new source families.",
+            "Avoid implying nested sitemapindex support."
+          ],
+          "acceptableExpressionRange": [
+            "Concise list of currently supported source families",
+            "One short paragraph plus compact list"
+          ],
+          "criticalEvidenceExpectation": {
+            "expectedEvidenceType": "source-family-contract-reference",
+            "minimumRequiredFactClass": "supported_source_family_set",
+            "failureWhenEvidenceMissing": true
+          }
+        }
+      },
+      {
+        "id": "p5-v1-q3-no-hit-guardrail",
+        "question": "Ask a likely no-hit question and explain why the answer may be insufficient.",
+        "capabilitySurfaceId": "no-hit-insufficient-context-guardrail",
+        "annotations": {
+          "intent": "Verify no-hit and insufficient-context behavior stays explicit and non-hallucinatory.",
+          "expectedAnswerPoints": [
+            "Recognizes that retrieval may have no matching evidence.",
+            "Explains insufficient-context limitation clearly.",
+            "Keeps fallback/no-hit explanation aligned with guardrail semantics."
+          ],
+          "mustNotMiss": [
+            "Must not fabricate unsupported factual claims.",
+            "Should include explicit insufficiency signal when context is missing."
+          ],
+          "acceptableExpressionRange": [
+            "Short explanation in one paragraph",
+            "Two-part response: insufficiency statement + reason"
+          ],
+          "criticalEvidenceExpectation": null
+        }
+      }
+    ]
+  },
+  "annotationLayers": {
+    "defaultLayerRequired": [
+      "intent",
+      "expectedAnswerPoints",
+      "mustNotMiss",
+      "acceptableExpressionRange"
+    ],
+    "criticalEvidenceLayerOptional": {
+      "field": "criticalEvidenceExpectation",
+      "requiredFieldsWhenPresent": [
+        "expectedEvidenceType",
+        "minimumRequiredFactClass",
+        "failureWhenEvidenceMissing"
+      ],
+      "criticalQuestionIds": [
+        "p5-v1-q1-capability-summary",
+        "p5-v1-q2-source-family-support"
+      ]
+    }
+  }
+}

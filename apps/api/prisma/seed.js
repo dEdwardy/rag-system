@@ -1,6 +1,11 @@
 const { PrismaClient } = require("@prisma/client");
+const { hashSync } = require("bcryptjs");
 
 const prisma = new PrismaClient();
+
+const DEFAULT_LOCAL_LOGIN_EMAIL = (process.env.AUTH_DEV_DEFAULT_USER_EMAIL ?? "default-user@example.com").trim();
+const DEFAULT_LOCAL_LOGIN_PASSWORD = (process.env.AUTH_DEV_DEFAULT_USER_PASSWORD ?? "local-password-1").trim();
+const DEFAULT_LOCAL_LOGIN_PASSWORD_HASH = hashSync(DEFAULT_LOCAL_LOGIN_PASSWORD, 10);
 
 async function main() {
   const tenant = await prisma.tenant.upsert({
@@ -25,14 +30,20 @@ async function main() {
     update: {
       tenantId: tenant.id,
       name: "Default User",
-      email: "default-user@example.com",
+      displayName: "Default User",
+      email: DEFAULT_LOCAL_LOGIN_EMAIL,
+      passwordHash: DEFAULT_LOCAL_LOGIN_PASSWORD_HASH,
+      role: "owner",
       status: "active"
     },
     create: {
       id: "default-user",
       tenantId: tenant.id,
       name: "Default User",
-      email: "default-user@example.com",
+      displayName: "Default User",
+      email: DEFAULT_LOCAL_LOGIN_EMAIL,
+      passwordHash: DEFAULT_LOCAL_LOGIN_PASSWORD_HASH,
+      role: "owner",
       status: "active"
     }
   });
@@ -63,6 +74,8 @@ async function main() {
       id: "default-retrieval-profile"
     },
     update: {
+      tenantId: tenant.id,
+      ownerId: user.id,
       name: "Default Retrieval Profile",
       topK: 3,
       chunkWindow: 0,
@@ -73,6 +86,8 @@ async function main() {
     },
     create: {
       id: "default-retrieval-profile",
+      tenantId: tenant.id,
+      ownerId: user.id,
       name: "Default Retrieval Profile",
       topK: 3,
       chunkWindow: 0,
@@ -92,7 +107,8 @@ async function main() {
       kbId: knowledgeBase.id,
       name: "Default Assistant",
       description: "Default personal knowledge base assistant",
-      systemPrompt: "Answer using the retrieved knowledge base content and cite the source snippets.",
+      systemPrompt:
+        "Answer only from the retrieved knowledge base content. If the retrieved sources explicitly contain the answer, answer directly and cite the supporting snippets. Only say the information is insufficient when the retrieved sources still do not support a reliable answer.",
       retrievalProfileId: retrievalProfile.id,
       status: "active"
     },
@@ -102,7 +118,8 @@ async function main() {
       kbId: knowledgeBase.id,
       name: "Default Assistant",
       description: "Default personal knowledge base assistant",
-      systemPrompt: "Answer using the retrieved knowledge base content and cite the source snippets.",
+      systemPrompt:
+        "Answer only from the retrieved knowledge base content. If the retrieved sources explicitly contain the answer, answer directly and cite the supporting snippets. Only say the information is insufficient when the retrieved sources still do not support a reliable answer.",
       retrievalProfileId: retrievalProfile.id,
       status: "active"
     }

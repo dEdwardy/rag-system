@@ -44,7 +44,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       "file",
       new Blob(
         [
-          `# Integration Test\n\n## Facts\n\nVectors for the first implementation are stored under storage/vectors. Document ingestion is processed through Redis-backed background jobs. ${marker}`
+          `# Integration Test\n\n## Facts\n\nDocument ingestion uses the database-backed queue baseline. Retrieval uses vector search with lexical fallback. ${marker}`
         ],
         { type: "text/markdown" }
       ),
@@ -75,7 +75,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        question: `Where are vectors stored and what processes ingestion? Include marker ${marker}`
+        question: `What ingestion and retrieval baselines are described? Include marker ${marker}`
       })
     });
     assert.equal(askResponse.status, 201);
@@ -83,7 +83,7 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
     const askResult = await askResponse.json();
     assert.equal(typeof askResult.conversationId, "string");
     assert.equal(typeof askResult.traceId, "string");
-    assert.match(askResult.answer, /storage\/vectors/i);
+    assert.match(askResult.answer, /database-backed queue/i);
     assert.ok(Array.isArray(askResult.citations));
     assert.ok(askResult.citations.length >= 1);
     assert.ok(Array.isArray(askResult.retrievedChunks));
@@ -240,6 +240,18 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
       primaryIssue: trace.qualityEvaluationJson.primaryIssue,
       retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
       retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
+      strategySummary: {
+        retrievalMode: trace.retrievalMetadataJson.execution.actualMode,
+        strategyMode: trace.retrievalMetadataJson.strategy.candidateSelection.mode,
+        retrievalQuerySource: trace.retrievalMetadataJson.queryRewrite.finalQuerySource,
+        rewriteEnabled: trace.retrievalMetadataJson.queryRewrite.enabled,
+        rewriteApplied: trace.rewrittenQuery !== null,
+        rewriteUsedFallback: trace.retrievalMetadataJson.queryRewrite.usedFallback,
+        rewritePromptId: trace.retrievalMetadataJson.queryRewrite.promptId,
+        rewriteModelName: trace.retrievalMetadataJson.queryRewrite.modelName,
+        fallbackReason: trace.retrievalMetadataJson.execution.fallbackReason,
+        usedFallback: trace.retrievalMetadataJson.execution.usedFallback
+      },
       generationMode: trace.answeringMetadataJson.generationMode,
       contextMode: trace.answeringMetadataJson.contextMode,
       rewriteApplied: trace.rewrittenQuery !== null,
@@ -296,13 +308,13 @@ test("API flow integration: upload -> ready -> ask -> trace", async () => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        question: `After reindex, where are vectors stored and what processes ingestion? Include marker ${marker}`
+        question: `After reindex, what ingestion and retrieval baselines are described? Include marker ${marker}`
       })
     });
     assert.equal(askAfterReindexResponse.status, 201);
 
     const askAfterReindex = await askAfterReindexResponse.json();
-    assert.match(askAfterReindex.answer, /storage\/vectors/i);
+    assert.match(askAfterReindex.answer, /database-backed queue/i);
     assert.ok(Array.isArray(askAfterReindex.retrievedChunks));
     assert.ok(askAfterReindex.retrievedChunks.some(chunk => chunk.content.includes(marker)));
     assert.ok(Array.isArray(askAfterReindex.contextGroups));

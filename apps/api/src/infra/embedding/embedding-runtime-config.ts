@@ -1,6 +1,6 @@
 const DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_OPENAI_EMBEDDING_DIMENSIONS = 1536;
-const OPENAI_EMBEDDING_API_URL = "https://api.openai.com/v1/embeddings";
+const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const FALLBACK_EMBEDDING_MODEL = "hash-v1";
 const FALLBACK_EMBEDDING_DIMENSIONS = 256;
 
@@ -9,6 +9,8 @@ const OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL: Record<string, number> = {
   "text-embedding-3-large": 3072,
   "text-embedding-ada-002": 1536
 };
+
+const OPENAI_EMBEDDING_API_MODES = ["standard", "multimodal_text"] as const;
 
 export type EmbeddingProvider = "ollama" | "openai" | "fallback";
 
@@ -46,12 +48,14 @@ export type OllamaEmbeddingRuntimeConfig = {
   baseUrl: string;
   model: string;
   modelSource: Extract<EmbeddingModelSource, "env:OLLAMA_EMBEDDING_MODEL" | "env:OLLAMA_MODEL">;
+  expectedDimensions: number | null;
 };
 
 export type OpenAiEmbeddingRuntimeConfig = {
   provider: "openai";
   apiKey: string;
   apiUrl: string;
+  apiMode: (typeof OPENAI_EMBEDDING_API_MODES)[number];
   model: string;
   modelSource: Extract<EmbeddingModelSource, "env:OPENAI_EMBEDDING_MODEL" | "default:OPENAI_EMBEDDING_MODEL">;
   expectedDimensions: number;
@@ -166,12 +170,19 @@ export function resolveProviderResponseDimensions(
 }
 
 function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbeddingRuntimeConfig | null {
-  const baseUrl = normalizeBaseUrl(readOptionalString(env.OLLAMA_BASE_URL));
+  const baseUrl = normalizeConfiguredBaseUrl(readOptionalString(env.OLLAMA_BASE_URL), "OLLAMA_BASE_URL");
   const embeddingModel = readOptionalString(env.OLLAMA_EMBEDDING_MODEL);
   const fallbackModel = readOptionalString(env.OLLAMA_MODEL);
+  const expectedDimensions = readOptionalPositiveInteger(env.OLLAMA_EMBEDDING_DIMENSIONS, "OLLAMA_EMBEDDING_DIMENSIONS");
   const model = embeddingModel ?? fallbackModel;
 
   if (!baseUrl && !model) {
+    if (expectedDimensions != null) {
+      throw new EmbeddingRuntimeConfigError(
+        "Invalid embedding config: OLLAMA_EMBEDDING_DIMENSIONS is set but Ollama embedding provider is disabled. Set OLLAMA_BASE_URL and OLLAMA_EMBEDDING_MODEL (or OLLAMA_MODEL), or unset OLLAMA_EMBEDDING_DIMENSIONS."
+      );
+    }
+
     return null;
   }
 
@@ -191,41 +202,72 @@ function resolveOllamaEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OllamaEmbe
     provider: "ollama",
     baseUrl,
     model,
-    modelSource: embeddingModel ? "env:OLLAMA_EMBEDDING_MODEL" : "env:OLLAMA_MODEL"
+    modelSource: embeddingModel ? "env:OLLAMA_EMBEDDING_MODEL" : "env:OLLAMA_MODEL",
+    expectedDimensions
   };
 }
 
 function resolveOpenAiEmbeddingRuntimeConfig(env: NodeJS.ProcessEnv): OpenAiEmbeddingRuntimeConfig | null {
   const apiKey = readOptionalString(env.OPENAI_API_KEY);
   const explicitModel = readOptionalString(env.OPENAI_EMBEDDING_MODEL);
+  const explicitDimensions = readOptionalPositiveInteger(env.OPENAI_EMBEDDING_DIMENSIONS, "OPENAI_EMBEDDING_DIMENSIONS");
+  const apiMode = resolveOpenAiEmbeddingApiMode(env.OPENAI_EMBEDDING_API_MODE);
+  const configuredBaseUrl = readOptionalString(env.OPENAI_BASE_URL);
+  const openAiBaseUrl = configuredBaseUrl
+    ? normalizeConfiguredBaseUrl(configuredBaseUrl, "OPENAI_BASE_URL")
+    : DEFAULT_OPENAI_BASE_URL;
 
   if (!apiKey && !explicitModel) {
     return null;
   }
 
   if (!apiKey) {
+    const configuredBaseUrlHint = configuredBaseUrl ? ` OPENAI_BASE_URL is currently set to "${openAiBaseUrl}".` : "";
+
     throw new EmbeddingRuntimeConfigError(
-      "Invalid embedding config: OPENAI_API_KEY must be set when OPENAI_EMBEDDING_MODEL is configured."
+      `Invalid embedding config: OPENAI_API_KEY must be set when OPENAI_EMBEDDING_MODEL is configured (current OPENAI_EMBEDDING_MODEL="${explicitModel}"). OpenAI embedding provider is currently unusable and will not be selected until OPENAI_API_KEY is configured.${configuredBaseUrlHint}`
     );
   }
 
   const model = explicitModel ?? DEFAULT_OPENAI_EMBEDDING_MODEL;
-  const expectedDimensions = OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL[model];
+  const expectedDimensions = OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL[model] ?? explicitDimensions;
 
   if (!expectedDimensions) {
+    const endpointHint = ` Resolved OpenAI embedding endpoint: ${openAiBaseUrl}/embeddings.`;
+    const customModelHint = explicitModel
+      ? " For custom OpenAI-compatible embedding models, set OPENAI_EMBEDDING_DIMENSIONS to the provider's embedding size."
+      : "";
+
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported. Supported values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.`
+      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${model}" is unsupported without explicit dimensions. Supported built-in values: ${Object.keys(OPENAI_EMBEDDING_DIMENSIONS_BY_MODEL).join(", ")}.${customModelHint}${endpointHint}`
     );
   }
 
   return {
     provider: "openai",
     apiKey,
-    apiUrl: OPENAI_EMBEDDING_API_URL,
+    apiUrl: `${openAiBaseUrl}${apiMode === "multimodal_text" ? "/embeddings/multimodal" : "/embeddings"}`,
+    apiMode,
     model,
     modelSource: explicitModel ? "env:OPENAI_EMBEDDING_MODEL" : "default:OPENAI_EMBEDDING_MODEL",
     expectedDimensions
   };
+}
+
+function resolveOpenAiEmbeddingApiMode(rawValue: string | undefined): (typeof OPENAI_EMBEDDING_API_MODES)[number] {
+  const normalizedValue = rawValue?.trim();
+
+  if (!normalizedValue) {
+    return "standard";
+  }
+
+  if ((OPENAI_EMBEDDING_API_MODES as readonly string[]).includes(normalizedValue)) {
+    return normalizedValue as (typeof OPENAI_EMBEDDING_API_MODES)[number];
+  }
+
+  throw new EmbeddingRuntimeConfigError(
+    `Invalid embedding config: OPENAI_EMBEDDING_API_MODE="${normalizedValue}" is unsupported. Expected one of: ${OPENAI_EMBEDDING_API_MODES.join(", ")}.`
+  );
 }
 
 function validateResolvedEmbeddingDimensions(
@@ -233,12 +275,25 @@ function validateResolvedEmbeddingDimensions(
   dimensions: number
 ) {
   if (providerConfig.provider !== "openai") {
+    if (providerConfig.expectedDimensions != null && dimensions !== providerConfig.expectedDimensions) {
+      throw new EmbeddingRuntimeConfigError(
+        `Invalid embedding config: OLLAMA_EMBEDDING_DIMENSIONS=${providerConfig.expectedDimensions} but Ollama model "${providerConfig.model}" returned ${dimensions} dimensions.`
+      );
+    }
+
     return dimensions;
   }
 
   if (dimensions !== providerConfig.expectedDimensions) {
+    const modelSourceHint = ` Resolved OpenAI embedding model source: ${providerConfig.modelSource}.`;
+    const defaultModelHint =
+      providerConfig.modelSource === "default:OPENAI_EMBEDDING_MODEL"
+        ? ` OPENAI_EMBEDDING_MODEL is unset, so the default embedding model "${providerConfig.model}" is currently in use.`
+        : "";
+    const endpointHint = ` Resolved OpenAI embedding endpoint: ${providerConfig.apiUrl}.`;
+
     throw new EmbeddingRuntimeConfigError(
-      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${providerConfig.model}" expects ${providerConfig.expectedDimensions} dimensions, but the provider returned ${dimensions}.`
+      `Invalid embedding config: OPENAI_EMBEDDING_MODEL="${providerConfig.model}" expects ${providerConfig.expectedDimensions} dimensions, but the provider returned ${dimensions}. Check OPENAI_EMBEDDING_MODEL and OPENAI_BASE_URL compatibility for the embedding endpoint.${modelSourceHint}${endpointHint}${defaultModelHint}`
     );
   }
 
@@ -250,8 +305,47 @@ function readOptionalString(value: string | undefined) {
   return normalized ? normalized : null;
 }
 
-function normalizeBaseUrl(value: string | null) {
-  return value ? value.replace(/\/$/, "") : null;
+function readOptionalPositiveInteger(value: string | undefined, envName: string) {
+  const normalized = readOptionalString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new EmbeddingRuntimeConfigError(
+      `Invalid embedding config: ${envName} must be a positive integer when configured.`
+    );
+  }
+
+  return parsed;
+}
+
+function normalizeConfiguredBaseUrl(value: string | null, envName: "OPENAI_BASE_URL" | "OLLAMA_BASE_URL") {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.replace(/\/$/, "");
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new EmbeddingRuntimeConfigError(
+      `Invalid embedding config: ${envName} must be a valid http(s) URL when configured (current ${envName}="${normalized}").`
+    );
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new EmbeddingRuntimeConfigError(
+      `Invalid embedding config: ${envName} must use http:// or https:// when configured (current ${envName}="${normalized}").`
+    );
+  }
+
+  return normalized;
 }
 
 function formatProviderLabel(provider: Exclude<EmbeddingProvider, "fallback">) {

@@ -18,7 +18,7 @@ The current ask pipeline runs retrieval in this order:
 
 Implementation entry point:
 
-- [apps/api/src/infra/llm/llm.service.ts](/D:/FeProjects/rag-system/apps/api/src/infra/llm/llm.service.ts)
+- [apps/api/src/infra/llm/llm.service.ts](../apps/api/src/infra/llm/llm.service.ts)
 
 Current behavior:
 
@@ -76,6 +76,14 @@ Current shape includes:
   - `finalQuerySource`
   - `usedFallback`
   - `promptId`
+- `strategySummary`
+  - `retrievalMode`
+  - `strategyMode`
+  - `retrievalQuerySource`
+  - `rewriteApplied`
+  - `rewriteUsedFallback`
+  - `fallbackReason`
+  - `usedFallback`
 - `execution`
   - `retrievalQuery`
   - `topK`
@@ -144,6 +152,14 @@ Current `traceSummary` shape includes:
 - `primaryIssue`
 - `retrievalMode`
 - `retrievalQuerySource`
+- `strategySummary`
+  - `retrievalMode`
+  - `strategyMode`
+  - `retrievalQuerySource`
+  - `rewriteApplied`
+  - `rewriteUsedFallback`
+  - `fallbackReason`
+  - `usedFallback`
 - `generationMode`
 - `contextMode`
 - `rewriteApplied`
@@ -230,8 +246,8 @@ Fallback behavior:
 
 ## Related files
 
-- [apps/api/src/modules/assistants/assistants.controller.ts](/D:/FeProjects/rag-system/apps/api/src/modules/assistants/assistants.controller.ts)
-- [apps/api/src/modules/retrieval/retrieval.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/retrieval/retrieval.service.ts)
-- [apps/api/src/modules/traces/traces.service.ts](/D:/FeProjects/rag-system/apps/api/src/modules/traces/traces.service.ts)
-- [apps/api/test/retrieval.test.js](/D:/FeProjects/rag-system/apps/api/test/retrieval.test.js)
-- [apps/api/test/api-flow.test.js](/D:/FeProjects/rag-system/apps/api/test/api-flow.test.js)
+- [apps/api/src/modules/assistants/assistants.controller.ts](../apps/api/src/modules/assistants/assistants.controller.ts)
+- [apps/api/src/modules/retrieval/retrieval.service.ts](../apps/api/src/modules/retrieval/retrieval.service.ts)
+- [apps/api/src/modules/traces/traces.service.ts](../apps/api/src/modules/traces/traces.service.ts)
+- [apps/api/test/retrieval.test.js](../apps/api/test/retrieval.test.js)
+- [apps/api/test/api-flow.test.js](../apps/api/test/api-flow.test.js)

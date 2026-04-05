@@ -1,34 +1,52 @@
 import { Injectable } from "@nestjs/common";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import type { EmbeddingProvider, EmbeddingVector } from "../embedding/embedding-runtime-config";
-import { RetrievalProfileFilters } from "../../modules/retrieval-profiles/retrieval-profile.schemas";
+import { join } from "node:path";
+import { resolveStorageRoot } from "../storage/storage-root";
 import {
-  IndexedEmbeddingDiagnostics,
-  ReplaceDocumentVectorsInput,
-  VectorSearchResult,
-  VectorSearchInput,
-  VectorStoreCompatibilityError,
-  VectorStoreEmbeddingDiagnostics,
-  VectorStore,
-  VectorStoreRecord
-} from "./vector-store.types";
+  assertCompatibleEmbeddingConfigs,
+  buildEmbeddingDiagnostics,
+  matchesVectorStoreFilters,
+  shouldReplaceIndexedFallbackDuringIndexing,
+  summarizeIndexedEmbedding,
+  summarizeUpsertEmbeddings
+} from "./vector-store.shared";
+import { ReplaceDocumentVectorsInput, VectorSearchInput, VectorSearchResult, VectorStore, VectorStoreRecord } from "./vector-store.types";
 
 @Injectable()
 export class VectorStoreService implements VectorStore {
-  private readonly storageRoot = resolve(process.cwd(), process.env.STORAGE_ROOT ?? "storage");
+  private readonly storageRoot = resolveStorageRoot();
   private readonly vectorRoot = join(this.storageRoot, "vectors");
 
   async replaceDocumentVectors(input: ReplaceDocumentVectorsInput) {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
-    const nextDocumentEmbedding = this.summarizeUpsertEmbeddings(input);
-    const existingIndexedEmbedding = this.summarizeIndexedEmbedding(
+    const nextDocumentEmbedding = summarizeUpsertEmbeddings(input);
+    const existingIndexedEmbedding = summarizeIndexedEmbedding(
       records.filter(record => record.documentId !== input.documentId),
       input.kbId
     );
 
+    if (
+      nextDocumentEmbedding &&
+      existingIndexedEmbedding &&
+      shouldReplaceIndexedFallbackDuringIndexing({
+        active: nextDocumentEmbedding,
+        indexed: existingIndexedEmbedding
+      })
+    ) {
+      const migratedRecords = input.records.map(({ embedding, ...record }) => ({
+        ...record,
+        modelName: embedding.modelName,
+        dimensions: embedding.dimensions,
+        vector: embedding.vector,
+        updatedAt: new Date().toISOString()
+      }));
+
+      await this.writeKnowledgeBaseVectors(input.kbId, migratedRecords);
+      return;
+    }
+
     if (nextDocumentEmbedding && existingIndexedEmbedding) {
-      this.assertCompatibleEmbeddingConfigs({
+      assertCompatibleEmbeddingConfigs({
         kbId: input.kbId,
         active: nextDocumentEmbedding,
         indexed: existingIndexedEmbedding,
@@ -63,11 +81,11 @@ export class VectorStoreService implements VectorStore {
 
   async search(input: VectorSearchInput): Promise<VectorSearchResult> {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
-    const indexedEmbedding = this.summarizeIndexedEmbedding(records, input.kbId);
-    const embeddingDiagnostics = this.buildEmbeddingDiagnostics(input.queryEmbedding, indexedEmbedding);
+    const indexedEmbedding = summarizeIndexedEmbedding(records, input.kbId);
+    const embeddingDiagnostics = buildEmbeddingDiagnostics(input.queryEmbedding, indexedEmbedding);
 
     if (indexedEmbedding) {
-      this.assertCompatibleEmbeddingConfigs({
+      assertCompatibleEmbeddingConfigs({
         kbId: input.kbId,
         active: embeddingDiagnostics.active,
         indexed: indexedEmbedding,
@@ -81,10 +99,10 @@ export class VectorStoreService implements VectorStore {
     const matches = records
       .filter(record => {
         if (documentIds.size === 0) {
-          return this.matchesFilters(record, input.filters);
+          return matchesVectorStoreFilters(record, input.filters);
         }
 
-        return documentIds.has(record.documentId) && this.matchesFilters(record, input.filters);
+        return documentIds.has(record.documentId) && matchesVectorStoreFilters(record, input.filters);
       })
       .map(record => ({
         chunkId: record.chunkId,
@@ -100,63 +118,6 @@ export class VectorStoreService implements VectorStore {
       matches,
       embedding: embeddingDiagnostics
     };
-  }
-
-  private matchesFilters(record: VectorStoreRecord, filters?: RetrievalProfileFilters) {
-    if (!filters) {
-      return true;
-    }
-
-    if (filters.documentIds?.include && !filters.documentIds.include.includes(record.documentId)) {
-      return false;
-    }
-
-    if (filters.documentIds?.exclude && filters.documentIds.exclude.includes(record.documentId)) {
-      return false;
-    }
-
-    const sectionTitle = record.sectionTitle ?? "";
-    const sectionTitleIncludes = filters.sectionTitles?.include;
-    const sectionTitleContains = filters.sectionTitles?.contains;
-    if (sectionTitleIncludes || sectionTitleContains) {
-      const matchesInclude = sectionTitleIncludes?.includes(sectionTitle) ?? false;
-      const normalizedSectionTitle = sectionTitle.toLowerCase();
-      const matchesContains =
-        sectionTitleContains?.some(value => normalizedSectionTitle.includes(value.toLowerCase())) ?? false;
-
-      if (!matchesInclude && !matchesContains) {
-        return false;
-      }
-    }
-
-    if (filters.sectionTitles?.exclude && filters.sectionTitles.exclude.includes(sectionTitle)) {
-      return false;
-    }
-
-    if (filters.pageNumbers?.exclude && record.pageNo != null && filters.pageNumbers.exclude.includes(record.pageNo)) {
-      return false;
-    }
-
-    if (
-      filters.pageNumbers?.include ||
-      filters.pageNumbers?.min !== undefined ||
-      filters.pageNumbers?.max !== undefined
-    ) {
-      if (record.pageNo == null) {
-        return false;
-      }
-
-      const matchesInclude = filters.pageNumbers.include?.includes(record.pageNo) ?? false;
-      const matchesRange =
-        (filters.pageNumbers.min === undefined || record.pageNo >= filters.pageNumbers.min) &&
-        (filters.pageNumbers.max === undefined || record.pageNo <= filters.pageNumbers.max);
-
-      if (!matchesInclude && !matchesRange) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   private async readKnowledgeBaseVectors(kbId: string) {
@@ -185,168 +146,6 @@ export class VectorStoreService implements VectorStore {
 
   private getKnowledgeBasePath(kbId: string) {
     return join(this.vectorRoot, `${kbId}.json`);
-  }
-
-  private summarizeUpsertEmbeddings(input: ReplaceDocumentVectorsInput) {
-    if (input.records.length === 0) {
-      return null;
-    }
-
-    const uniqueConfigs = new Map<string, EmbeddingVector>();
-
-    for (const record of input.records) {
-      uniqueConfigs.set(this.createEmbeddingConfigKey(record.embedding.modelName, record.embedding.dimensions), record.embedding);
-    }
-
-    if (uniqueConfigs.size > 1) {
-      throw new VectorStoreCompatibilityError(
-        `Embedding index compatibility error for knowledge base "${input.kbId}": document "${input.documentId}" resolved multiple embedding configs in one indexing batch (${[...uniqueConfigs.values()]
-          .map(embedding => this.formatEmbeddingConfig(embedding.modelName, embedding.dimensions))
-          .join(", ")}). Indexing requires one embedding config per knowledge base.`
-      );
-    }
-
-    const [embedding] = [...uniqueConfigs.values()];
-    return this.buildActiveEmbeddingDiagnostics(embedding);
-  }
-
-  private summarizeIndexedEmbedding(records: VectorStoreRecord[], kbId: string): IndexedEmbeddingDiagnostics | null {
-    if (records.length === 0) {
-      return null;
-    }
-
-    const uniqueConfigs = new Map<
-      string,
-      {
-        provider: EmbeddingProvider;
-        model: string;
-        modelName: string;
-        dimensions: number;
-        recordCount: number;
-        documentIds: Set<string>;
-      }
-    >();
-
-    for (const record of records) {
-      const parsed = this.parseEmbeddingModelName(record.modelName, kbId);
-      const key = this.createEmbeddingConfigKey(record.modelName, record.dimensions);
-      const existing = uniqueConfigs.get(key);
-
-      if (existing) {
-        existing.recordCount += 1;
-        existing.documentIds.add(record.documentId);
-        continue;
-      }
-
-      uniqueConfigs.set(key, {
-        provider: parsed.provider,
-        model: parsed.model,
-        modelName: record.modelName,
-        dimensions: record.dimensions,
-        recordCount: 1,
-        documentIds: new Set([record.documentId])
-      });
-    }
-
-    if (uniqueConfigs.size > 1) {
-      throw new VectorStoreCompatibilityError(
-        `Embedding index compatibility error for knowledge base "${kbId}": indexed vectors contain multiple embedding configs (${[...uniqueConfigs.values()]
-          .map(config => `${this.formatEmbeddingConfig(config.modelName, config.dimensions)} x${config.recordCount}`)
-          .join(", ")}). Retrieval and indexing require one embedding config per knowledge base. Reindex the affected documents before continuing.`
-      );
-    }
-
-    const [config] = [...uniqueConfigs.values()];
-    return {
-      provider: config.provider,
-      model: config.model,
-      modelName: config.modelName,
-      dimensions: config.dimensions,
-      fallbackState: config.provider === "fallback" ? "local_deterministic" : "none",
-      recordCount: config.recordCount,
-      documentCount: config.documentIds.size
-    };
-  }
-
-  private buildEmbeddingDiagnostics(
-    queryEmbedding: EmbeddingVector,
-    indexedEmbedding: IndexedEmbeddingDiagnostics | null
-  ): VectorStoreEmbeddingDiagnostics {
-    return {
-      active: this.buildActiveEmbeddingDiagnostics(queryEmbedding),
-      indexed: indexedEmbedding
-    };
-  }
-
-  private buildActiveEmbeddingDiagnostics(embedding: EmbeddingVector): VectorStoreEmbeddingDiagnostics["active"] {
-    return {
-      provider: embedding.provider,
-      model: embedding.model,
-      modelName: embedding.modelName,
-      dimensions: embedding.dimensions,
-      modelSource: embedding.provenance.modelSource,
-      dimensionsSource: embedding.provenance.dimensionsSource,
-      fallbackState: embedding.provenance.fallback
-    };
-  }
-
-  private assertCompatibleEmbeddingConfigs(input: {
-    kbId: string;
-    active: VectorStoreEmbeddingDiagnostics["active"];
-    indexed: IndexedEmbeddingDiagnostics;
-    action: "indexing" | "retrieval";
-    diagnostics?: VectorStoreEmbeddingDiagnostics;
-  }) {
-    const sameModel = input.active.modelName === input.indexed.modelName;
-    const sameDimensions = input.active.dimensions === input.indexed.dimensions;
-
-    if (sameModel && sameDimensions) {
-      return;
-    }
-
-    const actionLabel = input.action === "indexing" ? "Active indexing embedding config" : "Active retrieval embedding config";
-    throw new VectorStoreCompatibilityError(
-      `Embedding index compatibility error for knowledge base "${input.kbId}": ${actionLabel} ${this.formatEmbeddingConfig(
-        input.active.modelName,
-        input.active.dimensions
-      )} (fallback=${input.active.fallbackState}) is incompatible with indexed vectors ${this.formatEmbeddingConfig(
-        input.indexed.modelName,
-        input.indexed.dimensions
-      )} across ${input.indexed.documentCount} document(s). Reindex this knowledge base with one embedding config before continuing.`,
-      input.diagnostics ?? {
-        active: input.active,
-        indexed: input.indexed
-      }
-    );
-  }
-
-  private parseEmbeddingModelName(modelName: string, kbId: string) {
-    const separatorIndex = modelName.indexOf(":");
-    const provider = separatorIndex > 0 ? modelName.slice(0, separatorIndex) : null;
-    const model = separatorIndex > 0 ? modelName.slice(separatorIndex + 1) : null;
-
-    if (!provider || !model || !this.isEmbeddingProvider(provider)) {
-      throw new VectorStoreCompatibilityError(
-        `Embedding index compatibility error for knowledge base "${kbId}": indexed vectors contain an invalid embedding model name "${modelName}".`
-      );
-    }
-
-    return {
-      provider,
-      model
-    };
-  }
-
-  private isEmbeddingProvider(value: string): value is EmbeddingProvider {
-    return value === "ollama" || value === "openai" || value === "fallback";
-  }
-
-  private createEmbeddingConfigKey(modelName: string, dimensions: number) {
-    return `${modelName}::${dimensions}`;
-  }
-
-  private formatEmbeddingConfig(modelName: string, dimensions: number) {
-    return `${modelName} (${dimensions}d)`;
   }
 
   private cosineSimilarity(left: number[], right: number[]) {

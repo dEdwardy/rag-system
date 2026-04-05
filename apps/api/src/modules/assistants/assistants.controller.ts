@@ -1,8 +1,13 @@
-import { Body, Controller, Get, HttpException, Param, Patch, Post, Res } from "@nestjs/common";
-import { askAssistantSchema, updateAssistantSchema } from "./assistant.schemas";
+import { Body, Controller, Get, HttpException, Param, Patch, Post, Req, Res } from "@nestjs/common";
+import { AskAssistantInput, askAssistantSchema, UpdateAssistantInput, updateAssistantSchema } from "./assistant.schemas";
 import { AssistantsService } from "./assistants.service";
 import { AskAssistantService } from "./ask-assistant.service";
+import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
+import { AuthenticatedRoute } from "../auth/auth-route-policy";
+import { buildHttpExceptionResponse } from "../../common/http-exception.filter";
+import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
+@AuthenticatedRoute()
 @Controller("assistants")
 export class AssistantsController {
   constructor(
@@ -11,41 +16,82 @@ export class AssistantsController {
   ) {}
 
   @Get()
-  listAssistants() {
-    return this.assistantsService.listAssistants();
+  listAssistants(@Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.assistantsService.listAssistants(authContext.identity);
   }
 
   @Get(":id")
-  getAssistant(@Param("id") id: string) {
-    return this.assistantsService.getAssistant(id);
+  getAssistant(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.assistantsService.getAssistant(id, authContext.identity);
   }
 
   @Patch(":id")
-  updateAssistant(@Param("id") id: string, @Body() body: unknown) {
-    const input = updateAssistantSchema.parse(body);
-    return this.assistantsService.updateAssistant(id, input);
+  updateAssistant(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(updateAssistantSchema)) input: UpdateAssistantInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.assistantsService.updateAssistant(id, input, authContext.identity);
   }
 
   @Post(":id/ask")
-  async askAssistant(@Param("id") id: string, @Body() body: unknown) {
-    const input = askAssistantSchema.parse(body);
+  async askAssistant(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(askAssistantSchema)) input: AskAssistantInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
     return this.askAssistantService.askAssistant({
       assistantId: id,
       question: input.question,
-      conversationId: input.conversationId
+      conversationId: input.conversationId,
+      authContext: request?.authContext
     });
   }
 
   @Post(":id/ask/stream")
-  async askAssistantStream(@Param("id") id: string, @Body() body: unknown, @Res() response: any) {
-    const input = askAssistantSchema.parse(body);
+  async askAssistantStream(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Body(new ZodValidationPipe(askAssistantSchema)) input: AskAssistantInput,
+    @Res() response: any,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    let streamStarted = false;
+    let streamFinished = false;
+    const abortController = new AbortController();
+    const requestWithEvents = request as ApiRequestWithAuthContext & {
+      on?: (event: string, listener: () => void) => void;
+    };
 
-    response.status(200);
-    response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
-    response.setHeader("Cache-Control", "no-cache, no-transform");
-    response.setHeader("Connection", "keep-alive");
+    const abortStream = () => {
+      if (!streamFinished && !abortController.signal.aborted) {
+        abortController.abort();
+      }
+    };
+
+    requestWithEvents?.on?.("aborted", abortStream);
+    requestWithEvents?.on?.("close", abortStream);
+    response?.on?.("close", abortStream);
 
     const writeEvent = (event: Record<string, unknown>) => {
+      if (!streamStarted) {
+        streamStarted = true;
+        response.status(200);
+        response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("Connection", "keep-alive");
+      }
       response.write(`${JSON.stringify(event)}\n`);
     };
 
@@ -54,19 +100,36 @@ export class AssistantsController {
         assistantId: id,
         question: input.question,
         conversationId: input.conversationId,
+        authContext: request?.authContext,
+        signal: abortController.signal,
         onEvent: event => {
           writeEvent(event);
         }
       });
     } catch (error) {
+      if (this.isAbortError(error) || abortController.signal.aborted) {
+        return;
+      }
+
+      if (!streamStarted) {
+        const result = buildHttpExceptionResponse(error, `/assistants/${id}/ask/stream`);
+        response.status(result.statusCode).json(result.body);
+        return;
+      }
+
       const diagnostics = this.buildStreamErrorDiagnostics(error);
       writeEvent({
         type: "error",
         ...diagnostics
       });
     } finally {
+      streamFinished = true;
       response.end();
     }
+  }
+
+  private isAbortError(error: unknown) {
+    return error instanceof Error && error.name === "AbortError";
   }
 
   private buildStreamErrorDiagnostics(error: unknown) {

@@ -7,7 +7,7 @@
 
 Use this document as the default OpenCode operating guide for this repository.
 
-It complements [AGENTS.md](/D:/FeProjects/rag-system/AGENTS.md) and [Auto Dev Workflow](/D:/FeProjects/rag-system/docs/auto-dev-workflow.md):
+It complements [AGENTS.md](../AGENTS.md) and [Auto Dev Workflow](auto-dev-workflow.md):
 
 - `AGENTS.md` defines repository-level execution rules
 - `docs/auto-dev-workflow.md` defines the broader agent-driven repository workflow
@@ -38,7 +38,7 @@ Recommended interpretation:
 
 ## OMO Policy
 
-Do not treat OMO as the default main workflow.
+Treat OMO here as a policy guardrail for broad multi-agent delegation, not as the default main workflow.
 
 Use OMO only as a build-stage accelerator when the main increment is already chosen and the auxiliary work is clearly isolated.
 
@@ -49,12 +49,13 @@ Allowed OMO side tasks:
 - draft docs update
 - review diff for bugs or regressions
 - add isolated focused tests
-- perform frontend adaptation that does not alter backend contracts
+- perform isolated frontend adaptation that does not alter backend contracts
 
 Do not delegate these decisions to broad OMO orchestration:
 
 - choosing the next main increment
 - changing high-risk backend core logic through multiple parallel agents
+- expanding ordinary frontend work into broad parallel fan-out by default
 - final verification conclusion
 - final integration and closeout
 
@@ -75,6 +76,7 @@ Default execution bias:
 
 - normal path: `plan -> build`
 - low-risk work may go straight to `build -> fast verify`
+- frontend work should still default to main-control execution; only isolated low-risk adaptation should use helper delegation
 - only escalate to review for risky behavior or contract changes
 
 TDD and validation guidance:
@@ -101,6 +103,7 @@ First decide which execution mode should be used for this task:
 Decision rules:
 - If the task touches high-risk core logic such as retrieval, answering, ingestion, streaming, schema/persistence, or shared contracts, default to main-control execution and do not enable broad OMO
 - If the task is a small low-risk change such as metadata exposure, trace field addition, small API follow-up, or low-risk bugfix, allow direct `build -> fast verify`
+- If the task is frontend-only, keep the same main-control default; only use helper delegation for isolated low-risk adaptation that does not affect backend contracts
 - Only allow limited OMO when there are clearly isolated, low-coupling helper tasks that can be closed independently
 - OMO helper agents may only be used for: explaining current code paths, identifying focused validation, drafting docs updates, reviewing diffs, adding isolated focused tests, and frontend adaptation that does not affect backend contracts
 - Final verification, final integration, and final conclusions must be completed serially by the main agent
@@ -145,6 +148,61 @@ In normal day-to-day repository work:
 - start with `plan`
 - switch to `build` after the increment is identified
 - for low-risk changes, direct `build -> fast verify` is acceptable
+- frontend work still follows the same single-main-control-first default, with bounded helper use only for isolated low-risk adaptation
 - only use limited OMO help during `build` when the side task is clearly bounded
 - keep final validation and completion judgment with the main agent
+
+## Commit / Push / PR Norms
+
+- commit only files that belong to the current task
+- check `git status --short` before staging so unrelated edits stay out
+- use a concise commit message that matches the change type (`feat:`, `fix:`, `perf:`, `docs:`, `refactor:`)
+- if a task produces multiple commits, push the branch as soon as a clearly bounded, independently verifiable sub-increment is validated; do not keep finished commits sitting locally unless you still expect immediate follow-up edits on the same small unit
+- this applies to both frontend and backend tasks
+- push only after the task's focused validation passes
+- prefer updating the existing branch / PR instead of rewriting history unless a rebase is explicitly needed
+- when the same branch is updated, assume the existing PR will sync automatically; do not restate "new PR" unless the branch changes or a new PR is explicitly requested
+- default PR target follows the current task direction; for web frontend work in this repo, use `dev` unless the task says otherwise
+- if a PR has conflicts, resolve them locally, rerun the smallest relevant validation, then update the same PR when possible
+- keep frontend-only work frontend-only unless the task explicitly requires backend changes
 - do not default to `review` or heavy TDD for small edits
+
+## Unattended Execution
+
+For unattended `opencode-loop` runs, use the repo-local Node harness first:
+
+- `opencode-loop` is a repo-local development harness, not part of the product runtime
+- keep this section as the operational exception, not the center of the workflow docs
+- `pnpm loop:start|stop|status` runs the cross-platform Node harness under `.opencode/loop/harness/`
+- use `pnpm loop:start|stop|status` for day-to-day management on Windows or WSL/Linux
+- the runner reads the current materialized wave snapshot, selects the next runnable queue item in order, and invokes `opencode run --agent build` for the first item, then `opencode run --continue --agent build` on the same session for following items in the same compact wave when possible
+- each spawned session title should expose queue progress clearly, including current task index and remaining task count
+- prefer compact waves over per-task fresh sessions when the tasks are closely related; this keeps repeated context cost lower without turning the harness into a long-lived autonomous agent
+- use the per-item timeout guard (`OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`) so a stuck queue item is terminated and marked `needs_replan` instead of hanging the whole wave indefinitely
+- treat structured JSON `error` events from `opencode run --format json` as queue failures even when the process exit code is `0`, so false-success runs do not silently advance the wave
+- after each completed loop increment, commit the change before moving to the next item so work does not pile up in the checkout
+- do not push or open a PR after every commit; wait for a coherent wave to close, then push from `dev` when validation is green and the branch is unlikely to conflict
+
+## Parallel Worktrees
+
+When frontend and backend work need to proceed at the same time, prefer separate Git worktrees so each OpenCode session has its own checkout:
+
+- keep the main repository checkout for the backend or monorepo-wide session
+- create a second worktree for `apps/web` work
+- start each OpenCode session from the matching worktree so it loads the local `opencode.jsonc` and `AGENTS.md`
+- use worktrees when two sessions may modify files in parallel; do not rely on directory-only separation for concurrent edits
+
+Recommended doc wording:
+
+- fixed local branches: `dev/web` and `dev/api`
+- frontend worktree uses `dev/web`
+- backend worktree uses `dev/api`
+- rule: one session, one checkout, one local branch
+- rule: keep those two local branches stable; do not spin up extra branches unless it is a clearly new task
+- rule: check `git status` before every commit so unrelated edits stay out
+
+Typical layout:
+
+```bash
+git worktree add ../rag-system-web -b dev/web
+```

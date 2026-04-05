@@ -1,0 +1,34 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // This file also carries the frontend-local command templates.
+  // Model split rationale (kept as-is):
+  // - plan/review-risk keep gpt-5.4 for UI contract/planning quality on higher-risk decisions.
+  // - build keeps gpt-5.3-codex for fast, concrete implementation loops.
+  // - explore keeps gpt-5.3-mini for low-cost scoped code/doc retrieval.
+  "command": {
+    "plan": {
+      "agent": "rag-plan",
+      "model": "openai/gpt-5.4",
+      "description": "产出前端任务的最小可执行增量",
+      "template": "先阅读 AGENTS.md、apps/web/AGENTS.md、docs/next_steps_rag_project_plan.md、docs/current-progress.md、docs/current-dev-setup.md、README.md；如果前端任务依赖后端契约，再先读 apps/api/AGENTS.md 和 packages/shared。以 UI/交互、页面壳层、类型对齐、smoke 验证为优先，给出当前任务的最小计划。默认按 plan -> build 工作；若缺少对应 superpowers spec/plan，先补齐，再进入 build/实施。"
+    },
+    "build": {
+      "agent": "rag-build",
+      "model": "openai/gpt-5.3-codex",
+      "description": "按已确认计划实施并完成最小验证",
+      "template": "基于已确认的最小计划执行实现。优先 frontend-first、小步增量、快验证；不做无关重构。保持 Mantine/Tailwind v4 现有风格，必要时再对齐 backend contracts，但不要把前端任务扩展成后端改造。TDD 不是默认流程，仅在页面状态、共享契约、smoke 路径等改动时启用 light TDD。"
+    },
+    "explore": {
+      "agent": "rag-explore",
+      "description": "窄范围代码与文档检索",
+      "model": "openai/gpt-5.3-mini",
+      "template": "只做窄范围代码与文档检索、定位、对比与证据整理；优先查看 apps/web/src、apps/web/test、apps/api 对应契约和 shared types；不要扩展为完整实现任务。"
+    },
+    "review-risk": {
+      "agent": "rag-review",
+      "model": "openai/gpt-5.4",
+      "description": "仅用于高风险或合并前关键审查",
+      "template": "只审查高风险变更，如 UI contract、shared types、app shell、routing、state boot、smoke 流程、以及任何会影响 backend contracts 的改动；不要把 review 作为默认步骤；config/docs/style 小改不默认触发 review。"
+    }
+  }
+}

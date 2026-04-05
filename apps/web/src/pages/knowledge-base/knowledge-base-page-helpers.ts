@@ -52,3 +52,70 @@ export function buildKnowledgeBaseWorkspaceSummary({
     toneLabelKey
   };
 }
+
+export type KnowledgeBaseWorkspaceNextAction = {
+  action:
+    | "add_documents"
+    | "review_failed_documents"
+    | "wait_for_processing"
+    | "bind_assistant"
+    | "workspace_ready";
+  labelKey:
+    | "knowledgeBase.nextAction.addDocuments"
+    | "knowledgeBase.nextAction.reviewFailedDocuments"
+    | "knowledgeBase.nextAction.waitForProcessing"
+    | "knowledgeBase.nextAction.bindAssistant"
+    | "knowledgeBase.nextAction.workspaceReady";
+  actionHref: "/documents" | "/assistant" | "/";
+};
+
+export function buildKnowledgeBaseWorkspaceNextAction({
+  documents,
+  assistantCount
+}: {
+  documents: DocumentLike[];
+  assistantCount: number;
+}): KnowledgeBaseWorkspaceNextAction {
+  const summary = buildKnowledgeBaseWorkspaceSummary({
+    documents,
+    assistantCount
+  });
+
+  if (documents.length === 0) {
+    return {
+      action: "add_documents",
+      labelKey: "knowledgeBase.nextAction.addDocuments",
+      actionHref: "/documents"
+    };
+  }
+
+  if (summary.failedCount > 0) {
+    return {
+      action: "review_failed_documents",
+      labelKey: "knowledgeBase.nextAction.reviewFailedDocuments",
+      actionHref: "/documents"
+    };
+  }
+
+  if (summary.processingCount > 0) {
+    return {
+      action: "wait_for_processing",
+      labelKey: "knowledgeBase.nextAction.waitForProcessing",
+      actionHref: "/documents"
+    };
+  }
+
+  if (assistantCount === 0) {
+    return {
+      action: "bind_assistant",
+      labelKey: "knowledgeBase.nextAction.bindAssistant",
+      actionHref: "/assistant"
+    };
+  }
+
+  return {
+    action: "workspace_ready",
+    labelKey: "knowledgeBase.nextAction.workspaceReady",
+    actionHref: "/"
+  };
+}

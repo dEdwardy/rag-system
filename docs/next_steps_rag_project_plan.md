@@ -1,156 +1,158 @@
 # RAG 项目下一步计划
 
 > 文档角色：`current-primary`
-> 当前使用方式：当前阶段任务方向、优先级判断、superpowers 使用方式、AI review 策略，以本文档为主；`docs/current-progress.md` 主要承担进度记录和完成状态同步。
-
-更新时间：2026-03-22
+> 当前使用方式：作为现阶段任务方向、优先级判断和阶段边界的主文档；`docs/current-progress.md` 负责记录近期完成情况和验证基线。
+更新时间：2026-04-05
 
 ## 1. 当前判断
 
-当前项目已经完成：
+当前项目已经完成了以下主开发能力：
 
 - 本地优先 RAG MVP 主链路
-- ask / stream 的第一轮渐进式聊天体验
-- `PC Web` chat 的流处理与原生答案流式生成能力
-- external knowledge source 的第一轮最小增量：
+- ask / stream 渐进式聊天体验
+- `PC Web` chat 的主要承载
+- external knowledge source 第一轮能力：
   - web page
   - feed
   - sitemap
   - sitemap index
+- `P0` read-model / metadata convergence
+- `P1` auth/login 最小闭环
+- `P2` owner-only ACL baseline
+- `P3` external-source family + guardrails 主开发
+- `P5` eval / regression baseline 工程能力主开发
 
-当前阶段不应该再同时开启多个大方向，而应进入：
+当前阶段不应再把 `P3` 或 `P5` 当作默认下一条主开发波次。
+更准确的状态是：
+
+- `P3`：开发完成，进入维护态
+- `P4`：当前这一轮 web capability carry-through 收口已完成
+- `P5`：工程完成，进入基线治理 / 使用态
+- `P6`：已完成一轮 bounded closeout，后续只做小型可读性维护
+
+因此，接下来应保持：
 
 **单线推进 + 小步增量 + 每轮收口**
 
 ## 2. 当前优先级
 
-### P0：read-model / metadata convergence
+### Priority A: bounded maintenance and docs freshness
 
-`PC Web chat experience polish` 这一轮收口现在可以视为完成；当前 external knowledge source 的第一轮最小 source family 也已在现有范围内完成 backend / API 收口。接下来更合适的下一最小增量，不是继续把主线写成 external source expansion，也不是直接改 retrieval 行为语义，而是先做一轮 **read-model / metadata convergence**。
+目标：
 
-当前已完成的最小 source family：
+- 保持代码现实、项目状态、计划文档持续一致
+- 避免继续把已完成阶段描述成“当前主线”
+- 对 `P3/P4/P5/P6` 已完成区域只做窄范围维护
 
-- one direct `http` / `https` web page source
-- one direct RSS / Atom feed source
-- one direct sitemap `urlset` source
-- one root sitemap `sitemapindex` source that expands child direct sitemaps
+边界：
 
-当前这一轮建议优先关注：
+- 只做状态判断、文档和最小 bookkeeping 对齐，或已完成区域内的小型回归修补
+- 不借机扩写新 roadmap，不引入新的大架构方案
 
-- 保持 `backend / API first`
-- 保持 additive、behavior-preserving 的收口方式
-- 统一 ask response、trace summary、shared contract 的策略摘要表达
-- 提升 trace 与执行 metadata 的可读性，而不是继续堆新的策略开关
-- 让最终生效策略、fallback 原因、回答归因更直接可读
+完成标准：
 
-这一轮明确不做：
+- `current-context` / `current-progress` / `project-status-overview` / 本文档口径一致
+- 明确 `P3/P4/P5/P6` 的当前边界，避免把已完成收口重新写成待开发主线
+- 明确后续若开启新产品波次，需要先完成主线选择，避免重新回到“多方向并行”的模糊状态
 
-- retrieval 行为语义调整
-- 默认 `topK` / `scoreThreshold` / `rerank` 等策略改写
-- 新的 retrieval mode 扩展
-- 新一轮 external source family expansion
-- schema / persistence 大改
-- 前端大改版或新的 UI 主主题
+### Priority B: next product increment selection
 
-建议的切入顺序：
+当前这轮 `P4 web capability carry-through` 收口已经完成。如果继续做产品增量，下一步更适合先选择一个新的明确小波次，而不是继续把当前这轮 `P4` 收口写成待完成主线。
 
-1. 先收 ask response / trace summary / shared contract 的策略摘要表达
-2. 一次只补一个 read-model / metadata clarity 缺口
-3. 优先考虑：
-   - resolved strategy summary
-   - trace readability
-   - contract alignment
-   - focused validation
+当前代码现实：
 
-当前这一轮已经提供了足够基础，可直接支持这一收口方向：
+1. `DocumentsPage` 对现有 source family 的基础承载和第一轮收口已经落地
+   - `web page` URL 入口
+   - `feed` URL 入口
+   - `sitemap` URL 入口
+2. `Document Detail / Usage / Trace` 与 `Report center / eval` 的当前一轮阅读路径、参数 carry-through 和 focused regression 也已完成收口
+   - 其中 `Document Detail` 已将 ingestion / run 状态与下一步动作收敛到单一主状态区域，保持 scan-first 阅读路径不变
+   - `Documents` 工作台主状态 readout 已补齐失败 / 进行中 / 就绪三态的单一下一步跳转，分别指向失败文档诊断、进行中 run 观察与 trace 结果路径
+     - 失败态文案契约进一步收紧为“一行失败摘要 + 既有 trace follow-up”，优先产品语言，后端底层字段保持次级诊断位
+      - Report Center pre-run context 已补齐 URL carry-through 预览，运行前可核对 question set / assistant / baseline snapshot 与即将写入 URL 的参数
+      - Report Center result readout 已补齐 summary-before-details 速读顺序：先看 current inputs / summary / diff / weakest-item / next action，再进入详细图表与表格
+      - Report Center regression follow-up 文案已补齐可读性：回归原因标签使用产品语言，next action 明确落在现有 Run diff summary 与 Regression weakest items 路径
+3. 因此，后续更适合做的是：
+   - 已完成区域内的 bounded maintenance
+   - 或基于现有产品状态选择新的明确小波次
+4. 保持现有 API contract，不重做 source 管理后台
+5. 保持 `PC Web` 优先，不展开移动端适配
+ 6. 在当前个人/单工作区使用方式下，前端先按 `single primary KB` 收敛；多 KB / 多租户交互留到后续明确 workspace 语义后再处理
 
-- source run history / execution observability minimum increment: done
-  - document ingestion / external source run 已具备 run-level persistence
-  - 当前可通过 `GET /documents/:id/runs` 读取 `upload` / `reindex` / `external_resync` 的执行历史
-  - 当前也可通过 `GET /knowledge-bases/:id/document-runs` 在 knowledge-base 级别查看最近 run history
-  - knowledge-base 级 run history 已支持最小过滤和 limit，便于直接聚焦失败 run 或某类 source
-  - run list 默认已收紧 payload，仅在 `includeDiagnostics=true` 时返回大诊断 JSON
-  - 当前也可通过 `GET /knowledge-bases/:id/document-runs/summary` 读取轻量聚合概览
-  - summary 已能直接区分 retryable / non-retryable failures，并按 failed stage 聚合
-  - list / summary 当前都支持 `sinceHours` 时间窗过滤，更适合最近运行排查
-  - summary 当前也能直接给出 `latestRetryableFailure` 和 `latestSkipped` 作为诊断锚点
-  - source-fetch diagnostics 的 `retryable` 判定已按错误边界收口，不再把明显的 invalid payload / content-type 错误误记成可重试
-  - stale ingestion job 也会在 run history 中显式标记为 `skipped`
+建议执行顺序：
 
-### P1：external knowledge source follow-up（后续新波次）
+1. 在 `P3/P4/P5/P6` 已完成区域内继续做 bounded maintenance
+2. 如果开启新的产品增量，先明确单一主线和最小收口目标
+3. 对新主线采用 focused contract / regression 先行，而不是同时打开多个并行方向
 
-如果后续继续推进 external knowledge source，应视为新的后续增量，而不是当前波次未完成残项。
+不做：
 
-后续如重开该方向，仍优先保持：
+- 不把当前这轮 `P4` 已完成收口重新写成待开发 backlog
+- 不新增 source family
+- 不做 source platform / plugin 化
+- 不重写现有 backend ingestion contract
 
-- `backend / API first`
-- source stabilization 优先于 source 类型横向扩张
-- diagnostics / retry / re-sync / dedup guards / execution boundaries 优先
-- 继续复用既有 document creation / ingestion / indexing 主链路
+### Priority C: bounded maintenance only
 
-当前不建议把它重新拉回当前主线的原因：
+以下方向仍允许继续做，但只作为维护位，不作为主开发波次：
 
-- 当前 source family 已在现有范围内完成 backend / API 收口
-- 当前更高价值的最小增量，是把已落地的 retrieval / answering / trace metadata 进一步整理成稳定读模型
-- 这样后续无论是否重开 external source，都能在更稳定的 traceability / contract 基础上继续推进
+- `P3` source-family 内稳定性修补
+- `P5` baseline / replay / report 使用侧维护
+- `P6` readability / docs sync
+- API best-practices hardening follow-up（后续仅保留剩余小项，如扩大 pipe 化覆盖面、异常映射一致性维护、少量安全加固）
 
-### P2：PC Web 后续局部收口
+要求：
 
-只有在新能力接入直接影响当前页面承载时，才继续做局部 UI / UX 收口。
+- 必须是窄范围、回归导向、可验证的小改
+- 不得重新包装成新的 feature wave
+- 已完成的本轮 API hardening 收口包括：streaming pre-start 错误语义修正、公开 auth 路由限流、OAuth onboarding 事务边界、auth/bootstrap/queue 运行时配置收敛，以及一轮 `ZodValidationPipe + 参数 pipe` 校验迁移
+- 后续继续做后端输入校验 hardening 时，优先保留现有 `Zod` 作为单一 schema / type source，通过自定义 `ZodValidationPipe` 承接 `@Body()` / `@Query()` 校验，并按仓库实际主键形态为 `id` 等路由参数补合适的参数 pipe；当前仓库多数资源主键是 `cuid`，不应默认套用 `ParseUUIDPipe`。也不默认把当前 API 校验体系整体迁回 `class-validator` / `class-transformer` DTO 栈。
 
-控制原则：
+## 3. 阶段状态
 
-- 只做与当前新增能力直接相关的页面承载优化
-- 不再开启新一轮大范围 UI 重构
-- 继续坚持 `PC Web` 优先、移动端后置
+| Phase | Status | 说明 |
+| --- | --- | --- |
+| P0 | done | read-model / metadata convergence 已完成 |
+| P1 | done | auth/login 最小闭环已完成 |
+| P2 | done | owner-only ACL baseline 已完成 |
+| P3 | done / maintenance only | source family 和 guardrails 已落地 |
+| P4 | done / bounded follow-up only | 当前这轮 web capability carry-through 收口已完成，后续只做小型维护 |
+| P5 | done / governance only | eval runner / baseline / replay / report / quality gate 已落地 |
+| P6 | done / bounded follow-up only | observability readability 已完成，不扩成平台化改造 |
 
-## 3. 工作方式建议
+## 4. 不做什么
 
-建议执行方式：
+- 不把 `P3` / `P5` 重新当作默认下一条 feature wave
+- 不把当前这轮 `P4` 收口重新当作默认下一条 feature wave
+- 不做 broad refactor、架构重写、schema / persistence 大改
+- 不做新的 source family 扩展，除非已有 family 内能力被证明无法满足明确需求
+- 不把 observability 扩成新的平台方向
+- 不把 docs / queue / backlog bookkeeping 扩成独立产品方向
+- 不在没有明确收益时改 retrieval 语义、默认策略开关或模型分工
 
-1. 每一轮只推进一个主主题
-2. 每一轮先写清楚“做什么 / 不做什么”
-3. 优先做最小可验证增量
-4. 跑最小必要验证
-5. 更新 `docs/current-progress.md`
+## 5. focused validation
 
-关键原则：
+默认继续使用最小相关验证：
 
-- 不并行开多个主方向
-- 优先严格串行执行
-- 不并行跑重型测试或 build
-- 不把 AI review 和重型验证叠在一起
+- docs / queue sync：
+  - `git diff --check -- <files...>`
+- API focused test：
+  - `pnpm test:api:file -- test/<file>.test.js`
+- web focused test：
+  - `node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
 
-## 4. AI Review 策略
+当前维护态复用基线：
 
-保留当前仓库已采用的策略：
+- `P3` source-family maintenance：
+  - `pnpm test:api:file -- test/external-source-sync.test.js`
+  - `pnpm test:api:file -- test/fetch-with-retry.test.js`
+  - `pnpm test:api:file -- test/parsing.test.js`
+- `P6` observability maintenance：
+  - `pnpm test:api:file -- test/traces.service.test.js`
+  - `pnpm test:api:file -- test/ask-success.test.js`
+  - `node --test apps/web/test/trace-summary-contract.test.js`
+  - `node --test --test-name-pattern "document run" apps/web/test/document-run-observability.test.js`
 
-- 不默认自动 review
-- 只在高风险改动时手动 review diff
-- review 重点放在：
-  - logic bugs
-  - state consistency
-  - error handling gaps
-  - breaking behavior in the existing pipeline
+## 6. 一句话结论
 
-适合启用 AI review 的改动：
-
-- ask 主链路
-- stream
-- retrieval
-- ingestion
-- 接口协议
-- 数据库相关行为
-- orchestrator
-
-不适合启用 AI review 的改动：
-
-- UI 美化
-- 文案调整
-- 样式修改
-- 小重构
-- 一般配置项修改
-
-## 5. 一句话结论
-
-**`PC Web` 这轮 UI 收口已完成；当前更合适的下一最小增量是 read-model / metadata convergence：先收口 ask response、trace summary、shared contract 的策略摘要表达，并保持 behavior-preserving，不直接改 retrieval 行为语义。**
+`P0`、`P1`、`P2` 已完成，`P3`、当前这轮 `P4`、`P5`、`P6` 均已完成当前范围内的主开发或收口；接下来最合理的推进方式是维持 bounded maintenance，并在需要新增量时先选择一条新的明确单线主线。

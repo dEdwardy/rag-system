@@ -6,17 +6,27 @@ import { PrismaService } from "../../infra/database/prisma.service";
 export class ConversationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listConversations() {
+  private readonly defaultOrderBy = {
+    updatedAt: "desc" as const
+  };
+
+  listConversations(scope: { tenantId: string; userId: string }) {
     return this.prisma.conversation.findMany({
-      orderBy: {
-        updatedAt: "desc"
-      }
+      where: {
+        tenantId: scope.tenantId,
+        userId: scope.userId
+      },
+      orderBy: this.defaultOrderBy
     });
   }
 
-  async getConversation(id: string) {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id }
+  async getConversation(id: string, scope: { tenantId: string; userId: string }) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id,
+        tenantId: scope.tenantId,
+        userId: scope.userId
+      }
     });
 
     if (!conversation) {
@@ -35,7 +45,8 @@ export class ConversationsService {
     });
   }
 
-  touchConversation(id: string) {
+  async touchConversation(id: string, scope: { tenantId: string; userId: string }) {
+    await this.getConversation(id, scope);
     return this.prisma.conversation.update({
       where: { id },
       data: {
@@ -44,4 +55,3 @@ export class ConversationsService {
     });
   }
 }
-

@@ -12,6 +12,7 @@ import {
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -20,34 +21,198 @@ import {
   useReindexDocument,
   useUploadDocument
 } from "../../features/api/hooks";
+import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
 
 export function DocumentsPage() {
   const knowledgeBasesQuery = useKnowledgeBases();
-  const activeKnowledgeBase = knowledgeBasesQuery.data?.[0] ?? null;
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "default-kb");
-  const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "default-kb");
+  const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
+  const hasActiveKnowledgeBase = activeKnowledgeBase != null;
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
+  const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "");
   const reindexMutation = useReindexDocument();
   const { t, locale, formatDateTime } = useI18n();
+
+  const documents = documentsQuery.data ?? [];
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
-  const documentCount = documentsQuery.data?.length ?? 0;
-  const readyCount = documentsQuery.data?.filter(document => document.status === "ready").length ?? 0;
-  const processingCount =
-    documentsQuery.data?.filter(
-      document => document.status === "pending" || document.status === "processing"
-    ).length ?? 0;
-  const failedCount = documentsQuery.data?.filter(document => document.status === "failed").length ?? 0;
+  const { documentCount, readyCount, processingCount, failedCount } = useMemo(
+    () =>
+      documents.reduce(
+        (acc, document) => {
+          acc.documentCount += 1;
+          if (document.status === "ready") {
+            acc.readyCount += 1;
+          } else if (document.status === "pending" || document.status === "processing") {
+            acc.processingCount += 1;
+          } else if (document.status === "failed") {
+            acc.failedCount += 1;
+          }
+          return acc;
+        },
+        {
+          documentCount: 0,
+          readyCount: 0,
+          processingCount: 0,
+          failedCount: 0
+        }
+      ),
+    [documents]
+  );
   const hasProcessingDocuments = processingCount > 0;
+  const firstFailedDocument = useMemo(
+    () => documents.find(document => document.status === "failed") ?? null,
+    [documents]
+  );
+  const firstProcessingDocument = useMemo(
+    () => documents.find(document => document.status === "pending" || document.status === "processing") ?? null,
+    [documents]
+  );
+  const workspaceSurfaceState = useMemo(() => {
+    if (!hasActiveKnowledgeBase) {
+      return {
+        badgeColor: "gray",
+        badgeLabel: t("documents.workspaceStatusNoActiveKnowledgeBase"),
+        nextAction: t("documents.workspaceNextActionNoActiveKnowledgeBase"),
+        nextActionHref: "/knowledge-base",
+        nextActionLabel: t("documents.workspaceNextActionLinkNoActiveKnowledgeBase")
+      } as const;
+    }
+
+    if (failedCount > 0) {
+      return {
+        badgeColor: "red",
+        badgeLabel: t("documents.workspaceStatusNeedsAttention"),
+        nextAction: t("documents.workspaceNextActionNeedsAttention"),
+        nextActionHref: firstFailedDocument ? `/documents/${firstFailedDocument.id}` : "/documents",
+        nextActionLabel: t("documents.workspaceNextActionLinkNeedsAttention")
+      } as const;
+    }
+
+    if (hasProcessingDocuments) {
+      return {
+        badgeColor: "yellow",
+        badgeLabel: t("documents.workspaceStatusProcessing"),
+        nextAction: t("documents.workspaceNextActionProcessing"),
+        nextActionHref: firstProcessingDocument ? `/documents/${firstProcessingDocument.id}` : "/documents",
+        nextActionLabel: t("documents.workspaceNextActionLinkProcessing")
+      } as const;
+    }
+
+    return {
+      badgeColor: "indigo",
+      badgeLabel: t("documents.workspaceStatusReady"),
+      nextAction: t("documents.workspaceNextActionReady"),
+      nextActionHref: "/",
+      nextActionLabel: t("documents.workspaceNextActionLinkReady")
+    } as const;
+  }, [failedCount, firstFailedDocument, firstProcessingDocument, hasActiveKnowledgeBase, hasProcessingDocuments, t]);
+
+  const noActiveKnowledgeBaseStatePanel = (
+    <StatePanel
+      action={
+        <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
+          {t("documents.noActiveKnowledgeBaseAction")}
+        </Button>
+      }
+      description={t("documents.noActiveKnowledgeBaseDescription")}
+      title={t("documents.noActiveKnowledgeBaseTitle")}
+    />
+  );
+
+  const metricCards = useMemo(
+    () => [
+      {
+        key: "total",
+        label: locale === "zh" ? "资料总数" : "Total items",
+        value: documentCount,
+        subtle:
+          locale === "zh"
+            ? "当前资料库中的全部资料"
+            : "All library items in the current workspace library"
+      },
+      {
+        key: "ready",
+        label: locale === "zh" ? "可检索" : "Ready",
+        value: readyCount,
+        subtle:
+          locale === "zh"
+            ? "已经可以用于提问"
+            : "Ready to use in chat"
+      },
+      {
+        key: "processing",
+        label: locale === "zh" ? "处理中" : "Processing",
+        value: processingCount,
+        subtle:
+          locale === "zh"
+            ? "正在导入或更新中"
+            : "Being added or refreshed"
+      },
+      {
+        key: "failed",
+        label: locale === "zh" ? "需要关注" : "Needs attention",
+        value: failedCount,
+        subtle:
+          locale === "zh"
+            ? "有资料需要重试或清理"
+            : "Some items need retry or cleanup"
+      }
+    ],
+    [documentCount, failedCount, locale, processingCount, readyCount]
+  );
+
+  const handleUploadFile = useCallback(
+    async (file: File | null) => {
+      if (!file || !activeKnowledgeBase) {
+        return;
+      }
+
+      try {
+        await uploadMutation.mutateAsync(file);
+        notifications.show({
+          color: "indigo",
+          message: t("documents.uploadSuccess", { fileName: file.name })
+        });
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : t("documents.uploadError")
+        });
+      }
+    },
+    [activeKnowledgeBase, t, uploadMutation]
+  );
+
+  const handleReindexDocument = useCallback(
+    async (documentId: string, knowledgeBaseId: string, title: string) => {
+      try {
+        await reindexMutation.mutateAsync({
+          documentId,
+          knowledgeBaseId
+        });
+        notifications.show({
+          color: "indigo",
+          message: t("documents.reindexRequested", { title })
+        });
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : t("documents.reindexError")
+        });
+      }
+    },
+    [reindexMutation, t]
+  );
 
   return (
-    <Stack gap="md">
+    <Stack data-testid="documents-page" gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <Group gap="md" wrap="nowrap">
             <Box className="workspace-hero-icon">DOC</Box>
             <div className="workspace-hero-copy">
               <Text className="workspace-hero-kicker">
-                {locale === "zh" ? "文档工作台" : "Knowledge documents"}
+                {locale === "zh" ? "资料库" : "Library"}
               </Text>
               <Title
                 order={3}
@@ -61,16 +226,14 @@ export function DocumentsPage() {
               </Text>
               <Group gap="xs" mt="sm">
                 <Badge color="gray" radius="sm" variant="light">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "默认知识库" : "Default KB")}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}
                 </Badge>
-                <Badge color={hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
-                  {hasProcessingDocuments
-                    ? locale === "zh"
-                      ? "处理队列进行中"
-                      : "Processing in progress"
-                    : locale === "zh"
-                      ? "工作台已就绪"
-                      : "Workspace ready"}
+                <Badge
+                  color={workspaceSurfaceState.badgeColor}
+                  radius="sm"
+                  variant="light"
+                >
+                  {workspaceSurfaceState.badgeLabel}
                 </Badge>
               </Group>
             </div>
@@ -78,39 +241,24 @@ export function DocumentsPage() {
 
           <Stack align="flex-end" gap={10}>
             <Text className="workspace-hero-sidecopy" ta="right">
-              {locale === "zh"
-                ? "上传、状态查看、详情跳转和重建索引仍然保留在同一工作台，只把首屏层级和密度收紧。"
-                : "Keep upload, status review, detail navigation, and reindex in one tighter workspace surface."}
+              {activeKnowledgeBase
+                ? t("documents.currentKnowledgeBaseHintHasKb")
+                : t("documents.currentKnowledgeBaseHintNoKb")}
             </Text>
-            <FileButton
-              onChange={async file => {
-                if (!file || !activeKnowledgeBase) {
-                  return;
-                }
-
-                try {
-                  await uploadMutation.mutateAsync(file);
-                  notifications.show({
-                    color: "indigo",
-                    message: t("documents.uploadSuccess", { fileName: file.name })
-                  });
-                } catch (error) {
-                  notifications.show({
-                    color: "red",
-                    message: error instanceof Error ? error.message : t("documents.uploadError")
-                  });
-                }
-              }}
-            >
+            <Badge color="gray" radius="sm" variant="light">
+              {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}`}
+            </Badge>
+            <FileButton onChange={handleUploadFile}>
               {props => (
                 <Button
                   {...props}
                   className="workspace-button"
                   color="indigo"
+                  disabled={!hasActiveKnowledgeBase}
                   loading={uploadMutation.isPending}
                   radius="xl"
                 >
-                  {t("common.actions.uploadDocument")}
+                  {locale === "zh" ? "上传文件" : "Upload file"}
                 </Button>
               )}
             </FileButton>
@@ -142,75 +290,70 @@ export function DocumentsPage() {
           {t("documents.processingBanner")}
         </Alert>
       ) : null}
+      {hasActiveKnowledgeBase && readyCount > 0 && !hasProcessingDocuments && failedCount === 0 ? (
+        <Alert color="teal" radius="xl" variant="light">
+          <Group align="flex-start" justify="space-between" wrap="wrap">
+            <div>
+              <Text c="var(--app-text)" fw={700} size="sm">
+                {t("documents.readyBannerTitle")}
+              </Text>
+              <Text c="var(--app-text-muted)" mt={4} size="sm">
+                {t("documents.readyBannerDescription", { count: readyCount })}
+              </Text>
+            </div>
+            <Button className="workspace-button" color="teal" component={Link} radius="xl" size="xs" to="/" variant="light">
+              {t("documents.workspaceNextActionLinkReady")}
+            </Button>
+          </Group>
+        </Alert>
+      ) : null}
 
       <div className="workspace-split-summary">
         <div className="workspace-metric-grid">
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">
-              {locale === "zh" ? "文档总数" : "Total documents"}
-            </Text>
-            <Text className="workspace-metric-value">{documentCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh"
-                ? "当前知识库下全部文档"
-                : "All documents in the active knowledge base"}
-            </Text>
-          </Paper>
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">{locale === "zh" ? "可检索" : "Ready"}</Text>
-            <Text className="workspace-metric-value">{readyCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh" ? "已完成切分与索引" : "Indexed and available for retrieval"}
-            </Text>
-          </Paper>
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">{locale === "zh" ? "处理中" : "Processing"}</Text>
-            <Text className="workspace-metric-value">{processingCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh" ? "等待上传或重建完成" : "Waiting for upload or reindex to finish"}
-            </Text>
-          </Paper>
-          <Paper className="workspace-metric-card workspace-metric-card-compact" p="lg" radius="xl">
-            <Text className="workspace-metric-label">{locale === "zh" ? "需要关注" : "Needs attention"}</Text>
-            <Text className="workspace-metric-value">{failedCount}</Text>
-            <Text className="workspace-metric-subtle">
-              {locale === "zh" ? "失败文档建议重试或删除" : "Failed documents should be retried or removed"}
-            </Text>
-          </Paper>
+          {metricCards.map(metric => (
+            <Paper className="workspace-metric-card workspace-metric-card-compact" key={metric.key} p="lg" radius="xl">
+              <Text className="workspace-metric-label">{metric.label}</Text>
+              <Text className="workspace-metric-value">{metric.value}</Text>
+              <Text className="workspace-metric-subtle">{metric.subtle}</Text>
+            </Paper>
+          ))}
         </div>
 
         <Paper className="workspace-subpanel" p="lg" radius="xl">
           <Stack gap="md">
             <div>
               <Text className="workspace-section-heading">
-                {locale === "zh" ? "当前工作提示" : "Workspace readout"}
+                {locale === "zh" ? "当前资料概览" : "Library snapshot"}
               </Text>
               <Text className="workspace-section-copy">
                 {locale === "zh"
-                  ? "这一页只承担文档资产管理，不在首屏堆叠过多解释。优先看状态、数量和待处理队列。"
-                  : "This page stays focused on document operations. Use the top summary to scan readiness, volume, and queue pressure first."}
+                  ? "这一页主要用来管理资料。先看可用数量、处理中项目和需要处理的失败项。"
+                  : "This page stays focused on library management. Start with readiness, items in progress, and anything that needs attention."}
               </Text>
             </div>
             <div className="workspace-meta-list">
               <div className="workspace-meta-row">
-                <span className="workspace-meta-label">{locale === "zh" ? "当前知识库" : "Current KB"}</span>
+                <span className="workspace-meta-label">{locale === "zh" ? "当前资料空间" : "Current library"}</span>
                 <span className="workspace-meta-value">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "默认知识库" : "Default KB")}
+                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}
                 </span>
               </div>
               <div className="workspace-meta-row">
                 <span className="workspace-meta-label">{locale === "zh" ? "下一步" : "Next action"}</span>
-                <span className="workspace-meta-value">
-                  {hasProcessingDocuments
-                    ? locale === "zh"
-                      ? "等待队列完成后复查失败项"
-                      : "Review failed items after the queue settles"
-                    : locale === "zh"
-                      ? "优先补充新文档或复查低质量来源"
-                      : "Upload new material or review weaker sources"}
-                </span>
+                <span className="workspace-meta-value">{workspaceSurfaceState.nextAction}</span>
               </div>
             </div>
+            <Button
+              className="workspace-button"
+              color="indigo"
+              component={Link}
+              radius="xl"
+              size="xs"
+              to={workspaceSurfaceState.nextActionHref}
+              variant="light"
+            >
+              {workspaceSurfaceState.nextActionLabel}
+            </Button>
           </Stack>
         </Paper>
       </div>
@@ -220,12 +363,12 @@ export function DocumentsPage() {
           <Group justify="space-between" wrap="nowrap">
             <div>
               <Text className="workspace-section-heading">
-                {locale === "zh" ? "文档列表" : "Document workspace"}
+                {locale === "zh" ? "资料列表" : "Library items"}
               </Text>
               <Text className="workspace-section-copy">
                 {locale === "zh"
-                  ? "保留现有列表逻辑，只继续收紧头部、表格层级、按钮密度和空态表达。"
-                  : "Keep the existing list logic and tighten hierarchy, spacing, and state density only."}
+                  ? "当前仅保留文件上传入口；上传后再查看每份资料的状态、更新时间，以及是否已经可以用于问答。"
+                  : "Only file upload is available for now. After upload, review each item’s status, update time, and readiness for chat."}
               </Text>
             </div>
             {documentCount ? (
@@ -235,7 +378,9 @@ export function DocumentsPage() {
             ) : null}
           </Group>
 
-          {isDocumentsLoading ? (
+          {!hasActiveKnowledgeBase ? (
+            noActiveKnowledgeBaseStatePanel
+          ) : isDocumentsLoading ? (
             <div aria-live="polite" className="workspace-loading-grid" role="status">
               {Array.from({ length: 3 }).map((_, index) => (
                 <Paper className="workspace-panel-hover workspace-skeleton-panel" key={index} p="lg" radius="xl">
@@ -249,12 +394,33 @@ export function DocumentsPage() {
               ))}
               <span className="sr-only">{t("documents.loadingTitle")}</span>
             </div>
-          ) : documentsQuery.data?.length ? (
+          ) : documents.length ? (
             <div className="workspace-table-shell">
+              <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3">
+                <Text className="workspace-table-hint">
+                  {locale === "zh"
+                    ? "先看状态、片段数和更新时间；如果某份资料异常，再进入详情继续排查。"
+                    : "Scan status, chunk count, and update time first, then open item details only when something looks off."}
+                </Text>
+                <Badge color={failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
+                  {failedCount > 0
+                    ? locale === "zh"
+                      ? `${failedCount} 个待处理`
+                      : `${failedCount} need review`
+                    : hasProcessingDocuments
+                      ? locale === "zh"
+                        ? `${processingCount} 个处理中`
+                        : `${processingCount} processing`
+                      : locale === "zh"
+                        ? "列表已就绪"
+                        : "List ready"}
+                </Badge>
+              </div>
               <Table.ScrollContainer minWidth={760}>
                 <Table
                   className="workspace-table"
                   highlightOnHover
+                  striped="odd"
                   styles={{
                     table: {
                       color: "var(--app-text)"
@@ -289,53 +455,63 @@ export function DocumentsPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {documentsQuery.data.map(document => (
+                    {documents.map(document => (
                       <Table.Tr key={document.id}>
                         <Table.Td>
-                          <Stack gap={2}>
-                            <Text fw={600} size="sm">
+                          <Stack className="workspace-table-cell-title" gap={2}>
+                            <Text className="workspace-table-cell-title-main" lineClamp={2}>
                               {document.title}
                             </Text>
-                            <Text c="var(--app-text-muted)" size="xs">
-                              {document.sourceName}
+                            <Text className="workspace-table-cell-meta" lineClamp={1}>
+                              {document.sourceType} · {document.sourceName}
                             </Text>
+                            {document.errorMessage ? (
+                              <Text className="workspace-table-cell-copy" lineClamp={2}>
+                                {document.errorMessage}
+                              </Text>
+                            ) : null}
                           </Stack>
                         </Table.Td>
                         <Table.Td>
-                          <Badge
-                            color={
-                              document.status === "ready"
-                                ? "indigo"
-                                : document.status === "failed"
-                                  ? "red"
-                                  : "yellow"
-                            }
-                            variant="light"
-                          >
-                            {t(`common.status.${document.status}`)}
-                          </Badge>
+                          <div className="workspace-table-badge-stack">
+                            <Badge
+                              color={
+                                document.status === "ready"
+                                  ? "indigo"
+                                  : document.status === "failed"
+                                    ? "red"
+                                    : "yellow"
+                              }
+                              variant="light"
+                            >
+                              {t(`common.status.${document.status}`)}
+                            </Badge>
+                            <Text className="workspace-table-cell-meta">
+                              v{document.version}
+                            </Text>
+                          </div>
                         </Table.Td>
                         <Table.Td>
-                          <Text c="var(--app-text-secondary)" size="sm">
+                          <Text className="workspace-table-cell-copy">
                             {t(`common.processingStage.${document.processingStage}`)}
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Text fw={600} size="sm">
+                          <Text className="workspace-table-number" fw={600} size="sm">
                             {document.chunkCount}
                           </Text>
                         </Table.Td>
                         <Table.Td>
                           <Stack gap={2}>
-                            <Text c="var(--app-text-secondary)" size="sm">
+                            <Text className="workspace-table-cell-copy workspace-table-number">
                               {formatDateTime(document.updatedAt)}
                             </Text>
-                            <Text c="var(--app-text-muted)" lineClamp={1} size="xs">
-                              {locale === "zh" ? "来源" : "Source"}: {document.sourceName}
+                            <Text className="workspace-table-cell-meta" lineClamp={1}>
+                              ID: {document.id}
                             </Text>
                           </Stack>
                         </Table.Td>
-                        <Table.Td>
+                        <Table.Td className="workspace-table-action">
                           <Button
                             className="workspace-button"
                             component={Link}
@@ -348,27 +524,13 @@ export function DocumentsPage() {
                             {t("common.actions.viewDetails")}
                           </Button>
                         </Table.Td>
-                        <Table.Td>
+                        <Table.Td className="workspace-table-action">
                           <Button
                             className="workspace-button"
                             color="indigo"
                             loading={reindexMutation.isPending}
                             onClick={async () => {
-                              try {
-                                await reindexMutation.mutateAsync({
-                                  documentId: document.id,
-                                  knowledgeBaseId: document.kbId
-                                });
-                                notifications.show({
-                                  color: "indigo",
-                                  message: t("documents.reindexRequested", { title: document.title })
-                                });
-                              } catch (error) {
-                                notifications.show({
-                                  color: "red",
-                                  message: error instanceof Error ? error.message : t("documents.reindexError")
-                                });
-                              }
+                              await handleReindexDocument(document.id, document.kbId, document.title);
                             }}
                             radius="xl"
                             size="xs"

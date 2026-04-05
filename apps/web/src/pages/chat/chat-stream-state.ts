@@ -5,7 +5,7 @@ export type ChatStreamAssistantMessage = {
   role: "assistant";
   content: string;
   createdAt: string;
-  status: "streaming" | "done" | "error";
+  status: "streaming" | "done" | "error" | "stopped";
   traceId: string | null;
   citations: Citation[];
   assistantMessageId?: string;
