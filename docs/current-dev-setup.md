@@ -265,27 +265,22 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 
 - `.github/workflows/ci.yml` remains the code-validation workflow: install, Prisma generate, build, typecheck, and fast API tests
 - `.github/workflows/docker-image.yml` remains available as an optional GHCR image build path on `main` pushes or manual runs
-- `.github/workflows/deploy-dev.yml` is the manual dev deploy entrypoint: it SSHes to the dev target server, checks out the requested `branch/tag/commit`, then runs `docker compose build app` plus `docker compose up -d app`
 - `.github/workflows/deploy.yml` is the default manual production deploy entrypoint: it SSHes to the target server, checks out the requested `branch/tag/commit`, then runs `docker compose build app` plus `docker compose up -d app`
 - `.github/workflows/rollback.yml` is the matching manual rollback entrypoint: it SSHes to the target server, checks out the requested stable `tag/commit`, then rebuilds/restarts the app
 - the production compose path still accepts `APP_IMAGE`; local default stays `rag-system:latest`, but the current recommended personal-project deployment path is server-local build from the checked-out repository
-- expected server baseline for `deploy-dev.yml` and `deploy.yml`:
+- expected server baseline for `deploy.yml`:
   - Docker and Docker Compose already installed
   - repository already checked out on the server
   - production env file kept on the server, for example `apps/api/.env.production`
   - deploy command executed from the repository root
-- required GitHub secrets for `deploy-dev.yml` and `deploy.yml`:
+- required GitHub secrets for `deploy.yml`:
   - `SSH_HOST`
   - `SSH_USER`
   - `SSH_PRIVATE_KEY`
   - `DEPLOY_PATH`
   - optional `SSH_PORT` (defaults to `22`)
-- recommended GitHub Environments layout:
-  - `dev` environment for `deploy-dev.yml`
-  - `production` environment for `deploy.yml`
-  - keep identical secret names in each environment so both workflows can keep using `secrets.SSH_*` and `secrets.DEPLOY_PATH`
+- keep deploy secrets in repository-level GitHub Actions secrets for the simplest setup (`SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, optional `SSH_PORT`, and `DEPLOY_PATH`)
 - recommended release discipline for rollback safety:
-  - use `deploy-dev.yml` for manual dev refreshes before promoting a ref toward production
   - create a git tag before each production release
   - deploy from an explicit `target_ref` instead of relying on an implicit floating working tree state
   - use `rollback.yml` with the previous stable tag when application code must be reverted

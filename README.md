@@ -102,11 +102,10 @@ Notes:
 
 ## GitHub Actions Deploy
 
-The repository now includes GitHub Actions workflows for CI plus manual dev/production deployment:
+The repository now includes GitHub Actions workflows for CI plus manual production deployment:
 
 - `ci.yml`: install, build, typecheck, and fast API validation
 - `docker-image.yml`: optional workflow that builds the production image and pushes it to `ghcr.io/<owner>/<repo>`
-- `deploy-dev.yml`: manual dev deployment that SSHes to the dev server, checks out the requested `branch/tag/commit`, and runs `docker compose build app && docker compose up -d app`
 - `deploy.yml`: manual deployment that SSHes to the server, checks out the requested `branch/tag/commit`, and runs `docker compose build app && docker compose up -d app`
 - `rollback.yml`: manual rollback that SSHes to the server, checks out the requested stable `tag/commit`, and rebuilds/restarts the app
 
@@ -117,7 +116,7 @@ Server-side deployment assumptions:
 - production env stays on the server, for example `apps/api/.env.production`
 - the server runs `docker compose` from the repository root
 
-Required GitHub secrets for `deploy-dev.yml` and `deploy.yml`:
+Required GitHub secrets for `deploy.yml`:
 
 - `SSH_HOST`
 - `SSH_USER`
@@ -125,17 +124,12 @@ Required GitHub secrets for `deploy-dev.yml` and `deploy.yml`:
 - `SSH_PORT` (optional; defaults to `22`)
 - `DEPLOY_PATH`: absolute repository path on the server, such as `/home/deploy/rag-system`
 
-Recommended GitHub Environments setup:
-
-- create a `dev` environment for `deploy-dev.yml`
-- create a `production` environment for `deploy.yml`
-- keep the same secret names in each environment so the workflows can stay aligned while resolving different servers and paths
+Keep the required deploy secrets in repository-level GitHub Actions secrets for the simplest setup.
 
 Recommended personal-project release pattern:
 
-- use `deploy-dev.yml` for manual dev refreshes against the dev server
 - tag each stable release before production deploy
-- use `deploy.yml` with `target_ref=main` for normal releases
+- use `deploy.yml` with `target_ref=master` for normal releases
 - use `rollback.yml` with a stable tag or commit when rollback is needed
 
 The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path, but the default deployment path is now server-local build from the checked-out repository.

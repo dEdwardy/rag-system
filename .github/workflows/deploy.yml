@@ -11,12 +11,27 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: read
       packages: read
 
     steps:
+      - name: Validate deploy inputs
+        env:
+          TARGET_REF: ${{ inputs.target_ref }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_HOST" || { echo "SSH_HOST is required"; exit 1; }
+          test -n "$SSH_USER" || { echo "SSH_USER is required"; exit 1; }
+          test -n "$DEPLOY_PATH" || { echo "DEPLOY_PATH is required"; exit 1; }
+          echo "TARGET_REF=$TARGET_REF"
+          echo "SSH_HOST=$SSH_HOST"
+          echo "SSH_USER=$SSH_USER"
+          echo "DEPLOY_PATH=$DEPLOY_PATH"
+
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.2.2
         env:
@@ -31,6 +46,8 @@ jobs:
           script_stop: true
           script: |
             set -eu
+            echo "Deploying ref: $TARGET_REF"
+            echo "Deploy path: $DEPLOY_PATH"
             cd "$DEPLOY_PATH"
             git fetch origin --tags --prune
             if git show-ref --verify --quiet "refs/remotes/origin/$TARGET_REF"; then
