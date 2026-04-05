@@ -106,8 +106,8 @@ The repository now includes GitHub Actions workflows for CI plus manual producti
 
 - `ci.yml`: install, build, typecheck, and fast API validation
 - `docker-image.yml`: optional workflow that builds the production image and pushes it to `ghcr.io/<owner>/<repo>`
-- `deploy.yml`: manual deployment that SSHes to the server, checks out the requested `branch/tag/commit`, and runs `docker compose build app && docker compose up -d app`
-- `rollback.yml`: manual rollback that SSHes to the server, checks out the requested stable `tag/commit`, and rebuilds/restarts the app
+- `deploy.yml`: manual deployment that SSHes to the server, checks out the requested `branch/tag/commit`, and runs `docker compose up -d app`
+- `rollback.yml`: manual rollback that SSHes to the server, checks out the requested stable `tag/commit`, and restarts the app from the prepared image
 
 Server-side deployment assumptions:
 
@@ -132,7 +132,7 @@ Recommended personal-project release pattern:
 - use `deploy.yml` with `target_ref=master` for normal releases
 - use `rollback.yml` with a stable tag or commit when rollback is needed
 
-The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path, but the default deployment path is now server-local build from the checked-out repository.
+The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path; for the simplest fallback path you can also preload `rag-system:latest` on the server with `docker load` and let `docker compose up -d app` start it directly.
 
 ### 7. Optional OpenCode harness
 

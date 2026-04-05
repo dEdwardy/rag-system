@@ -50,5 +50,4 @@ jobs:
             cd "$DEPLOY_PATH"
             git fetch origin --tags --prune
             git checkout --detach "$TARGET_REF"
-            docker compose build app
             docker compose up -d app

@@ -265,9 +265,9 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 
 - `.github/workflows/ci.yml` remains the code-validation workflow: install, Prisma generate, build, typecheck, and fast API tests
 - `.github/workflows/docker-image.yml` remains available as an optional GHCR image build path on `main` pushes or manual runs
-- `.github/workflows/deploy.yml` is the default manual production deploy entrypoint: it SSHes to the target server, checks out the requested `branch/tag/commit`, then runs `docker compose build app` plus `docker compose up -d app`
-- `.github/workflows/rollback.yml` is the matching manual rollback entrypoint: it SSHes to the target server, checks out the requested stable `tag/commit`, then rebuilds/restarts the app
-- the production compose path still accepts `APP_IMAGE`; local default stays `rag-system:latest`, but the current recommended personal-project deployment path is server-local build from the checked-out repository
+- `.github/workflows/deploy.yml` is the default manual production deploy entrypoint: it SSHes to the target server, checks out the requested `branch/tag/commit`, then runs `docker compose up -d app`
+- `.github/workflows/rollback.yml` is the matching manual rollback entrypoint: it SSHes to the target server, checks out the requested stable `tag/commit`, then restarts the app from the prepared image
+- the production compose path still accepts `APP_IMAGE`; local default stays `rag-system:latest`, and the simplest fallback deployment path is to preload that image on the server with `docker load` before running `docker compose up -d app`
 - expected server baseline for `deploy.yml`:
   - Docker and Docker Compose already installed
   - repository already checked out on the server
