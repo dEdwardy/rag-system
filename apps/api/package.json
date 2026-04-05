@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "nest start",
-    "start:dev": "node scripts/start-dev.mjs",
+    "start:dev": "nest start --watch --env-file .env.local",
     "start:prod": "node scripts/start-prod.mjs",
     "build": "rimraf dist tsconfig.tsbuildinfo && pnpm run prisma:generate && nest build && node scripts/finalize-build-artifacts.mjs",
     "lint": "eslint \"src/**/*.ts\"",

@@ -8,8 +8,8 @@ export function BackendUnavailableScreen() {
 
   const title = isZh ? "工作区暂时无法连接后端" : "Workspace cannot reach the backend";
   const description = isZh
-    ? "前端已经启动，但当前 API 服务还没有准备好。先启动后端，再回到这里继续资料导入、回答设置和对话。"
-    : "The web app is up, but the API service is not ready yet. Start the backend first, then come back to continue ingestion, answer setup, and chat.";
+    ? "前端已经启动，但当前 API 服务还没有准备好。先启动后端，再回到这里继续文件上传、回答设置和对话。"
+    : "The web app is up, but the API service is not ready yet. Start the backend first, then come back to continue file upload, answer setup, and chat.";
 
   const checklist = isZh
     ? [

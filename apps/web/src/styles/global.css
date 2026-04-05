@@ -190,17 +190,17 @@ html[data-theme-layout="workspace-app"] {
   .workspace-panel-hover {
     background: linear-gradient(180deg, rgba(24, 24, 32, 0.98) 0%, rgba(18, 18, 24, 0.99) 100%);
     transition:
-      transform 180ms ease,
-      border-color 180ms ease,
-      box-shadow 180ms ease;
+      transform 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease;
   }
 
   .workspace-panel-hover:hover {
     border-color: var(--app-border-strong);
     box-shadow:
-      0 24px 56px rgba(0, 0, 0, 0.34),
+      0 20px 44px rgba(0, 0, 0, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    transform: translateY(-1px);
+    transform: translateY(-0.5px);
   }
 
   .workspace-panel-strong {
@@ -282,6 +282,46 @@ html[data-theme-layout="workspace-app"] {
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 1rem;
     padding: 0.95rem 1rem;
+  }
+
+  .workspace-route-surface {
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 1;
+    transform: translateY(0);
+    animation: workspace-route-enter 220ms ease;
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease,
+      filter 180ms ease;
+  }
+
+  .workspace-route-surface.is-transitioning {
+    opacity: 0.72;
+    transform: translateY(4px);
+    filter: blur(0.35px);
+  }
+
+  .workspace-auth-surface {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .workspace-auth-surface::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at top, rgba(99, 102, 241, 0.12), transparent 42%);
+    opacity: 1;
+  }
+
+  .workspace-auth-panel {
+    position: relative;
+    transform-origin: center;
+    animation: workspace-auth-enter 260ms ease;
   }
 
   .workspace-code-block {
@@ -433,6 +473,21 @@ html[data-theme-layout="workspace-app"] {
 
   .workspace-button {
     font-weight: 600;
+    transform: translateY(0);
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease,
+      border-color 150ms ease,
+      background-color 150ms ease,
+      opacity 150ms ease;
+  }
+
+  .workspace-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .workspace-button:active:not(:disabled) {
+    transform: translateY(0) scale(0.99);
   }
 
   .workspace-button:focus-visible,
@@ -446,9 +501,10 @@ html[data-theme-layout="workspace-app"] {
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--app-text);
     transition:
-      border-color 160ms ease,
-      box-shadow 160ms ease,
-      background-color 160ms ease;
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      background-color 150ms ease,
+      transform 150ms ease;
   }
 
   .workspace-input::placeholder {
@@ -458,8 +514,8 @@ html[data-theme-layout="workspace-app"] {
   .workspace-input:focus,
   .workspace-input:focus-within {
     background: rgba(12, 14, 20, 0.96);
-    border-color: rgba(99, 102, 241, 0.4);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.34);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
   }
 
   .workspace-list-shell-compact {
@@ -798,5 +854,29 @@ html[data-theme-layout="workspace-app"] {
 @keyframes workspace-skeleton-shimmer {
   100% {
     transform: translateX(100%);
+  }
+}
+
+@keyframes workspace-route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes workspace-auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.988);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

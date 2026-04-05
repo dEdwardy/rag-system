@@ -92,7 +92,7 @@ export function WorkbenchPage() {
   ];
 
   return (
-    <Stack gap="md">
+    <Stack data-testid="workbench-page" gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <div className="workspace-hero-copy">

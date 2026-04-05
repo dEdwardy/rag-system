@@ -262,6 +262,7 @@ export function KnowledgeBasePage() {
                 <Button
                   className="workspace-button"
                   color="indigo"
+                  data-testid="knowledge-base-create-trigger"
                   onClick={() => setIsCreateKnowledgeBaseOpen(true)}
                   radius="xl"
                 >

@@ -109,7 +109,7 @@ export function TraceListPage() {
     }) ?? [];
 
   return (
-    <Stack gap="md">
+    <Stack data-testid="traces-page" gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <div className="workspace-hero-copy">

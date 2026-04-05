@@ -2,10 +2,16 @@ import { Navigate } from "react-router-dom";
 import { BackendUnavailableScreen } from "../components/BackendUnavailableScreen";
 import { useAuthMe } from "../features/api/hooks";
 import { isApiUnavailableError, type ApiRequestError } from "../lib/api";
+import { isInviteGateAccepted } from "../lib/invite-gate";
 import { AppShell } from "./AppShell";
 
 export function AuthenticatedAppShell() {
-  const authMeQuery = useAuthMe();
+  const hasInviteAccess = isInviteGateAccepted();
+  const authMeQuery = useAuthMe(hasInviteAccess);
+
+  if (!hasInviteAccess) {
+    return <Navigate replace to="/invite" />;
+  }
 
   if (authMeQuery.isPending) {
     return (

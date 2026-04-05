@@ -59,6 +59,13 @@ export function AssistantPage() {
               <Title c="var(--app-text)" order={3} style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}>
                 {t("assistant.title")}
               </Title>
+              {assistant ? <Text c="var(--app-text-muted)" data-testid="assistant-id" size="sm">{assistant.id}</Text> : null}
+              {assistant ? <Text c="var(--app-text)" data-testid="assistant-name-text" size="sm">{assistant.name}</Text> : null}
+              {retrievalProfile ? (
+                <Text c="var(--app-text-muted)" data-testid="assistant-retrieval-profile-name" size="sm">
+                  {retrievalProfile.name}
+                </Text>
+              ) : null}
               <Text c="var(--app-text-muted)" mt={4} size="sm">
                 {t("assistant.subtitle")}
               </Text>

@@ -12,7 +12,7 @@ import {
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { lazy, Suspense, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -23,23 +23,6 @@ import {
 } from "../../features/api/hooks";
 import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
-
-const DocumentsSourceEntryPanel = lazy(async () => {
-  const module = await import("./DocumentsSourceEntryPanel");
-  return { default: module.DocumentsSourceEntryPanel };
-});
-
-function DocumentsSourceEntryFallback({ locale }: { locale: "zh" | "en" }) {
-  return (
-    <StatePanel
-      title={locale === "zh" ? "加载来源录入区" : "Loading source entry panel"}
-      description={
-        locale === "zh" ? "正在准备网页、订阅源和站点地图录入面板。" : "Preparing the web page, feed, and sitemap entry panel."
-      }
-      tone="loading"
-    />
-  );
-}
 
 export function DocumentsPage() {
   const knowledgeBasesQuery = useKnowledgeBases();
@@ -222,7 +205,7 @@ export function DocumentsPage() {
   );
 
   return (
-    <Stack gap="md">
+    <Stack data-testid="documents-page" gap="md">
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <Group gap="md" wrap="nowrap">
@@ -275,7 +258,7 @@ export function DocumentsPage() {
                   loading={uploadMutation.isPending}
                   radius="xl"
                 >
-                  {t("common.actions.uploadDocument")}
+                  {locale === "zh" ? "上传文件" : "Upload file"}
                 </Button>
               )}
             </FileButton>
@@ -375,13 +358,6 @@ export function DocumentsPage() {
         </Paper>
       </div>
 
-      <Suspense fallback={<DocumentsSourceEntryFallback locale={locale} />}>
-        <DocumentsSourceEntryPanel
-          activeKnowledgeBaseId={activeKnowledgeBase?.id ?? null}
-          activeKnowledgeBaseName={activeKnowledgeBase?.name ?? null}
-        />
-      </Suspense>
-
       <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
         <Stack gap="md">
           <Group justify="space-between" wrap="nowrap">
@@ -391,8 +367,8 @@ export function DocumentsPage() {
               </Text>
               <Text className="workspace-section-copy">
                 {locale === "zh"
-                  ? "在这里查看每份资料的当前状态、更新时间，以及是否已经可以用于问答。"
-                  : "Review each item here to see whether it is ready, still updating, or needs attention."}
+                  ? "当前仅保留文件上传入口；上传后再查看每份资料的状态、更新时间，以及是否已经可以用于问答。"
+                  : "Only file upload is available for now. After upload, review each item’s status, update time, and readiness for chat."}
               </Text>
             </div>
             {documentCount ? (

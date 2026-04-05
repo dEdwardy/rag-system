@@ -88,7 +88,7 @@ export function AssistantSettingsForm({
                       {t("assistant.copy.assistantIdentityCopy")}
                     </Text>
                   </div>
-                  <Button className="workspace-button" color="gray" onClick={() => setIsBasicsExpanded(current => !current)} radius="xl" size="xs" variant="light">
+                  <Button className="workspace-button" color="gray" data-testid="assistant-basics-toggle" onClick={() => setIsBasicsExpanded(current => !current)} radius="xl" size="xs" variant="light">
                     {isBasicsExpanded ? t("assistant.hideAssistantBasics") : t("assistant.showAssistantBasics")}
                   </Button>
                 </Group>

@@ -228,7 +228,7 @@ export function DocumentsSourceEntryPanel({ activeKnowledgeBaseId, activeKnowled
   );
 
   return (
-    <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+    <Paper className="workspace-panel-hover workspace-panel-muted" data-testid="documents-source-entry-panel" p="lg" radius="xl">
       <Stack gap="md">
         <Group justify="space-between" wrap="wrap">
           <div>

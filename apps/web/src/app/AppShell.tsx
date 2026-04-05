@@ -195,18 +195,6 @@ function NavIcon({ type }: NavIconProps) {
   );
 }
 
-function ActionButton({ children, label }: { children: React.ReactNode; label: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text-muted)] opacity-80"
-      title={label}
-    >
-      {children}
-    </span>
-  );
-}
-
 type AppShellProps = {
   currentIdentity: AuthIdentity;
   loginProvenance: AuthMeResponse["loginProvenance"];
@@ -242,8 +230,6 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
       openNavigationMenu: t("appShell.copy.openNavigationMenu"),
       currentKnowledgeBase: t("appShell.copy.currentKnowledgeBase"),
       loadingKnowledgeBase: t("appShell.copy.loadingKnowledgeBase"),
-      search: t("appShell.copy.search"),
-      notifications: t("appShell.copy.notifications"),
       switchToChinese: t("appShell.copy.switchToChinese"),
       switchToEnglish: t("appShell.copy.switchToEnglish"),
       closeNavigationMenu: t("appShell.copy.closeNavigationMenu"),
@@ -532,20 +518,6 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
             </div>
 
             <div className="flex items-center gap-2 md:gap-3">
-              <div className="hidden items-center gap-3 md:flex">
-                <ActionButton label={appShellCopy.search}>
-                  <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
-                    <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                    <line stroke="currentColor" strokeWidth="2" x1="21" x2="16.65" y1="21" y2="16.65" />
-                  </svg>
-                </ActionButton>
-                <ActionButton label={appShellCopy.notifications}>
-                  <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="2" />
-                  </svg>
-                </ActionButton>
-              </div>
               <div className="hidden rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-[3px] md:flex">
                 <button
                   aria-label={appShellCopy.switchToChinese}
@@ -728,7 +700,9 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
           ) : null}
 
           <div className={isChatRoute ? "flex min-h-0 flex-1 overflow-hidden" : "flex-1 overflow-auto p-4 md:p-6"}>
-            <Outlet />
+            <div key={location.pathname} className="workspace-route-surface">
+              <Outlet />
+            </div>
           </div>
         </main>
       </div>

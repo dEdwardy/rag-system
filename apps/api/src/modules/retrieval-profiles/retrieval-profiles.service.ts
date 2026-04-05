@@ -16,12 +16,14 @@ export class RetrievalProfilesService {
   constructor(private readonly prisma: PrismaService) {}
 
   listRetrievalProfiles(scope?: RetrievalProfileAccessScope | null) {
+    const effectiveScope = scope ?? { tenantId: "dev-tenant", userId: "default-user" };
+
     return this.prisma.retrievalProfile.findMany({
-      ...(scope
+      ...(effectiveScope
         ? {
             where: {
-              tenantId: scope.tenantId,
-              ownerId: scope.userId
+              tenantId: effectiveScope.tenantId,
+              ownerId: effectiveScope.userId
             }
           }
         : {}),

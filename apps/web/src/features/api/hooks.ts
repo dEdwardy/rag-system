@@ -37,10 +37,11 @@ export function useAuthMe(enabled = true) {
   });
 }
 
-export function useAuthProviders() {
+export function useAuthProviders(enabled = true) {
   return useQuery({
     queryKey: ["auth", "providers"],
     queryFn: () => apiRequest<AuthProvidersResponse>("/auth/providers"),
+    enabled,
     retry: false
   });
 }

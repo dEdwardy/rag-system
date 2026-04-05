@@ -74,6 +74,30 @@ pnpm --filter @rag-system/web dev
 
 Default local web URL: `http://localhost:5173`
 
+## Production Container
+
+The production deployment uses a single container that bundles:
+
+- the built `apps/web` static assets
+- the built `apps/api` Nest application
+- Nginx serving the web app and proxying `/api/*` to the API on `127.0.0.1:3000`
+
+Production runtime env is currently sourced from `apps/api/.env`.
+
+Start the production container from the repository root:
+
+```bash
+docker compose up -d --build
+```
+
+The app is exposed on `http://localhost:8080` by default.
+
+Notes:
+
+- `docker-compose.yml` is now scoped to the app container only; PostgreSQL, queue runtime, storage, and vector store are expected to use the external Supabase-backed production configuration from `apps/api/.env`
+- the API validates critical env from the container process environment at startup, so production deployment should inject env into the container instead of relying on a root-level `.env`
+- if you change production secrets or provider settings, update `apps/api/.env` before rebuilding/restarting the container
+
 ### 7. Optional OpenCode harness
 
 ```bash

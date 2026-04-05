@@ -1305,7 +1305,7 @@ export function ReportCenterPage() {
   }, [runEvalMutation.data?.items]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" data-testid="report-center-page">
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <div className="workspace-hero-copy">
@@ -1553,6 +1553,7 @@ export function ReportCenterPage() {
                 <div className="flex flex-wrap gap-2">
                   <Badge
                     color={filterReviewState === "pending" ? "red" : "gray"}
+                    data-testid="report-filter-pending"
                     onClick={() => setFilterReviewState(current => (current === "pending" ? "" : "pending"))}
                     style={{ cursor: "pointer" }}
                     variant={filterReviewState === "pending" ? "filled" : "light"}
@@ -1561,6 +1562,7 @@ export function ReportCenterPage() {
                   </Badge>
                   <Badge
                     color={filterReviewState === "reviewed" ? "teal" : "gray"}
+                    data-testid="report-filter-reviewed"
                     onClick={() => setFilterReviewState(current => (current === "reviewed" ? "" : "reviewed"))}
                     style={{ cursor: "pointer" }}
                     variant={filterReviewState === "reviewed" ? "filled" : "light"}
@@ -1573,6 +1575,7 @@ export function ReportCenterPage() {
                         return (
                           <Badge
                             color={presentation.color}
+                            data-testid={`report-filter-conclusion-${conclusion}`}
                             key={conclusion}
                             onClick={() => setFilterConclusion(current => (current === conclusion ? "" : conclusion))}
                             style={{ cursor: "pointer" }}

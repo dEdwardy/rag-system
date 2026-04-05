@@ -1,4 +1,4 @@
-import { Badge, Button, Paper, Select } from "@mantine/core";
+import { Badge, Button, Paper, Select, Stack } from "@mantine/core";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
@@ -127,6 +127,13 @@ export function UsagePage() {
     readyDocuments, 
     totalChunks
   ]);
+
+  const usageErrorMessage =
+    (knowledgeBasesQuery.error instanceof Error && knowledgeBasesQuery.error.message) ||
+    (assistantsQuery.error instanceof Error && assistantsQuery.error.message) ||
+    (conversationsQuery.error instanceof Error && conversationsQuery.error.message) ||
+    (documentsQuery.error instanceof Error && documentsQuery.error.message) ||
+    (locale === "zh" ? "加载数据时发生未知错误" : "An unknown error occurred while loading data");
 
   const hasError = useMemo(
     () =>
@@ -524,7 +531,7 @@ export function UsagePage() {
       : [];
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <Stack className="container mx-auto px-4 py-6" data-testid="usage-page" gap="sm">
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="workspace-hero-copy">
@@ -594,11 +601,7 @@ export function UsagePage() {
               {locale === "zh" ? "重试" : "Retry"}
             </Button>
           }
-          description={`$((knowledgeBasesQuery.error instanceof Error && knowledgeBasesQuery.error.message) ||
-                (assistantsQuery.error instanceof Error && assistantsQuery.error.message) ||
-                (conversationsQuery.error instanceof Error && conversationsQuery.error.message) ||
-                (documentsQuery.error instanceof Error && documentsQuery.error.message)) ||
-                (locale === "zh" ? "加载数据时发生未知错误" : "An unknown error occurred while loading data")}
+          description={`${usageErrorMessage}
 
 ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check your network connection or try again later."}`}
           title={locale === "zh" ? "运行数据加载失败" : "Failed to load operations data"}
@@ -607,7 +610,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
       ) : null}
 
       {isUsageLoading ? (
-        <div aria-live="polite" className="workspace-loading-grid metrics" role="status">
+        <div aria-live="polite" className="workspace-loading-grid metrics mt-1" role="status">
           {Array.from({ length: 6 }).map((_, index) => (
             <Paper className="workspace-skeleton-panel" key={index} p="lg" radius="xl">
               <div className="workspace-skeleton-line short" />
@@ -625,7 +628,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
 
       {!hasError && !isUsageLoading ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mt-1">
             {metrics.map(metric => (
               <Paper className="workspace-metric-card" key={metric.label} p="lg" radius="xl">
                 <div className="workspace-section-heading">{metric.label}</div>
@@ -652,7 +655,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
             />
           ) : null}
 
-          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] mt-1">
             {hasActiveKnowledgeBase ? (
               <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
                 <div className="flex flex-col gap-4">
@@ -731,7 +734,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
             </Paper>
           </div>
 
-          <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+          <Paper className="workspace-panel-hover workspace-panel-strong mt-1" p="lg" radius="xl">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="workspace-section-heading">{locale === "zh" ? "质量报告" : "Quality reports"}</div>
@@ -785,7 +788,7 @@ ${locale === "zh" ? "请检查网络连接或稍后再试。" : "Please check yo
           ) : null}
         </>
       ) : null}
-    </div>
+    </Stack>
   );
 }
 

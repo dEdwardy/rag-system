@@ -642,7 +642,7 @@ export function ChatPage() {
   const showReducedCitationsPanel = isOauthOnboardingActive && activeConversationId == null && activeStreamTurn == null;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="chat-page">
       <section className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
         <div className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-6 md:px-8">
           <div className="flex items-center gap-4">

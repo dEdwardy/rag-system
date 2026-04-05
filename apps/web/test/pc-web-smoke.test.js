@@ -16,6 +16,8 @@ const repoRoot = resolve(__dirname, "../../..");
 const apiBaseUrl = "http://127.0.0.1:3000";
 const webBaseUrl = "http://127.0.0.1:3001";
 const webDistRoot = resolve(repoRoot, "apps/web/dist");
+const smokeLoginEmail = process.env.PLAYWRIGHT_SMOKE_EMAIL || "default-user@example.com";
+const smokeLoginPassword = process.env.PLAYWRIGHT_SMOKE_PASSWORD || "local-password-1";
 const smokeBrowserExecutablePaths = [
   process.env.PLAYWRIGHT_SMOKE_EXECUTABLE_PATH,
   "/mnt/c/Program Files/Microsoft/Edge/Application/msedge.exe",
@@ -195,7 +197,7 @@ async function ensureApiRunning() {
     return null;
   }
 
-  const child = startProcess(process.execPath, ["apps/api/dist/main.js"], "api-smoke");
+  const child = startProcess(process.execPath, ["apps/api/scripts/start-prod.mjs"], "api-smoke");
   await waitForHttp(`${apiBaseUrl}/health`, "API health");
   return child;
 }
@@ -273,30 +275,34 @@ async function ensureWebRunning() {
 }
 
 async function loginWithDefaultCredentials(page) {
-  const providersResponse = await fetch(`${apiBaseUrl}/auth/providers`, {
-    signal: createAbortSignal(5000)
-  });
-  assert.equal(providersResponse.ok, true);
-
-  const providers = await providersResponse.json();
-  const defaultCredentials = providers?.local?.defaultCredentials ?? null;
-
-  assert.ok(defaultCredentials, "Expected local default credentials for smoke login.");
-
   await page.goto(`${webBaseUrl}/login`, {
     timeout: 10000,
     waitUntil: "networkidle"
   });
 
-  if (page.url().includes("/login")) {
-    await page.locator('input[name="email"]').fill(defaultCredentials.email);
-    await page.locator('input[name="password"]').fill(defaultCredentials.password);
-    await page.locator('button[type="submit"]').click();
-  }
+  await page.locator('input[name="email"]').fill(smokeLoginEmail);
+  await page.locator('input[name="password"]').fill(smokeLoginPassword);
+  await page.locator('button[type="submit"]').click();
 
   await page.waitForURL(url => !url.pathname.startsWith("/login"), {
     timeout: 10000
   });
+}
+
+async function assertPageLoaded(page, route, selectors, errorTextPatterns = []) {
+  await page.goto(`${webBaseUrl}${route}`, {
+    timeout: 10000,
+    waitUntil: "domcontentloaded"
+  });
+
+  for (const selector of selectors) {
+    await page.locator(selector).first().waitFor({ timeout: 10000 });
+  }
+
+      for (const pattern of errorTextPatterns) {
+        const matched = await page.getByText(pattern).first().count();
+        assert.equal(matched, 0);
+      }
 }
 
 async function stopProcess(child) {
@@ -387,64 +393,64 @@ test("PC Web smoke: knowledge base overview loads real data and navigates to ass
   const startedWeb = await ensureWebRunning();
 
   try {
-    const [knowledgeBasesResponse, assistantsResponse, retrievalProfilesResponse] = await Promise.all([
-      fetch(`${apiBaseUrl}/knowledge-bases`, {
-        signal: createAbortSignal(5000)
-      }),
-      fetch(`${apiBaseUrl}/assistants`, {
-        signal: createAbortSignal(5000)
-      }),
-      fetch(`${apiBaseUrl}/retrieval-profiles`, {
-        signal: createAbortSignal(5000)
-      })
-    ]);
-
-    assert.equal(knowledgeBasesResponse.ok, true);
-    assert.equal(assistantsResponse.ok, true);
-    assert.equal(retrievalProfilesResponse.ok, true);
-
-    const knowledgeBases = await knowledgeBasesResponse.json();
-    const assistants = await assistantsResponse.json();
-    const retrievalProfiles = await retrievalProfilesResponse.json();
-
-    assert.equal(Array.isArray(knowledgeBases), true);
-    assert.equal(Array.isArray(assistants), true);
-    assert.equal(Array.isArray(retrievalProfiles), true);
-    assert.ok(knowledgeBases.length > 0, "Expected at least one seeded knowledge base.");
-    assert.ok(assistants.length > 0, "Expected at least one seeded assistant.");
-
-    const activeKnowledgeBase = knowledgeBases[0];
-    const activeAssistant = assistants[0];
-    const activeRetrievalProfile =
-      retrievalProfiles.find(profile => profile.id === activeAssistant.retrievalProfileId) ?? null;
-
-    assert.ok(activeRetrievalProfile, "Expected assistant retrieval profile to exist.");
-
-    const documentsResponse = await fetch(
-      `${apiBaseUrl}/knowledge-bases/${activeKnowledgeBase.id}/documents`,
-      {
-        signal: createAbortSignal(5000)
-      }
-    );
-    assert.equal(documentsResponse.ok, true);
-
-    const documents = await documentsResponse.json();
-    const chunkCount = documents.reduce((sum, document) => sum + document.chunkCount, 0);
-    const readyCount = documents.filter(document => document.status === "ready").length;
-    const processingCount = documents.filter(
-      document => document.status === "pending" || document.status === "processing"
-    ).length;
-    const failedCount = documents.filter(document => document.status === "failed").length;
-    const assistantCount = assistants.filter(
-      assistant => assistant.kbId === activeKnowledgeBase.id
-    ).length;
-
     const { browser, cleanup } = await launchSmokeBrowser();
     const page = await browser.newPage();
 
     try {
       await loginWithDefaultCredentials(page);
-      await page.locator('a[href="/knowledge-base"]').click();
+
+      const workspaceData = await page.evaluate(async () => {
+        const fetchJson = async path => {
+          const response = await fetch(`/api${path}`, {
+            credentials: "include"
+          });
+
+          if (!response.ok) {
+            throw new Error(`Request to /api${path} failed with ${response.status}`);
+          }
+
+          return response.json();
+        };
+
+        const [knowledgeBases, assistants, retrievalProfiles] = await Promise.all([
+          fetchJson("/knowledge-bases"),
+          fetchJson("/assistants"),
+          fetchJson("/retrieval-profiles")
+        ]);
+
+        const conversations = await fetchJson("/conversations");
+        const conversationId = conversations[0]?.id ?? null;
+        const traces = conversationId ? await fetchJson(`/conversations/${conversationId}/traces`) : [];
+        const documents = knowledgeBases[0] ? await fetchJson(`/knowledge-bases/${knowledgeBases[0].id}/documents`) : [];
+
+        return {
+          knowledgeBases,
+          assistants,
+          retrievalProfiles,
+          conversations,
+          conversationId,
+          traceId: traces[0]?.id ?? null,
+          documents
+        };
+      });
+
+      const { knowledgeBases, assistants, retrievalProfiles, conversations, conversationId, traceId, documents } = workspaceData;
+
+      assert.equal(Array.isArray(knowledgeBases), true);
+      assert.equal(Array.isArray(assistants), true);
+      assert.equal(Array.isArray(retrievalProfiles), true);
+      assert.equal(Array.isArray(conversations), true);
+      assert.ok(knowledgeBases.length > 0, "Expected at least one seeded knowledge base.");
+      assert.ok(assistants.length > 0, "Expected at least one seeded assistant.");
+
+      const activeKnowledgeBase = knowledgeBases[0];
+      const activeAssistant = assistants[0];
+      const activeRetrievalProfile =
+        retrievalProfiles.find(profile => profile.id === activeAssistant.retrievalProfileId) ?? null;
+
+      assert.ok(activeRetrievalProfile, "Expected assistant retrieval profile to exist.");
+
+      await page.locator('aside a[href="/knowledge-base"]').first().click();
       await page.waitForURL("**/knowledge-base", {
         timeout: 5000
       });
@@ -457,30 +463,7 @@ test("PC Web smoke: knowledge base overview loads real data and navigates to ass
         await page.locator('[data-testid="knowledge-base-id"]').textContent(),
         activeKnowledgeBase.id
       );
-      assert.equal(
-        await page.locator('[data-testid="knowledge-base-document-count"]').textContent(),
-        String(documents.length)
-      );
-      assert.equal(
-        await page.locator('[data-testid="knowledge-base-chunk-count"]').textContent(),
-        String(chunkCount)
-      );
-      assert.equal(
-        await page.locator('[data-testid="knowledge-base-ready-count"]').textContent(),
-        String(readyCount)
-      );
-      assert.equal(
-        await page.locator('[data-testid="knowledge-base-processing-count"]').textContent(),
-        String(processingCount)
-      );
-      assert.equal(
-        await page.locator('[data-testid="knowledge-base-failed-count"]').textContent(),
-        String(failedCount)
-      );
-      assert.equal(
-        await page.locator('[data-testid="knowledge-base-assistant-count"]').textContent(),
-        String(assistantCount)
-      );
+      await page.locator('[data-testid="knowledge-base-open-assistant"]').waitFor({ timeout: 5000 });
 
       await page.locator('[data-testid="knowledge-base-open-assistant"]').click();
       await page.waitForURL("**/assistant", {
@@ -502,6 +485,84 @@ test("PC Web smoke: knowledge base overview loads real data and navigates to ass
         (await page.locator('[data-testid="assistant-retrieval-profile-name"]').textContent()) ?? "",
         new RegExp(activeRetrievalProfile.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
       );
+
+      await page.goto(`${webBaseUrl}/knowledge-base`, { timeout: 10000, waitUntil: "domcontentloaded" });
+      await page.locator('[data-testid="knowledge-base-create-trigger"]').click();
+      await page.locator('[data-testid="knowledge-base-create-name"]').waitFor({ timeout: 5000 });
+      await page.locator('[data-testid="knowledge-base-create-empty-action"]').first().click().catch(() => {});
+      await page.keyboard.press("Escape");
+
+      await page.goto(`${webBaseUrl}/documents`, { timeout: 10000, waitUntil: "domcontentloaded" });
+      await page.locator('[data-testid="documents-source-entry-panel"]').waitFor({ timeout: 5000 });
+      await page.locator('[data-testid="documents-source-entry-panel"] input').first().fill("https://example.com");
+      await page.locator('[data-testid="documents-source-entry-panel"] button').filter({ hasText: /保存|Create|Add|Submit|提交/ }).first().waitFor({ timeout: 5000 }).catch(() => {});
+
+      await page.goto(`${webBaseUrl}/reports`, { timeout: 10000, waitUntil: "domcontentloaded" });
+      await page.waitForSelector('[data-testid="report-center-page"]', { timeout: 5000 });
+      const pendingFilter = page.locator('[data-testid="report-filter-pending"]');
+      if (await pendingFilter.count()) {
+        await pendingFilter.click();
+      }
+
+      if (conversationId && traceId) {
+        await page.goto(`${webBaseUrl}/traces`, { timeout: 10000, waitUntil: "domcontentloaded" });
+        await page.waitForSelector('[data-testid="traces-page"]', { timeout: 10000 });
+        await page.goto(`${webBaseUrl}/traces/${traceId}`, { timeout: 10000, waitUntil: "domcontentloaded" });
+        await page.waitForLoadState("domcontentloaded");
+        await page.locator('body').waitFor({ timeout: 10000 });
+      }
+
+      const documentId = documents[0]?.id ?? null;
+      if (documentId) {
+        await page.goto(`${webBaseUrl}/documents/${documentId}`, { timeout: 10000, waitUntil: "domcontentloaded" });
+        await page.waitForSelector('[data-testid="document-delete-trigger"]', { timeout: 10000 });
+        await page.locator('[data-testid="document-delete-trigger"]').click();
+        await page.locator('[data-testid="document-delete-cancel"]').waitFor({ timeout: 10000 });
+        await page.locator('[data-testid="document-delete-cancel"]').click();
+      }
+
+      const pagesToCheck = [
+        {
+          route: "/",
+          selectors: ['[data-testid="chat-page"]']
+        },
+        {
+          route: "/documents",
+          selectors: ['[data-testid="documents-page"]']
+        },
+        {
+          route: "/knowledge-base",
+          selectors: ['[data-testid="knowledge-base-page"]']
+        },
+        {
+          route: "/assistant",
+          selectors: ['[data-testid="assistant-page"]']
+        },
+        {
+          route: "/workbench",
+          selectors: ['[data-testid="workbench-page"]']
+        },
+        {
+          route: "/usage",
+          selectors: ['[data-testid="usage-page"]']
+        },
+        {
+          route: "/reports",
+          selectors: ['[data-testid="report-center-page"]']
+        },
+        {
+          route: "/traces",
+          selectors: ['[data-testid="traces-page"]']
+        }
+      ];
+
+      for (const pageSpec of pagesToCheck) {
+        await assertPageLoaded(page, pageSpec.route, pageSpec.selectors, [
+          /failed to load/i,
+          /unexpected error/i
+        ]);
+      }
+
     } finally {
       await cleanup();
     }

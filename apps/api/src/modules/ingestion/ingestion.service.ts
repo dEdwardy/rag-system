@@ -45,7 +45,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (runtimeConfig.provider === "pgmq") {
-      void this.startPgmqWorker().catch(error => {
+      void Promise.resolve().then(() => this.startPgmqWorker()).catch(error => {
         this.logWorkerLoopError("pgmq startup", error);
       });
       return;

@@ -192,7 +192,7 @@ function buildEnglishCopy(input: {
           : "The current workspace is ready to continue in chat.",
     description:
       !hasDocuments
-        ? "Before treating chat as ready, upload a few files into the current workspace library so retrieval uses your own workspace material instead of an empty corpus."
+        ? "Before treating chat as ready, upload files into the current workspace library so retrieval uses your own workspace material instead of an empty corpus."
         : !hasAnswerSettings
           ? "The workspace library already has material, but chat still needs answer settings for this same workspace before you can ask reliably."
         : input.conversationCount === 0
@@ -203,7 +203,7 @@ function buildEnglishCopy(input: {
       {
         label:
           !hasDocuments
-            ? "Upload documents"
+          ? "Upload files"
             : !hasAnswerSettings
               ? "Open answer settings"
               : "Start chatting",
@@ -220,7 +220,7 @@ function buildEnglishCopy(input: {
     steps: [
       {
         label: "Add library items",
-        hint: hasDocuments ? "Done. This workspace library already has source material." : "Upload the first files or links so chat has real workspace material to use.",
+        hint: hasDocuments ? "Done. This workspace library already has source material." : "Upload the first files so chat has real workspace material to use.",
         state: hasDocuments ? "done" : "current"
       },
       {
