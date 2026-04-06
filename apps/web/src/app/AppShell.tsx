@@ -709,7 +709,13 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
           ) : null}
 
           <div className={isChatRoute ? "flex min-h-0 flex-1 overflow-hidden" : "flex-1 overflow-auto p-4 md:p-6"}>
-            <div key={location.pathname} className="workspace-route-surface">
+            <div
+              key={location.pathname}
+              className={[
+                "workspace-route-surface",
+                isChatRoute ? "" : "workspace-route-surface-standard"
+              ].join(" ")}
+            >
               <Outlet context={outletContext} />
             </div>
           </div>

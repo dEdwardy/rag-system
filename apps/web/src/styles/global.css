@@ -300,6 +300,11 @@ html[data-theme-layout="workspace-app"] {
       filter 180ms ease;
   }
 
+  .workspace-route-surface-standard {
+    width: min(100%, 90rem);
+    margin: 0 auto;
+  }
+
   .workspace-route-surface.is-transitioning {
     opacity: 0.72;
     transform: translateY(4px);
@@ -634,7 +639,7 @@ html[data-theme-layout="workspace-app"] {
     width: 26%;
   }
 
-  @media (max-width: 80rem) {
+  @media (max-width: 75rem) {
     .workspace-page-grid,
     .workspace-page-grid-main-first,
     .workspace-detail-secondary-grid,
