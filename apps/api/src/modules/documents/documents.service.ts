@@ -45,6 +45,23 @@ type DocumentAccessScope = {
 export class DocumentsService {
   private static readonly EXTERNAL_RESYNC_MIN_INTERVAL_MS = 60_000;
 
+  private readonly documentListSelect = {
+    id: true,
+    kbId: true,
+    sourceType: true,
+    sourceName: true,
+    title: true,
+    mimeType: true,
+    storageKey: true,
+    status: true,
+    processingStage: true,
+    version: true,
+    chunkCount: true,
+    errorMessage: true,
+    createdAt: true,
+    updatedAt: true
+  } satisfies Prisma.DocumentSelect;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly knowledgeBasesService: KnowledgeBasesService,
@@ -74,6 +91,7 @@ export class DocumentsService {
               }
             })
       },
+      select: this.documentListSelect,
       ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: {
         updatedAt: "desc"

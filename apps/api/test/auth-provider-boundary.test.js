@@ -153,6 +153,47 @@ test("SessionCookieAuthProvider decodes encoded session cookie value", async () 
   assert.ok(touchedSessions[0].data.lastSeenAt instanceof Date);
 });
 
+test("SessionCookieAuthProvider reuses a short-lived cached identity", async () => {
+  let findUniqueCallCount = 0;
+  const touchedSessions = [];
+  const provider = new SessionCookieAuthProvider({
+    authSession: {
+      findUnique: async ({ where }) => {
+        findUniqueCallCount += 1;
+        return {
+          id: where.id,
+          revokedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+          lastSeenAt: new Date(),
+          user: {
+            id: "user-cached",
+            tenantId: "tenant-cached",
+            role: "owner",
+            status: "active"
+          }
+        };
+      },
+      updateMany: async ({ where, data }) => {
+        touchedSessions.push({ where, data });
+        return { count: 1 };
+      }
+    }
+  });
+
+  const request = {
+    headers: {
+      cookie: "rag_session=session-cached"
+    }
+  };
+
+  const firstIdentity = await provider.resolveIdentity({ request });
+  const secondIdentity = await provider.resolveIdentity({ request });
+
+  assert.deepEqual(firstIdentity, secondIdentity);
+  assert.equal(findUniqueCallCount, 1);
+  assert.equal(touchedSessions.length, 0);
+});
+
 test("SessionCookieAuthProvider revokes expired sessions and returns null", async () => {
   const revokedCalls = [];
   const provider = new SessionCookieAuthProvider({

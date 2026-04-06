@@ -415,24 +415,28 @@ export function useConversationTraces(conversationId: string | null) {
 }
 
 export function useLatestConversationTraces(conversationIds: string[], enabled = true) {
-  const traceQueries = useQueries({
-    queries: conversationIds.map(conversationId => ({
-      queryKey: ["conversation-traces", conversationId],
-      queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces?limit=1`),
-      select: (traces: TraceRecord[]) => traces[0] ?? null,
-      enabled
-    }))
+  const tracesQuery = useQuery({
+    queryKey: ["latest-conversation-traces", conversationIds],
+    queryFn: () =>
+      apiRequest<Array<{ conversationId: string; trace: TraceRecord }>>(
+        `/traces/latest-by-conversation?conversationIds=${encodeURIComponent(conversationIds.join(","))}`
+      ),
+    enabled: enabled && conversationIds.length > 0
   });
 
-  const latestTraceByConversationId = conversationIds.reduce<Record<string, TraceRecord | null>>((acc, conversationId, index) => {
-    acc[conversationId] = traceQueries[index]?.data ?? null;
+  const latestTraceByConversationId = conversationIds.reduce<Record<string, TraceRecord | null>>((acc, conversationId) => {
+    acc[conversationId] = null;
     return acc;
   }, {});
 
-  const isLoading = traceQueries.some(query => query.isLoading);
-  const isError = traceQueries.some(query => query.isError);
-  const failedConversationCount = traceQueries.filter(query => query.isError).length;
-  const error = traceQueries.find(query => query.isError)?.error ?? null;
+  for (const item of tracesQuery.data ?? []) {
+    latestTraceByConversationId[item.conversationId] = item.trace;
+  }
+
+  const isLoading = tracesQuery.isLoading;
+  const isError = tracesQuery.isError;
+  const failedConversationCount = tracesQuery.isError ? conversationIds.length : 0;
+  const error = tracesQuery.error ?? null;
 
   return {
     latestTraceByConversationId,

@@ -157,6 +157,123 @@ test("TracesService scopes conversation-linked trace lists by current identity w
   ]);
 });
 
+test("TracesService batches latest conversation traces in a single scoped query", async () => {
+  const findManyCalls = [];
+  const prisma = {
+    answerTrace: {
+      findMany: async args => {
+        findManyCalls.push(args);
+        return [
+          {
+            id: "trace-newer-a",
+            conversationId: "conversation-a",
+            assistantId: "assistant-a",
+            userMessageId: null,
+            assistantMessageId: null,
+            userQuery: "newer A",
+            rewrittenQuery: null,
+            retrievedChunkIdsJson: [],
+            retrievalMetadataJson: null,
+            citationsJson: [],
+            answeringMetadataJson: null,
+            qualityEvaluationJson: null,
+            modelName: null,
+            latencyMs: null,
+            status: "success",
+            errorMessage: null,
+            createdAt: new Date("2026-03-29T02:00:00.000Z")
+          },
+          {
+            id: "trace-older-a",
+            conversationId: "conversation-a",
+            assistantId: "assistant-a",
+            userMessageId: null,
+            assistantMessageId: null,
+            userQuery: "older A",
+            rewrittenQuery: null,
+            retrievedChunkIdsJson: [],
+            retrievalMetadataJson: null,
+            citationsJson: [],
+            answeringMetadataJson: null,
+            qualityEvaluationJson: null,
+            modelName: null,
+            latencyMs: null,
+            status: "success",
+            errorMessage: null,
+            createdAt: new Date("2026-03-29T01:00:00.000Z")
+          },
+          {
+            id: "trace-only-b",
+            conversationId: "conversation-b",
+            assistantId: "assistant-b",
+            userMessageId: null,
+            assistantMessageId: null,
+            userQuery: "only B",
+            rewrittenQuery: null,
+            retrievedChunkIdsJson: [],
+            retrievalMetadataJson: null,
+            citationsJson: [],
+            answeringMetadataJson: null,
+            qualityEvaluationJson: null,
+            modelName: null,
+            latencyMs: null,
+            status: "success",
+            errorMessage: null,
+            createdAt: new Date("2026-03-29T03:00:00.000Z")
+          }
+        ];
+      }
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const listed = await service.listLatestConversationTraces(["conversation-a", "conversation-b"], {
+    tenantId: "tenant-42",
+    userId: "user-42"
+  });
+
+  assert.deepEqual(findManyCalls, [
+    {
+      where: {
+        conversationId: {
+          in: ["conversation-a", "conversation-b"]
+        },
+        conversation: {
+          tenantId: "tenant-42",
+          userId: "user-42"
+        }
+      },
+      select: {
+        id: true,
+        conversationId: true,
+        assistantId: true,
+        userMessageId: true,
+        assistantMessageId: true,
+        userQuery: true,
+        rewrittenQuery: true,
+        retrievedChunkIdsJson: true,
+        retrievalMetadataJson: true,
+        citationsJson: true,
+        answeringMetadataJson: true,
+        qualityEvaluationJson: true,
+        modelName: true,
+        latencyMs: true,
+        status: true,
+        errorMessage: true,
+        createdAt: true
+      },
+      orderBy: [{ conversationId: "asc" }, { createdAt: "desc" }]
+    }
+  ]);
+  assert.deepEqual(
+    listed.map(item => [item.conversationId, item.trace.id]),
+    [
+      ["conversation-a", "trace-newer-a"],
+      ["conversation-b", "trace-only-b"]
+    ]
+  );
+});
+
 test("TracesService exposes failedStage and failureMessage in traceSummary for failed traces", async () => {
   const persistedTrace = {
     id: "trace-1",

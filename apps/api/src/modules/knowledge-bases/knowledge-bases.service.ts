@@ -10,10 +10,22 @@ type KnowledgeBaseAccessScope = {
 
 @Injectable()
 export class KnowledgeBasesService {
+  private readonly knowledgeBaseListSelect = {
+    id: true,
+    tenantId: true,
+    ownerId: true,
+    name: true,
+    description: true,
+    status: true,
+    createdAt: true,
+    updatedAt: true
+  } as const;
+
   constructor(private readonly prisma: PrismaService) {}
 
   listKnowledgeBases(scope?: KnowledgeBaseAccessScope | null) {
     return this.prisma.knowledgeBase.findMany({
+      select: this.knowledgeBaseListSelect,
       ...(scope
         ? {
             where: {

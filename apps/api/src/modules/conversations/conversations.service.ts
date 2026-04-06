@@ -10,8 +10,20 @@ export class ConversationsService {
     updatedAt: "desc" as const
   };
 
+  private readonly conversationListSelect = {
+    id: true,
+    tenantId: true,
+    userId: true,
+    assistantId: true,
+    title: true,
+    status: true,
+    createdAt: true,
+    updatedAt: true
+  } as const;
+
   listConversations(scope: { tenantId: string; userId: string }) {
     return this.prisma.conversation.findMany({
+      select: this.conversationListSelect,
       where: {
         tenantId: scope.tenantId,
         userId: scope.userId

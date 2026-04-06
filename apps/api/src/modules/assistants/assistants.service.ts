@@ -12,6 +12,18 @@ type AssistantAccessScope = {
 
 @Injectable()
 export class AssistantsService {
+  private readonly assistantListSelect = {
+    id: true,
+    tenantId: true,
+    kbId: true,
+    name: true,
+    description: true,
+    systemPrompt: true,
+    retrievalProfileId: true,
+    answerPolicyJson: true,
+    status: true
+  } satisfies Prisma.AssistantSelect;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly retrievalProfilesService: RetrievalProfilesService
@@ -19,6 +31,7 @@ export class AssistantsService {
 
   listAssistants(scope?: AssistantAccessScope | null) {
     return this.prisma.assistant.findMany({
+      select: this.assistantListSelect,
       ...(scope
         ? {
             where: {

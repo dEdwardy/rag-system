@@ -143,3 +143,22 @@ export const listTracesSchema = z.object({
 });
 
 export type ListTracesInput = z.infer<typeof listTracesSchema>;
+
+export const listLatestConversationTracesSchema = z.object({
+  conversationIds: z.preprocess(value => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      return value
+        .split(",")
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+    }
+
+    return [];
+  }, z.array(z.string().min(1)).max(100))
+});
+
+export type ListLatestConversationTracesInput = z.infer<typeof listLatestConversationTracesSchema>;

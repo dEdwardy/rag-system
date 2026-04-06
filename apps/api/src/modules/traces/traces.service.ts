@@ -154,6 +154,43 @@ export class TracesService {
     }).then(traces => traces.map(trace => this.attachTraceListSummary(trace)));
   }
 
+  listLatestConversationTraces(conversationIds: string[], scope?: { tenantId: string; userId: string } | null) {
+    if (conversationIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.prisma.answerTrace.findMany({
+      where: {
+        conversationId: {
+          in: conversationIds
+        },
+        ...(scope != null
+          ? {
+              conversation: {
+                tenantId: scope.tenantId,
+                userId: scope.userId
+              }
+            }
+          : {})
+      },
+      select: this.traceListSelect,
+      orderBy: [{ conversationId: "asc" }, { createdAt: "desc" }]
+    }).then(traces => {
+      const latestTraceByConversationId = new Map<string, ReturnType<typeof this.attachTraceListSummary>>();
+
+      for (const trace of traces) {
+        if (!latestTraceByConversationId.has(trace.conversationId)) {
+          latestTraceByConversationId.set(trace.conversationId, this.attachTraceListSummary(trace));
+        }
+      }
+
+      return conversationIds.flatMap(conversationId => {
+        const trace = latestTraceByConversationId.get(conversationId);
+        return trace == null ? [] : [{ conversationId, trace }];
+      });
+    });
+  }
+
   createTrace(input: {
     conversationId: string;
     assistantId: string;
