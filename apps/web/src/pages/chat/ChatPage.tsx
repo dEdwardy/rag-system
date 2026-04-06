@@ -267,6 +267,7 @@ export function ChatPage() {
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
   const [composerValue, setComposerValue] = useState("");
   const [didAutoSelectConversation, setDidAutoSelectConversation] = useState(false);
+  const [isTranscriptNearBottom, setIsTranscriptNearBottom] = useState(true);
   const [desktopPanel, setDesktopPanel] = useState<"history" | "citations">("history");
   const [mobilePanel, setMobilePanel] = useState<"history" | "citations" | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -348,6 +349,10 @@ export function ChatPage() {
   }, [activeConversationId, conversationsQuery.data, didAutoSelectConversation]);
 
   useEffect(() => {
+    setIsTranscriptNearBottom(true);
+  }, [activeConversationId]);
+
+  useEffect(() => {
     if (!activeStreamTurn?.latestResult?.assistantMessageId || !messagesQuery.data) {
       return;
     }
@@ -368,12 +373,12 @@ export function ChatPage() {
 
   useEffect(() => {
     const target = transcriptRef.current;
-    if (!target) {
+    if (!target || !isTranscriptNearBottom) {
       return;
     }
 
     target.scrollTop = target.scrollHeight;
-  }, [displayedMessages]);
+  }, [displayedMessages, isTranscriptNearBottom]);
 
   const streamStatusLabel = resolveStreamStatusLabel(chatCopy, activeStreamTurn);
 
@@ -683,7 +688,14 @@ export function ChatPage() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8" ref={transcriptRef}>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8"
+          onScroll={event => {
+            const target = event.currentTarget;
+            setIsTranscriptNearBottom(target.scrollHeight - target.scrollTop - target.clientHeight < 96);
+          }}
+          ref={transcriptRef}
+        >
           <div className="flex flex-col gap-6">
             <OauthWorkspaceWelcome
               assistantCount={activeAssistant ? 1 : 0}
