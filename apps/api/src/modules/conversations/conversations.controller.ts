@@ -37,8 +37,13 @@ export class ConversationsController {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
-    await this.conversationsService.getConversation(id, authContext.identity);
-    return this.messagesService.listConversationMessages(id);
+    const messages = await this.messagesService.listConversationMessages(id, authContext.identity);
+
+    if (messages.length === 0) {
+      await this.conversationsService.getConversation(id, authContext.identity);
+    }
+
+    return messages;
   }
 
   @Get(":id/traces")
@@ -50,7 +55,12 @@ export class ConversationsController {
     const authContext = resolveRequestAuthContext({
       authContext: request?.authContext
     });
-    await this.conversationsService.getConversation(id, authContext.identity);
-    return this.tracesService.listConversationTraces(id, query, authContext.identity);
+    const traces = await this.tracesService.listConversationTraces(id, query, authContext.identity);
+
+    if (traces.length === 0) {
+      await this.conversationsService.getConversation(id, authContext.identity);
+    }
+
+    return traces;
   }
 }

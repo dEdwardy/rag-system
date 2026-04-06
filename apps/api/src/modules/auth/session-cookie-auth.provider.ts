@@ -5,6 +5,8 @@ import type { AuthIdentityProvider, AuthProviderRequest } from "./auth-provider.
 import { DEFAULT_AUTH_SESSION_COOKIE_NAME } from "./auth.constants";
 import { AuthRuntimeConfigService } from "./auth-runtime-config";
 
+const SESSION_LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class SessionCookieAuthProvider implements AuthIdentityProvider {
   constructor(
@@ -48,15 +50,20 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
       return null;
     }
 
-    await this.prisma.authSession.updateMany({
-      where: {
-        id: session.id,
-        revokedAt: null
-      },
-      data: {
-        lastSeenAt: new Date()
-      }
-    });
+    const shouldRefreshLastSeenAt =
+      session.lastSeenAt == null || Date.now() - session.lastSeenAt.getTime() >= SESSION_LAST_SEEN_UPDATE_INTERVAL_MS;
+
+    if (shouldRefreshLastSeenAt) {
+      await this.prisma.authSession.updateMany({
+        where: {
+          id: session.id,
+          revokedAt: null
+        },
+        data: {
+          lastSeenAt: new Date()
+        }
+      });
+    }
 
     return {
       userId: session.user.id,

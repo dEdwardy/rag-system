@@ -1,8 +1,11 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { GlobalHttpExceptionFilter } from "./common/http-exception.filter";
+import { RequestTimingInterceptor } from "./common/request-timing.interceptor";
 import { resolveApiRuntimeConfig } from "./infra/env/api-runtime-config";
 import { validateCriticalRuntimeEnv } from "./infra/env/critical-env";
+
+const REQUEST_TIMING_LOG_ENV = "API_ENABLE_REQUEST_TIMING_LOGS";
 
 async function bootstrap() {
   validateCriticalRuntimeEnv(process.env);
@@ -15,6 +18,9 @@ async function bootstrap() {
     app.enableCors(corsOptions);
   }
   app.useGlobalFilters(new GlobalHttpExceptionFilter());
+  if ((process.env[REQUEST_TIMING_LOG_ENV] ?? "").trim() === "true") {
+    app.useGlobalInterceptors(new RequestTimingInterceptor());
+  }
   console.log("[bootstrap] about to listen", runtimeConfig.port);
   await app.listen(runtimeConfig.port);
   console.log("[bootstrap] app.listen resolved");

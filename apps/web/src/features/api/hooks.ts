@@ -409,7 +409,7 @@ export function useConversationMessages(conversationId: string | null) {
 export function useConversationTraces(conversationId: string | null) {
   return useQuery({
     queryKey: ["conversation-traces", conversationId],
-    queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces`),
+    queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces?limit=1`),
     enabled: conversationId != null
   });
 }
@@ -418,7 +418,7 @@ export function useLatestConversationTraces(conversationIds: string[], enabled =
   const traceQueries = useQueries({
     queries: conversationIds.map(conversationId => ({
       queryKey: ["conversation-traces", conversationId],
-      queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces`),
+      queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces?limit=1`),
       select: (traces: TraceRecord[]) => traces[0] ?? null,
       enabled
     }))

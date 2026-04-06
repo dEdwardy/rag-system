@@ -6,10 +6,18 @@ import { PrismaService } from "../../infra/database/prisma.service";
 export class MessagesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listConversationMessages(conversationId: string) {
+  listConversationMessages(conversationId: string, scope?: { tenantId: string; userId: string } | null) {
     return this.prisma.message.findMany({
       where: {
-        conversationId
+        conversationId,
+        ...(scope == null
+          ? {}
+          : {
+              conversation: {
+                tenantId: scope.tenantId,
+                userId: scope.userId
+              }
+            })
       },
       orderBy: {
         createdAt: "asc"
@@ -30,4 +38,3 @@ export class MessagesService {
     });
   }
 }
-

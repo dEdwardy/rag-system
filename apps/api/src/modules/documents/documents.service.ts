@@ -62,17 +62,29 @@ export class DocumentsService {
     input: ListKnowledgeBaseDocumentsInput,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
-
-    return this.prisma.document.findMany({
+    const documents = await this.prisma.document.findMany({
       where: {
-        kbId: knowledgeBaseId
+        kbId: knowledgeBaseId,
+        ...(scope == null
+          ? {}
+          : {
+              knowledgeBase: {
+                tenantId: scope.tenantId,
+                ownerId: scope.userId
+              }
+            })
       },
       ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: {
         updatedAt: "desc"
       }
     });
+
+    if (documents.length === 0 && scope != null) {
+      await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    }
+
+    return documents;
   }
 
   async listKnowledgeBaseDocumentRuns(
