@@ -1,5 +1,5 @@
 import { Badge } from "@mantine/core";
-import { FormEvent, startTransition, useState } from "react";
+import { FormEvent, startTransition, useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { BackendUnavailableScreen } from "../../components/BackendUnavailableScreen";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -32,6 +32,15 @@ export function LoginPage() {
   if (authMeQuery.data?.identity != null) {
     return <Navigate replace to="/" />;
   }
+
+  useEffect(() => {
+    if (!defaultCredentials) {
+      return;
+    }
+
+    setEmail(current => (current.length > 0 ? current : defaultCredentials.email));
+    setPassword(current => (current.length > 0 ? current : defaultCredentials.password));
+  }, [defaultCredentials]);
 
   if (isApiUnavailableError(authMeQuery.error) || isApiUnavailableError(authProvidersQuery.error)) {
     return <BackendUnavailableScreen />;
