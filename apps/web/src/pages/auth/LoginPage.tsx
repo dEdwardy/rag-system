@@ -25,14 +25,6 @@ export function LoginPage() {
   const googleConfigured = authProvidersQuery.data?.oauth.google.configured ?? true;
   const oidcConfigured = authProvidersQuery.data?.oauth.oidc.configured ?? true;
 
-  if (!hasInviteAccess) {
-    return <Navigate replace to="/invite" />;
-  }
-
-  if (authMeQuery.data?.identity != null) {
-    return <Navigate replace to="/" />;
-  }
-
   useEffect(() => {
     if (!defaultCredentials) {
       return;
@@ -41,6 +33,14 @@ export function LoginPage() {
     setEmail(current => (current.length > 0 ? current : defaultCredentials.email));
     setPassword(current => (current.length > 0 ? current : defaultCredentials.password));
   }, [defaultCredentials]);
+
+  if (!hasInviteAccess) {
+    return <Navigate replace to="/invite" />;
+  }
+
+  if (authMeQuery.data?.identity != null) {
+    return <Navigate replace to="/" />;
+  }
 
   if (isApiUnavailableError(authMeQuery.error) || isApiUnavailableError(authProvidersQuery.error)) {
     return <BackendUnavailableScreen />;
