@@ -1,13 +1,13 @@
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
+import type { AppShellOutletContext } from "../../app/AppShell";
 import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { IconActionButton, IconActionLink } from "../../components/IconAction";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAskAssistantStream,
-  useAuthMe,
   useAssistants,
   useConversationMessages,
   useConversations,
@@ -263,10 +263,12 @@ function ChatWorkspacePanelsFallback({
 }
 
 export function ChatPage() {
+  const { loginProvenance } = useOutletContext<AppShellOutletContext>();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
   const [composerValue, setComposerValue] = useState("");
   const [didAutoSelectConversation, setDidAutoSelectConversation] = useState(false);
+  const [isTranscriptNearBottom, setIsTranscriptNearBottom] = useState(true);
   const [desktopPanel, setDesktopPanel] = useState<"history" | "citations">("history");
   const [mobilePanel, setMobilePanel] = useState<"history" | "citations" | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -274,7 +276,6 @@ export function ChatPage() {
   const streamAbortControllerRef = useRef<AbortController | null>(null);
 
   const assistantsQuery = useAssistants();
-  const authMeQuery = useAuthMe();
   const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", activeKnowledgeBase != null);
@@ -348,6 +349,10 @@ export function ChatPage() {
   }, [activeConversationId, conversationsQuery.data, didAutoSelectConversation]);
 
   useEffect(() => {
+    setIsTranscriptNearBottom(true);
+  }, [activeConversationId]);
+
+  useEffect(() => {
     if (!activeStreamTurn?.latestResult?.assistantMessageId || !messagesQuery.data) {
       return;
     }
@@ -368,12 +373,12 @@ export function ChatPage() {
 
   useEffect(() => {
     const target = transcriptRef.current;
-    if (!target) {
+    if (!target || !isTranscriptNearBottom) {
       return;
     }
 
     target.scrollTop = target.scrollHeight;
-  }, [displayedMessages]);
+  }, [displayedMessages, isTranscriptNearBottom]);
 
   const streamStatusLabel = resolveStreamStatusLabel(chatCopy, activeStreamTurn);
 
@@ -389,8 +394,7 @@ export function ChatPage() {
     document => document.status === "pending" || document.status === "processing"
   ).length;
   const failedDocumentCount = documents.filter(document => document.status === "failed").length;
-  const isOauthOnboardingActive =
-    authMeQuery.data?.loginProvenance.type === "oauth_session" && !(documentCount > 0 && conversationCount > 0);
+  const isOauthOnboardingActive = loginProvenance.type === "oauth_session" && !(documentCount > 0 && conversationCount > 0);
   const workspaceStatus = resolveWorkspaceStatus({
     copy: chatCopy,
     hasKnowledgeBase: activeKnowledgeBase != null,
@@ -683,7 +687,14 @@ export function ChatPage() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8" ref={transcriptRef}>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto px-5 py-6 md:px-8"
+          onScroll={event => {
+            const target = event.currentTarget;
+            setIsTranscriptNearBottom(target.scrollHeight - target.scrollTop - target.clientHeight < 96);
+          }}
+          ref={transcriptRef}
+        >
           <div className="flex flex-col gap-6">
             <OauthWorkspaceWelcome
               assistantCount={activeAssistant ? 1 : 0}

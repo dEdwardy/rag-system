@@ -32,6 +32,11 @@ type NavGroup = {
 
 type Locale = "zh" | "en";
 
+export type AppShellOutletContext = {
+  currentIdentity: AuthIdentity;
+  loginProvenance: AuthMeResponse["loginProvenance"];
+};
+
 const APP_SHELL_TEXT: Record<Locale, {
   mainHeading: string;
   setupHeading: string;
@@ -325,6 +330,10 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
     loginProvenance.type === "oauth_session"
       ? appShellCopy.oauthSessionPrefix(oauthProviderLabel)
       : appShellCopy.localSessionValue;
+  const outletContext: AppShellOutletContext = {
+    currentIdentity,
+    loginProvenance
+  };
 
   function onLogoutClick() {
     logoutMutation.mutate(undefined, {
@@ -701,7 +710,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
 
           <div className={isChatRoute ? "flex min-h-0 flex-1 overflow-hidden" : "flex-1 overflow-auto p-4 md:p-6"}>
             <div key={location.pathname} className="workspace-route-surface">
-              <Outlet />
+              <Outlet context={outletContext} />
             </div>
           </div>
         </main>
