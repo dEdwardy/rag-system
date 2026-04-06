@@ -1,16 +1,23 @@
 const LOCAL_API_PORT = "3000";
 const LOCAL_VITE_DEV_PORT = "5173";
+const VITE_ENV = (import.meta as ImportMeta & {
+  env?: {
+    VITE_API_BASE_URL?: string;
+    BASE_URL?: string;
+    DEV?: boolean;
+  };
+}).env;
 
 const API_BASE_URL = resolveApiBaseUrl();
 
 function resolveApiBaseUrl() {
-  const configuredBaseUrl = normalizeConfiguredApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+  const configuredBaseUrl = normalizeConfiguredApiBaseUrl(VITE_ENV?.VITE_API_BASE_URL);
   if (configuredBaseUrl) {
     return configuredBaseUrl;
   }
 
   if (supportsSameOriginApiBase()) {
-    return resolveSameOriginApiBase(import.meta.env.BASE_URL);
+    return resolveSameOriginApiBase(VITE_ENV?.BASE_URL);
   }
 
   return resolveLocalhostApiBase(window.location);
@@ -38,7 +45,7 @@ function isLocalViteDevOrigin(location: Location) {
 }
 
 function hasViteDevProxy() {
-  return typeof import.meta.env.DEV === "boolean" && import.meta.env.DEV;
+  return typeof VITE_ENV?.DEV === "boolean" && VITE_ENV.DEV;
 }
 
 function resolveLocalhostApiBase(location: Location) {
@@ -85,6 +92,9 @@ export type ApiRequestError = Error & {
 
 const API_UNREACHABLE_CODE = "API_UNREACHABLE";
 const API_UNREACHABLE_MESSAGE = "Cannot reach the API service. Start the backend and refresh the page.";
+const AUTH_REFRESH_PATH = "/auth/refresh";
+
+let inFlightRefresh: Promise<boolean> | null = null;
 
 type StreamErrorPayload = {
   type: "error";
@@ -95,36 +105,9 @@ type StreamErrorPayload = {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
-  let response: Response;
-
-  try {
-    response = await fetch(resolveApiUrl(path), {
-      method: options.method ?? "GET",
-      credentials: "include",
-      signal: options.signal,
-      headers:
-        options.body instanceof FormData
-          ? undefined
-          : {
-              "Content-Type": "application/json"
-            },
-      body:
-        options.body == null
-          ? undefined
-          : options.body instanceof FormData
-            ? options.body
-            : JSON.stringify(options.body)
-    });
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw error;
-    }
-
-    throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
-      cause: error,
-      code: API_UNREACHABLE_CODE
-    });
-  }
+  let response = await performApiFetch(path, options, {
+    allowRefreshRetry: true
+  });
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}.`;
@@ -148,29 +131,10 @@ export async function apiStreamRequest<TEvent>(
     onEvent: (event: TEvent) => void;
   }
 ) {
-  let response: Response;
-
-  try {
-    response = await fetch(resolveApiUrl(path), {
-      method: options.method ?? "GET",
-      credentials: "include",
-      signal: options.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/x-ndjson"
-      },
-      body: options.body == null ? undefined : JSON.stringify(options.body)
-    });
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw error;
-    }
-
-    throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
-      cause: error,
-      code: API_UNREACHABLE_CODE
-    });
-  }
+  let response = await performApiFetch(path, options, {
+    allowRefreshRetry: true,
+    stream: true
+  });
 
   if (!response.ok || !response.body) {
     let message = `Request failed with status ${response.status}.`;
@@ -222,6 +186,93 @@ export async function apiStreamRequest<TEvent>(
     options.onEvent(event);
     throwIfStreamError(event);
   }
+}
+
+async function performApiFetch(
+  path: string,
+  options: RequestOptions,
+  fetchOptions: {
+    allowRefreshRetry: boolean;
+    stream?: boolean;
+  }
+) {
+  let response = await executeFetch(path, options, fetchOptions.stream === true);
+  if (shouldRetryWithRefresh(path, response, fetchOptions.allowRefreshRetry)) {
+    const refreshed = await refreshAccessToken(options.signal);
+    if (refreshed) {
+      response = await executeFetch(path, options, fetchOptions.stream === true);
+    }
+  }
+
+  return response;
+}
+
+async function executeFetch(path: string, options: RequestOptions, stream: boolean) {
+  try {
+    return await fetch(resolveApiUrl(path), {
+      method: options.method ?? "GET",
+      credentials: "include",
+      signal: options.signal,
+      headers: resolveRequestHeaders(options.body, stream),
+      body: resolveRequestBody(options.body)
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
+    throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
+      cause: error,
+      code: API_UNREACHABLE_CODE
+    });
+  }
+}
+
+function resolveRequestHeaders(body: unknown, stream: boolean) {
+  const headers: Record<string, string> = {};
+
+  if (!(body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (stream) {
+    headers.Accept = "application/x-ndjson";
+  }
+
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
+function resolveRequestBody(body: unknown) {
+  if (body == null) {
+    return undefined;
+  }
+
+  return body instanceof FormData ? body : JSON.stringify(body);
+}
+
+function shouldRetryWithRefresh(path: string, response: Response, allowRefreshRetry: boolean) {
+  return allowRefreshRetry && response.status === 401 && path !== AUTH_REFRESH_PATH;
+}
+
+async function refreshAccessToken(signal?: AbortSignal): Promise<boolean> {
+  if (inFlightRefresh == null) {
+    inFlightRefresh = (async () => {
+      try {
+        const response = await executeFetch(AUTH_REFRESH_PATH, { method: "POST", signal }, false);
+        return response.ok;
+      } catch (error) {
+        if (isAbortError(error)) {
+          throw error;
+        }
+
+        return false;
+      } finally {
+        inFlightRefresh = null;
+      }
+    })();
+  }
+
+  return inFlightRefresh;
 }
 
 function throwIfStreamError(event: unknown): asserts event is Exclude<unknown, StreamErrorPayload> {

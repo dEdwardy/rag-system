@@ -2,8 +2,10 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
   AuditEventRecord,
+  AuthLoginResponse,
   AuthMeResponse,
   AuthProvidersResponse,
+  AuthRefreshResponse,
   AskResponse,
   AskStreamEvent,
   AnswerPolicy,
@@ -33,7 +35,8 @@ export function useAuthMe(enabled = true) {
     queryKey: AUTH_ME_QUERY_KEY,
     queryFn: () => apiRequest<AuthMeResponse>("/auth/me"),
     enabled,
-    retry: false
+    retry: false,
+    staleTime: 30_000
   });
 }
 
@@ -96,13 +99,27 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: (payload: { email: string; password: string }) =>
-      apiRequest<{ identity: AuthMeResponse["currentIdentity"]; expiresAt: string }>("/auth/login", {
+      apiRequest<AuthLoginResponse>("/auth/login", {
         method: "POST",
         body: payload
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
+    onSuccess: login => {
+      queryClient.setQueryData<AuthMeResponse>(AUTH_ME_QUERY_KEY, current => ({
+        identity: login.identity,
+        currentIdentity: login.identity,
+        user: login.user,
+        loginProvenance: current?.loginProvenance ?? {
+          type: "local_session",
+          oauthProvider: null
+        }
+      }));
     }
+  });
+}
+
+export async function refreshAuthSession() {
+  return apiRequest<AuthRefreshResponse>("/auth/refresh", {
+    method: "POST"
   });
 }
 

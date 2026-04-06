@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../infra/database/prisma.service";
 import type { AuthIdentity } from "./auth-identity.contract";
+import { readNamedCookie } from "./auth-cookie.utils";
 import type { AuthIdentityProvider, AuthProviderRequest } from "./auth-provider.contract";
-import { DEFAULT_AUTH_SESSION_COOKIE_NAME } from "./auth.constants";
 import { AuthRuntimeConfigService } from "./auth-runtime-config";
 
 const SESSION_LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
@@ -29,6 +29,19 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
       return null;
     }
 
+    return this.resolveSessionIdentityById(sessionId, {
+      updateLastSeenAt: true
+    });
+  }
+
+  async resolveSessionIdentityById(
+    sessionId: string,
+    options: {
+      updateLastSeenAt: boolean;
+    } = {
+      updateLastSeenAt: true
+    }
+  ): Promise<AuthIdentity | null> {
     const cachedIdentity = this.readCachedIdentity(sessionId);
     if (cachedIdentity != null) {
       return cachedIdentity;
@@ -67,7 +80,8 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
     }
 
     const shouldRefreshLastSeenAt =
-      session.lastSeenAt == null || Date.now() - session.lastSeenAt.getTime() >= SESSION_LAST_SEEN_UPDATE_INTERVAL_MS;
+      options.updateLastSeenAt &&
+      (session.lastSeenAt == null || Date.now() - session.lastSeenAt.getTime() >= SESSION_LAST_SEEN_UPDATE_INTERVAL_MS);
 
     if (shouldRefreshLastSeenAt) {
       await this.prisma.authSession.updateMany({
@@ -99,57 +113,12 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
   }
 
   private readSessionId(headers?: AuthProviderRequest["headers"]): string | null {
-    const rawCookieHeader = this.readHeaderString(headers, "cookie");
-    if (rawCookieHeader == null) {
-      return null;
-    }
-
     const cookieName = this.authRuntimeConfig.getConfig().sessionCookieName;
     if (!cookieName) {
       return null;
     }
 
-    const pairs = rawCookieHeader.split(";");
-    for (const pair of pairs) {
-      const separatorIndex = pair.indexOf("=");
-      if (separatorIndex <= 0) {
-        continue;
-      }
-
-      const key = pair.slice(0, separatorIndex).trim();
-      if (key !== cookieName) {
-        continue;
-      }
-
-      const value = pair.slice(separatorIndex + 1).trim();
-      if (!value) {
-        return null;
-      }
-
-      try {
-        const decoded = decodeURIComponent(value);
-        return decoded.length > 0 ? decoded : null;
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
-  }
-
-  private readHeaderString(headers: AuthProviderRequest["headers"], name: string): string | null {
-    const rawValue = headers?.[name];
-    if (typeof rawValue === "string") {
-      const trimmed = rawValue.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    }
-
-    if (Array.isArray(rawValue)) {
-      const joined = rawValue.join(",").trim();
-      return joined.length > 0 ? joined : null;
-    }
-
-    return null;
+    return readNamedCookie(headers, cookieName);
   }
 
   private async markSessionRevoked(sessionId: string, revokedAt: Date | null): Promise<void> {

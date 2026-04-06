@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res } from "@nestjs/common";
 import {
+  DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME,
   DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME,
   DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
   DEFAULT_AUTH_SESSION_COOKIE_NAME
 } from "./auth.constants";
+import { buildCookie, buildExpiredCookie, readNamedCookie as readCookieValue } from "./auth-cookie.utils";
 import { AuthRateLimit } from "./auth-rate-limit.decorator";
 import type { ApiRequestWithAuthContext } from "./auth-identity.contract";
 import { AuthenticatedRoute, PublicRoute } from "./auth-route-policy";
@@ -49,10 +51,41 @@ export class AuthController {
 
     response.setHeader("Set-Cookie", [
       this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
+      this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
       this.buildLoginProvenanceCookieValue(LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE, result.expiresAt)
     ]);
 
-    return result;
+    return {
+      identity: result.identity,
+      user: result.user,
+      expiresAt: result.expiresAt,
+      accessTokenExpiresAt: result.accessTokenExpiresAt
+    };
+  }
+
+  @Post("refresh")
+  @AuthRateLimit("refresh")
+  async refresh(
+    @Req()
+    request: {
+      headers?: {
+        cookie?: string | string[];
+      };
+    },
+    @Res({ passthrough: true }) response: { setHeader: (name: string, value: string | string[]) => void }
+  ) {
+    const result = await this.authService.refreshAccessToken({
+      sessionId: this.readNamedCookie(request.headers, this.resolveSessionCookieName())
+    });
+
+    response.setHeader("Set-Cookie", this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt));
+
+    return {
+      ok: true,
+      identity: result.identity,
+      user: result.user,
+      expiresAt: result.accessTokenExpiresAt
+    };
   }
 
   @Post("logout")
@@ -67,6 +100,7 @@ export class AuthController {
     if (response != null) {
       response.setHeader("Set-Cookie", [
         this.buildClearSessionCookieValue(),
+        this.buildClearAccessTokenCookieValue(),
         this.buildClearLoginProvenanceCookieValue()
       ]);
     }
@@ -163,6 +197,7 @@ export class AuthController {
     response.setHeader("Set-Cookie", [
       this.buildClearOauthStateCookieValue(),
       this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
+      this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
       this.buildLoginProvenanceCookieValue(params.provider, result.expiresAt)
     ]);
     response.redirect(302, this.resolveOauthSuccessRedirectUrl());
@@ -209,61 +244,17 @@ export class AuthController {
     } | undefined,
     cookieName: string
   ): string | null {
-    const rawCookieHeader = this.readCookieHeader(headers);
-    if (rawCookieHeader == null) {
-      return null;
-    }
-
-    const pairs = rawCookieHeader.split(";");
-    for (const pair of pairs) {
-      const separatorIndex = pair.indexOf("=");
-      if (separatorIndex <= 0) {
-        continue;
-      }
-
-      const key = pair.slice(0, separatorIndex).trim();
-      if (key !== cookieName) {
-        continue;
-      }
-
-      const value = pair.slice(separatorIndex + 1).trim();
-      if (!value) {
-        return null;
-      }
-
-      try {
-        const decoded = decodeURIComponent(value);
-        return decoded.length > 0 ? decoded : null;
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
+    return readCookieValue(headers, cookieName);
   }
 
-  private readCookieHeader(
-    headers: {
-      cookie?: string | string[];
-    } | undefined
-  ): string | null {
-    const rawCookie = headers?.cookie;
-    if (typeof rawCookie === "string") {
-      const trimmed = rawCookie.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    }
-
-    if (Array.isArray(rawCookie)) {
-      const joined = rawCookie.join(";").trim();
-      return joined.length > 0 ? joined : null;
-    }
-
-    return null;
-  }
-
-  private resolveCookieName() {
+  private resolveSessionCookieName() {
     const cookieName = this.authRuntimeConfig.getConfig().sessionCookieName;
     return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_SESSION_COOKIE_NAME;
+  }
+
+  private resolveAccessTokenCookieName() {
+    const cookieName = this.authRuntimeConfig.getConfig().accessTokenCookieName;
+    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME;
   }
 
   private resolveOauthStateCookieName() {
@@ -277,31 +268,67 @@ export class AuthController {
   }
 
   private buildSessionCookieValue(sessionId: string | null, expiresAtIso: string): string {
-    const cookieName = this.resolveCookieName();
-    const safeSessionId = encodeURIComponent(sessionId ?? "");
-    const expiresAt = new Date(expiresAtIso).toUTCString();
-    return `${cookieName}=${safeSessionId}; Path=/; HttpOnly; SameSite=Lax; Expires=${expiresAt}`;
+    return buildCookie({
+      name: this.resolveSessionCookieName(),
+      value: sessionId ?? "",
+      expires: new Date(expiresAtIso),
+      httpOnly: true,
+      sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
+      secure: this.authRuntimeConfig.getConfig().cookieSecure
+    });
+  }
+
+  private buildAccessTokenCookieValue(token: string, expiresAtIso: string): string {
+    return buildCookie({
+      name: this.resolveAccessTokenCookieName(),
+      value: token,
+      expires: new Date(expiresAtIso),
+      httpOnly: true,
+      sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
+      secure: this.authRuntimeConfig.getConfig().cookieSecure
+    });
   }
 
   private buildClearSessionCookieValue(): string {
-    const cookieName = this.resolveCookieName();
-    return `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    return buildExpiredCookie({
+      name: this.resolveSessionCookieName(),
+      sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
+      secure: this.authRuntimeConfig.getConfig().cookieSecure
+    });
+  }
+
+  private buildClearAccessTokenCookieValue(): string {
+    return buildExpiredCookie({
+      name: this.resolveAccessTokenCookieName(),
+      sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
+      secure: this.authRuntimeConfig.getConfig().cookieSecure
+    });
   }
 
   private buildLoginProvenanceCookieValue(value: string, expiresAtIso: string): string {
-    const cookieName = this.resolveLoginProvenanceCookieName();
-    const safeValue = encodeURIComponent(value);
-    const expiresAt = new Date(expiresAtIso).toUTCString();
-    return `${cookieName}=${safeValue}; Path=/; HttpOnly; SameSite=Lax; Expires=${expiresAt}`;
+    return buildCookie({
+      name: this.resolveLoginProvenanceCookieName(),
+      value,
+      expires: new Date(expiresAtIso),
+      httpOnly: true,
+      sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
+      secure: this.authRuntimeConfig.getConfig().cookieSecure
+    });
   }
 
   private buildClearLoginProvenanceCookieValue(): string {
-    const cookieName = this.resolveLoginProvenanceCookieName();
-    return `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    return buildExpiredCookie({
+      name: this.resolveLoginProvenanceCookieName(),
+      sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
+      secure: this.authRuntimeConfig.getConfig().cookieSecure
+    });
   }
 
   private buildClearOauthStateCookieValue(): string {
-    const stateCookieName = this.resolveOauthStateCookieName();
-    return `${stateCookieName}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    return buildExpiredCookie({
+      name: this.resolveOauthStateCookieName(),
+      sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
+      secure: this.authRuntimeConfig.getConfig().cookieSecure
+    });
   }
 }
