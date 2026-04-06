@@ -1,13 +1,13 @@
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
+import type { AppShellOutletContext } from "../../app/AppShell";
 import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
 import { IconActionButton, IconActionLink } from "../../components/IconAction";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useAskAssistantStream,
-  useAuthMe,
   useAssistants,
   useConversationMessages,
   useConversations,
@@ -263,6 +263,7 @@ function ChatWorkspacePanelsFallback({
 }
 
 export function ChatPage() {
+  const { loginProvenance } = useOutletContext<AppShellOutletContext>();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
   const [composerValue, setComposerValue] = useState("");
@@ -275,7 +276,6 @@ export function ChatPage() {
   const streamAbortControllerRef = useRef<AbortController | null>(null);
 
   const assistantsQuery = useAssistants();
-  const authMeQuery = useAuthMe();
   const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", activeKnowledgeBase != null);
@@ -394,8 +394,7 @@ export function ChatPage() {
     document => document.status === "pending" || document.status === "processing"
   ).length;
   const failedDocumentCount = documents.filter(document => document.status === "failed").length;
-  const isOauthOnboardingActive =
-    authMeQuery.data?.loginProvenance.type === "oauth_session" && !(documentCount > 0 && conversationCount > 0);
+  const isOauthOnboardingActive = loginProvenance.type === "oauth_session" && !(documentCount > 0 && conversationCount > 0);
   const workspaceStatus = resolveWorkspaceStatus({
     copy: chatCopy,
     hasKnowledgeBase: activeKnowledgeBase != null,

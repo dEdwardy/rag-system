@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { useAuthMe } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
+import { useOutletContext } from "react-router-dom";
+import type { AppShellOutletContext } from "../../app/AppShell";
 
 type OauthWorkspaceWelcomeProps = {
   context: "chat" | "knowledge" | "assistant";
@@ -36,10 +37,10 @@ export function OauthWorkspaceWelcome({
   conversationCount = 0,
   assistantCount = 0
 }: OauthWorkspaceWelcomeProps) {
-  const authMeQuery = useAuthMe();
   const { locale } = useI18n();
+  const { loginProvenance } = useOutletContext<AppShellOutletContext>();
 
-  if (authMeQuery.data?.loginProvenance.type !== "oauth_session") {
+  if (loginProvenance.type !== "oauth_session") {
     return null;
   }
 
@@ -51,7 +52,7 @@ export function OauthWorkspaceWelcome({
     return null;
   }
 
-  const providerLabel = authMeQuery.data.loginProvenance.oauthProvider?.toUpperCase() ?? "OAuth";
+  const providerLabel = loginProvenance.oauthProvider?.toUpperCase() ?? "OAuth";
 
   const copy =
     locale === "zh"
