@@ -157,7 +157,8 @@ test("DocumentsService reindexKnowledgeBase scopes KB access and requests each d
         kbId: "kb-1"
       },
       select: {
-        id: true
+        id: true,
+        sourceType: true
       },
       orderBy: {
         updatedAt: "desc"
@@ -279,7 +280,7 @@ test("DocumentsService falls back to knowledge-base lookup when document list is
 
   assert.deepEqual(result, []);
   assert.equal(calls.documentFindMany.length, 1);
-  assert.deepEqual(calls.knowledgeBaseGet, [["kb-1", { tenantId: "tenant-auth", userId: "user-auth" }]]);
+  assert.deepEqual(calls.knowledgeBaseGet, [["kb-1", { tenantId: "tenant-auth", userId: "user-auth" }, { preserveForbiddenOnMiss: true }]]);
 });
 
 test("DocumentsService checks scoped knowledge-base access before listing documents", async () => {

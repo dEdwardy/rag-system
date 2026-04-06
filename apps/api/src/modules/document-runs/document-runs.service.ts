@@ -789,10 +789,11 @@ export class DocumentRunsService {
     return listedRuns;
   }
 
-  async listDocumentRuns(documentId: string, input: ListDocumentRunsInput) {
+  async listDocumentRuns(documentId: string, input: ListDocumentRunsInput, extraWhere?: Prisma.DocumentRunWhereInput) {
     const runs = await this.prisma.documentRun.findMany({
       where: {
-        documentId
+        documentId,
+        ...extraWhere
       },
       ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: [{ startedAt: "desc" }, { version: "desc" }]

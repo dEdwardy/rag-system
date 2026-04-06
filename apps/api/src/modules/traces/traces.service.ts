@@ -159,6 +159,83 @@ export class TracesService {
       return Promise.resolve([]);
     }
 
+    if (typeof this.prisma.$queryRaw === "function") {
+      const scopedFilter = scope == null
+        ? Prisma.empty
+        : Prisma.sql`AND c."tenantId" = ${scope.tenantId} AND c."userId" = ${scope.userId}`;
+
+      return this.prisma.$queryRaw<Array<{
+        id: string;
+        conversationId: string;
+        assistantId: string;
+        userMessageId: string | null;
+        assistantMessageId: string | null;
+        userQuery: string;
+        rewrittenQuery: string | null;
+        retrievedChunkIdsJson: Prisma.JsonValue | null;
+        retrievalMetadataJson: Prisma.JsonValue | null;
+        citationsJson: Prisma.JsonValue | null;
+        answeringMetadataJson: Prisma.JsonValue | null;
+        qualityEvaluationJson: Prisma.JsonValue | null;
+        modelName: string | null;
+        latencyMs: number | null;
+        status: TraceStatus;
+        errorMessage: string | null;
+        createdAt: Date;
+      }>>(
+        Prisma.sql`
+          WITH ranked_traces AS (
+            SELECT
+              t."id",
+              t."conversationId",
+              t."assistantId",
+              t."userMessageId",
+              t."assistantMessageId",
+              t."userQuery",
+              t."rewrittenQuery",
+              t."retrievedChunkIdsJson",
+              t."retrievalMetadataJson",
+              t."citationsJson",
+              t."answeringMetadataJson",
+              t."qualityEvaluationJson",
+              t."modelName",
+              t."latencyMs",
+              t."status",
+              t."errorMessage",
+              t."createdAt",
+              ROW_NUMBER() OVER (
+                PARTITION BY t."conversationId"
+                ORDER BY t."createdAt" DESC, t."id" DESC
+              ) AS rn
+            FROM "AnswerTrace" t
+            JOIN "Conversation" c ON c."id" = t."conversationId"
+            WHERE t."conversationId" IN (${Prisma.join(conversationIds)})
+            ${scopedFilter}
+          )
+          SELECT
+            "id",
+            "conversationId",
+            "assistantId",
+            "userMessageId",
+            "assistantMessageId",
+            "userQuery",
+            "rewrittenQuery",
+            "retrievedChunkIdsJson",
+            "retrievalMetadataJson",
+            "citationsJson",
+            "answeringMetadataJson",
+            "qualityEvaluationJson",
+            "modelName",
+            "latencyMs",
+            "status",
+            "errorMessage",
+            "createdAt"
+          FROM ranked_traces
+          WHERE rn = 1
+        `
+      ).then(traces => this.mapLatestConversationTraces(conversationIds, traces));
+    }
+
     return this.prisma.answerTrace.findMany({
       where: {
         conversationId: {
@@ -175,19 +252,42 @@ export class TracesService {
       },
       select: this.traceListSelect,
       orderBy: [{ conversationId: "asc" }, { createdAt: "desc" }]
-    }).then(traces => {
-      const latestTraceByConversationId = new Map<string, ReturnType<typeof this.attachTraceListSummary>>();
+    }).then(traces => this.mapLatestConversationTraces(conversationIds, traces));
+  }
 
-      for (const trace of traces) {
-        if (!latestTraceByConversationId.has(trace.conversationId)) {
-          latestTraceByConversationId.set(trace.conversationId, this.attachTraceListSummary(trace));
-        }
+  private mapLatestConversationTraces(
+    conversationIds: string[],
+    traces: Array<{
+      id: string;
+      conversationId: string;
+      assistantId: string;
+      userMessageId: string | null;
+      assistantMessageId: string | null;
+      userQuery: string;
+      rewrittenQuery: string | null;
+      retrievedChunkIdsJson: Prisma.JsonValue | null;
+      retrievalMetadataJson: Prisma.JsonValue | null;
+      citationsJson: Prisma.JsonValue | null;
+      answeringMetadataJson: Prisma.JsonValue | null;
+      qualityEvaluationJson: Prisma.JsonValue | null;
+      modelName: string | null;
+      latencyMs: number | null;
+      status: TraceStatus;
+      errorMessage: string | null;
+      createdAt: Date;
+    }>
+  ) {
+    const latestTraceByConversationId = new Map<string, ReturnType<typeof this.attachTraceListSummary>>();
+
+    for (const trace of traces) {
+      if (!latestTraceByConversationId.has(trace.conversationId)) {
+        latestTraceByConversationId.set(trace.conversationId, this.attachTraceListSummary(trace));
       }
+    }
 
-      return conversationIds.flatMap(conversationId => {
-        const trace = latestTraceByConversationId.get(conversationId);
-        return trace == null ? [] : [{ conversationId, trace }];
-      });
+    return conversationIds.flatMap(conversationId => {
+      const trace = latestTraceByConversationId.get(conversationId);
+      return trace == null ? [] : [{ conversationId, trace }];
     });
   }
 

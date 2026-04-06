@@ -208,6 +208,16 @@ test("KnowledgeBasesService scopes list and get queries by owner identity", asyn
 
   assert.deepEqual(calls.list, [
     {
+      select: {
+        id: true,
+        tenantId: true,
+        ownerId: true,
+        name: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true
+      },
       where: {
         tenantId: "tenant-auth",
         ownerId: "user-auth"

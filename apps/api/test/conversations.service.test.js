@@ -30,6 +30,16 @@ test("ConversationsService scopes list and lookup by identity when provided", as
 
   assert.deepEqual(findManyCalls, [
     {
+      select: {
+        id: true,
+        tenantId: true,
+        userId: true,
+        assistantId: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true
+      },
       where: {
         tenantId: "tenant-42",
         userId: "user-42"

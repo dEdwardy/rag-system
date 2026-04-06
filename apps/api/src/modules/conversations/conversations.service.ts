@@ -58,12 +58,31 @@ export class ConversationsService {
   }
 
   async touchConversation(id: string, scope: { tenantId: string; userId: string }) {
-    await this.getConversation(id, scope);
-    return this.prisma.conversation.update({
-      where: { id },
+    if (typeof this.prisma.conversation.updateMany !== "function") {
+      await this.getConversation(id, scope);
+      return this.prisma.conversation.update({
+        where: { id },
+        data: {
+          updatedAt: new Date()
+        }
+      });
+    }
+
+    const updateResult = await this.prisma.conversation.updateMany({
+      where: {
+        id,
+        tenantId: scope.tenantId,
+        userId: scope.userId
+      },
       data: {
         updatedAt: new Date()
       }
     });
+
+    if (updateResult.count === 0) {
+      throw new NotFoundException(`Conversation ${id} not found.`);
+    }
+
+    return updateResult;
   }
 }
