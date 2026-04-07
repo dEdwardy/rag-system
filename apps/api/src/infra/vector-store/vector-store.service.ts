@@ -51,17 +51,16 @@ export class VectorStoreService implements VectorStore {
       });
     }
 
-    const nextRecords = [
-      ...records.filter(record => record.documentId !== input.documentId),
-      ...input.records.map(({ embedding, ...record }) => ({
-        ...record,
-        modelName: embedding.modelName,
-        dimensions: embedding.dimensions,
-        vector: embedding.vector,
-        updatedAt: new Date().toISOString()
-      }))
-    ];
+    const existingRecordsWithoutDocument = records.filter(record => record.documentId !== input.documentId);
+    const newRecords = input.records.map(({ embedding, ...record }) => ({
+      ...record,
+      modelName: embedding.modelName,
+      dimensions: embedding.dimensions,
+      vector: embedding.vector,
+      updatedAt: new Date().toISOString()
+    }));
 
+    const nextRecords = [...existingRecordsWithoutDocument, ...newRecords];
     await this.writeKnowledgeBaseVectors(input.kbId, nextRecords);
   }
 

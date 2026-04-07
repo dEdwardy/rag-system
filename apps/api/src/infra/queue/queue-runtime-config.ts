@@ -10,6 +10,8 @@ export type QueueRuntimeConfig = {
   databaseRetryDelayMs: number;
   databaseMaxAttempts: number;
   pgmqVisibilityTimeoutSeconds: number;
+  maxConcurrentIngestionTasks: number;
+  maxTaskTimeoutMs: number;
 };
 
 export const QUEUE_RUNTIME_CONFIG = Symbol("QUEUE_RUNTIME_CONFIG");
@@ -38,6 +40,8 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
     300,
     "QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS"
   );
+  const maxConcurrentIngestionTasks = parsePositiveInteger(env.QUEUE_MAX_CONCURRENT_TASKS, 3, "QUEUE_MAX_CONCURRENT_TASKS");
+  const maxTaskTimeoutMs = parsePositiveInteger(env.QUEUE_TASK_TIMEOUT_MS, 300000, "QUEUE_TASK_TIMEOUT_MS");
 
   return {
     provider,
@@ -46,7 +50,9 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
     databasePollIntervalMs,
     databaseRetryDelayMs,
     databaseMaxAttempts,
-    pgmqVisibilityTimeoutSeconds
+    pgmqVisibilityTimeoutSeconds,
+    maxConcurrentIngestionTasks,
+    maxTaskTimeoutMs
   };
 }
 

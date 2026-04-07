@@ -105,6 +105,20 @@ export class DocumentIngestionProcessor {
       await this.markDocumentProcessing(document.id, document.version, preservedDiagnostics);
 
       const fileBuffer = await this.readDocumentFile(document);
+      
+      const maxFileSize = 50 * 1024 * 1024;
+      if (fileBuffer.length > maxFileSize) {
+        throw new IngestionProcessError(
+          createErrorDiagnostics(
+            ErrorCode.INGESTION_PARSING_FAILED,
+            "parsing",
+            false,
+            document.version,
+            `Document file size exceeds limit of 50MB.`
+          ) as IngestionDiagnostics
+        );
+      }
+      
       const content = await this.parseDocumentContent(document, fileBuffer);
       const normalizedContent = content.trim();
 

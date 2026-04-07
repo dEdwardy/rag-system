@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import {
   createResolvedEmbeddingConfigFromProviderResponse,
@@ -10,9 +10,12 @@ import {
   resolveEmbeddingRuntimeConfig,
   resolveProviderResponseDimensions
 } from "./embedding-runtime-config";
+import { EmbeddingCacheService } from "./embedding-cache.service";
 
 @Injectable()
 export class EmbeddingService {
+  constructor(@Inject(EmbeddingCacheService) private readonly embeddingCacheService: EmbeddingCacheService) {}
+
   async embedTexts(texts: string[]): Promise<EmbeddingVector[]> {
     const normalizedTexts = texts.map(text => text.trim());
 
@@ -20,39 +23,67 @@ export class EmbeddingService {
       return [];
     }
 
+    const { cached, uncached, indices } = this.embeddingCacheService.getBatch(normalizedTexts);
+
+    if (uncached.length === 0) {
+      const result: EmbeddingVector[] = [];
+      for (let i = 0; i < normalizedTexts.length; i++) {
+        result.push(cached.get(i)!);
+      }
+      return result;
+    }
+
     const runtimeConfig = resolveEmbeddingRuntimeConfig();
+    let uncachedEmbeddings: EmbeddingVector[] | null = null;
 
     for (const providerConfig of runtimeConfig.providers) {
       if (providerConfig.provider === "ollama") {
         try {
-          return await this.embedWithOllama(providerConfig, normalizedTexts);
+          uncachedEmbeddings = await this.embedWithOllama(providerConfig, uncached);
+          break;
         } catch (error) {
           if (error instanceof EmbeddingRuntimeConfigError) {
             throw error;
           }
-
-          // Keep ingestion and retrieval available when local model is not ready.
           continue;
         }
       }
 
       if (providerConfig.provider === "openai") {
         try {
-          return await this.embedWithOpenAI(providerConfig, normalizedTexts);
+          uncachedEmbeddings = await this.embedWithOpenAI(providerConfig, uncached);
+          break;
         } catch (error) {
           if (error instanceof EmbeddingRuntimeConfigError) {
             throw error;
           }
-
-          // Fall through to deterministic local embedding.
           continue;
         }
       }
 
-      return normalizedTexts.map(text => this.buildFallbackEmbedding(text, providerConfig));
+      uncachedEmbeddings = uncached.map(text => this.buildFallbackEmbedding(text, providerConfig));
+      break;
     }
 
-    throw new Error("Embedding runtime resolution returned no embedding provider.");
+    if (!uncachedEmbeddings) {
+      throw new Error("Embedding runtime resolution returned no embedding provider.");
+    }
+
+    this.embeddingCacheService.setBatch(uncached, uncachedEmbeddings);
+
+    const result: EmbeddingVector[] = [];
+    let uncachedIndex = 0;
+    for (let i = 0; i < normalizedTexts.length; i++) {
+      const cachedEmbedding = cached.get(i);
+      if (cachedEmbedding) {
+        result.push(cachedEmbedding);
+      } else {
+        result.push(uncachedEmbeddings[uncachedIndex]);
+        uncachedIndex++;
+      }
+    }
+
+    return result;
   }
 
   async embedQuery(text: string): Promise<EmbeddingVector> {
