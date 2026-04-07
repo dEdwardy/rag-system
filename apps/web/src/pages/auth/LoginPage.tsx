@@ -5,7 +5,7 @@ import { BackendUnavailableScreen } from "../../components/BackendUnavailableScr
 import { useI18n } from "../../i18n/I18nProvider";
 import { useAuthMe, useAuthProviders, useLogin } from "../../features/api/hooks";
 import { isApiUnavailableError, resolveApiUrl } from "../../lib/api";
-import { isInviteGateAccepted } from "../../lib/invite-gate";
+import { isDevelopment, isInviteGateAccepted } from "../../lib/invite-gate";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -27,6 +27,11 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!defaultCredentials) {
+      // 开发环境自动填充默认凭证
+      if (isDevelopment()) {
+        setEmail("default-user@example.com");
+        setPassword("local-password-1");
+      }
       return;
     }
 

@@ -257,10 +257,9 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
   - treat `sitemap` / `sitemapindex` only as URL index hints, not as authorization grants
   - users are responsible for confirming rights-to-use before ingestion
   - external resync remains incremental-first: in-flight resync is not duplicated, and very recent `ready/completed` external docs are skipped for immediate repeat broad refetch
-- storage runtime now also supports:
+- storage runtime now requires Supabase Storage:
 
 ```text
-STORAGE_PROVIDER=supabase
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_STORAGE_BUCKET_UPLOADS=uploads
@@ -270,12 +269,8 @@ VECTOR_STORE_PGVECTOR_TABLE=ChunkEmbedding
 VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 ```
 
-- storage path resolution for the remaining local test/dev fallback is repo-root-stable instead of `process.cwd()`-relative:
-  - when unset, the default remains the repo-local `storage/` directory
-  - when set to a relative path such as `storage` or `storage/local-dev`, it resolves relative to the repository root, not the shell working directory
-  - when set to an absolute path, the absolute path wins as before
-- the normal runtime path is now explicit Supabase Storage: keep `STORAGE_PROVIDER=supabase` plus all `SUPABASE_*` storage variables configured in normal development and shared environments
-- local filesystem storage no longer activates as a silent default; keep it only as a temporary fallback for tests / narrow local debugging via `STORAGE_PROVIDER=local` or an explicit `STORAGE_ROOT`
+- the runtime now exclusively uses Supabase Storage for all file operations
+- local filesystem storage has been removed; all storage operations now go through Supabase Storage API
 - the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between local and Supabase storage
 - `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
 - vector storage still defaults to the local filesystem; set `VECTOR_STORE_PROVIDER=pgvector` to switch vector persistence/search to PostgreSQL `pgvector`

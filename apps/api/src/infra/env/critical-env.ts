@@ -11,8 +11,7 @@ const trimmedOptionalString = z
 const criticalEnvSchema = z
   .object({
     DATABASE_URL: trimmedOptionalString,
-    STORAGE_PROVIDER: z.enum(["local", "supabase"]).optional(),
-    STORAGE_ROOT: trimmedOptionalString,
+
     SUPABASE_URL: trimmedOptionalString,
     SUPABASE_SERVICE_ROLE_KEY: trimmedOptionalString,
     SUPABASE_STORAGE_BUCKET_UPLOADS: trimmedOptionalString,
@@ -41,39 +40,25 @@ const criticalEnvSchema = z
       ["SUPABASE_STORAGE_BUCKET_GENERATED", env.SUPABASE_STORAGE_BUCKET_GENERATED]
     ] as const;
 
-    const hasAnySupabaseStorageField = supabaseStorageFields.some(([, value]) => value !== undefined);
-    const hasLocalStorageFallback = env.STORAGE_PROVIDER === "local" || Boolean(env.STORAGE_ROOT);
-    const requiresSupabaseStorage = env.STORAGE_PROVIDER === "supabase" || (!hasLocalStorageFallback && hasAnySupabaseStorageField);
-
-    if (!hasLocalStorageFallback && !hasAnySupabaseStorageField) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["STORAGE_PROVIDER"],
-        message:
-          "Configure Supabase storage env for normal runtime, or set STORAGE_PROVIDER=local / STORAGE_ROOT only for temporary local test-debug fallback."
-      });
+    // Always require Supabase storage
+    for (const [key, value] of supabaseStorageFields) {
+      if (!value) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is required for Supabase Storage.`
+        });
+      }
     }
 
-    if (requiresSupabaseStorage) {
-      for (const [key, value] of supabaseStorageFields) {
-        if (!value) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} is required when Supabase Storage is configured.`
-          });
-        }
-      }
-
-      if (env.SUPABASE_URL) {
-        const urlResult = z.string().url().safeParse(env.SUPABASE_URL);
-        if (!urlResult.success) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["SUPABASE_URL"],
-            message: "SUPABASE_URL must be a valid URL."
-          });
-        }
+    if (env.SUPABASE_URL) {
+      const urlResult = z.string().url().safeParse(env.SUPABASE_URL);
+      if (!urlResult.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["SUPABASE_URL"],
+          message: "SUPABASE_URL must be a valid URL."
+        });
       }
     }
 

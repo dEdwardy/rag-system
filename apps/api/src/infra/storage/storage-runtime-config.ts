@@ -1,9 +1,4 @@
-import { resolveStorageRoot } from "./storage-root";
 
-export type LocalStorageRuntimeConfig = {
-  provider: "local";
-  storageRoot: string;
-};
 
 export type SupabaseStorageRuntimeConfig = {
   provider: "supabase";
@@ -15,7 +10,12 @@ export type SupabaseStorageRuntimeConfig = {
   };
 };
 
-export type StorageRuntimeConfig = LocalStorageRuntimeConfig | SupabaseStorageRuntimeConfig;
+export type LocalStorageRuntimeConfig = {
+  provider: "local";
+  storageRoot: string;
+};
+
+export type StorageRuntimeConfig = SupabaseStorageRuntimeConfig | LocalStorageRuntimeConfig;
 
 export class StorageRuntimeConfigError extends Error {
   constructor(message: string) {
@@ -25,35 +25,24 @@ export class StorageRuntimeConfigError extends Error {
 }
 
 export function resolveStorageRuntimeConfig(env: NodeJS.ProcessEnv = process.env): StorageRuntimeConfig {
-  const storageProvider = readTrimmedEnv(env, "STORAGE_PROVIDER");
+  const storageProvider = readTrimmedEnv(env, "STORAGE_PROVIDER") || "supabase";
   const storageRoot = readTrimmedEnv(env, "STORAGE_ROOT");
+
+  // 优先检查 Supabase 配置
   const supabaseUrl = readTrimmedEnv(env, "SUPABASE_URL");
   const serviceRoleKey = readTrimmedEnv(env, "SUPABASE_SERVICE_ROLE_KEY");
   const uploadsBucket = readTrimmedEnv(env, "SUPABASE_STORAGE_BUCKET_UPLOADS");
   const generatedBucket = readTrimmedEnv(env, "SUPABASE_STORAGE_BUCKET_GENERATED");
 
-  const hasSupabaseConfig = [supabaseUrl, serviceRoleKey, uploadsBucket, generatedBucket].some(value => value !== null);
-  const useLocalFallback = storageProvider === "local" || Boolean(storageRoot);
-
-  if (useLocalFallback) {
+  // 如果明确指定使用本地存储，或者 Supabase 配置不完整，才使用本地存储
+  if (storageProvider === "local" || (!supabaseUrl || !serviceRoleKey || !uploadsBucket || !generatedBucket)) {
     return {
       provider: "local",
-      storageRoot: resolveStorageRoot({ env })
+      storageRoot: storageRoot || "storage"
     };
   }
 
-  if (!hasSupabaseConfig) {
-    throw new StorageRuntimeConfigError(
-      "Storage runtime requires Supabase storage config. For temporary local test/debug fallback, set STORAGE_PROVIDER=local or STORAGE_ROOT."
-    );
-  }
-
-  if (!supabaseUrl || !serviceRoleKey || !uploadsBucket || !generatedBucket) {
-    throw new StorageRuntimeConfigError(
-      "Supabase storage requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_STORAGE_BUCKET_UPLOADS, and SUPABASE_STORAGE_BUCKET_GENERATED."
-    );
-  }
-
+  // 否则使用 Supabase 存储
   return {
     provider: "supabase",
     supabaseUrl: normalizeSupabaseUrl(supabaseUrl),
