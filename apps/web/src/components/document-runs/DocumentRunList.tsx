@@ -1,5 +1,6 @@
 import { Badge, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { Link } from "react-router-dom";
+import { memo } from "react";
 import { StatePanel } from "../StatePanel";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { DocumentRunRecord, KnowledgeBaseDocumentRunRecord } from "../../types/api";
@@ -93,7 +94,7 @@ function getRunFinishedLabel(run: RunRecord, locale: string, formatDateTime: (va
   return `${locale === "zh" ? "开始" : "Started"} ${formatDateTime(meta.startedAt)}`;
 }
 
-function RunStatusBadges({ run, locale, t }: { run: RunRecord; locale: string; t: TranslateFn }) {
+const RunStatusBadges = memo(function RunStatusBadges({ run, locale, t }: { run: RunRecord; locale: string; t: TranslateFn }) {
   const meta = describeRunMeta(run);
 
   return (
@@ -114,9 +115,9 @@ function RunStatusBadges({ run, locale, t }: { run: RunRecord; locale: string; t
       </Badge>
     </Group>
   );
-}
+});
 
-function RunDocumentSummary({ run }: { run: RunRecord }) {
+const RunDocumentSummary = memo(function RunDocumentSummary({ run }: { run: RunRecord }) {
   const document = getRunDocument(run);
 
   if (!document) {
@@ -133,9 +134,9 @@ function RunDocumentSummary({ run }: { run: RunRecord }) {
       </Text>
     </div>
   );
-}
+});
 
-function RunMetaSummary({ run, locale, formatDateTime }: { run: RunRecord; locale: string; formatDateTime: (value: string) => string }) {
+const RunMetaSummary = memo(function RunMetaSummary({ run, locale, formatDateTime }: { run: RunRecord; locale: string; formatDateTime: (value: string) => string }) {
   const meta = describeRunMeta(run);
 
   return (
@@ -158,9 +159,9 @@ function RunMetaSummary({ run, locale, formatDateTime }: { run: RunRecord; local
       ) : null}
     </div>
   );
-}
+});
 
-function RunFailureSummary({ run }: { run: RunRecord }) {
+const RunFailureSummary = memo(function RunFailureSummary({ run }: { run: RunRecord }) {
   const meta = describeRunMeta(run);
 
   if (!meta.failureMessage) {
@@ -172,17 +173,17 @@ function RunFailureSummary({ run }: { run: RunRecord }) {
       {meta.failureMessage}
     </Text>
   );
-}
+});
 
-function RunSummaryText({ run, locale }: { run: RunRecord; locale: string }) {
+const RunSummaryText = memo(function RunSummaryText({ run, locale }: { run: RunRecord; locale: string }) {
   return (
     <Text c="var(--app-text-secondary)" size="sm">
       {buildRunSummaryText(run, locale)}
     </Text>
   );
-}
+});
 
-function RunDiagnosticsHighlights({ run, locale }: { run: RunRecord; locale: string }) {
+const RunDiagnosticsHighlights = memo(function RunDiagnosticsHighlights({ run, locale }: { run: RunRecord; locale: string }) {
   const diagnosticsHighlights = buildRunDiagnosticsHighlights(run.diagnosticsJson);
 
   if (diagnosticsHighlights.length === 0) {
@@ -198,9 +199,9 @@ function RunDiagnosticsHighlights({ run, locale }: { run: RunRecord; locale: str
       ))}
     </Group>
   );
-}
+});
 
-function RunActions({
+const RunActions = memo(function RunActions({
   run,
   locale,
   onReindexRun,
@@ -244,9 +245,9 @@ function RunActions({
       ) : null}
     </Group>
   );
-}
+});
 
-function RunDiagnosticsDetails({ run, locale }: { run: RunRecord; locale: string }) {
+const RunDiagnosticsDetails = memo(function RunDiagnosticsDetails({ run, locale }: { run: RunRecord; locale: string }) {
   if (!run.diagnosticsJson) {
     return null;
   }
@@ -261,9 +262,9 @@ function RunDiagnosticsDetails({ run, locale }: { run: RunRecord; locale: string
       </pre>
     </details>
   );
-}
+});
 
-function DocumentRunCard({
+const DocumentRunCard = memo(function DocumentRunCard({
   run,
   locale,
   formatDateTime,
@@ -299,7 +300,7 @@ function DocumentRunCard({
       </Stack>
     </Paper>
   );
-}
+});
 
 type Props = {
   title: string;
@@ -310,7 +311,7 @@ type Props = {
   onReindexRun?: (run: RunRecord) => Promise<void> | void;
 };
 
-export function DocumentRunList(props: Props) {
+export const DocumentRunList = memo(function DocumentRunList(props: Props) {
   const { formatDateTime, locale, t } = useI18n();
 
   return (
@@ -340,4 +341,4 @@ export function DocumentRunList(props: Props) {
       </Stack>
     </Paper>
   );
-}
+});
