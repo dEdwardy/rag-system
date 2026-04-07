@@ -297,6 +297,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
     }
 
     const previousOverflow = document.body.style.overflow;
+    const currentMobileNavToggleRef = mobileNavToggleRef.current;
     document.body.style.overflow = "hidden";
 
     const focusTimeoutId = window.setTimeout(() => {
@@ -306,7 +307,7 @@ export function AppShell({ currentIdentity, loginProvenance }: AppShellProps) {
     return () => {
       window.clearTimeout(focusTimeoutId);
       document.body.style.overflow = previousOverflow;
-      mobileNavToggleRef.current?.focus();
+      currentMobileNavToggleRef?.focus();
     };
   }, [isMobileNavOpen]);
 

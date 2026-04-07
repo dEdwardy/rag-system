@@ -51,8 +51,8 @@ export function KnowledgeBasePage() {
   const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(knowledgeBase?.id ?? null, {
     sinceHours: 72,
   });
-  const documents = documentsQuery.data ?? [];
-  const assistants = assistantsQuery.data ?? [];
+  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
+  const assistants = useMemo(() => assistantsQuery.data ?? [], [assistantsQuery.data]);
   const assistantCount = useMemo(
     () => assistants.filter(assistant => assistant.kbId === knowledgeBase?.id).length,
     [assistants, knowledgeBase?.id]
@@ -584,7 +584,6 @@ export function KnowledgeBasePage() {
                   latestFailure={latestFailure}
                   locale={locale}
                   runSummary={runSummaryData ?? null}
-                  t={t}
                 />
               </Suspense>
             </div>

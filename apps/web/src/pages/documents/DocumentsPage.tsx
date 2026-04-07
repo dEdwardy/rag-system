@@ -36,7 +36,7 @@ export function DocumentsPage() {
   const [isDragging, setIsDragging] = useState(false);
   const { t, locale, formatDateTime } = useI18n();
 
-  const documents = documentsQuery.data ?? [];
+  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
   const { documentCount, readyCount, processingCount, failedCount } = useMemo(
     () =>
@@ -162,37 +162,6 @@ export function DocumentsPage() {
       }
     ],
     [documentCount, failedCount, locale, processingCount, readyCount]
-  );
-
-  const handleUploadFile = useCallback(
-    (file: File | null) => {
-      if (!file || !activeKnowledgeBase) {
-        return;
-      }
-
-      // 立即显示开始上传的通知
-      notifications.show({
-        color: "blue",
-        message: t("documents.uploadStart", { fileName: file.name })
-      });
-
-      // 后台执行上传，不等待完成
-      uploadMutation.mutate(file, {
-        onSuccess: () => {
-          notifications.show({
-            color: "indigo",
-            message: t("documents.uploadSuccess", { fileName: file.name })
-          });
-        },
-        onError: (error) => {
-          notifications.show({
-            color: "red",
-            message: error instanceof Error ? error.message : t("documents.uploadError")
-          });
-        }
-      });
-    },
-    [activeKnowledgeBase, t, uploadMutation]
   );
 
   const handleUploadFiles = useCallback(

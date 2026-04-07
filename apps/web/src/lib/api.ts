@@ -105,7 +105,7 @@ type StreamErrorPayload = {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
-  let response = await performApiFetch(path, options, {
+  const response = await performApiFetch(path, options, {
     allowRefreshRetry: true
   });
 
@@ -131,7 +131,7 @@ export async function apiStreamRequest<TEvent>(
     onEvent: (event: TEvent) => void;
   }
 ) {
-  let response = await performApiFetch(path, options, {
+  const response = await performApiFetch(path, options, {
     allowRefreshRetry: true,
     stream: true
   });

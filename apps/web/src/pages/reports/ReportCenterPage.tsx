@@ -1,4 +1,4 @@
-import { Badge, Button, Paper, Select, Stack, Table, Text, TextInput, Textarea } from "@mantine/core";
+import { Badge, Button, Paper, Select, Stack, Text, TextInput, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { lazy, Suspense, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -11,17 +11,12 @@ import {
   mergeSearchParamsWithEvalRunParams,
   normalizeEvalRunParams,
   readEvalRunParamsFromSearchParams,
-  getRunContextLabel,
   formatBaselineMetadataValue,
   getRegressionReasonLabel,
   getReportCenterResultNextAction
 } from "./report-center-page-helpers";
 
-const ReportCharts = lazy(async () => {
-  const module = await import("./ReportCharts");
 
-  return { default: module.ReportCharts };
-});
 
 const ReportResultsTable = lazy(async () => {
   const module = await import("./ReportResultsTable");
@@ -34,6 +29,9 @@ const ReportAnalysisPanels = lazy(async () => {
 
   return { default: module.ReportAnalysisPanels };
 });
+
+// 图表颜色配置
+const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088fe", "#00C49F"];
 
 function buildTraceReviewLink(args: {
   traceId: string;
@@ -650,7 +648,7 @@ function getQualityGateMetricStrategy(args: {
 export function ReportCenterPage() {
   const assistantsQuery = useAssistants();
   const runEvalMutation = useRunEvalQuestionSet();
-  const { locale, formatDateTime, t } = useI18n();
+  const { locale, formatDateTime } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const [questionSetId, setQuestionSetId] = useState(() => searchParams.get("questionSetId") ?? "");
   const [assistantId, setAssistantId] = useState(() => searchParams.get("assistantId") ?? "");
@@ -758,15 +756,11 @@ export function ReportCenterPage() {
       .sort((a, b) => b.count - a.count);
   }, [locale, runEvalMutation.data]);
 
-  const regressionDrilldownItems = runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [];
-  const runDiffSummary = runEvalMutation.data?.baselineComparison?.diffSummary;
+  const regressionDrilldownItems = useMemo(() => runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [], [runEvalMutation.data]);
   const firstRegressionDrilldownItem = regressionDrilldownItems[0];
+  const runDiffSummary = runEvalMutation.data?.baselineComparison?.diffSummary;
   const showPreRunGuidance = !runEvalMutation.data && !runEvalMutation.isError && !runEvalMutation.isPending;
   const hasRunItems = (runEvalMutation.data?.items.length ?? 0) > 0;
-  const baselineSnapshotPlaceholder =
-    locale === "zh" ? "本次质量检查未绑定 baseline snapshot" : "This quality check is not linked to a baseline snapshot";
-  const baselineVersionPlaceholder =
-    locale === "zh" ? "baseline version 暂不可读（需先绑定 baseline snapshot）" : "Baseline version is unavailable until a baseline snapshot is linked";
   const resultNextAction = getReportCenterResultNextAction({
     locale,
     hasRunDiffSummary: runDiffSummary != null,
@@ -908,9 +902,6 @@ export function ReportCenterPage() {
     );
   }, [reviewConclusions, reviewNote, reviewStateStorageKey, reviewUpdatedAt, reviewedItemKeys]);
 
-  // 图表颜色配置
-  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088fe", "#00C49F"];
-
   // 质量分布图表数据
   const qualityDistributionData = useMemo(() => {
     if (!runEvalMutation.data) {
@@ -921,7 +912,7 @@ export function ReportCenterPage() {
       value: row.count,
       color: COLORS[index % COLORS.length]
     }));
-  }, [qualitySummaryRows]);
+  }, [qualitySummaryRows, runEvalMutation.data]);
 
   // 雷达图数据
   const radarData = useMemo(() => {
@@ -2020,7 +2011,6 @@ export function ReportCenterPage() {
               downloadReport={downloadReport}
               errorTypeDistribution={errorTypeDistribution}
               exporting={exporting}
-              firstRegressionDrilldownItem={firstRegressionDrilldownItem}
               focusRunItem={focusRunItem}
               formatBaselineMetadataValue={formatBaselineMetadataValue}
               formatDateTime={formatDateTime}
@@ -2029,7 +2019,6 @@ export function ReportCenterPage() {
               getQualityGateMetricStrategy={getQualityGateMetricStrategy}
               getRegressionReasonLabel={getRegressionReasonLabel}
               locale={locale}
-              priorityReplayItem={priorityReplayItem}
               qualityDistributionData={qualityDistributionData}
               qualityGate={qualityGate}
               qualityGatePresentation={qualityGatePresentation}
@@ -2039,7 +2028,6 @@ export function ReportCenterPage() {
               runDiffSummary={runDiffSummary}
               runEvalData={runEvalMutation.data}
               runItemsByKey={runItemsByKey}
-              t={t}
               topBreachedMetric={topBreachedMetric}
             />
           </Suspense>
@@ -2078,16 +2066,6 @@ export function ReportCenterPage() {
           </Suspense>
         </Stack>
       ) : null}
-    </div>
-  );
-}
-
-function ReportChartFallback({ heightClassName, locale }: { heightClassName: string; locale: "zh" | "en" }) {
-  return (
-    <div className={`${heightClassName} flex items-center justify-center rounded-[24px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)]`}>
-      <Text c="var(--app-text-muted)" size="sm">
-        {locale === "zh" ? "正在加载图表..." : "Loading charts..."}
-      </Text>
     </div>
   );
 }

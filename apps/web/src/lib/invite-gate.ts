@@ -34,6 +34,7 @@ export function acceptInviteGate() {
   try {
     window.sessionStorage.setItem(INVITE_GATE_STORAGE_KEY, "1");
   } catch {
+    void 0;
   }
 }
 

@@ -401,7 +401,6 @@ export function ChatPage() {
   const documents = documentsQuery.data ?? [];
   const documentsAreReady = shouldLoadChatDocuments && documentsQuery.isSuccess;
   const documentCount = documents.length;
-  const readyDocumentCount = documents.filter(document => document.status === "ready").length;
   const processingDocumentCount = documents.filter(
     document => document.status === "pending" || document.status === "processing"
   ).length;
