@@ -632,6 +632,29 @@ export function useUploadDocument(knowledgeBaseId: string) {
   });
 }
 
+export function useUploadDocuments(knowledgeBaseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append("files", file);
+      });
+
+      return apiRequest<DocumentRecord[]>(`/knowledge-bases/${knowledgeBaseId}/documents/upload-batch`, {
+        method: "POST",
+        body: formData
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+    }
+  });
+}
+
 export function useCreateWebPageDocument(knowledgeBaseId: string) {
   const queryClient = useQueryClient();
 

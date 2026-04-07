@@ -22,7 +22,8 @@
   - 为公开 auth 路由补了限流
   - 为 OAuth onboarding / 默认 workspace 初始化补了事务边界
   - 收敛了 auth / bootstrap / queue 的运行时配置读取
-  - 后端输入校验 follow-up 也已推进一小步：controller 层新增 `ZodValidationPipe` 承接 `@Body()` / `@Query()`，并对以 `cuid` 为主的 `id` 路由参数补了非空字符串参数 pipe，而不是 UUID pipe
+- 修复了存储配置读取不一致问题：确保批量上传和单个上传使用相同的存储配置，所有文件都上传到 Supabase Storage
+- 后端输入校验 follow-up 也已推进一小步：controller 层新增 `ZodValidationPipe` 承接 `@Body()` / `@Query()`，并对以 `cuid` 为主的 `id` 路由参数补了非空字符串参数 pipe，而不是 UUID pipe
   - 整体仍保持 `Zod-first` 方向，不切回 DTO 验证栈
 - 当前前端主路径已进一步收口到普通用户闭环：`资料库 -> 回答设置 -> 对话`，并在 `Chat` 首屏补了 setup-first onboarding、统一 readiness 状态和收窄后的 onboarding 摘要区。
 - 当前 `P5` 已从“能看报告”推进到“能治理一轮质量问题”的使用态：

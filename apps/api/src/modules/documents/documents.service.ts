@@ -342,6 +342,25 @@ export class DocumentsService {
     return document;
   }
 
+  async uploadDocuments(
+    knowledgeBaseId: string,
+    files: Array<{
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+    }>,
+    scope?: DocumentAccessScope | null
+  ) {
+    const uploadedDocuments = [];
+
+    for (const file of files) {
+      const document = await this.uploadDocument(knowledgeBaseId, file, scope);
+      uploadedDocuments.push(document);
+    }
+
+    return uploadedDocuments;
+  }
+
   async createWebPageDocument(
     knowledgeBaseId: string,
     input: CreateWebPageDocumentInput,
