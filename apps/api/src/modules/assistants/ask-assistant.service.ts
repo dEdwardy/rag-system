@@ -111,22 +111,43 @@ export class AskAssistantService {
       enableRerank: retrievalProfile.enableRerank,
       strategyJson: retrievalProfile.strategyJson as RetrievalStrategy | undefined
     });
-    const rewritten = retrievalStrategy.queryRewrite.enabled
-      ? await this.llmService.rewriteQuery({
+    
+    let rewritten: {
+      rewrittenQuery: string | null;
+      modelName: string | null;
+      usedFallback: boolean | null;
+      promptId: string | null;
+    };
+    
+    if (retrievalStrategy.queryRewrite.enabled) {
+      try {
+        rewritten = await this.llmService.rewriteQuery({
           question: input.question
-        })
-      : {
+        });
+      } catch (error) {
+        rewritten = {
           rewrittenQuery: null,
           modelName: null,
           usedFallback: null,
           promptId: null
         };
+      }
+    } else {
+      rewritten = {
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      };
+    }
+    
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
     const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
       assistant.retrievalProfile.filtersJson ?? undefined
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
+    
     const retrievalResult = await this.retrieveOrCreateFailedTrace({
       assistantId: assistant.id,
       assistantKbId: assistant.kbId,
@@ -140,6 +161,7 @@ export class AskAssistantService {
       rewritten,
       documentVersions: input.documentVersions
     });
+    
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
     const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
@@ -276,6 +298,7 @@ export class AskAssistantService {
           missingInformation: resolvedAnswerResult.missingInformation
         })
       });
+      
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -390,17 +413,40 @@ export class AskAssistantService {
       enableRerank: retrievalProfile.enableRerank,
       strategyJson: retrievalProfile.strategyJson as RetrievalStrategy | undefined
     });
-    const rewritten = retrievalStrategy.queryRewrite.enabled
-      ? await this.llmService.rewriteQuery({
+    
+    let rewritten: {
+      rewrittenQuery: string | null;
+      modelName: string | null;
+      usedFallback: boolean | null;
+      promptId: string | null;
+    };
+    
+    if (retrievalStrategy.queryRewrite.enabled) {
+      try {
+        rewritten = await this.llmService.rewriteQuery({
           question: input.question,
           signal: input.signal
-        })
-      : {
+        });
+      } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
+        rewritten = {
           rewrittenQuery: null,
           modelName: null,
           usedFallback: null,
           promptId: null
         };
+      }
+    } else {
+      rewritten = {
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      };
+    }
+    
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
     const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
       assistant.retrievalProfile.filtersJson ?? undefined
@@ -425,6 +471,7 @@ export class AskAssistantService {
       retrievalFilters,
       rewritten
     });
+    
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
     const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);

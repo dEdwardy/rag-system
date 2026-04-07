@@ -134,37 +134,70 @@ export class RetrievalService {
       });
     }
 
-    const lexicalCandidates =
-      candidateSelectionMode === "hybrid"
-        ? await this.getLexicalCandidates({
+    let vectorCandidateCount = 0;
+    let embeddingDiagnostics: VectorStoreEmbeddingDiagnostics | null = null;
+
+    try {
+      const tasks: Array<Promise<{ type: "lexical" | "vector"; result: any }>> = [];
+      
+      if (candidateSelectionMode === "hybrid") {
+        tasks.push(
+          this.getLexicalCandidates({
             kbId: input.kbId,
             query: input.query,
             limit: candidateLimit,
             filters: normalizedFilters,
             documentVersions: input.documentVersions
-          })
-        : undefined;
-    let vectorCandidateCount = 0;
-    let embeddingDiagnostics: VectorStoreEmbeddingDiagnostics | null = null;
+          }).then(result => ({ type: "lexical" as const, result }))
+        );
+      }
 
-    try {
-      const queryEmbedding = await this.embeddingService.embedQuery(input.query);
-      const vectorSearch = (await this.vectorStoreService.search({
-        kbId: input.kbId,
-        queryEmbedding,
-        topK: candidateLimit,
-        scoreThreshold: input.scoreThreshold,
-        filters: normalizedFilters
-      })) as VectorSearchResult | VectorSearchMatch[];
-      const normalizedVectorSearch = this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
-      const vectorMatches = normalizedVectorSearch.matches;
-      embeddingDiagnostics = normalizedVectorSearch.embedding;
+      tasks.push(
+        (async () => {
+          const queryEmbedding = await this.embeddingService.embedQuery(input.query);
+          const vectorSearch = (await this.vectorStoreService.search({
+            kbId: input.kbId,
+            queryEmbedding,
+            topK: candidateLimit,
+            scoreThreshold: input.scoreThreshold,
+            filters: normalizedFilters
+          })) as VectorSearchResult | VectorSearchMatch[];
+          const normalizedVectorSearch = this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
+          return { type: "vector" as const, result: normalizedVectorSearch };
+        })()
+      );
+
+      const results = await Promise.allSettled(tasks);
+      
+      let lexicalCandidates: RetrievalCandidate[] | undefined;
+      let normalizedVectorSearch: VectorSearchResult | null = null;
+
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          if (result.value.type === "lexical") {
+            lexicalCandidates = result.value.result;
+          } else if (result.value.type === "vector") {
+            normalizedVectorSearch = result.value.result;
+          }
+        } else {
+          const taskType = index === 0 && candidateSelectionMode === "hybrid" ? "lexical" : "vector";
+          const message = result.reason instanceof Error ? result.reason.message : "Unknown error";
+          this.logger.warn(`${taskType} search failed: ${message}`, result.reason);
+        }
+      });
+
+      if (!normalizedVectorSearch) {
+        throw new Error("Vector search failed and is required for non-lexical mode");
+      }
+
+      const vectorMatches = (normalizedVectorSearch as VectorSearchResult).matches;
+      embeddingDiagnostics = (normalizedVectorSearch as VectorSearchResult).embedding;
 
       if (vectorMatches.length > 0 || candidateSelectionMode === "hybrid") {
         const vectorCandidates = await this.getVectorCandidates(vectorMatches);
         vectorCandidateCount = vectorCandidates.length;
-        const mergedCandidates = candidateSelectionMode === "hybrid"
-          ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates ?? [], strategy)
+        const mergedCandidates = candidateSelectionMode === "hybrid" && lexicalCandidates
+          ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates, strategy)
           : vectorCandidates;
         const rankedCandidates = this.rankCandidates(mergedCandidates, {
           enableRerank: resolvedEnableRerank,
@@ -212,7 +245,7 @@ export class RetrievalService {
         ...input,
         enableRerank: resolvedEnableRerank,
         filters: normalizedFilters,
-        lexicalCandidates,
+        lexicalCandidates: undefined,
         candidateLimit,
         vectorCandidateCount: 0,
         embedding: embeddingDiagnostics,
@@ -228,7 +261,7 @@ export class RetrievalService {
       ...input,
       enableRerank: resolvedEnableRerank,
       filters: normalizedFilters,
-      lexicalCandidates,
+      lexicalCandidates: undefined,
       candidateLimit,
       vectorCandidateCount,
       embedding: embeddingDiagnostics,
