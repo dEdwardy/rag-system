@@ -795,6 +795,19 @@ export class DocumentRunsService {
         documentId,
         ...extraWhere
       },
+      select: {
+        id: true,
+        documentId: true,
+        version: true,
+        trigger: true,
+        status: true,
+        failedStage: true,
+        diagnosticsJson: true,
+        startedAt: true,
+        finishedAt: true,
+        createdAt: true,
+        updatedAt: true
+      },
       ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: [{ startedAt: "desc" }, { version: "desc" }]
     });

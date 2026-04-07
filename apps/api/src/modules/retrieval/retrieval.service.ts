@@ -139,7 +139,7 @@ export class RetrievalService {
 
     try {
       const tasks: Array<Promise<{ type: "lexical" | "vector"; result: any }>> = [];
-      
+
       if (candidateSelectionMode === "hybrid") {
         tasks.push(
           this.getLexicalCandidates({
@@ -168,7 +168,7 @@ export class RetrievalService {
       );
 
       const results = await Promise.allSettled(tasks);
-      
+
       let lexicalCandidates: RetrievalCandidate[] | undefined;
       let normalizedVectorSearch: VectorSearchResult | null = null;
 
@@ -367,8 +367,18 @@ export class RetrievalService {
 
     const chunks = await this.prisma.documentChunk.findMany({
       where: this.buildChunkWhere(input.kbId, input.filters, input.documentVersions),
-      include: {
-        document: true
+      select: {
+        id: true,
+        documentId: true,
+        chunkIndex: true,
+        content: true,
+        sectionTitle: true,
+        pageNo: true,
+        document: {
+          select: {
+            title: true
+          }
+        }
       }
     });
 
@@ -469,8 +479,18 @@ export class RetrievalService {
           in: vectorMatches.map(match => match.chunkId)
         }
       },
-      include: {
-        document: true
+      select: {
+        id: true,
+        documentId: true,
+        chunkIndex: true,
+        content: true,
+        sectionTitle: true,
+        pageNo: true,
+        document: {
+          select: {
+            title: true
+          }
+        }
       }
     });
 
@@ -682,8 +702,18 @@ export class RetrievalService {
         ...this.buildChunkWhere(kbId, filters, documentVersions),
         OR: documentChunkEntries
       },
-      include: {
-        document: true
+      select: {
+        id: true,
+        documentId: true,
+        chunkIndex: true,
+        content: true,
+        sectionTitle: true,
+        pageNo: true,
+        document: {
+          select: {
+            title: true
+          }
+        }
       },
       orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
     });

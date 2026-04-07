@@ -53,7 +53,8 @@ export class KnowledgeBasesService {
   ) {
     if (scope && typeof this.prisma.knowledgeBase.findFirst !== "function") {
       const existingKnowledgeBase = await this.prisma.knowledgeBase.findUnique({
-        where: { id }
+        where: { id },
+        select: this.knowledgeBaseListSelect
       });
 
       if (!existingKnowledgeBase) {
@@ -85,13 +86,15 @@ export class KnowledgeBasesService {
               id,
               tenantId: scope.tenantId,
               ownerId: scope.userId
-            }
+            },
+            select: this.knowledgeBaseListSelect
           })
         : null
       : await this.prisma.knowledgeBase.findUnique({
           where: {
             id
-          }
+          },
+          select: this.knowledgeBaseListSelect
         });
 
     if (knowledgeBase) {
@@ -153,7 +156,8 @@ export class KnowledgeBasesService {
 
   private async ensureTenantExists(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true }
     });
 
     if (!tenant) {
@@ -163,7 +167,8 @@ export class KnowledgeBasesService {
 
   private async ensureOwnerExists(ownerId: string) {
     const owner = await this.prisma.user.findUnique({
-      where: { id: ownerId }
+      where: { id: ownerId },
+      select: { id: true }
     });
 
     if (!owner) {

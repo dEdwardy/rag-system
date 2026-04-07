@@ -34,6 +34,7 @@ export class ConversationsService {
 
   async getConversation(id: string, scope: { tenantId: string; userId: string }) {
     const conversation = await this.prisma.conversation.findFirst({
+      select: this.conversationListSelect,
       where: {
         id,
         tenantId: scope.tenantId,

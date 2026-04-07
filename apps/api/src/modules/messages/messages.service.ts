@@ -6,8 +6,18 @@ import { PrismaService } from "../../infra/database/prisma.service";
 export class MessagesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly messageListSelect = {
+    id: true,
+    conversationId: true,
+    role: true,
+    content: true,
+    traceId: true,
+    createdAt: true
+  } as const;
+
   listConversationMessages(conversationId: string, scope?: { tenantId: string; userId: string } | null) {
     return this.prisma.message.findMany({
+      select: this.messageListSelect,
       where: {
         conversationId,
         ...(scope == null

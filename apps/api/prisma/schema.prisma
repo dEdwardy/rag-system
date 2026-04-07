@@ -251,6 +251,9 @@ model Document {
   @@index([kbId])
   @@index([status])
   @@index([kbId, updatedAt(sort: Desc)])
+  @@index([kbId, status])
+  @@index([sourceType])
+  @@index([kbId, sourceType])
 }
 
 model DocumentRun {
@@ -269,6 +272,10 @@ model DocumentRun {
 
   @@unique([documentId, version])
   @@index([documentId])
+  @@index([status])
+  @@index([trigger])
+  @@index([documentId, status])
+  @@index([startedAt(sort: Desc)])
 }
 
 model DocumentChunk {
@@ -288,6 +295,8 @@ model DocumentChunk {
 
   @@index([documentId])
   @@index([kbId])
+  @@index([kbId, documentId, chunkIndex])
+  @@index([documentId, chunkIndex])
 }
 
 model ChunkEmbedding {
@@ -407,6 +416,7 @@ model Message {
 
   @@index([conversationId])
   @@index([conversationId, createdAt(sort: Asc)])
+  @@index([traceId])
 }
 
 model AnswerTrace {
@@ -434,4 +444,8 @@ model AnswerTrace {
   @@index([conversationId])
   @@index([assistantId])
   @@index([conversationId, createdAt(sort: Desc)])
+  @@index([userMessageId])
+  @@index([assistantMessageId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
 }

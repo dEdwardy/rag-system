@@ -182,6 +182,24 @@ export class DocumentsService {
       const existingDocument = await this.prisma.document.findUnique({
         where: {
           id
+        },
+        select: {
+          id: true,
+          kbId: true,
+          sourceType: true,
+          sourceName: true,
+          title: true,
+          mimeType: true,
+          storageKey: true,
+          status: true,
+          processingStage: true,
+          version: true,
+          chunkCount: true,
+          errorMessage: true,
+          createdAt: true,
+          updatedAt: true,
+          sourceConfigJson: true,
+          diagnosticsJson: true
         }
       });
 
@@ -202,12 +220,48 @@ export class DocumentsService {
                 tenantId: scope.tenantId,
                 ownerId: scope.userId
               }
+            },
+            select: {
+              id: true,
+              kbId: true,
+              sourceType: true,
+              sourceName: true,
+              title: true,
+              mimeType: true,
+              storageKey: true,
+              status: true,
+              processingStage: true,
+              version: true,
+              chunkCount: true,
+              errorMessage: true,
+              createdAt: true,
+              updatedAt: true,
+              sourceConfigJson: true,
+              diagnosticsJson: true
             }
           })
         : null
       : await this.prisma.document.findUnique({
           where: {
             id
+          },
+          select: {
+            id: true,
+            kbId: true,
+            sourceType: true,
+            sourceName: true,
+            title: true,
+            mimeType: true,
+            storageKey: true,
+            status: true,
+            processingStage: true,
+            version: true,
+            chunkCount: true,
+            errorMessage: true,
+            createdAt: true,
+            updatedAt: true,
+            sourceConfigJson: true,
+            diagnosticsJson: true
           }
         });
 
@@ -250,6 +304,20 @@ export class DocumentsService {
                 }
               }
             })
+      },
+      select: {
+        id: true,
+        documentId: true,
+        kbId: true,
+        chunkIndex: true,
+        content: true,
+        tokenCount: true,
+        sectionTitle: true,
+        pageNo: true,
+        metadataJson: true,
+        embeddingRef: true,
+        createdAt: true,
+        updatedAt: true
       },
       orderBy: {
         chunkIndex: "asc"

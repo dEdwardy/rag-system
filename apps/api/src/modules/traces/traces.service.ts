@@ -70,10 +70,12 @@ export class TracesService {
               tenantId: scope.tenantId,
               userId: scope.userId
             }
-          }
+          },
+          select: this.traceListSelect
         })
       : this.prisma.answerTrace.findUnique({
-          where: { id }
+          where: { id },
+          select: this.traceListSelect
         });
 
     return traceLookup.then((trace) => {
@@ -81,7 +83,7 @@ export class TracesService {
         throw new NotFoundException(`Trace ${id} not found.`);
       }
 
-      return this.attachTraceSummary(trace);
+      return this.attachTraceSummary(trace as any);
     });
   }
 
