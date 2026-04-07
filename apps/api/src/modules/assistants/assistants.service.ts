@@ -12,6 +12,18 @@ type AssistantAccessScope = {
 
 @Injectable()
 export class AssistantsService {
+  private readonly assistantListSelect = {
+    id: true,
+    tenantId: true,
+    kbId: true,
+    name: true,
+    description: true,
+    systemPrompt: true,
+    retrievalProfileId: true,
+    answerPolicyJson: true,
+    status: true
+  } satisfies Prisma.AssistantSelect;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly retrievalProfilesService: RetrievalProfilesService
@@ -19,6 +31,7 @@ export class AssistantsService {
 
   listAssistants(scope?: AssistantAccessScope | null) {
     return this.prisma.assistant.findMany({
+      select: this.assistantListSelect,
       ...(scope
         ? {
             where: {
@@ -38,8 +51,8 @@ export class AssistantsService {
   }
 
   async getAssistant(id: string, scope?: AssistantAccessScope | null) {
-    if (scope) {
-      const assistant = await this.prisma.assistant.findUnique({
+    if (scope && typeof this.prisma.assistant.findFirst !== "function") {
+      const existingAssistant = await this.prisma.assistant.findUnique({
         where: { id },
         include: {
           knowledgeBase: {
@@ -53,7 +66,7 @@ export class AssistantsService {
         }
       });
 
-      if (!assistant) {
+      if (!existingAssistant) {
         throw new NotFoundException(`Assistant ${id} not found.`);
       }
 
@@ -62,9 +75,9 @@ export class AssistantsService {
         action: "read",
         resource: {
           kind: "knowledge_base",
-          resourceId: assistant.knowledgeBase.id,
-          tenantId: assistant.knowledgeBase.tenantId,
-          ownerId: assistant.knowledgeBase.ownerId
+          resourceId: existingAssistant.knowledgeBase.id,
+          tenantId: existingAssistant.knowledgeBase.tenantId,
+          ownerId: existingAssistant.knowledgeBase.ownerId
         }
       });
 
@@ -72,22 +85,74 @@ export class AssistantsService {
         throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
       }
 
-      const { knowledgeBase: _, ...scopedAssistant } = assistant;
+      const { knowledgeBase: _, ...scopedAssistant } = existingAssistant;
       return scopedAssistant;
     }
 
-    const assistant = await this.prisma.assistant.findUnique({
-      where: { id },
-      include: {
-        retrievalProfile: true
-      }
-    });
+    const assistant = scope
+      ? typeof this.prisma.assistant.findFirst === "function"
+        ? await this.prisma.assistant.findFirst({
+            where: {
+              id,
+              tenantId: scope.tenantId,
+              knowledgeBase: {
+                ownerId: scope.userId
+              }
+            },
+            include: {
+              retrievalProfile: true
+            }
+          })
+        : null
+      : await this.prisma.assistant.findUnique({
+          where: { id },
+          include: {
+            retrievalProfile: true
+          }
+        });
 
-    if (!assistant) {
+    if (assistant) {
+      return assistant;
+    }
+
+    if (!scope) {
       throw new NotFoundException(`Assistant ${id} not found.`);
     }
 
-    return assistant;
+    const existingAssistant = await this.prisma.assistant.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        knowledgeBase: {
+          select: {
+            id: true,
+            tenantId: true,
+            ownerId: true
+          }
+        }
+      }
+    });
+
+    if (!existingAssistant) {
+      throw new NotFoundException(`Assistant ${id} not found.`);
+    }
+
+    const accessDecision = evaluateOwnerResourceAccess({
+      identity: scope,
+      action: "read",
+      resource: {
+        kind: "knowledge_base",
+        resourceId: existingAssistant.knowledgeBase.id,
+        tenantId: existingAssistant.knowledgeBase.tenantId,
+        ownerId: existingAssistant.knowledgeBase.ownerId
+      }
+    });
+
+    if (!accessDecision.allowed) {
+      throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
+    }
+
+    throw new NotFoundException(`Assistant ${id} not found.`);
   }
 
   async updateAssistant(id: string, input: UpdateAssistantInput, scope?: AssistantAccessScope | null) {

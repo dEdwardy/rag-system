@@ -9,9 +9,10 @@ import {
   Query,
   Req,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors
 } from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
+import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import {
@@ -168,6 +169,26 @@ export class DocumentsController {
     const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
 
     return this.documentsService.uploadDocument(knowledgeBaseId, file, authContext.identity);
+  }
+
+  @Post("knowledge-bases/:id/documents/upload-batch")
+  @UseInterceptors(FilesInterceptor("files"))
+  uploadDocuments(
+    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
+    @Req() request: ApiRequestWithAuthContext | undefined,
+    @UploadedFiles() files?: Array<{
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+    }>
+  ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException("Files are required.");
+    }
+
+    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+
+    return this.documentsService.uploadDocuments(knowledgeBaseId, files, authContext.identity);
   }
 
   @Get("documents/:id")

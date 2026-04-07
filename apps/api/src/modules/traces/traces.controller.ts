@@ -2,7 +2,12 @@ import { Controller, Get, Param, Query, Req } from "@nestjs/common";
 import { TracesService } from "./traces.service";
 import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
 import { AuthenticatedRoute } from "../auth/auth-route-policy";
-import { ListTracesInput, listTracesSchema } from "../documents/document.schemas";
+import {
+  ListLatestConversationTracesInput,
+  ListTracesInput,
+  listLatestConversationTracesSchema,
+  listTracesSchema
+} from "../documents/document.schemas";
 import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
 @AuthenticatedRoute()
@@ -16,6 +21,17 @@ export class TracesController {
       authContext: request?.authContext
     });
     return this.tracesService.listTraces(query, authContext.identity);
+  }
+
+  @Get("latest-by-conversation")
+  listLatestConversationTraces(
+    @Query(new ZodValidationPipe(listLatestConversationTracesSchema)) query: ListLatestConversationTracesInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+    return this.tracesService.listLatestConversationTraces(query.conversationIds, authContext.identity);
   }
 
   @Get(":id")

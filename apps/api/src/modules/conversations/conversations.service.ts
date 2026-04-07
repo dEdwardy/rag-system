@@ -10,8 +10,20 @@ export class ConversationsService {
     updatedAt: "desc" as const
   };
 
+  private readonly conversationListSelect = {
+    id: true,
+    tenantId: true,
+    userId: true,
+    assistantId: true,
+    title: true,
+    status: true,
+    createdAt: true,
+    updatedAt: true
+  } as const;
+
   listConversations(scope: { tenantId: string; userId: string }) {
     return this.prisma.conversation.findMany({
+      select: this.conversationListSelect,
       where: {
         tenantId: scope.tenantId,
         userId: scope.userId
@@ -22,6 +34,7 @@ export class ConversationsService {
 
   async getConversation(id: string, scope: { tenantId: string; userId: string }) {
     const conversation = await this.prisma.conversation.findFirst({
+      select: this.conversationListSelect,
       where: {
         id,
         tenantId: scope.tenantId,
@@ -46,12 +59,31 @@ export class ConversationsService {
   }
 
   async touchConversation(id: string, scope: { tenantId: string; userId: string }) {
-    await this.getConversation(id, scope);
-    return this.prisma.conversation.update({
-      where: { id },
+    if (typeof this.prisma.conversation.updateMany !== "function") {
+      await this.getConversation(id, scope);
+      return this.prisma.conversation.update({
+        where: { id },
+        data: {
+          updatedAt: new Date()
+        }
+      });
+    }
+
+    const updateResult = await this.prisma.conversation.updateMany({
+      where: {
+        id,
+        tenantId: scope.tenantId,
+        userId: scope.userId
+      },
       data: {
         updatedAt: new Date()
       }
     });
+
+    if (updateResult.count === 0) {
+      throw new NotFoundException(`Conversation ${id} not found.`);
+    }
+
+    return updateResult;
   }
 }

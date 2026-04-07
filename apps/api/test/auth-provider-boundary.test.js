@@ -19,6 +19,9 @@ const {
   resolveRequestAuthContext
 } = require("../src/modules/auth/auth-identity.contract.ts");
 const { AuthService } = require("../src/modules/auth/auth.service.ts");
+const { AccessJwtAuthProvider } = require("../src/modules/auth/access-jwt-auth.provider.ts");
+const { CompositeAuthProvider } = require("../src/modules/auth/composite-auth.provider.ts");
+const { signAccessJwt } = require("../src/modules/auth/access-jwt.ts");
 const { oauthProviderParamSchema } = require("../src/modules/auth/auth.schemas.ts");
 const { HttpGithubOauthProvider } = require("../src/modules/auth/github-oauth.provider.ts");
 const { HttpGoogleOauthProvider } = require("../src/modules/auth/google-oauth.provider.ts");
@@ -153,6 +156,47 @@ test("SessionCookieAuthProvider decodes encoded session cookie value", async () 
   assert.ok(touchedSessions[0].data.lastSeenAt instanceof Date);
 });
 
+test("SessionCookieAuthProvider reuses a short-lived cached identity", async () => {
+  let findUniqueCallCount = 0;
+  const touchedSessions = [];
+  const provider = new SessionCookieAuthProvider({
+    authSession: {
+      findUnique: async ({ where }) => {
+        findUniqueCallCount += 1;
+        return {
+          id: where.id,
+          revokedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+          lastSeenAt: new Date(),
+          user: {
+            id: "user-cached",
+            tenantId: "tenant-cached",
+            role: "owner",
+            status: "active"
+          }
+        };
+      },
+      updateMany: async ({ where, data }) => {
+        touchedSessions.push({ where, data });
+        return { count: 1 };
+      }
+    }
+  });
+
+  const request = {
+    headers: {
+      cookie: "rag_session=session-cached"
+    }
+  };
+
+  const firstIdentity = await provider.resolveIdentity({ request });
+  const secondIdentity = await provider.resolveIdentity({ request });
+
+  assert.deepEqual(firstIdentity, secondIdentity);
+  assert.equal(findUniqueCallCount, 1);
+  assert.equal(touchedSessions.length, 0);
+});
+
 test("SessionCookieAuthProvider revokes expired sessions and returns null", async () => {
   const revokedCalls = [];
   const provider = new SessionCookieAuthProvider({
@@ -190,6 +234,66 @@ test("SessionCookieAuthProvider revokes expired sessions and returns null", asyn
     revokedAt: null
   });
   assert.ok(revokedCalls[0].data.revokedAt instanceof Date);
+});
+
+test("AccessJwtAuthProvider resolves identity from access token cookie without session lookup", async () => {
+  const provider = new AccessJwtAuthProvider({
+    getConfig: () => ({
+      accessJwtSecret: "test-secret",
+      accessTokenCookieName: "rag_access_token"
+    })
+  });
+
+  const token = signAccessJwt({
+    secret: "test-secret",
+    userId: "user-jwt-1",
+    tenantId: "tenant-jwt-1",
+    role: "owner",
+    sessionId: "session-jwt-1",
+    issuedAtSeconds: Math.floor(Date.now() / 1000),
+    expiresAtSeconds: Math.floor(Date.now() / 1000) + 60
+  });
+
+  const identity = await provider.resolveIdentity({
+    request: {
+      headers: {
+        cookie: `other=1; rag_access_token=${encodeURIComponent(token)}`
+      }
+    }
+  });
+
+  assert.deepEqual(identity, {
+    userId: "user-jwt-1",
+    tenantId: "tenant-jwt-1",
+    role: "owner",
+    sessionId: "session-jwt-1",
+    authSource: "session"
+  });
+});
+
+test("CompositeAuthProvider prefers access JWT before falling back to session provider", async () => {
+  let sessionLookups = 0;
+  const provider = new CompositeAuthProvider(
+    {
+      resolveIdentity: async () => ({
+        userId: "user-jwt-first",
+        tenantId: "tenant-jwt-first",
+        role: "member",
+        sessionId: "session-jwt-first",
+        authSource: "session"
+      })
+    },
+    {
+      resolveIdentity: async () => {
+        sessionLookups += 1;
+        return null;
+      }
+    }
+  );
+
+  const identity = await provider.resolveIdentity({ request: { headers: { cookie: "rag_session=session-1" } } });
+  assert.equal(sessionLookups, 0);
+  assert.equal(identity.userId, "user-jwt-first");
 });
 
 test("AuthContextMiddleware injects request authContext via provider boundary", async () => {
@@ -1439,7 +1543,9 @@ test("AuthController oauthProviderCallback validates state cookie and writes oau
           sessionId: "session-1",
           authSource: "session"
         },
-        expiresAt: "2030-01-01T00:00:00.000Z"
+        expiresAt: "2030-01-01T00:00:00.000Z",
+        accessToken: "access-token-1",
+        accessTokenExpiresAt: "2030-01-01T00:15:00.000Z"
       };
     }
   });
@@ -1481,7 +1587,8 @@ test("AuthController oauthProviderCallback validates state cookie and writes oau
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-1/);
-  assert.match(cookies[0][2], /^rag_login_provenance=github/);
+  assert.match(cookies[0][2], /^rag_access_token=access-token-1/);
+  assert.match(cookies[0][3], /^rag_login_provenance=github/);
   assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
 });
 
@@ -1500,7 +1607,9 @@ test("AuthController githubOauthCallback accepts local callback alias with share
           sessionId: "session-gh-alias-1",
           authSource: "session"
         },
-        expiresAt: "2030-01-03T00:00:00.000Z"
+        expiresAt: "2030-01-03T00:00:00.000Z",
+        accessToken: "access-token-gh-alias-1",
+        accessTokenExpiresAt: "2030-01-03T00:15:00.000Z"
       };
     }
   });
@@ -1539,7 +1648,8 @@ test("AuthController githubOauthCallback accepts local callback alias with share
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-gh-alias-1/);
-  assert.match(cookies[0][2], /^rag_login_provenance=github/);
+  assert.match(cookies[0][2], /^rag_access_token=access-token-gh-alias-1/);
+  assert.match(cookies[0][3], /^rag_login_provenance=github/);
   assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
 });
 
@@ -1558,7 +1668,9 @@ test("AuthController oauthProviderCallback supports Google callback with shared 
           sessionId: "session-google-1",
           authSource: "session"
         },
-        expiresAt: "2030-01-02T00:00:00.000Z"
+        expiresAt: "2030-01-02T00:00:00.000Z",
+        accessToken: "access-token-google-1",
+        accessTokenExpiresAt: "2030-01-02T00:15:00.000Z"
       };
     }
   });
@@ -1600,7 +1712,8 @@ test("AuthController oauthProviderCallback supports Google callback with shared 
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-google-1/);
-  assert.match(cookies[0][2], /^rag_login_provenance=google/);
+  assert.match(cookies[0][2], /^rag_access_token=access-token-google-1/);
+  assert.match(cookies[0][3], /^rag_login_provenance=google/);
   assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
 });
 
@@ -1619,7 +1732,9 @@ test("AuthController oauthProviderCallback supports OIDC callback with shared co
           sessionId: "session-oidc-1",
           authSource: "session"
         },
-        expiresAt: "2030-01-03T00:00:00.000Z"
+        expiresAt: "2030-01-03T00:00:00.000Z",
+        accessToken: "access-token-oidc-1",
+        accessTokenExpiresAt: "2030-01-03T00:15:00.000Z"
       };
     }
   });
@@ -1661,7 +1776,8 @@ test("AuthController oauthProviderCallback supports OIDC callback with shared co
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /^rag_oauth_state=;/);
   assert.match(cookies[0][1], /^rag_session=session-oidc-1/);
-  assert.match(cookies[0][2], /^rag_login_provenance=oidc/);
+  assert.match(cookies[0][2], /^rag_access_token=access-token-oidc-1/);
+  assert.match(cookies[0][3], /^rag_login_provenance=oidc/);
   assert.deepEqual(redirects, [{ statusCode: 302, url: "http://localhost:5173" }]);
 });
 
@@ -1700,6 +1816,9 @@ test("AuthService login creates session identity and logout revokes session", as
         return {
           id: "default-user",
           tenantId: "tenant-1",
+          name: "Default User",
+          displayName: "Default User",
+          email: loginEmail,
           role: "member",
           status: "active",
           passwordHash: loginPasswordHash
@@ -1727,6 +1846,14 @@ test("AuthService login creates session identity and logout revokes session", as
   assert.equal(login.identity.tenantId, "tenant-1");
   assert.equal(login.identity.authSource, "session");
   assert.equal(login.identity.role, "member");
+  assert.deepEqual(login.user, {
+    id: "default-user",
+    tenantId: "tenant-1",
+    role: "member",
+    name: "Default User",
+    displayName: "Default User",
+    email: loginEmail
+  });
   assert.ok(typeof login.expiresAt === "string");
   assert.deepEqual(calls.userLookup, { email: loginEmail });
   assert.equal(calls.created.userId, "default-user");
@@ -1744,22 +1871,28 @@ test("AuthService login rejects invalid email/password edges", async () => {
     user: {
       findUnique: async ({ where }) => {
         if (where.email === "inactive-user@example.com") {
-          return {
-            id: "user-inactive",
-            tenantId: "tenant-1",
-            role: "member",
-            status: "inactive",
-            passwordHash: loginPasswordHash
+        return {
+          id: "user-inactive",
+          tenantId: "tenant-1",
+          name: "Inactive User",
+          displayName: null,
+          email: "inactive-user@example.com",
+          role: "member",
+          status: "inactive",
+          passwordHash: loginPasswordHash
           };
         }
 
         if (where.email === "active-user@example.com") {
-          return {
-            id: "user-active",
-            tenantId: "tenant-1",
-            role: "member",
-            status: "active",
-            passwordHash: loginPasswordHash
+        return {
+          id: "user-active",
+          tenantId: "tenant-1",
+          name: "Active User",
+          displayName: null,
+          email: "active-user@example.com",
+          role: "member",
+          status: "active",
+          passwordHash: loginPasswordHash
           };
         }
 
@@ -1874,15 +2007,25 @@ test("AuthController sets and clears session cookie around login and logout", as
   const controller = new AuthController({
     login: async (input) => {
       loginCalls.push(input);
-      return {
-        identity: {
-          userId: "default-user",
-          tenantId: "default-tenant",
-          role: "owner",
-          sessionId: "session-xyz",
-          authSource: "session"
-        },
-        expiresAt: "2030-01-01T00:00:00.000Z"
+        return {
+          identity: {
+            userId: "default-user",
+            tenantId: "default-tenant",
+            role: "owner",
+            sessionId: "session-xyz",
+            authSource: "session"
+          },
+          user: {
+            id: "default-user",
+            tenantId: "default-tenant",
+            role: "owner",
+            name: "Default User",
+            displayName: null,
+            email: "default-user@example.com"
+          },
+          expiresAt: "2030-01-01T00:00:00.000Z",
+          accessToken: "access-token-login-1",
+          accessTokenExpiresAt: "2030-01-01T00:15:00.000Z"
       };
     },
     logout: async () => ({ ok: true }),
@@ -1901,10 +2044,12 @@ test("AuthController sets and clears session cookie around login and logout", as
   });
 
   assert.equal(loginResult.identity.sessionId, "session-xyz");
+  assert.equal(loginResult.user.email, "default-user@example.com");
   assert.deepEqual(loginCalls, [{ email: "default-user@example.com", password: "local-password-1" }]);
   assert.ok(Array.isArray(cookies[0]));
   assert.match(cookies[0][0], /rag_session=session-xyz/);
-  assert.match(cookies[0][1], /rag_login_provenance=local/);
+  assert.match(cookies[0][1], /rag_access_token=access-token-login-1/);
+  assert.match(cookies[0][2], /rag_login_provenance=local/);
 
   const logoutResult = await controller.logout(
     {
@@ -1927,7 +2072,75 @@ test("AuthController sets and clears session cookie around login and logout", as
   assert.ok(Array.isArray(cookies[1]));
   assert.match(cookies[1][0], /rag_session=;/);
   assert.match(cookies[1][0], /Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
-  assert.match(cookies[1][1], /rag_login_provenance=;/);
+  assert.match(cookies[1][1], /rag_access_token=;/);
+  assert.match(cookies[1][2], /rag_login_provenance=;/);
+});
+
+test("AuthController refresh reissues access token from session cookie", async () => {
+  const cookies = [];
+  const refreshCalls = [];
+  const controller = new AuthController({
+    refreshAccessToken: async (input) => {
+      refreshCalls.push(input);
+        return {
+          identity: {
+            userId: "user-refresh-1",
+            tenantId: "tenant-refresh-1",
+            role: "owner",
+            sessionId: "session-refresh-1",
+            authSource: "session"
+          },
+          user: {
+            id: "user-refresh-1",
+            tenantId: "tenant-refresh-1",
+            role: "owner",
+            name: "Refresh User",
+            displayName: null,
+            email: "refresh-user@example.com"
+          },
+          accessToken: "access-token-refresh-1",
+          accessTokenExpiresAt: "2030-01-01T00:15:00.000Z"
+        };
+    }
+  });
+
+  const result = await controller.refresh(
+    {
+      headers: {
+        cookie: "other=1; rag_session=session-refresh-1"
+      }
+    },
+    {
+      setHeader: (name, value) => {
+        if (name === "Set-Cookie") {
+          cookies.push(value);
+        }
+      }
+    }
+  );
+
+  assert.deepEqual(refreshCalls, [{ sessionId: "session-refresh-1" }]);
+  assert.deepEqual(result, {
+    ok: true,
+    identity: {
+      userId: "user-refresh-1",
+      tenantId: "tenant-refresh-1",
+      role: "owner",
+      sessionId: "session-refresh-1",
+      authSource: "session"
+    },
+    user: {
+      id: "user-refresh-1",
+      tenantId: "tenant-refresh-1",
+      role: "owner",
+      name: "Refresh User",
+      displayName: null,
+      email: "refresh-user@example.com"
+    },
+    expiresAt: "2030-01-01T00:15:00.000Z"
+  });
+  assert.equal(cookies.length, 1);
+  assert.match(cookies[0], /rag_access_token=access-token-refresh-1/);
 });
 
 test("AuthController me returns local-session provenance by default and oauth-session provenance from cookie hint", () => {

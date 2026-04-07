@@ -1,7 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { resolveStorageRoot } from "../storage/storage-root";
+import { Inject, Injectable } from "@nestjs/common";
+import { STORAGE_PROVIDER_SERVICE, type StorageProviderService } from "../storage/storage-provider.service";
 import {
   assertCompatibleEmbeddingConfigs,
   buildEmbeddingDiagnostics,
@@ -14,8 +12,7 @@ import { ReplaceDocumentVectorsInput, VectorSearchInput, VectorSearchResult, Vec
 
 @Injectable()
 export class VectorStoreService implements VectorStore {
-  private readonly storageRoot = resolveStorageRoot();
-  private readonly vectorRoot = join(this.storageRoot, "vectors");
+  constructor(@Inject(STORAGE_PROVIDER_SERVICE) private readonly storageProviderService: StorageProviderService) {}
 
   async replaceDocumentVectors(input: ReplaceDocumentVectorsInput) {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
@@ -54,17 +51,16 @@ export class VectorStoreService implements VectorStore {
       });
     }
 
-    const nextRecords = [
-      ...records.filter(record => record.documentId !== input.documentId),
-      ...input.records.map(({ embedding, ...record }) => ({
-        ...record,
-        modelName: embedding.modelName,
-        dimensions: embedding.dimensions,
-        vector: embedding.vector,
-        updatedAt: new Date().toISOString()
-      }))
-    ];
+    const existingRecordsWithoutDocument = records.filter(record => record.documentId !== input.documentId);
+    const newRecords = input.records.map(({ embedding, ...record }) => ({
+      ...record,
+      modelName: embedding.modelName,
+      dimensions: embedding.dimensions,
+      vector: embedding.vector,
+      updatedAt: new Date().toISOString()
+    }));
 
+    const nextRecords = [...existingRecordsWithoutDocument, ...newRecords];
     await this.writeKnowledgeBaseVectors(input.kbId, nextRecords);
   }
 
@@ -121,31 +117,33 @@ export class VectorStoreService implements VectorStore {
   }
 
   private async readKnowledgeBaseVectors(kbId: string) {
-    const filePath = this.getKnowledgeBasePath(kbId);
+    const storageKey = this.getKnowledgeBaseStorageKey(kbId);
 
     try {
-      const raw = await readFile(filePath, "utf8");
+      const buffer = await this.storageProviderService.readFileByStorageKey(storageKey);
+      const raw = buffer.toString("utf8");
       const parsed = JSON.parse(raw) as VectorStoreRecord[];
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return [];
-      }
-
-      throw error;
+      // If the file doesn't exist, return an empty array
+      return [];
     }
   }
 
   private async writeKnowledgeBaseVectors(kbId: string, records: VectorStoreRecord[]) {
-    await mkdir(this.vectorRoot, { recursive: true });
-    const filePath = this.getKnowledgeBasePath(kbId);
-    const temporaryPath = `${filePath}.tmp`;
-    await writeFile(temporaryPath, JSON.stringify(records), "utf8");
-    await rename(temporaryPath, filePath);
+    const storageKey = this.getKnowledgeBaseStorageKey(kbId);
+    const content = JSON.stringify(records);
+    const buffer = Buffer.from(content, "utf8");
+
+    await this.storageProviderService.saveUploadedFile({
+      buffer,
+      originalName: `${kbId}.json`,
+      mimeType: "application/json"
+    });
   }
 
-  private getKnowledgeBasePath(kbId: string) {
-    return join(this.vectorRoot, `${kbId}.json`);
+  private getKnowledgeBaseStorageKey(kbId: string) {
+    return `vectors/${kbId}.json`;
   }
 
   private cosineSimilarity(left: number[], right: number[]) {

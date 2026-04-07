@@ -12,14 +12,15 @@ import {
   Title
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useDocuments,
   useKnowledgeBases,
   useReindexDocument,
-  useUploadDocument
+  useUploadDocument,
+  useUploadDocuments
 } from "../../features/api/hooks";
 import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -30,10 +31,12 @@ export function DocumentsPage() {
   const hasActiveKnowledgeBase = activeKnowledgeBase != null;
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "");
+  const uploadBatchMutation = useUploadDocuments(activeKnowledgeBase?.id ?? "");
   const reindexMutation = useReindexDocument();
+  const [isDragging, setIsDragging] = useState(false);
   const { t, locale, formatDateTime } = useI18n();
 
-  const documents = documentsQuery.data ?? [];
+  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
   const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
   const { documentCount, readyCount, processingCount, failedCount } = useMemo(
     () =>
@@ -161,26 +164,56 @@ export function DocumentsPage() {
     [documentCount, failedCount, locale, processingCount, readyCount]
   );
 
-  const handleUploadFile = useCallback(
-    async (file: File | null) => {
-      if (!file || !activeKnowledgeBase) {
+  const handleUploadFiles = useCallback(
+    (files: File[] | FileList | null) => {
+      if (!files || (Array.isArray(files) ? files.length === 0 : files.length === 0) || !activeKnowledgeBase) {
         return;
       }
 
-      try {
-        await uploadMutation.mutateAsync(file);
-        notifications.show({
-          color: "indigo",
-          message: t("documents.uploadSuccess", { fileName: file.name })
-        });
-      } catch (error) {
-        notifications.show({
-          color: "red",
-          message: error instanceof Error ? error.message : t("documents.uploadError")
-        });
-      }
+      const fileArray = Array.isArray(files) ? files : Array.from(files);
+
+      // 立即显示开始上传的通知
+      notifications.show({
+        color: "blue",
+        message: t("documents.uploadBatchStart", { count: fileArray.length })
+      });
+
+      // 后台执行上传，不等待完成
+      uploadBatchMutation.mutate(fileArray, {
+        onSuccess: () => {
+          notifications.show({
+            color: "indigo",
+            message: t("documents.uploadBatchSuccess", { count: fileArray.length })
+          });
+        },
+        onError: (error) => {
+          notifications.show({
+            color: "red",
+            message: error instanceof Error ? error.message : t("documents.uploadBatchError")
+          });
+        }
+      });
     },
-    [activeKnowledgeBase, t, uploadMutation]
+    [activeKnowledgeBase, t, uploadBatchMutation]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      handleUploadFiles(e.dataTransfer.files);
+    },
+    [handleUploadFiles]
   );
 
   const handleReindexDocument = useCallback(
@@ -248,20 +281,55 @@ export function DocumentsPage() {
             <Badge color="gray" radius="sm" variant="light">
               {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}`}
             </Badge>
-            <FileButton onChange={handleUploadFile}>
-              {props => (
-                <Button
-                  {...props}
-                  className="workspace-button"
-                  color="indigo"
-                  disabled={!hasActiveKnowledgeBase}
-                  loading={uploadMutation.isPending}
-                  radius="xl"
+            <Box
+              style={{
+                position: "relative",
+                width: "100%",
+                maxWidth: 300
+              }}
+            >
+              <Paper
+                p="lg"
+                radius="xl"
+                style={{
+                  border: isDragging
+                    ? "2px dashed var(--mantine-color-indigo-5)"
+                    : "2px dashed var(--app-border)",
+                  backgroundColor: isDragging
+                    ? "rgba(99, 102, 241, 0.1)"
+                    : "transparent",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.2s ease"
+                }}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <FileButton
+                  multiple
+                  onChange={handleUploadFiles}
                 >
-                  {locale === "zh" ? "上传文件" : "Upload file"}
-                </Button>
-              )}
-            </FileButton>
+                  {props => (
+                    <Button
+                      {...props}
+                      className="workspace-button"
+                      color="indigo"
+                      disabled={!hasActiveKnowledgeBase}
+                      loading={uploadMutation.isPending || uploadBatchMutation.isPending}
+                      radius="xl"
+                      fullWidth
+                      variant="light"
+                    >
+                      {locale === "zh" ? "选择或拖拽文件" : "Select or drag files"}
+                    </Button>
+                  )}
+                </FileButton>
+                <Text size="sm" c="var(--app-text-muted)" mt="sm">
+                  {locale === "zh" ? "支持多文件上传" : "Supports multiple files"}
+                </Text>
+              </Paper>
+            </Box>
           </Stack>
         </div>
       </Paper>
@@ -283,6 +351,11 @@ export function DocumentsPage() {
       {uploadMutation.isError ? (
         <Alert color="red" radius="xl" variant="light">
           {uploadMutation.error instanceof Error ? uploadMutation.error.message : t("documents.uploadError")}
+        </Alert>
+      ) : null}
+      {uploadBatchMutation.isError ? (
+        <Alert color="red" radius="xl" variant="light">
+          {uploadBatchMutation.error instanceof Error ? uploadBatchMutation.error.message : t("documents.uploadBatchError")}
         </Alert>
       ) : null}
       {hasProcessingDocuments ? (

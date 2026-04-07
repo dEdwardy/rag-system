@@ -10,10 +10,28 @@ type KnowledgeBaseAccessScope = {
 
 @Injectable()
 export class KnowledgeBasesService {
+  private readonly knowledgeBaseListSelect = {
+    id: true,
+    tenantId: true,
+    ownerId: true,
+    name: true,
+    description: true,
+    status: true,
+    createdAt: true,
+    updatedAt: true
+  } as const;
+
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly knowledgeBaseAccessSelect = {
+    id: true,
+    tenantId: true,
+    ownerId: true
+  } as const;
 
   listKnowledgeBases(scope?: KnowledgeBaseAccessScope | null) {
     return this.prisma.knowledgeBase.findMany({
+      select: this.knowledgeBaseListSelect,
       ...(scope
         ? {
             where: {
@@ -28,35 +46,90 @@ export class KnowledgeBasesService {
     });
   }
 
-  async getKnowledgeBase(id: string, scope?: KnowledgeBaseAccessScope | null) {
-    const knowledgeBase = await this.prisma.knowledgeBase.findUnique({
-      where: {
-        id
+  async getKnowledgeBase(
+    id: string,
+    scope?: KnowledgeBaseAccessScope | null,
+    options?: { preserveForbiddenOnMiss?: boolean }
+  ) {
+    if (scope && typeof this.prisma.knowledgeBase.findFirst !== "function") {
+      const existingKnowledgeBase = await this.prisma.knowledgeBase.findUnique({
+        where: { id },
+        select: this.knowledgeBaseListSelect
+      });
+
+      if (!existingKnowledgeBase) {
+        throw new NotFoundException(`Knowledge base ${id} not found.`);
       }
-    });
 
-    if (!knowledgeBase) {
-      throw new NotFoundException(`Knowledge base ${id} not found.`);
-    }
-
-    if (scope) {
       const accessDecision = evaluateOwnerResourceAccess({
         identity: scope,
         action: "read",
         resource: {
           kind: "knowledge_base",
-          resourceId: knowledgeBase.id,
-          tenantId: knowledgeBase.tenantId,
-          ownerId: knowledgeBase.ownerId
+          resourceId: existingKnowledgeBase.id,
+          tenantId: existingKnowledgeBase.tenantId,
+          ownerId: existingKnowledgeBase.ownerId
         }
       });
 
       if (!accessDecision.allowed) {
         throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
       }
+
+      return existingKnowledgeBase;
     }
 
-    return knowledgeBase;
+    const knowledgeBase = scope
+      ? typeof this.prisma.knowledgeBase.findFirst === "function"
+        ? await this.prisma.knowledgeBase.findFirst({
+            where: {
+              id,
+              tenantId: scope.tenantId,
+              ownerId: scope.userId
+            },
+            select: this.knowledgeBaseListSelect
+          })
+        : null
+      : await this.prisma.knowledgeBase.findUnique({
+          where: {
+            id
+          },
+          select: this.knowledgeBaseListSelect
+        });
+
+    if (knowledgeBase) {
+      return knowledgeBase;
+    }
+
+    if (!scope || !options?.preserveForbiddenOnMiss) {
+      throw new NotFoundException(`Knowledge base ${id} not found.`);
+    }
+
+    const existingKnowledgeBase = await this.prisma.knowledgeBase.findUnique({
+      where: { id },
+      select: this.knowledgeBaseAccessSelect
+    });
+
+    if (!existingKnowledgeBase) {
+      throw new NotFoundException(`Knowledge base ${id} not found.`);
+    }
+
+    const accessDecision = evaluateOwnerResourceAccess({
+      identity: scope,
+      action: "read",
+      resource: {
+        kind: "knowledge_base",
+        resourceId: existingKnowledgeBase.id,
+        tenantId: existingKnowledgeBase.tenantId,
+        ownerId: existingKnowledgeBase.ownerId
+      }
+    });
+
+    if (!accessDecision.allowed) {
+      throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
+    }
+
+    throw new NotFoundException(`Knowledge base ${id} not found.`);
   }
 
   async createKnowledgeBase(input: CreateKnowledgeBaseInput, identity: { tenantId: string; userId: string }) {
@@ -73,7 +146,7 @@ export class KnowledgeBasesService {
   }
 
   async updateKnowledgeBase(id: string, input: UpdateKnowledgeBaseInput, scope?: KnowledgeBaseAccessScope | null) {
-    await this.getKnowledgeBase(id, scope);
+    await this.getKnowledgeBase(id, scope, { preserveForbiddenOnMiss: true });
 
     return this.prisma.knowledgeBase.update({
       where: { id },
@@ -83,7 +156,8 @@ export class KnowledgeBasesService {
 
   private async ensureTenantExists(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: { id: true }
     });
 
     if (!tenant) {
@@ -93,7 +167,8 @@ export class KnowledgeBasesService {
 
   private async ensureOwnerExists(ownerId: string) {
     const owner = await this.prisma.user.findUnique({
-      where: { id: ownerId }
+      where: { id: ownerId },
+      select: { id: true }
     });
 
     if (!owner) {

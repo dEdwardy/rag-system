@@ -11,7 +11,6 @@ import {
   useAssistants,
   useConversationMessages,
   useConversations,
-  useConversationTraces,
   useDocuments,
   useKnowledgeBases
 } from "../../features/api/hooks";
@@ -137,7 +136,7 @@ function resolveWorkspaceStatus(input: {
     readyToAsk: string;
   };
   hasKnowledgeBase: boolean;
-  documentCount: number;
+  documentCount: number | null;
   failedDocumentCount: number;
   processingDocumentCount: number;
   hasAssistant: boolean;
@@ -182,13 +181,23 @@ function resolveWorkspaceStatus(input: {
   return copy.readyToAsk;
 }
 
-function resolveCitationItems(
-  activeStreamTurn: ActiveStreamTurn | null,
-  latestTraceCitations: Citation[] | null | undefined
-): Citation[] {
-  return activeStreamTurn?.assistantMessage.citations.length
-    ? activeStreamTurn.assistantMessage.citations
-    : latestTraceCitations ?? [];
+function resolveCitationItems(activeStreamTurn: ActiveStreamTurn | null): Citation[] {
+  return activeStreamTurn?.assistantMessage.citations.length ? activeStreamTurn.assistantMessage.citations : [];
+}
+
+function resolveActiveTraceId(displayedMessages: DisplayedMessage[], activeStreamTurn: ActiveStreamTurn | null): string | null {
+  if (activeStreamTurn?.assistantMessage.traceId != null) {
+    return activeStreamTurn.assistantMessage.traceId;
+  }
+
+  for (let index = displayedMessages.length - 1; index >= 0; index -= 1) {
+    const message = displayedMessages[index];
+    if (message.role === "assistant" && "traceId" in message && message.traceId != null) {
+      return message.traceId;
+    }
+  }
+
+  return null;
 }
 
 function TypingIndicator() {
@@ -278,11 +287,14 @@ export function ChatPage() {
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", activeKnowledgeBase != null);
   const conversationsQuery = useConversations();
+  const fallbackConversationId = conversationsQuery.data?.[0]?.id ?? null;
+  const resolvedConversationId = activeConversationId ?? fallbackConversationId;
   const activeAssistant = getPrimaryAssistantForKnowledgeBase(assistantsQuery.data, activeKnowledgeBase?.id ?? null);
-  const messagesQuery = useConversationMessages(activeConversationId);
-  const tracesQuery = useConversationTraces(activeConversationId);
+  const messagesQuery = useConversationMessages(resolvedConversationId);
+  const shouldLoadChatDocuments =
+    activeKnowledgeBase != null && (conversationsQuery.isSuccess || messagesQuery.isSuccess || activeStreamTurn != null);
+  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", shouldLoadChatDocuments);
   const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "");
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
@@ -336,21 +348,20 @@ export function ChatPage() {
     [t]
   );
 
-  const latestTrace = tracesQuery.data?.[0] ?? null;
   const canAsk = activeAssistant != null;
   const canSubmitQuestion = activeAssistant != null && !askStreamMutation.isPending;
-  const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(activeStreamTurn, activeConversationId);
+  const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(activeStreamTurn, resolvedConversationId);
 
   useEffect(() => {
-    if (!didAutoSelectConversation && activeConversationId == null && conversationsQuery.data?.length) {
-      setActiveConversationId(conversationsQuery.data[0].id);
+    if (!didAutoSelectConversation && activeConversationId == null && fallbackConversationId != null) {
+      setActiveConversationId(fallbackConversationId);
       setDidAutoSelectConversation(true);
     }
-  }, [activeConversationId, conversationsQuery.data, didAutoSelectConversation]);
+  }, [activeConversationId, didAutoSelectConversation, fallbackConversationId]);
 
   useEffect(() => {
     setIsTranscriptNearBottom(true);
-  }, [activeConversationId]);
+  }, [resolvedConversationId]);
 
   useEffect(() => {
     if (!activeStreamTurn?.latestResult?.assistantMessageId || !messagesQuery.data) {
@@ -382,25 +393,26 @@ export function ChatPage() {
 
   const streamStatusLabel = resolveStreamStatusLabel(chatCopy, activeStreamTurn);
 
-  const citationItems: Citation[] = resolveCitationItems(activeStreamTurn, latestTrace?.citationsJson);
-  const activeTraceId = activeStreamTurn?.assistantMessage.traceId ?? latestTrace?.id ?? null;
+  const citationItems: Citation[] = resolveCitationItems(activeStreamTurn);
+  const activeTraceId = resolveActiveTraceId(displayedMessages, activeStreamTurn);
   const activeConversation =
-    conversationsQuery.data?.find(conversation => conversation.id === activeConversationId) ?? null;
+    conversationsQuery.data?.find(conversation => conversation.id === resolvedConversationId) ?? null;
   const conversationCount = conversationsQuery.data?.length ?? 0;
   const documents = documentsQuery.data ?? [];
+  const documentsAreReady = shouldLoadChatDocuments && documentsQuery.isSuccess;
   const documentCount = documents.length;
-  const readyDocumentCount = documents.filter(document => document.status === "ready").length;
   const processingDocumentCount = documents.filter(
     document => document.status === "pending" || document.status === "processing"
   ).length;
   const failedDocumentCount = documents.filter(document => document.status === "failed").length;
-  const isOauthOnboardingActive = loginProvenance.type === "oauth_session" && !(documentCount > 0 && conversationCount > 0);
+  const isOauthOnboardingActive =
+    loginProvenance.type === "oauth_session" && (!documentsAreReady || !(documentCount > 0 && conversationCount > 0));
   const workspaceStatus = resolveWorkspaceStatus({
     copy: chatCopy,
     hasKnowledgeBase: activeKnowledgeBase != null,
-    documentCount,
-    failedDocumentCount,
-    processingDocumentCount,
+    documentCount: documentsAreReady ? documentCount : null,
+    failedDocumentCount: documentsAreReady ? failedDocumentCount : 0,
+    processingDocumentCount: documentsAreReady ? processingDocumentCount : 0,
     hasAssistant: activeAssistant != null,
     hasActiveStreamTurn: activeStreamTurn != null,
     streamStatusLabel
@@ -415,7 +427,7 @@ export function ChatPage() {
       } as const;
     }
 
-    if (documentCount === 0) {
+    if (documentsAreReady && documentCount === 0) {
       return {
         actionHref: "/documents",
         actionLabel: t("chat.states.noDocumentsAction"),
@@ -424,7 +436,7 @@ export function ChatPage() {
       } as const;
     }
 
-    if (failedDocumentCount > 0) {
+    if (documentsAreReady && failedDocumentCount > 0) {
       return {
         actionHref: "/documents",
         actionLabel: t("chat.states.failedDocumentsAction"),
@@ -433,7 +445,7 @@ export function ChatPage() {
       } as const;
     }
 
-    if (processingDocumentCount > 0) {
+    if (documentsAreReady && processingDocumentCount > 0) {
       return {
         actionHref: "/documents",
         actionLabel: t("chat.states.processingDocumentsAction"),
@@ -460,6 +472,7 @@ export function ChatPage() {
     chatCopy.noActiveKnowledgeBaseAction,
     chatCopy.noAssistantForKnowledgeBaseAction,
     documentCount,
+    documentsAreReady,
     failedDocumentCount,
     processingDocumentCount,
     t
@@ -473,7 +486,6 @@ export function ChatPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["conversation-messages", finalData.conversationId] });
-      queryClient.invalidateQueries({ queryKey: ["conversation-traces", finalData.conversationId] });
     },
     [queryClient]
   );
@@ -728,7 +740,7 @@ export function ChatPage() {
                 description={readinessPanel.description}
                 title={readinessPanel.title}
               />
-            ) : activeConversationId == null && activeStreamTurn == null ? (
+            ) : resolvedConversationId == null && activeStreamTurn == null ? (
               <StatePanel
                 description={t("chat.states.noActiveConversationDescription")}
                 title={t("chat.states.noActiveConversationTitle")}
@@ -950,7 +962,7 @@ export function ChatPage() {
         fallback={<ChatWorkspacePanelsFallback currentCitations={chatCopy.currentCitations} history={chatCopy.history} />}
       >
         <ChatWorkspacePanels
-          activeConversationId={activeConversationId}
+          activeConversationId={resolvedConversationId}
           activeTraceId={activeTraceId}
           chatCopy={{
             conversationLabel: chatCopy.conversationLabel,
@@ -977,10 +989,8 @@ export function ChatPage() {
             setMobilePanel(null);
           }}
           showReducedCitationsPanel={showReducedCitationsPanel}
-          showTracePlaceholder={activeConversationId == null && activeStreamTurn == null}
+          showTracePlaceholder={resolvedConversationId == null && activeStreamTurn == null}
           t={t}
-          tracesError={tracesQuery.error}
-          tracesLoading={tracesQuery.isLoading}
         />
       </Suspense>
     </div>

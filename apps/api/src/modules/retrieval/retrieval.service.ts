@@ -134,37 +134,70 @@ export class RetrievalService {
       });
     }
 
-    const lexicalCandidates =
-      candidateSelectionMode === "hybrid"
-        ? await this.getLexicalCandidates({
+    let vectorCandidateCount = 0;
+    let embeddingDiagnostics: VectorStoreEmbeddingDiagnostics | null = null;
+
+    try {
+      const tasks: Array<Promise<{ type: "lexical" | "vector"; result: any }>> = [];
+
+      if (candidateSelectionMode === "hybrid") {
+        tasks.push(
+          this.getLexicalCandidates({
             kbId: input.kbId,
             query: input.query,
             limit: candidateLimit,
             filters: normalizedFilters,
             documentVersions: input.documentVersions
-          })
-        : undefined;
-    let vectorCandidateCount = 0;
-    let embeddingDiagnostics: VectorStoreEmbeddingDiagnostics | null = null;
+          }).then(result => ({ type: "lexical" as const, result }))
+        );
+      }
 
-    try {
-      const queryEmbedding = await this.embeddingService.embedQuery(input.query);
-      const vectorSearch = (await this.vectorStoreService.search({
-        kbId: input.kbId,
-        queryEmbedding,
-        topK: candidateLimit,
-        scoreThreshold: input.scoreThreshold,
-        filters: normalizedFilters
-      })) as VectorSearchResult | VectorSearchMatch[];
-      const normalizedVectorSearch = this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
-      const vectorMatches = normalizedVectorSearch.matches;
-      embeddingDiagnostics = normalizedVectorSearch.embedding;
+      tasks.push(
+        (async () => {
+          const queryEmbedding = await this.embeddingService.embedQuery(input.query);
+          const vectorSearch = (await this.vectorStoreService.search({
+            kbId: input.kbId,
+            queryEmbedding,
+            topK: candidateLimit,
+            scoreThreshold: input.scoreThreshold,
+            filters: normalizedFilters
+          })) as VectorSearchResult | VectorSearchMatch[];
+          const normalizedVectorSearch = this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
+          return { type: "vector" as const, result: normalizedVectorSearch };
+        })()
+      );
+
+      const results = await Promise.allSettled(tasks);
+
+      let lexicalCandidates: RetrievalCandidate[] | undefined;
+      let normalizedVectorSearch: VectorSearchResult | null = null;
+
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          if (result.value.type === "lexical") {
+            lexicalCandidates = result.value.result;
+          } else if (result.value.type === "vector") {
+            normalizedVectorSearch = result.value.result;
+          }
+        } else {
+          const taskType = index === 0 && candidateSelectionMode === "hybrid" ? "lexical" : "vector";
+          const message = result.reason instanceof Error ? result.reason.message : "Unknown error";
+          this.logger.warn(`${taskType} search failed: ${message}`, result.reason);
+        }
+      });
+
+      if (!normalizedVectorSearch) {
+        throw new Error("Vector search failed and is required for non-lexical mode");
+      }
+
+      const vectorMatches = (normalizedVectorSearch as VectorSearchResult).matches;
+      embeddingDiagnostics = (normalizedVectorSearch as VectorSearchResult).embedding;
 
       if (vectorMatches.length > 0 || candidateSelectionMode === "hybrid") {
         const vectorCandidates = await this.getVectorCandidates(vectorMatches);
         vectorCandidateCount = vectorCandidates.length;
-        const mergedCandidates = candidateSelectionMode === "hybrid"
-          ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates ?? [], strategy)
+        const mergedCandidates = candidateSelectionMode === "hybrid" && lexicalCandidates
+          ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates, strategy)
           : vectorCandidates;
         const rankedCandidates = this.rankCandidates(mergedCandidates, {
           enableRerank: resolvedEnableRerank,
@@ -212,7 +245,7 @@ export class RetrievalService {
         ...input,
         enableRerank: resolvedEnableRerank,
         filters: normalizedFilters,
-        lexicalCandidates,
+        lexicalCandidates: undefined,
         candidateLimit,
         vectorCandidateCount: 0,
         embedding: embeddingDiagnostics,
@@ -228,7 +261,7 @@ export class RetrievalService {
       ...input,
       enableRerank: resolvedEnableRerank,
       filters: normalizedFilters,
-      lexicalCandidates,
+      lexicalCandidates: undefined,
       candidateLimit,
       vectorCandidateCount,
       embedding: embeddingDiagnostics,
@@ -328,10 +361,24 @@ export class RetrievalService {
     filters?: RetrievalProfileFilters;
     documentVersions?: Record<string, number>;
   }) {
+    if (typeof this.prisma.$queryRaw === "function") {
+      return this.getLexicalCandidatesFromDatabase(input);
+    }
+
     const chunks = await this.prisma.documentChunk.findMany({
       where: this.buildChunkWhere(input.kbId, input.filters, input.documentVersions),
-      include: {
-        document: true
+      select: {
+        id: true,
+        documentId: true,
+        chunkIndex: true,
+        content: true,
+        sectionTitle: true,
+        pageNo: true,
+        document: {
+          select: {
+            title: true
+          }
+        }
       }
     });
 
@@ -361,6 +408,70 @@ export class RetrievalService {
       .slice(0, input.limit);
   }
 
+  private async getLexicalCandidatesFromDatabase(input: {
+    kbId: string;
+    query: string;
+    limit: number;
+    filters?: RetrievalProfileFilters;
+    documentVersions?: Record<string, number>;
+  }) {
+    const terms = this.tokenize(input.query);
+    const fullQuery = terms.join(" ").trim();
+
+    if (terms.length === 0 && fullQuery.length === 0) {
+      return [];
+    }
+
+    const lexicalScoreSql = this.buildLexicalScoreSql(terms, fullQuery);
+    const lexicalMatchSql = this.buildLexicalMatchSql(terms, fullQuery);
+    const filterSql = this.buildLexicalFilterSql(input.kbId, input.filters, input.documentVersions);
+
+    const chunks = await this.prisma.$queryRaw<Array<{
+      chunkId: string;
+      documentId: string;
+      documentTitle: string;
+      chunkIndex: number;
+      content: string;
+      sectionTitle: string | null;
+      pageNo: number | null;
+      lexicalScore: number;
+    }>>(
+      Prisma.sql`
+        SELECT
+          c."id" AS "chunkId",
+          c."documentId" AS "documentId",
+          d."title" AS "documentTitle",
+          c."chunkIndex" AS "chunkIndex",
+          c."content" AS "content",
+          c."sectionTitle" AS "sectionTitle",
+          c."pageNo" AS "pageNo",
+          ${lexicalScoreSql} AS "lexicalScore"
+        FROM "DocumentChunk" c
+        JOIN "Document" d ON d."id" = c."documentId"
+        WHERE ${filterSql}
+          AND (${lexicalMatchSql})
+        ORDER BY "lexicalScore" DESC, c."documentId" ASC, c."chunkIndex" ASC
+        LIMIT ${input.limit}
+      `
+    );
+
+    return chunks.map(chunk => ({
+      chunkId: chunk.chunkId,
+      documentId: chunk.documentId,
+      documentTitle: chunk.documentTitle,
+      chunkIndex: chunk.chunkIndex,
+      content: chunk.content,
+      score: Number(chunk.lexicalScore),
+      isPrimary: true,
+      lexicalScore: Number(chunk.lexicalScore),
+      vectorScore: 0,
+      hybridScore: Number(chunk.lexicalScore),
+      rerankScore: Number(chunk.lexicalScore),
+      pageNo: chunk.pageNo,
+      sectionTitle: chunk.sectionTitle
+    }));
+  }
+
   private async getVectorCandidates(vectorMatches: Array<{ chunkId: string; score: number }>) {
     const chunks = await this.prisma.documentChunk.findMany({
       where: {
@@ -368,8 +479,18 @@ export class RetrievalService {
           in: vectorMatches.map(match => match.chunkId)
         }
       },
-      include: {
-        document: true
+      select: {
+        id: true,
+        documentId: true,
+        chunkIndex: true,
+        content: true,
+        sectionTitle: true,
+        pageNo: true,
+        document: {
+          select: {
+            title: true
+          }
+        }
       }
     });
 
@@ -581,8 +702,18 @@ export class RetrievalService {
         ...this.buildChunkWhere(kbId, filters, documentVersions),
         OR: documentChunkEntries
       },
-      include: {
-        document: true
+      select: {
+        id: true,
+        documentId: true,
+        chunkIndex: true,
+        content: true,
+        sectionTitle: true,
+        pageNo: true,
+        document: {
+          select: {
+            title: true
+          }
+        }
       },
       orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
     });
@@ -884,5 +1015,115 @@ export class RetrievalService {
     return {
       AND: [directWhere, ...extraPositiveClauses]
     };
+  }
+
+  private buildLexicalScoreSql(terms: string[], fullQuery: string) {
+    const scoreClauses: Prisma.Sql[] = [];
+
+    if (fullQuery.length > 0) {
+      const phrasePattern = `%${fullQuery}%`;
+      scoreClauses.push(Prisma.sql`CASE WHEN c."content" ILIKE ${phrasePattern} THEN 6 ELSE 0 END`);
+      scoreClauses.push(Prisma.sql`CASE WHEN COALESCE(c."sectionTitle", '') ILIKE ${phrasePattern} THEN 8 ELSE 0 END`);
+    }
+
+    for (const term of terms) {
+      const termPattern = `%${term}%`;
+      scoreClauses.push(Prisma.sql`CASE WHEN c."content" ILIKE ${termPattern} THEN 1 ELSE 0 END`);
+      scoreClauses.push(Prisma.sql`CASE WHEN COALESCE(c."sectionTitle", '') ILIKE ${termPattern} THEN 2 ELSE 0 END`);
+    }
+
+    if (scoreClauses.length === 0) {
+      return Prisma.sql`0`;
+    }
+
+    return this.joinSqlClauses(scoreClauses, "+");
+  }
+
+  private buildLexicalMatchSql(terms: string[], fullQuery: string) {
+    const matchClauses: Prisma.Sql[] = [];
+
+    if (fullQuery.length > 0) {
+      const phrasePattern = `%${fullQuery}%`;
+      matchClauses.push(Prisma.sql`c."content" ILIKE ${phrasePattern}`);
+      matchClauses.push(Prisma.sql`COALESCE(c."sectionTitle", '') ILIKE ${phrasePattern}`);
+    }
+
+    for (const term of terms) {
+      const termPattern = `%${term}%`;
+      matchClauses.push(Prisma.sql`c."content" ILIKE ${termPattern}`);
+      matchClauses.push(Prisma.sql`COALESCE(c."sectionTitle", '') ILIKE ${termPattern}`);
+    }
+
+    if (matchClauses.length === 0) {
+      return Prisma.sql`FALSE`;
+    }
+
+    return this.joinSqlClauses(matchClauses, "OR");
+  }
+
+  private buildLexicalFilterSql(kbId: string, filters?: RetrievalProfileFilters, documentVersions?: Record<string, number>) {
+    const clauses: Prisma.Sql[] = [Prisma.sql`c."kbId" = ${kbId}`];
+
+    if (filters?.documentIds?.include && filters.documentIds.include.length > 0) {
+      clauses.push(Prisma.sql`c."documentId" IN (${Prisma.join(filters.documentIds.include)})`);
+    }
+
+    if (filters?.documentIds?.exclude && filters.documentIds.exclude.length > 0) {
+      clauses.push(Prisma.sql`c."documentId" NOT IN (${Prisma.join(filters.documentIds.exclude)})`);
+    }
+
+    if (filters?.sectionTitles?.include && filters.sectionTitles.include.length > 0) {
+      clauses.push(Prisma.sql`COALESCE(c."sectionTitle", '') IN (${Prisma.join(filters.sectionTitles.include)})`);
+    }
+
+    if (filters?.sectionTitles?.contains && filters.sectionTitles.contains.length > 0) {
+      clauses.push(
+        Prisma.sql`(${this.joinSqlClauses(
+          filters.sectionTitles.contains.map(sectionTitle => Prisma.sql`COALESCE(c."sectionTitle", '') ILIKE ${`%${sectionTitle}%`}`),
+          "OR"
+        )})`
+      );
+    }
+
+    if (filters?.sectionTitles?.exclude && filters.sectionTitles.exclude.length > 0) {
+      clauses.push(Prisma.sql`COALESCE(c."sectionTitle", '') NOT IN (${Prisma.join(filters.sectionTitles.exclude)})`);
+    }
+
+    if (filters?.pageNumbers?.include && filters.pageNumbers.include.length > 0) {
+      clauses.push(Prisma.sql`c."pageNo" IN (${Prisma.join(filters.pageNumbers.include)})`);
+    }
+
+    if (filters?.pageNumbers?.min !== undefined) {
+      clauses.push(Prisma.sql`c."pageNo" >= ${filters.pageNumbers.min}`);
+    }
+
+    if (filters?.pageNumbers?.max !== undefined) {
+      clauses.push(Prisma.sql`c."pageNo" <= ${filters.pageNumbers.max}`);
+    }
+
+    if (filters?.pageNumbers?.exclude && filters.pageNumbers.exclude.length > 0) {
+      clauses.push(Prisma.sql`(c."pageNo" IS NULL OR c."pageNo" NOT IN (${Prisma.join(filters.pageNumbers.exclude)}))`);
+    }
+
+    if (documentVersions && Object.keys(documentVersions).length > 0) {
+      clauses.push(
+        Prisma.sql`(${this.joinSqlClauses(
+          Object.entries(documentVersions).map(([documentId, version]) =>
+            Prisma.sql`(c."documentId" = ${documentId} AND d."version" <= ${version})`
+          ),
+          "OR"
+        )})`
+      );
+    }
+
+    return this.joinSqlClauses(clauses, "AND");
+  }
+
+  private joinSqlClauses(clauses: Prisma.Sql[], operator: "AND" | "OR" | "+") {
+    if (clauses.length === 0) {
+      return Prisma.sql``;
+    }
+
+    return clauses.slice(1).reduce((combined, clause) => Prisma.sql`${combined} ${Prisma.raw(operator)} ${clause}`, clauses[0]);
   }
 }

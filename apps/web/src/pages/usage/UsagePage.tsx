@@ -80,7 +80,7 @@ export function UsagePage() {
   });
   const { locale } = useI18n();
 
-  const documents = documentsQuery.data ?? [];
+  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
   const assistants = assistantsQuery.data ?? [];
   const conversations = conversationsQuery.data ?? [];
   const { readyDocuments, processingDocuments, failedDocuments, totalChunks } = useMemo(
@@ -109,22 +109,20 @@ export function UsagePage() {
   );
 
   // 生成指标数据
-  const generateMetrics = () => [
+  const metrics = useMemo(() => [
     { label: locale === "zh" ? "资料库" : "Libraries", value: knowledgeBasesQuery.data?.length ?? 0 },
     { label: locale === "zh" ? "资料" : "Library items", value: documents.length },
     { label: locale === "zh" ? "Chunk" : "Chunks", value: totalChunks },
     { label: locale === "zh" ? "助手" : "Assistants", value: assistants.length },
     { label: locale === "zh" ? "会话" : "Conversations", value: conversations.length },
     { label: locale === "zh" ? "可用资料" : "Ready items", value: readyDocuments }
-  ];
-
-  const metrics = useMemo(() => generateMetrics(), [
-    assistants.length, 
-    conversations.length, 
-    documents.length, 
-    knowledgeBasesQuery.data?.length, 
-    locale, 
-    readyDocuments, 
+  ], [
+    assistants.length,
+    conversations.length,
+    documents.length,
+    knowledgeBasesQuery.data?.length,
+    locale,
+    readyDocuments,
     totalChunks
   ]);
 

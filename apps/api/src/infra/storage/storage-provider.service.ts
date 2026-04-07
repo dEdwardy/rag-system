@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { Injectable } from "@nestjs/common";
+import { type SupabaseStorageRuntimeConfig, type LocalStorageRuntimeConfig } from "./storage-runtime-config";
 import { resolveStorageRoot } from "./storage-root";
-import { type SupabaseStorageRuntimeConfig } from "./storage-runtime-config";
 
 type SaveFileInput = {
   buffer: Buffer;
@@ -25,53 +25,6 @@ export interface StorageProviderService {
   saveGeneratedTextFile(input: { content: string }): Promise<{ storageKey: string; absolutePath: string | null }>;
   readFileByStorageKey(storageKey: string): Promise<Buffer>;
   getStorageRoot(): string | null;
-}
-
-@Injectable()
-export class LocalStorageProviderService implements StorageProviderService {
-  private readonly storageRoot = resolveStorageRoot();
-
-  async saveUploadedFile(input: SaveFileInput) {
-    return this.saveBuffer({
-      buffer: input.buffer,
-      directory: "uploads",
-      extension: extname(input.originalName),
-      contentType: input.mimeType || "application/octet-stream"
-    });
-  }
-
-  async saveGeneratedTextFile(input: { content: string }) {
-    return this.saveBuffer({
-      buffer: Buffer.from(input.content, "utf8"),
-      directory: "generated",
-      extension: ".txt",
-      contentType: "text/plain; charset=utf-8"
-    });
-  }
-
-  readFileByStorageKey(storageKey: string) {
-    return readFile(join(this.storageRoot, storageKey));
-  }
-
-  getStorageRoot() {
-    return this.storageRoot;
-  }
-
-  private async saveBuffer(input: SaveBufferInput) {
-    const fileName = `${Date.now()}-${randomUUID()}${input.extension}`;
-    const relativeDirectory = join(input.directory);
-    const relativePath = join(relativeDirectory, fileName);
-    const absoluteDirectory = join(this.storageRoot, relativeDirectory);
-    const absolutePath = join(this.storageRoot, relativePath);
-
-    await mkdir(absoluteDirectory, { recursive: true });
-    await writeFile(absolutePath, input.buffer);
-
-    return {
-      storageKey: relativePath.replaceAll("\\", "/"),
-      absolutePath
-    };
-  }
 }
 
 @Injectable()
@@ -183,5 +136,60 @@ async function safeReadResponseText(response: Response) {
     return await response.text();
   } catch {
     return "<unreadable response body>";
+  }
+}
+
+@Injectable()
+export class LocalStorageProviderService implements StorageProviderService {
+  private readonly storageRoot: string;
+
+  constructor() {
+    this.storageRoot = resolveStorageRoot();
+  }
+
+  async saveUploadedFile(input: SaveFileInput) {
+    return this.saveBuffer({
+      buffer: input.buffer,
+      directory: "uploads",
+      extension: extname(input.originalName),
+      contentType: input.mimeType || "application/octet-stream"
+    });
+  }
+
+  async saveGeneratedTextFile(input: { content: string }) {
+    return this.saveBuffer({
+      buffer: Buffer.from(input.content, "utf8"),
+      directory: "generated",
+      extension: ".txt",
+      contentType: "text/plain; charset=utf-8"
+    });
+  }
+
+  async readFileByStorageKey(storageKey: string) {
+    const absolutePath = join(this.storageRoot, storageKey);
+    return readFileSync(absolutePath);
+  }
+
+  getStorageRoot() {
+    return this.storageRoot;
+  }
+
+  private async saveBuffer(input: SaveBufferInput) {
+    const fileName = `${Date.now()}-${randomUUID()}${input.extension}`;
+    const relativeDirectory = join(input.directory);
+    const relativePath = join(relativeDirectory, fileName).replaceAll("\\", "/");
+    const absoluteDirectory = join(this.storageRoot, input.directory);
+    const absolutePath = join(absoluteDirectory, fileName);
+
+    if (!existsSync(absoluteDirectory)) {
+      mkdirSync(absoluteDirectory, { recursive: true });
+    }
+
+    writeFileSync(absolutePath, input.buffer);
+
+    return {
+      storageKey: relativePath,
+      absolutePath
+    };
   }
 }

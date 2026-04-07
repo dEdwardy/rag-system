@@ -157,7 +157,8 @@ test("DocumentsService reindexKnowledgeBase scopes KB access and requests each d
         kbId: "kb-1"
       },
       select: {
-        id: true
+        id: true,
+        sourceType: true
       },
       orderBy: {
         updatedAt: "desc"
@@ -218,6 +219,70 @@ test("DocumentsService scopes getDocument by owning knowledge-base identity", as
   ]);
 });
 
+test("DocumentsService skips knowledge-base fallback when document list already resolves", async () => {
+  const calls = {
+    documentFindMany: [],
+    knowledgeBaseGet: []
+  };
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findMany: async args => {
+          calls.documentFindMany.push(args);
+          return [{ id: "document-1" }];
+        }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async (...args) => {
+        calls.knowledgeBaseGet.push(args);
+        return { id: "kb-1" };
+      }
+    }
+  });
+
+  const result = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "kb-1", {}, {
+    tenantId: "tenant-auth",
+    userId: "user-auth"
+  });
+
+  assert.deepEqual(result, [{ id: "document-1" }]);
+  assert.equal(calls.documentFindMany.length, 1);
+  assert.equal(calls.knowledgeBaseGet.length, 0);
+});
+
+test("DocumentsService falls back to knowledge-base lookup when document list is empty", async () => {
+  const calls = {
+    documentFindMany: [],
+    knowledgeBaseGet: []
+  };
+  const fakeService = Object.assign(Object.create(DocumentsService.prototype), {
+    prisma: {
+      document: {
+        findMany: async args => {
+          calls.documentFindMany.push(args);
+          return [];
+        }
+      }
+    },
+    knowledgeBasesService: {
+      getKnowledgeBase: async (...args) => {
+        calls.knowledgeBaseGet.push(args);
+        return { id: "kb-1" };
+      }
+    }
+  });
+
+  const result = await DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "kb-1", {}, {
+    tenantId: "tenant-auth",
+    userId: "user-auth"
+  });
+
+  assert.deepEqual(result, []);
+  assert.equal(calls.documentFindMany.length, 1);
+  assert.deepEqual(calls.knowledgeBaseGet, [["kb-1", { tenantId: "tenant-auth", userId: "user-auth" }, { preserveForbiddenOnMiss: true }]]);
+});
+
 test("DocumentsService checks scoped knowledge-base access before listing documents", async () => {
   const kbChecks = [];
   const listCalls = [];
@@ -257,7 +322,11 @@ test("DocumentsService checks scoped knowledge-base access before listing docume
   assert.deepEqual(listCalls, [
     {
       where: {
-        kbId: "kb-1"
+        kbId: "kb-1",
+        knowledgeBase: {
+          tenantId: "tenant-auth",
+          ownerId: "user-auth"
+        }
       },
       orderBy: {
         updatedAt: "desc"
@@ -288,7 +357,20 @@ test("DocumentsService denies knowledge-base document list when owner scope chec
     DocumentsService.prototype.listKnowledgeBaseDocuments.call(fakeService, "kb-1", {}, { tenantId: "tenant-auth", userId: "user-auth" }),
     /Access blocked by owner_only_v1 policy \(owner_mismatch: resource owner does not match current user\)\./
   );
-  assert.deepEqual(listCalls, []);
+  assert.deepEqual(listCalls, [
+    {
+      where: {
+        kbId: "kb-1",
+        knowledgeBase: {
+          tenantId: "tenant-auth",
+          ownerId: "user-auth"
+        }
+      },
+      orderBy: {
+        updatedAt: "desc"
+      }
+    }
+  ]);
 });
 
 test("DocumentsService denies document detail when owning knowledge-base access fails", async () => {

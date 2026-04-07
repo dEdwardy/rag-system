@@ -1,9 +1,11 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, apiStreamRequest } from "../../lib/api";
 import {
   AuditEventRecord,
+  AuthLoginResponse,
   AuthMeResponse,
   AuthProvidersResponse,
+  AuthRefreshResponse,
   AskResponse,
   AskStreamEvent,
   AnswerPolicy,
@@ -33,7 +35,8 @@ export function useAuthMe(enabled = true) {
     queryKey: AUTH_ME_QUERY_KEY,
     queryFn: () => apiRequest<AuthMeResponse>("/auth/me"),
     enabled,
-    retry: false
+    retry: false,
+    staleTime: 30_000
   });
 }
 
@@ -96,13 +99,27 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: (payload: { email: string; password: string }) =>
-      apiRequest<{ identity: AuthMeResponse["currentIdentity"]; expiresAt: string }>("/auth/login", {
+      apiRequest<AuthLoginResponse>("/auth/login", {
         method: "POST",
         body: payload
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
+    onSuccess: login => {
+      queryClient.setQueryData<AuthMeResponse>(AUTH_ME_QUERY_KEY, current => ({
+        identity: login.identity,
+        currentIdentity: login.identity,
+        user: login.user,
+        loginProvenance: current?.loginProvenance ?? {
+          type: "local_session",
+          oauthProvider: null
+        }
+      }));
     }
+  });
+}
+
+export async function refreshAuthSession() {
+  return apiRequest<AuthRefreshResponse>("/auth/refresh", {
+    method: "POST"
   });
 }
 
@@ -409,30 +426,34 @@ export function useConversationMessages(conversationId: string | null) {
 export function useConversationTraces(conversationId: string | null) {
   return useQuery({
     queryKey: ["conversation-traces", conversationId],
-    queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces`),
+    queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces?limit=1`),
     enabled: conversationId != null
   });
 }
 
 export function useLatestConversationTraces(conversationIds: string[], enabled = true) {
-  const traceQueries = useQueries({
-    queries: conversationIds.map(conversationId => ({
-      queryKey: ["conversation-traces", conversationId],
-      queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces`),
-      select: (traces: TraceRecord[]) => traces[0] ?? null,
-      enabled
-    }))
+  const tracesQuery = useQuery({
+    queryKey: ["latest-conversation-traces", conversationIds],
+    queryFn: () =>
+      apiRequest<Array<{ conversationId: string; trace: TraceRecord }>>(
+        `/traces/latest-by-conversation?conversationIds=${encodeURIComponent(conversationIds.join(","))}`
+      ),
+    enabled: enabled && conversationIds.length > 0
   });
 
-  const latestTraceByConversationId = conversationIds.reduce<Record<string, TraceRecord | null>>((acc, conversationId, index) => {
-    acc[conversationId] = traceQueries[index]?.data ?? null;
+  const latestTraceByConversationId = conversationIds.reduce<Record<string, TraceRecord | null>>((acc, conversationId) => {
+    acc[conversationId] = null;
     return acc;
   }, {});
 
-  const isLoading = traceQueries.some(query => query.isLoading);
-  const isError = traceQueries.some(query => query.isError);
-  const failedConversationCount = traceQueries.filter(query => query.isError).length;
-  const error = traceQueries.find(query => query.isError)?.error ?? null;
+  for (const item of tracesQuery.data ?? []) {
+    latestTraceByConversationId[item.conversationId] = item.trace;
+  }
+
+  const isLoading = tracesQuery.isLoading;
+  const isError = tracesQuery.isError;
+  const failedConversationCount = tracesQuery.isError ? conversationIds.length : 0;
+  const error = tracesQuery.error ?? null;
 
   return {
     latestTraceByConversationId,
@@ -599,6 +620,29 @@ export function useUploadDocument(knowledgeBaseId: string) {
       formData.append("file", file);
 
       return apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/upload`, {
+        method: "POST",
+        body: formData
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+    }
+  });
+}
+
+export function useUploadDocuments(knowledgeBaseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append("files", file);
+      });
+
+      return apiRequest<DocumentRecord[]>(`/knowledge-bases/${knowledgeBaseId}/documents/upload-batch`, {
         method: "POST",
         body: formData
       });

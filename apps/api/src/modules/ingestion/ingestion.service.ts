@@ -15,6 +15,8 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private readonly runtimeConfig;
   private databasePollTimer?: NodeJS.Timeout;
   private databasePollInFlight = false;
+  private activeTasks = new Set<string>();
+  private taskAbortControllers = new Map<string, AbortController>();
 
   constructor(
     @Inject(QueueService) private readonly queueService: QueueService,
@@ -90,13 +92,22 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.databasePollInFlight = true;
 
     try {
-      while (true) {
+      while (this.activeTasks.size < this.runtimeConfig.maxConcurrentIngestionTasks) {
         const job = await this.claimNextDatabaseJob();
         if (!job) {
           break;
         }
 
-        await this.processDatabaseJob(job);
+        const taskId = `db-${job.id}`;
+        if (this.activeTasks.has(taskId)) {
+          continue;
+        }
+
+        this.activeTasks.add(taskId);
+        this.processDatabaseJobWithTimeout(job, taskId).finally(() => {
+          this.activeTasks.delete(taskId);
+          this.taskAbortControllers.delete(taskId);
+        });
       }
     } finally {
       this.databasePollInFlight = false;
@@ -111,13 +122,22 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.databasePollInFlight = true;
 
     try {
-      while (true) {
+      while (this.activeTasks.size < this.runtimeConfig.maxConcurrentIngestionTasks) {
         const job = await this.claimNextPgmqJob();
         if (!job) {
           break;
         }
 
-        await this.processPgmqJob(job);
+        const taskId = `pgmq-${String(job.msg_id)}`;
+        if (this.activeTasks.has(taskId)) {
+          continue;
+        }
+
+        this.activeTasks.add(taskId);
+        this.processPgmqJobWithTimeout(job, taskId).finally(() => {
+          this.activeTasks.delete(taskId);
+          this.taskAbortControllers.delete(taskId);
+        });
       }
     } finally {
       this.databasePollInFlight = false;
@@ -385,7 +405,80 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.logger.error(`Document ingestion ${workerName} worker poll failed: ${normalizedError.message}`, normalizedError.stack);
   }
 
+  private async processDatabaseJobWithTimeout(job: { id: string; documentId: string; documentVersion: number | null; attempts: number; maxAttempts: number }, taskId: string) {
+    const abortController = new AbortController();
+    this.taskAbortControllers.set(taskId, abortController);
+
+    try {
+      await Promise.race([
+        this.processDatabaseJob(job),
+        new Promise<void>((_, reject) => {
+          const timeout = setTimeout(() => {
+            abortController.abort();
+            reject(new Error(`Task ${taskId} timed out after ${this.runtimeConfig.maxTaskTimeoutMs}ms`));
+          }, this.runtimeConfig.maxTaskTimeoutMs);
+          abortController.signal.addEventListener('abort', () => clearTimeout(timeout));
+        })
+      ]);
+    } catch (error) {
+      this.logger.error(`Database job ${job.id} failed: ${error instanceof Error ? error.message : String(error)}`);
+      
+      const shouldRetry = job.attempts < job.maxAttempts;
+      if (!shouldRetry) {
+        await this.prisma.$executeRaw(
+          Prisma.sql`
+            UPDATE "IngestionQueueJob"
+            SET
+              "status" = 'failed',
+              "availableAt" = NOW(),
+              "lockedAt" = NULL,
+              "lastError" = ${error instanceof Error ? error.message : String(error)},
+              "updatedAt" = NOW()
+            WHERE "id" = ${job.id}
+          `
+        );
+      }
+    }
+  }
+
+  private async processPgmqJobWithTimeout(job: {
+    msg_id: bigint | number;
+    read_ct: number;
+    message: { documentId?: string; documentVersion?: number | null } | null;
+  }, taskId: string) {
+    const abortController = new AbortController();
+    this.taskAbortControllers.set(taskId, abortController);
+
+    try {
+      await Promise.race([
+        this.processPgmqJob(job),
+        new Promise<void>((_, reject) => {
+          const timeout = setTimeout(() => {
+            abortController.abort();
+            reject(new Error(`Task ${taskId} timed out after ${this.runtimeConfig.maxTaskTimeoutMs}ms`));
+          }, this.runtimeConfig.maxTaskTimeoutMs);
+          abortController.signal.addEventListener('abort', () => clearTimeout(timeout));
+        })
+      ]);
+    } catch (error) {
+      this.logger.error(`PGMQ job ${String(job.msg_id)} failed: ${error instanceof Error ? error.message : String(error)}`);
+      
+      const shouldRetry = job.read_ct < this.runtimeConfig.databaseMaxAttempts;
+      if (!shouldRetry) {
+        await this.prisma.$executeRaw(
+          Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
+        );
+      }
+    }
+  }
+
   async onModuleDestroy() {
+    for (const abortController of this.taskAbortControllers.values()) {
+      abortController.abort();
+    }
+    this.taskAbortControllers.clear();
+    this.activeTasks.clear();
+    
     if (this.databasePollTimer) {
       clearInterval(this.databasePollTimer);
       this.databasePollTimer = undefined;

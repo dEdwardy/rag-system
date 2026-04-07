@@ -20,20 +20,17 @@ type SummaryMetric = {
   valueSize?: "sm";
 };
 
-type TranslationFn = (key: string, values?: Record<string, string | number>) => string;
-
 type KnowledgeBaseActivityPanelProps = {
   formatDateTime: (value: string) => string;
   knowledgeBaseId: string;
   latestFailure: KnowledgeBaseDocumentRunSummary["latestFailure"];
   locale: SupportedLocale;
   runSummary: KnowledgeBaseDocumentRunSummary | null;
-  t: TranslationFn;
 };
 
 type RunRecord = Parameters<NonNullable<ComponentProps<typeof DocumentRunList>["onReindexRun"]>>[0];
 
-export function KnowledgeBaseActivityPanel({ formatDateTime, knowledgeBaseId, latestFailure, locale, runSummary, t }: KnowledgeBaseActivityPanelProps) {
+export function KnowledgeBaseActivityPanel({ formatDateTime, knowledgeBaseId, latestFailure, locale, runSummary }: KnowledgeBaseActivityPanelProps) {
   const [runFilter, setRunFilter] = useState<RunFilter>("all");
   const [isActivityExpanded, setIsActivityExpanded] = useState(false);
   const runStatusFilter = runFilter === "all" ? undefined : runFilter;

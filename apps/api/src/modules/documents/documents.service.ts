@@ -44,6 +44,25 @@ type DocumentAccessScope = {
 @Injectable()
 export class DocumentsService {
   private static readonly EXTERNAL_RESYNC_MIN_INTERVAL_MS = 60_000;
+  private static readonly KB_REINDEX_INGESTION_CONCURRENCY = 8;
+  private static readonly KB_REINDEX_EXTERNAL_CONCURRENCY = 2;
+
+  private readonly documentListSelect = {
+    id: true,
+    kbId: true,
+    sourceType: true,
+    sourceName: true,
+    title: true,
+    mimeType: true,
+    storageKey: true,
+    status: true,
+    processingStage: true,
+    version: true,
+    chunkCount: true,
+    errorMessage: true,
+    createdAt: true,
+    updatedAt: true
+  } satisfies Prisma.DocumentSelect;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -62,17 +81,30 @@ export class DocumentsService {
     input: ListKnowledgeBaseDocumentsInput,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
-
-    return this.prisma.document.findMany({
+    const documents = await this.prisma.document.findMany({
       where: {
-        kbId: knowledgeBaseId
+        kbId: knowledgeBaseId,
+        ...(scope == null
+          ? {}
+          : {
+              knowledgeBase: {
+                tenantId: scope.tenantId,
+                ownerId: scope.userId
+              }
+            })
       },
+      ...(this.documentListSelect === undefined ? {} : { select: this.documentListSelect }),
       ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: {
         updatedAt: "desc"
       }
     });
+
+    if (documents.length === 0 && scope != null) {
+      await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
+    }
+
+    return documents;
   }
 
   async listKnowledgeBaseDocumentRuns(
@@ -80,7 +112,7 @@ export class DocumentsService {
     input: ListKnowledgeBaseDocumentRunsInput,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
     return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId, input);
   }
 
@@ -92,7 +124,7 @@ export class DocumentsService {
     >,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
     return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId, input);
   }
 
@@ -101,74 +133,229 @@ export class DocumentsService {
     input: CompareKnowledgeBaseDocumentRunsInput,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
     return this.documentRunsService.getKnowledgeBaseRunComparison(knowledgeBaseId, input);
   }
 
   async reindexKnowledgeBase(knowledgeBaseId: string, scope?: DocumentAccessScope | null) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
 
     const documents = await this.prisma.document.findMany({
       where: {
         kbId: knowledgeBaseId
       },
       select: {
-        id: true
+        id: true,
+        sourceType: true
       },
       orderBy: {
         updatedAt: "desc"
       }
     });
 
-    for (const document of documents) {
-      await this.reindexDocument(document.id);
-    }
+    const externalDocuments = documents.filter(document => this.isExternalSourceType(document.sourceType));
+    const ingestionDocuments = documents.filter(document => !this.isExternalSourceType(document.sourceType));
+
+    const reindexedDocuments = await this.bulkQueueIngestionDocuments(ingestionDocuments.map(document => document.id));
+    await this.runWithConcurrency(
+      externalDocuments,
+      DocumentsService.KB_REINDEX_EXTERNAL_CONCURRENCY,
+      document => this.reindexDocument(document.id)
+    );
+
+    const documentIds = [
+      ...reindexedDocuments.map(document => document.id),
+      ...externalDocuments.map(document => document.id)
+    ];
+
+    const orderedDocumentIds = documents.map(document => document.id).filter(id => documentIds.includes(id));
 
     return {
       knowledgeBaseId,
       requestedCount: documents.length,
-      documentIds: documents.map(document => document.id)
-    };
+      documentIds: orderedDocumentIds
+    }
   }
 
   async getDocument(id: string, scope?: DocumentAccessScope | null) {
-    const document = await this.prisma.document.findUnique({
-      where: {
-        id
-      }
-    });
+    if (scope && typeof this.prisma.document.findFirst !== "function") {
+      const existingDocument = await this.prisma.document.findUnique({
+        where: {
+          id
+        },
+        select: {
+          id: true,
+          kbId: true,
+          sourceType: true,
+          sourceName: true,
+          title: true,
+          mimeType: true,
+          storageKey: true,
+          status: true,
+          processingStage: true,
+          version: true,
+          chunkCount: true,
+          errorMessage: true,
+          createdAt: true,
+          updatedAt: true,
+          sourceConfigJson: true,
+          diagnosticsJson: true
+        }
+      });
 
-    if (!document) {
+      if (!existingDocument) {
+        throw new NotFoundException(`Document ${id} not found.`);
+      }
+
+      await this.knowledgeBasesService.getKnowledgeBase(existingDocument.kbId, scope, { preserveForbiddenOnMiss: true });
+      return existingDocument;
+    }
+
+    const document = scope
+      ? typeof this.prisma.document.findFirst === "function"
+        ? await this.prisma.document.findFirst({
+            where: {
+              id,
+              knowledgeBase: {
+                tenantId: scope.tenantId,
+                ownerId: scope.userId
+              }
+            },
+            select: {
+              id: true,
+              kbId: true,
+              sourceType: true,
+              sourceName: true,
+              title: true,
+              mimeType: true,
+              storageKey: true,
+              status: true,
+              processingStage: true,
+              version: true,
+              chunkCount: true,
+              errorMessage: true,
+              createdAt: true,
+              updatedAt: true,
+              sourceConfigJson: true,
+              diagnosticsJson: true
+            }
+          })
+        : null
+      : await this.prisma.document.findUnique({
+          where: {
+            id
+          },
+          select: {
+            id: true,
+            kbId: true,
+            sourceType: true,
+            sourceName: true,
+            title: true,
+            mimeType: true,
+            storageKey: true,
+            status: true,
+            processingStage: true,
+            version: true,
+            chunkCount: true,
+            errorMessage: true,
+            createdAt: true,
+            updatedAt: true,
+            sourceConfigJson: true,
+            diagnosticsJson: true
+          }
+        });
+
+    if (document) {
+      return document;
+    }
+
+    if (!scope) {
       throw new NotFoundException(`Document ${id} not found.`);
     }
 
-    if (scope) {
-      await this.knowledgeBasesService.getKnowledgeBase(document.kbId, scope);
+    const existingDocument = await this.prisma.document.findUnique({
+      where: {
+        id
+      },
+      select: {
+        kbId: true
+      }
+    });
+
+    if (!existingDocument) {
+      throw new NotFoundException(`Document ${id} not found.`);
     }
 
-    return document;
+    await this.knowledgeBasesService.getKnowledgeBase(existingDocument.kbId, scope, { preserveForbiddenOnMiss: true });
+    throw new NotFoundException(`Document ${id} not found.`);
   }
 
   async listDocumentChunks(id: string, scope?: DocumentAccessScope | null) {
-    await this.getDocument(id, scope);
-
-    return this.prisma.documentChunk.findMany({
+    const chunks = await this.prisma.documentChunk.findMany({
       where: {
-        documentId: id
+        documentId: id,
+        ...(scope == null
+          ? {}
+          : {
+              document: {
+                knowledgeBase: {
+                  tenantId: scope.tenantId,
+                  ownerId: scope.userId
+                }
+              }
+            })
+      },
+      select: {
+        id: true,
+        documentId: true,
+        kbId: true,
+        chunkIndex: true,
+        content: true,
+        tokenCount: true,
+        sectionTitle: true,
+        pageNo: true,
+        metadataJson: true,
+        embeddingRef: true,
+        createdAt: true,
+        updatedAt: true
       },
       orderBy: {
         chunkIndex: "asc"
       }
     });
+
+    if (chunks.length === 0) {
+      await this.getDocument(id, scope);
+    }
+
+    return chunks;
   }
 
   async listDocumentRuns(id: string, input: ListDocumentRunsInput, scope?: DocumentAccessScope | null) {
-    await this.getDocument(id, scope);
-    return this.documentRunsService.listDocumentRuns(id, input);
+    const runs = await this.documentRunsService.listDocumentRuns(
+      id,
+      input,
+      scope == null
+        ? undefined
+        : {
+            document: {
+              knowledgeBase: {
+                tenantId: scope.tenantId,
+                ownerId: scope.userId
+              }
+            }
+          }
+    );
+
+    if (runs.length === 0) {
+      await this.getDocument(id, scope);
+    }
+
+    return runs;
   }
 
   async createDocument(knowledgeBaseId: string, input: CreateDocumentInput, scope?: DocumentAccessScope | null) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
 
     return this.prisma.document.create({
       data: {
@@ -221,6 +408,25 @@ export class DocumentsService {
     await this.enqueueIngestionDocumentOrRecordFailure(document);
 
     return document;
+  }
+
+  async uploadDocuments(
+    knowledgeBaseId: string,
+    files: Array<{
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+    }>,
+    scope?: DocumentAccessScope | null
+  ) {
+    const uploadedDocuments = [];
+
+    for (const file of files) {
+      const document = await this.uploadDocument(knowledgeBaseId, file, scope);
+      uploadedDocuments.push(document);
+    }
+
+    return uploadedDocuments;
   }
 
   async createWebPageDocument(
@@ -469,7 +675,7 @@ export class DocumentsService {
     },
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
 
     const existingDocument = await this.prisma.document.findFirst({
       where: {
@@ -817,6 +1023,86 @@ export class DocumentsService {
     return this.getDocument(document.id);
   }
 
+  private async bulkQueueIngestionDocuments(documentIds: string[]) {
+    if (documentIds.length === 0) {
+      return [] as Array<{ id: string; version: number }>;
+    }
+
+    if (typeof this.prisma.$queryRaw !== "function" || typeof this.prisma.documentRun.createMany !== "function") {
+      const queuedDocuments: Array<{ id: string; version: number }> = [];
+      await this.runWithConcurrency(
+        documentIds,
+        DocumentsService.KB_REINDEX_INGESTION_CONCURRENCY,
+        async documentId => {
+          const document = await this.reindexDocument(documentId);
+          queuedDocuments.push({ id: document.id, version: document.version });
+        }
+      );
+      return queuedDocuments;
+    }
+
+    const queuedDocuments = await this.prisma.$queryRaw<Array<{ id: string; version: number }>>(
+      Prisma.sql`
+        UPDATE "Document" AS d
+        SET
+          "status" = 'pending',
+          "processingStage" = 'uploaded',
+          "chunkCount" = 0,
+          "errorMessage" = NULL,
+          "diagnosticsJson" = 'null'::jsonb,
+          "version" = d."version" + 1,
+          "updatedAt" = NOW()
+        WHERE d."id" IN (${Prisma.join(documentIds)})
+        RETURNING d."id", d."version"
+      `
+    );
+
+    if (queuedDocuments.length === 0) {
+      return queuedDocuments;
+    }
+
+    const startedAt = new Date();
+    await this.prisma.documentRun.createMany({
+      data: queuedDocuments.map(document => ({
+        documentId: document.id,
+        version: document.version,
+        trigger: DocumentRunTrigger.reindex,
+        status: "pending",
+        diagnosticsJson: Prisma.JsonNull,
+        startedAt
+      })),
+      skipDuplicates: true
+    });
+
+    await this.runWithConcurrency(
+      queuedDocuments,
+      DocumentsService.KB_REINDEX_INGESTION_CONCURRENCY,
+      document => this.enqueueIngestionDocumentOrRecordFailure(document)
+    );
+
+    return queuedDocuments;
+  }
+
+  private async runWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<unknown>) {
+    if (items.length === 0) {
+      return;
+    }
+
+    const queue = [...items];
+    const runnerCount = Math.min(concurrency, items.length);
+
+    await Promise.all(
+      Array.from({ length: runnerCount }, async () => {
+        while (queue.length > 0) {
+          const nextItem = queue.shift();
+          if (nextItem !== undefined) {
+            await worker(nextItem);
+          }
+        }
+      })
+    );
+  }
+
   private async parseExternalSourceConfigOrRecordFailure(
     document: {
       id: string;
@@ -1110,7 +1396,11 @@ export class DocumentsService {
     };
   }
 
-  private isExternalSourceType(sourceType: string) {
+  private isExternalSourceType(sourceType?: string | null) {
+    if (typeof sourceType !== "string") {
+      return false;
+    }
+
     const normalizedSourceType = sourceType.trim().toLowerCase();
     return normalizedSourceType === "web_page" || normalizedSourceType === "feed" || normalizedSourceType === "sitemap";
   }

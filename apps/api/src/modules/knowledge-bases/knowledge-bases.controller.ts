@@ -30,7 +30,7 @@ export class KnowledgeBasesController {
       authContext: request?.authContext
     });
 
-    return this.knowledgeBasesService.getKnowledgeBase(id, authContext.identity);
+    return this.knowledgeBasesService.getKnowledgeBase(id, authContext.identity, { preserveForbiddenOnMiss: true });
   }
 
   @Post()

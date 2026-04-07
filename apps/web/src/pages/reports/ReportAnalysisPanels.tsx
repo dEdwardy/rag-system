@@ -1,7 +1,6 @@
 import { Badge, Button, Paper, Stack, Text } from "@mantine/core";
 import { lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
-import { StatePanel } from "../../components/StatePanel";
 import type {
   EvalQuestionSetFailureDrilldownItem,
   EvalQuestionSetRunQualityGate,
@@ -13,10 +12,7 @@ const ReportCharts = lazy(async () => {
   return { default: module.ReportCharts };
 });
 
-type TranslationFn = (key: string, values?: Record<string, string | number>) => string;
-
 type QualitySummaryRow = { quality: string; count: number };
-type DistributionRow = { status?: string; code?: string; count: number };
 type RunDiffSummary = NonNullable<NonNullable<EvalQuestionSetRunResult["baselineComparison"]>["diffSummary"]>;
 type QualityGatePresentation = { color: string; detail: string; label: string } | null;
 type TopBreachedMetric = NonNullable<EvalQuestionSetRunQualityGate["breachedMetrics"]>[number] | null;
@@ -27,7 +23,6 @@ type ReportAnalysisPanelsProps = {
   downloadReport: (format: "markdown" | "json" | "html") => Promise<void>;
   errorTypeDistribution: Array<{ code: string; count: number }>;
   exporting: string | null;
-  firstRegressionDrilldownItem: EvalQuestionSetFailureDrilldownItem | undefined;
   formatBaselineMetadataValue: (value: string | number | null | undefined, placeholder: string) => string;
   formatDateTime: (value: string) => string;
   getQualityGateMetricLabel: (metric: NonNullable<EvalQuestionSetRunQualityGate["breachedMetrics"]>[number]["metric"], locale: "zh" | "en") => string;
@@ -40,7 +35,6 @@ type ReportAnalysisPanelsProps = {
   focusRunItem: (index: number, question: string) => void;
   getEvalItemKey: (index: number, question: string) => string;
   locale: "zh" | "en";
-  priorityReplayItem: { traceId: string | null } | null;
   qualityDistributionData: Array<{ name: string; value: number; color: string }>;
   qualityGate: EvalQuestionSetRunQualityGate | undefined;
   qualityGatePresentation: QualityGatePresentation;
@@ -50,7 +44,6 @@ type ReportAnalysisPanelsProps = {
   runDiffSummary: RunDiffSummary | undefined;
   runEvalData: EvalQuestionSetRunResult;
   runItemsByKey: Map<string, EvalQuestionSetRunResult["items"][number]>;
-  t: TranslationFn;
   topBreachedMetric: TopBreachedMetric;
 };
 
@@ -71,7 +64,6 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
     downloadReport,
     errorTypeDistribution,
     exporting,
-    firstRegressionDrilldownItem,
     formatBaselineMetadataValue,
     formatDateTime,
     getQualityGateMetricLabel,
@@ -80,7 +72,6 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
     focusRunItem,
     getEvalItemKey,
     locale,
-    priorityReplayItem,
     qualityDistributionData,
     qualityGate,
     qualityGatePresentation,
@@ -90,7 +81,6 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
     runDiffSummary,
     runEvalData,
     runItemsByKey,
-    t,
     topBreachedMetric
   } = props;
 

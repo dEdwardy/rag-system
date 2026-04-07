@@ -26,8 +26,6 @@ type ChatWorkspacePanelsProps = {
   mobilePanel: "history" | "citations" | null;
   showReducedCitationsPanel: boolean;
   showTracePlaceholder: boolean;
-  tracesError: unknown;
-  tracesLoading: boolean;
   onSelectConversation: (conversationId: string) => void;
   onSelectDesktopPanel: (panel: "history" | "citations") => void;
   onSelectMobilePanel: (panel: "history" | "citations" | null) => void;
@@ -48,8 +46,6 @@ export function ChatWorkspacePanels({
   mobilePanel,
   showReducedCitationsPanel,
   showTracePlaceholder,
-  tracesError,
-  tracesLoading,
   onSelectConversation,
   onSelectDesktopPanel,
   onSelectMobilePanel,
@@ -151,18 +147,6 @@ export function ChatWorkspacePanels({
           />
         ) : showTracePlaceholder ? (
           <StatePanel description={t("chat.states.noTraceDescription")} title={t("chat.states.noTraceTitle")} />
-        ) : tracesLoading && citationItems.length === 0 ? (
-          <StatePanel
-            description={t("chat.states.loadingTraceDescription")}
-            title={t("chat.states.loadingTraceTitle")}
-            tone="loading"
-          />
-        ) : tracesError && citationItems.length === 0 ? (
-          <StatePanel
-            description={tracesError instanceof Error ? tracesError.message : undefined}
-            title={t("chat.states.traceErrorTitle")}
-            tone="error"
-          />
         ) : citationItems.length ? (
           citationItems.map(citation => {
             const citationContext = buildCitationContext(citation, {

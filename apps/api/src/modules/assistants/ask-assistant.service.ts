@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
+import { ConcurrencyLimiter, PromisePool, ResultCache } from "../../common/concurrency-utils";
 import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
 import {
   buildAnswerEvidenceSourceReadabilityLabel,
@@ -63,6 +64,10 @@ type AskRetrievalMetadataJson = Prisma.InputJsonObject & {
 
 @Injectable()
 export class AskAssistantService {
+  private readonly retrievalLimiter = new ConcurrencyLimiter(5);
+  private readonly llmLimiter = new ConcurrencyLimiter(3);
+  private readonly assistantCache = new ResultCache<string, any>(100, 60000);
+
   constructor(
     private readonly assistantsService: AssistantsService,
     private readonly conversationsService: ConversationsService,
@@ -83,7 +88,11 @@ export class AskAssistantService {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
-    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
+    
+    const assistant = await this.assistantCache.getOrSet(input.assistantId, () =>
+      this.assistantsService.getAssistant(input.assistantId, authContext.identity)
+    );
+    
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
@@ -111,72 +120,104 @@ export class AskAssistantService {
       enableRerank: retrievalProfile.enableRerank,
       strategyJson: retrievalProfile.strategyJson as RetrievalStrategy | undefined
     });
-    const rewritten = retrievalStrategy.queryRewrite.enabled
-      ? await this.llmService.rewriteQuery({
-          question: input.question
-        })
-      : {
+    
+    let rewritten: {
+      rewrittenQuery: string | null;
+      modelName: string | null;
+      usedFallback: boolean | null;
+      promptId: string | null;
+    };
+    
+    if (retrievalStrategy.queryRewrite.enabled) {
+      try {
+        rewritten = await this.llmLimiter.execute(() =>
+          this.llmService.rewriteQuery({
+            question: input.question
+          })
+        );
+      } catch (error) {
+        rewritten = {
           rewrittenQuery: null,
           modelName: null,
           usedFallback: null,
           promptId: null
         };
+      }
+    } else {
+      rewritten = {
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      };
+    }
+    
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
     const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
       assistant.retrievalProfile.filtersJson ?? undefined
     );
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
-    const retrievalResult = await this.retrieveOrCreateFailedTrace({
-      assistantId: assistant.id,
-      assistantKbId: assistant.kbId,
-      conversationId: conversation.id,
-      userMessageId: userMessage.id,
-      userQuery: input.question,
-      retrievalQuery,
-      retrievalProfile,
-      retrievalStrategy,
-      retrievalFilters,
-      rewritten,
-      documentVersions: input.documentVersions
-    });
+    
+    const retrievalResult = await this.retrievalLimiter.execute(() =>
+      this.retrieveOrCreateFailedTrace({
+        assistantId: assistant.id,
+        assistantKbId: assistant.kbId,
+        conversationId: conversation.id,
+        userMessageId: userMessage.id,
+        userQuery: input.question,
+        retrievalQuery,
+        retrievalProfile,
+        retrievalStrategy,
+        retrievalFilters,
+        rewritten,
+        documentVersions: input.documentVersions
+      })
+    );
+    
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
-    const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
-    const retrievalMetadata = this.buildRetrievalMetadata({
-      strategy: retrievalStrategy,
-      filters: retrievalFilters,
-      rewrittenQuery: rewritten.rewrittenQuery,
-      rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
-      rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
-      rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
-      originalQuestion: input.question,
-      topK: retrievalProfile.topK,
-      scoreThreshold: retrievalProfile.scoreThreshold,
-      chunkWindow: retrievalProfile.chunkWindow,
-      retrievedChunks,
-      contextGroups,
-      embedding: retrievalResult.embedding,
-      execution: retrievalResult.execution
-    }) as AskRetrievalMetadataJson;
-    const strategyReadabilityLabel = buildStrategyReadabilityLabel({
-      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-      retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
-      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
-      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
-    });
-    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
-      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
-      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
-    });
-    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
-      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
-      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
-      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
-      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
-    });
-
+    
+    const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
+      Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
+      Promise.resolve(this.buildRetrievalMetadata({
+        strategy: retrievalStrategy,
+        filters: retrievalFilters,
+        rewrittenQuery: rewritten.rewrittenQuery,
+        rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
+        rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
+        rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
+        originalQuestion: input.question,
+        topK: retrievalProfile.topK,
+        scoreThreshold: retrievalProfile.scoreThreshold,
+        chunkWindow: retrievalProfile.chunkWindow,
+        retrievedChunks,
+        contextGroups,
+        embedding: retrievalResult.embedding,
+        execution: retrievalResult.execution
+      }) as AskRetrievalMetadataJson)
+    ]);
+    
+    const [strategyReadabilityLabel, retrievalModeProvenanceSentence, rewriteReadabilityLabel] = await Promise.all([
+      buildStrategyReadabilityLabel({
+        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+        retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+        fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
+        strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+      }),
+      buildRetrievalModeProvenanceSentence({
+        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+        strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+        fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+      }),
+      buildRewriteReadabilityLabel({
+        rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+        rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+        rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+        rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
+      })
+    ]);
+    
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
       assistantId: assistant.id,
@@ -276,6 +317,7 @@ export class AskAssistantService {
           missingInformation: resolvedAnswerResult.missingInformation
         })
       });
+      
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -357,7 +399,11 @@ export class AskAssistantService {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
-    const assistant = await this.assistantsService.getAssistant(input.assistantId, authContext.identity);
+    
+    const assistant = await this.assistantCache.getOrSet(input.assistantId, () =>
+      this.assistantsService.getAssistant(input.assistantId, authContext.identity)
+    );
+    
     const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
       strategyJson?: unknown;
     };
@@ -390,17 +436,42 @@ export class AskAssistantService {
       enableRerank: retrievalProfile.enableRerank,
       strategyJson: retrievalProfile.strategyJson as RetrievalStrategy | undefined
     });
-    const rewritten = retrievalStrategy.queryRewrite.enabled
-      ? await this.llmService.rewriteQuery({
-          question: input.question,
-          signal: input.signal
-        })
-      : {
+    
+    let rewritten: {
+      rewrittenQuery: string | null;
+      modelName: string | null;
+      usedFallback: boolean | null;
+      promptId: string | null;
+    };
+    
+    if (retrievalStrategy.queryRewrite.enabled) {
+      try {
+        rewritten = await this.llmLimiter.execute(() =>
+          this.llmService.rewriteQuery({
+            question: input.question,
+            signal: input.signal
+          })
+        );
+      } catch (error) {
+        if (this.isAbortError(error)) {
+          throw error;
+        }
+        rewritten = {
           rewrittenQuery: null,
           modelName: null,
           usedFallback: null,
           promptId: null
         };
+      }
+    } else {
+      rewritten = {
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      };
+    }
+    
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
     const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
       assistant.retrievalProfile.filtersJson ?? undefined
@@ -413,54 +484,63 @@ export class AskAssistantService {
       phase: "retrieving"
     });
 
-    const retrievalResult = await this.retrieveOrCreateFailedTrace({
-      assistantId: assistant.id,
-      assistantKbId: assistant.kbId,
-      conversationId: conversation.id,
-      userMessageId: userMessage.id,
-      userQuery: input.question,
-      retrievalQuery,
-      retrievalProfile,
-      retrievalStrategy,
-      retrievalFilters,
-      rewritten
-    });
+    const retrievalResult = await this.retrievalLimiter.execute(() =>
+      this.retrieveOrCreateFailedTrace({
+        assistantId: assistant.id,
+        assistantKbId: assistant.kbId,
+        conversationId: conversation.id,
+        userMessageId: userMessage.id,
+        userQuery: input.question,
+        retrievalQuery,
+        retrievalProfile,
+        retrievalStrategy,
+        retrievalFilters,
+        rewritten
+      })
+    );
+    
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
-    const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
-    const retrievalMetadata = this.buildRetrievalMetadata({
-      strategy: retrievalStrategy,
-      filters: retrievalFilters,
-      rewrittenQuery: rewritten.rewrittenQuery,
-      rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
-      rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
-      rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
-      originalQuestion: input.question,
-      topK: retrievalProfile.topK,
-      scoreThreshold: retrievalProfile.scoreThreshold,
-      chunkWindow: retrievalProfile.chunkWindow,
-      retrievedChunks,
-      contextGroups,
-      embedding: retrievalResult.embedding,
-      execution: retrievalResult.execution
-    }) as AskRetrievalMetadataJson;
-    const strategyReadabilityLabel = buildStrategyReadabilityLabel({
-      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-      retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
-      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
-      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
-    });
-    const retrievalModeProvenanceSentence = buildRetrievalModeProvenanceSentence({
-      retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-      strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
-      fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
-    });
-    const rewriteReadabilityLabel = buildRewriteReadabilityLabel({
-      rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
-      rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
-      rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
-      rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
-    });
+    
+    const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
+      Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
+      Promise.resolve(this.buildRetrievalMetadata({
+        strategy: retrievalStrategy,
+        filters: retrievalFilters,
+        rewrittenQuery: rewritten.rewrittenQuery,
+        rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
+        rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
+        rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
+        originalQuestion: input.question,
+        topK: retrievalProfile.topK,
+        scoreThreshold: retrievalProfile.scoreThreshold,
+        chunkWindow: retrievalProfile.chunkWindow,
+        retrievedChunks,
+        contextGroups,
+        embedding: retrievalResult.embedding,
+        execution: retrievalResult.execution
+      }) as AskRetrievalMetadataJson)
+    ]);
+    
+    const [strategyReadabilityLabel, retrievalModeProvenanceSentence, rewriteReadabilityLabel] = await Promise.all([
+      buildStrategyReadabilityLabel({
+        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+        retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+        fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
+        strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+      }),
+      buildRetrievalModeProvenanceSentence({
+        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+        strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
+        fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+      }),
+      buildRewriteReadabilityLabel({
+        rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+        rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+        rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+        rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
+      })
+    ]);
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,

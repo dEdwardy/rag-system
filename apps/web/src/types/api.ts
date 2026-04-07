@@ -28,13 +28,37 @@ export type AuthIdentity = {
   authSource: string;
 };
 
+export type AuthUser = {
+  id: string;
+  tenantId: string;
+  role: string;
+  name: string;
+  displayName: string | null;
+  email: string | null;
+};
+
 export type AuthMeResponse = {
   identity: AuthIdentity | null;
   currentIdentity: AuthIdentity;
+  user?: AuthUser | null;
   loginProvenance: {
     type: "local_session" | "oauth_session";
     oauthProvider: "github" | "google" | "oidc" | null;
   };
+};
+
+export type AuthLoginResponse = {
+  identity: AuthIdentity;
+  user: AuthUser;
+  expiresAt: string;
+  accessTokenExpiresAt: string;
+};
+
+export type AuthRefreshResponse = {
+  ok: true;
+  identity: AuthIdentity;
+  user: AuthUser;
+  expiresAt: string;
 };
 
 export type AuthProvidersResponse = {
