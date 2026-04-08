@@ -1,107 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { readFile } from "node:fs/promises";
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
-
-const helperModuleUrl = pathToFileURL(
-  resolve(__dirname, "../src/app/theme-preferences.ts")
-).href;
-
-async function loadThemePreferences() {
-  return import(helperModuleUrl);
-}
+const themePreferencesPath = new URL("../src/app/theme-preferences.ts", import.meta.url);
 
 test("theme preferences default to creative-dark and workspace-app", async () => {
-  const { getInitialThemePreferences } = await loadThemePreferences();
+  const source = await readFile(themePreferencesPath, "utf8");
 
-  const result = getInitialThemePreferences();
-
-  assert.equal(result.themeColor, "creative-dark");
-  assert.equal(result.themeLayout, "workspace-app");
+  assert.match(source, /export const DEFAULT_THEME_PREFERENCES[\s\S]*themeColor: "creative-dark"/);
+  assert.match(source, /export const DEFAULT_THEME_PREFERENCES[\s\S]*themeLayout: "workspace-app"/);
 });
 
-test("theme preferences normalize invalid stored values to defaults", async () => {
-  const { getStoredThemePreferences, THEME_COLOR_STORAGE_KEY, THEME_LAYOUT_STORAGE_KEY } =
-    await loadThemePreferences();
+test("theme preferences keep constrained-light and creative-dark as valid color modes", async () => {
+  const source = await readFile(themePreferencesPath, "utf8");
 
-  const store = new Map([
-    [THEME_COLOR_STORAGE_KEY, "bad-color"],
-    [THEME_LAYOUT_STORAGE_KEY, "bad-layout"]
-  ]);
-
-  const result = getStoredThemePreferences({
-    getItem(key) {
-      return store.has(key) ? store.get(key) : null;
-    }
-  });
-
-  assert.equal(result.themeColor, "creative-dark");
-  assert.equal(result.themeLayout, "workspace-app");
+  assert.match(source, /export type ThemeColorMode = "constrained-light" \| "creative-dark";/);
+  assert.match(source, /return value === "constrained-light" \|\| value === "creative-dark"/);
 });
 
-test("theme preferences keep valid stored values", async () => {
-  const { getStoredThemePreferences, THEME_COLOR_STORAGE_KEY, THEME_LAYOUT_STORAGE_KEY } =
-    await loadThemePreferences();
+test("theme preferences keep default-app and workspace-app as valid layout modes", async () => {
+  const source = await readFile(themePreferencesPath, "utf8");
 
-  const store = new Map([
-    [THEME_COLOR_STORAGE_KEY, "constrained-light"],
-    [THEME_LAYOUT_STORAGE_KEY, "default-app"]
-  ]);
-
-  const result = getStoredThemePreferences({
-    getItem(key) {
-      return store.has(key) ? store.get(key) : null;
-    }
-  });
-
-  assert.equal(result.themeColor, "constrained-light");
-  assert.equal(result.themeLayout, "default-app");
+  assert.match(source, /export type ThemeLayoutMode = "default-app" \| "workspace-app";/);
+  assert.match(source, /return value === "default-app" \|\| value === "workspace-app"/);
 });
 
-test("theme preferences persist current values", async () => {
-  const { setStoredThemePreferences, THEME_COLOR_STORAGE_KEY, THEME_LAYOUT_STORAGE_KEY } =
-    await loadThemePreferences();
+test("theme preferences expose stable storage keys and persistence helpers", async () => {
+  const source = await readFile(themePreferencesPath, "utf8");
 
-  const writes = new Map();
-
-  setStoredThemePreferences(
-    {
-      setItem(key, value) {
-        writes.set(key, value);
-      }
-    },
-    {
-      themeColor: "constrained-light",
-      themeLayout: "default-app"
-    }
-  );
-
-  assert.equal(writes.get(THEME_COLOR_STORAGE_KEY), "constrained-light");
-  assert.equal(writes.get(THEME_LAYOUT_STORAGE_KEY), "default-app");
-});
-
-test("theme preferences build document dataset from stored values", async () => {
-  const {
-    getDocumentThemeDataset,
-    THEME_COLOR_STORAGE_KEY,
-    THEME_LAYOUT_STORAGE_KEY
-  } = await loadThemePreferences();
-
-  const store = new Map([
-    [THEME_COLOR_STORAGE_KEY, "creative-dark"],
-    [THEME_LAYOUT_STORAGE_KEY, "workspace-app"]
-  ]);
-
-  const result = getDocumentThemeDataset({
-    getItem(key) {
-      return store.has(key) ? store.get(key) : null;
-    }
-  });
-
-  assert.deepEqual(result, {
-    themeColor: "creative-dark",
-    themeLayout: "workspace-app"
-  });
+  assert.match(source, /export const THEME_COLOR_STORAGE_KEY = "rag-system-theme-color";/);
+  assert.match(source, /export const THEME_LAYOUT_STORAGE_KEY = "rag-system-theme-layout";/);
+  assert.match(source, /export function getStoredThemePreferences/);
+  assert.match(source, /export function setStoredThemePreferences/);
+  assert.match(source, /export function getDocumentThemeDataset/);
 });

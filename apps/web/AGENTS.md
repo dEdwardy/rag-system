@@ -8,7 +8,7 @@ Apply it together with the repository-root `AGENTS.md`.
 - Vite + React application code lives in `src/`
 - UI work should preserve the existing Mantine-based component patterns already used in this app
 - styling changes should respect the current Tailwind v4 + Mantine mix instead of replacing one system with another
-- `test/pc-web-smoke.test.js` exists as a lightweight smoke path for app-level verification
+- `test/pc-web-smoke.test.js` remains as a manual local smoke helper for app-level verification
 
 ## Frontend Scope
 
@@ -42,13 +42,21 @@ Common commands:
 pnpm --filter @rag-system/web build
 pnpm --filter @rag-system/web typecheck
 pnpm --filter @rag-system/web lint
+pnpm --filter @rag-system/web test:guard
+pnpm --filter @rag-system/web test:guard:legacy
+pnpm --filter @rag-system/web test:legacy
 pnpm --filter @rag-system/web test:smoke
+pnpm --filter @rag-system/web test:smoke:legacy
 ```
 
 Default validation policy:
 
 - frontend-only changes should run at least the relevant build or typecheck if available
-- use `test:smoke` when the change affects top-level app wiring or user-visible page boot behavior
+- use `test:guard` for contract, helper, copy, theme, and source-structure regressions that do not need a browser session
+- use `test:guard:legacy` only when your change is expected to touch older source/UX guardrails that are still being triaged and are not part of the stable default guard gate
+- use `test:legacy` when you explicitly want the current legacy guard backlog
+- the current browser smoke path is still a manual legacy local-dev lane tied to seeded accounts; use `test:smoke:legacy` only when you intentionally want that local browser verification
+- `test:smoke` currently aliases that same legacy smoke lane for compatibility
 - behavior changes should be verified with the smallest practical runtime or test path
 - avoid expensive whole-repo validation when an app-local check is sufficient
 

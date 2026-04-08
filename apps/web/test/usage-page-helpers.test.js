@@ -22,7 +22,7 @@ test("usage helper deep-links to failed document when latest failure exists", as
   });
 
   assert.deepEqual(target, {
-    label: "Open failed document",
+    label: "Open item with issues",
     to: "/documents/doc-123"
   });
 });

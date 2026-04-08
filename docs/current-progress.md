@@ -18,6 +18,21 @@
 
 ## Recent Landed Increments
 
+- `test-system map cleanup` clarified the current repository test lanes without introducing a broad framework rewrite
+  - root `package.json` now exposes explicit `test:web`, `test:web:guard`, `test:web:guard:legacy`, `test:web:legacy`, `test:web:smoke`, and `test:web:smoke:legacy` entrypoints
+  - `apps/web/package.json` now splits frontend checks into `test:guard`, `test:guard:legacy`, `test:legacy`, and `test:smoke:legacy`, separating the stable guard gate from older local/source/UX verification that still needs re-baselining
+  - `document-run-observability.test.js` has been promoted back into the stable default guard lane because it still matches the current helper contract
+  - `document-run-contract.test.js`, `theme-preferences.test.js`, and `usage-page-helpers.test.js` have now also been rebaselined and promoted back into the stable default guard lane
+  - the remaining legacy web guard backlog has now been trimmed again: obsolete source-shape tests (`assistant-strategy-source.test.js`, `chat-layout-source.test.js`, `ui-tailwind-migration.test.js`) were removed, and `i18n-copy.test.js` plus `ui-review-regressions.test.js` were rewritten to assert the current split-locale and scan-first workspace contracts instead of stale DOM/source snapshots
+  - `auth-invite-login-smoke.test.js` has now been archived out of the active scripts, `test:legacy` no longer drags in browser smoke, and the only remaining smoke path is `pc-web-smoke.test.js` as a manual local seeded-account helper
+  - `docs/current-dev-setup.md` now documents the current `api fast / api integration / api e2e / web guard / web smoke` map, the legacy local-web backlog split, recommended command selection, and the current CI gate boundary
+  - `apps/web/AGENTS.md` now points frontend validation guidance at `test:guard`, `test:legacy`, and the current legacy local smoke lane
+  - focused validation:
+    - `pnpm --filter @rag-system/web test:guard`
+    - `pnpm --filter @rag-system/web test:guard:legacy`
+    - `pnpm --filter @rag-system/web exec node --test test/theme-preferences.test.js test/usage-page-helpers.test.js test/document-run-contract.test.js`
+    - `git diff --check -- package.json apps/web/package.json apps/web/AGENTS.md docs/current-dev-setup.md docs/current-progress.md`
+
 - `RAG retrieval/answering quality baseline refresh` 完成了一轮以稳定性为目标的收口，并形成了当前可复用基线
   - retrieval 默认配置已调整到更适合轻多跳和总结场景的组合：`topK` 提升、`chunkWindow=1`、`hybrid=ON`
   - `apps/api/src/modules/retrieval/retrieval.service.ts` 已补充 retrieval diversity 选择，减少 topK 被同一 section 的相似 chunk 占满
