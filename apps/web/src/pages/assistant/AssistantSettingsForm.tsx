@@ -24,7 +24,13 @@ import {
 } from "./assistant-config-form";
 
 function hasAdvancedTuningOverrides(retrievalProfile: RetrievalProfile) {
-  return Boolean(retrievalProfile.enableHybrid || retrievalProfile.enableRerank || retrievalProfile.strategyJson);
+  return Boolean(
+    retrievalProfile.enableHybrid ||
+      retrievalProfile.enableRerank ||
+      retrievalProfile.strategyJson?.candidateSelection ||
+      retrievalProfile.strategyJson?.hybrid ||
+      retrievalProfile.strategyJson?.rerank
+  );
 }
 
 function hasFilterOverrides(retrievalProfile: RetrievalProfile) {
@@ -166,6 +172,11 @@ export function AssistantSettingsForm({
                   </Grid.Col>
                 </Grid>
 
+                <Switch
+                  checked={form.values.queryRewriteEnabled}
+                  label={t("assistant.queryRewriteEnabled")}
+                  onChange={event => form.setFieldValue("queryRewriteEnabled", event.currentTarget.checked)}
+                />
                 <Switch checked={form.values.includeMissingInformation} label={t("assistant.includeMissingInformation")} onChange={event => form.setFieldValue("includeMissingInformation", event.currentTarget.checked)} />
               </Stack>
             </Paper>
@@ -230,9 +241,6 @@ export function AssistantSettingsForm({
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
                           <NumberInput classNames={{ input: "workspace-input" }} decimalScale={2} label={t("assistant.hybridLexicalWeight")} max={1} min={0} step={0.05} {...form.getInputProps("hybridLexicalWeight")} />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 6 }}>
-                          <Switch checked={form.values.queryRewriteEnabled} label={t("assistant.queryRewriteEnabled")} onChange={event => form.setFieldValue("queryRewriteEnabled", event.currentTarget.checked)} />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
                           <Switch checked={form.values.rerankStrategyEnabled} label={t("assistant.rerankStrategyEnabled")} onChange={event => form.setFieldValue("rerankStrategyEnabled", event.currentTarget.checked)} />

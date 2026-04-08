@@ -34,6 +34,33 @@ test("resolveRetrievalStrategy uses canonical vector defaults when strategyJson 
   });
 });
 
+test("resolveRetrievalStrategy disables query rewrite by default when strategyJson is absent", () => {
+  const strategy = resolveRetrievalStrategy({
+    topK: 4,
+    enableHybrid: true,
+    enableRerank: true,
+    strategyJson: null
+  });
+
+  assert.deepEqual(strategy, {
+    queryRewrite: {
+      enabled: false
+    },
+    candidateSelection: {
+      mode: "hybrid",
+      candidateMultiplier: 3,
+      minCandidates: 4
+    },
+    hybrid: {
+      vectorWeight: 0.7,
+      lexicalWeight: 0.3
+    },
+    rerank: {
+      enabled: true
+    }
+  });
+});
+
 test("RetrievalService expands neighbor chunks when chunkWindow is enabled", async () => {
   const prisma = {
     documentChunk: {

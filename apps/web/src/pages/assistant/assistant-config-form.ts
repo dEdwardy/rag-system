@@ -107,7 +107,7 @@ function compactObject<T extends Record<string, unknown>>(value: T) {
 function resolveDefaultStrategy(retrievalProfile: RetrievalProfile | null): ResolvedRetrievalStrategy {
   return {
     queryRewrite: {
-      enabled: retrievalProfile?.strategyJson?.queryRewrite?.enabled ?? true
+      enabled: retrievalProfile?.strategyJson?.queryRewrite?.enabled ?? false
     },
     candidateSelection: {
       mode:
@@ -124,6 +124,14 @@ function resolveDefaultStrategy(retrievalProfile: RetrievalProfile | null): Reso
       enabled: retrievalProfile?.strategyJson?.rerank?.enabled ?? Boolean(retrievalProfile?.enableRerank)
     }
   };
+}
+
+function hasAdvancedStrategyOverrides(strategyJson: RetrievalProfile["strategyJson"] | null | undefined) {
+  return Boolean(
+    strategyJson?.candidateSelection ||
+      strategyJson?.hybrid ||
+      strategyJson?.rerank
+  );
 }
 
 function buildFiltersJson(values: AssistantConfigFormValues): RetrievalProfileFilters | null {
@@ -149,27 +157,34 @@ function buildFiltersJson(values: AssistantConfigFormValues): RetrievalProfileFi
 }
 
 function buildStrategyJson(values: AssistantConfigFormValues): RetrievalStrategy | null {
-  if (!values.strategyOverrideEnabled) {
+  if (!values.strategyOverrideEnabled && !values.queryRewriteEnabled) {
     return null;
   }
 
-  return {
+  const strategy = {
     queryRewrite: {
       enabled: values.queryRewriteEnabled
-    },
-    candidateSelection: {
-      mode: values.candidateSelectionMode,
-      candidateMultiplier: values.candidateMultiplier,
-      minCandidates: values.minCandidates
-    },
-    hybrid: {
-      vectorWeight: values.hybridVectorWeight,
-      lexicalWeight: values.hybridLexicalWeight
-    },
-    rerank: {
-      enabled: values.rerankStrategyEnabled
     }
+  } as RetrievalStrategy;
+
+  if (!values.strategyOverrideEnabled) {
+    return strategy;
+  }
+
+  strategy.candidateSelection = {
+    mode: values.candidateSelectionMode,
+    candidateMultiplier: values.candidateMultiplier,
+    minCandidates: values.minCandidates
   };
+  strategy.hybrid = {
+    vectorWeight: values.hybridVectorWeight,
+    lexicalWeight: values.hybridLexicalWeight
+  };
+  strategy.rerank = {
+    enabled: values.rerankStrategyEnabled
+  };
+
+  return strategy;
 }
 
 export function createAssistantConfigFormValues(
@@ -210,7 +225,7 @@ export function createAssistantConfigFormValues(
     pageNumbersExclude: joinLines(filters?.pageNumbers?.exclude),
     pageNumbersMin: filters?.pageNumbers?.min ?? null,
     pageNumbersMax: filters?.pageNumbers?.max ?? null,
-    strategyOverrideEnabled: retrievalProfile?.strategyJson != null,
+    strategyOverrideEnabled: hasAdvancedStrategyOverrides(retrievalProfile?.strategyJson),
     queryRewriteEnabled: strategy.queryRewrite.enabled,
     candidateSelectionMode: strategy.candidateSelection.mode,
     candidateMultiplier: strategy.candidateSelection.candidateMultiplier,

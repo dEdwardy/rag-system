@@ -61,7 +61,7 @@ test("assistant config defaults apply when answer policy is missing", async () =
   assert.equal(values.documentIdsInclude, "doc-a\ndoc-b");
   assert.equal(values.sectionTitlesContains, "spec\nfaq");
   assert.equal(values.strategyOverrideEnabled, false);
-  assert.equal(values.queryRewriteEnabled, true);
+  assert.equal(values.queryRewriteEnabled, false);
   assert.equal(values.candidateSelectionMode, "hybrid");
   assert.equal(values.candidateMultiplier, 3);
   assert.equal(values.minCandidates, 4);
@@ -286,7 +286,7 @@ test("assistant config retrieval payload clears filters when all filter fields a
     pageNumbersMin: null,
     pageNumbersMax: null,
     strategyOverrideEnabled: false,
-    queryRewriteEnabled: true,
+    queryRewriteEnabled: false,
     candidateSelectionMode: "vector",
     candidateMultiplier: 3,
     minCandidates: 3,
@@ -303,5 +303,60 @@ test("assistant config retrieval payload clears filters when all filter fields a
     scoreThreshold: 0,
     filtersJson: null,
     strategyJson: null
+  });
+});
+
+test("assistant config payload persists query rewrite without enabling advanced strategy overrides", async () => {
+  const { buildRetrievalProfileUpdatePayload } = await loadAssistantConfigHelpers();
+
+  const retrievalPayload = buildRetrievalProfileUpdatePayload({
+    name: "Assistant",
+    description: null,
+    systemPrompt: "Use sources.",
+    status: "active",
+    topK: 3,
+    chunkWindow: 0,
+    enableHybrid: false,
+    enableRerank: false,
+    scoreThreshold: 0,
+    responseStyle: "concise",
+    tone: "neutral",
+    outputFormat: "paragraph",
+    language: "auto",
+    citationMode: "required",
+    maxCitations: 3,
+    noAnswerBehavior: "say_insufficient_context",
+    includeMissingInformation: true,
+    documentIdsInclude: "",
+    documentIdsExclude: "",
+    sectionTitlesInclude: "",
+    sectionTitlesExclude: "",
+    sectionTitlesContains: "",
+    pageNumbersInclude: "",
+    pageNumbersExclude: "",
+    pageNumbersMin: null,
+    pageNumbersMax: null,
+    strategyOverrideEnabled: false,
+    queryRewriteEnabled: true,
+    candidateSelectionMode: "vector",
+    candidateMultiplier: 3,
+    minCandidates: 3,
+    hybridVectorWeight: 0.7,
+    hybridLexicalWeight: 0.3,
+    rerankStrategyEnabled: false
+  });
+
+  assert.deepEqual(retrievalPayload, {
+    topK: 3,
+    chunkWindow: 0,
+    enableHybrid: false,
+    enableRerank: false,
+    scoreThreshold: 0,
+    filtersJson: null,
+    strategyJson: {
+      queryRewrite: {
+        enabled: true
+      }
+    }
   });
 });
