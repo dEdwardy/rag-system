@@ -18,6 +18,23 @@
 
 ## Recent Landed Increments
 
+- `chat conversation UX` 又补了一轮很小的会话体验优化
+  - `apps/web/src/pages/chat/ChatWorkspacePanels.tsx` 把会话重命名 / 删除收进了单个轻量菜单，减少了列表项里的视觉噪音
+  - `apps/web/src/pages/chat/ChatPage.tsx` 在删除当前会话后会自动切到下一个可用会话，避免空白停留
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/web typecheck`
+
+- `chat conversation CRUD` 这次补齐了用户端会话管理的最小闭环
+  - `apps/api/src/modules/conversations/conversations.controller.ts` 新增了 `PATCH /conversations/:id` 和 `DELETE /conversations/:id`
+  - `apps/api/src/modules/conversations/conversations.service.ts` 现在支持会话重命名和归档式删除，并且会话列表只展示 `active` 会话
+  - `apps/web/src/pages/chat/ChatWorkspacePanels.tsx` / `apps/web/src/pages/chat/ChatPage.tsx` 新增了会话重命名和删除入口
+  - `apps/web/src/features/api/hooks.ts` 新增了会话更新和删除 mutation
+  - `apps/web/src/i18n/messages.en.ts` / `apps/web/src/i18n/messages.zh.ts` 补了对应文案
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/web typecheck`
+
 - `api best-practices hardening wave` 已完成一轮窄范围后端维护收口
   - `apps/api/src/modules/assistants/assistants.controller.ts` 现在会在 `ask/stream` 首字节发出前保留正常 HTTP 失败语义；只有流真正开始后，才回落到 NDJSON `error` event 诊断，避免把 `404/5xx` 预流式失败吞成 `200`
   - `apps/api/src/common/http-exception.filter.ts` 提取了统一异常响应构建逻辑，streaming controller 可在 pre-stream 阶段复用现有错误 JSON 结构，而不是单独拼装返回体

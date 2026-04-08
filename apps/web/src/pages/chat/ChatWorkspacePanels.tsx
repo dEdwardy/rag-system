@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import type { SupportedLocale } from "../../i18n/messages";
@@ -13,6 +14,12 @@ type ChatWorkspacePanelsProps = {
     conversationLabel: string;
     currentCitations: string;
     history: string;
+    renameConversation: string;
+    deleteConversation: string;
+    renameConversationPrompt: string;
+    renameConversationError: string;
+    deleteConversationConfirm: string;
+    deleteConversationError: string;
     newChat: string;
     viewTrace: string;
   };
@@ -30,6 +37,8 @@ type ChatWorkspacePanelsProps = {
   onSelectDesktopPanel: (panel: "history" | "citations") => void;
   onSelectMobilePanel: (panel: "history" | "citations" | null) => void;
   onStartNewChat: () => void;
+  onRenameConversation: (conversationId: string, currentTitle: string) => Promise<void> | void;
+  onDeleteConversation: (conversationId: string, currentTitle: string) => Promise<void> | void;
 };
 
 export function ChatWorkspacePanels({
@@ -49,8 +58,11 @@ export function ChatWorkspacePanels({
   onSelectConversation,
   onSelectDesktopPanel,
   onSelectMobilePanel,
-  onStartNewChat
+  onStartNewChat,
+  onRenameConversation,
+  onDeleteConversation
 }: ChatWorkspacePanelsProps) {
+  const [openConversationMenuId, setOpenConversationMenuId] = useState<string | null>(null);
   const historySection = (
     <section className="mb-6 xl:mb-0">
       <div className="mb-3 flex items-center justify-between">
@@ -109,9 +121,68 @@ export function ChatWorkspacePanels({
                   <span className="text-[11px] text-[var(--app-text-muted)]">
                     {formatConversationUpdatedAt(conversation.updatedAt, locale)}
                   </span>
-                  <span className="max-w-[140px] truncate text-[11px] text-[var(--app-text-muted)]">
-                    {chatCopy.conversationLabel}
-                  </span>
+                  <div className="relative">
+                    <button
+                      aria-label={chatCopy.conversationLabel}
+                      className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] text-[var(--app-text-muted)] transition hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)]"
+                      onClick={event => {
+                        event.stopPropagation();
+                        setOpenConversationMenuId(current =>
+                          current === conversation.id ? null : conversation.id
+                        );
+                      }}
+                      type="button"
+                    >
+                      <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" fill="currentColor" r="1.25" />
+                        <circle cx="5" cy="12" fill="currentColor" r="1.25" />
+                        <circle cx="19" cy="12" fill="currentColor" r="1.25" />
+                      </svg>
+                    </button>
+                    {openConversationMenuId === conversation.id ? (
+                      <div
+                        className="absolute right-0 top-[38px] z-10 w-40 overflow-hidden rounded-[14px] border border-[var(--app-border)] bg-[var(--app-bg)] shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
+                        onClick={event => {
+                          event.stopPropagation();
+                        }}
+                      >
+                        <button
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-[var(--app-text-secondary)] transition hover:bg-[var(--app-bg-elevated)] hover:text-[var(--app-text)]"
+                          onClick={() => {
+                            setOpenConversationMenuId(null);
+                            void onRenameConversation(conversation.id, conversation.title);
+                          }}
+                          type="button"
+                        >
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] bg-[rgba(99,102,241,0.12)] text-[#c7d2fe]">
+                            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <path d="M12 20h9" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                            </svg>
+                          </span>
+                          {chatCopy.renameConversation}
+                        </button>
+                        <button
+                          className="flex w-full items-center gap-2 border-t border-[var(--app-border)] px-3 py-2.5 text-left text-sm text-rose-300 transition hover:bg-[rgba(244,63,94,0.08)] hover:text-rose-200"
+                          onClick={() => {
+                            setOpenConversationMenuId(null);
+                            void onDeleteConversation(conversation.id, conversation.title);
+                          }}
+                          type="button"
+                        >
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] bg-[rgba(244,63,94,0.12)] text-rose-300">
+                            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <path d="M3 6h18" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                              <path d="M8 6V4h8v2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                              <path d="M10 11v6M14 11v6" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                              <path d="M6 6l1 14h10l1-14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                            </svg>
+                          </span>
+                          {chatCopy.deleteConversation}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </button>
             );

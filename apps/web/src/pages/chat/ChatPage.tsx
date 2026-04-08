@@ -9,10 +9,12 @@ import { StatePanel } from "../../components/StatePanel";
 import {
   useAskAssistantStream,
   useAssistants,
+  useDeleteConversation,
   useConversationMessages,
   useConversations,
   useDocuments,
-  useKnowledgeBases
+  useKnowledgeBases,
+  useUpdateConversation
 } from "../../features/api/hooks";
 import {
   getPrimaryAssistantForKnowledgeBase,
@@ -296,6 +298,8 @@ export function ChatPage() {
     activeKnowledgeBase != null && (conversationsQuery.isSuccess || messagesQuery.isSuccess || activeStreamTurn != null);
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", shouldLoadChatDocuments);
   const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "");
+  const updateConversationMutation = useUpdateConversation();
+  const deleteConversationMutation = useDeleteConversation();
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
   const chatCopy = useMemo(
@@ -329,6 +333,12 @@ export function ChatPage() {
       newChat: t("chat.copy.newChat"),
       conversationLabel: t("chat.copy.conversationLabel"),
       currentCitations: t("chat.copy.currentCitations"),
+      renameConversation: t("chat.copy.renameConversation"),
+      deleteConversation: t("chat.copy.deleteConversation"),
+      renameConversationPrompt: t("chat.copy.renameConversationPrompt"),
+      renameConversationError: t("chat.copy.renameConversationError"),
+      deleteConversationConfirm: t("chat.copy.deleteConversationConfirm"),
+      deleteConversationError: t("chat.copy.deleteConversationError"),
       viewTrace: t("chat.copy.viewTrace"),
       regenerateAnswer: t("chat.copy.regenerateAnswer"),
       copyAnswer: t("chat.copy.copyAnswer"),
@@ -549,6 +559,62 @@ export function ChatPage() {
   const stopGenerating = useCallback(() => {
     streamAbortControllerRef.current?.abort();
   }, []);
+
+  const handleRenameConversation = useCallback(
+    async (conversationId: string, currentTitle: string) => {
+      const nextTitle = window.prompt(chatCopy.renameConversationPrompt, currentTitle)?.trim();
+      if (!nextTitle || nextTitle === currentTitle.trim()) {
+        return;
+      }
+
+      try {
+        await updateConversationMutation.mutateAsync({
+          conversationId,
+          input: { title: nextTitle }
+        });
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : chatCopy.renameConversationError
+        });
+      }
+    },
+    [
+      chatCopy.renameConversationError,
+      chatCopy.renameConversationPrompt,
+      updateConversationMutation
+    ]
+  );
+
+  const handleDeleteConversation = useCallback(
+    async (conversationId: string, currentTitle: string) => {
+      const confirmed = window.confirm(chatCopy.deleteConversationConfirm.replace("{title}", currentTitle));
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await deleteConversationMutation.mutateAsync(conversationId);
+        if (activeConversationId === conversationId) {
+          const nextConversationId =
+            conversationsQuery.data?.find(conversation => conversation.id !== conversationId)?.id ?? null;
+          setActiveConversationId(nextConversationId);
+        }
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : chatCopy.deleteConversationError
+        });
+      }
+    },
+    [
+      activeConversationId,
+      chatCopy.deleteConversationConfirm,
+      chatCopy.deleteConversationError,
+      conversationsQuery.data,
+      deleteConversationMutation
+    ]
+  );
 
   const submitQuestion = async (options?: SubmitQuestionOptions) => {
     const question = (options?.question ?? composerValue).trim();
@@ -968,6 +1034,12 @@ export function ChatPage() {
             conversationLabel: chatCopy.conversationLabel,
             currentCitations: chatCopy.currentCitations,
             history: chatCopy.history,
+            renameConversation: chatCopy.renameConversation,
+            deleteConversation: chatCopy.deleteConversation,
+            renameConversationPrompt: chatCopy.renameConversationPrompt,
+            renameConversationError: chatCopy.renameConversationError,
+            deleteConversationConfirm: chatCopy.deleteConversationConfirm,
+            deleteConversationError: chatCopy.deleteConversationError,
             newChat: chatCopy.newChat,
             viewTrace: chatCopy.viewTrace
           }}
@@ -988,6 +1060,8 @@ export function ChatPage() {
             setActiveStreamTurn(null);
             setMobilePanel(null);
           }}
+          onRenameConversation={handleRenameConversation}
+          onDeleteConversation={handleDeleteConversation}
           showReducedCitationsPanel={showReducedCitationsPanel}
           showTracePlaceholder={resolvedConversationId == null && activeStreamTurn == null}
           t={t}

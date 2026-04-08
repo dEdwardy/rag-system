@@ -11,6 +11,7 @@ import {
   AnswerPolicy,
   Assistant,
   Conversation,
+  UpdateConversationInput,
   DocumentChunk,
   DocumentRunRecord,
   DocumentRecord,
@@ -412,6 +413,42 @@ export function useConversations(enabled = true) {
     queryKey: ["conversations"],
     queryFn: () => apiRequest<Conversation[]>("/conversations"),
     enabled
+  });
+}
+
+export function useUpdateConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { conversationId: string; input: UpdateConversationInput }) =>
+      apiRequest<Conversation>(`/conversations/${payload.conversationId}`, {
+        method: "PATCH",
+        body: payload.input
+      }),
+    onSuccess: conversation => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
+        current?.map(item => (item.id === conversation.id ? conversation : item)) ?? current
+      );
+      queryClient.invalidateQueries({ queryKey: ["conversation-messages", conversation.id] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-traces", conversation.id] });
+    }
+  });
+}
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      apiRequest<Conversation>(`/conversations/${conversationId}`, {
+        method: "DELETE"
+      }),
+    onSuccess: conversation => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.removeQueries({ queryKey: ["conversation-messages", conversation.id] });
+      queryClient.removeQueries({ queryKey: ["conversation-traces", conversation.id] });
+    }
   });
 }
 

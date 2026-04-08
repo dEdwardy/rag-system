@@ -805,6 +805,10 @@ export type Conversation = {
   updatedAt: string;
 };
 
+export type UpdateConversationInput = {
+  title?: string;
+};
+
 export type Message = {
   id: string;
   conversationId: string;
