@@ -158,7 +158,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(finalResult.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.equal(
     finalResult.strategyReadabilityLabel,
-    "vector retrieval via original_unchanged; fallback: none; fallback used: no."
+    "vector retrieval via original_disabled; fallback: none; fallback used: no."
   );
   assert.equal(
     finalResult.retrievalModeProvenanceSentence,
@@ -166,8 +166,11 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   );
   assert.equal(
     finalResult.rewriteReadabilityLabel,
-    "rewrite enabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+    "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
   );
+  assert.equal(typeof finalResult.timingSummary.totalMs, "number");
+  assert.equal(typeof finalResult.timingSummary.firstTokenMs, "number");
+  assert.equal(typeof finalResult.timingReadabilitySentence, "string");
   assert.equal(events[5].data.answerEvidenceSource, "none");
   assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
   assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
@@ -194,7 +197,7 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(events[5].data.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.equal(
     events[5].data.strategyReadabilityLabel,
-    "vector retrieval via original_unchanged; fallback: none; fallback used: no."
+    "vector retrieval via original_disabled; fallback: none; fallback used: no."
   );
   assert.equal(
     events[5].data.retrievalModeProvenanceSentence,
@@ -202,8 +205,10 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
   );
   assert.equal(
     events[5].data.rewriteReadabilityLabel,
-    "rewrite enabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+    "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
   );
+  assert.equal(typeof events[5].data.timingSummary.totalMs, "number");
+  assert.equal(typeof events[5].data.timingReadabilitySentence, "string");
 });
 
 test("AskAssistantService stream uses request current identity when creating a new conversation", async () => {

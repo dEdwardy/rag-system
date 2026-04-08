@@ -396,6 +396,7 @@ export class TracesService {
     const strategySummary = this.readObject(retrievalMetadata?.strategySummary);
     const queryRewriteMetadata = this.readObject(retrievalMetadata?.queryRewrite);
     const retrievalExecution = this.readObject(retrievalMetadata?.execution);
+    const timingMetadata = this.readObject(retrievalMetadata?.timing);
     const retrievalFailure = this.readObject(retrievalMetadata?.failure);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
@@ -555,6 +556,20 @@ export class TracesService {
       mergedCandidateCount,
       rankedCandidateCount
     });
+    const timingSummary = {
+      totalMs: this.readNumber(timingMetadata?.totalMs),
+      firstTokenMs: this.readNumber(timingMetadata?.firstTokenMs),
+      conversationLoadMs: this.readNumber(timingMetadata?.conversationLoadMs),
+      userMessagePersistMs: this.readNumber(timingMetadata?.userMessagePersistMs),
+      rewriteMs: this.readNumber(timingMetadata?.rewriteMs),
+      retrievalMs: this.readNumber(timingMetadata?.retrievalMs),
+      traceCreateMs: this.readNumber(timingMetadata?.traceCreateMs),
+      answerGenerationMs: this.readNumber(timingMetadata?.answerGenerationMs),
+      assistantMessagePersistMs: this.readNumber(timingMetadata?.assistantMessagePersistMs),
+      traceFinalizeMs: this.readNumber(timingMetadata?.traceFinalizeMs),
+      llmQueueWaitMs: this.readNumber(timingMetadata?.llmQueueWaitMs),
+      retrievalQueueWaitMs: this.readNumber(timingMetadata?.retrievalQueueWaitMs)
+    } satisfies TraceSummary["timingSummary"];
     const contextReadabilitySentence = this.buildContextReadabilitySentence({
       contextMode,
       inputChunkCount,
@@ -595,6 +610,8 @@ export class TracesService {
         fallbackReason,
         usedFallback: strategyUsedFallback
       },
+      timingSummary,
+      timingReadabilitySentence: this.buildTimingReadabilitySentence(timingSummary),
       generationMode: this.readStringAs<NonNullable<TraceSummary["generationMode"]>>(answeringMetadata?.generationMode),
       contextMode,
       rewriteApplied,
@@ -680,6 +697,10 @@ export class TracesService {
     return typeof value === "string" ? value : null;
   }
 
+  private readNumber(value: unknown) {
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
   private readStringAs<T extends string>(value: unknown): T | null {
     return typeof value === "string" ? (value as T) : null;
   }
@@ -702,16 +723,30 @@ export class TracesService {
       : null;
   }
 
+  private buildTimingReadabilitySentence(timing: TraceSummary["timingSummary"]) {
+    const render = (label: string, value: number | null) => `${label} ${value == null ? "n/a" : `${value}ms`}`;
+    return [
+      render("total", timing.totalMs),
+      render("first token", timing.firstTokenMs),
+      render("conversation", timing.conversationLoadMs),
+      render("persist user", timing.userMessagePersistMs),
+      render("rewrite", timing.rewriteMs),
+      render("retrieval", timing.retrievalMs),
+      render("trace create", timing.traceCreateMs),
+      render("generation", timing.answerGenerationMs),
+      render("persist assistant", timing.assistantMessagePersistMs),
+      render("trace finalize", timing.traceFinalizeMs),
+      render("llm queue", timing.llmQueueWaitMs),
+      render("retrieval queue", timing.retrievalQueueWaitMs)
+    ].join("; ") + ".";
+  }
+
   private readBoolean(value: unknown) {
     return typeof value === "boolean" ? value : false;
   }
 
   private readNullableBoolean(value: unknown) {
     return typeof value === "boolean" ? value : null;
-  }
-
-  private readNumber(value: unknown) {
-    return typeof value === "number" ? value : null;
   }
 
   private buildAnswerEvidenceSourceReadabilitySentence(

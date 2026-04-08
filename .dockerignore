@@ -2,9 +2,12 @@
 .github
 .opencode
 .sisyphus
+.trae
 node_modules
 apps/*/node_modules
 packages/*/node_modules
+apps/*/.deploy-test
+.deploy-test
 apps/api/dist
 apps/web/dist
 storage
@@ -17,4 +20,5 @@ api-server.err.log
 *.log
 coverage
 tmp
+*.tar
 .DS_Store

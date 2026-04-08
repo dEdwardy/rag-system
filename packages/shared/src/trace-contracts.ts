@@ -65,6 +65,21 @@ export type RetrievalStrategySummary = {
   usedFallback: boolean | null;
 };
 
+export type TraceTimingSummary = {
+  totalMs: number | null;
+  firstTokenMs: number | null;
+  conversationLoadMs: number | null;
+  userMessagePersistMs: number | null;
+  rewriteMs: number | null;
+  retrievalMs: number | null;
+  traceCreateMs: number | null;
+  answerGenerationMs: number | null;
+  assistantMessagePersistMs: number | null;
+  traceFinalizeMs: number | null;
+  llmQueueWaitMs: number | null;
+  retrievalQueueWaitMs: number | null;
+};
+
 export type TraceSummary = {
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
@@ -76,6 +91,8 @@ export type TraceSummary = {
   retrievalModeProvenanceSentence: string;
   rewriteReadabilityLabel: string;
   strategySummary: RetrievalStrategySummary;
+  timingSummary: TraceTimingSummary;
+  timingReadabilitySentence: string;
   generationMode: TraceGenerationMode | null;
   contextMode: TraceContextMode | null;
   rewriteApplied: boolean;

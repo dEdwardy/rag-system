@@ -62,6 +62,21 @@ type AskRetrievalMetadataJson = Prisma.InputJsonObject & {
   strategySummary?: RetrievalStrategySummary;
 };
 
+type AskTimingSummary = {
+  totalMs: number | null;
+  firstTokenMs: number | null;
+  conversationLoadMs: number | null;
+  userMessagePersistMs: number | null;
+  rewriteMs: number | null;
+  retrievalMs: number | null;
+  traceCreateMs: number | null;
+  answerGenerationMs: number | null;
+  assistantMessagePersistMs: number | null;
+  traceFinalizeMs: number | null;
+  llmQueueWaitMs: number | null;
+  retrievalQueueWaitMs: number | null;
+};
+
 @Injectable()
 export class AskAssistantService {
   private readonly retrievalLimiter = new ConcurrencyLimiter(5);
@@ -408,6 +423,7 @@ export class AskAssistantService {
       strategyJson?: unknown;
     };
 
+    const conversationStartedAt = Date.now();
     const conversation =
       input.conversationId != null
         ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
@@ -417,17 +433,20 @@ export class AskAssistantService {
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
+    const conversationLoadMs = Date.now() - conversationStartedAt;
 
     await input.onEvent({
       type: "status",
       phase: "started"
     });
 
+    const userMessagePersistStartedAt = Date.now();
     const userMessage = await this.messagesService.createMessage({
       conversationId: conversation.id,
       role: MessageRole.user,
       content: input.question
     });
+    const userMessagePersistMs = Date.now() - userMessagePersistStartedAt;
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -443,15 +462,20 @@ export class AskAssistantService {
       usedFallback: boolean | null;
       promptId: string | null;
     };
+    let rewriteMs = 0;
+    let llmQueueWaitMs = 0;
     
     if (retrievalStrategy.queryRewrite.enabled) {
       try {
-        rewritten = await this.llmLimiter.execute(() =>
+        const rewriteResult = await this.llmLimiter.executeMeasured(() =>
           this.llmService.rewriteQuery({
             question: input.question,
             signal: input.signal
           })
         );
+        rewritten = rewriteResult.result;
+        rewriteMs = rewriteResult.runMs;
+        llmQueueWaitMs += rewriteResult.waitMs;
       } catch (error) {
         if (this.isAbortError(error)) {
           throw error;
@@ -484,7 +508,7 @@ export class AskAssistantService {
       phase: "retrieving"
     });
 
-    const retrievalResult = await this.retrievalLimiter.execute(() =>
+    const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(() =>
       this.retrieveOrCreateFailedTrace({
         assistantId: assistant.id,
         assistantKbId: assistant.kbId,
@@ -498,6 +522,9 @@ export class AskAssistantService {
         rewritten
       })
     );
+    const retrievalResult = retrievalResultMeasured.result;
+    const retrievalMs = retrievalResultMeasured.runMs;
+    const retrievalQueueWaitMs = retrievalResultMeasured.waitMs;
     
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
@@ -542,6 +569,7 @@ export class AskAssistantService {
       })
     ]);
 
+    const traceCreateStartedAt = Date.now();
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
       assistantId: assistant.id,
@@ -554,6 +582,7 @@ export class AskAssistantService {
       modelName: rewritten.modelName ?? undefined,
       status: TraceStatus.success
     });
+    const traceCreateMs = Date.now() - traceCreateStartedAt;
 
     try {
       await input.onEvent({
@@ -561,6 +590,8 @@ export class AskAssistantService {
         phase: "generating"
       });
 
+      let firstTokenMs: number | null = null;
+      const generationStartedAt = Date.now();
       const resolvedAnswerResult =
         retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
           ? await (async () => {
@@ -568,6 +599,7 @@ export class AskAssistantService {
                 question: input.question,
                 answerPolicy: normalizedAnswerPolicy
               });
+              firstTokenMs = Date.now() - startedAt;
               await input.onEvent({
                 type: "answer_delta",
                 delta: deterministicResult.answer
@@ -576,7 +608,8 @@ export class AskAssistantService {
               return deterministicResult;
             })()
           : await (async () => {
-              const streamResult = await this.llmService.generateAnswerStream({
+              const streamResultMeasured = await this.llmLimiter.executeMeasured(() =>
+                this.llmService.generateAnswerStream({
                 question: input.question,
                 systemPrompt: assistant.systemPrompt,
                 answerPolicy: normalizedAnswerPolicy,
@@ -586,12 +619,18 @@ export class AskAssistantService {
                 }),
                 signal: input.signal,
                 onDelta: async delta => {
+                  if (firstTokenMs == null) {
+                    firstTokenMs = Date.now() - startedAt;
+                  }
                   await input.onEvent({
                     type: "answer_delta",
                     delta
                   });
                 }
-              });
+              })
+              );
+              llmQueueWaitMs += streamResultMeasured.waitMs;
+              const streamResult = streamResultMeasured.result;
 
               return this.answeringService.finalizeStreamedAnswer({
                 question: input.question,
@@ -608,6 +647,8 @@ export class AskAssistantService {
                 citationEvidence: streamResult.citationEvidence
               });
             })();
+      const answerGenerationMs = Date.now() - generationStartedAt;
+      const assistantMessagePersistStartedAt = Date.now();
 
       const assistantMessage = await this.messagesService.createMessage({
         conversationId: conversation.id,
@@ -615,13 +656,32 @@ export class AskAssistantService {
         content: resolvedAnswerResult.answer,
         traceId: trace.id
       });
+      const assistantMessagePersistMs = Date.now() - assistantMessagePersistStartedAt;
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
       await this.conversationsService.touchConversation(conversation.id, authContext.identity);
+      const traceFinalizeStartedAt = Date.now();
+      const persistedTimingSummary = this.buildTimingSummary({
+        totalMs: Date.now() - startedAt,
+        firstTokenMs,
+        conversationLoadMs,
+        userMessagePersistMs,
+        rewriteMs,
+        retrievalMs,
+        traceCreateMs,
+        answerGenerationMs,
+        assistantMessagePersistMs,
+        traceFinalizeMs: null,
+        llmQueueWaitMs,
+        retrievalQueueWaitMs
+      });
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
-        retrievalMetadataJson: retrievalMetadata,
+        retrievalMetadataJson: {
+          ...(retrievalMetadata as Record<string, unknown>),
+          timing: persistedTimingSummary
+        } as AskRetrievalMetadataJson,
         answeringMetadataJson: resolvedAnswerResult.answeringMetadata,
         qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - startedAt,
@@ -631,6 +691,11 @@ export class AskAssistantService {
         retrievalScoresJson,
         status: TraceStatus.success
       });
+      const timingSummary = this.buildTimingSummary({
+        ...persistedTimingSummary,
+        traceFinalizeMs: Date.now() - traceFinalizeStartedAt
+      });
+      const timingReadabilitySentence = this.buildTimingReadabilitySentence(timingSummary);
 
       const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
       const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
@@ -695,6 +760,8 @@ export class AskAssistantService {
         rewriteReadabilityLabel,
         retrievalModeProvenanceSentence,
         retrievalMetadata,
+        timingSummary,
+        timingReadabilitySentence,
         answerAttributionSummary,
         answerAttributionReadabilitySentence,
         answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
@@ -740,7 +807,23 @@ export class AskAssistantService {
         rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
         retrievedChunkIdsJson: retrievedChunks.map(chunk => chunk.chunkId),
         retrievalScoresJson,
-        retrievalMetadataJson: this.withFailureMetadata(retrievalMetadata, {
+        retrievalMetadataJson: this.withFailureMetadata({
+          ...(retrievalMetadata as Record<string, unknown>),
+          timing: this.buildTimingSummary({
+            totalMs: Date.now() - startedAt,
+            firstTokenMs: null,
+            conversationLoadMs,
+            userMessagePersistMs,
+            rewriteMs,
+            retrievalMs,
+            traceCreateMs,
+            answerGenerationMs: null,
+            assistantMessagePersistMs: null,
+            traceFinalizeMs: null,
+            llmQueueWaitMs,
+            retrievalQueueWaitMs
+          })
+        } as AskRetrievalMetadataJson, {
           stage: "answering",
           message
         }),
@@ -755,6 +838,28 @@ export class AskAssistantService {
         }
       });
     }
+  }
+
+  private buildTimingSummary(input: AskTimingSummary): AskTimingSummary {
+    return { ...input };
+  }
+
+  private buildTimingReadabilitySentence(timing: AskTimingSummary) {
+    const render = (label: string, value: number | null) => `${label} ${value == null ? "n/a" : `${value}ms`}`;
+    return [
+      render("total", timing.totalMs),
+      render("first token", timing.firstTokenMs),
+      render("conversation", timing.conversationLoadMs),
+      render("persist user", timing.userMessagePersistMs),
+      render("rewrite", timing.rewriteMs),
+      render("retrieval", timing.retrievalMs),
+      render("trace create", timing.traceCreateMs),
+      render("generation", timing.answerGenerationMs),
+      render("persist assistant", timing.assistantMessagePersistMs),
+      render("trace finalize", timing.traceFinalizeMs),
+      render("llm queue", timing.llmQueueWaitMs),
+      render("retrieval queue", timing.retrievalQueueWaitMs)
+    ].join("; ") + ".";
   }
 
   private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null) {
