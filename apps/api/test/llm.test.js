@@ -105,6 +105,7 @@ test("LlmService uses OpenAI runtime overrides for URL, model, and temperatures"
   assert.equal(seenCalls[0].url, "https://openai.example/v1/chat/completions");
   assert.equal(seenCalls[0].body.model, "gpt-custom");
   assert.equal(seenCalls[0].body.temperature, 0.35);
+  assert.equal(seenCalls[0].body.reasoning_effort, "minimal");
   assert.equal(seenCalls[1].url, "https://openai.example/v1/chat/completions");
   assert.equal(seenCalls[1].body.model, "gpt-custom");
   assert.equal(seenCalls[1].body.temperature, 0.15);

@@ -1,4 +1,5 @@
 const { AskAssistantService } = require("../../src/modules/assistants/ask-assistant.service.ts");
+const { PromptManagerService } = require("../../src/infra/llm/prompt-manager.service.ts");
 
 function isPlainObject(value) {
   return value != null && typeof value === "object" && !Array.isArray(value);
@@ -239,7 +240,8 @@ function createAskAssistantService(input = {}) {
         usedFallback: false
       }),
       ...(input.llm ?? {})
-    }
+    },
+    input.promptManager ?? new PromptManagerService()
   );
 }
 

@@ -225,6 +225,16 @@ export function TraceDetailSidebarPanels({ formatDateTime, hasRewrite, locale, s
 }
 
 export function TraceDetailSecondaryPanels({ citations, locale, sectionIds, t, trace }: TraceDetailSecondaryPanelsProps) {
+  const promptSnapshot =
+    trace.answeringMetadataJson &&
+    typeof trace.answeringMetadataJson === "object" &&
+    !Array.isArray(trace.answeringMetadataJson) &&
+    typeof trace.answeringMetadataJson.promptSnapshot === "object" &&
+    trace.answeringMetadataJson.promptSnapshot !== null &&
+    !Array.isArray(trace.answeringMetadataJson.promptSnapshot)
+      ? trace.answeringMetadataJson.promptSnapshot
+      : null;
+
   return (
     <div className="workspace-detail-secondary-grid">
       <Paper
@@ -286,6 +296,40 @@ export function TraceDetailSecondaryPanels({ citations, locale, sectionIds, t, t
       </Paper>
 
       <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+        {promptSnapshot ? (
+          <details open={false}>
+            <summary className="workspace-collapsible-summary">
+              <span>{locale === "zh" ? "回答 Prompt" : "Answer prompt"}</span>
+              <span className="workspace-inline-chip workspace-inline-chip-secondary">
+                {locale === "zh" ? "本次请求快照" : "Request snapshot"}
+              </span>
+            </summary>
+            <Text c="var(--app-text-muted)" mt="sm" size="sm">
+              {locale === "zh"
+                ? "这里展示本次实际发送给模型的 system prompt 和 user prompt。"
+                : "This shows the system prompt and user prompt sent for this answer."}
+            </Text>
+            <Stack gap="sm" mt="sm">
+              <div className="workspace-content-block">
+                <Stack gap={6}>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    System prompt
+                  </Text>
+                  <pre className="workspace-code-block workspace-code-block-scroll">{promptSnapshot.systemPrompt}</pre>
+                </Stack>
+              </div>
+              <div className="workspace-content-block">
+                <Stack gap={6}>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    User prompt
+                  </Text>
+                  <pre className="workspace-code-block workspace-code-block-scroll">{promptSnapshot.userPrompt}</pre>
+                </Stack>
+              </div>
+            </Stack>
+          </details>
+        ) : null}
+
         <details id={sectionIds.rawPayload} style={{ scrollMarginTop: "96px" }} open={false}>
           <summary className="workspace-collapsible-summary">
             <span>{t("common.fields.rawPayload")}</span>

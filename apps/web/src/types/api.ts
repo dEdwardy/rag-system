@@ -528,6 +528,10 @@ export type AskRetrievalMetadata = {
 export type AskAnsweringMetadata = {
   promptId: string;
   usedFallback: boolean;
+  promptSnapshot?: {
+    systemPrompt: string;
+    userPrompt: string;
+  };
   answerPolicy: AnswerPolicy;
   resolvedLanguage: TraceResolvedLanguage;
   generationMode: TraceGenerationMode;

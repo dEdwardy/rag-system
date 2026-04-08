@@ -152,6 +152,7 @@ export class LlmService {
       body: JSON.stringify({
         model: runtimeConfig.openAiChatModel,
         temperature: runtimeConfig.answerTemperature,
+        reasoning_effort: "minimal",
         messages: [
           {
             role: "system",
@@ -273,6 +274,7 @@ export class LlmService {
         model: runtimeConfig.openAiChatModel,
         temperature: runtimeConfig.answerTemperature,
         stream: true,
+        reasoning_effort: "minimal",
         messages: [
           {
             role: "system",

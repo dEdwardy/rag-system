@@ -19,7 +19,7 @@ test("LlmService exposes a native answer streaming API that emits provider delta
 
   const deltas = [];
   const result = await withFetchMock(
-    async () =>
+    async (_url, options) =>
       new Response(
         new ReadableStream({
           start(controller) {

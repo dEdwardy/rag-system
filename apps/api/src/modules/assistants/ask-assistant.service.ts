@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
+import { PromptManagerService } from "../../infra/llm/prompt-manager.service";
 import { ConcurrencyLimiter, PromisePool, ResultCache } from "../../common/concurrency-utils";
 import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
 import {
@@ -77,6 +78,11 @@ type AskTimingSummary = {
   retrievalQueueWaitMs: number | null;
 };
 
+type PromptSnapshot = {
+  systemPrompt: string;
+  userPrompt: string;
+};
+
 @Injectable()
 export class AskAssistantService {
   private readonly retrievalLimiter = new ConcurrencyLimiter(5);
@@ -90,7 +96,8 @@ export class AskAssistantService {
     private readonly retrievalService: RetrievalService,
     private readonly answeringService: AnsweringService,
     private readonly tracesService: TracesService,
-    private readonly llmService: LlmService
+    private readonly llmService: LlmService,
+    private readonly promptManager: PromptManagerService
   ) {}
 
   async askAssistant(input: {
@@ -246,6 +253,13 @@ export class AskAssistantService {
       status: TraceStatus.success
     });
     try {
+      const promptSnapshot = this.buildPromptSnapshot({
+        question: input.question,
+        systemPrompt: assistant.systemPrompt,
+        answerPolicy: normalizedAnswerPolicy,
+        chunks: retrievedChunks,
+        contextGroups
+      });
       const resolvedAnswerResult =
         retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
           ? this.answeringService.buildDeterministicInsufficientContextResult({
@@ -273,7 +287,7 @@ export class AskAssistantService {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
         retrievalMetadataJson: retrievalMetadata,
-        answeringMetadataJson: resolvedAnswerResult.answeringMetadata,
+        answeringMetadataJson: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
         qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - startedAt,
         modelName: resolvedAnswerResult.modelName,
@@ -367,7 +381,7 @@ export class AskAssistantService {
         missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
           missingInformationSource
         }),
-        answeringMetadata: resolvedAnswerResult.answeringMetadata,
+        answeringMetadata: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
         missingInformation: resolvedAnswerResult.missingInformation,
@@ -585,6 +599,13 @@ export class AskAssistantService {
     const traceCreateMs = Date.now() - traceCreateStartedAt;
 
     try {
+      const promptSnapshot = this.buildPromptSnapshot({
+        question: input.question,
+        systemPrompt: assistant.systemPrompt,
+        answerPolicy: normalizedAnswerPolicy,
+        chunks: retrievedChunks,
+        contextGroups
+      });
       await input.onEvent({
         type: "status",
         phase: "generating"
@@ -682,7 +703,7 @@ export class AskAssistantService {
           ...(retrievalMetadata as Record<string, unknown>),
           timing: persistedTimingSummary
         } as AskRetrievalMetadataJson,
-        answeringMetadataJson: resolvedAnswerResult.answeringMetadata,
+        answeringMetadataJson: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
         qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - startedAt,
         modelName: resolvedAnswerResult.modelName,
@@ -782,7 +803,7 @@ export class AskAssistantService {
         missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
           missingInformationSource
         }),
-        answeringMetadata: resolvedAnswerResult.answeringMetadata,
+        answeringMetadata: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
         missingInformation: resolvedAnswerResult.missingInformation,
@@ -842,6 +863,49 @@ export class AskAssistantService {
 
   private buildTimingSummary(input: AskTimingSummary): AskTimingSummary {
     return { ...input };
+  }
+
+  private buildPromptSnapshot(input: {
+    question: string;
+    systemPrompt: string;
+    answerPolicy: Partial<AnswerPolicy> | null | undefined;
+    chunks: AskResultChunk[];
+    contextGroups: Array<{
+      documentId: string;
+      documentTitle: string;
+      startChunkIndex: number;
+      endChunkIndex: number;
+      chunkIds: string[];
+      primaryChunkIds: string[];
+      mergedContent: string;
+      pageNumbers: number[];
+      sectionTitles: string[];
+    }>;
+  }): PromptSnapshot {
+    const normalizedChunks = input.chunks.map(chunk => ({
+      chunkId: chunk.chunkId,
+      documentId: chunk.documentId,
+      documentTitle: chunk.documentTitle,
+      content: chunk.content,
+      score: chunk.score,
+      pageNo: chunk.pageNo ?? null,
+      sectionTitle: chunk.sectionTitle ?? null
+    }));
+    const llmChunks = this.answeringService.buildStreamAnswerContext({
+      chunks: normalizedChunks,
+      contextGroups: input.contextGroups
+    });
+    const prompt = this.promptManager.buildAnswerPrompt({
+      question: input.question,
+      systemPrompt: input.systemPrompt,
+      answerPolicy: this.normalizeAnswerPolicy(input.answerPolicy),
+      chunks: llmChunks
+    });
+
+    return {
+      systemPrompt: prompt.systemPrompt,
+      userPrompt: prompt.userPrompt
+    };
   }
 
   private buildTimingReadabilitySentence(timing: AskTimingSummary) {
@@ -1241,5 +1305,19 @@ export class AskAssistantService {
         message: failure.message
       }
     } as AskRetrievalMetadataJson;
+  }
+
+  private withPromptSnapshot(
+    answeringMetadata: unknown,
+    promptSnapshot: PromptSnapshot
+  ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+    if (typeof answeringMetadata !== "object" || answeringMetadata == null || Array.isArray(answeringMetadata)) {
+      return answeringMetadata == null ? undefined : (answeringMetadata as Prisma.InputJsonValue);
+    }
+
+    return {
+      ...(answeringMetadata as Record<string, unknown>),
+      promptSnapshot
+    } as Prisma.InputJsonValue;
   }
 }
