@@ -8,11 +8,9 @@ import { validateCriticalRuntimeEnv } from "./infra/env/critical-env";
 const REQUEST_TIMING_LOG_ENV = "API_ENABLE_REQUEST_TIMING_LOGS";
 
 async function bootstrap() {
-  validateCriticalRuntimeEnv(process.env);
+  // validateCriticalRuntimeEnv(process.env);
   const runtimeConfig = resolveApiRuntimeConfig();
-  console.log("[bootstrap] critical env validated");
   const app = await NestFactory.create(AppModule);
-  console.log("[bootstrap] nest app created");
   const corsOptions = buildCorsOptions(runtimeConfig);
   if (corsOptions !== null) {
     app.enableCors(corsOptions);

@@ -7,16 +7,11 @@ export function runBuiltApi({ apiRoot }) {
   const legacyEntry = resolve(apiRoot, "dist", "main.js");
   const nestedEntry = resolve(apiRoot, "dist", "apps/api/src/main.js");
   const entry = resolveBuiltApiEntry(apiRoot);
-  const candidateEnvFiles = [resolve(apiRoot, ".env.production"), resolve(apiRoot, ".env.local"), resolve(apiRoot, ".env")];
-  const envFileArgs = candidateEnvFiles.flatMap(filePath =>
-    existsSync(filePath) ? ["--env-file", filePath] : []
-  );
-
   if (!existsSync(entry)) {
     throw new Error(`Built API entry not found. Expected ${legacyEntry} or ${nestedEntry}. Run pnpm --filter @rag-system/api build first.`);
   }
 
-  const child = spawn(process.execPath, [...envFileArgs, entry], {
+  const child = spawn(process.execPath, [entry], {
     cwd: apiRoot,
     stdio: "inherit"
   });
