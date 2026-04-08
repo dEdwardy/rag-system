@@ -425,8 +425,30 @@ export function useUpdateConversation() {
         method: "PATCH",
         body: payload.input
       }),
+    onMutate: async payload => {
+      await queryClient.cancelQueries({ queryKey: ["conversations"] });
+      const previousConversations = queryClient.getQueryData<Conversation[]>(["conversations"]);
+
+      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
+        current?.map(item =>
+          item.id === payload.conversationId
+            ? {
+                ...item,
+                ...payload.input,
+                updatedAt: new Date().toISOString()
+              }
+            : item
+        ) ?? current
+      );
+
+      return { previousConversations };
+    },
+    onError: (_error, _payload, context) => {
+      if (context?.previousConversations) {
+        queryClient.setQueryData(["conversations"], context.previousConversations);
+      }
+    },
     onSuccess: conversation => {
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.setQueryData<Conversation[]>(["conversations"], current =>
         current?.map(item => (item.id === conversation.id ? conversation : item)) ?? current
       );
@@ -444,8 +466,25 @@ export function useDeleteConversation() {
       apiRequest<Conversation>(`/conversations/${conversationId}`, {
         method: "DELETE"
       }),
+    onMutate: async conversationId => {
+      await queryClient.cancelQueries({ queryKey: ["conversations"] });
+      const previousConversations = queryClient.getQueryData<Conversation[]>(["conversations"]);
+
+      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
+        current?.filter(item => item.id !== conversationId) ?? current
+      );
+
+      return { previousConversations };
+    },
+    onError: (_error, _conversationId, context) => {
+      if (context?.previousConversations) {
+        queryClient.setQueryData(["conversations"], context.previousConversations);
+      }
+    },
     onSuccess: conversation => {
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
+        current?.filter(item => item.id !== conversation.id) ?? current
+      );
       queryClient.removeQueries({ queryKey: ["conversation-messages", conversation.id] });
       queryClient.removeQueries({ queryKey: ["conversation-traces", conversation.id] });
     }

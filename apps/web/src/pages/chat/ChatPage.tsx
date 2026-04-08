@@ -1,6 +1,6 @@
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { AppShellOutletContext } from "../../app/AppShell";
 import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
@@ -21,7 +21,7 @@ import {
   getPrimaryKnowledgeBase
 } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
-import type { AskStreamEvent, AskStreamFinalData, Citation, Conversation, Message } from "../../types/api";
+import type { AskStreamEvent, AskStreamFinalData, Conversation, Message } from "../../types/api";
 import { formatMessageTime } from "./chat-page-helpers";
 import {
   applyChatStreamEvent,
@@ -34,6 +34,8 @@ const ChatWorkspacePanels = lazy(async () => {
   const module = await import("./ChatWorkspacePanels");
   return { default: module.ChatWorkspacePanels };
 });
+
+const NEW_CHAT_CONVERSATION_ID = "__new_chat__";
 
 type ActiveStreamTurn = {
   conversationId: string | null;
@@ -50,19 +52,64 @@ type SubmitQuestionOptions = {
   question?: string;
 };
 
-type ConversationOptimisticAction =
-  | {
-      type: "rename";
-      conversationId: string;
-      nextTitle: string;
-    }
-  | {
-      type: "delete";
-      conversationId: string;
-    };
-
 function resolveStreamConversationId(activeStreamTurn: ActiveStreamTurn | null): string | null {
   return activeStreamTurn?.latestResult?.conversationId ?? activeStreamTurn?.conversationId ?? null;
+}
+
+function normalizeConversationId(conversationId: string | null | undefined): string | null {
+  if (conversationId == null || conversationId === NEW_CHAT_CONVERSATION_ID) {
+    return null;
+  }
+
+  return conversationId;
+}
+
+const ENGLISH_INSUFFICIENT_CONTEXT_ANSWERS = [
+  "I don't have enough information in the retrieved sources to answer that reliably.",
+  "I couldn't find relevant information in the knowledge base."
+];
+
+const CHINESE_INSUFFICIENT_CONTEXT_ANSWER = "根据当前检索到的资料，我还没有足够信息来可靠回答这个问题。";
+
+function localizeTransientInsufficientContextAnswer(input: {
+  question: string;
+  answer: string;
+}) {
+  const { question, answer } = input;
+  if (!/[\u3400-\u9fff]/.test(question)) {
+    return answer;
+  }
+
+  const normalizedAnswer = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  if (normalizedAnswer.length < 8) {
+    return answer;
+  }
+
+  const matchesEnglishFallback = ENGLISH_INSUFFICIENT_CONTEXT_ANSWERS.some(candidate => {
+    const normalizedCandidate = candidate.toLowerCase();
+    return (
+      normalizedCandidate === normalizedAnswer ||
+      normalizedCandidate.startsWith(normalizedAnswer) ||
+      normalizedAnswer.startsWith(normalizedCandidate)
+    );
+  });
+
+  return matchesEnglishFallback ? CHINESE_INSUFFICIENT_CONTEXT_ANSWER : answer;
+}
+
+function applyLocalizedChatStreamEvent(input: {
+  event: AskStreamEvent;
+  message: ChatStreamAssistantMessage;
+  question: string;
+}) {
+  const nextMessage = applyChatStreamEvent(input.message, input.event);
+  return {
+    ...nextMessage,
+    content: localizeTransientInsufficientContextAnswer({
+      question: input.question,
+      answer: nextMessage.content
+    })
+  };
 }
 
 function shouldRenderActiveStreamTurn(
@@ -90,22 +137,48 @@ function buildDisplayedMessages(
   return items;
 }
 
-function applyConversationOptimisticAction(
-  conversations: Conversation[],
-  action: ConversationOptimisticAction
-): Conversation[] {
-  if (action.type === "rename") {
-    return conversations.map(conversation =>
-      conversation.id === action.conversationId
-        ? {
-            ...conversation,
-            title: action.nextTitle
-          }
-        : conversation
-    );
+function upsertMessage(messages: Message[], nextMessage: Message): Message[] {
+  const existingIndex = messages.findIndex(message => message.id === nextMessage.id);
+  if (existingIndex === -1) {
+    return [...messages, nextMessage];
   }
 
-  return conversations.filter(conversation => conversation.id !== action.conversationId);
+  return messages.map((message, index) => (index === existingIndex ? nextMessage : message));
+}
+
+function syncFinalTurnToMessageCache(input: {
+  finalData: AskStreamFinalData;
+  queryClient: ReturnType<typeof useQueryClient>;
+  streamTurn: ActiveStreamTurn;
+}) {
+  const { finalData, queryClient, streamTurn } = input;
+  const userMessageId =
+    "userMessageId" in finalData && typeof finalData.userMessageId === "string"
+      ? finalData.userMessageId
+      : streamTurn.userMessage.id;
+
+  const persistedUserMessage: Message = {
+    id: userMessageId,
+    conversationId: finalData.conversationId,
+    role: "user",
+    content: streamTurn.userMessage.content,
+    traceId: null,
+    createdAt: streamTurn.userMessage.createdAt
+  };
+
+  const persistedAssistantMessage: Message = {
+    id: finalData.assistantMessageId,
+    conversationId: finalData.conversationId,
+    role: "assistant",
+    content: finalData.answer,
+    traceId: finalData.traceId,
+    createdAt: streamTurn.assistantMessage.createdAt
+  };
+
+  queryClient.setQueryData<Message[]>(["conversation-messages", finalData.conversationId], current => {
+    const nextMessages = upsertMessage(current ?? [], persistedUserMessage);
+    return upsertMessage(nextMessages, persistedAssistantMessage);
+  });
 }
 
 function resolveStreamStatusLabel(
@@ -212,10 +285,6 @@ function resolveWorkspaceStatus(input: {
   return copy.readyToAsk;
 }
 
-function resolveCitationItems(activeStreamTurn: ActiveStreamTurn | null): Citation[] {
-  return activeStreamTurn?.assistantMessage.citations.length ? activeStreamTurn.assistantMessage.citations : [];
-}
-
 function resolveActiveTraceId(displayedMessages: DisplayedMessage[], activeStreamTurn: ActiveStreamTurn | null): string | null {
   if (activeStreamTurn?.assistantMessage.traceId != null) {
     return activeStreamTurn.assistantMessage.traceId;
@@ -245,6 +314,10 @@ function TypingIndicator() {
   );
 }
 
+function ActionSlotPlaceholder() {
+  return <span aria-hidden="true" className="h-9 w-9 shrink-0 rounded-[10px] opacity-0" />;
+}
+
 function SummaryCard({
   label,
   value,
@@ -266,21 +339,15 @@ function SummaryCard({
 }
 
 function ChatWorkspacePanelsFallback({
-  currentCitations,
   history
 }: {
-  currentCitations: string;
   history: string;
 }) {
   return (
     <>
       <div className="border-t border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-5 py-4 xl:hidden">
         <div className="grid gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-bg)] px-4 py-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-[var(--app-text-secondary)]">
-            <span>{history}</span>
-            <span className="text-[var(--app-text-muted)]">/</span>
-            <span>{currentCitations}</span>
-          </div>
+          <div className="text-sm font-medium text-[var(--app-text-secondary)]">{history}</div>
           <StatePanel
             description="Loading chat workspace panels."
             title="Loading workspace panels"
@@ -309,8 +376,6 @@ export function ChatPage() {
   const [composerValue, setComposerValue] = useState("");
   const [didAutoSelectConversation, setDidAutoSelectConversation] = useState(false);
   const [isTranscriptNearBottom, setIsTranscriptNearBottom] = useState(true);
-  const [desktopPanel, setDesktopPanel] = useState<"history" | "citations">("history");
-  const [mobilePanel, setMobilePanel] = useState<"history" | "citations" | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
@@ -320,7 +385,8 @@ export function ChatPage() {
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const conversationsQuery = useConversations();
   const fallbackConversationId = conversationsQuery.data?.[0]?.id ?? null;
-  const resolvedConversationId = activeConversationId ?? fallbackConversationId;
+  const isNewChat = activeConversationId === NEW_CHAT_CONVERSATION_ID;
+  const resolvedConversationId = isNewChat ? null : activeConversationId ?? fallbackConversationId;
   const activeAssistant = getPrimaryAssistantForKnowledgeBase(assistantsQuery.data, activeKnowledgeBase?.id ?? null);
   const messagesQuery = useConversationMessages(resolvedConversationId);
   const shouldLoadChatDocuments =
@@ -331,21 +397,7 @@ export function ChatPage() {
   const deleteConversationMutation = useDeleteConversation();
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
-  const [optimisticConversationSeed, setOptimisticConversationSeed] = useState(0);
-  const optimisticConversationBase = useMemo(
-    () => ({
-      seed: optimisticConversationSeed,
-      items: conversationsQuery.data ?? []
-    }),
-    [conversationsQuery.data, optimisticConversationSeed]
-  );
-  const [optimisticConversationState, addOptimisticConversation] = useOptimistic(
-    optimisticConversationBase,
-    (current, action: ConversationOptimisticAction) => ({
-      seed: current.seed,
-      items: applyConversationOptimisticAction(current.items, action)
-    })
-  );
+  const conversationsForWorkspace = conversationsQuery.data ?? [];
   const chatCopy = useMemo(
     () => ({
       heroTitle: t("chat.copy.heroTitle"),
@@ -403,7 +455,8 @@ export function ChatPage() {
   );
 
   const canAsk = activeAssistant != null;
-  const canSubmitQuestion = activeAssistant != null && !askStreamMutation.isPending;
+  const isStreamingTurnActive = activeStreamTurn != null;
+  const canSubmitQuestion = activeAssistant != null && !isStreamingTurnActive;
   const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(activeStreamTurn, resolvedConversationId);
 
   useEffect(() => {
@@ -416,20 +469,6 @@ export function ChatPage() {
   useEffect(() => {
     setIsTranscriptNearBottom(true);
   }, [resolvedConversationId]);
-
-  useEffect(() => {
-    if (!activeStreamTurn?.latestResult?.assistantMessageId || !messagesQuery.data) {
-      return;
-    }
-
-    const hasPersistedAssistantMessage = messagesQuery.data.some(
-      message => message.id === activeStreamTurn.latestResult?.assistantMessageId
-    );
-
-    if (hasPersistedAssistantMessage) {
-      setActiveStreamTurn(null);
-    }
-  }, [activeStreamTurn, messagesQuery.data]);
 
   const displayedMessages: DisplayedMessage[] = useMemo(
     () => buildDisplayedMessages(messagesQuery.data, activeStreamTurn, shouldRenderStreamTurn),
@@ -447,11 +486,9 @@ export function ChatPage() {
 
   const streamStatusLabel = resolveStreamStatusLabel(chatCopy, activeStreamTurn);
 
-  const citationItems: Citation[] = resolveCitationItems(activeStreamTurn);
   const activeTraceId = resolveActiveTraceId(displayedMessages, activeStreamTurn);
-  const activeConversation =
-    conversationsQuery.data?.find(conversation => conversation.id === resolvedConversationId) ?? null;
-  const conversationCount = conversationsQuery.data?.length ?? 0;
+  const activeConversation = conversationsForWorkspace.find(conversation => conversation.id === resolvedConversationId) ?? null;
+  const conversationCount = conversationsForWorkspace.length;
   const documents = documentsQuery.data ?? [];
   const documentsAreReady = shouldLoadChatDocuments && documentsQuery.isSuccess;
   const documentCount = documents.length;
@@ -533,13 +570,26 @@ export function ChatPage() {
   ]);
 
   const handleFinalStreamEvent = useCallback(
-    (finalData: AskStreamFinalData) => {
+    (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
+      syncFinalTurnToMessageCache({
+        finalData: {
+          ...finalData,
+          answer: localizeTransientInsufficientContextAnswer({
+            question: streamTurn.userMessage.content,
+            answer: finalData.answer
+          })
+        },
+        queryClient,
+        streamTurn
+      });
+
       startTransition(() => {
         setActiveConversationId(finalData.conversationId);
         setDidAutoSelectConversation(true);
       });
+
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["conversation-messages", finalData.conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-traces", finalData.conversationId] });
     },
     [queryClient]
   );
@@ -559,21 +609,19 @@ export function ChatPage() {
         }
 
         if (streamEvent.type === "final") {
-          handleFinalStreamEvent(streamEvent.data);
+          handleFinalStreamEvent(streamEvent.data, current);
+          return null;
+        }
 
           return {
             ...current,
-            conversationId: streamEvent.data.conversationId,
-            assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent),
-            latestResult: streamEvent.data
+            assistantMessage: applyLocalizedChatStreamEvent({
+              event: streamEvent,
+              message: current.assistantMessage,
+              question: current.userMessage.content
+            })
           };
-        }
-
-        return {
-          ...current,
-          assistantMessage: applyChatStreamEvent(current.assistantMessage, streamEvent)
-        };
-      });
+        });
     },
     [handleFinalStreamEvent]
   );
@@ -611,19 +659,12 @@ export function ChatPage() {
         return;
       }
 
-      addOptimisticConversation({
-        type: "rename",
-        conversationId,
-        nextTitle
-      });
-
       try {
         await updateConversationMutation.mutateAsync({
           conversationId,
           input: { title: nextTitle }
         });
       } catch (error) {
-        setOptimisticConversationSeed(seed => seed + 1);
         notifications.show({
           color: "red",
           message: error instanceof Error ? error.message : chatCopy.renameConversationError
@@ -632,8 +673,7 @@ export function ChatPage() {
     },
     [
       chatCopy.renameConversationError,
-    chatCopy.renameConversationPrompt,
-      addOptimisticConversation,
+      chatCopy.renameConversationPrompt,
       updateConversationMutation
     ]
   );
@@ -645,20 +685,14 @@ export function ChatPage() {
         return;
       }
 
-      addOptimisticConversation({
-        type: "delete",
-        conversationId
-      });
-
       try {
         await deleteConversationMutation.mutateAsync(conversationId);
         if (activeConversationId === conversationId) {
           const nextConversationId =
-            optimisticConversationState.items.find(conversation => conversation.id !== conversationId)?.id ?? null;
+            conversationsForWorkspace.find(conversation => conversation.id !== conversationId)?.id ?? null;
           setActiveConversationId(nextConversationId);
         }
       } catch (error) {
-        setOptimisticConversationSeed(seed => seed + 1);
         notifications.show({
           color: "red",
           message: error instanceof Error ? error.message : chatCopy.deleteConversationError
@@ -667,18 +701,17 @@ export function ChatPage() {
     },
     [
       activeConversationId,
-      addOptimisticConversation,
       chatCopy.deleteConversationConfirm,
       chatCopy.deleteConversationError,
-      optimisticConversationState.items,
+      conversationsForWorkspace,
       deleteConversationMutation
     ]
   );
 
   const submitQuestion = async (options?: SubmitQuestionOptions) => {
     const question = (options?.question ?? composerValue).trim();
-    const targetConversationId = options?.conversationId ?? activeConversationId;
-    if (!question || !activeAssistant || askStreamMutation.isPending) {
+    const targetConversationId = normalizeConversationId(options?.conversationId ?? activeConversationId);
+    if (!question || !activeAssistant || isStreamingTurnActive) {
       return;
     }
 
@@ -755,8 +788,6 @@ export function ChatPage() {
     [displayedMessages]
   );
 
-  const conversationsForWorkspace = optimisticConversationState.items;
-
   const summaryCards = [
     {
       key: "knowledge-base",
@@ -782,8 +813,6 @@ export function ChatPage() {
     ? summaryCards.filter(card => card.key === "knowledge-base" || card.key === "assistant" || card.key === "ask-status")
     : summaryCards;
   const mobileSummaryCards = visibleSummaryCards.filter(card => card.key === "ask-status");
-  const showReducedCitationsPanel = isOauthOnboardingActive && activeConversationId == null && activeStreamTurn == null;
-
   return (
       <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="chat-page">
       <section className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
@@ -895,9 +924,9 @@ export function ChatPage() {
                   "status" in message && message.role === "assistant" && message.status === "stopped";
                 const traceId = "traceId" in message ? message.traceId : null;
                 const messageTime = "createdAt" in message ? formatMessageTime(message.createdAt, locale) : null;
-                const canCopyAssistantAnswer = isAssistant && message.content.trim().length > 0;
+                const canCopyAssistantAnswer = isAssistant && !isStreamingAssistant && message.content.trim().length > 0;
                 const regenerateQuestion = isAssistant && !isStreamingAssistant ? findRegenerateQuestion(messageIndex) : null;
-                const canRegenerateAnswer = Boolean(regenerateQuestion) && !askStreamMutation.isPending;
+                const canRegenerateAnswer = Boolean(regenerateQuestion) && !isStreamingTurnActive;
                 const isCopied = copiedMessageId === message.id;
 
                 return (
@@ -933,11 +962,6 @@ export function ChatPage() {
                         ) : isStreamingAssistant ? (
                           <TypingIndicator />
                         ) : null}
-                        {isStreamingAssistant && message.content ? (
-                          <div className="mt-4">
-                            <TypingIndicator />
-                          </div>
-                        ) : null}
                         {isErroredAssistant && "errorMessage" in message ? (
                           <p className="mt-3 text-sm text-red-300">{message.errorMessage}</p>
                         ) : null}
@@ -946,50 +970,62 @@ export function ChatPage() {
                         ) : null}
                       </div>
 
-                      <div className="mt-2.5 flex items-center gap-3 px-1">
-                        <span className="text-[11px] text-[var(--app-text-muted)]">
+                      <div className="mt-2.5 flex min-h-9 items-center gap-3 px-1">
+                        <span className="min-w-0 shrink-0 text-[11px] text-[var(--app-text-muted)]">
                           {messageTime ?? (isStreamingAssistant ? streamStatusLabel : "")}
                         </span>
-                        {traceId ? (
-                          <IconActionLink label={chatCopy.viewTrace} to={`/traces/${traceId}`}>
-                            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                              <path d="M4 12h4l2.5-5 3 10 2-5H20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                            </svg>
-                          </IconActionLink>
+                        {isAssistant ? (
+                          !isStreamingAssistant && traceId ? (
+                            <IconActionLink label={chatCopy.viewTrace} to={`/traces/${traceId}`}>
+                              <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <path d="M4 12h4l2.5-5 3 10 2-5H20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                              </svg>
+                            </IconActionLink>
+                          ) : (
+                            <ActionSlotPlaceholder />
+                          )
                         ) : null}
                         {isAssistant ? (
-                          <IconActionButton
-                            disabledHint={chatCopy.regenerateAnswer}
-                            label={chatCopy.regenerateAnswer}
-                            onClick={
-                              canRegenerateAnswer
-                                ? () => {
-                                    void submitQuestion({
-                                      conversationId: "conversationId" in message ? message.conversationId : activeConversationId,
-                                      question: regenerateQuestion ?? undefined
-                                    });
-                                  }
-                                : undefined
-                            }
-                          >
-                            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                              <path d="M20 11a8 8 0 1 0 2.3 5.7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                              <path d="M20 4v7h-7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                            </svg>
-                          </IconActionButton>
+                          !isStreamingAssistant ? (
+                            <IconActionButton
+                              disabledHint={chatCopy.regenerateAnswer}
+                              label={chatCopy.regenerateAnswer}
+                              onClick={
+                                canRegenerateAnswer
+                                  ? () => {
+                                      void submitQuestion({
+                                        conversationId: "conversationId" in message ? message.conversationId : activeConversationId,
+                                        question: regenerateQuestion ?? undefined
+                                      });
+                                    }
+                                  : undefined
+                              }
+                            >
+                              <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <path d="M20 11a8 8 0 1 0 2.3 5.7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                                <path d="M20 4v7h-7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                              </svg>
+                            </IconActionButton>
+                          ) : (
+                            <ActionSlotPlaceholder />
+                          )
                         ) : null}
-                        {canCopyAssistantAnswer ? (
-                          <IconActionButton
-                            label={isCopied ? chatCopy.copiedAnswer : chatCopy.copyAnswer}
-                            onClick={() => {
-                              void handleCopyAnswer(message.id, message.content);
-                            }}
-                          >
-                            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                              <rect height="13" rx="2" stroke="currentColor" strokeWidth="2" width="13" x="8" y="8" />
-                              <path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                            </svg>
-                          </IconActionButton>
+                        {isAssistant ? (
+                          canCopyAssistantAnswer ? (
+                            <IconActionButton
+                              label={isCopied ? chatCopy.copiedAnswer : chatCopy.copyAnswer}
+                              onClick={() => {
+                                void handleCopyAnswer(message.id, message.content);
+                              }}
+                            >
+                              <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <rect height="13" rx="2" stroke="currentColor" strokeWidth="2" width="13" x="8" y="8" />
+                                <path d="M6 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                              </svg>
+                            </IconActionButton>
+                          ) : (
+                            <ActionSlotPlaceholder />
+                          )
                         ) : null}
                       </div>
                     </div>
@@ -1056,14 +1092,17 @@ export function ChatPage() {
                     </svg>
                   </button>
                   <button
-                    aria-label={askStreamMutation.isPending ? chatCopy.stopGenerating : t("common.actions.ask")}
-                    className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-white shadow-[0_4px_16px_var(--app-accent-glow)] transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_24px_var(--app-accent-glow)] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={askStreamMutation.isPending ? false : !canSubmitQuestion}
-                    onClick={askStreamMutation.isPending ? stopGenerating : undefined}
-                    title={askStreamMutation.isPending ? chatCopy.stopGenerating : t("common.actions.ask")}
-                    type={askStreamMutation.isPending ? "button" : "submit"}
+                    aria-label={isStreamingTurnActive ? chatCopy.stopGenerating : t("common.actions.ask")}
+                    className={[
+                      "flex h-10 w-10 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--app-accent)_0%,var(--app-accent-strong)_100%)] text-white shadow-[0_4px_16px_var(--app-accent-glow)] transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_24px_var(--app-accent-glow)] disabled:cursor-not-allowed disabled:opacity-60",
+                      isStreamingTurnActive ? "animate-pulse ring-2 ring-[var(--app-accent-glow)] ring-offset-2 ring-offset-[var(--app-bg-elevated)]" : ""
+                    ].join(" ")}
+                    disabled={isStreamingTurnActive ? false : !canSubmitQuestion}
+                    onClick={isStreamingTurnActive ? stopGenerating : undefined}
+                    title={isStreamingTurnActive ? chatCopy.stopGenerating : t("common.actions.ask")}
+                    type={isStreamingTurnActive ? "button" : "submit"}
                   >
-                    {askStreamMutation.isPending ? (
+                    {isStreamingTurnActive ? (
                       <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
                         <rect fill="currentColor" height="10" rx="1.5" width="10" x="7" y="7" />
                       </svg>
@@ -1086,14 +1125,12 @@ export function ChatPage() {
       </section>
 
       <Suspense
-        fallback={<ChatWorkspacePanelsFallback currentCitations={chatCopy.currentCitations} history={chatCopy.history} />}
+        fallback={<ChatWorkspacePanelsFallback history={chatCopy.history} />}
       >
         <ChatWorkspacePanels
           activeConversationId={resolvedConversationId}
-          activeTraceId={activeTraceId}
           chatCopy={{
             conversationLabel: chatCopy.conversationLabel,
-            currentCitations: chatCopy.currentCitations,
             history: chatCopy.history,
             renameConversation: chatCopy.renameConversation,
             deleteConversation: chatCopy.deleteConversation,
@@ -1101,30 +1138,23 @@ export function ChatPage() {
             renameConversationError: chatCopy.renameConversationError,
             deleteConversationConfirm: chatCopy.deleteConversationConfirm,
             deleteConversationError: chatCopy.deleteConversationError,
-            newChat: chatCopy.newChat,
-            viewTrace: chatCopy.viewTrace
+            newChat: chatCopy.newChat
           }}
-          citationItems={citationItems}
           conversations={conversationsForWorkspace}
           conversationsError={conversationsQuery.error}
           conversationsLoading={conversationsQuery.isLoading}
-          desktopPanel={desktopPanel}
           locale={locale}
-          mobilePanel={mobilePanel}
           onSelectConversation={conversationId => {
             setActiveConversationId(conversationId);
+            setDidAutoSelectConversation(true);
           }}
-          onSelectDesktopPanel={setDesktopPanel}
-          onSelectMobilePanel={setMobilePanel}
           onStartNewChat={() => {
-            setActiveConversationId(null);
+            setActiveConversationId(NEW_CHAT_CONVERSATION_ID);
             setActiveStreamTurn(null);
-            setMobilePanel(null);
+            setDidAutoSelectConversation(true);
           }}
           onRenameConversation={handleRenameConversation}
           onDeleteConversation={handleDeleteConversation}
-          showReducedCitationsPanel={showReducedCitationsPanel}
-          showTracePlaceholder={resolvedConversationId == null && activeStreamTurn == null}
           t={t}
         />
       </Suspense>
