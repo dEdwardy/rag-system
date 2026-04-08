@@ -10,6 +10,8 @@ type ManagedPrompt = {
 
 @Injectable()
 export class PromptManagerService {
+  private readonly maxChunkContentLength = 1200;
+
   getAnswerPromptId() {
     return "answer.v2";
   }
@@ -23,16 +25,14 @@ export class PromptManagerService {
 
 Answering rules:
 - Use only the provided retrieved sources.
-- If one or more retrieved sources explicitly answer the question, answer directly from them instead of saying the context is insufficient.
-- When a statement is supported by a source, append source markers like [1] or [1][2].
-- Do not cite sources that were not provided.
-- If the retrieved sources are insufficient, say so clearly.
-- Keep the answer factual and aligned with the requested answer policy.`;
+- Answer directly when the sources support it; otherwise use "insufficient_context".
+- Cite only the provided source indexes like [1] or [1][2].
+- Keep the answer factual and follow the requested answer policy.`;
 
     const context = input.chunks
       .map(
         (chunk, index) =>
-          `[${index + 1}] document="${chunk.documentTitle}"${chunk.sectionTitle ? ` section="${chunk.sectionTitle}"` : ""} score=${chunk.score.toFixed(3)}\n${chunk.content}`
+          `[${index + 1}] document="${chunk.documentTitle}"${chunk.sectionTitle ? ` section="${chunk.sectionTitle}"` : ""} score=${chunk.score.toFixed(3)}\n${this.truncateChunkContent(chunk.content)}`
       )
       .join("\n\n");
 
@@ -53,17 +53,12 @@ Answer policy:
 - includeMissingInformation=${input.answerPolicy.includeMissingInformation}
 
 Return JSON only with this shape:
-{"answer":"string","status":"grounded|insufficient_context","citations":[1],"citationEvidence":[{"source":1,"quote":"exact text"}],"missingInformation":["string"]}
+{"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
 
 Rules:
 - "citations" must contain only 1-based source indexes from the retrieved sources.
-- "citationEvidence" must be an array of objects with "source" and "quote".
-- Each "quote" must be copied verbatim from the cited retrieved source.
-- Use an empty array when there are no supported citations.
-- When one or more retrieved sources explicitly answer the question, return "grounded" and answer from those sources.
 - Use "grounded" only when the answer is supported by the provided sources.
 - Use "insufficient_context" when the sources do not support a reliable answer.
-- Use an empty "citationEvidence" array when no direct quote can be provided.
 - "missingInformation" should be an array and may be empty.
 - Match the requested responseStyle, tone, outputFormat, and language policy.
 - If outputFormat=bullets, prefer a short bullet list.
@@ -79,6 +74,15 @@ Rules:
       userPrompt,
       fullPrompt: `${systemPrompt}\n\n${userPrompt}`
     };
+  }
+
+  private truncateChunkContent(content: string) {
+    const normalized = content.replace(/\s+/g, " ").trim();
+    if (normalized.length <= this.maxChunkContentLength) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, this.maxChunkContentLength)}...`;
   }
 
   buildRewritePrompt(input: RewriteQueryInput): ManagedPrompt {

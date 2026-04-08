@@ -35,6 +35,13 @@ test("web trace summary type guards current backend summary field set", async ()
   assert.match(sharedSource, /rewriteModelName:\s*string \| null;/);
   assert.match(sharedSource, /strategyMode:\s*TraceRetrievalMode \| null;/);
   assert.match(sharedSource, /strategySummary:\s*RetrievalStrategySummary;/);
+  assert.match(sharedSource, /export type TraceTimingSummary = \{/);
+  assert.match(sharedSource, /timingSummary:\s*TraceTimingSummary;/);
+  assert.match(sharedSource, /timingReadabilitySentence:\s*string;/);
+  assert.match(sharedSource, /firstTokenMs:\s*number \| null;/);
+  assert.match(sharedSource, /answerGenerationMs:\s*number \| null;/);
+  assert.match(sharedSource, /llmQueueWaitMs:\s*number \| null;/);
+  assert.match(sharedSource, /retrievalQueueWaitMs:\s*number \| null;/);
   assert.match(sharedSource, /rewriteReadabilityLabel:\s*string;/);
   assert.match(sharedSource, /promptId:\s*string \| null;/);
   assert.match(sharedSource, /answerStatus:\s*TraceAnswerStatus \| null;/);

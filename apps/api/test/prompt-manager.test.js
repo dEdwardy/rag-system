@@ -38,6 +38,42 @@ test("PromptManagerService builds versioned answer prompts", () => {
   assert.match(prompt.userPrompt, /includeMissingInformation=false/);
   assert.match(prompt.userPrompt, /Retrieved sources:/);
   assert.match(prompt.fullPrompt, /Return JSON only/);
+  assert.doesNotMatch(prompt.fullPrompt, /citationEvidence/);
+  assert.match(prompt.fullPrompt, /"citations":\[1\]/);
+  assert.match(prompt.fullPrompt, /"missingInformation":\["string"\]/);
+});
+
+test("PromptManagerService truncates long retrieved source content in answer prompts", () => {
+  const service = new PromptManagerService();
+  const longContent = "A".repeat(1400);
+  const prompt = service.buildAnswerPrompt({
+    systemPrompt: "assistant system prompt",
+    question: "Where is the answer?",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "friendly",
+      outputFormat: "bullets",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 2,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: false
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        content: longContent,
+        score: 0.9,
+        pageNo: 3,
+        sectionTitle: "Facts"
+      }
+    ]
+  });
+
+  assert.ok(prompt.userPrompt.includes(`${"A".repeat(1200)}...`));
+  assert.ok(!prompt.userPrompt.includes("A".repeat(1300)));
 });
 
 test("PromptManagerService builds versioned rewrite prompts", () => {

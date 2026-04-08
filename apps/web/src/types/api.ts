@@ -737,6 +737,8 @@ export type AskResponse = {
   retrievalModeProvenanceSentence?: TraceSummary["retrievalModeProvenanceSentence"];
   rewriteReadabilityLabel?: TraceSummary["rewriteReadabilityLabel"];
   retrievalMetadata?: AskRetrievalMetadata;
+  timingSummary?: TraceSummary["timingSummary"];
+  timingReadabilitySentence?: TraceSummary["timingReadabilitySentence"];
   answerAttributionSummary?: TraceAnswerAttributionSummary;
   answerAttributionReadabilitySentence?: TraceSummary["answerAttributionReadabilitySentence"];
   answerAttribution?: TraceCitationAttribution | null;
