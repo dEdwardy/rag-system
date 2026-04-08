@@ -199,7 +199,8 @@ export class RetrievalService {
         const mergedCandidates = candidateSelectionMode === "hybrid" && lexicalCandidates
           ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates, strategy)
           : vectorCandidates;
-        const rankedCandidates = this.rankCandidates(mergedCandidates, {
+        const diverseCandidates = this.selectDiverseCandidates(mergedCandidates, candidateLimit);
+        const rankedCandidates = this.rankCandidates(diverseCandidates, {
           enableRerank: resolvedEnableRerank,
           query: input.query,
           scoreThreshold: input.scoreThreshold,
@@ -300,7 +301,8 @@ export class RetrievalService {
         filters: input.filters,
         documentVersions: input.documentVersions
       }));
-    const ranked = this.rankCandidates(lexicalCandidates, {
+    const diverseCandidates = this.selectDiverseCandidates(lexicalCandidates, input.candidateLimit);
+    const ranked = this.rankCandidates(diverseCandidates, {
       enableRerank: input.enableRerank ?? false,
       query: input.query,
       scoreThreshold: input.scoreThreshold,
@@ -572,6 +574,72 @@ export class RetrievalService {
     }
 
     return Array.from(merged.values());
+  }
+
+  private selectDiverseCandidates(candidates: RetrievalCandidate[], limit: number) {
+    if (candidates.length <= 2) {
+      return candidates;
+    }
+
+    const buckets = new Map<string, RetrievalCandidate[]>();
+
+    for (const candidate of candidates) {
+      const key = `${candidate.documentId}:${this.buildSectionDiversityKey(candidate)}`;
+      const bucket = buckets.get(key) ?? [];
+      bucket.push(candidate);
+      buckets.set(key, bucket);
+    }
+
+    const firstPass: RetrievalCandidate[] = [];
+    const secondPass: RetrievalCandidate[] = [];
+    const usedChunkIds = new Set<string>();
+
+    for (const bucket of buckets.values()) {
+      bucket.sort((left, right) => right.score - left.score);
+
+      const first = bucket[0];
+      if (first) {
+        firstPass.push(first);
+        usedChunkIds.add(first.chunkId);
+      }
+
+      const second = bucket[1];
+      if (second) {
+        secondPass.push(second);
+      }
+    }
+
+    firstPass.sort((left, right) => right.score - left.score);
+    if (firstPass.length >= limit) {
+      return firstPass.slice(0, limit);
+    }
+
+    secondPass.sort((left, right) => right.score - left.score);
+    const fill = secondPass.filter(candidate => !usedChunkIds.has(candidate.chunkId));
+
+    return [...firstPass, ...fill].slice(0, limit);
+  }
+
+  private buildSectionDiversityKey(candidate: RetrievalCandidate) {
+    const raw =
+      candidate.sectionTitle?.trim() ||
+      this.extractFirstHeading(candidate.content) ||
+      candidate.documentTitle;
+
+    return raw
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[：:（(].*$/, "")
+      .trim();
+  }
+
+  private extractFirstHeading(content: string) {
+    const headingMatch = content.match(/^\s{0,3}#{1,6}\s+(.+)$/m);
+    if (headingMatch?.[1]) {
+      return headingMatch[1].trim();
+    }
+
+    return content.replace(/\s+/g, " ").trim().slice(0, 80);
   }
 
   private rankCandidates(

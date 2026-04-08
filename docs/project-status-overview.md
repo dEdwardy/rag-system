@@ -45,6 +45,14 @@ RAG 主链路、PC Web chat、external source 第一轮、auth/ACL 最小闭环�
 - 当前更合理的工作是：
   - 保持阶段判断、docs、queue 口径和代码现实一致
   - 在 `P3/P4/P5/P6` 已完成区域内做 bounded maintenance，或选择一个新的明确产品波次
+- 当前 RAG 质量基线可作为稳定工作基线：
+  - Fact：稳定可用
+  - 2 步以内轻多跳：稳定可用
+  - Summary / List：多数可用，但仍存在少量并列主项漏项或误归类边界
+- 当前版本定义：稳定可用，适合作为后续产品化、评测和监控的基线版本。
+- 明确决策：
+  - `summaryMainItems` 两步实验保持关闭，不默认上线
+  - `coverageSummary` 仅用于诊断和分析，不直接驱动回答生成或主流程决策
 
 ## Recommended Order
 

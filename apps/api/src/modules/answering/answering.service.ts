@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { LlmService } from "../../infra/llm/llm.service";
+import { PromptManagerService } from "../../infra/llm/prompt-manager.service";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 
 type RetrievedChunk = {
@@ -72,7 +73,17 @@ export type AnsweringMetadata = {
   insufficientContextReason: "no_retrieval_hits" | "retrieved_context_insufficient" | null;
   answerStatusSource: "model" | "inferred_from_retrieval" | "deterministic_policy";
   answerStatus: "grounded" | "insufficient_context";
+  coverageSummary?: {
+    questionType: "summary" | "other";
+    topicCount: number;
+    coveredTopicCount: number;
+    coverageRatio: number;
+    missingTopics: string[];
+  };
+  summaryMainItems?: string[];
 };
+
+const ENABLE_SUMMARY_MAIN_ITEMS_EXPERIMENT = false;
 
 const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
   responseStyle: "balanced",
@@ -87,7 +98,10 @@ const DEFAULT_ANSWER_POLICY: AnswerPolicy = {
 
 @Injectable()
 export class AnsweringService {
-  constructor(private readonly llmService: LlmService) {}
+  constructor(
+    private readonly llmService: LlmService,
+    private readonly promptManager: PromptManagerService
+  ) {}
 
   async generateAnswer(input: {
     question: string;
@@ -98,9 +112,39 @@ export class AnsweringService {
   }) {
     const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
     const llmChunks = this.buildAnswerContextChunks(input.chunks, input.contextGroups);
+
+    const isSummaryExperimentEnabled =
+      ENABLE_SUMMARY_MAIN_ITEMS_EXPERIMENT &&
+      this.inferQuestionType(input.question) === "summary" &&
+      llmChunks.length > 0;
+
+    let summaryMainItems: string[] = [];
+    let systemPrompt = input.systemPrompt;
+
+    if (isSummaryExperimentEnabled) {
+      summaryMainItems = await this.extractSummaryMainItemsExperiment({
+        question: input.question,
+        chunks: llmChunks
+      });
+
+      if (summaryMainItems.length > 0) {
+        systemPrompt = `${systemPrompt}
+
+Summary main items that must all be covered:
+${summaryMainItems.map(item => `- ${item}`).join("\n")}
+
+Answering requirement:
+- You must cover every listed main item.
+- Treat each listed main item as a peer item.
+- Give each main item at least one brief explanation sentence.
+- Do not omit any listed main item.
+- Do not downgrade a listed main item into an additional note.`;
+      }
+    }
+
     const result = await this.llmService.generateAnswer({
       question: input.question,
-      systemPrompt: input.systemPrompt,
+      systemPrompt,
       answerPolicy,
       chunks: llmChunks
     });
@@ -110,7 +154,8 @@ export class AnsweringService {
       answerPolicy,
       chunks: input.chunks,
       contextGroups: input.contextGroups,
-      result
+      result,
+      summaryMainItems: isSummaryExperimentEnabled ? summaryMainItems : []
     });
   }
 
@@ -190,7 +235,14 @@ export class AnsweringService {
       citationMode: answerPolicy.citationMode,
       citationCount: 0,
       chunkCount: 0,
-      topScore: null
+      topScore: null,
+      coverageSummary: {
+        questionType: this.inferQuestionType(input.question),
+        topicCount: 0,
+        coveredTopicCount: 0,
+        coverageRatio: 1,
+        missingTopics: []
+      }
     });
 
     return {
@@ -198,8 +250,8 @@ export class AnsweringService {
       citations: [],
       retrievedChunks: [],
       contextGroups: [],
-        answeringMetadata: {
-          promptId: "answer.v2",
+      answeringMetadata: {
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy,
           resolvedLanguage: this.resolvePolicyLanguage(input.question, answerPolicy.language),
@@ -218,7 +270,14 @@ export class AnsweringService {
           answerTextSource: "deterministic_policy",
           insufficientContextReason: "no_retrieval_hits",
           answerStatusSource: "deterministic_policy",
-          answerStatus: "insufficient_context" as const
+          answerStatus: "insufficient_context" as const,
+          coverageSummary: {
+            questionType: this.inferQuestionType(input.question),
+            topicCount: 0,
+            coveredTopicCount: 0,
+            coverageRatio: 1,
+            missingTopics: []
+          }
         },
       modelName: "fallback-local",
       answerStatus: "insufficient_context" as const,
@@ -228,14 +287,15 @@ export class AnsweringService {
   }
 
   private finalizeResolvedAnswer(input: {
-    question: string;
-    answerPolicy: AnswerPolicy;
-    chunks: RetrievedChunk[];
-    contextGroups?: RetrievedContextGroup[];
-    result: {
-      answer: string;
-      modelName: string;
-      promptId: string;
+      question: string;
+      answerPolicy: AnswerPolicy;
+      chunks: RetrievedChunk[];
+      contextGroups?: RetrievedContextGroup[];
+      summaryMainItems?: string[];
+      result: {
+        answer: string;
+        modelName: string;
+        promptId: string;
       usedFallback?: boolean;
       answerStatus?: "grounded" | "insufficient_context";
       missingInformation?: string[];
@@ -262,6 +322,12 @@ export class AnsweringService {
     });
 
     if (input.chunks.length === 0) {
+      const coverageSummary = this.simpleCoverageCheck({
+        question: input.question,
+        answer,
+        chunks: input.chunks,
+        contextGroups: input.contextGroups
+      });
       const qualityEvaluation = this.buildQualityEvaluation({
         question: input.question,
         language: input.answerPolicy.language,
@@ -271,14 +337,15 @@ export class AnsweringService {
         citationMode: input.answerPolicy.citationMode,
         citationCount: 0,
         chunkCount: 0,
-        topScore: null
+        topScore: null,
+        coverageSummary
       });
 
       return {
         answer,
         modelName: input.result.modelName,
         answeringMetadata: {
-          promptId: input.result.promptId ?? "answer.v2",
+          promptId: input.result.promptId ?? "answer.v3",
           usedFallback,
           answerPolicy: input.answerPolicy,
           resolvedLanguage,
@@ -309,7 +376,9 @@ export class AnsweringService {
           answerStatusSource: this.resolveAnswerStatusSource({
             answerStatusProvided: input.result.answerStatus != null
           }),
-          answerStatus
+          answerStatus,
+          coverageSummary,
+          summaryMainItems: input.summaryMainItems ?? []
         },
         answerStatus,
         missingInformation,
@@ -341,6 +410,12 @@ export class AnsweringService {
         input.question
       )
     }));
+    const coverageSummary = this.simpleCoverageCheck({
+      question: input.question,
+      answer,
+      chunks: input.chunks,
+      contextGroups: input.contextGroups
+    });
     const qualityEvaluation = this.buildQualityEvaluation({
       question: input.question,
       language: input.answerPolicy.language,
@@ -351,14 +426,15 @@ export class AnsweringService {
       citationCount: citations.length,
       citationAttribution: citationSelection.attribution,
       chunkCount: input.chunks.length,
-      topScore: input.chunks[0]?.score ?? null
+      topScore: input.chunks[0]?.score ?? null,
+      coverageSummary
     });
 
     return {
       answer,
       modelName: input.result.modelName,
       answeringMetadata: {
-        promptId: input.result.promptId ?? "answer.v2",
+        promptId: input.result.promptId ?? "answer.v3",
         usedFallback,
         answerPolicy: input.answerPolicy,
         resolvedLanguage,
@@ -391,7 +467,8 @@ export class AnsweringService {
         answerStatusSource: this.resolveAnswerStatusSource({
           answerStatusProvided: input.result.answerStatus != null
         }),
-        answerStatus
+        answerStatus,
+        coverageSummary
       },
       answerStatus,
       missingInformation,
@@ -442,6 +519,162 @@ export class AnsweringService {
           ? input.result.citedChunkNumbers
           : [1]
     };
+  }
+
+  private async extractSummaryMainItemsExperiment(input: {
+    question: string;
+    chunks: Array<{
+      chunkId: string;
+      documentId: string;
+      documentTitle: string;
+      content: string;
+      score: number;
+      pageNo: number | null;
+      sectionTitle: string | null;
+    }>;
+  }) {
+    try {
+      const raw = await this.llmService.generateRawCompletion({
+        prompt: this.promptManager.buildSummaryMainItemsPrompt({
+          question: input.question,
+          chunks: input.chunks
+        })
+      });
+
+      return this.parseSummaryMainItemsExperiment(raw);
+    } catch {
+      return [];
+    }
+  }
+
+  private parseSummaryMainItemsExperiment(rawAnswer: string) {
+    const normalized = rawAnswer.trim();
+    if (!normalized) {
+      return [];
+    }
+
+    const candidates = [normalized];
+    const fencedMatch = normalized.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fencedMatch?.[1]) {
+      candidates.push(fencedMatch[1].trim());
+    }
+
+    const firstBrace = normalized.indexOf("{");
+    const lastBrace = normalized.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      candidates.push(normalized.slice(firstBrace, lastBrace + 1));
+    }
+
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate) as { mainItems?: unknown };
+        const items = Array.isArray(parsed.mainItems) ? parsed.mainItems : [];
+        const normalizedItems = items
+          .filter((value): value is string => typeof value === "string")
+          .map(value => value.trim())
+          .filter(Boolean);
+
+        if (normalizedItems.length > 0) {
+          return Array.from(new Set(normalizedItems)).slice(0, 6);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return [];
+  }
+
+  private inferQuestionType(question: string): "summary" | "other" {
+    return /总结|概括|列举|哪些|维度|挑战|方面|类型|主要|分别|归纳/.test(question)
+      ? "summary"
+      : "other";
+  }
+
+  private simpleCoverageCheck(input: {
+    question: string;
+    answer: string;
+    chunks: RetrievedChunk[];
+    contextGroups?: RetrievedContextGroup[];
+  }) {
+    const questionType = this.inferQuestionType(input.question);
+    if (questionType !== "summary") {
+      return {
+        questionType,
+        topicCount: 0,
+        coveredTopicCount: 0,
+        coverageRatio: 1,
+        missingTopics: []
+      };
+    }
+
+    const rawTopics = (input.contextGroups && input.contextGroups.length > 0
+      ? input.contextGroups.flatMap(group => group.sectionTitles)
+      : input.chunks.map(chunk => chunk.sectionTitle)
+    )
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map(value => value.trim().split(/\n/)[0] ?? value.trim())
+      .map(value => value.replace(/^#+\s*/, "").trim());
+
+    const uniqueTopics: string[] = [];
+    for (const topic of rawTopics) {
+      if (!this.isLikelyPrimaryTopic(topic) || uniqueTopics.includes(topic)) {
+        continue;
+      }
+
+      uniqueTopics.push(topic);
+    }
+
+    const limitedTopics = uniqueTopics.slice(0, 5);
+    const normalizedAnswer = input.answer.replace(/\s+/g, "").toLowerCase();
+
+    const coveredTopics = limitedTopics.filter(topic => {
+      const normalizedTopic = topic.replace(/\s+/g, "").toLowerCase();
+      const key = topic.split(/[：:（(]/)[0]?.trim() ?? topic;
+      const normalizedKey = key.replace(/\s+/g, "").toLowerCase();
+      const words = normalizedKey.split(/[、，,/\s]/).filter(w => w.length >= 2);
+
+      return (
+        normalizedAnswer.includes(normalizedTopic) ||
+        normalizedAnswer.includes(normalizedKey) ||
+        words.some(w => normalizedAnswer.includes(w))
+      );
+    });
+
+    const missingTopics = limitedTopics.filter(topic => !coveredTopics.includes(topic));
+
+    return {
+      questionType,
+      topicCount: limitedTopics.length,
+      coveredTopicCount: coveredTopics.length,
+      coverageRatio: limitedTopics.length === 0 ? 1 : coveredTopics.length / limitedTopics.length,
+      missingTopics
+    };
+  }
+
+  private isLikelyPrimaryTopic(topic: string) {
+    const normalized = topic.replace(/^#+\s*/, "").trim();
+    const key = normalized.split(/[：:（(]/)[0]?.trim() ?? normalized;
+
+    if (key.length < 2 || key.length > 24) {
+      return false;
+    }
+
+    if (
+      /^(结论|定义|背景|概述|指南|原则|说明|介绍|工作环境|健康生活方式指南|健康生活方式定义)$/.test(key)
+    ) {
+      return false;
+    }
+
+    if (/指南|定义|介绍|说明/.test(key)) {
+      return false;
+    }
+
+    if (/挑战|技术|应用|应用领域|维度|方面|类型|领域|措施/.test(key)) {
+      return true;
+    }
+
+    return key.length >= 2 && key.length <= 8;
   }
 
   private resolveAnswerText(input: {
@@ -722,6 +955,13 @@ export class AnsweringService {
     citationAttribution?: CitationSelection["attribution"];
     chunkCount: number;
     topScore: number | null;
+    coverageSummary?: {
+      questionType: "summary" | "other";
+      topicCount: number;
+      coveredTopicCount: number;
+      coverageRatio: number;
+      missingTopics: string[];
+    };
   }): QualityEvaluation {
     const flags: string[] = [];
 
@@ -735,6 +975,13 @@ export class AnsweringService {
 
     if (input.missingInformation.length > 0) {
       flags.push("missing_information");
+    }
+
+    if (
+      input.coverageSummary?.questionType === "summary" &&
+      input.coverageSummary.coverageRatio < 0.6
+    ) {
+      flags.push("coverage_gap");
     }
 
     if (input.topScore !== null && input.topScore < 0.5) {
@@ -755,9 +1002,33 @@ export class AnsweringService {
     const completeness =
       input.answerStatus === "insufficient_context"
         ? "insufficient"
-        : input.missingInformation.length > 0
+        : input.missingInformation.length > 0 || flags.includes("coverage_gap")
           ? "partial"
           : "complete";
+
+    if (
+      input.coverageSummary?.questionType === "summary" &&
+      input.answerStatus === "grounded" &&
+      input.coverageSummary.coverageRatio >= 0.7 &&
+      !flags.includes("missing_information") &&
+      !flags.includes("coverage_gap")
+    ) {
+      return {
+        overall: "strong",
+        grounding: "grounded",
+        completeness: "complete",
+        primaryIssue: "none",
+        flags: flags.filter(flag => flag !== "low_retrieval_score"),
+        summary: this.buildQualitySummary({
+          question: input.question,
+          language: input.language,
+          overall: "strong",
+          flags: [],
+          citationCount: input.citationCount,
+          citationAttribution: input.citationAttribution ?? "none"
+        })
+      };
+    }
 
     const overall =
       grounding === "ungrounded"
@@ -769,7 +1040,8 @@ export class AnsweringService {
                 "insufficient_context",
                 "no_retrieval_hits",
                 "low_retrieval_score",
-                "fallback_generation"
+                "fallback_generation",
+                "coverage_gap"
               ].includes(flag)
             )
           ? "strong"
@@ -789,8 +1061,10 @@ export class AnsweringService {
         ? "none"
         : flags.includes("no_retrieval_hits")
           ? "no_retrieval_hits"
-          : flags.includes("insufficient_context")
-            ? "insufficient_context"
+        : flags.includes("insufficient_context")
+          ? "insufficient_context"
+          : flags.includes("coverage_gap")
+            ? "missing_information"
             : flags.includes("fallback_generation")
                   ? "fallback_generation"
                 : flags.includes("missing_information")
@@ -801,7 +1075,7 @@ export class AnsweringService {
 
     const normalizedFlags =
       overall === "strong"
-        ? flags.filter(flag => !["missing_information", "insufficient_context", "no_retrieval_hits"].includes(flag))
+        ? flags.filter(flag => !["missing_information", "insufficient_context", "no_retrieval_hits", "coverage_gap"].includes(flag))
         : flags;
 
     return {

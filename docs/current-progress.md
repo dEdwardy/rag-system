@@ -18,6 +18,24 @@
 
 ## Recent Landed Increments
 
+- `RAG retrieval/answering quality baseline refresh` 完成了一轮以稳定性为目标的收口，并形成了当前可复用基线
+  - retrieval 默认配置已调整到更适合轻多跳和总结场景的组合：`topK` 提升、`chunkWindow=1`、`hybrid=ON`
+  - `apps/api/src/modules/retrieval/retrieval.service.ts` 已补充 retrieval diversity 选择，减少 topK 被同一 section 的相似 chunk 占满
+  - `apps/api/src/modules/answering/answering.service.ts` 已补充 `coverageSummary`，用于标记 summary/list 问题中“检到了但没写出来”的 coverage gap
+  - `apps/api/src/infra/llm/prompt-manager.service.ts` 已强化 summary prompt，要求优先覆盖并列主项
+  - `summaryMainItems` 两步实验已完成对照验证，但本轮明确不默认上线；实验开关保持关闭，避免把子项/示例误抬成主项
+  - 本轮质量结论：
+    - Fact：稳定可用
+    - 2 步以内轻多跳：稳定可用
+    - Summary / List：多数可用，但仍存在少量并列主项漏项 / 误归类边界
+  - 后续维护约束：
+    - 将当前 5 题及其同类题固定为回归评测集
+    - 为 summary/list 场景单独跟踪“漏主项率”和“错误归类率”
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/api build`
+    - `pnpm --filter @rag-system/api test:file -- test/answering.test.js`
+
 - `chat conversation UX` 又补了一轮很小的会话体验优化
   - `apps/web/src/pages/chat/ChatWorkspacePanels.tsx` 把会话重命名 / 删除收进了单个轻量菜单，减少了列表项里的视觉噪音
   - `apps/web/src/pages/chat/ChatPage.tsx` 在删除当前会话后会自动切到下一个可用会话，避免空白停留

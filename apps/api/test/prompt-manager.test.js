@@ -29,7 +29,7 @@ test("PromptManagerService builds versioned answer prompts", () => {
     ]
   });
 
-  assert.equal(prompt.promptId, "answer.v2");
+  assert.equal(prompt.promptId, "answer.v3");
   assert.match(prompt.systemPrompt, /assistant system prompt/);
   assert.match(prompt.userPrompt, /responseStyle=balanced/);
   assert.match(prompt.userPrompt, /tone=friendly/);
@@ -41,6 +41,7 @@ test("PromptManagerService builds versioned answer prompts", () => {
   assert.doesNotMatch(prompt.fullPrompt, /citationEvidence/);
   assert.match(prompt.fullPrompt, /"citations":\[1\]/);
   assert.match(prompt.fullPrompt, /"missingInformation":\["string"\]/);
+  assert.doesNotMatch(prompt.fullPrompt, /summary\/list-style/);
 });
 
 test("PromptManagerService truncates long retrieved source content in answer prompts", () => {
@@ -85,4 +86,38 @@ test("PromptManagerService builds versioned rewrite prompts", () => {
   assert.equal(prompt.promptId, "rewrite-query.v1");
   assert.match(prompt.fullPrompt, /Rewrite the following user question into a concise retrieval query/);
   assert.match(prompt.userPrompt, /Please tell me about product ABC in short/);
+});
+
+test("PromptManagerService appends summary coverage rules for summary-like questions", () => {
+  const service = new PromptManagerService();
+  const prompt = service.buildAnswerPrompt({
+    systemPrompt: "assistant system prompt",
+    question: "总结 AI 的关键技术有哪些？",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "friendly",
+      outputFormat: "bullets",
+      language: "same_as_question",
+      citationMode: "required",
+      maxCitations: 2,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: false
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "doc-1",
+        documentTitle: "Doc 1",
+        content: "Chunk content",
+        score: 0.9,
+        pageNo: 3,
+        sectionTitle: "Facts"
+      }
+    ]
+  });
+
+  assert.equal(prompt.promptId, "answer.v3");
+  assert.match(prompt.systemPrompt, /summary\/list-style question/);
+  assert.match(prompt.systemPrompt, /application areas/);
+  assert.match(prompt.systemPrompt, /Prefer coverage over aggressive brevity/);
 });

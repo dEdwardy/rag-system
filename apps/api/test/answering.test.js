@@ -98,7 +98,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
   assert.equal(result.citations.length, 1);
   assert.equal(result.citations[0].chunkId, "chunk-2");
   assert.deepEqual(result.answeringMetadata, {
-    promptId: "answer.v2",
+    promptId: "answer.v3",
     usedFallback: false,
     answerPolicy: {
       responseStyle: "balanced",
@@ -126,7 +126,14 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     answerTextSource: "model",
     insufficientContextReason: null,
     answerStatusSource: "model",
-    answerStatus: "grounded"
+    answerStatus: "grounded",
+    coverageSummary: {
+      questionType: "other",
+      topicCount: 0,
+      coveredTopicCount: 0,
+      coverageRatio: 1,
+      missingTopics: []
+    }
   });
 });
 
@@ -644,7 +651,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     }
   ]);
   assert.deepEqual(result.answeringMetadata, {
-    promptId: "answer.v2",
+    promptId: "answer.v3",
     usedFallback: false,
     answerPolicy: {
       responseStyle: "balanced",
@@ -672,7 +679,14 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     answerTextSource: "model",
     insufficientContextReason: null,
     answerStatusSource: "inferred_from_retrieval",
-    answerStatus: "grounded"
+    answerStatus: "grounded",
+    coverageSummary: {
+      questionType: "other",
+      topicCount: 0,
+      coveredTopicCount: 0,
+      coverageRatio: 1,
+      missingTopics: []
+    }
   });
 });
 

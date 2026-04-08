@@ -72,6 +72,79 @@ export class LlmService {
     return this.generateFallbackAnswerStream(input);
   }
 
+  async generateRawCompletion(input: {
+    prompt: {
+      systemPrompt: string;
+      userPrompt: string;
+      fullPrompt: string;
+    };
+  }): Promise<string> {
+    const runtimeConfig = resolveLlmRuntimeConfig();
+
+    if (runtimeConfig.ollamaBaseUrl && runtimeConfig.ollamaModel) {
+      const response = await fetch(`${runtimeConfig.ollamaBaseUrl}/api/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: runtimeConfig.ollamaModel,
+          prompt: input.prompt.fullPrompt,
+          stream: false,
+          options: {
+            temperature: 0
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama request failed: ${response.status} ${errorText}`);
+      }
+
+      const payload = (await response.json()) as { response?: string };
+      return payload.response?.trim() ?? "";
+    }
+
+    if (!runtimeConfig.openAiApiKey) {
+      return "";
+    }
+
+    const response = await fetch(`${runtimeConfig.openAiBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${runtimeConfig.openAiApiKey}`
+      },
+      body: JSON.stringify({
+        model: runtimeConfig.openAiChatModel,
+        temperature: 0,
+        reasoning_effort: "minimal",
+        messages: [
+          {
+            role: "system",
+            content: input.prompt.systemPrompt
+          },
+          {
+            role: "user",
+            content: input.prompt.userPrompt
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI request failed: ${response.status} ${errorText}`);
+    }
+
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    return payload.choices?.[0]?.message?.content?.trim() ?? "";
+  }
+
   async rewriteQuery(input: RewriteQueryInput): Promise<RewriteQueryOutput> {
     const runtimeConfig = resolveLlmRuntimeConfig();
 
