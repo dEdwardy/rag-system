@@ -225,7 +225,7 @@ export function TraceDetailSidebarPanels({ formatDateTime, hasRewrite, locale, s
 }
 
 export function TraceDetailSecondaryPanels({ citations, locale, sectionIds, t, trace }: TraceDetailSecondaryPanelsProps) {
-  const promptSnapshot =
+  const rawPromptSnapshot =
     trace.answeringMetadataJson &&
     typeof trace.answeringMetadataJson === "object" &&
     !Array.isArray(trace.answeringMetadataJson) &&
@@ -233,6 +233,15 @@ export function TraceDetailSecondaryPanels({ citations, locale, sectionIds, t, t
     trace.answeringMetadataJson.promptSnapshot !== null &&
     !Array.isArray(trace.answeringMetadataJson.promptSnapshot)
       ? trace.answeringMetadataJson.promptSnapshot
+      : null;
+  const promptSnapshot =
+    rawPromptSnapshot &&
+    typeof rawPromptSnapshot.systemPrompt === "string" &&
+    typeof rawPromptSnapshot.userPrompt === "string"
+      ? {
+          systemPrompt: rawPromptSnapshot.systemPrompt,
+          userPrompt: rawPromptSnapshot.userPrompt
+        }
       : null;
 
   return (

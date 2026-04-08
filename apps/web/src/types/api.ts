@@ -839,6 +839,8 @@ export type TraceRecord = {
     rerankScore?: number | null;
   }> | null;
   citationsJson: Citation[] | null;
+  retrievalMetadataJson?: AskRetrievalMetadata | JsonValue | null;
+  answeringMetadataJson?: AskAnsweringMetadata | JsonValue | null;
   modelName: string | null;
   latencyMs: number | null;
   traceSummary: TraceSummary;
