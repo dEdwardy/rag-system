@@ -28,7 +28,7 @@ import { AuditModule } from "./modules/audit/audit.module";
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: process.env.NODE_ENV === 'production' ? "apps/api/.env.production" : "apps/api/.env"
+      envFilePath: process.env.NODE_ENV === 'production' ? ".env.production" : ".env"
     }),
     DatabaseModule,
     StorageModule,
