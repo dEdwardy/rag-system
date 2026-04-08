@@ -1,6 +1,6 @@
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { AppShellOutletContext } from "../../app/AppShell";
 import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
@@ -21,7 +21,7 @@ import {
   getPrimaryKnowledgeBase
 } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
-import type { AskStreamEvent, AskStreamFinalData, Citation, Message } from "../../types/api";
+import type { AskStreamEvent, AskStreamFinalData, Citation, Conversation, Message } from "../../types/api";
 import { formatMessageTime } from "./chat-page-helpers";
 import {
   applyChatStreamEvent,
@@ -50,6 +50,17 @@ type SubmitQuestionOptions = {
   question?: string;
 };
 
+type ConversationOptimisticAction =
+  | {
+      type: "rename";
+      conversationId: string;
+      nextTitle: string;
+    }
+  | {
+      type: "delete";
+      conversationId: string;
+    };
+
 function resolveStreamConversationId(activeStreamTurn: ActiveStreamTurn | null): string | null {
   return activeStreamTurn?.latestResult?.conversationId ?? activeStreamTurn?.conversationId ?? null;
 }
@@ -77,6 +88,24 @@ function buildDisplayedMessages(
   }
 
   return items;
+}
+
+function applyConversationOptimisticAction(
+  conversations: Conversation[],
+  action: ConversationOptimisticAction
+): Conversation[] {
+  if (action.type === "rename") {
+    return conversations.map(conversation =>
+      conversation.id === action.conversationId
+        ? {
+            ...conversation,
+            title: action.nextTitle
+          }
+        : conversation
+    );
+  }
+
+  return conversations.filter(conversation => conversation.id !== action.conversationId);
 }
 
 function resolveStreamStatusLabel(
@@ -302,6 +331,21 @@ export function ChatPage() {
   const deleteConversationMutation = useDeleteConversation();
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
+  const [optimisticConversationSeed, setOptimisticConversationSeed] = useState(0);
+  const optimisticConversationBase = useMemo(
+    () => ({
+      seed: optimisticConversationSeed,
+      items: conversationsQuery.data ?? []
+    }),
+    [conversationsQuery.data, optimisticConversationSeed]
+  );
+  const [optimisticConversationState, addOptimisticConversation] = useOptimistic(
+    optimisticConversationBase,
+    (current, action: ConversationOptimisticAction) => ({
+      seed: current.seed,
+      items: applyConversationOptimisticAction(current.items, action)
+    })
+  );
   const chatCopy = useMemo(
     () => ({
       heroTitle: t("chat.copy.heroTitle"),
@@ -567,12 +611,19 @@ export function ChatPage() {
         return;
       }
 
+      addOptimisticConversation({
+        type: "rename",
+        conversationId,
+        nextTitle
+      });
+
       try {
         await updateConversationMutation.mutateAsync({
           conversationId,
           input: { title: nextTitle }
         });
       } catch (error) {
+        setOptimisticConversationSeed(seed => seed + 1);
         notifications.show({
           color: "red",
           message: error instanceof Error ? error.message : chatCopy.renameConversationError
@@ -581,7 +632,8 @@ export function ChatPage() {
     },
     [
       chatCopy.renameConversationError,
-      chatCopy.renameConversationPrompt,
+    chatCopy.renameConversationPrompt,
+      addOptimisticConversation,
       updateConversationMutation
     ]
   );
@@ -593,14 +645,20 @@ export function ChatPage() {
         return;
       }
 
+      addOptimisticConversation({
+        type: "delete",
+        conversationId
+      });
+
       try {
         await deleteConversationMutation.mutateAsync(conversationId);
         if (activeConversationId === conversationId) {
           const nextConversationId =
-            conversationsQuery.data?.find(conversation => conversation.id !== conversationId)?.id ?? null;
+            optimisticConversationState.items.find(conversation => conversation.id !== conversationId)?.id ?? null;
           setActiveConversationId(nextConversationId);
         }
       } catch (error) {
+        setOptimisticConversationSeed(seed => seed + 1);
         notifications.show({
           color: "red",
           message: error instanceof Error ? error.message : chatCopy.deleteConversationError
@@ -609,9 +667,10 @@ export function ChatPage() {
     },
     [
       activeConversationId,
+      addOptimisticConversation,
       chatCopy.deleteConversationConfirm,
       chatCopy.deleteConversationError,
-      conversationsQuery.data,
+      optimisticConversationState.items,
       deleteConversationMutation
     ]
   );
@@ -695,6 +754,8 @@ export function ChatPage() {
     },
     [displayedMessages]
   );
+
+  const conversationsForWorkspace = optimisticConversationState.items;
 
   const summaryCards = [
     {
@@ -1044,7 +1105,7 @@ export function ChatPage() {
             viewTrace: chatCopy.viewTrace
           }}
           citationItems={citationItems}
-          conversations={conversationsQuery.data}
+          conversations={conversationsForWorkspace}
           conversationsError={conversationsQuery.error}
           conversationsLoading={conversationsQuery.isLoading}
           desktopPanel={desktopPanel}

@@ -193,3 +193,13 @@
 - 当前阶段判断已经按代码现实收正：`P3` / 当前这轮 `P4` / `P5` 是已完成主开发或收口的阶段，不再默认作为下一步主线。
 - 具体下一步方向以 [docs/next_steps_rag_project_plan.md](D:\FeProjects\rag-system\docs\next_steps_rag_project_plan.md) 的更新版口径为主。
 - API review 的输入校验 follow-up 已继续推进一小步：当前 controller 侧 `@Body()` / `@Query()` 已开始迁移到 `ZodValidationPipe`，路由参数按仓库主键实际形态补的是非空字符串参数 pipe；仍不为了“全局验证”或类型安全把现有校验体系整体切到 `class-validator` / `class-transformer` DTO 栈。
+
+## Recent React 19 UX Pass
+
+- `apps/web` completed a small React 19 user-experience pass focused on the highest-traffic flows, without changing backend contracts.
+  - `ChatPage` conversation rename/delete now uses optimistic UI updates.
+  - `UsagePage`, `ReportCenterPage`, and `TraceListPage` now defer heavy list recomputation and transitions so selection changes feel more responsive.
+  - `LoginPage`, `InviteGatePage`, and `AssistantSettingsForm` now use more consistent pending feedback and input blocking during submission / save.
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/chat/ChatPage.tsx apps/web/src/pages/usage/UsagePage.tsx apps/web/src/pages/reports/ReportCenterPage.tsx apps/web/src/pages/traces/TraceListPage.tsx apps/web/src/pages/auth/LoginPage.tsx apps/web/src/pages/auth/InviteGatePage.tsx apps/web/src/pages/assistant/AssistantSettingsForm.tsx`

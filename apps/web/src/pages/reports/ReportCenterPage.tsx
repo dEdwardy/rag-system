@@ -1,6 +1,6 @@
 import { Badge, Button, Paper, Select, Stack, Text, TextInput, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { lazy, Suspense, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, type FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
@@ -650,6 +650,7 @@ export function ReportCenterPage() {
   const runEvalMutation = useRunEvalQuestionSet();
   const { locale, formatDateTime } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isRunPending, startRunTransition] = useTransition();
   const [questionSetId, setQuestionSetId] = useState(() => searchParams.get("questionSetId") ?? "");
   const [assistantId, setAssistantId] = useState(() => searchParams.get("assistantId") ?? "");
   const [baselineSnapshotId, setBaselineSnapshotId] = useState(() => searchParams.get("baselineSnapshotId") ?? "");
@@ -666,6 +667,9 @@ export function ReportCenterPage() {
   const [reviewNote, setReviewNote] = useState("");
   const [reviewUpdatedAt, setReviewUpdatedAt] = useState<string | null>(null);
   const itemRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const deferredRunItems = useDeferredValue(runEvalMutation.data?.items ?? []);
+  const deferredReviewedItemKeys = useDeferredValue(reviewedItemKeys);
+  const deferredReviewConclusions = useDeferredValue(reviewConclusions);
 
   const assistantOptions = useMemo(
     () =>
@@ -706,7 +710,7 @@ export function ReportCenterPage() {
     }
   }, [assistantId, baselineSnapshotId, questionSetId, searchParams, setSearchParams]);
 
-  const evalRunStatus = runEvalMutation.isPending
+  const evalRunStatus = runEvalMutation.isPending || isRunPending
     ? "running"
     : runEvalMutation.isError
       ? "failed"
@@ -741,12 +745,12 @@ export function ReportCenterPage() {
             : "Idle";
 
   const qualitySummaryRows = useMemo(() => {
-    if (!runEvalMutation.data) {
+    if (deferredRunItems.length === 0) {
       return [];
     }
 
     const counts = new Map<string, number>();
-    for (const item of runEvalMutation.data.items) {
+    for (const item of deferredRunItems) {
       const quality = item.qualityOverall ?? (locale === "zh" ? "未标注" : "unlabeled");
       counts.set(quality, (counts.get(quality) ?? 0) + 1);
     }
@@ -754,7 +758,7 @@ export function ReportCenterPage() {
     return Array.from(counts.entries())
       .map(([quality, count]) => ({ quality, count }))
       .sort((a, b) => b.count - a.count);
-  }, [locale, runEvalMutation.data]);
+  }, [deferredRunItems, locale]);
 
   const regressionDrilldownItems = useMemo(() => runEvalMutation.data?.baselineComparison?.failureDrilldown?.weakestItems ?? [], [runEvalMutation.data]);
   const firstRegressionDrilldownItem = regressionDrilldownItems[0];
@@ -768,11 +772,8 @@ export function ReportCenterPage() {
     hasRunItems
   });
   const runItemsByKey = useMemo(
-    () =>
-      new Map(
-        (runEvalMutation.data?.items ?? []).map(item => [getEvalItemKey(item.index, item.question), item])
-      ),
-    [runEvalMutation.data?.items]
+    () => new Map(deferredRunItems.map(item => [getEvalItemKey(item.index, item.question), item])),
+    [deferredRunItems]
   );
   const priorityReplayItem = firstRegressionDrilldownItem
     ? runItemsByKey.get(getEvalItemKey(firstRegressionDrilldownItem.index, firstRegressionDrilldownItem.question)) ?? null
@@ -792,9 +793,9 @@ export function ReportCenterPage() {
         startedAt: runEvalMutation.data.startedAt
       })
     : null;
-  const reviewedItemKeySet = useMemo(() => new Set(reviewedItemKeys), [reviewedItemKeys]);
+  const reviewedItemKeySet = useMemo(() => new Set(deferredReviewedItemKeys), [deferredReviewedItemKeys]);
   const topPriorityReviewedCount = topPriorityReviewItems.filter(({ item }) => reviewedItemKeySet.has(getEvalItemKey(item.index, item.question))).length;
-  const reviewedRunItemCount = (runEvalMutation.data?.items ?? []).filter(item => reviewedItemKeySet.has(getEvalItemKey(item.index, item.question))).length;
+  const reviewedRunItemCount = deferredRunItems.filter(item => reviewedItemKeySet.has(getEvalItemKey(item.index, item.question))).length;
   const reviewConclusionCount = Object.keys(reviewConclusions).length;
   const reviewConclusionSummary = useMemo(() => {
     const counts = new Map<ReviewConclusion, number>();
@@ -811,17 +812,17 @@ export function ReportCenterPage() {
     () => (conclusionGuidance ? getConclusionPathGuidance(conclusionGuidance.conclusion, locale) : null),
     [conclusionGuidance, locale]
   );
-  const pendingReviewCount = (runEvalMutation.data?.items ?? []).filter(item => !reviewedItemKeySet.has(getEvalItemKey(item.index, item.question))).length;
+  const pendingReviewCount = deferredRunItems.filter(item => !reviewedItemKeySet.has(getEvalItemKey(item.index, item.question))).length;
   const firstPendingImprovementItem = useMemo(() => {
-    if (!conclusionGuidance || !runEvalMutation.data?.items) {
+    if (!conclusionGuidance || deferredRunItems.length === 0) {
       return null;
     }
 
-    return runEvalMutation.data.items.find(item => {
+    return deferredRunItems.find(item => {
       const itemKey = getEvalItemKey(item.index, item.question);
-      return !reviewedItemKeySet.has(itemKey) && reviewConclusions[itemKey] === conclusionGuidance.conclusion;
+      return !reviewedItemKeySet.has(itemKey) && deferredReviewConclusions[itemKey] === conclusionGuidance.conclusion;
     }) ?? null;
-  }, [conclusionGuidance, reviewConclusions, reviewedItemKeySet, runEvalMutation.data?.items]);
+  }, [conclusionGuidance, deferredRunItems, deferredReviewConclusions, reviewedItemKeySet]);
 
   const applyImprovementFocusQueue = () => {
     if (!conclusionGuidance) {
@@ -1107,7 +1108,9 @@ export function ReportCenterPage() {
 
     const nextSearchParams = mergeSearchParamsWithEvalRunParams(searchParams, evalRunParams);
     setSearchParams(nextSearchParams, { replace: true });
-    await runEvalMutation.mutateAsync(evalRunParams);
+    startRunTransition(() => {
+      void runEvalMutation.mutateAsync(evalRunParams);
+    });
   }
 
   const [exporting, setExporting] = useState<string | null>(null);
@@ -1357,7 +1360,7 @@ export function ReportCenterPage() {
             />
 
             <div className="md:col-span-3">
-              <Button className="workspace-button w-full" color="indigo" loading={runEvalMutation.isPending} radius="xl" type="submit" variant="light" size="md">
+              <Button className="workspace-button w-full" color="indigo" loading={runEvalMutation.isPending || isRunPending} radius="xl" type="submit" variant="light" size="md">
                 {locale === "zh" ? "开始质量检查" : "Run quality check"}
               </Button>
             </div>
