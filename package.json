@@ -30,7 +30,13 @@
     "test:api:e2e:chains": "pnpm --filter @rag-system/api test:e2e:chains",
     "test:api:e2e:sources": "pnpm --filter @rag-system/api test:e2e:sources",
     "test:api:e2e": "pnpm --filter @rag-system/api test:e2e",
-    "test:web-smoke": "pnpm --filter @rag-system/api build && pnpm --filter @rag-system/web build && node --test apps/web/test/pc-web-smoke.test.js"
+    "test:web": "pnpm --filter @rag-system/web test:all",
+    "test:web:guard": "pnpm --filter @rag-system/web test:guard",
+    "test:web:guard:legacy": "pnpm --filter @rag-system/web test:guard:legacy",
+    "test:web:legacy": "pnpm --filter @rag-system/web test:legacy",
+    "test:web:smoke": "pnpm --filter @rag-system/web test:smoke:legacy",
+    "test:web:smoke:legacy": "pnpm --filter @rag-system/web test:smoke:legacy",
+    "test:web-smoke": "pnpm run test:web:smoke"
   },
   "dependencies": {
     "recharts": "^3.8.1"

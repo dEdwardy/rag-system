@@ -242,7 +242,7 @@ export function resolveRetrievalStrategy(input: {
 
   return {
     queryRewrite: {
-      enabled: normalizedStrategy?.queryRewrite?.enabled ?? true
+      enabled: normalizedStrategy?.queryRewrite?.enabled ?? false
     },
     candidateSelection: {
       mode:

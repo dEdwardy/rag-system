@@ -134,8 +134,16 @@ Current shape includes:
 - `answerStatusSource`
 - `insufficientContextReason`
 - `answerStatus`
+- `coverageSummary`
+- `summaryMainItems` (currently experimental-only and expected to remain empty on the default shipped path)
 
 This is the stable summary of how answer generation actually ran for the trace.
+
+Current interpretation rules:
+
+- `coverageSummary` is a diagnostic signal for summary/list answer analysis.
+- `coverageSummary` should be used for trace reading, evaluation, and quality diagnosis, but not as a direct main-path controller for answer generation.
+- the `summaryMainItems` two-step answering experiment is not part of the default path; when the experiment flag is off, `summaryMainItems` should stay empty / absent and should not affect prompt construction or answer generation behavior.
 
 ## Trace read summary
 
@@ -218,6 +226,7 @@ When retrieval itself throws before the normal success-path trace would have bee
 
 - query rewrite is single-shot and does not yet use conversation history
 - rerank is heuristic and local, not a dedicated reranker model
+- summary/list answers are mostly usable, but there is still a small boundary around missing peer main items or occasional misclassification of peer items
 
 ## Current trace UI behavior
 

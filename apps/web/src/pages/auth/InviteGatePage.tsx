@@ -20,6 +20,7 @@ export function InviteGatePage() {
     event.preventDefault();
 
     setIsVerifying(true);
+    setError(null);
 
     if (matchesInviteCode(inviteCode)) {
       acceptInviteGate();
@@ -113,10 +114,11 @@ export function InviteGatePage() {
                       radius="xl"
                       spellCheck={false}
                       value={inviteCode}
+                      disabled={isVerifying}
                     />
 
                   <Button className="workspace-button" color="indigo" loading={isVerifying} radius="xl" type="submit" variant="light">
-                    {isVerifying ? (locale === "zh" ? "验证中" : "Verifying") : locale === "zh" ? "继续" : "Continue"}
+                    {isVerifying ? (locale === "zh" ? "正在验证" : "Verifying") : locale === "zh" ? "继续" : "Continue"}
                   </Button>
 
                   <Text c="var(--app-text-muted)" size="xs">

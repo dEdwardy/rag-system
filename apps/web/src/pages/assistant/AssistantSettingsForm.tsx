@@ -24,7 +24,13 @@ import {
 } from "./assistant-config-form";
 
 function hasAdvancedTuningOverrides(retrievalProfile: RetrievalProfile) {
-  return Boolean(retrievalProfile.enableHybrid || retrievalProfile.enableRerank || retrievalProfile.strategyJson);
+  return Boolean(
+    retrievalProfile.enableHybrid ||
+      retrievalProfile.enableRerank ||
+      retrievalProfile.strategyJson?.candidateSelection ||
+      retrievalProfile.strategyJson?.hybrid ||
+      retrievalProfile.strategyJson?.rerank
+  );
 }
 
 function hasFilterOverrides(retrievalProfile: RetrievalProfile) {
@@ -88,7 +94,7 @@ export function AssistantSettingsForm({
                       {t("assistant.copy.assistantIdentityCopy")}
                     </Text>
                   </div>
-                  <Button className="workspace-button" color="gray" data-testid="assistant-basics-toggle" onClick={() => setIsBasicsExpanded(current => !current)} radius="xl" size="xs" variant="light">
+                  <Button className="workspace-button" color="gray" data-testid="assistant-basics-toggle" onClick={() => setIsBasicsExpanded(current => !current)} radius="xl" size="xs" variant="light" disabled={isSaving}>
                     {isBasicsExpanded ? t("assistant.hideAssistantBasics") : t("assistant.showAssistantBasics")}
                   </Button>
                 </Group>
@@ -166,6 +172,11 @@ export function AssistantSettingsForm({
                   </Grid.Col>
                 </Grid>
 
+                <Switch
+                  checked={form.values.queryRewriteEnabled}
+                  label={t("assistant.queryRewriteEnabled")}
+                  onChange={event => form.setFieldValue("queryRewriteEnabled", event.currentTarget.checked)}
+                />
                 <Switch checked={form.values.includeMissingInformation} label={t("assistant.includeMissingInformation")} onChange={event => form.setFieldValue("includeMissingInformation", event.currentTarget.checked)} />
               </Stack>
             </Paper>
@@ -203,7 +214,7 @@ export function AssistantSettingsForm({
                     <Text className="workspace-section-heading">{t("assistant.advancedTuning")}</Text>
                     <Text c="var(--app-text-muted)" size="sm">{t("assistant.copy.advancedTuningCopy")}</Text>
                   </div>
-                  <Button className="workspace-button" color="gray" onClick={() => setIsAdvancedTuningExpanded(current => !current)} radius="xl" size="xs" variant="light">
+                  <Button className="workspace-button" color="gray" onClick={() => setIsAdvancedTuningExpanded(current => !current)} radius="xl" size="xs" variant="light" disabled={isSaving}>
                     {isAdvancedTuningExpanded ? t("assistant.hideAdvancedTuning") : t("assistant.showAdvancedTuning")}
                   </Button>
                 </Group>
@@ -232,9 +243,6 @@ export function AssistantSettingsForm({
                           <NumberInput classNames={{ input: "workspace-input" }} decimalScale={2} label={t("assistant.hybridLexicalWeight")} max={1} min={0} step={0.05} {...form.getInputProps("hybridLexicalWeight")} />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
-                          <Switch checked={form.values.queryRewriteEnabled} label={t("assistant.queryRewriteEnabled")} onChange={event => form.setFieldValue("queryRewriteEnabled", event.currentTarget.checked)} />
-                        </Grid.Col>
-                        <Grid.Col span={{ base: 12, md: 6 }}>
                           <Switch checked={form.values.rerankStrategyEnabled} label={t("assistant.rerankStrategyEnabled")} onChange={event => form.setFieldValue("rerankStrategyEnabled", event.currentTarget.checked)} />
                         </Grid.Col>
                       </Grid>
@@ -257,7 +265,7 @@ export function AssistantSettingsForm({
                     <Text className="workspace-section-heading">{t("assistant.retrievalFiltersSection")}</Text>
                     <Text c="var(--app-text-muted)" size="sm">{t("assistant.filterHelp")}</Text>
                   </div>
-                  <Button className="workspace-button" color="gray" onClick={() => setIsFiltersExpanded(current => !current)} radius="xl" size="xs" variant="light">
+                  <Button className="workspace-button" color="gray" onClick={() => setIsFiltersExpanded(current => !current)} radius="xl" size="xs" variant="light" disabled={isSaving}>
                     {isFiltersExpanded ? t("assistant.hideFilters") : t("assistant.showFilters")}
                   </Button>
                 </Group>
@@ -315,8 +323,13 @@ export function AssistantSettingsForm({
                       : `${documentCount} library items will use these settings.`
                     : t("assistant.copy.heroSubtitle")}
                 </Text>
+                {isSaving ? (
+                  <Text c="var(--app-text-muted)" size="xs">
+                    {locale === "zh" ? "正在保存设置..." : "Saving settings..."}
+                  </Text>
+                ) : null}
                 <Button className="workspace-button" color="indigo" loading={isSaving} radius="xl" type="submit">
-                  {t("common.actions.saveChanges")}
+                  {isSaving ? (locale === "zh" ? "保存中" : "Saving") : t("common.actions.saveChanges")}
                 </Button>
               </Stack>
             </Paper>

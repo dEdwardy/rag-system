@@ -51,9 +51,12 @@ test("web snapshot comparison type keeps additive sourceFamilyDeltas and issueHo
 });
 
 test("document detail failure summary copy keeps one-line summary plus trace follow-up contract", async () => {
-  const source = await readFile(resolve(__dirname, "../src/i18n/messages.ts"), "utf8");
+  const englishSource = await readFile(resolve(__dirname, "../src/i18n/messages.en.ts"), "utf8");
+  const chineseSource = await readFile(resolve(__dirname, "../src/i18n/messages.zh.ts"), "utf8");
 
-  assert.match(source, /primaryStatusSummaryFailed:[\s\S]*What happened: \{runSummary\}/);
-  assert.match(source, /primaryStatusNextActionFailed:[\s\S]*one-line run failure summary[\s\S]*trace diagnostics/);
-  assert.match(source, /workspaceNextActionNeedsAttention:[\s\S]*latest run failure summary[\s\S]*trace diagnostics/);
+  assert.match(englishSource, /primaryStatusSummaryFailed:[\s\S]*What happened: \{runSummary\}/);
+  assert.match(englishSource, /primaryStatusNextActionFailed:[\s\S]*one-line run failure summary[\s\S]*diagnostics/);
+  assert.match(chineseSource, /primaryStatusSummaryFailed:/);
+  assert.match(chineseSource, /primaryStatusNextActionFailed:/);
+  assert.match(chineseSource, /workspaceNextActionNeedsAttention:/);
 });

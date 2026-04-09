@@ -17,6 +17,7 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [transitionTarget, setTransitionTarget] = useState<null | "github" | "google" | "oidc" | "password">(null);
+  const isBusy = transitionTarget != null || loginMutation.isPending;
   const githubOauthStartUrl = resolveApiUrl("/auth/oauth/github/start");
   const googleOauthStartUrl = resolveApiUrl("/auth/oauth/google/start");
   const oidcOauthStartUrl = resolveApiUrl("/auth/oauth/oidc/start");
@@ -153,7 +154,7 @@ export function LoginPage() {
           {t("auth.login.email")}
         </label>
         <input
-          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)]"
+          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           autoComplete="email"
           id="email"
           name="email"
@@ -162,13 +163,14 @@ export function LoginPage() {
           spellCheck={false}
           type="email"
           value={email}
+          disabled={isBusy}
         />
 
         <label className="mt-4 block text-sm text-[var(--app-text-secondary)]" htmlFor="password">
           {t("auth.login.password")}
         </label>
         <input
-          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)]"
+          className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           autoComplete="current-password"
           id="password"
           name="password"
@@ -176,6 +178,7 @@ export function LoginPage() {
           placeholder="••••••••"
           type="password"
           value={password}
+          disabled={isBusy}
         />
 
         <div className="mt-5 space-y-2">
@@ -215,12 +218,24 @@ export function LoginPage() {
           <p aria-live="polite" className="mt-3 text-sm text-red-400" role="alert">{loginMutation.error.message}</p>
         ) : null}
 
+        {isBusy ? (
+          <p aria-live="polite" className="mt-3 text-xs text-[var(--app-text-muted)]">
+            {transitionTarget === "password"
+              ? locale === "zh"
+                ? "姝ｅ湪楠岃瘉鐧诲綍淇℃伅..."
+                : "Verifying credentials..."
+              : locale === "zh"
+                ? "姝ｅ湪鎵撳紑鐧诲綍娴佺▼..."
+                : "Opening the sign-in flow..."}
+          </p>
+        ) : null}
+
         <button
           className="mt-5 w-full rounded-xl bg-[var(--app-accent)] px-4 py-2.5 text-sm font-medium text-white transition-[transform,box-shadow,background-color] duration-150 hover:-translate-y-0.5 hover:bg-[var(--app-accent-strong)] hover:shadow-[0_10px_24px_var(--app-accent-glow)] disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={loginMutation.isPending}
+          disabled={isBusy}
           type="submit"
         >
-          {loginMutation.isPending ? t("auth.login.submitting") : t("auth.login.submit")}
+          {loginMutation.isPending || transitionTarget === "password" ? t("auth.login.submitting") : t("auth.login.submit")}
         </button>
       </form>
     </div>

@@ -8,11 +8,22 @@ export class ConcurrencyLimiter {
   }
 
   async execute<T>(fn: () => Promise<T>): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
+    const { result } = await this.executeMeasured(fn);
+    return result;
+  }
+
+  async executeMeasured<T>(fn: () => Promise<T>): Promise<{ result: T; waitMs: number; runMs: number }> {
+    return new Promise<{ result: T; waitMs: number; runMs: number }>((resolve, reject) => {
+      const queuedAt = Date.now();
       const task = () => {
+        const startedAt = Date.now();
         this.activeCount++;
         fn()
-          .then(resolve)
+          .then(result => resolve({
+            result,
+            waitMs: startedAt - queuedAt,
+            runMs: Date.now() - startedAt
+          }))
           .catch(reject)
           .finally(() => {
             this.activeCount--;

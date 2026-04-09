@@ -528,6 +528,10 @@ export type AskRetrievalMetadata = {
 export type AskAnsweringMetadata = {
   promptId: string;
   usedFallback: boolean;
+  promptSnapshot?: {
+    systemPrompt: string;
+    userPrompt: string;
+  };
   answerPolicy: AnswerPolicy;
   resolvedLanguage: TraceResolvedLanguage;
   generationMode: TraceGenerationMode;
@@ -737,6 +741,8 @@ export type AskResponse = {
   retrievalModeProvenanceSentence?: TraceSummary["retrievalModeProvenanceSentence"];
   rewriteReadabilityLabel?: TraceSummary["rewriteReadabilityLabel"];
   retrievalMetadata?: AskRetrievalMetadata;
+  timingSummary?: TraceSummary["timingSummary"];
+  timingReadabilitySentence?: TraceSummary["timingReadabilitySentence"];
   answerAttributionSummary?: TraceAnswerAttributionSummary;
   answerAttributionReadabilitySentence?: TraceSummary["answerAttributionReadabilitySentence"];
   answerAttribution?: TraceCitationAttribution | null;
@@ -799,6 +805,10 @@ export type Conversation = {
   updatedAt: string;
 };
 
+export type UpdateConversationInput = {
+  title?: string;
+};
+
 export type Message = {
   id: string;
   conversationId: string;
@@ -833,6 +843,8 @@ export type TraceRecord = {
     rerankScore?: number | null;
   }> | null;
   citationsJson: Citation[] | null;
+  retrievalMetadataJson?: AskRetrievalMetadata | JsonValue | null;
+  answeringMetadataJson?: AskAnsweringMetadata | JsonValue | null;
   modelName: string | null;
   latencyMs: number | null;
   traceSummary: TraceSummary;

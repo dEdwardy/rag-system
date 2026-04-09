@@ -26,7 +26,8 @@ export class ConversationsService {
       select: this.conversationListSelect,
       where: {
         tenantId: scope.tenantId,
-        userId: scope.userId
+        userId: scope.userId,
+        status: ConversationStatus.active
       },
       orderBy: this.defaultOrderBy
     });
@@ -55,6 +56,35 @@ export class ConversationsService {
         ...input,
         status: ConversationStatus.active
       }
+    });
+  }
+
+  async updateConversation(
+    id: string,
+    scope: { tenantId: string; userId: string },
+    input: { title?: string; status?: ConversationStatus }
+  ) {
+    await this.getConversation(id, scope);
+
+    return this.prisma.conversation.update({
+      where: { id },
+      data: {
+        ...(input.title != null ? { title: input.title.trim() } : {}),
+        ...(input.status != null ? { status: input.status } : {})
+      },
+      select: this.conversationListSelect
+    });
+  }
+
+  async deleteConversation(id: string, scope: { tenantId: string; userId: string }) {
+    await this.getConversation(id, scope);
+
+    return this.prisma.conversation.update({
+      where: { id },
+      data: {
+        status: ConversationStatus.archived
+      },
+      select: this.conversationListSelect
     });
   }
 

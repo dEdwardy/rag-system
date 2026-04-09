@@ -1,5 +1,5 @@
 import { Badge, Button, Paper, Select, Stack } from "@mantine/core";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useDeferredValue, useMemo, useState, useTransition } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -34,12 +34,14 @@ const UsageHealthBoard = lazy(async () => {
 
 export function UsagePage() {
   const [timeRange, setTimeRange] = useState<number>(24); // 默认24小时
-  
+  const [isTimeRangePending, startTimeRangeTransition] = useTransition();
+  const deferredTimeRange = useDeferredValue(timeRange);
+
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
   const conversationsQuery = useConversations();
   const apiHealthQuery = useApiHealth();
-  const auditEventsQuery = useAuditEvents({ issueOnly: true, sinceHours: timeRange, limit: 5 });
+  const auditEventsQuery = useAuditEvents({ issueOnly: true, sinceHours: deferredTimeRange, limit: 5 });
   const issueTrend1hQuery = useAuditEvents({ issueOnly: true, sinceHours: 1, limit: 100 });
   const issueTrend6hQuery = useAuditEvents({ issueOnly: true, sinceHours: 6, limit: 100 });
   const issueTrend24hQuery = useAuditEvents({ issueOnly: true, sinceHours: 24, limit: 100 });
@@ -48,10 +50,10 @@ export function UsagePage() {
   const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
   const runSummary1hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 1 });
   const runSummary6hQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: 6 });
-  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: timeRange });
+  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(activeKnowledgeBase?.id ?? null, { sinceHours: deferredTimeRange });
   const anomalyRunsQuery = useKnowledgeBaseDocumentRuns(activeKnowledgeBase?.id ?? null, {
     issueOnly: true,
-    sinceHours: timeRange,
+    sinceHours: deferredTimeRange,
     limit: 100
   });
   const latestIssueRunPair = useMemo(() => {
@@ -209,7 +211,7 @@ export function UsagePage() {
     recentIssueCount,
     nonRetryableFailureCount,
     retryableFailureCount,
-    timeRange
+    deferredTimeRange
   ]);
 
 
@@ -235,7 +237,7 @@ export function UsagePage() {
     recentIssueCount,
     runSummaryActionTarget,
     retryableFailureCount,
-    timeRange
+    deferredTimeRange
   ]);
 
   const healthPanelErrorMessage =
@@ -551,7 +553,12 @@ export function UsagePage() {
             <div className="w-full md:w-auto">
               <Select
                 value={timeRange.toString()}
-                onChange={(value) => setTimeRange(parseInt(value || "24"))}
+                onChange={(value) => {
+                  const nextValue = parseInt(value || "24");
+                  startTimeRangeTransition(() => {
+                    setTimeRange(nextValue);
+                  });
+                }}
                 data={[
                   { value: "1", label: locale === "zh" ? "1小时" : "1h" },
                   { value: "6", label: locale === "zh" ? "6小时" : "6h" },
@@ -561,6 +568,7 @@ export function UsagePage() {
                 ]}
                 className="w-full md:w-40 workspace-input"
                 label={locale === "zh" ? "时间范围" : "Time range"}
+                rightSection={isTimeRangePending ? <span className="h-3 w-3 animate-spin rounded-full border border-[var(--app-border)] border-t-[var(--app-accent)]" /> : null}
               />
             </div>
             <Badge color={processingDocuments > 0 ? "yellow" : "indigo"} radius="sm" variant="light">

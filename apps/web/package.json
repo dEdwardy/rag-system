@@ -9,7 +9,12 @@
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "test:smoke": "node --test test/pc-web-smoke.test.js"
+    "test:all": "pnpm run test:guard",
+    "test:guard": "node --test test/api-refresh.test.js test/api-stream.test.js test/ask-answering-metadata-contract.test.js test/ask-context-groups-contract.test.js test/ask-quality-evaluation-contract.test.js test/ask-retrieval-metadata-contract.test.js test/assistant-config.test.js test/chat-page-helpers.test.js test/chat-stream-state.test.js test/desktop-shell-consistency.test.js test/document-run-contract.test.js test/document-run-observability.test.js test/documents-page-helpers.test.js test/knowledge-base-page-helpers.test.js test/report-center-page-helpers.test.js test/state-panel-theme.test.js test/theme-preferences.test.js test/trace-router.test.js test/trace-summary-contract.test.js test/usage-page-helpers.test.js test/workspace-selection.test.js",
+    "test:guard:legacy": "node --test test/i18n-copy.test.js test/ui-review-regressions.test.js",
+    "test:legacy": "pnpm run test:guard:legacy",
+    "test:smoke": "pnpm run test:smoke:legacy",
+    "test:smoke:legacy": "pnpm --filter @rag-system/api build && pnpm --filter @rag-system/web build && node --test test/pc-web-smoke.test.js"
   },
   "dependencies": {
     "@mantine/core": "^8.1.2",

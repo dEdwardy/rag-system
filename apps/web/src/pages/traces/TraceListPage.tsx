@@ -11,6 +11,7 @@ import {
   Text,
   Title
 } from "@mantine/core";
+import { useDeferredValue, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useConversations, useLatestConversationTraces } from "../../features/api/hooks";
@@ -95,15 +96,16 @@ function TraceConversationCard({
 export function TraceListPage() {
   const conversationsQuery = useConversations();
   const { t } = useI18n();
-  const conversationCount = conversationsQuery.data?.length ?? 0;
-  const conversationIds = conversationsQuery.data?.map(conversation => conversation.id) ?? [];
+  const deferredConversations = useDeferredValue(conversationsQuery.data ?? []);
+  const conversationCount = deferredConversations.length;
+  const conversationIds = useMemo(() => deferredConversations.map(conversation => conversation.id), [deferredConversations]);
   const latestTracesQuery = useLatestConversationTraces(conversationIds, conversationsQuery.isSuccess);
   const traceErrorMessage =
     latestTracesQuery.error instanceof Error
       ? latestTracesQuery.error.message
       : t("trace.copy.loadTracesError");
   const traceCards =
-    conversationsQuery.data?.flatMap(conversation => {
+    deferredConversations.flatMap(conversation => {
       const latestTrace = latestTracesQuery.latestTraceByConversationId[conversation.id] ?? null;
       return latestTrace ? [{ conversation, latestTrace }] : [];
     }) ?? [];
@@ -159,7 +161,7 @@ export function TraceListPage() {
           title={t("trace.copy.conversationsError")}
           tone="error"
         />
-      ) : conversationsQuery.data?.length ? (
+      ) : deferredConversations.length ? (
         <div className="workspace-trace-list">
           {latestTracesQuery.isLoading ? (
             <Paper className="workspace-panel-muted" mb="md" p="lg" radius="xl">
@@ -174,8 +176,8 @@ export function TraceListPage() {
               })}
             </Alert>
           ) : null}
-          <div className={conversationsQuery.data.length === 1 ? "workspace-list-shell-compact" : undefined}>
-            <SimpleGrid cols={{ base: 1, lg: conversationsQuery.data.length > 1 ? 2 : 1 }} spacing="md">
+          <div className={deferredConversations.length === 1 ? "workspace-list-shell-compact" : undefined}>
+            <SimpleGrid cols={{ base: 1, lg: deferredConversations.length > 1 ? 2 : 1 }} spacing="md">
               {traceCards.map(({ conversation, latestTrace }) => (
                 <TraceConversationCard
                   conversationTitle={conversation.title}

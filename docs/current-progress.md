@@ -18,6 +18,56 @@
 
 ## Recent Landed Increments
 
+- `test-system map cleanup` clarified the current repository test lanes without introducing a broad framework rewrite
+  - root `package.json` now exposes explicit `test:web`, `test:web:guard`, `test:web:guard:legacy`, `test:web:legacy`, `test:web:smoke`, and `test:web:smoke:legacy` entrypoints
+  - `apps/web/package.json` now splits frontend checks into `test:guard`, `test:guard:legacy`, `test:legacy`, and `test:smoke:legacy`, separating the stable guard gate from older local/source/UX verification that still needs re-baselining
+  - `document-run-observability.test.js` has been promoted back into the stable default guard lane because it still matches the current helper contract
+  - `document-run-contract.test.js`, `theme-preferences.test.js`, and `usage-page-helpers.test.js` have now also been rebaselined and promoted back into the stable default guard lane
+  - the remaining legacy web guard backlog has now been trimmed again: obsolete source-shape tests (`assistant-strategy-source.test.js`, `chat-layout-source.test.js`, `ui-tailwind-migration.test.js`) were removed, and `i18n-copy.test.js` plus `ui-review-regressions.test.js` were rewritten to assert the current split-locale and scan-first workspace contracts instead of stale DOM/source snapshots
+  - `auth-invite-login-smoke.test.js` has now been archived out of the active scripts, `test:legacy` no longer drags in browser smoke, and the only remaining smoke path is `pc-web-smoke.test.js` as a manual local seeded-account helper
+  - `docs/current-dev-setup.md` now documents the current `api fast / api integration / api e2e / web guard / web smoke` map, the legacy local-web backlog split, recommended command selection, and the current CI gate boundary
+  - `apps/web/AGENTS.md` now points frontend validation guidance at `test:guard`, `test:legacy`, and the current legacy local smoke lane
+  - focused validation:
+    - `pnpm --filter @rag-system/web test:guard`
+    - `pnpm --filter @rag-system/web test:guard:legacy`
+    - `pnpm --filter @rag-system/web exec node --test test/theme-preferences.test.js test/usage-page-helpers.test.js test/document-run-contract.test.js`
+    - `git diff --check -- package.json apps/web/package.json apps/web/AGENTS.md docs/current-dev-setup.md docs/current-progress.md`
+
+- `RAG retrieval/answering quality baseline refresh` 完成了一轮以稳定性为目标的收口，并形成了当前可复用基线
+  - retrieval 默认配置已调整到更适合轻多跳和总结场景的组合：`topK` 提升、`chunkWindow=1`、`hybrid=ON`
+  - `apps/api/src/modules/retrieval/retrieval.service.ts` 已补充 retrieval diversity 选择，减少 topK 被同一 section 的相似 chunk 占满
+  - `apps/api/src/modules/answering/answering.service.ts` 已补充 `coverageSummary`，用于标记 summary/list 问题中“检到了但没写出来”的 coverage gap
+  - `apps/api/src/infra/llm/prompt-manager.service.ts` 已强化 summary prompt，要求优先覆盖并列主项
+  - `summaryMainItems` 两步实验已完成对照验证，但本轮明确不默认上线；实验开关保持关闭，避免把子项/示例误抬成主项
+  - 本轮质量结论：
+    - Fact：稳定可用
+    - 2 步以内轻多跳：稳定可用
+    - Summary / List：多数可用，但仍存在少量并列主项漏项 / 误归类边界
+  - 后续维护约束：
+    - 将当前 5 题及其同类题固定为回归评测集
+    - 为 summary/list 场景单独跟踪“漏主项率”和“错误归类率”
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/api build`
+    - `pnpm --filter @rag-system/api test:file -- test/answering.test.js`
+
+- `chat conversation UX` 又补了一轮很小的会话体验优化
+  - `apps/web/src/pages/chat/ChatWorkspacePanels.tsx` 把会话重命名 / 删除收进了单个轻量菜单，减少了列表项里的视觉噪音
+  - `apps/web/src/pages/chat/ChatPage.tsx` 在删除当前会话后会自动切到下一个可用会话，避免空白停留
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/web typecheck`
+
+- `chat conversation CRUD` 这次补齐了用户端会话管理的最小闭环
+  - `apps/api/src/modules/conversations/conversations.controller.ts` 新增了 `PATCH /conversations/:id` 和 `DELETE /conversations/:id`
+  - `apps/api/src/modules/conversations/conversations.service.ts` 现在支持会话重命名和归档式删除，并且会话列表只展示 `active` 会话
+  - `apps/web/src/pages/chat/ChatWorkspacePanels.tsx` / `apps/web/src/pages/chat/ChatPage.tsx` 新增了会话重命名和删除入口
+  - `apps/web/src/features/api/hooks.ts` 新增了会话更新和删除 mutation
+  - `apps/web/src/i18n/messages.en.ts` / `apps/web/src/i18n/messages.zh.ts` 补了对应文案
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/web typecheck`
+
 - `api best-practices hardening wave` 已完成一轮窄范围后端维护收口
   - `apps/api/src/modules/assistants/assistants.controller.ts` 现在会在 `ask/stream` 首字节发出前保留正常 HTTP 失败语义；只有流真正开始后，才回落到 NDJSON `error` event 诊断，避免把 `404/5xx` 预流式失败吞成 `200`
   - `apps/api/src/common/http-exception.filter.ts` 提取了统一异常响应构建逻辑，streaming controller 可在 pre-stream 阶段复用现有错误 JSON 结构，而不是单独拼装返回体
@@ -44,7 +94,7 @@
   - `apps/web/src/pages/chat/ChatPage.tsx` now lazy-loads `ChatWorkspacePanels`, moving the secondary history / citations workspace out of the primary chat page shell; the production build now reduces `ChatPage-*` from ~`36.6 KB` to ~`32.6 KB` and emits a separate `ChatWorkspacePanels-*` chunk for the sidebar workflow
   - `apps/web/src/pages/traces/TraceDetailPage.tsx` now lazy-loads `TraceDetailSupportPanels`, moving metadata / quick jumps / query comparison plus citations / raw payload out of the primary trace review path; the production build now reduces `TraceDetailPage-*` from ~`34.7 KB` to ~`30.6 KB` and emits a separate `TraceDetailSupportPanels-*` chunk for the auxiliary diagnostics workflow
   - `apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx` now lazy-loads `KnowledgeBaseActivityPanel`, moving the recent activity summary, expandable run filters, and run list workflow out of the primary workspace snapshot shell; the production build now reduces `KnowledgeBasePage-*` from ~`25.4 KB` to ~`16.0 KB` and emits separate `KnowledgeBaseActivityPanel-*` and slimmed `DocumentRunList-*` chunks for the deeper maintenance workflow
-  - `apps/web/src/pages/documents/DocumentsPage.tsx` now lazy-loads `DocumentsSourceEntryPanel`, moving the web/feed/sitemap source-entry forms and related mutation state out of the primary library snapshot and table shell; the production build now reduces `DocumentsPage-*` from ~`18.5 KB` to ~`14.6 KB` and emits a separate `DocumentsSourceEntryPanel-*` chunk for that secondary source-ingestion workflow
+  - `apps/web/src/pages/documents/DocumentsSourceEntryPanel.tsx` still exists as a separate source-entry panel for `web/feed/sitemap` ingestion flows, but the current `DocumentsPage` runtime path is centered on file upload plus document-status review rather than rendering that panel inline
   - `apps/web/src/pages/documents/DocumentDetailPage.tsx` now lazy-loads `DocumentDetailChunksPanel`, moving the chunk query, trace-focused chunk review flow, and metadata payload rendering out of the primary document status shell; the production build now reduces `DocumentDetailPage-*` from ~`15.4 KB` to ~`10.8 KB` and emits a separate `DocumentDetailChunksPanel-*` chunk for the deeper chunk-inspection workflow
   - `apps/web/src/pages/reports/ReportCenterPage.tsx` now lazy-loads `ReportResultsTable`, moving the large sortable/filterable run-item table and its review controls out of the primary report summary shell; the production build now reduces `ReportCenterPage-*` from ~`71.0 KB` to ~`64.9 KB` and emits a separate `ReportResultsTable-*` chunk for the detailed item-review workflow
   - `apps/web/src/pages/reports/ReportCenterPage.tsx` now also lazy-loads `ReportAnalysisPanels`, moving the quality-distribution, gate, diff, regression-weakest-items, run-context, and export panels out of the primary report shell; the production build now further reduces `ReportCenterPage-*` from ~`64.9 KB` to ~`53.9 KB` and emits a separate `ReportAnalysisPanels-*` chunk for the deeper analysis workflow
@@ -95,12 +145,11 @@
   - legality / courtesy / retry / timeout / incremental resync / one-level sitemap index 边界都已落地到代码和 focused tests
   - 当前只保留同一家族内的小型维护位，不再把 `P3` 当成主开发主线
 
-- `P4 DocumentsPage source-entry carry-through` 已完成基础承接
-  - web 侧已具备 `web page` / `feed` / `sitemap` 三类 URL 入口
-  - 当前这轮 `P4` 收口已完成；后续若继续改动，更适合作为 bounded maintenance，而不是把入口承接继续记为待开发
-  - 本轮已补一个小范围收口：`DocumentsPage` 在无 active knowledge base 时不再对文档列表和 source-entry 走隐式 `default-kb` 兜底，而是切到显式空态与引导动作
-  - 当前 source-entry 收口口径：三类 URL 入口都带有前端 `http/https` 校验、提交中忙态与提交成功后的行内状态反馈；focused web regression 已补齐并锁定这组行为
-  - 当前 source-entry 进一步统一为单一路径：字段错误只保留一处主状态表达，`busy` / `empty` / `no-active-kb` / `success` 在 `web page` / `feed` / `sitemap` 三个入口下保持一致，且页头不再把无 active knowledge base 误显示为 `Default KB`
+- `P4 DocumentsPage source-entry carry-through` 相关代码已落地，但当前文档口径已按运行时行为收正
+  - `DocumentsPage` 当前主路径是文件上传、文档列表和状态阅读，不再把 `web page` / `feed` / `sitemap` 三类 URL 入口写成当前默认可见页面能力
+  - `DocumentsSourceEntryPanel` 与对应 `web page` / `feed` / `sitemap` 创建逻辑仍保留在代码库中，但当前未接入 `DocumentsPage` 的主界面路径
+  - 因此，后续如果恢复或重新开放这组三类 URL 入口，应视为新的明确前端增量或一次 bounded follow-up，而不是继续把它描述为已经完成并对用户开放的当前页面行为
+  - 当前仍然成立的小范围收口是：`DocumentsPage` 在无 active knowledge base 时不再对文档列表走隐式 `default-kb` 兜底，而是切到显式空态与引导动作
 
 - `P5 approved baseline closeout` 已完成主开发闭环
   - fixed-question eval runner、baseline snapshot / compare、quality gate、report export、approved baseline manifest、demo replay pin 都已落地
@@ -133,7 +182,7 @@
 ## Runtime Validation Addendum
 
 - `P4 regression hardening wave` 已完成 web 页面逻辑提取和测试准备
-  - `DocumentsPage` 的 URL 验证逻辑提取到 `documents-page-helpers.ts`
+  - `DocumentsPage` 相关的 source-entry URL 校验逻辑提取到 `documents-page-helpers.ts`，供独立 source-entry 组件复用
   - `ReportCenterPage` 的 eval URL 参数归一区、字段标签、回归原因标签提取到 `report-center-page-helpers.ts`
   - `TraceDetailPage` 的失败分类、标签、颜色、链接构建提取到 `trace-detail-page-helpers.ts`
   - `UsagePage` 的健康信号、告警项、跳转目标提取到 `usage-page-helpers.ts`
@@ -176,3 +225,13 @@
 - 当前阶段判断已经按代码现实收正：`P3` / 当前这轮 `P4` / `P5` 是已完成主开发或收口的阶段，不再默认作为下一步主线。
 - 具体下一步方向以 [docs/next_steps_rag_project_plan.md](D:\FeProjects\rag-system\docs\next_steps_rag_project_plan.md) 的更新版口径为主。
 - API review 的输入校验 follow-up 已继续推进一小步：当前 controller 侧 `@Body()` / `@Query()` 已开始迁移到 `ZodValidationPipe`，路由参数按仓库主键实际形态补的是非空字符串参数 pipe；仍不为了“全局验证”或类型安全把现有校验体系整体切到 `class-validator` / `class-transformer` DTO 栈。
+
+## Recent React 19 UX Pass
+
+- `apps/web` completed a small React 19 user-experience pass focused on the highest-traffic flows, without changing backend contracts.
+  - `ChatPage` conversation rename/delete now uses optimistic UI updates.
+  - `UsagePage`, `ReportCenterPage`, and `TraceListPage` now defer heavy list recomputation and transitions so selection changes feel more responsive.
+  - `LoginPage`, `InviteGatePage`, and `AssistantSettingsForm` now use more consistent pending feedback and input blocking during submission / save.
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/chat/ChatPage.tsx apps/web/src/pages/usage/UsagePage.tsx apps/web/src/pages/reports/ReportCenterPage.tsx apps/web/src/pages/traces/TraceListPage.tsx apps/web/src/pages/auth/LoginPage.tsx apps/web/src/pages/auth/InviteGatePage.tsx apps/web/src/pages/assistant/AssistantSettingsForm.tsx`

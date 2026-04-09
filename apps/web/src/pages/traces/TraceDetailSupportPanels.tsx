@@ -39,7 +39,63 @@ function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+function formatTimingValue(value: number | null | undefined) {
+  return value == null ? "-" : `${value} ms`;
+}
+
+function buildTimingItems(trace: TraceRecord, locale: SupportedLocale) {
+  const timing = trace.traceSummary?.timingSummary;
+  if (!timing) {
+    return [];
+  }
+
+  return [
+    {
+      key: "first-token",
+      label: locale === "zh" ? "首 token" : "First token",
+      value: formatTimingValue(timing.firstTokenMs)
+    },
+    {
+      key: "generation",
+      label: locale === "zh" ? "回答生成" : "Answer generation",
+      value: formatTimingValue(timing.answerGenerationMs)
+    },
+    {
+      key: "retrieval",
+      label: locale === "zh" ? "检索" : "Retrieval",
+      value: formatTimingValue(timing.retrievalMs)
+    },
+    {
+      key: "conversation",
+      label: locale === "zh" ? "会话加载" : "Conversation load",
+      value: formatTimingValue(timing.conversationLoadMs)
+    },
+    {
+      key: "persist-user",
+      label: locale === "zh" ? "用户消息落库" : "Persist user",
+      value: formatTimingValue(timing.userMessagePersistMs)
+    },
+    {
+      key: "persist-assistant",
+      label: locale === "zh" ? "助手消息落库" : "Persist assistant",
+      value: formatTimingValue(timing.assistantMessagePersistMs)
+    },
+    {
+      key: "llm-queue",
+      label: locale === "zh" ? "LLM 排队" : "LLM queue",
+      value: formatTimingValue(timing.llmQueueWaitMs)
+    },
+    {
+      key: "retrieval-queue",
+      label: locale === "zh" ? "检索排队" : "Retrieval queue",
+      value: formatTimingValue(timing.retrievalQueueWaitMs)
+    }
+  ];
+}
+
 export function TraceDetailSidebarPanels({ formatDateTime, hasRewrite, locale, sectionIds, t, trace }: TraceDetailSidebarPanelsProps) {
+  const timingItems = buildTimingItems(trace, locale);
+
   return (
     <div className="workspace-page-side-stack">
       <div className="workspace-sticky-panel">
@@ -81,6 +137,28 @@ export function TraceDetailSidebarPanels({ formatDateTime, hasRewrite, locale, s
               ) : null}
             </Stack>
           </Paper>
+
+          {timingItems.length > 0 ? (
+            <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+              <Stack gap="md">
+                <Text className="workspace-section-heading">{locale === "zh" ? "阶段耗时" : "Stage timings"}</Text>
+                <div className="workspace-metadata-grid">
+                  {timingItems.map(item => (
+                    <div className="workspace-metadata-item" key={item.key}>
+                      <div className="workspace-metadata-label">{item.label}</div>
+                      <div className="workspace-metadata-value">{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <Text c="var(--app-text-muted)" size="sm">
+                  {trace.traceSummary?.timingReadabilitySentence ??
+                    (locale === "zh"
+                      ? "当前 trace 没有可读的阶段耗时摘要。"
+                      : "This trace does not include a readable timing summary.")}
+                </Text>
+              </Stack>
+            </Paper>
+          ) : null}
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
@@ -147,6 +225,25 @@ export function TraceDetailSidebarPanels({ formatDateTime, hasRewrite, locale, s
 }
 
 export function TraceDetailSecondaryPanels({ citations, locale, sectionIds, t, trace }: TraceDetailSecondaryPanelsProps) {
+  const rawPromptSnapshot =
+    trace.answeringMetadataJson &&
+    typeof trace.answeringMetadataJson === "object" &&
+    !Array.isArray(trace.answeringMetadataJson) &&
+    typeof trace.answeringMetadataJson.promptSnapshot === "object" &&
+    trace.answeringMetadataJson.promptSnapshot !== null &&
+    !Array.isArray(trace.answeringMetadataJson.promptSnapshot)
+      ? trace.answeringMetadataJson.promptSnapshot
+      : null;
+  const promptSnapshot =
+    rawPromptSnapshot &&
+    typeof rawPromptSnapshot.systemPrompt === "string" &&
+    typeof rawPromptSnapshot.userPrompt === "string"
+      ? {
+          systemPrompt: rawPromptSnapshot.systemPrompt,
+          userPrompt: rawPromptSnapshot.userPrompt
+        }
+      : null;
+
   return (
     <div className="workspace-detail-secondary-grid">
       <Paper
@@ -208,6 +305,40 @@ export function TraceDetailSecondaryPanels({ citations, locale, sectionIds, t, t
       </Paper>
 
       <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+        {promptSnapshot ? (
+          <details open={false}>
+            <summary className="workspace-collapsible-summary">
+              <span>{locale === "zh" ? "回答 Prompt" : "Answer prompt"}</span>
+              <span className="workspace-inline-chip workspace-inline-chip-secondary">
+                {locale === "zh" ? "本次请求快照" : "Request snapshot"}
+              </span>
+            </summary>
+            <Text c="var(--app-text-muted)" mt="sm" size="sm">
+              {locale === "zh"
+                ? "这里展示本次实际发送给模型的 system prompt 和 user prompt。"
+                : "This shows the system prompt and user prompt sent for this answer."}
+            </Text>
+            <Stack gap="sm" mt="sm">
+              <div className="workspace-content-block">
+                <Stack gap={6}>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    System prompt
+                  </Text>
+                  <pre className="workspace-code-block workspace-code-block-scroll">{promptSnapshot.systemPrompt}</pre>
+                </Stack>
+              </div>
+              <div className="workspace-content-block">
+                <Stack gap={6}>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    User prompt
+                  </Text>
+                  <pre className="workspace-code-block workspace-code-block-scroll">{promptSnapshot.userPrompt}</pre>
+                </Stack>
+              </div>
+            </Stack>
+          </details>
+        ) : null}
+
         <details id={sectionIds.rawPayload} style={{ scrollMarginTop: "96px" }} open={false}>
           <summary className="workspace-collapsible-summary">
             <span>{t("common.fields.rawPayload")}</span>

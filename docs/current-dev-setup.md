@@ -303,6 +303,170 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 - this avoids write/read drift when the API is started from different directories (for example repo root vs `apps/api`) while still allowing environment-specific absolute paths on Windows/WSL/Linux
 - optional OpenCode harness note: root `package.json` now points `loop:*` / `opencode:loop` scripts at the repo-local Node harness under `.opencode/loop/harness/`; the runner consumes the current materialized queue in order, reuses the same OpenCode session across a compact wave when possible, and uses `opencode run --agent build` / `opencode run --continue --agent build` for each pending item; spawned session titles include the current task index and remaining task count such as `[1/4 | left 3] ...`; each item is also protected by `OPENCODE_LOOP_ITEM_TIMEOUT_MS` (default `1200000`) so a stuck task is killed and marked `needs_replan`; structured JSON error events are also treated as queue failures instead of false `completed` results; use those commands directly on Windows or WSL/Linux
 - `pnpm loop:stop` now waits briefly for the current runner pid to fully exit before returning, which reduces restart races that could otherwise interrupt an in-flight child run during immediate stop/start cycles
+
+## Test map
+
+Current test intent is split into a small number of lanes. Prefer the smallest lane that still matches the risk of the change.
+
+### API fast lane
+
+- Purpose: source-first fast feedback for backend modules, orchestration, retrieval, answering, parsing, and focused service regressions
+- Runner: `vitest`
+- Main commands:
+
+```bash
+pnpm test:api:fast
+pnpm test:api:fast:llm
+pnpm test:api:fast:retrieval
+pnpm test:api:fast:assistants
+pnpm test:api:fast:documents
+pnpm test:api:fast:infra
+```
+
+- Typical files live under `apps/api/test/*.test.js`
+- These tests should not require `dist/`
+
+### API integration lane
+
+- Purpose: build-aware HTTP/API and persistence wiring checks that validate real controller-to-runtime behavior
+- Runner: `node --test`
+- Main commands:
+
+```bash
+pnpm test:api:integration
+pnpm test:api:file -- test/assistants-api.test.js
+```
+
+- These tests may build the API first and may start the built server
+
+### API end-to-end lane
+
+- Purpose: heavier multi-step backend flows such as ask/document/source chains
+- Runner: `node --test`
+- Main commands:
+
+```bash
+pnpm test:api:e2e
+pnpm test:api:e2e:chains
+pnpm test:api:e2e:sources
+```
+
+- Use this lane when the change crosses module boundaries and focused fast tests are not enough
+
+### Web guard lane
+
+- Purpose: fast frontend regression guards for contracts, page helpers, source structure, copy, theme, and route-level assumptions
+- Runner: `node --test`
+- Main commands:
+
+```bash
+pnpm test:web:guard
+pnpm test:web:guard:legacy
+pnpm test:web:legacy
+pnpm --filter @rag-system/web test:guard
+```
+
+- Current guard files live in `apps/web/test/` and exclude the browser smoke path
+- Treat these as lightweight structural guards, not full browser behavior tests
+- `test:web:guard` is the stable default lane for current contract/helper/route guards
+- `test:web:guard:legacy` now keeps only the remaining copy/review rebaseline checks and should not be treated as the default green gate
+
+### Web smoke lane
+
+- Purpose: top-level browser smoke validation for the current PC web shell against the built API and built web app
+- Runner: `node --test` + `playwright`
+- Main commands:
+
+```bash
+pnpm test:web:smoke
+pnpm test:web:smoke:legacy
+pnpm --filter @rag-system/web test:smoke
+```
+
+- Current smoke entry is a manual legacy local-dev browser flow:
+  - `apps/web/test/pc-web-smoke.test.js`
+- This test still assumes the older local seeded-account path (`default-user@example.com`, local password, local API + built web assumptions) and should be treated as manual legacy local smoke rather than the default service-backed web gate
+- `test:web:smoke` currently aliases `test:web:smoke:legacy` for compatibility with existing habits and scripts
+
+## Test command selection
+
+Recommended default mapping:
+
+- backend local logic change: `pnpm test:api:file -- test/<file>.test.js` or the matching `test:api:fast:*`
+- backend controller/runtime contract change: `pnpm test:api:integration`
+- backend cross-module flow change: `pnpm test:api:e2e:*`
+- frontend contract/helper/readability change: `pnpm test:web:guard`
+- frontend work that intentionally touches older source/UX guardrails: `pnpm test:web:guard:legacy` or the specific guard file directly
+- manual legacy local browser flow verification: `pnpm test:web:smoke:legacy`
+
+`pnpm test:api:file -- test/<file>.test.js` remains the main single-file backend entrypoint.
+Its current behavior is intentional:
+
+- files in the fast test allowlist run through `vitest`
+- other files fall back to the build-aware `node --test` path
+
+When adding a new backend test:
+
+- prefer the API fast lane if the behavior can be validated directly from source without `dist/`
+- prefer integration or E2E only when real runtime wiring is the thing being validated
+
+## Current CI gate
+
+Current default pull-request CI in `.github/workflows/ci.yml` is intentionally narrower than the full local test surface:
+
+- build API
+- build web
+- run `pnpm test:api:focus:ask`
+
+Interpretation:
+
+- not every repository test is a default PR gate today
+- `api:focus:ask` is the current core backend guardrail in CI
+- web guard and web smoke remain local or selective validation paths unless the workflow is expanded later
+
+Current frontend guard split:
+
+- stable default guard lane:
+  - API/request guards
+  - shared contract/type guards
+  - helper-function guards
+  - router/workspace-selection guards
+- legacy guard lane:
+  - older source-shape assertions tied to previous UI markup
+  - copy assertions tied to moved i18n sources
+  - preference/helper assertions that no longer match current implementation
+  - UX/readability assertions that need re-baselining before they can become a stable gate again
+
+Current frontend smoke split:
+
+- legacy local smoke lane:
+  - seeded local account login
+  - invite-code gate flow
+  - local built API + built web shell assumptions
+  - older Windows/Edge-oriented smoke harness behavior
+- there is not yet a separate stable service-backed browser smoke lane in this repository snapshot
+
+## Current legacy backlog triage
+
+Current `apps/web/test` legacy files do not all mean the same thing. The useful split is:
+
+- delete or archive candidates:
+  - `auth-invite-login-smoke.test.js` has now been archived out of the active web test scripts because it only covered the old invite/bootstrap local flow
+  - removed old source-shape guards such as `assistant-strategy-source.test.js`, `chat-layout-source.test.js`, and `ui-tailwind-migration.test.js`
+  - older source-shape sections that previously lived inside `ui-review-regressions.test.js`
+- rebaseline to current implementation:
+  - `i18n-copy.test.js` for the same message-source split
+  - the remaining lightweight copy/readability sections inside `ui-review-regressions.test.js`
+- stabilize and promote back to default guard when convenient:
+  - `document-run-contract.test.js` is now aligned to split locale files and belongs to the stable guard lane
+  - `document-run-observability.test.js` already matches the current helper module and belongs to the stable guard lane
+  - `theme-preferences.test.js` now guards stable source-level defaults, accepted modes, and persistence entrypoints
+  - `usage-page-helpers.test.js` is now aligned to the current `"Open item with issues"` label and belongs to the stable guard lane
+
+Practical interpretation:
+
+- if a test still asserts the old local seeded-account path, old fixed markup, or pre-split i18n source shape, treat it as legacy by default
+- if a test still targets a current helper/contract but fails because of harness drift or wording drift, prefer rebaselining over deleting it
 - auth/session runtime now also supports:
 
 ```text

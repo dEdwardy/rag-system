@@ -6,15 +6,29 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-const messagesPath = resolve(__dirname, "../src/i18n/messages.ts");
+const englishMessagesPath = resolve(__dirname, "../src/i18n/messages.en.ts");
+const chineseMessagesPath = resolve(__dirname, "../src/i18n/messages.zh.ts");
 
-test("Chinese i18n copy includes readable core navigation and page labels", () => {
-  const source = readFileSync(messagesPath, "utf8");
+test("split locale catalogs keep current English workspace navigation and assistant copy", () => {
+  const source = readFileSync(englishMessagesPath, "utf8");
 
-  assert.match(source, /subtitle:\s*"基于可复用 RAG 内核构建的个人知识库"/);
-  assert.match(source, /noDescription:\s*"暂无描述"/);
-  assert.match(source, /documents:\s*"文档数"/);
-  assert.match(source, /title:\s*"运行摘要"/);
-  assert.match(source, /emptyDescription:\s*"上传文档后，这个知识库才会成为可用的检索来源。"/);
-  assert.doesNotMatch(source, /鏂囨。|鐭ヨ瘑搴|鍔╂墜|鍩轰簬/);
+  assert.match(source, /subtitle:\s*"Personal RAG workspace, built on a reusable core"/);
+  assert.match(source, /documents:\s*"Library"/);
+  assert.match(source, /knowledgeBase:\s*"Workspace settings"/);
+  assert.match(source, /assistant:\s*"Assistant"/);
+  assert.match(source, /currentKnowledgeBase:\s*"Current library"/);
+  assert.match(source, /noAssistantForKnowledgeBaseTitle:\s*"No assistant connected to the current library"/);
+  assert.doesNotMatch(source, /default-kb|Default KB/);
+});
+
+test("split locale catalogs keep current Chinese workspace labels without replacement glyphs", () => {
+  const source = readFileSync(chineseMessagesPath, "utf8");
+
+  assert.match(source, /title:\s*"RAG/);
+  assert.match(source, /documents:\s*"[\u4e00-\u9fff]+/);
+  assert.match(source, /knowledgeBase:\s*"[\u4e00-\u9fff]+/);
+  assert.match(source, /assistant:\s*"[\u4e00-\u9fff]+/);
+  assert.match(source, /noDescription:\s*"[\u4e00-\u9fff]+/);
+  assert.doesNotMatch(source, /\uFFFD/);
+  assert.doesNotMatch(source, /default-kb|Default KB/);
 });

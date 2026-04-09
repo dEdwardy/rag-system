@@ -88,6 +88,23 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         chunkWindow: 1,
         enableHybrid: true,
         enableRerank: true,
+        strategyJson: {
+          queryRewrite: {
+            enabled: true
+          },
+          candidateSelection: {
+            mode: "hybrid",
+            candidateMultiplier: 3,
+            minCandidates: 4
+          },
+          hybrid: {
+            vectorWeight: 0.7,
+            lexicalWeight: 0.3
+          },
+          rerank: {
+            enabled: true
+          }
+        },
         filtersJson: {
           documentIds: {
             include: ["document-1"],
@@ -436,7 +453,48 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     answerTextSource: "model",
     insufficientContextReason: null,
     answerStatusSource: "model",
-    answerStatus: "grounded"
+    answerStatus: "grounded",
+    promptSnapshot: {
+      systemPrompt: `system prompt
+
+Answering rules:
+- Use only the provided retrieved sources.
+- Answer directly when the sources support it; otherwise use "insufficient_context".
+- Cite only the provided source indexes like [1] or [1][2].
+- Keep the answer factual and follow the requested answer policy.`,
+      userPrompt: `Question:
+where is the marker?
+
+Retrieved sources:
+[1] document="Document 1" section="Facts" score=0.900
+retrieved content marker
+
+Answer policy:
+- responseStyle=balanced
+- tone=friendly
+- outputFormat=bullets
+- language=same_as_question
+- citationMode=required
+- maxCitations=2
+- noAnswerBehavior=say_insufficient_context
+- includeMissingInformation=false
+
+Return JSON only with this shape:
+{"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
+
+Rules:
+- "citations" must contain only 1-based source indexes from the retrieved sources.
+- Use "grounded" only when the answer is supported by the provided sources.
+- Use "insufficient_context" when the sources do not support a reliable answer.
+- "missingInformation" should be an array and may be empty.
+- Match the requested responseStyle, tone, outputFormat, and language policy.
+- If outputFormat=bullets, prefer a short bullet list.
+- If outputFormat=markdown, use concise markdown structure without code fences unless needed.
+- If language=same_as_question, answer in the same language as the question.
+- If language=zh or language=en, answer in that language.
+- If includeMissingInformation=false, return an empty "missingInformation" array unless the answer is insufficient_context.
+- Do not wrap the JSON in markdown fences.`
+    }
   });
   assert.equal(result.conversationId, "conversation-1");
   assert.equal(result.traceId, "trace-1");
@@ -524,7 +582,48 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     answerTextSource: "model",
     insufficientContextReason: null,
     answerStatusSource: "model",
-    answerStatus: "grounded"
+    answerStatus: "grounded",
+    promptSnapshot: {
+      systemPrompt: `system prompt
+
+Answering rules:
+- Use only the provided retrieved sources.
+- Answer directly when the sources support it; otherwise use "insufficient_context".
+- Cite only the provided source indexes like [1] or [1][2].
+- Keep the answer factual and follow the requested answer policy.`,
+      userPrompt: `Question:
+where is the marker?
+
+Retrieved sources:
+[1] document="Document 1" section="Facts" score=0.900
+retrieved content marker
+
+Answer policy:
+- responseStyle=balanced
+- tone=friendly
+- outputFormat=bullets
+- language=same_as_question
+- citationMode=required
+- maxCitations=2
+- noAnswerBehavior=say_insufficient_context
+- includeMissingInformation=false
+
+Return JSON only with this shape:
+{"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
+
+Rules:
+- "citations" must contain only 1-based source indexes from the retrieved sources.
+- Use "grounded" only when the answer is supported by the provided sources.
+- Use "insufficient_context" when the sources do not support a reliable answer.
+- "missingInformation" should be an array and may be empty.
+- Match the requested responseStyle, tone, outputFormat, and language policy.
+- If outputFormat=bullets, prefer a short bullet list.
+- If outputFormat=markdown, use concise markdown structure without code fences unless needed.
+- If language=same_as_question, answer in the same language as the question.
+- If language=zh or language=en, answer in that language.
+- If includeMissingInformation=false, return an empty "missingInformation" array unless the answer is insufficient_context.
+- Do not wrap the JSON in markdown fences.`
+    }
   });
   assert.equal(result.modelName, "fallback-local");
   assert.equal(result.answerStatus, "grounded");
@@ -979,7 +1078,47 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     answerTextSource: "deterministic_policy",
     insufficientContextReason: "no_retrieval_hits",
     answerStatusSource: "deterministic_policy",
-    answerStatus: "insufficient_context"
+    answerStatus: "insufficient_context",
+    promptSnapshot: {
+      systemPrompt: `system prompt
+
+Answering rules:
+- Use only the provided retrieved sources.
+- Answer directly when the sources support it; otherwise use "insufficient_context".
+- Cite only the provided source indexes like [1] or [1][2].
+- Keep the answer factual and follow the requested answer policy.`,
+      userPrompt: `Question:
+original question
+
+Retrieved sources:
+
+
+Answer policy:
+- responseStyle=concise
+- tone=neutral
+- outputFormat=paragraph
+- language=auto
+- citationMode=required
+- maxCitations=3
+- noAnswerBehavior=say_insufficient_context
+- includeMissingInformation=true
+
+Return JSON only with this shape:
+{"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
+
+Rules:
+- "citations" must contain only 1-based source indexes from the retrieved sources.
+- Use "grounded" only when the answer is supported by the provided sources.
+- Use "insufficient_context" when the sources do not support a reliable answer.
+- "missingInformation" should be an array and may be empty.
+- Match the requested responseStyle, tone, outputFormat, and language policy.
+- If outputFormat=bullets, prefer a short bullet list.
+- If outputFormat=markdown, use concise markdown structure without code fences unless needed.
+- If language=same_as_question, answer in the same language as the question.
+- If language=zh or language=en, answer in that language.
+- If includeMissingInformation=false, return an empty "missingInformation" array unless the answer is insufficient_context.
+- Do not wrap the JSON in markdown fences.`
+    }
   });
   assert.equal(result.traceId, "trace-1");
   assert.deepEqual(result.qualityEvaluation, {

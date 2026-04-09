@@ -61,10 +61,9 @@
 
 当前代码现实：
 
-1. `DocumentsPage` 对现有 source family 的基础承载和第一轮收口已经落地
-   - `web page` URL 入口
-   - `feed` URL 入口
-   - `sitemap` URL 入口
+1. `DocumentsPage` 这一轮面向普通用户的主路径收口已经落地
+   - 当前页面主路径是文件上传、文档列表、状态阅读和 next action 导航
+   - `web page` / `feed` / `sitemap` 的 source-entry 代码仍在仓库里，但当前不应再被写成 `DocumentsPage` 已经默认承接的页面入口
 2. `Document Detail / Usage / Trace` 与 `Report center / eval` 的当前一轮阅读路径、参数 carry-through 和 focused regression 也已完成收口
    - 其中 `Document Detail` 已将 ingestion / run 状态与下一步动作收敛到单一主状态区域，保持 scan-first 阅读路径不变
    - `Documents` 工作台主状态 readout 已补齐失败 / 进行中 / 就绪三态的单一下一步跳转，分别指向失败文档诊断、进行中 run 观察与 trace 结果路径
