@@ -45,6 +45,7 @@ RAG 主链路、PC Web chat、external source 第一轮、auth/ACL 最小闭环�
 - 当前更合理的工作是：
   - 保持阶段判断、docs、queue 口径和代码现实一致
   - 在 `P3/P4/P5/P6` 已完成区域内做 bounded maintenance，或选择一个新的明确产品波次
+  - `DocumentsPage` 当前应按“文件上传 + 文档状态管理”理解；仓库里虽保留 `web/feed/sitemap` source-entry 相关代码，但它们当前不是该页面默认对用户开放的主路径
 - 当前 RAG 质量基线可作为稳定工作基线：
   - Fact：稳定可用
   - 2 步以内轻多跳：稳定可用

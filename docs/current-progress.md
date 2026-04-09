@@ -94,7 +94,7 @@
   - `apps/web/src/pages/chat/ChatPage.tsx` now lazy-loads `ChatWorkspacePanels`, moving the secondary history / citations workspace out of the primary chat page shell; the production build now reduces `ChatPage-*` from ~`36.6 KB` to ~`32.6 KB` and emits a separate `ChatWorkspacePanels-*` chunk for the sidebar workflow
   - `apps/web/src/pages/traces/TraceDetailPage.tsx` now lazy-loads `TraceDetailSupportPanels`, moving metadata / quick jumps / query comparison plus citations / raw payload out of the primary trace review path; the production build now reduces `TraceDetailPage-*` from ~`34.7 KB` to ~`30.6 KB` and emits a separate `TraceDetailSupportPanels-*` chunk for the auxiliary diagnostics workflow
   - `apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx` now lazy-loads `KnowledgeBaseActivityPanel`, moving the recent activity summary, expandable run filters, and run list workflow out of the primary workspace snapshot shell; the production build now reduces `KnowledgeBasePage-*` from ~`25.4 KB` to ~`16.0 KB` and emits separate `KnowledgeBaseActivityPanel-*` and slimmed `DocumentRunList-*` chunks for the deeper maintenance workflow
-  - `apps/web/src/pages/documents/DocumentsPage.tsx` now lazy-loads `DocumentsSourceEntryPanel`, moving the web/feed/sitemap source-entry forms and related mutation state out of the primary library snapshot and table shell; the production build now reduces `DocumentsPage-*` from ~`18.5 KB` to ~`14.6 KB` and emits a separate `DocumentsSourceEntryPanel-*` chunk for that secondary source-ingestion workflow
+  - `apps/web/src/pages/documents/DocumentsSourceEntryPanel.tsx` still exists as a separate source-entry panel for `web/feed/sitemap` ingestion flows, but the current `DocumentsPage` runtime path is centered on file upload plus document-status review rather than rendering that panel inline
   - `apps/web/src/pages/documents/DocumentDetailPage.tsx` now lazy-loads `DocumentDetailChunksPanel`, moving the chunk query, trace-focused chunk review flow, and metadata payload rendering out of the primary document status shell; the production build now reduces `DocumentDetailPage-*` from ~`15.4 KB` to ~`10.8 KB` and emits a separate `DocumentDetailChunksPanel-*` chunk for the deeper chunk-inspection workflow
   - `apps/web/src/pages/reports/ReportCenterPage.tsx` now lazy-loads `ReportResultsTable`, moving the large sortable/filterable run-item table and its review controls out of the primary report summary shell; the production build now reduces `ReportCenterPage-*` from ~`71.0 KB` to ~`64.9 KB` and emits a separate `ReportResultsTable-*` chunk for the detailed item-review workflow
   - `apps/web/src/pages/reports/ReportCenterPage.tsx` now also lazy-loads `ReportAnalysisPanels`, moving the quality-distribution, gate, diff, regression-weakest-items, run-context, and export panels out of the primary report shell; the production build now further reduces `ReportCenterPage-*` from ~`64.9 KB` to ~`53.9 KB` and emits a separate `ReportAnalysisPanels-*` chunk for the deeper analysis workflow
@@ -145,12 +145,11 @@
   - legality / courtesy / retry / timeout / incremental resync / one-level sitemap index 边界都已落地到代码和 focused tests
   - 当前只保留同一家族内的小型维护位，不再把 `P3` 当成主开发主线
 
-- `P4 DocumentsPage source-entry carry-through` 已完成基础承接
-  - web 侧已具备 `web page` / `feed` / `sitemap` 三类 URL 入口
-  - 当前这轮 `P4` 收口已完成；后续若继续改动，更适合作为 bounded maintenance，而不是把入口承接继续记为待开发
-  - 本轮已补一个小范围收口：`DocumentsPage` 在无 active knowledge base 时不再对文档列表和 source-entry 走隐式 `default-kb` 兜底，而是切到显式空态与引导动作
-  - 当前 source-entry 收口口径：三类 URL 入口都带有前端 `http/https` 校验、提交中忙态与提交成功后的行内状态反馈；focused web regression 已补齐并锁定这组行为
-  - 当前 source-entry 进一步统一为单一路径：字段错误只保留一处主状态表达，`busy` / `empty` / `no-active-kb` / `success` 在 `web page` / `feed` / `sitemap` 三个入口下保持一致，且页头不再把无 active knowledge base 误显示为 `Default KB`
+- `P4 DocumentsPage source-entry carry-through` 相关代码已落地，但当前文档口径已按运行时行为收正
+  - `DocumentsPage` 当前主路径是文件上传、文档列表和状态阅读，不再把 `web page` / `feed` / `sitemap` 三类 URL 入口写成当前默认可见页面能力
+  - `DocumentsSourceEntryPanel` 与对应 `web page` / `feed` / `sitemap` 创建逻辑仍保留在代码库中，但当前未接入 `DocumentsPage` 的主界面路径
+  - 因此，后续如果恢复或重新开放这组三类 URL 入口，应视为新的明确前端增量或一次 bounded follow-up，而不是继续把它描述为已经完成并对用户开放的当前页面行为
+  - 当前仍然成立的小范围收口是：`DocumentsPage` 在无 active knowledge base 时不再对文档列表走隐式 `default-kb` 兜底，而是切到显式空态与引导动作
 
 - `P5 approved baseline closeout` 已完成主开发闭环
   - fixed-question eval runner、baseline snapshot / compare、quality gate、report export、approved baseline manifest、demo replay pin 都已落地
@@ -183,7 +182,7 @@
 ## Runtime Validation Addendum
 
 - `P4 regression hardening wave` 已完成 web 页面逻辑提取和测试准备
-  - `DocumentsPage` 的 URL 验证逻辑提取到 `documents-page-helpers.ts`
+  - `DocumentsPage` 相关的 source-entry URL 校验逻辑提取到 `documents-page-helpers.ts`，供独立 source-entry 组件复用
   - `ReportCenterPage` 的 eval URL 参数归一区、字段标签、回归原因标签提取到 `report-center-page-helpers.ts`
   - `TraceDetailPage` 的失败分类、标签、颜色、链接构建提取到 `trace-detail-page-helpers.ts`
   - `UsagePage` 的健康信号、告警项、跳转目标提取到 `usage-page-helpers.ts`
