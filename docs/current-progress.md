@@ -18,6 +18,11 @@
 
 ## Recent Landed Increments
 
+- `performance direction update` clarifies the next optimization target as request orchestration rather than answer-quality tuning
+  - latest traces show the real cost is now dominated by the synchronous pre-generation chain, not model output quality
+  - `llm first token` is already relatively low compared with the `first token pre-generation` slice, so the next ROI comes from shrinking the pre-LLM chain length
+  - next safe optimization targets are conversation load slimming, user-message write decoupling, retrieval sub-stage timing, and tighter rerank gating for only genuinely complex questions
+
 - `ask/retrieval hot-path trimming` continues to shave avoidable CPU work from the current RAG path without changing answer quality
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` no longer keeps the short-TTL retrieval cache that was only reducing repeated hot-query work
   - `apps/api/src/modules/retrieval/retrieval.service.ts` now uses cheaper set-based unique collection and avoids repeated lowercasing / join work inside candidate scoring
