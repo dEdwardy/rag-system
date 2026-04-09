@@ -411,11 +411,12 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       contextGroupCount: 1,
       primaryChunkCount: 1,
       neighborChunkCount: 0,
+      timing: null,
       rerankMode: "local_heuristic",
       rerankJudgeSkippedReason: null
     },
-    promptContextApproxTokens: 215,
-    promptContextChars: 645
+    promptContextApproxTokens: null,
+    promptContextChars: null
   });
   assert.equal(createTraceCalls[0].rewrittenQuery, null);
   assert.equal(createTraceCalls[0].retrievalMetadataJson.execution.neighborChunkCount, 0);
@@ -439,7 +440,11 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     flags: [],
     summary: "Answer is grounded in cited sources with no reported gaps."
   });
-  assert.deepEqual(updateTraceCalls[0].input.retrievalMetadataJson, createTraceCalls[0].retrievalMetadataJson);
+  assert.deepEqual(updateTraceCalls[0].input.retrievalMetadataJson, {
+    ...createTraceCalls[0].retrievalMetadataJson,
+    promptContextApproxTokens: 215,
+    promptContextChars: 645
+  });
   assert.deepEqual(updateTraceCalls[0].input.answeringMetadataJson, {
     promptId: "answer.v3",
     usedFallback: true,
@@ -482,7 +487,7 @@ Rules:
 where is the marker?
 
 Sources:
-[1] d="Document 1" s="Facts"
+[1] s="Facts" d="Document 1"
 retrieved content marker
 
 Policy:
@@ -513,10 +518,10 @@ Rules:
   assert.deepEqual(result.citations, citations);
   assert.deepEqual(result.retrievedChunks, retrievedChunks);
   assert.deepEqual(result.contextGroups, contextGroups);
-  assert.deepEqual(result.strategySummary, createTraceCalls[0].retrievalMetadataJson.strategySummary);
+  assert.deepEqual(result.strategySummary, updateTraceCalls[0].input.retrievalMetadataJson.strategySummary);
   assert.equal(
     result.strategyReadabilityLabel,
-    "hybrid retrieval via rewritten; fallback: none; fallback used: no."
+    "hybrid retrieval via original_unchanged; fallback: none; fallback used: no."
   );
   assert.equal(
     result.retrievalModeProvenanceSentence,
@@ -524,9 +529,9 @@ Rules:
   );
   assert.equal(
     result.rewriteReadabilityLabel,
-    "rewrite enabled; rewrite applied: yes; rewrite fallback: yes; rewrite prompt: rewrite-query.v1."
+    "rewrite enabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
   );
-  assert.deepEqual(result.retrievalMetadata, createTraceCalls[0].retrievalMetadataJson);
+  assert.deepEqual(result.retrievalMetadata, updateTraceCalls[0].input.retrievalMetadataJson);
   assert.deepEqual(result.answerAttributionSummary, {
     attribution: "explicit",
     source: "structured",
@@ -606,7 +611,7 @@ Rules:
 where is the marker?
 
 Sources:
-[1] d="Document 1" s="Facts"
+[1] s="Facts" d="Document 1"
 retrieved content marker
 
 Policy:
@@ -1016,7 +1021,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       retrievedChunkCount: 0,
       contextGroupCount: 0,
       primaryChunkCount: 0,
-      neighborChunkCount: 0
+      neighborChunkCount: 0,
+      timing: null
     },
     promptContextApproxTokens: 197,
     promptContextChars: 576
@@ -3640,4 +3646,3 @@ test("AskAssistantService preserves localized fallback-only grounded summaries",
     "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
   );
 });
-

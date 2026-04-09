@@ -103,6 +103,7 @@ export class VectorStoreService implements VectorStore {
       .map(record => ({
         chunkId: record.chunkId,
         documentId: record.documentId,
+        chunkIndex: record.chunkIndex,
         score: this.cosineSimilarity(normalizedQueryVector, record.vector),
         modelName: record.modelName
       }))

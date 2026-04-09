@@ -18,6 +18,44 @@
 
 ## Recent Landed Increments
 
+- `Supabase / Prisma 延迟排查复盘` 沉淀了这轮首字节优化的关键结论，供后续同类项目复用
+  - 现象：应用侧 `ask_timing` 日志里 `retrievalMs`、`vectorSearchMs`、`vectorCandidateFetchMs` 很高，但数据库表规模很小，和直觉不符
+  - 排查方法：
+    - 先在应用侧补齐 `ask_timing`、`retrievalExecution`、`retrievalDiagnostics`，把首字节前链路拆到 retrieval 子阶段
+    - 再用只读方式核对远端数据库的真实表规模、索引现状、`EXPLAIN ANALYZE` 执行时间
+    - 最后把数据库内部执行时间和应用端 wall-time 对比，确认慢点到底在 SQL 本身还是在连接/网络往返
+  - 关键发现：
+    - 当时 `ChunkEmbedding` / `DocumentChunk` 只有约百级数据，数据库内部 SQL 执行只有毫秒级
+    - 真实慢点不是 SQL 扫描，而是 API 到 Supabase 数据库之间的远程往返延迟
+    - `6543` pooler 路径显著慢于 `5432` direct 路径；在当前数据规模下，缺少 `ivfflat/hnsw` 不是本轮主因
+  - 误区记录：
+    - 不能只看应用日志里的 `vectorSearchMs` 就直接判断是“向量检索算法慢”或“索引缺失”
+    - 不能在没有对照 `EXPLAIN ANALYZE` 和真实 wall-time 前，就盲目继续做 retrieval 语义收缩
+    - 对 Supabase 类项目，pooler 更适合连接数治理，不一定适合极度敏感的低延迟读路径
+  - 落地改动：
+    - `apps/api/src/infra/database/prisma.service.ts` 现在优先读取 `DIRECT_URL`
+    - 本地/部署环境只要提供 `DIRECT_URL`，Prisma 就会走更低延迟的直连路径
+    - 启动日志会明确打印当前是 `direct`、`pooler` 还是 `custom` datasource，便于排查是否真正切换成功
+  - 实际结果：
+    - 切到直连后，`conversationLoadMs`、`userMessagePersistMs`、`retrievalMs`、`firstTokenMs` 都明显下降
+    - 一批真实问题样本里，`firstTokenMs` 已经从早期的 `4s-6s` 区间下降到约 `1.8s-2.9s`
+    - 最佳样本已进入 `2s` 左右区间，说明这轮优化主收益来自数据库连接路径，而不是回答质量降级
+  - 给后续 Supabase/Prisma 项目的借鉴：
+    - 如果 trace 显示 retrieval 很慢，先确认“数据库内部执行慢”还是“连接往返慢”
+    - 小表+慢查询 wall-time 的第一怀疑对象应该是连接路径、region、pooler，而不一定是 SQL 本身
+    - 对低延迟读链路，优先预留 `DIRECT_URL`
+    - 只有在数据量真正上来后，再把 `pgvector` ANN 索引（`ivfflat` / `hnsw`）作为主要优化目标
+    - 回答质量敏感场景下，优先做连接/实现层优化，谨慎做 retrieval 语义收缩
+  - 独立中文备忘录已整理到：
+    - `docs/supabase-prisma-latency-playbook.md`
+
+- `database latency diagnosis + direct-url preference` clarified the current TTFB ceiling and landed a bounded runtime fix
+  - focused DB inspection showed current `ChunkEmbedding` / `DocumentChunk` SQL execution is only millisecond-level at the database, while end-to-end query wall time is dominated by remote connection / pooler latency
+  - `apps/api/src/infra/database/prisma.service.ts` now prefers `DIRECT_URL` over `DATABASE_URL` when available, so the latency-sensitive API path can avoid the slower Supabase pooler route without changing retrieval semantics
+  - local runtime config can now activate that lower-latency path simply by setting `DIRECT_URL`
+  - focused validation:
+    - `pnpm test:api:file -- test/prisma.service.test.js`
+
 - `performance direction update` clarifies the next optimization target as request orchestration rather than answer-quality tuning
   - latest traces show the real cost is now dominated by the synchronous pre-generation chain, not model output quality
   - `llm first token` is already relatively low compared with the `first token pre-generation` slice, so the next ROI comes from shrinking the pre-LLM chain length

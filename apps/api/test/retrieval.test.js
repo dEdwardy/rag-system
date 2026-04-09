@@ -3,6 +3,20 @@ const { RetrievalService } = require("../src/modules/retrieval/retrieval.service
 const { VectorStoreCompatibilityError } = require("../src/infra/vector-store/vector-store.types.ts");
 const { resolveRetrievalStrategy } = require("../src/modules/retrieval-profiles/retrieval-profile.schemas.ts");
 
+function assertExecutionTiming(timing) {
+  assert.deepEqual(Object.keys(timing ?? {}).sort(), [
+    "chunkWindowMs",
+    "diverseSelectionMs",
+    "lexicalFallbackMs",
+    "lexicalSearchMs",
+    "mergeCandidatesMs",
+    "rankMs",
+    "vectorCandidateFetchMs",
+    "vectorEmbeddingMs",
+    "vectorSearchMs"
+  ]);
+}
+
 test("resolveRetrievalStrategy uses canonical vector defaults when strategyJson is present", () => {
   const strategy = resolveRetrievalStrategy({
     topK: 4,
@@ -982,7 +996,8 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
   assert.equal(embedCalls, 0);
   assert.equal(vectorCalls, 0);
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
-  assert.deepEqual(result.execution, {
+  const { timing: lexicalOnlyTiming, ...lexicalOnlyExecution } = result.execution;
+  assert.deepEqual(lexicalOnlyExecution, {
     actualMode: "lexical",
     usedFallback: false,
     fallbackReason: null,
@@ -1001,6 +1016,67 @@ test("RetrievalService skips vector retrieval when strategy mode is lexical", as
     mergedCandidateCount: 1,
     rankedCandidateCount: 1
   });
+  assertExecutionTiming(lexicalOnlyTiming);
+});
+
+test("RetrievalService limits vector search to topK when rerank is off in vector mode", async () => {
+  let requestedTopK = null;
+
+  const prisma = {
+    documentChunk: {
+      findMany: async () => [
+        {
+          id: "chunk-vector",
+          documentId: "doc-1",
+          chunkIndex: 0,
+          content: "vector only marker",
+          pageNo: null,
+          sectionTitle: "Overview",
+          document: { title: "Doc 1" }
+        }
+      ]
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async input => {
+      requestedTopK = input.topK;
+      return [{ chunkId: "chunk-vector", documentId: "doc-1", score: 0.9, modelName: "test" }];
+    }
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "vector only marker",
+    topK: 2,
+    scoreThreshold: 0,
+    strategy: {
+      queryRewrite: {
+        enabled: false
+      },
+      candidateSelection: {
+        mode: "vector",
+        candidateMultiplier: 3,
+        minCandidates: 6
+      },
+      hybrid: {
+        vectorWeight: 0.7,
+        lexicalWeight: 0.3
+      },
+      rerank: {
+        enabled: false,
+        mode: "off"
+      }
+    }
+  });
+
+  assert.equal(requestedTopK, 2);
+  assert.equal(result.retrievedChunks[0].chunkId, "chunk-vector");
 });
 
 test("RetrievalService reports lexical fallback when vector retrieval cannot produce candidates", async () => {
@@ -1039,7 +1115,8 @@ test("RetrievalService reports lexical fallback when vector retrieval cannot pro
   });
 
   assert.equal(result.retrievedChunks[0].chunkId, "chunk-lexical");
-  assert.deepEqual(result.execution, {
+  const { timing: vectorErrorTiming, ...vectorErrorExecution } = result.execution;
+  assert.deepEqual(vectorErrorExecution, {
     actualMode: "lexical",
     usedFallback: true,
     fallbackReason: "vector_error",
@@ -1058,6 +1135,7 @@ test("RetrievalService reports lexical fallback when vector retrieval cannot pro
     mergedCandidateCount: 1,
     rankedCandidateCount: 1
   });
+  assertExecutionTiming(vectorErrorTiming);
 });
 
 test("RetrievalService fails clearly instead of lexical fallback when embedding config is incompatible with indexed vectors", async () => {
@@ -1149,7 +1227,8 @@ test("RetrievalService reports empty-ranking fallback when vector retrieval yiel
   });
 
   assert.deepEqual(result.retrievedChunks, []);
-  assert.deepEqual(result.execution, {
+  const { timing: emptyFallbackTiming, ...emptyFallbackExecution } = result.execution;
+  assert.deepEqual(emptyFallbackExecution, {
     actualMode: "lexical",
     usedFallback: true,
     fallbackReason: "no_ranked_candidates",
@@ -1168,6 +1247,7 @@ test("RetrievalService reports empty-ranking fallback when vector retrieval yiel
     mergedCandidateCount: 0,
     rankedCandidateCount: 0
   });
+  assertExecutionTiming(emptyFallbackTiming);
 });
 
 test("RetrievalService preserves vector candidate diagnostics when ranked vector candidates fall back to lexical", async () => {
@@ -1232,7 +1312,8 @@ test("RetrievalService preserves vector candidate diagnostics when ranked vector
   });
 
   assert.deepEqual(result.retrievedChunks.map(chunk => chunk.chunkId), ["chunk-lexical"]);
-  assert.deepEqual(result.execution, {
+  const { timing: preservedFallbackTiming, ...preservedFallbackExecution } = result.execution;
+  assert.deepEqual(preservedFallbackExecution, {
     actualMode: "lexical",
     usedFallback: true,
     fallbackReason: "no_ranked_candidates",
@@ -1251,6 +1332,7 @@ test("RetrievalService preserves vector candidate diagnostics when ranked vector
     mergedCandidateCount: 1,
     rankedCandidateCount: 1
   });
+  assertExecutionTiming(preservedFallbackTiming);
 });
 
 test("RetrievalService hybrid ranking honors configured strategy weights", async () => {
@@ -1440,7 +1522,8 @@ test("RetrievalService reports candidate-budget saturation signals", async () =>
     }
   });
 
-  assert.deepEqual(result.execution, {
+  const { timing: candidateBudgetTiming, ...candidateBudgetExecution } = result.execution;
+  assert.deepEqual(candidateBudgetExecution, {
     actualMode: "hybrid",
     usedFallback: false,
     fallbackReason: null,
@@ -1459,6 +1542,110 @@ test("RetrievalService reports candidate-budget saturation signals", async () =>
     mergedCandidateCount: 4,
     rankedCandidateCount: 2
   });
+  assertExecutionTiming(candidateBudgetTiming);
+});
+
+test("RetrievalService avoids separate primary candidate fetch for vector chunk-window expansion", async () => {
+  let primaryIdFetchCount = 0;
+  let rangeFetchCount = 0;
+
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where?.id?.in) {
+          primaryIdFetchCount += 1;
+          return [
+            {
+              id: "chunk-2",
+              documentId: "doc-1",
+              chunkIndex: 2,
+              content: "primary chunk",
+              pageNo: 2,
+              sectionTitle: "Overview",
+              metadataJson: null,
+              document: { title: "Doc 1" }
+            }
+          ];
+        }
+
+        rangeFetchCount += 1;
+        return [
+          {
+            id: "chunk-1",
+            documentId: "doc-1",
+            chunkIndex: 1,
+            content: "prev chunk",
+            pageNo: 1,
+            sectionTitle: "Overview",
+            metadataJson: null,
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-2",
+            documentId: "doc-1",
+            chunkIndex: 2,
+            content: "primary chunk",
+            pageNo: 2,
+            sectionTitle: "Overview",
+            metadataJson: null,
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-3",
+            documentId: "doc-1",
+            chunkIndex: 3,
+            content: "next chunk",
+            pageNo: 2,
+            sectionTitle: "Details",
+            metadataJson: null,
+            document: { title: "Doc 1" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [{ chunkId: "chunk-2", documentId: "doc-1", chunkIndex: 2, score: 0.91, modelName: "test" }]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "primary chunk",
+    topK: 1,
+    scoreThreshold: 0,
+    chunkWindow: 1,
+    strategy: {
+      queryRewrite: {
+        enabled: false
+      },
+      candidateSelection: {
+        mode: "vector",
+        candidateMultiplier: 3,
+        minCandidates: 1
+      },
+      hybrid: {
+        vectorWeight: 0.7,
+        lexicalWeight: 0.3
+      },
+      rerank: {
+        enabled: false
+      }
+    }
+  });
+
+  assert.equal(primaryIdFetchCount, 0);
+  assert.equal(rangeFetchCount, 1);
+  assert.deepEqual(
+    result.retrievedChunks.map(chunk => chunk.chunkId),
+    ["chunk-1", "chunk-2", "chunk-3"]
+  );
+  assert.equal(result.retrievedChunks[1].isPrimary, true);
 });
 
 test("RetrievalService follows canonical defaults when partial strategyJson coexists with legacy flags", async () => {
@@ -1531,7 +1718,8 @@ test("RetrievalService follows canonical defaults when partial strategyJson coex
 
   assert.equal(lexicalReads, 0);
   assert.deepEqual(result.retrievedChunks.map(chunk => chunk.chunkId), ["chunk-vector"]);
-  assert.deepEqual(result.execution, {
+  const { timing: canonicalDefaultTiming, ...canonicalDefaultExecution } = result.execution;
+  assert.deepEqual(canonicalDefaultExecution, {
     actualMode: "vector",
     usedFallback: false,
     fallbackReason: null,
@@ -1541,7 +1729,7 @@ test("RetrievalService follows canonical defaults when partial strategyJson coex
     chunkWindowApplied: false,
     vectorSearchAttempted: true,
     lexicalSearchAttempted: false,
-    vectorCandidateLimitHit: false,
+    vectorCandidateLimitHit: true,
     lexicalCandidateLimitHit: false,
     rankingTopKHit: true,
     candidateLimit: 4,
@@ -1550,4 +1738,5 @@ test("RetrievalService follows canonical defaults when partial strategyJson coex
     mergedCandidateCount: 1,
     rankedCandidateCount: 1
   });
+  assertExecutionTiming(canonicalDefaultTiming);
 });

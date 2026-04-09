@@ -45,6 +45,7 @@ export type VectorSearchInput = {
 export type VectorSearchMatch = {
   chunkId: string;
   documentId: string;
+  chunkIndex: number;
   score: number;
   modelName: string;
 };
