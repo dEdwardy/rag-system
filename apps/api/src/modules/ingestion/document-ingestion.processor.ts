@@ -276,7 +276,13 @@ export class DocumentIngestionProcessor {
         chunkIndex: index,
         content: chunk.content,
         tokenCount: chunk.content.length,
-        sectionTitle: chunk.sectionTitle
+        sectionTitle: chunk.sectionTitle,
+        metadataJson: {
+          headingPath: chunk.headingPath,
+          blockType: chunk.blockType,
+          listOrdinal: chunk.listOrdinal,
+          isTableLike: chunk.isTableLike
+        } satisfies Prisma.InputJsonValue
       }));
 
       await this.prisma.documentChunk.createMany({

@@ -18,6 +18,72 @@
 
 ## Recent Landed Increments
 
+- `Supabase / Prisma 延迟排查复盘` 沉淀了这轮首字节优化的关键结论，供后续同类项目复用
+  - 现象：应用侧 `ask_timing` 日志里 `retrievalMs`、`vectorSearchMs`、`vectorCandidateFetchMs` 很高，但数据库表规模很小，和直觉不符
+  - 排查方法：
+    - 先在应用侧补齐 `ask_timing`、`retrievalExecution`、`retrievalDiagnostics`，把首字节前链路拆到 retrieval 子阶段
+    - 再用只读方式核对远端数据库的真实表规模、索引现状、`EXPLAIN ANALYZE` 执行时间
+    - 最后把数据库内部执行时间和应用端 wall-time 对比，确认慢点到底在 SQL 本身还是在连接/网络往返
+  - 关键发现：
+    - 当时 `ChunkEmbedding` / `DocumentChunk` 只有约百级数据，数据库内部 SQL 执行只有毫秒级
+    - 真实慢点不是 SQL 扫描，而是 API 到 Supabase 数据库之间的远程往返延迟
+    - `6543` pooler 路径显著慢于 `5432` direct 路径；在当前数据规模下，缺少 `ivfflat/hnsw` 不是本轮主因
+  - 误区记录：
+    - 不能只看应用日志里的 `vectorSearchMs` 就直接判断是“向量检索算法慢”或“索引缺失”
+    - 不能在没有对照 `EXPLAIN ANALYZE` 和真实 wall-time 前，就盲目继续做 retrieval 语义收缩
+    - 对 Supabase 类项目，pooler 更适合连接数治理，不一定适合极度敏感的低延迟读路径
+  - 落地改动：
+    - `apps/api/src/infra/database/prisma.service.ts` 现在优先读取 `DIRECT_URL`
+    - 本地/部署环境只要提供 `DIRECT_URL`，Prisma 就会走更低延迟的直连路径
+    - 启动日志会明确打印当前是 `direct`、`pooler` 还是 `custom` datasource，便于排查是否真正切换成功
+  - 实际结果：
+    - 切到直连后，`conversationLoadMs`、`userMessagePersistMs`、`retrievalMs`、`firstTokenMs` 都明显下降
+    - 一批真实问题样本里，`firstTokenMs` 已经从早期的 `4s-6s` 区间下降到约 `1.8s-2.9s`
+    - 最佳样本已进入 `2s` 左右区间，说明这轮优化主收益来自数据库连接路径，而不是回答质量降级
+  - 给后续 Supabase/Prisma 项目的借鉴：
+    - 如果 trace 显示 retrieval 很慢，先确认“数据库内部执行慢”还是“连接往返慢”
+    - 小表+慢查询 wall-time 的第一怀疑对象应该是连接路径、region、pooler，而不一定是 SQL 本身
+    - 对低延迟读链路，优先预留 `DIRECT_URL`
+    - 只有在数据量真正上来后，再把 `pgvector` ANN 索引（`ivfflat` / `hnsw`）作为主要优化目标
+    - 回答质量敏感场景下，优先做连接/实现层优化，谨慎做 retrieval 语义收缩
+  - 独立中文备忘录已整理到：
+    - `docs/supabase-prisma-latency-playbook.md`
+
+- `database latency diagnosis + direct-url preference` clarified the current TTFB ceiling and landed a bounded runtime fix
+  - focused DB inspection showed current `ChunkEmbedding` / `DocumentChunk` SQL execution is only millisecond-level at the database, while end-to-end query wall time is dominated by remote connection / pooler latency
+  - `apps/api/src/infra/database/prisma.service.ts` now prefers `DIRECT_URL` over `DATABASE_URL` when available, so the latency-sensitive API path can avoid the slower Supabase pooler route without changing retrieval semantics
+  - local runtime config can now activate that lower-latency path simply by setting `DIRECT_URL`
+  - focused validation:
+    - `pnpm test:api:file -- test/prisma.service.test.js`
+
+- `performance direction update` clarifies the next optimization target as request orchestration rather than answer-quality tuning
+  - latest traces show the real cost is now dominated by the synchronous pre-generation chain, not model output quality
+  - `llm first token` is already relatively low compared with the `first token pre-generation` slice, so the next ROI comes from shrinking the pre-LLM chain length
+  - next safe optimization targets are conversation load slimming, user-message write decoupling, retrieval sub-stage timing, and tighter rerank gating for only genuinely complex questions
+
+- `ask/retrieval hot-path trimming` continues to shave avoidable CPU work from the current RAG path without changing answer quality
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` no longer keeps the short-TTL retrieval cache that was only reducing repeated hot-query work
+  - `apps/api/src/modules/retrieval/retrieval.service.ts` now uses cheaper set-based unique collection and avoids repeated lowercasing / join work inside candidate scoring
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `git diff --check -- apps/api/src/modules/assistants/ask-assistant.service.ts apps/api/src/modules/retrieval/retrieval.service.ts docs/current-progress.md`
+
+- `quality/performance optimization phase 1` landed a bounded first implementation pass on the current ask pipeline without opening a new architecture wave
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now records richer retrieval/trace metadata, including prompt-context size, primary retrieval score stats, context-group average length, and explicit rewrite skip reasons
+  - retrieval strategy parsing now supports `queryRewrite.mode` plus `queryRewrite.maxAddedLatencyMs`, and the ask path uses heuristic rewrite gating instead of treating rewrite as a simple global boolean
+  - `apps/api/src/modules/retrieval/retrieval.service.ts` now preserves the existing hard failure contract for embedding/runtime compatibility errors instead of silently degrading into lexical fallback
+  - `apps/api/src/modules/traces/traces.service.ts` and `packages/shared/src/trace-contracts.ts` now surface the new prompt/retrieval metrics through `traceSummary`, keeping the existing trace/readout path as the single observability surface
+  - `apps/api/src/infra/llm/prompt-manager.service.ts` now uses tighter prompt packing for summary/list-style questions so those paths get more coverage with less prompt bloat
+  - focused validation:
+    - `pnpm test:api:file -- test/retrieval.test.js`
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `pnpm test:api:file -- test/ask-failures.test.js`
+    - `pnpm test:api:file -- test/ask-stream-service.test.js`
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `pnpm test:api:file -- test/prompt-manager.test.js`
+    - `pnpm test:api:fast:assistants`
+    - `git diff --check -- apps/api/src/modules/assistants/ask-assistant.service.ts apps/api/src/modules/retrieval/retrieval.service.ts apps/api/src/modules/traces/traces.service.ts apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts apps/api/src/infra/llm/prompt-manager.service.ts packages/shared/src/trace-contracts.ts apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/ask-failures.test.js apps/api/test/traces.service.test.js`
+
 - `test-system map cleanup` clarified the current repository test lanes without introducing a broad framework rewrite
   - root `package.json` now exposes explicit `test:web`, `test:web:guard`, `test:web:guard:legacy`, `test:web:legacy`, `test:web:smoke`, and `test:web:smoke:legacy` entrypoints
   - `apps/web/package.json` now splits frontend checks into `test:guard`, `test:guard:legacy`, `test:legacy`, and `test:smoke:legacy`, separating the stable guard gate from older local/source/UX verification that still needs re-baselining
@@ -235,3 +301,24 @@
   - focused validation:
     - `pnpm --filter @rag-system/web typecheck`
     - `git diff --check -- apps/web/src/pages/chat/ChatPage.tsx apps/web/src/pages/usage/UsagePage.tsx apps/web/src/pages/reports/ReportCenterPage.tsx apps/web/src/pages/traces/TraceListPage.tsx apps/web/src/pages/auth/LoginPage.tsx apps/web/src/pages/auth/InviteGatePage.tsx apps/web/src/pages/assistant/AssistantSettingsForm.tsx`
+
+## Recent API Quality / Performance Follow-up
+
+- Continued the `quality-performance-optimization-plan` implementation beyond phase 1 with bounded retrieval / answering / ingestion hardening instead of opening a new architecture wave.
+  - `chunking.service.ts` now emits lightweight structural metadata (`headingPath`, `blockType`, `listOrdinal`, `isTableLike`) for list / table / FAQ-aware chunks.
+  - `document-ingestion.processor.ts` now persists chunk structure hints into `DocumentChunk.metadataJson`, so retrieval and future diagnostics can reuse them.
+  - `retrieval.service.ts` now reads chunk metadata, adds structure-aware lexical scoring, surfaces `matchSource`, and formalizes `rerank.mode` (`off | local_heuristic | llm_judge`) while keeping the current implementation lightweight.
+  - `rerank.mode = llm_judge` now uses a bounded LLM judge prompt for the top candidate slice and falls back to the local heuristic when the judge call fails or returns unusable output.
+  - `answering.service.ts` now adds `citationReliability`, enables heuristic summary-main-item extraction for summary/list questions, and applies tighter summary-oriented context packing without adding a second LLM call.
+- `retrieval-profile.schemas.ts` and `ask-assistant.service.ts` now default enabled rewrite to `heuristic_only` and skip it when the estimated added latency exceeds the profile budget.
+- The streaming ask path now starts trace creation in parallel with answer generation so trace persistence no longer blocks the first streamed token.
+- Focused validation completed:
+  - `pnpm test:api:file -- test/chunking.test.js`
+  - `pnpm test:api:file -- test/retrieval.test.js`
+  - `pnpm test:api:file -- test/answering.test.js`
+  - `pnpm test:api:fast:assistants`
+- The web trace detail page now surfaces the newest high-signal diagnostics directly in the UI, including prompt size, rewrite skip reason, primary score, and context-group sizing.
+- The trace list page now previews latency and rewrite state on each conversation card so the diagnostics surface is visible before opening a detail view.
+- The trace detail sidebar now highlights the slowest timing stage so the main bottleneck is visible at a glance without manual inspection.
+- The trace list page now shows a compact slowest-stage preview on each conversation card so slow runs can be spotted without opening the detail page.
+- Summary/list answer prompts now use a tighter compact context mode once the retrieved chunk set gets larger, trimming prompt size to reduce first-token latency.

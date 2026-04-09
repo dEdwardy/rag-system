@@ -70,3 +70,14 @@ export type RewriteQueryOutput = {
   usedFallback: boolean;
   promptId: string;
 };
+
+export type JudgeRerankInput = {
+  question: string;
+  candidates: Array<{
+    chunkId: string;
+    documentTitle: string;
+    sectionTitle: string | null;
+    content: string;
+    score: number;
+  }>;
+};

@@ -3,6 +3,10 @@ import { Injectable } from "@nestjs/common";
 export type ParsedChunk = {
   content: string;
   sectionTitle: string | null;
+  headingPath: string[];
+  blockType: "paragraph" | "heading" | "list" | "table" | "faq" | "quote" | "code";
+  listOrdinal: number | null;
+  isTableLike: boolean;
 };
 
 @Injectable()
@@ -18,7 +22,11 @@ export class ChunkingService {
 
     const chunks: ParsedChunk[] = [];
     let currentSectionTitle: string | null = null;
+    let currentHeadingPath: string[] = [];
     let bufferParts: string[] = [];
+    let currentBlockType: ParsedChunk["blockType"] = "paragraph";
+    let currentListOrdinal: number | null = null;
+    let currentIsTableLike = false;
 
     const pushChunk = (parts: string[], sectionTitle: string | null) => {
       const normalized = parts.join("\n\n").trim();
@@ -28,7 +36,11 @@ export class ChunkingService {
 
       chunks.push({
         content: normalized,
-        sectionTitle
+        sectionTitle,
+        headingPath: [...currentHeadingPath],
+        blockType: currentBlockType,
+        listOrdinal: currentListOrdinal,
+        isTableLike: currentIsTableLike
       });
     };
 
@@ -47,9 +59,17 @@ export class ChunkingService {
       if (this.isHeadingParagraph(paragraph)) {
         flushBuffer();
         currentSectionTitle = this.extractHeadingTitle(paragraph);
+        currentHeadingPath = this.updateHeadingPath(currentHeadingPath, paragraph);
+        currentBlockType = "heading";
+        currentListOrdinal = null;
+        currentIsTableLike = false;
         bufferParts = [paragraph];
         continue;
       }
+
+      currentBlockType = this.detectBlockType(paragraph);
+      currentListOrdinal = this.extractListOrdinal(paragraph);
+      currentIsTableLike = this.isTableLikeParagraph(paragraph);
 
       const paragraphSegments = this.splitOversizedParagraph(paragraph, maxChunkLength);
       for (const segment of paragraphSegments) {
@@ -89,7 +109,11 @@ export class ChunkingService {
       : [
           {
             content,
-            sectionTitle: null
+            sectionTitle: null,
+            headingPath: [],
+            blockType: "paragraph",
+            listOrdinal: null,
+            isTableLike: false
           }
         ];
   }
@@ -100,6 +124,60 @@ export class ChunkingService {
 
   private extractHeadingTitle(paragraph: string) {
     return paragraph.replace(/^#{1,6}\s*/, "").trim() || null;
+  }
+
+  private updateHeadingPath(currentHeadingPath: string[], paragraph: string) {
+    const levelMatch = paragraph.match(/^(#{1,6})\s+/);
+    const headingTitle = this.extractHeadingTitle(paragraph);
+    if (!levelMatch || !headingTitle) {
+      return currentHeadingPath;
+    }
+
+    const level = levelMatch[1].length;
+    return [...currentHeadingPath.slice(0, Math.max(0, level - 1)), headingTitle];
+  }
+
+  private detectBlockType(paragraph: string): ParsedChunk["blockType"] {
+    if (/^>\s+/.test(paragraph)) {
+      return "quote";
+    }
+
+    if (/^```/.test(paragraph) || /^( {4}|\t)\S/.test(paragraph)) {
+      return "code";
+    }
+
+    if (this.isFaqParagraph(paragraph)) {
+      return "faq";
+    }
+
+    if (this.isTableLikeParagraph(paragraph)) {
+      return "table";
+    }
+
+    if (/^([-*+]|\d+\.)\s+/.test(paragraph)) {
+      return "list";
+    }
+
+    return "paragraph";
+  }
+
+  private extractListOrdinal(paragraph: string) {
+    const match = paragraph.match(/^(\d+)\.\s+/);
+    return match ? Number.parseInt(match[1], 10) : null;
+  }
+
+  private isTableLikeParagraph(paragraph: string) {
+    const lines = paragraph.split("\n").map(line => line.trim()).filter(Boolean);
+    if (lines.length < 2) {
+      return false;
+    }
+
+    return lines.every(line => /\|/.test(line));
+  }
+
+  private isFaqParagraph(paragraph: string) {
+    const normalized = paragraph.trim();
+    return /^(q[:：]|question[:：]|问[:：]).+/i.test(normalized) && /(?:\n|^)(a[:：]|answer[:：]|答[:：]).+/im.test(normalized);
   }
 
   private splitOversizedParagraph(paragraph: string, maxChunkLength: number) {

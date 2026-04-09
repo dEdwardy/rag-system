@@ -3,7 +3,7 @@ const { ConversationsService } = require("../src/modules/conversations/conversat
 
 test("ConversationsService scopes list and lookup by identity when provided", async () => {
   const findManyCalls = [];
-  const findFirstCalls = [];
+  const findUniqueCalls = [];
 
   const service = new ConversationsService({
     conversation: {
@@ -11,9 +11,9 @@ test("ConversationsService scopes list and lookup by identity when provided", as
         findManyCalls.push(args);
         return [{ id: "conversation-1" }];
       },
-      findFirst: async args => {
-        findFirstCalls.push(args);
-        return { id: "conversation-1" };
+      findUnique: async args => {
+        findUniqueCalls.push(args);
+        return { id: "conversation-1", tenantId: "tenant-42", userId: "user-42" };
       },
       update: async () => ({ id: "conversation-1" })
     }
@@ -42,19 +42,26 @@ test("ConversationsService scopes list and lookup by identity when provided", as
       },
       where: {
         tenantId: "tenant-42",
-        userId: "user-42"
+        userId: "user-42",
+        status: "active"
       },
       orderBy: {
         updatedAt: "desc"
       }
     }
   ]);
-  assert.deepEqual(findFirstCalls, [
+  assert.deepEqual(findUniqueCalls, [
     {
-      where: {
-        id: "conversation-1",
-        tenantId: "tenant-42",
-        userId: "user-42"
+      where: { id: "conversation-1" },
+      select: {
+        id: true,
+        tenantId: true,
+        userId: true,
+        assistantId: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true
       }
     }
   ]);
@@ -64,7 +71,7 @@ test("ConversationsService returns not found for out-of-scope conversation looku
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
-      findFirst: async () => null,
+      findUnique: async () => null,
       update: async () => {
         throw new Error("update should not be reached");
       }
@@ -81,14 +88,14 @@ test("ConversationsService returns not found for out-of-scope conversation looku
 });
 
 test("ConversationsService scopes conversation touch writes by owner identity", async () => {
-  const findFirstCalls = [];
+  const findUniqueCalls = [];
   const updateCalls = [];
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
-      findFirst: async args => {
-        findFirstCalls.push(args);
-        return { id: "conversation-1" };
+      findUnique: async args => {
+        findUniqueCalls.push(args);
+        return { id: "conversation-1", tenantId: "tenant-42", userId: "user-42" };
       },
       update: async args => {
         updateCalls.push(args);
@@ -102,12 +109,18 @@ test("ConversationsService scopes conversation touch writes by owner identity", 
     userId: "user-42"
   });
 
-  assert.deepEqual(findFirstCalls, [
+  assert.deepEqual(findUniqueCalls, [
     {
-      where: {
-        id: "conversation-1",
-        tenantId: "tenant-42",
-        userId: "user-42"
+      where: { id: "conversation-1" },
+      select: {
+        id: true,
+        tenantId: true,
+        userId: true,
+        assistantId: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true
       }
     }
   ]);
@@ -123,7 +136,7 @@ test("ConversationsService blocks out-of-scope conversation touch writes", async
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
-      findFirst: async () => null,
+      findUnique: async () => null,
       update: async args => {
         updateCalls.push(args);
         return { id: "conversation-1" };
@@ -140,4 +153,22 @@ test("ConversationsService blocks out-of-scope conversation touch writes", async
   );
 
   assert.equal(updateCalls.length, 0);
+});
+
+test("ConversationsService blocks conversation lookup when owner scope does not match", async () => {
+  const service = new ConversationsService({
+    conversation: {
+      findMany: async () => [],
+      findUnique: async () => ({ id: "conversation-1", tenantId: "tenant-42", userId: "user-other" }),
+      update: async () => ({ id: "conversation-1" })
+    }
+  });
+
+  await assert.rejects(
+    service.getConversation("conversation-1", {
+      tenantId: "tenant-42",
+      userId: "user-42"
+    }),
+    /Conversation conversation-1 not found\./
+  );
 });

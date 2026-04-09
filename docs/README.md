@@ -35,6 +35,8 @@ To reduce ambiguity, use the docs in the following order.
   - longer-lived architecture/background reference
 - [Retrieval Trace](retrieval-trace.md)
   - trace structure and retrieval-trace-related notes
+- [Quality And Performance Optimization Plan](quality-performance-optimization-plan.md)
+  - current implementation-oriented plan for improving answer quality without regressing latency too far
 - [Web i18n](web-i18n.md)
   - frontend i18n notes
 - [Auto Dev Workflow](auto-dev-workflow.md)

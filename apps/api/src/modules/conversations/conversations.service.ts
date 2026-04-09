@@ -34,16 +34,16 @@ export class ConversationsService {
   }
 
   async getConversation(id: string, scope: { tenantId: string; userId: string }) {
-    const conversation = await this.prisma.conversation.findFirst({
-      select: this.conversationListSelect,
-      where: {
-        id,
-        tenantId: scope.tenantId,
-        userId: scope.userId
-      }
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+      select: this.conversationListSelect
     });
 
-    if (!conversation) {
+    if (
+      !conversation ||
+      conversation.tenantId !== scope.tenantId ||
+      conversation.userId !== scope.userId
+    ) {
       throw new NotFoundException(`Conversation ${id} not found.`);
     }
 

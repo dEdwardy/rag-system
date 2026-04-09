@@ -77,3 +77,10 @@
 - é¡¹ç›®çŠ¶æ€æ€»è§ˆï¼š[docs/project-status-overview.md](D:\FeProjects\rag-system\docs\project-status-overview.md)
 - æœ¬åœ°å¼€å‘ä¸ŽéªŒè¯ï¼š[docs/current-dev-setup.md](D:\FeProjects\rag-system\docs\current-dev-setup.md)
 - ä»“åº“æ€»è§ˆï¼š`README.md`
+
+## Performance Note
+
+- ×îÐÂ trace ËµÃ÷µ±Ç°Æ¿¾±ÒÑ¾­´Ó»Ø´ðÖÊÁ¿/Ä£ÐÍÊä³ö£¬×ªµ½ÁË request orchestration¡£
+- `LLM first token` ÒÑ¾­²»ÊÇÖ÷Æ¿¾±£¬ÕæÕýÐèÒªÓÅÏÈÑ¹ËõµÄÊÇ `first token pre-generation` Õâ¶ÎÍ¬²½Á´Â·¡£
+- ÏÂÒ»²½ÓÅÏÈ¼¶£º»á»°¼ÓÔØÊÝÉí¡¢ÓÃ»§ÏûÏ¢Ð´¿âºóÒÆ»ò²¢·¢¡¢retrieval ×Ó½×¶Î²ð·Ö¡¢¸´ÔÓÌâ²ÅÆôÓÃÖØ rerank¡£
+- ºóÐøÓÅ»¯¼ÌÐø±£³Ö»Ø´ðÖÊÁ¿²»±ä£¬Ö»Ï÷¼õÄ£ÐÍÇ°µÄ±àÅÅ¿ªÏú¡£

@@ -164,6 +164,16 @@ Notes:
   - `apps/api/.env.local`
   - `apps/api/.env`
 - Repository-root `.env` is not part of the runtime path for the API.
+- 当前 Prisma 数据源优先级已更新为：
+  - `DIRECT_URL`
+  - `DATABASE_URL`
+- 对当前这个项目和类似 Supabase 项目，经验上建议：
+  - 延迟敏感的 API 读路径优先提供 `DIRECT_URL`
+  - `DATABASE_URL` 的 pooler 路径更适合连接数治理，不一定是最低延迟路径
+  - 如果 `ask_timing`/trace 显示 retrieval 很慢，先排查连接路径与 region，再决定是否要动 retrieval 语义
+- 本轮复盘结论：
+  - 当前数据规模较小时，远端数据库内部 SQL 可能只有毫秒级，但应用侧 wall-time 仍可能达到数百毫秒到数秒
+  - 出现这种情况时，应优先怀疑 Supabase pooler / 网络往返，而不是默认怀疑 SQL 或向量检索本身
 - 当前 auth 运行时已支持 `session + access JWT + session 驱动续签`：
 
 ```text

@@ -30,6 +30,7 @@ type IndexedConfigRow = {
 type SearchRow = {
   chunkId: string;
   documentId: string;
+  chunkIndex: number;
   modelName: string;
   score: number;
 };
@@ -110,6 +111,7 @@ export class PgVectorStoreService implements VectorStore {
       matches: rows.map(row => ({
         chunkId: row.chunkId,
         documentId: row.documentId,
+        chunkIndex: row.chunkIndex,
         score: Number(row.score),
         modelName: row.modelName
       })),
@@ -237,6 +239,7 @@ export class PgVectorStoreService implements VectorStore {
       SELECT
         "chunkId",
         "documentId",
+        "chunkIndex",
         "modelName",
         1 - ("embedding" <=> ${vectorLiteral}::vector) AS "score"
       FROM ${this.tableIdentifier()}

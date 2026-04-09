@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/database/prisma.service";
 import { EmbeddingRuntimeConfigError } from "../../infra/embedding/embedding-runtime-config";
 import { EmbeddingService } from "../../infra/embedding/embedding.service";
+import { PromptManagerService } from "../../infra/llm/prompt-manager.service";
+import { LlmService } from "../../infra/llm/llm.service";
 import {
   VECTOR_STORE,
   VectorSearchMatch,
@@ -28,6 +30,11 @@ type RetrievedChunk = {
   isPrimary: boolean;
   pageNo: number | null;
   sectionTitle: string | null;
+  matchSource: "fts" | "section_title" | "like_fallback" | "vector" | undefined;
+  headingPath?: string[];
+  blockType?: "paragraph" | "heading" | "list" | "table" | "faq" | "quote" | "code";
+  listOrdinal?: number | null;
+  isTableLike?: boolean;
 };
 
 type RetrievalCandidate = RetrievedChunk & {
@@ -35,6 +42,19 @@ type RetrievalCandidate = RetrievedChunk & {
   vectorScore: number;
   hybridScore: number;
   rerankScore: number;
+};
+
+type ExpandedChunkRow = {
+  id: string;
+  documentId: string;
+  chunkIndex: number;
+  content: string;
+  sectionTitle: string | null;
+  metadataJson: Prisma.JsonValue | null;
+  pageNo: number | null;
+  document: {
+    title: string;
+  };
 };
 
 export type RetrievalContextGroup = {
@@ -58,6 +78,12 @@ export type RetrievalResult = {
     usedFallback: boolean;
     fallbackReason: "vector_error" | "no_ranked_candidates" | null;
     rerankApplied: boolean;
+    rerankMode: "off" | "local_heuristic" | "llm_judge";
+    rerankJudgeSkippedReason:
+      | "candidate_set_too_large"
+      | "query_too_simple"
+      | "judge_dependencies_missing"
+      | null;
     chunkWindowApplied: boolean;
     vectorSearchAttempted: boolean;
     lexicalSearchAttempted: boolean;
@@ -69,6 +95,17 @@ export type RetrievalResult = {
     lexicalCandidateCount: number;
     mergedCandidateCount: number;
     rankedCandidateCount: number;
+    timing?: {
+      lexicalSearchMs: number | null;
+      vectorEmbeddingMs: number | null;
+      vectorSearchMs: number | null;
+      vectorCandidateFetchMs: number | null;
+      mergeCandidatesMs: number | null;
+      diverseSelectionMs: number | null;
+      rankMs: number | null;
+      chunkWindowMs: number | null;
+      lexicalFallbackMs: number | null;
+    };
   };
 };
 
@@ -79,7 +116,9 @@ export class RetrievalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
-    @Inject(VECTOR_STORE) private readonly vectorStoreService: VectorStore
+    @Inject(VECTOR_STORE) private readonly vectorStoreService: VectorStore,
+    private readonly llmService?: LlmService,
+    private readonly promptManager?: PromptManagerService
   ) {}
 
   async retrieve(input: {
@@ -94,6 +133,17 @@ export class RetrievalService {
     strategy?: ResolvedRetrievalStrategy;
     documentVersions?: Record<string, number>;
   }) {
+    const phaseTiming: NonNullable<RetrievalResult["execution"]["timing"]> = {
+      lexicalSearchMs: null,
+      vectorEmbeddingMs: null,
+      vectorSearchMs: null,
+      vectorCandidateFetchMs: null,
+      mergeCandidatesMs: null,
+      diverseSelectionMs: null,
+      rankMs: null,
+      chunkWindowMs: null,
+      lexicalFallbackMs: null
+    };
     const normalizedFilters = retrievalProfileFiltersSchema.optional().parse(input.filters);
     const strategy =
       input.strategy ??
@@ -104,11 +154,16 @@ export class RetrievalService {
       });
     const candidateSelectionMode = strategy.candidateSelection.mode;
     const resolvedEnableRerank = strategy.rerank.enabled;
+    const resolvedRerankMode = strategy.rerank.mode;
     const candidateLimit = Math.max(
       input.topK * strategy.candidateSelection.candidateMultiplier,
       strategy.candidateSelection.minCandidates,
       input.topK
     );
+    const vectorSearchTopK =
+      candidateSelectionMode === "vector" && !resolvedEnableRerank
+        ? input.topK
+        : candidateLimit;
 
     if (candidateSelectionMode === "lexical") {
       const lexicalCandidates = await this.getLexicalCandidates({
@@ -130,7 +185,13 @@ export class RetrievalService {
         actualMode: "lexical",
         usedFallback: false,
         fallbackReason: null,
-        rerankApplied: resolvedEnableRerank
+        rerankApplied: resolvedEnableRerank,
+        rerankMode: resolvedRerankMode,
+        rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+          candidates: [],
+          query: input.query,
+          rerankMode: resolvedRerankMode
+        })
       });
     }
 
@@ -142,26 +203,35 @@ export class RetrievalService {
 
       if (candidateSelectionMode === "hybrid") {
         tasks.push(
-          this.getLexicalCandidates({
-            kbId: input.kbId,
-            query: input.query,
-            limit: candidateLimit,
-            filters: normalizedFilters,
-            documentVersions: input.documentVersions
-          }).then(result => ({ type: "lexical" as const, result }))
+          (async () => {
+            const lexicalSearchStartedAt = Date.now();
+            const result = await this.getLexicalCandidates({
+              kbId: input.kbId,
+              query: input.query,
+              limit: candidateLimit,
+              filters: normalizedFilters,
+              documentVersions: input.documentVersions
+            });
+            phaseTiming.lexicalSearchMs = Date.now() - lexicalSearchStartedAt;
+            return { type: "lexical" as const, result };
+          })()
         );
       }
 
       tasks.push(
         (async () => {
+          const embeddingStartedAt = Date.now();
           const queryEmbedding = await this.embeddingService.embedQuery(input.query);
+          phaseTiming.vectorEmbeddingMs = Date.now() - embeddingStartedAt;
+          const vectorSearchStartedAt = Date.now();
           const vectorSearch = (await this.vectorStoreService.search({
             kbId: input.kbId,
             queryEmbedding,
-            topK: candidateLimit,
+            topK: vectorSearchTopK,
             scoreThreshold: input.scoreThreshold,
             filters: normalizedFilters
           })) as VectorSearchResult | VectorSearchMatch[];
+          phaseTiming.vectorSearchMs = Date.now() - vectorSearchStartedAt;
           const normalizedVectorSearch = this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
           return { type: "vector" as const, result: normalizedVectorSearch };
         })()
@@ -181,6 +251,12 @@ export class RetrievalService {
           }
         } else {
           const taskType = index === 0 && candidateSelectionMode === "hybrid" ? "lexical" : "vector";
+          if (taskType === "vector" && (
+            result.reason instanceof EmbeddingRuntimeConfigError ||
+            result.reason instanceof VectorStoreCompatibilityError
+          )) {
+            throw result.reason;
+          }
           const message = result.reason instanceof Error ? result.reason.message : "Unknown error";
           this.logger.warn(`${taskType} search failed: ${message}`, result.reason);
         }
@@ -194,20 +270,122 @@ export class RetrievalService {
       embeddingDiagnostics = (normalizedVectorSearch as VectorSearchResult).embedding;
 
       if (vectorMatches.length > 0 || candidateSelectionMode === "hybrid") {
-        const vectorCandidates = await this.getVectorCandidates(vectorMatches);
+        if (candidateSelectionMode === "vector" && !resolvedEnableRerank) {
+          const topVectorMatches = vectorMatches.slice(0, input.topK);
+          vectorCandidateCount = topVectorMatches.length;
+          if (
+            (input.chunkWindow ?? 0) > 0 &&
+            topVectorMatches.every(match => typeof (match as { chunkIndex?: unknown }).chunkIndex === "number")
+          ) {
+            const chunkWindowStartedAt = Date.now();
+            const retrievedChunks = await this.expandVectorMatchesWithChunkWindow(
+              input.kbId,
+              topVectorMatches,
+              input.chunkWindow ?? 0,
+              normalizedFilters,
+              input.documentVersions
+            );
+            phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
+            if (retrievedChunks.length > 0) {
+              return this.buildRetrievalResult(retrievedChunks, {
+                embedding: embeddingDiagnostics,
+                actualMode: candidateSelectionMode,
+                usedFallback: false,
+                fallbackReason: null,
+                rerankApplied: resolvedEnableRerank,
+                rerankMode: resolvedRerankMode,
+                rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+                  candidates: [],
+                  query: input.query,
+                  rerankMode: resolvedRerankMode
+                }),
+                chunkWindowApplied: true,
+                vectorSearchAttempted: true,
+                lexicalSearchAttempted: false,
+                vectorCandidateLimitHit: vectorMatches.length >= vectorSearchTopK,
+                lexicalCandidateLimitHit: false,
+                rankingTopKHit: topVectorMatches.length >= input.topK,
+                candidateLimit,
+                vectorCandidateCount,
+                lexicalCandidateCount: 0,
+                mergedCandidateCount: topVectorMatches.length,
+                rankedCandidateCount: topVectorMatches.length,
+                timing: phaseTiming
+              });
+            }
+          } else {
+            const vectorCandidateFetchStartedAt = Date.now();
+            const vectorCandidates = await this.getVectorCandidates(topVectorMatches);
+            phaseTiming.vectorCandidateFetchMs = Date.now() - vectorCandidateFetchStartedAt;
+            const rankedVectorCandidates = vectorCandidates.filter(candidate => candidate.score >= input.scoreThreshold);
+            vectorCandidateCount = vectorCandidates.length;
+            if (rankedVectorCandidates.length > 0) {
+              let retrievedChunks: RetrievedChunk[] = rankedVectorCandidates;
+              if ((input.chunkWindow ?? 0) > 0) {
+                const chunkWindowStartedAt = Date.now();
+                retrievedChunks = await this.expandChunkWindow(
+                  input.kbId,
+                  rankedVectorCandidates,
+                  input.chunkWindow ?? 0,
+                  normalizedFilters,
+                  input.documentVersions
+                );
+                phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
+              }
+
+              return this.buildRetrievalResult(retrievedChunks, {
+                embedding: embeddingDiagnostics,
+                actualMode: candidateSelectionMode,
+                usedFallback: false,
+                fallbackReason: null,
+                rerankApplied: resolvedEnableRerank,
+                rerankMode: resolvedRerankMode,
+                rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+                  candidates: rankedVectorCandidates,
+                  query: input.query,
+                  rerankMode: resolvedRerankMode
+                }),
+                chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+                vectorSearchAttempted: true,
+                lexicalSearchAttempted: false,
+                vectorCandidateLimitHit: vectorMatches.length >= vectorSearchTopK,
+                lexicalCandidateLimitHit: false,
+                rankingTopKHit: rankedVectorCandidates.length >= input.topK,
+                candidateLimit,
+                vectorCandidateCount,
+                lexicalCandidateCount: 0,
+                mergedCandidateCount: rankedVectorCandidates.length,
+                rankedCandidateCount: rankedVectorCandidates.length,
+                timing: phaseTiming
+              });
+            }
+          }
+        }
+
+        const vectorCandidateFetchStartedAt = Date.now();
+        const vectorCandidates = await this.getVectorCandidates(vectorMatches, lexicalCandidates);
+        phaseTiming.vectorCandidateFetchMs = Date.now() - vectorCandidateFetchStartedAt;
         vectorCandidateCount = vectorCandidates.length;
+        const mergeCandidatesStartedAt = Date.now();
         const mergedCandidates = candidateSelectionMode === "hybrid" && lexicalCandidates
           ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates, strategy)
           : vectorCandidates;
+        phaseTiming.mergeCandidatesMs = Date.now() - mergeCandidatesStartedAt;
+        const diverseSelectionStartedAt = Date.now();
         const diverseCandidates = this.selectDiverseCandidates(mergedCandidates, candidateLimit);
-        const rankedCandidates = this.rankCandidates(diverseCandidates, {
-          enableRerank: resolvedEnableRerank,
-          query: input.query,
-          scoreThreshold: input.scoreThreshold,
-          topK: input.topK
-        });
+        phaseTiming.diverseSelectionMs = Date.now() - diverseSelectionStartedAt;
+        const rankStartedAt = Date.now();
+        const rankedCandidates = await this.rankCandidates(diverseCandidates, {
+            enableRerank: resolvedEnableRerank,
+            rerankMode: resolvedRerankMode,
+            query: input.query,
+            scoreThreshold: input.scoreThreshold,
+            topK: input.topK
+          });
+        phaseTiming.rankMs = Date.now() - rankStartedAt;
 
         if (rankedCandidates.length > 0) {
+          const chunkWindowStartedAt = Date.now();
           const retrievedChunks = await this.expandChunkWindow(
             input.kbId,
             rankedCandidates,
@@ -215,23 +393,31 @@ export class RetrievalService {
             normalizedFilters,
             input.documentVersions
           );
+          phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
           return this.buildRetrievalResult(retrievedChunks, {
             embedding: embeddingDiagnostics,
             actualMode: candidateSelectionMode,
             usedFallback: false,
             fallbackReason: null,
             rerankApplied: resolvedEnableRerank,
+            rerankMode: resolvedRerankMode,
+            rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+              candidates: diverseCandidates,
+              query: input.query,
+              rerankMode: resolvedRerankMode
+            }),
             chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
             vectorSearchAttempted: true,
             lexicalSearchAttempted: candidateSelectionMode === "hybrid",
-            vectorCandidateLimitHit: vectorCandidates.length >= candidateLimit,
+            vectorCandidateLimitHit: vectorMatches.length >= vectorSearchTopK,
             lexicalCandidateLimitHit: (lexicalCandidates?.length ?? 0) >= candidateLimit,
             rankingTopKHit: rankedCandidates.length >= input.topK,
             candidateLimit,
             vectorCandidateCount,
             lexicalCandidateCount: lexicalCandidates?.length ?? 0,
             mergedCandidateCount: mergedCandidates.length,
-            rankedCandidateCount: rankedCandidates.length
+            rankedCandidateCount: rankedCandidates.length,
+            timing: phaseTiming
           });
         }
       }
@@ -254,6 +440,13 @@ export class RetrievalService {
         usedFallback: true,
         fallbackReason: "vector_error",
         rerankApplied: resolvedEnableRerank,
+        rerankMode: resolvedRerankMode,
+        rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+          candidates: [],
+          query: input.query,
+          rerankMode: resolvedRerankMode
+        }),
+        phaseTiming,
         documentVersions: input.documentVersions
       });
     }
@@ -270,6 +463,12 @@ export class RetrievalService {
       usedFallback: true,
       fallbackReason: "no_ranked_candidates",
       rerankApplied: resolvedEnableRerank,
+      rerankMode: resolvedRerankMode,
+      rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+        candidates: [],
+        query: input.query,
+        rerankMode: resolvedRerankMode
+      }),
       documentVersions: input.documentVersions
     });
   }
@@ -290,8 +489,16 @@ export class RetrievalService {
     usedFallback: boolean;
     fallbackReason: "vector_error" | "no_ranked_candidates" | null;
     rerankApplied: boolean;
+    rerankMode: "off" | "local_heuristic" | "llm_judge";
+    rerankJudgeSkippedReason:
+      | "candidate_set_too_large"
+      | "query_too_simple"
+      | "judge_dependencies_missing"
+      | null;
+    phaseTiming?: NonNullable<RetrievalResult["execution"]["timing"]>;
     documentVersions?: Record<string, number>;
   }) {
+    const lexicalFallbackStartedAt = Date.now();
     const lexicalCandidates =
       input.lexicalCandidates ??
       (await this.getLexicalCandidates({
@@ -301,15 +508,31 @@ export class RetrievalService {
         filters: input.filters,
         documentVersions: input.documentVersions
       }));
+    const phaseTiming = input.phaseTiming ?? {
+      lexicalSearchMs: null,
+      vectorEmbeddingMs: null,
+      vectorSearchMs: null,
+      vectorCandidateFetchMs: null,
+      mergeCandidatesMs: null,
+      diverseSelectionMs: null,
+      rankMs: null,
+      chunkWindowMs: null,
+      lexicalFallbackMs: null
+    };
+    if (input.lexicalCandidates == null && phaseTiming.lexicalSearchMs == null) {
+      phaseTiming.lexicalSearchMs = Date.now() - lexicalFallbackStartedAt;
+    }
     const diverseCandidates = this.selectDiverseCandidates(lexicalCandidates, input.candidateLimit);
-    const ranked = this.rankCandidates(diverseCandidates, {
+    const ranked = await this.rankCandidates(diverseCandidates, {
       enableRerank: input.enableRerank ?? false,
+      rerankMode: input.rerankMode,
       query: input.query,
       scoreThreshold: input.scoreThreshold,
       topK: input.topK
     });
 
     if (ranked.length > 0) {
+      const chunkWindowStartedAt = Date.now();
       const retrievedChunks = await this.expandChunkWindow(
         input.kbId,
         ranked,
@@ -317,12 +540,16 @@ export class RetrievalService {
         input.filters,
         input.documentVersions
       );
+      phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
+      phaseTiming.lexicalFallbackMs = Date.now() - lexicalFallbackStartedAt;
       return this.buildRetrievalResult(retrievedChunks, {
         embedding: input.embedding,
         actualMode: input.actualMode,
         usedFallback: input.usedFallback,
         fallbackReason: input.fallbackReason,
         rerankApplied: input.rerankApplied,
+        rerankMode: input.rerankMode,
+        rerankJudgeSkippedReason: input.rerankJudgeSkippedReason,
         chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
         vectorSearchAttempted: input.usedFallback,
         lexicalSearchAttempted: true,
@@ -333,15 +560,19 @@ export class RetrievalService {
         vectorCandidateCount: input.vectorCandidateCount,
         lexicalCandidateCount: lexicalCandidates.length,
         mergedCandidateCount: lexicalCandidates.length,
-        rankedCandidateCount: ranked.length
+        rankedCandidateCount: ranked.length,
+        timing: phaseTiming
       });
     }
+    phaseTiming.lexicalFallbackMs = Date.now() - lexicalFallbackStartedAt;
     return this.buildRetrievalResult([], {
       embedding: input.embedding,
       actualMode: input.actualMode,
       usedFallback: input.usedFallback,
       fallbackReason: input.fallbackReason,
       rerankApplied: input.rerankApplied,
+      rerankMode: input.rerankMode,
+      rerankJudgeSkippedReason: input.rerankJudgeSkippedReason,
       chunkWindowApplied: false,
       vectorSearchAttempted: input.usedFallback,
       lexicalSearchAttempted: true,
@@ -352,7 +583,8 @@ export class RetrievalService {
       vectorCandidateCount: input.vectorCandidateCount,
       lexicalCandidateCount: lexicalCandidates.length,
       mergedCandidateCount: lexicalCandidates.length,
-      rankedCandidateCount: 0
+      rankedCandidateCount: 0,
+      timing: phaseTiming
     });
   }
 
@@ -362,7 +594,7 @@ export class RetrievalService {
     limit: number;
     filters?: RetrievalProfileFilters;
     documentVersions?: Record<string, number>;
-  }) {
+  }): Promise<RetrievalCandidate[]> {
     if (typeof this.prisma.$queryRaw === "function") {
       return this.getLexicalCandidatesFromDatabase(input);
     }
@@ -375,6 +607,7 @@ export class RetrievalService {
         chunkIndex: true,
         content: true,
         sectionTitle: true,
+        metadataJson: true,
         pageNo: true,
         document: {
           select: {
@@ -387,8 +620,16 @@ export class RetrievalService {
     const terms = this.tokenize(input.query);
 
     return chunks
-      .map(chunk => {
-        const lexicalScore = this.scoreChunk(chunk.content, chunk.sectionTitle, terms);
+      .map((chunk): RetrievalCandidate => {
+        const chunkMetadata = this.readChunkMetadata(chunk.metadataJson);
+        const lexicalScore = this.scoreChunk(
+          chunk.content,
+          chunk.sectionTitle,
+          terms,
+          input.query,
+          chunkMetadata
+        );
+        const matchSource = this.resolveMatchSource(chunk.content, chunk.sectionTitle, input.query, terms);
 
         return {
           chunkId: chunk.id,
@@ -403,7 +644,12 @@ export class RetrievalService {
           hybridScore: lexicalScore,
           rerankScore: lexicalScore,
           pageNo: chunk.pageNo,
-          sectionTitle: chunk.sectionTitle
+          sectionTitle: chunk.sectionTitle,
+          matchSource: matchSource as RetrievedChunk["matchSource"],
+          headingPath: chunkMetadata.headingPath,
+          blockType: chunkMetadata.blockType,
+          listOrdinal: chunkMetadata.listOrdinal,
+          isTableLike: chunkMetadata.isTableLike
         };
       })
       .sort((left, right) => right.lexicalScore - left.lexicalScore)
@@ -416,7 +662,7 @@ export class RetrievalService {
     limit: number;
     filters?: RetrievalProfileFilters;
     documentVersions?: Record<string, number>;
-  }) {
+  }): Promise<RetrievalCandidate[]> {
     const terms = this.tokenize(input.query);
     const fullQuery = terms.join(" ").trim();
 
@@ -436,7 +682,9 @@ export class RetrievalService {
       content: string;
       sectionTitle: string | null;
       pageNo: number | null;
+      metadataJson: Prisma.JsonValue | null;
       lexicalScore: number;
+      matchSource: "fts" | "section_title" | "like_fallback";
     }>>(
       Prisma.sql`
         SELECT
@@ -447,7 +695,10 @@ export class RetrievalService {
           c."content" AS "content",
           c."sectionTitle" AS "sectionTitle",
           c."pageNo" AS "pageNo",
+          c."metadataJson" AS "metadataJson",
           ${lexicalScoreSql} AS "lexicalScore"
+          ,
+          ${this.buildLexicalMatchSourceSql(terms, fullQuery)} AS "matchSource"
         FROM "DocumentChunk" c
         JOIN "Document" d ON d."id" = c."documentId"
         WHERE ${filterSql}
@@ -457,54 +708,89 @@ export class RetrievalService {
       `
     );
 
-    return chunks.map(chunk => ({
-      chunkId: chunk.chunkId,
-      documentId: chunk.documentId,
-      documentTitle: chunk.documentTitle,
-      chunkIndex: chunk.chunkIndex,
-      content: chunk.content,
-      score: Number(chunk.lexicalScore),
-      isPrimary: true,
-      lexicalScore: Number(chunk.lexicalScore),
-      vectorScore: 0,
-      hybridScore: Number(chunk.lexicalScore),
-      rerankScore: Number(chunk.lexicalScore),
-      pageNo: chunk.pageNo,
-      sectionTitle: chunk.sectionTitle
-    }));
+    return chunks.map((chunk): RetrievalCandidate => {
+      const chunkMetadata = this.readChunkMetadata(chunk.metadataJson);
+      const score = Number(chunk.lexicalScore);
+
+      return {
+        chunkId: chunk.chunkId,
+        documentId: chunk.documentId,
+        documentTitle: chunk.documentTitle,
+        chunkIndex: chunk.chunkIndex,
+        content: chunk.content,
+        score,
+        isPrimary: true,
+        lexicalScore: score,
+        vectorScore: 0,
+        hybridScore: score,
+        rerankScore: score,
+        pageNo: chunk.pageNo,
+        sectionTitle: chunk.sectionTitle,
+        matchSource: chunk.matchSource as RetrievedChunk["matchSource"],
+        headingPath: chunkMetadata.headingPath,
+        blockType: chunkMetadata.blockType,
+        listOrdinal: chunkMetadata.listOrdinal,
+        isTableLike: chunkMetadata.isTableLike
+      };
+    });
   }
 
-  private async getVectorCandidates(vectorMatches: Array<{ chunkId: string; score: number }>) {
-    const chunks = await this.prisma.documentChunk.findMany({
-      where: {
-        id: {
-          in: vectorMatches.map(match => match.chunkId)
-        }
-      },
-      select: {
-        id: true,
-        documentId: true,
-        chunkIndex: true,
-        content: true,
-        sectionTitle: true,
-        pageNo: true,
-        document: {
+  private async getVectorCandidates(
+    vectorMatches: Array<{ chunkId: string; score: number }>,
+    existingCandidates?: RetrievalCandidate[]
+  ) {
+    const existingCandidateMap = new Map((existingCandidates ?? []).map(candidate => [candidate.chunkId, candidate]));
+    const missingMatchIds = vectorMatches
+      .filter(match => !existingCandidateMap.has(match.chunkId))
+      .map(match => match.chunkId);
+    const chunks = missingMatchIds.length === 0
+      ? []
+      : await this.prisma.documentChunk.findMany({
+          where: {
+            id: {
+              in: missingMatchIds
+            }
+          },
           select: {
-            title: true
+            id: true,
+            documentId: true,
+            chunkIndex: true,
+            content: true,
+            sectionTitle: true,
+            metadataJson: true,
+            pageNo: true,
+            document: {
+              select: {
+                title: true
+              }
+            }
           }
-        }
-      }
-    });
+        });
 
     const chunkMap = new Map(chunks.map(chunk => [chunk.id, chunk]));
 
     return vectorMatches
-      .map(match => {
+      .map((match): RetrievalCandidate | null => {
+        const existingCandidate = existingCandidateMap.get(match.chunkId);
+        if (existingCandidate) {
+          return {
+            ...existingCandidate,
+            score: match.score,
+            isPrimary: true,
+            lexicalScore: 0,
+            vectorScore: match.score,
+            hybridScore: match.score,
+            rerankScore: match.score,
+            matchSource: "vector"
+          };
+        }
+
         const chunk = chunkMap.get(match.chunkId);
         if (!chunk) {
           return null;
         }
 
+        const chunkMetadata = this.readChunkMetadata(chunk.metadataJson);
         return {
           chunkId: chunk.id,
           documentId: chunk.documentId,
@@ -518,7 +804,12 @@ export class RetrievalService {
           hybridScore: match.score,
           rerankScore: match.score,
           pageNo: chunk.pageNo,
-          sectionTitle: chunk.sectionTitle
+          sectionTitle: chunk.sectionTitle,
+          matchSource: "vector" as const,
+          headingPath: chunkMetadata.headingPath,
+          blockType: chunkMetadata.blockType,
+          listOrdinal: chunkMetadata.listOrdinal,
+          isTableLike: chunkMetadata.isTableLike
         };
       })
       .filter((chunk): chunk is RetrievalCandidate => chunk !== null);
@@ -629,7 +920,7 @@ export class RetrievalService {
     return raw
       .toLowerCase()
       .replace(/\s+/g, " ")
-      .replace(/[：:（(].*$/, "")
+      .replace(/[�?�?].*$/, "")
       .trim();
   }
 
@@ -642,21 +933,31 @@ export class RetrievalService {
     return content.replace(/\s+/g, " ").trim().slice(0, 80);
   }
 
-  private rankCandidates(
+  private async rankCandidates(
     candidates: RetrievalCandidate[],
     input: {
       query: string;
       topK: number;
       scoreThreshold: number;
       enableRerank: boolean;
+      rerankMode: "off" | "local_heuristic" | "llm_judge";
     }
   ) {
-    const reranked = input.enableRerank
-      ? candidates.map(candidate => ({
-          ...candidate,
-          rerankScore: this.computeRerankScore(candidate, input.query)
-        }))
-      : candidates;
+    const judgeSkipReason = this.resolveJudgeRerankSkipReason({
+      candidates,
+      query: input.query,
+      rerankMode: input.rerankMode
+    });
+    const useJudgeRerank = input.enableRerank && input.rerankMode === "llm_judge" && judgeSkipReason == null;
+    const effectiveRerankMode = useJudgeRerank ? "llm_judge" : "local_heuristic";
+    const reranked = useJudgeRerank
+      ? await this.rankCandidatesWithJudge(candidates, input.query)
+      : input.enableRerank
+        ? candidates.map(candidate => ({
+            ...candidate,
+            rerankScore: this.computeRerankScore(candidate, input.query, effectiveRerankMode)
+          }))
+        : candidates;
 
     return reranked
       .filter(candidate => candidate.score >= input.scoreThreshold || candidate.lexicalScore >= input.scoreThreshold)
@@ -680,8 +981,119 @@ export class RetrievalService {
         hybridScore: candidate.hybridScore,
         rerankScore: candidate.rerankScore,
         pageNo: candidate.pageNo,
-        sectionTitle: candidate.sectionTitle
+        sectionTitle: candidate.sectionTitle,
+        matchSource: candidate.matchSource
       }));
+  }
+
+  private resolveJudgeRerankSkipReason(input: {
+    candidates: RetrievalCandidate[];
+    query: string;
+    rerankMode: "off" | "local_heuristic" | "llm_judge";
+  }) {
+    if (input.rerankMode !== "llm_judge") {
+      return null;
+    }
+
+    if (!this.llmService?.generateRawCompletion || !this.promptManager?.buildJudgeRerankPrompt) {
+      return "judge_dependencies_missing";
+    }
+
+    if (input.candidates.length > 8) {
+      return "candidate_set_too_large";
+    }
+
+    if (!this.isJudgeWorthQuestion(input.query)) {
+      return "query_too_simple";
+    }
+
+    return null;
+  }
+
+  private isJudgeWorthQuestion(query: string) {
+    const normalized = query.toLowerCase().trim();
+    const termCount = this.tokenize(query).length;
+    if (termCount >= 6 || normalized.length >= 24) {
+      return true;
+    }
+
+    return /compare|difference|vs|区别|对比|summary|summarize|list|总结|列举|概括|troubleshoot|problem|issue|why|how/.test(normalized);
+  }
+
+  private async rankCandidatesWithJudge(candidates: RetrievalCandidate[], query: string) {
+    const limit = Math.min(12, candidates.length);
+    const judgeCandidates = candidates.slice(0, limit);
+    if (judgeCandidates.length === 0) {
+      return candidates;
+    }
+
+    try {
+      if (!this.llmService?.generateRawCompletion || !this.promptManager?.buildJudgeRerankPrompt) {
+        throw new Error("LLM judge rerank is unavailable.");
+      }
+
+      const prompt = this.promptManager.buildJudgeRerankPrompt({
+        question: query,
+        candidates: judgeCandidates
+      });
+      const rawRanking = await this.llmService.generateRawCompletion({
+        prompt
+      });
+      const rankedChunkIds = this.parseJudgeRanking(rawRanking, judgeCandidates.map(candidate => candidate.chunkId));
+
+      if (rankedChunkIds.length === 0) {
+        return candidates.map(candidate => ({
+          ...candidate,
+          rerankScore: this.computeRerankScore(candidate, query, "local_heuristic")
+        }));
+      }
+
+      const rankedIdSet = new Map(rankedChunkIds.map((chunkId, index) => [chunkId, index]));
+      return candidates
+        .map(candidate => ({
+          ...candidate,
+          rerankScore:
+            rankedIdSet.has(candidate.chunkId)
+              ? candidates.length - (rankedIdSet.get(candidate.chunkId) ?? 0)
+              : this.computeRerankScore(candidate, query, "local_heuristic") - candidates.length
+        }))
+        .sort((left, right) => right.rerankScore - left.rerankScore);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown judge rerank error.";
+      this.logger.warn(`LLM judge rerank failed, falling back to local heuristic. ${message}`);
+      return candidates.map(candidate => ({
+        ...candidate,
+        rerankScore: this.computeRerankScore(candidate, query, "local_heuristic")
+      }));
+    }
+  }
+
+  private parseJudgeRanking(rawRanking: string, allowedChunkIds: string[]) {
+    const allowed = new Set(allowedChunkIds);
+    const normalized = rawRanking.trim();
+    const candidates = [normalized];
+    const fenced = normalized.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenced?.[1]) {
+      candidates.push(fenced[1].trim());
+    }
+
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate) as { ranking?: unknown };
+        if (!parsed || !Array.isArray(parsed.ranking)) {
+          continue;
+        }
+
+        const ranking = parsed.ranking.filter((item): item is string => typeof item === "string" && allowed.has(item));
+        if (ranking.length > 0) {
+          return Array.from(new Set(ranking));
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return [];
   }
 
   private tokenize(query: string) {
@@ -691,18 +1103,24 @@ export class RetrievalService {
       .filter(term => term.length > 0);
   }
 
-  private scoreChunk(content: string, sectionTitle: string | null, terms: string[]) {
+  private scoreChunk(
+    content: string,
+    sectionTitle: string | null,
+    terms: string[],
+    query: string,
+    metadata?: ReturnType<RetrievalService["readChunkMetadata"]>
+  ) {
     const normalized = content.toLowerCase();
     const normalizedSectionTitle = sectionTitle?.toLowerCase() ?? "";
-    const normalizedTerms = terms.map(term => term.toLowerCase());
-    const fullQuery = normalizedTerms.join(" ").trim();
+    const normalizedTerms = terms;
+    const normalizedQuery = query.toLowerCase().trim();
     let score = 0;
 
-    if (fullQuery.length > 0 && normalized.includes(fullQuery)) {
+    if (normalizedQuery.length > 0 && normalized.includes(normalizedQuery)) {
       score += 6;
     }
 
-    if (fullQuery.length > 0 && normalizedSectionTitle.includes(fullQuery)) {
+    if (normalizedQuery.length > 0 && normalizedSectionTitle.includes(normalizedQuery)) {
       score += 8;
     }
 
@@ -715,16 +1133,37 @@ export class RetrievalService {
       }
     }
 
+    score += this.computeStructureBoost(query, metadata);
+
     return score;
   }
 
-  private computeRerankScore(candidate: RetrievalCandidate, query: string) {
+  private computeRerankScore(
+    candidate: RetrievalCandidate,
+    query: string,
+    rerankMode: "off" | "local_heuristic" | "llm_judge"
+  ) {
     const terms = this.tokenize(query);
-    const lexicalBoost = this.scoreChunk(candidate.content, candidate.sectionTitle, terms);
-    const exactPhraseBoost = candidate.content.toLowerCase().includes(query.toLowerCase().trim()) ? 3 : 0;
-    const titleBoost = candidate.sectionTitle?.toLowerCase().includes(query.toLowerCase().trim()) ? 4 : 0;
+    const normalizedQuery = query.toLowerCase().trim();
+    const lexicalBoost = this.scoreChunk(
+      candidate.content,
+      candidate.sectionTitle,
+      terms,
+      query,
+      {
+        headingPath: candidate.headingPath ?? [],
+        blockType: candidate.blockType ?? "paragraph",
+        listOrdinal: candidate.listOrdinal ?? null,
+        isTableLike: candidate.isTableLike ?? false
+      }
+    );
+    const exactPhraseBoost = candidate.content.toLowerCase().includes(normalizedQuery) ? 3 : 0;
+    const titleBoost = candidate.sectionTitle?.toLowerCase().includes(normalizedQuery) ? 4 : 0;
+    const judgeBoost = rerankMode === "llm_judge"
+      ? this.computeJudgeLikeBoost(candidate, query)
+      : 0;
 
-    return candidate.score + lexicalBoost * 0.15 + exactPhraseBoost + titleBoost;
+    return candidate.score + lexicalBoost * 0.15 + exactPhraseBoost + titleBoost + judgeBoost;
   }
 
   private async expandChunkWindow(
@@ -733,13 +1172,15 @@ export class RetrievalService {
     chunkWindow: number,
     filters?: RetrievalProfileFilters,
     documentVersions?: Record<string, number>
-  ) {
+  ): Promise<RetrievedChunk[]> {
     if (chunkWindow <= 0 || chunks.length === 0) {
       return chunks;
     }
 
     const requestedPositions = new Map<string, { score: number; primary: boolean }>();
+    const existingChunkPositions = new Map<string, RetrievedChunk>();
     for (const chunk of chunks) {
+      existingChunkPositions.set(`${chunk.documentId}:${chunk.chunkIndex}`, chunk);
       for (let index = chunk.chunkIndex - chunkWindow; index <= chunk.chunkIndex + chunkWindow; index += 1) {
         if (index < 0) {
           continue;
@@ -757,54 +1198,246 @@ export class RetrievalService {
       }
     }
 
-    const documentChunkEntries = Array.from(requestedPositions.keys()).map(key => {
-      const [documentId, chunkIndex] = key.split(":");
-      return {
-        documentId,
-        chunkIndex: Number.parseInt(chunkIndex ?? "0", 10)
-      };
-    });
+    const missingPositionEntries = Array.from(requestedPositions.keys())
+      .filter(key => !existingChunkPositions.has(key))
+      .map(key => {
+        const [documentId, chunkIndex] = key.split(":");
+        return {
+          documentId,
+          chunkIndex: Number.parseInt(chunkIndex ?? "0", 10)
+        };
+      });
 
-    const expandedChunks = await this.prisma.documentChunk.findMany({
-      where: {
-        ...this.buildChunkWhere(kbId, filters, documentVersions),
-        OR: documentChunkEntries
-      },
-      select: {
-        id: true,
-        documentId: true,
-        chunkIndex: true,
-        content: true,
-        sectionTitle: true,
-        pageNo: true,
-        document: {
-          select: {
-            title: true
-          }
+    const groupedRanges = new Map<string, Array<{ start: number; end: number }>>();
+    const sortedMissingEntries = missingPositionEntries.sort((left, right) =>
+      left.documentId === right.documentId
+        ? left.chunkIndex - right.chunkIndex
+        : left.documentId.localeCompare(right.documentId)
+    );
+    for (const entry of sortedMissingEntries) {
+      const ranges = groupedRanges.get(entry.documentId) ?? [];
+      const lastRange = ranges[ranges.length - 1];
+      if (lastRange && entry.chunkIndex <= lastRange.end + 1) {
+        lastRange.end = Math.max(lastRange.end, entry.chunkIndex);
+      } else {
+        ranges.push({
+          start: entry.chunkIndex,
+          end: entry.chunkIndex
+        });
+      }
+      groupedRanges.set(entry.documentId, ranges);
+    }
+
+    const rangeClauses = Array.from(groupedRanges.entries()).flatMap(([documentId, ranges]) =>
+      ranges.map(range => ({
+        documentId,
+        chunkIndex: {
+          gte: range.start,
+          lte: range.end
         }
+      }))
+    );
+
+    const fetchedExpandedChunks = rangeClauses.length === 0
+      ? []
+      : await this.prisma.documentChunk.findMany({
+          where: {
+            ...this.buildChunkWhere(kbId, filters, documentVersions),
+            OR: rangeClauses
+          },
+          select: {
+            id: true,
+            documentId: true,
+            chunkIndex: true,
+            content: true,
+            sectionTitle: true,
+            metadataJson: true,
+            pageNo: true,
+            document: {
+              select: {
+                title: true
+              }
+            }
+          },
+          orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
+        });
+
+    const normalizedExistingChunks: ExpandedChunkRow[] = chunks.map(chunk => ({
+      id: chunk.chunkId,
+      documentId: chunk.documentId,
+      chunkIndex: chunk.chunkIndex,
+      content: chunk.content,
+      sectionTitle: chunk.sectionTitle,
+      metadataJson: {
+        headingPath: chunk.headingPath ?? [],
+        blockType: chunk.blockType ?? "paragraph",
+        listOrdinal: chunk.listOrdinal ?? null,
+        isTableLike: chunk.isTableLike ?? false
       },
-      orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
-    });
+      pageNo: chunk.pageNo,
+      document: {
+        title: chunk.documentTitle
+      }
+    }));
+
+    const dedupedExpandedChunks = new Map<string, ExpandedChunkRow>();
+    for (const chunk of [...normalizedExistingChunks, ...fetchedExpandedChunks]) {
+      dedupedExpandedChunks.set(`${chunk.documentId}:${chunk.chunkIndex}`, chunk);
+    }
+    const expandedChunks = Array.from(dedupedExpandedChunks.values()).sort((left, right) =>
+      left.documentId === right.documentId
+        ? left.chunkIndex - right.chunkIndex
+        : left.documentId.localeCompare(right.documentId)
+    );
 
     const chunkMap = new Map(chunks.map(chunk => [chunk.chunkId, chunk]));
 
-    return expandedChunks.map(chunk => {
-      const key = `${chunk.documentId}:${chunk.chunkIndex}`;
-      const requested = requestedPositions.get(key);
-      const primaryChunk = chunkMap.get(chunk.id);
+    return expandedChunks
+      .filter(chunk => requestedPositions.has(`${chunk.documentId}:${chunk.chunkIndex}`))
+      .map((chunk): RetrievedChunk => {
+        const key = `${chunk.documentId}:${chunk.chunkIndex}`;
+        const requested = requestedPositions.get(key);
+        const primaryChunk = chunkMap.get(chunk.id);
 
-      return {
-        chunkId: chunk.id,
-        documentId: chunk.documentId,
-        documentTitle: chunk.document.title,
-        chunkIndex: chunk.chunkIndex,
-        content: chunk.content,
-        score: primaryChunk?.score ?? requested?.score ?? 0,
-        isPrimary: requested?.primary ?? false,
-        pageNo: chunk.pageNo,
-        sectionTitle: chunk.sectionTitle
-      };
-    });
+        const chunkMetadata = this.readChunkMetadata(chunk.metadataJson);
+        return {
+          chunkId: chunk.id,
+          documentId: chunk.documentId,
+          documentTitle: chunk.document.title,
+          chunkIndex: chunk.chunkIndex,
+          content: chunk.content,
+          score: primaryChunk?.score ?? requested?.score ?? 0,
+          isPrimary: requested?.primary ?? false,
+          pageNo: chunk.pageNo,
+          sectionTitle: chunk.sectionTitle,
+          matchSource: (primaryChunk?.matchSource ?? "like_fallback") as RetrievedChunk["matchSource"],
+          headingPath: chunkMetadata.headingPath,
+          blockType: chunkMetadata.blockType,
+          listOrdinal: chunkMetadata.listOrdinal,
+          isTableLike: chunkMetadata.isTableLike
+        };
+      });
+  }
+
+  private async expandVectorMatchesWithChunkWindow(
+    kbId: string,
+    vectorMatches: Array<{ chunkId: string; documentId: string; chunkIndex: number; score: number }>,
+    chunkWindow: number,
+    filters?: RetrievalProfileFilters,
+    documentVersions?: Record<string, number>
+  ): Promise<RetrievedChunk[]> {
+    if (vectorMatches.length === 0) {
+      return [];
+    }
+
+    const requestedPositions = new Map<string, { score: number; primary: boolean }>();
+    const primaryChunkIds = new Set(vectorMatches.map(match => match.chunkId));
+    const scoreByChunkId = new Map(vectorMatches.map(match => [match.chunkId, match.score]));
+
+    for (const match of vectorMatches) {
+      for (let index = match.chunkIndex - chunkWindow; index <= match.chunkIndex + chunkWindow; index += 1) {
+        if (index < 0) {
+          continue;
+        }
+
+        const key = `${match.documentId}:${index}`;
+        const existing = requestedPositions.get(key);
+        const score = scoreByChunkId.get(match.chunkId) ?? 0;
+        const isPrimary = index === match.chunkIndex;
+        if (!existing || score > existing.score || (isPrimary && !existing.primary)) {
+          requestedPositions.set(key, {
+            score,
+            primary: isPrimary
+          });
+        }
+      }
+    }
+
+    const groupedRanges = new Map<string, Array<{ start: number; end: number }>>();
+    const sortedRequestedEntries = Array.from(requestedPositions.keys())
+      .map(key => {
+        const [documentId, chunkIndex] = key.split(":");
+        return {
+          documentId,
+          chunkIndex: Number.parseInt(chunkIndex ?? "0", 10)
+        };
+      })
+      .sort((left, right) =>
+        left.documentId === right.documentId
+          ? left.chunkIndex - right.chunkIndex
+          : left.documentId.localeCompare(right.documentId)
+      );
+
+    for (const entry of sortedRequestedEntries) {
+      const ranges = groupedRanges.get(entry.documentId) ?? [];
+      const lastRange = ranges[ranges.length - 1];
+      if (lastRange && entry.chunkIndex <= lastRange.end + 1) {
+        lastRange.end = Math.max(lastRange.end, entry.chunkIndex);
+      } else {
+        ranges.push({
+          start: entry.chunkIndex,
+          end: entry.chunkIndex
+        });
+      }
+      groupedRanges.set(entry.documentId, ranges);
+    }
+
+    const rangeClauses = Array.from(groupedRanges.entries()).flatMap(([documentId, ranges]) =>
+      ranges.map(range => ({
+        documentId,
+        chunkIndex: {
+          gte: range.start,
+          lte: range.end
+        }
+      }))
+    );
+
+    const expandedChunks = rangeClauses.length === 0
+      ? []
+      : await this.prisma.documentChunk.findMany({
+          where: {
+            ...this.buildChunkWhere(kbId, filters, documentVersions),
+            OR: rangeClauses
+          },
+          select: {
+            id: true,
+            documentId: true,
+            chunkIndex: true,
+            content: true,
+            sectionTitle: true,
+            metadataJson: true,
+            pageNo: true,
+            document: {
+              select: {
+                title: true
+              }
+            }
+          },
+          orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
+        });
+
+    return expandedChunks
+      .filter(chunk => requestedPositions.has(`${chunk.documentId}:${chunk.chunkIndex}`))
+      .map((chunk): RetrievedChunk => {
+        const requested = requestedPositions.get(`${chunk.documentId}:${chunk.chunkIndex}`);
+        const chunkMetadata = this.readChunkMetadata(chunk.metadataJson);
+        return {
+          chunkId: chunk.id,
+          documentId: chunk.documentId,
+          documentTitle: chunk.document.title,
+          chunkIndex: chunk.chunkIndex,
+          content: chunk.content,
+          score: scoreByChunkId.get(chunk.id) ?? requested?.score ?? 0,
+          isPrimary: requested?.primary ?? false,
+          pageNo: chunk.pageNo,
+          sectionTitle: chunk.sectionTitle,
+          matchSource: primaryChunkIds.has(chunk.id) ? "vector" : "like_fallback",
+          headingPath: chunkMetadata.headingPath,
+          blockType: chunkMetadata.blockType,
+          listOrdinal: chunkMetadata.listOrdinal,
+          isTableLike: chunkMetadata.isTableLike
+        };
+      });
   }
 
   private buildRetrievalResult(
@@ -815,6 +1448,8 @@ export class RetrievalService {
       usedFallback: RetrievalResult["execution"]["usedFallback"];
       fallbackReason: RetrievalResult["execution"]["fallbackReason"];
       rerankApplied: RetrievalResult["execution"]["rerankApplied"];
+      rerankMode: RetrievalResult["execution"]["rerankMode"];
+      rerankJudgeSkippedReason: RetrievalResult["execution"]["rerankJudgeSkippedReason"];
       chunkWindowApplied: RetrievalResult["execution"]["chunkWindowApplied"];
       vectorSearchAttempted: RetrievalResult["execution"]["vectorSearchAttempted"];
       lexicalSearchAttempted: RetrievalResult["execution"]["lexicalSearchAttempted"];
@@ -826,6 +1461,7 @@ export class RetrievalService {
       lexicalCandidateCount: RetrievalResult["execution"]["lexicalCandidateCount"];
       mergedCandidateCount: RetrievalResult["execution"]["mergedCandidateCount"];
       rankedCandidateCount: RetrievalResult["execution"]["rankedCandidateCount"];
+      timing?: RetrievalResult["execution"]["timing"];
     }
   ): RetrievalResult {
     return {
@@ -837,6 +1473,8 @@ export class RetrievalService {
         usedFallback: input.usedFallback,
         fallbackReason: input.fallbackReason,
         rerankApplied: input.rerankApplied,
+        rerankMode: input.rerankMode,
+        rerankJudgeSkippedReason: input.rerankJudgeSkippedReason,
         chunkWindowApplied: input.chunkWindowApplied,
         vectorSearchAttempted: input.vectorSearchAttempted,
         lexicalSearchAttempted: input.lexicalSearchAttempted,
@@ -847,7 +1485,8 @@ export class RetrievalService {
         vectorCandidateCount: input.vectorCandidateCount,
         lexicalCandidateCount: input.lexicalCandidateCount,
         mergedCandidateCount: input.mergedCandidateCount,
-        rankedCandidateCount: input.rankedCandidateCount
+        rankedCandidateCount: input.rankedCandidateCount,
+        timing: input.timing
       }
     };
   }
@@ -940,12 +1579,14 @@ export class RetrievalService {
 
   private collectUniqueValues<T>(values: Array<T | null | undefined>) {
     const uniqueValues: T[] = [];
+    const seen = new Set<T>();
 
     for (const value of values) {
-      if (value == null || uniqueValues.includes(value)) {
+      if (value == null || seen.has(value)) {
         continue;
       }
 
+      seen.add(value);
       uniqueValues.push(value);
     }
 
@@ -1105,6 +1746,107 @@ export class RetrievalService {
     }
 
     return this.joinSqlClauses(scoreClauses, "+");
+  }
+
+  private buildLexicalMatchSourceSql(terms: string[], fullQuery: string) {
+    if (fullQuery.length > 0) {
+      const phrasePattern = `%${fullQuery}%`;
+      return Prisma.sql`
+        CASE
+          WHEN COALESCE(c."sectionTitle", '') ILIKE ${phrasePattern} THEN 'section_title'
+          WHEN c."content" ILIKE ${phrasePattern} THEN 'fts'
+          ELSE 'like_fallback'
+        END
+      `;
+    }
+
+    if (terms.length > 0) {
+      const titleChecks = terms.map(term => Prisma.sql`COALESCE(c."sectionTitle", '') ILIKE ${`%${term}%`}`);
+      const contentChecks = terms.map(term => Prisma.sql`c."content" ILIKE ${`%${term}%`}`);
+      return Prisma.sql`
+        CASE
+          WHEN ${this.joinSqlClauses(titleChecks, "OR")} THEN 'section_title'
+          WHEN ${this.joinSqlClauses(contentChecks, "OR")} THEN 'fts'
+          ELSE 'like_fallback'
+        END
+      `;
+    }
+
+    return Prisma.sql`'like_fallback'`;
+  }
+
+  private readChunkMetadata(value: Prisma.JsonValue | null) {
+    const metadata = typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+    return {
+      headingPath: Array.isArray(metadata.headingPath)
+        ? metadata.headingPath.filter((item): item is string => typeof item === "string")
+        : [],
+      blockType: typeof metadata.blockType === "string"
+        ? (metadata.blockType as "paragraph" | "heading" | "list" | "table" | "faq" | "quote" | "code")
+        : "paragraph",
+      listOrdinal: typeof metadata.listOrdinal === "number" ? metadata.listOrdinal : null,
+      isTableLike: metadata.isTableLike === true
+    };
+  }
+
+  private resolveMatchSource(content: string, sectionTitle: string | null, query: string, terms: string[]) {
+    const normalizedQuery = query.toLowerCase().trim();
+    const normalizedSectionTitle = sectionTitle?.toLowerCase() ?? "";
+    const normalizedContent = content.toLowerCase();
+    if (normalizedQuery && normalizedSectionTitle.includes(normalizedQuery)) {
+      return "section_title" as const;
+    }
+    if (normalizedQuery && normalizedContent.includes(normalizedQuery)) {
+      return "fts" as const;
+    }
+    return terms.some(term => normalizedSectionTitle.includes(term.toLowerCase()))
+      ? "section_title"
+      : "like_fallback";
+  }
+
+  private computeStructureBoost(
+    query: string,
+    metadata?: ReturnType<RetrievalService["readChunkMetadata"]>
+  ) {
+    if (!metadata) {
+      return 0;
+    }
+
+    const normalizedQuery = query.toLowerCase();
+    const isSummaryLike = /summary|summarize|list|compare|overview|步骤|总结|概括|列举|哪些|对比|区别|流程|清单/.test(normalizedQuery);
+    const isFactLike = /what|when|where|who|多少钱|是什么|哪一年|版本|id|命令/.test(normalizedQuery);
+
+    if (isSummaryLike) {
+      if (metadata.blockType === "list" || metadata.blockType === "heading") {
+        return 1.5;
+      }
+      if (metadata.blockType === "table" || metadata.isTableLike) {
+        return 1.2;
+      }
+    }
+
+    if (isFactLike && (metadata.blockType === "faq" || metadata.blockType === "paragraph")) {
+      return 0.8;
+    }
+
+    return 0;
+  }
+
+  private computeJudgeLikeBoost(candidate: RetrievalCandidate, query: string) {
+    let boost = 0;
+    const normalizedQuery = query.toLowerCase();
+    if (/compare|difference|vs|区别|对比/.test(normalizedQuery) && /compare|difference|vs|区别|对比/i.test(candidate.content)) {
+      boost += 2;
+    }
+    if (/summary|summarize|list|总结|列举|概括/.test(normalizedQuery) && (candidate.blockType === "list" || candidate.blockType === "heading")) {
+      boost += 1.5;
+    }
+    if (/troubleshoot|error|failed|异常|报错|故障/.test(normalizedQuery) && /error|failed|troubleshoot|异常|报错|故障/i.test(candidate.content)) {
+      boost += 2;
+    }
+    return boost;
   }
 
   private buildLexicalMatchSql(terms: string[], fullQuery: string) {

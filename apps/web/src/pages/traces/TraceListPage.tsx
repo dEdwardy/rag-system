@@ -37,6 +37,27 @@ function TraceConversationCard({
   latestTrace: TraceRecord;
 }) {
   const { formatDateTime, t } = useI18n();
+  const traceSummary = latestTrace.traceSummary;
+  const timing = traceSummary.timingSummary;
+  const rewriteLabel =
+    traceSummary?.rewriteReadabilityLabel ??
+    (latestTrace.rewrittenQuery ? t("trace.copy.rewriteApplied") : t("trace.copy.rewriteNotApplied"));
+  const rewriteSkipLabel = traceSummary?.rewriteSkippedReason ?? null;
+  const latencyLabel =
+    latestTrace.latencyMs != null ? `${latestTrace.latencyMs} ms` : t("trace.copy.modelUnknown");
+  const candidateLabel =
+    traceSummary?.candidateCountReadabilityLabel ??
+    `${latestTrace.retrievalScoresJson?.length ?? 0} ${t("trace.copy.citations")}`;
+  const bottleneck =
+    timing != null
+      ? [
+          { label: "First token", value: timing.firstTokenMs },
+          { label: "Answer generation", value: timing.answerGenerationMs },
+          { label: "Retrieval", value: timing.retrievalMs }
+        ]
+          .filter((item): item is { label: string; value: number } => typeof item.value === "number")
+          .reduce((current, item) => (item.value > current.value ? item : current), { label: "", value: -1 })
+      : null;
 
   return (
     <Paper className="workspace-citation-card workspace-panel-muted" p="lg" radius="xl">
@@ -78,6 +99,32 @@ function TraceConversationCard({
             <span className="workspace-meta-label">{t("trace.copy.traceId")}</span>
             <span className="workspace-meta-value">{latestTrace.id}</span>
           </div>
+          <div className="workspace-meta-row">
+            <span className="workspace-meta-label">{t("common.fields.latency")}</span>
+            <span className="workspace-meta-value">{latencyLabel}</span>
+          </div>
+          <div className="workspace-meta-row">
+            <span className="workspace-meta-label">{t("trace.copy.rewriteApplied")}</span>
+            <span className="workspace-meta-value">{rewriteLabel}</span>
+          </div>
+          {rewriteSkipLabel ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">{t("trace.copy.rewriteNotApplied")}</span>
+              <span className="workspace-meta-value">{rewriteSkipLabel}</span>
+            </div>
+          ) : null}
+          <div className="workspace-meta-row">
+            <span className="workspace-meta-label">{t("trace.copy.latestResult")}</span>
+            <span className="workspace-meta-value">{candidateLabel}</span>
+          </div>
+          {bottleneck && bottleneck.value >= 0 ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">{t("trace.copy.slowestStage")}</span>
+              <span className="workspace-meta-value">
+                {bottleneck.label} · {bottleneck.value} ms
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <Stack gap="xs">

@@ -43,6 +43,38 @@ function formatTimingValue(value: number | null | undefined) {
   return value == null ? "-" : `${value} ms`;
 }
 
+function buildTimingBottleneck(trace: TraceRecord, locale: SupportedLocale) {
+  const timing = trace.traceSummary?.timingSummary;
+  if (!timing) {
+    return null;
+  }
+
+  const candidates = [
+    { label: locale === "zh" ? "首 token" : "First token", value: timing.firstTokenMs },
+    { label: locale === "zh" ? "首 token 前置" : "Pre-generation", value: timing.preGenerationMs },
+    { label: locale === "zh" ? "LLM 首 token" : "LLM first token", value: timing.llmFirstTokenMs },
+    { label: locale === "zh" ? "回答生成" : "Answer generation", value: timing.answerGenerationMs },
+    { label: locale === "zh" ? "检索" : "Retrieval", value: timing.retrievalMs },
+    { label: locale === "zh" ? "会话加载" : "Conversation load", value: timing.conversationLoadMs },
+    { label: locale === "zh" ? "用户消息落库" : "Persist user", value: timing.userMessagePersistMs },
+    { label: locale === "zh" ? "助手消息落库" : "Persist assistant", value: timing.assistantMessagePersistMs }
+  ].filter((item): item is { label: string; value: number } => typeof item.value === "number");
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const bottleneck = candidates.reduce((current, item) => (item.value > current.value ? item : current));
+  const total = timing.totalMs ?? 0;
+  const share = total > 0 ? Math.round((bottleneck.value / total) * 100) : null;
+
+  return {
+    label: bottleneck.label,
+    value: bottleneck.value,
+    share
+  };
+}
+
 function buildTimingItems(trace: TraceRecord, locale: SupportedLocale) {
   const timing = trace.traceSummary?.timingSummary;
   if (!timing) {
@@ -54,6 +86,16 @@ function buildTimingItems(trace: TraceRecord, locale: SupportedLocale) {
       key: "first-token",
       label: locale === "zh" ? "首 token" : "First token",
       value: formatTimingValue(timing.firstTokenMs)
+    },
+    {
+      key: "pre-generation",
+      label: locale === "zh" ? "首 token 前置" : "Pre-generation",
+      value: formatTimingValue(timing.preGenerationMs)
+    },
+    {
+      key: "llm-first-token",
+      label: locale === "zh" ? "LLM 首 token" : "LLM first token",
+      value: formatTimingValue(timing.llmFirstTokenMs)
     },
     {
       key: "generation",
@@ -95,6 +137,7 @@ function buildTimingItems(trace: TraceRecord, locale: SupportedLocale) {
 
 export function TraceDetailSidebarPanels({ formatDateTime, hasRewrite, locale, sectionIds, t, trace }: TraceDetailSidebarPanelsProps) {
   const timingItems = buildTimingItems(trace, locale);
+  const timingBottleneck = buildTimingBottleneck(trace, locale);
 
   return (
     <div className="workspace-page-side-stack">
@@ -149,6 +192,18 @@ export function TraceDetailSidebarPanels({ formatDateTime, hasRewrite, locale, s
                       <div className="workspace-metadata-value">{item.value}</div>
                     </div>
                   ))}
+                  {timingBottleneck ? (
+                    <div className="workspace-metadata-item">
+                      <div className="workspace-metadata-label">
+                        {locale === "zh" ? "最慢阶段" : "Slowest stage"}
+                      </div>
+                      <div className="workspace-metadata-value">
+                        {timingBottleneck.label}
+                        {timingBottleneck.value != null ? ` · ${formatTimingValue(timingBottleneck.value)}` : ""}
+                        {timingBottleneck.share != null ? ` · ${timingBottleneck.share}%` : ""}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <Text c="var(--app-text-muted)" size="sm">
                   {trace.traceSummary?.timingReadabilitySentence ??
