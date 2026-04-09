@@ -1,4 +1,4 @@
-const assert = require("node:assert/strict");
+﻿const assert = require("node:assert/strict");
 const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
 const {
   createAnswerPolicy,
@@ -190,7 +190,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           retrievedChunks,
           contextGroups,
           answeringMetadata: {
-            promptId: "answer.v2",
+            promptId: "answer.v3",
             usedFallback: true,
             answerPolicy: {
               responseStyle: "balanced",
@@ -290,7 +290,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   assert.deepEqual(retrievalCalls, [
     {
       kbId: "kb-1",
-      query: "where is the marker? rewritten",
+      query: "where is the marker?",
       topK: 4,
       scoreThreshold: 0.2,
       chunkWindow: 1,
@@ -308,7 +308,9 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       },
       strategy: {
         queryRewrite: {
-          enabled: true
+          enabled: true,
+          maxAddedLatencyMs: 1200,
+          mode: "heuristic_only"
         },
         candidateSelection: {
           mode: "hybrid",
@@ -320,18 +322,21 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
           lexicalWeight: 0.3
         },
         rerank: {
-          enabled: true
+          enabled: true,
+          mode: "local_heuristic"
         }
       }
     }
   ]);
   assert.equal(createTraceCalls.length, 1);
   assert.equal(createTraceCalls[0].status, "success");
-  assert.equal(createTraceCalls[0].rewrittenQuery, "where is the marker? rewritten");
+  assert.equal(createTraceCalls[0].rewrittenQuery, null);
   assert.deepEqual(createTraceCalls[0].retrievalMetadataJson, {
     strategy: {
       queryRewrite: {
-        enabled: true
+        enabled: true,
+        maxAddedLatencyMs: 1200,
+        mode: "heuristic_only"
       },
       candidateSelection: {
         mode: "hybrid",
@@ -343,9 +348,13 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
         lexicalWeight: 0.3
       },
       rerank: {
-        enabled: true
+        enabled: true,
+        mode: "local_heuristic"
       }
     },
+    primaryChunkScoreAvg: 0.9,
+    primaryChunkScoreMin: 0.9,
+    contextGroupAvgLength: 24,
     filters: {
       documentIds: {
         include: ["document-1"],
@@ -357,27 +366,29 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     },
     queryRewrite: {
       enabled: true,
-      applied: true,
-      finalQuerySource: "rewritten",
-      usedFallback: true,
-      modelName: "rewrite-model",
-      promptId: "rewrite-query.v1"
+      applied: false,
+      finalQuerySource: "original_unchanged",
+      usedFallback: null,
+      modelName: null,
+      promptId: null,
+      skippedReason: "query_too_short"
     },
     strategySummary: {
       retrievalMode: "hybrid",
       strategyMode: "hybrid",
-      retrievalQuerySource: "rewritten",
+      retrievalQuerySource: "original_unchanged",
       rewriteEnabled: true,
-      rewriteApplied: true,
-      rewriteUsedFallback: true,
-      rewritePromptId: "rewrite-query.v1",
-      rewriteModelName: "rewrite-model",
+      rewriteApplied: false,
+      rewriteUsedFallback: null,
+      rewritePromptId: null,
+      rewriteModelName: null,
+      rewriteSkippedReason: "query_too_short",
       fallbackReason: null,
       usedFallback: false
     },
     embedding: embeddingDiagnostics,
     execution: {
-      retrievalQuery: "where is the marker? rewritten",
+      retrievalQuery: "where is the marker?",
       topK: 4,
       scoreThreshold: 0.2,
       chunkWindow: 1,
@@ -399,9 +410,14 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
       retrievedChunkCount: 1,
       contextGroupCount: 1,
       primaryChunkCount: 1,
-      neighborChunkCount: 0
-    }
+      neighborChunkCount: 0,
+      rerankMode: "local_heuristic",
+      rerankJudgeSkippedReason: null
+    },
+    promptContextApproxTokens: 215,
+    promptContextChars: 645
   });
+  assert.equal(createTraceCalls[0].rewrittenQuery, null);
   assert.equal(createTraceCalls[0].retrievalMetadataJson.execution.neighborChunkCount, 0);
   assert.deepEqual(attachedTraces, [
     {
@@ -425,7 +441,7 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   });
   assert.deepEqual(updateTraceCalls[0].input.retrievalMetadataJson, createTraceCalls[0].retrievalMetadataJson);
   assert.deepEqual(updateTraceCalls[0].input.answeringMetadataJson, {
-    promptId: "answer.v2",
+    promptId: "answer.v3",
     usedFallback: true,
     answerPolicy: {
       responseStyle: "balanced",
@@ -457,43 +473,38 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
     promptSnapshot: {
       systemPrompt: `system prompt
 
-Answering rules:
-- Use only the provided retrieved sources.
-- Answer directly when the sources support it; otherwise use "insufficient_context".
-- Cite only the provided source indexes like [1] or [1][2].
-- Keep the answer factual and follow the requested answer policy.`,
-      userPrompt: `Question:
+Rules:
+- Use only the provided sources.
+- Answer directly if supported; otherwise use "insufficient_context".
+- Cite only source indexes like [1] or [1][2].
+- Stay factual and follow the answer policy.`,
+      userPrompt: `Q:
 where is the marker?
 
-Retrieved sources:
-[1] document="Document 1" section="Facts" score=0.900
+Sources:
+[1] d="Document 1" s="Facts"
 retrieved content marker
 
-Answer policy:
-- responseStyle=balanced
+Policy:
+- style=balanced
 - tone=friendly
-- outputFormat=bullets
+- format=bullets
 - language=same_as_question
-- citationMode=required
+- citations=required
 - maxCitations=2
-- noAnswerBehavior=say_insufficient_context
+- noAnswer=say_insufficient_context
 - includeMissingInformation=false
 
-Return JSON only with this shape:
+Return JSON only:
 {"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
 
 Rules:
-- "citations" must contain only 1-based source indexes from the retrieved sources.
-- Use "grounded" only when the answer is supported by the provided sources.
-- Use "insufficient_context" when the sources do not support a reliable answer.
-- "missingInformation" should be an array and may be empty.
-- Match the requested responseStyle, tone, outputFormat, and language policy.
-- If outputFormat=bullets, prefer a short bullet list.
-- If outputFormat=markdown, use concise markdown structure without code fences unless needed.
-- If language=same_as_question, answer in the same language as the question.
-- If language=zh or language=en, answer in that language.
-- If includeMissingInformation=false, return an empty "missingInformation" array unless the answer is insufficient_context.
-- Do not wrap the JSON in markdown fences.`
+- citations are 1-based source indexes only.
+- use grounded only when supported.
+- use insufficient_context when not supported.
+- keep missingInformation as an array.
+- match the requested policy.
+- do not wrap JSON in fences.`
     }
   });
   assert.equal(result.conversationId, "conversation-1");
@@ -554,7 +565,7 @@ Rules:
   );
   assert.equal(result.missingInformationSourceReadabilityLabel, "no missing-information items");
   assert.deepEqual(result.answeringMetadata, {
-    promptId: "answer.v2",
+    promptId: "answer.v3",
     usedFallback: true,
     answerPolicy: {
       responseStyle: "balanced",
@@ -586,43 +597,38 @@ Rules:
     promptSnapshot: {
       systemPrompt: `system prompt
 
-Answering rules:
-- Use only the provided retrieved sources.
-- Answer directly when the sources support it; otherwise use "insufficient_context".
-- Cite only the provided source indexes like [1] or [1][2].
-- Keep the answer factual and follow the requested answer policy.`,
-      userPrompt: `Question:
+Rules:
+- Use only the provided sources.
+- Answer directly if supported; otherwise use "insufficient_context".
+- Cite only source indexes like [1] or [1][2].
+- Stay factual and follow the answer policy.`,
+      userPrompt: `Q:
 where is the marker?
 
-Retrieved sources:
-[1] document="Document 1" section="Facts" score=0.900
+Sources:
+[1] d="Document 1" s="Facts"
 retrieved content marker
 
-Answer policy:
-- responseStyle=balanced
+Policy:
+- style=balanced
 - tone=friendly
-- outputFormat=bullets
+- format=bullets
 - language=same_as_question
-- citationMode=required
+- citations=required
 - maxCitations=2
-- noAnswerBehavior=say_insufficient_context
+- noAnswer=say_insufficient_context
 - includeMissingInformation=false
 
-Return JSON only with this shape:
+Return JSON only:
 {"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
 
 Rules:
-- "citations" must contain only 1-based source indexes from the retrieved sources.
-- Use "grounded" only when the answer is supported by the provided sources.
-- Use "insufficient_context" when the sources do not support a reliable answer.
-- "missingInformation" should be an array and may be empty.
-- Match the requested responseStyle, tone, outputFormat, and language policy.
-- If outputFormat=bullets, prefer a short bullet list.
-- If outputFormat=markdown, use concise markdown structure without code fences unless needed.
-- If language=same_as_question, answer in the same language as the question.
-- If language=zh or language=en, answer in that language.
-- If includeMissingInformation=false, return an empty "missingInformation" array unless the answer is insufficient_context.
-- Do not wrap the JSON in markdown fences.`
+- citations are 1-based source indexes only.
+- use grounded only when supported.
+- use insufficient_context when not supported.
+- keep missingInformation as an array.
+- match the requested policy.
+- do not wrap JSON in fences.`
     }
   });
   assert.equal(result.modelName, "fallback-local");
@@ -794,7 +800,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         retrievedChunks: [],
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
@@ -842,7 +848,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         retrievedChunks: [],
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
@@ -917,7 +923,9 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       filters: undefined,
       strategy: {
         queryRewrite: {
-          enabled: false
+          enabled: false,
+          maxAddedLatencyMs: 1200,
+          mode: "off"
         },
         candidateSelection: {
           mode: "lexical",
@@ -929,7 +937,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
           lexicalWeight: 0.8
         },
         rerank: {
-          enabled: true
+          enabled: true,
+          mode: "local_heuristic"
         }
       }
     }
@@ -937,7 +946,9 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
   assert.deepEqual(result.retrievalMetadata, {
     strategy: {
       queryRewrite: {
-        enabled: false
+        enabled: false,
+        maxAddedLatencyMs: 1200,
+        mode: "off"
       },
       candidateSelection: {
         mode: "lexical",
@@ -949,9 +960,13 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
         lexicalWeight: 0.8
       },
       rerank: {
-        enabled: true
+        enabled: true,
+        mode: "local_heuristic"
       }
     },
+    primaryChunkScoreAvg: null,
+    primaryChunkScoreMin: null,
+    contextGroupAvgLength: null,
     filters: null,
     queryRewrite: {
       enabled: false,
@@ -959,7 +974,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       finalQuerySource: "original_disabled",
       usedFallback: null,
       modelName: null,
-      promptId: null
+      promptId: null,
+      skippedReason: "disabled_by_default"
     },
     strategySummary: {
       retrievalMode: "lexical",
@@ -970,6 +986,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       rewriteUsedFallback: null,
       rewritePromptId: null,
       rewriteModelName: null,
+      rewriteSkippedReason: "disabled_by_default",
       fallbackReason: null,
       usedFallback: false
     },
@@ -983,6 +1000,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       usedFallback: false,
       fallbackReason: null,
       rerankApplied: true,
+      rerankJudgeSkippedReason: null,
+      rerankMode: "local_heuristic",
       chunkWindowApplied: false,
       vectorSearchAttempted: false,
       lexicalSearchAttempted: true,
@@ -998,7 +1017,9 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       contextGroupCount: 0,
       primaryChunkCount: 0,
       neighborChunkCount: 0
-    }
+    },
+    promptContextApproxTokens: 197,
+    promptContextChars: 576
   });
   assert.equal(result.retrievalMetadata.execution.neighborChunkCount, 0);
   assert.equal(
@@ -1050,7 +1071,7 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
   );
   assert.deepEqual(result.answeringMetadata, {
-    promptId: "answer.v2",
+    promptId: "answer.v3",
     usedFallback: true,
     answerPolicy: {
       responseStyle: "concise",
@@ -1082,42 +1103,37 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
     promptSnapshot: {
       systemPrompt: `system prompt
 
-Answering rules:
-- Use only the provided retrieved sources.
-- Answer directly when the sources support it; otherwise use "insufficient_context".
-- Cite only the provided source indexes like [1] or [1][2].
-- Keep the answer factual and follow the requested answer policy.`,
-      userPrompt: `Question:
+Rules:
+- Use only the provided sources.
+- Answer directly if supported; otherwise use "insufficient_context".
+- Cite only source indexes like [1] or [1][2].
+- Stay factual and follow the answer policy.`,
+      userPrompt: `Q:
 original question
 
-Retrieved sources:
+Sources:
 
 
-Answer policy:
-- responseStyle=concise
+Policy:
+- style=concise
 - tone=neutral
-- outputFormat=paragraph
+- format=paragraph
 - language=auto
-- citationMode=required
+- citations=required
 - maxCitations=3
-- noAnswerBehavior=say_insufficient_context
+- noAnswer=say_insufficient_context
 - includeMissingInformation=true
 
-Return JSON only with this shape:
+Return JSON only:
 {"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
 
 Rules:
-- "citations" must contain only 1-based source indexes from the retrieved sources.
-- Use "grounded" only when the answer is supported by the provided sources.
-- Use "insufficient_context" when the sources do not support a reliable answer.
-- "missingInformation" should be an array and may be empty.
-- Match the requested responseStyle, tone, outputFormat, and language policy.
-- If outputFormat=bullets, prefer a short bullet list.
-- If outputFormat=markdown, use concise markdown structure without code fences unless needed.
-- If language=same_as_question, answer in the same language as the question.
-- If language=zh or language=en, answer in that language.
-- If includeMissingInformation=false, return an empty "missingInformation" array unless the answer is insufficient_context.
-- Do not wrap the JSON in markdown fences.`
+- citations are 1-based source indexes only.
+- use grounded only when supported.
+- use insufficient_context when not supported.
+- keep missingInformation as an array.
+- match the requested policy.
+- do not wrap JSON in fences.`
     }
   });
   assert.equal(result.traceId, "trace-1");
@@ -1157,7 +1173,7 @@ test("AskAssistantService bypasses one-shot generation for no-hit say_insufficie
         retrievedChunks: [],
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
@@ -1269,7 +1285,7 @@ test("AskAssistantService also bypasses one-shot generation when noAnswerBehavio
         retrievedChunks: [],
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
@@ -1362,7 +1378,7 @@ test("AskAssistantService preserves best_effort one-shot no-hit answers instead 
             retrievedChunks: [],
             contextGroups: [],
            answeringMetadata: {
-             promptId: "answer.v2",
+             promptId: "answer.v3",
              usedFallback: false,
              answerPolicy: input.answerPolicy,
              contextMode: "chunks",
@@ -1439,7 +1455,7 @@ test("AskAssistantService localizes one-shot deterministic no-hit answers for Ch
         retrievedChunks: [],
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
@@ -1542,7 +1558,7 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
@@ -1651,7 +1667,7 @@ test("AskAssistantService preserves fallback_generation as the primary quality i
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "concise",
@@ -1760,7 +1776,7 @@ test("AskAssistantService persists heuristic-citation strong summaries without u
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "concise",
@@ -1873,7 +1889,7 @@ test("AskAssistantService preserves localized heuristic-citation strong summarie
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -1988,7 +2004,7 @@ test("AskAssistantService preserves localized cited-source strong summaries in C
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2094,7 +2110,7 @@ test("AskAssistantService preserves generic strong summaries without citations",
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2201,7 +2217,7 @@ test("AskAssistantService preserves localized generic strong summaries without c
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2313,7 +2329,7 @@ test("AskAssistantService preserves localized fallback partial summaries in Chin
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2428,7 +2444,7 @@ test("AskAssistantService preserves localized triple-cause fallback summaries in
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2541,7 +2557,7 @@ test("AskAssistantService preserves localized low-confidence weak insufficient-c
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2654,7 +2670,7 @@ test("AskAssistantService preserves low-confidence weak insufficient-context sum
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2767,7 +2783,7 @@ test("AskAssistantService preserves hit-aware weak insufficient-context summarie
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2878,7 +2894,7 @@ test("AskAssistantService preserves localized hit-aware weak insufficient-contex
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -2996,7 +3012,7 @@ test("AskAssistantService preserves grounded partial summaries when information 
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -3109,7 +3125,7 @@ test("AskAssistantService preserves localized grounded partial summaries when in
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -3224,7 +3240,7 @@ test("AskAssistantService preserves low-retrieval grounded summaries", async () 
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -3337,7 +3353,7 @@ test("AskAssistantService preserves localized low-retrieval grounded summaries",
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: false,
           answerPolicy: {
             responseStyle: "balanced",
@@ -3452,7 +3468,7 @@ test("AskAssistantService preserves fallback-only grounded summaries", async () 
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "balanced",
@@ -3559,7 +3575,7 @@ test("AskAssistantService preserves localized fallback-only grounded summaries",
         retrievedChunks,
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: "answer.v3",
           usedFallback: true,
           answerPolicy: {
             responseStyle: "balanced",
@@ -3624,3 +3640,4 @@ test("AskAssistantService preserves localized fallback-only grounded summaries",
     "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
   );
 });
+

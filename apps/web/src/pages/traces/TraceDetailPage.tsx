@@ -634,6 +634,19 @@ export function TraceDetailPage() {
                   </Text>
                 </Paper>
                 <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "棣栭儴 token" : "First token split"}</Text>
+                  <Text className="workspace-metric-value">
+                    {traceSummary?.timingSummary?.llmFirstTokenMs != null
+                      ? `${traceSummary.timingSummary.llmFirstTokenMs} ms`
+                      : "-"}
+                  </Text>
+                  <Text className="workspace-metric-subtle">
+                    {locale === "zh"
+                      ? `鍓嶇疆 ${traceSummary?.timingSummary?.preGenerationMs ?? "-"} ms`
+                      : `Pre-gen ${traceSummary?.timingSummary?.preGenerationMs ?? "-"} ms`}
+                  </Text>
+                </Paper>
+                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
                   <Text className="workspace-metric-label">{locale === "zh" ? "命中 Chunk" : "Retrieved chunks"}</Text>
                   <Text className="workspace-metric-value">{retrievedChunkIds.length}</Text>
                   <Text className="workspace-metric-subtle">
@@ -668,6 +681,39 @@ export function TraceDetailPage() {
                         : "No query rewrite was applied for this run."}
                   </Text>
                 </Paper>
+                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "Prompt 大小" : "Prompt size"}</Text>
+                  <Text className="workspace-metric-value">
+                    {traceSummary?.promptContextApproxTokens != null ? `${traceSummary.promptContextApproxTokens} tok` : "-"}
+                  </Text>
+                  <Text className="workspace-metric-subtle">
+                    {locale === "zh"
+                      ? `约 ${traceSummary?.promptContextChars ?? "-"} 字符`
+                      : `Approx. ${traceSummary?.promptContextChars ?? "-"} chars`}
+                  </Text>
+                </Paper>
+                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "主块分数" : "Primary score"}</Text>
+                  <Text className="workspace-metric-value">
+                    {traceSummary?.primaryChunkScoreAvg != null ? traceSummary.primaryChunkScoreAvg.toFixed(4) : "-"}
+                  </Text>
+                  <Text className="workspace-metric-subtle">
+                    {locale === "zh"
+                      ? `最低 ${traceSummary?.primaryChunkScoreMin != null ? traceSummary.primaryChunkScoreMin.toFixed(4) : "-"}`
+                      : `Min ${traceSummary?.primaryChunkScoreMin != null ? traceSummary.primaryChunkScoreMin.toFixed(4) : "-"}`}
+                  </Text>
+                </Paper>
+                <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
+                  <Text className="workspace-metric-label">{locale === "zh" ? "Context 组" : "Context groups"}</Text>
+                  <Text className="workspace-metric-value">
+                    {traceSummary?.contextGroupCount != null ? traceSummary.contextGroupCount : "-"}
+                  </Text>
+                  <Text className="workspace-metric-subtle">
+                    {locale === "zh"
+                      ? `平均长度 ${traceSummary?.contextGroupAvgLength != null ? traceSummary.contextGroupAvgLength.toFixed(2) : "-"}`
+                      : `Avg len ${traceSummary?.contextGroupAvgLength != null ? traceSummary.contextGroupAvgLength.toFixed(2) : "-"}`}
+                  </Text>
+                </Paper>
               </div>
 
               {traceSummary ? (
@@ -679,6 +725,12 @@ export function TraceDetailPage() {
                   <div className="workspace-meta-row">
                     <span className="workspace-meta-label">{locale === "zh" ? "改写摘要" : "Rewrite summary"}</span>
                     <span className="workspace-meta-value">{traceSummary.rewriteReadabilityLabel}</span>
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">{locale === "zh" ? "改写跳过" : "Rewrite skip"}</span>
+                    <span className="workspace-meta-value">
+                      {traceSummary.rewriteSkippedReason ?? (locale === "zh" ? "未跳过" : "Not skipped")}
+                    </span>
                   </div>
                   <div className="workspace-meta-row">
                     <span className="workspace-meta-label">{locale === "zh" ? "候选规模" : "Candidate flow"}</span>

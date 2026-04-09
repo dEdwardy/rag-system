@@ -25,6 +25,8 @@ type RetrievalMode = "vector" | "hybrid" | "lexical";
 export type RetrievalStrategy = {
   queryRewrite?: {
     enabled?: boolean;
+    mode?: "off" | "heuristic_only" | "always";
+    maxAddedLatencyMs?: number;
   };
   candidateSelection?: {
     mode?: RetrievalMode;
@@ -37,12 +39,15 @@ export type RetrievalStrategy = {
   };
   rerank?: {
     enabled?: boolean;
+    mode?: "off" | "local_heuristic" | "llm_judge";
   };
 };
 
 export type ResolvedRetrievalStrategy = {
   queryRewrite: {
     enabled: boolean;
+    mode: "off" | "heuristic_only" | "always";
+    maxAddedLatencyMs: number;
   };
   candidateSelection: {
     mode: RetrievalMode;
@@ -55,6 +60,7 @@ export type ResolvedRetrievalStrategy = {
   };
   rerank: {
     enabled: boolean;
+    mode: "off" | "local_heuristic" | "llm_judge";
   };
 };
 
@@ -164,7 +170,9 @@ export const retrievalProfileFiltersSchema = z
 
 const queryRewriteStrategySchema = z
   .object({
-    enabled: z.boolean().optional()
+    enabled: z.boolean().optional(),
+    mode: z.enum(["off", "heuristic_only", "always"]).optional(),
+    maxAddedLatencyMs: z.number().int().min(0).max(5000).optional()
   })
   .strict()
   .transform(value => normalizeObject(value));
@@ -194,7 +202,8 @@ const hybridStrategySchema = z
 
 const rerankStrategySchema = z
   .object({
-    enabled: z.boolean().optional()
+    enabled: z.boolean().optional(),
+    mode: z.enum(["off", "local_heuristic", "llm_judge"]).optional()
   })
   .strict()
   .transform(value => normalizeObject(value));
@@ -242,7 +251,11 @@ export function resolveRetrievalStrategy(input: {
 
   return {
     queryRewrite: {
-      enabled: normalizedStrategy?.queryRewrite?.enabled ?? false
+      enabled: normalizedStrategy?.queryRewrite?.enabled ?? false,
+      mode:
+        normalizedStrategy?.queryRewrite?.mode ??
+        ((normalizedStrategy?.queryRewrite?.enabled ?? false) ? "heuristic_only" : "off"),
+      maxAddedLatencyMs: normalizedStrategy?.queryRewrite?.maxAddedLatencyMs ?? 1200
     },
     candidateSelection: {
       mode:
@@ -256,7 +269,12 @@ export function resolveRetrievalStrategy(input: {
       lexicalWeight: normalizedStrategy?.hybrid?.lexicalWeight ?? 0.3
     },
     rerank: {
-      enabled: normalizedStrategy?.rerank?.enabled ?? (hasStrategyOverride ? false : Boolean(input.enableRerank))
+      enabled: normalizedStrategy?.rerank?.enabled ?? (hasStrategyOverride ? false : Boolean(input.enableRerank)),
+      mode:
+        normalizedStrategy?.rerank?.mode ??
+        ((normalizedStrategy?.rerank?.enabled ?? (hasStrategyOverride ? false : Boolean(input.enableRerank)))
+          ? "local_heuristic"
+          : "off")
     }
   };
 }

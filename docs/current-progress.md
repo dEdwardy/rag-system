@@ -18,6 +18,29 @@
 
 ## Recent Landed Increments
 
+- `ask/retrieval hot-path trimming` continues to shave avoidable CPU work from the current RAG path without changing answer quality
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` no longer keeps the short-TTL retrieval cache that was only reducing repeated hot-query work
+  - `apps/api/src/modules/retrieval/retrieval.service.ts` now uses cheaper set-based unique collection and avoids repeated lowercasing / join work inside candidate scoring
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `git diff --check -- apps/api/src/modules/assistants/ask-assistant.service.ts apps/api/src/modules/retrieval/retrieval.service.ts docs/current-progress.md`
+
+- `quality/performance optimization phase 1` landed a bounded first implementation pass on the current ask pipeline without opening a new architecture wave
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now records richer retrieval/trace metadata, including prompt-context size, primary retrieval score stats, context-group average length, and explicit rewrite skip reasons
+  - retrieval strategy parsing now supports `queryRewrite.mode` plus `queryRewrite.maxAddedLatencyMs`, and the ask path uses heuristic rewrite gating instead of treating rewrite as a simple global boolean
+  - `apps/api/src/modules/retrieval/retrieval.service.ts` now preserves the existing hard failure contract for embedding/runtime compatibility errors instead of silently degrading into lexical fallback
+  - `apps/api/src/modules/traces/traces.service.ts` and `packages/shared/src/trace-contracts.ts` now surface the new prompt/retrieval metrics through `traceSummary`, keeping the existing trace/readout path as the single observability surface
+  - `apps/api/src/infra/llm/prompt-manager.service.ts` now uses tighter prompt packing for summary/list-style questions so those paths get more coverage with less prompt bloat
+  - focused validation:
+    - `pnpm test:api:file -- test/retrieval.test.js`
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `pnpm test:api:file -- test/ask-failures.test.js`
+    - `pnpm test:api:file -- test/ask-stream-service.test.js`
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `pnpm test:api:file -- test/prompt-manager.test.js`
+    - `pnpm test:api:fast:assistants`
+    - `git diff --check -- apps/api/src/modules/assistants/ask-assistant.service.ts apps/api/src/modules/retrieval/retrieval.service.ts apps/api/src/modules/traces/traces.service.ts apps/api/src/modules/retrieval-profiles/retrieval-profile.schemas.ts apps/api/src/infra/llm/prompt-manager.service.ts packages/shared/src/trace-contracts.ts apps/api/test/retrieval.test.js apps/api/test/ask-success.test.js apps/api/test/ask-failures.test.js apps/api/test/traces.service.test.js`
+
 - `test-system map cleanup` clarified the current repository test lanes without introducing a broad framework rewrite
   - root `package.json` now exposes explicit `test:web`, `test:web:guard`, `test:web:guard:legacy`, `test:web:legacy`, `test:web:smoke`, and `test:web:smoke:legacy` entrypoints
   - `apps/web/package.json` now splits frontend checks into `test:guard`, `test:guard:legacy`, `test:legacy`, and `test:smoke:legacy`, separating the stable guard gate from older local/source/UX verification that still needs re-baselining
@@ -235,3 +258,24 @@
   - focused validation:
     - `pnpm --filter @rag-system/web typecheck`
     - `git diff --check -- apps/web/src/pages/chat/ChatPage.tsx apps/web/src/pages/usage/UsagePage.tsx apps/web/src/pages/reports/ReportCenterPage.tsx apps/web/src/pages/traces/TraceListPage.tsx apps/web/src/pages/auth/LoginPage.tsx apps/web/src/pages/auth/InviteGatePage.tsx apps/web/src/pages/assistant/AssistantSettingsForm.tsx`
+
+## Recent API Quality / Performance Follow-up
+
+- Continued the `quality-performance-optimization-plan` implementation beyond phase 1 with bounded retrieval / answering / ingestion hardening instead of opening a new architecture wave.
+  - `chunking.service.ts` now emits lightweight structural metadata (`headingPath`, `blockType`, `listOrdinal`, `isTableLike`) for list / table / FAQ-aware chunks.
+  - `document-ingestion.processor.ts` now persists chunk structure hints into `DocumentChunk.metadataJson`, so retrieval and future diagnostics can reuse them.
+  - `retrieval.service.ts` now reads chunk metadata, adds structure-aware lexical scoring, surfaces `matchSource`, and formalizes `rerank.mode` (`off | local_heuristic | llm_judge`) while keeping the current implementation lightweight.
+  - `rerank.mode = llm_judge` now uses a bounded LLM judge prompt for the top candidate slice and falls back to the local heuristic when the judge call fails or returns unusable output.
+  - `answering.service.ts` now adds `citationReliability`, enables heuristic summary-main-item extraction for summary/list questions, and applies tighter summary-oriented context packing without adding a second LLM call.
+- `retrieval-profile.schemas.ts` and `ask-assistant.service.ts` now default enabled rewrite to `heuristic_only` and skip it when the estimated added latency exceeds the profile budget.
+- The streaming ask path now starts trace creation in parallel with answer generation so trace persistence no longer blocks the first streamed token.
+- Focused validation completed:
+  - `pnpm test:api:file -- test/chunking.test.js`
+  - `pnpm test:api:file -- test/retrieval.test.js`
+  - `pnpm test:api:file -- test/answering.test.js`
+  - `pnpm test:api:fast:assistants`
+- The web trace detail page now surfaces the newest high-signal diagnostics directly in the UI, including prompt size, rewrite skip reason, primary score, and context-group sizing.
+- The trace list page now previews latency and rewrite state on each conversation card so the diagnostics surface is visible before opening a detail view.
+- The trace detail sidebar now highlights the slowest timing stage so the main bottleneck is visible at a glance without manual inspection.
+- The trace list page now shows a compact slowest-stage preview on each conversation card so slow runs can be spotted without opening the detail page.
+- Summary/list answer prompts now use a tighter compact context mode once the retrieved chunk set gets larger, trimming prompt size to reduce first-token latency.

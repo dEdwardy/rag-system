@@ -448,6 +448,9 @@ export class TracesService {
     const rewriteUsedFallback = this.readNullableBoolean(queryRewriteMetadata?.usedFallback)
       ?? this.readNullableBoolean(strategySummary?.rewriteUsedFallback)
       ?? this.readNullableBoolean(retrievalMetadata?.rewriteUsedFallback);
+    const rewriteSkippedReason = this.readStringAs<NonNullable<TraceSummary["rewriteSkippedReason"]>>(
+      queryRewriteMetadata?.skippedReason
+    ) ?? this.readStringAs<NonNullable<TraceSummary["rewriteSkippedReason"]>>(strategySummary?.rewriteSkippedReason);
     const rewritePromptId = this.readString(queryRewriteMetadata?.promptId)
       ?? this.readString(strategySummary?.rewritePromptId)
       ?? this.readString(retrievalMetadata?.rewritePromptId);
@@ -559,6 +562,8 @@ export class TracesService {
     const timingSummary = {
       totalMs: this.readNumber(timingMetadata?.totalMs),
       firstTokenMs: this.readNumber(timingMetadata?.firstTokenMs),
+      preGenerationMs: this.readNumber(timingMetadata?.preGenerationMs),
+      llmFirstTokenMs: this.readNumber(timingMetadata?.llmFirstTokenMs),
       conversationLoadMs: this.readNumber(timingMetadata?.conversationLoadMs),
       userMessagePersistMs: this.readNumber(timingMetadata?.userMessagePersistMs),
       rewriteMs: this.readNumber(timingMetadata?.rewriteMs),
@@ -574,8 +579,13 @@ export class TracesService {
       contextMode,
       inputChunkCount,
       promptContextCount,
+      promptContextChars: this.readNumber(retrievalMetadata?.promptContextChars) ?? 0,
+      promptContextApproxTokens: this.readNumber(retrievalMetadata?.promptContextApproxTokens) ?? 0,
       contextGroupCount,
-      retrievedChunkCount
+      retrievedChunkCount,
+      primaryChunkScoreAvg: this.readNumber(retrievalMetadata?.primaryChunkScoreAvg),
+      primaryChunkScoreMin: this.readNumber(retrievalMetadata?.primaryChunkScoreMin),
+      contextGroupAvgLength: this.readNumber(retrievalMetadata?.contextGroupAvgLength)
     });
 
     return {
@@ -604,6 +614,7 @@ export class TracesService {
         retrievalQuerySource,
         rewriteEnabled,
         rewriteApplied,
+        rewriteSkippedReason,
         rewriteUsedFallback,
         rewritePromptId,
         rewriteModelName,
@@ -615,6 +626,7 @@ export class TracesService {
       generationMode: this.readStringAs<NonNullable<TraceSummary["generationMode"]>>(answeringMetadata?.generationMode),
       contextMode,
       rewriteApplied,
+      rewriteSkippedReason,
       fallbackReason,
       resolvedLanguage: this.readStringAs<NonNullable<TraceSummary["resolvedLanguage"]>>(answeringMetadata?.resolvedLanguage),
       answerAttributionSummary,
@@ -662,7 +674,12 @@ export class TracesService {
       retrievedChunkCount,
       inputChunkCount,
       promptContextCount,
+      promptContextChars: this.readNumber(retrievalMetadata?.promptContextChars) ?? 0,
+      promptContextApproxTokens: this.readNumber(retrievalMetadata?.promptContextApproxTokens) ?? 0,
       contextGroupCount,
+      primaryChunkScoreAvg: this.readNumber(retrievalMetadata?.primaryChunkScoreAvg),
+      primaryChunkScoreMin: this.readNumber(retrievalMetadata?.primaryChunkScoreMin),
+      contextGroupAvgLength: this.readNumber(retrievalMetadata?.contextGroupAvgLength),
       contextReadabilitySentence,
       citationCount,
       citationCountReadabilityLabel,
@@ -823,11 +840,22 @@ export class TracesService {
     contextMode: TraceSummary["contextMode"];
     inputChunkCount: TraceSummary["inputChunkCount"];
     promptContextCount: TraceSummary["promptContextCount"];
+    promptContextChars: TraceSummary["promptContextChars"];
+    promptContextApproxTokens: TraceSummary["promptContextApproxTokens"];
     contextGroupCount: TraceSummary["contextGroupCount"];
     retrievedChunkCount: TraceSummary["retrievedChunkCount"];
+    primaryChunkScoreAvg: TraceSummary["primaryChunkScoreAvg"];
+    primaryChunkScoreMin: TraceSummary["primaryChunkScoreMin"];
+    contextGroupAvgLength: TraceSummary["contextGroupAvgLength"];
   }): TraceSummary["contextReadabilitySentence"] {
     const contextModeLabel = input.contextMode ?? "unknown";
-    return `Prompt context used ${input.promptContextCount} items via ${contextModeLabel} mode (${input.inputChunkCount} input chunks, ${input.contextGroupCount} context groups, ${input.retrievedChunkCount} retrieved chunks).`;
+    const scoreSummary = input.primaryChunkScoreAvg == null
+      ? "primary scores n/a"
+      : `primary scores avg ${input.primaryChunkScoreAvg}, min ${input.primaryChunkScoreMin ?? input.primaryChunkScoreAvg}`;
+    const groupSummary = input.contextGroupAvgLength == null
+      ? "context group length n/a"
+      : `context group avg length ${input.contextGroupAvgLength} chars`;
+    return `Prompt context used ${input.promptContextCount} items via ${contextModeLabel} mode (${input.inputChunkCount} input chunks, ${input.contextGroupCount} context groups, ${input.retrievedChunkCount} retrieved chunks, ${input.promptContextChars} chars, ~${input.promptContextApproxTokens} tokens; ${scoreSummary}; ${groupSummary}).`;
   }
 
   private buildFailedStageReadabilityLabel(input: {

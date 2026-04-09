@@ -14,6 +14,11 @@ export type TracePrimaryIssue =
 export type TraceRetrievalMode = "vector" | "hybrid" | "lexical";
 
 export type TraceRetrievalQuerySource = "rewritten" | "original_disabled" | "original_unchanged";
+export type TraceRewriteSkippedReason =
+  | "disabled_by_default"
+  | "query_too_short"
+  | "not_summary_or_complex_question"
+  | "latency_budget_exceeded";
 
 export type TraceGenerationMode = "generated" | "deterministic_bypass";
 
@@ -58,6 +63,7 @@ export type RetrievalStrategySummary = {
   retrievalQuerySource: TraceRetrievalQuerySource | null;
   rewriteEnabled: boolean;
   rewriteApplied: boolean;
+  rewriteSkippedReason: TraceRewriteSkippedReason | null;
   rewriteUsedFallback: boolean | null;
   rewritePromptId: string | null;
   rewriteModelName: string | null;
@@ -68,6 +74,8 @@ export type RetrievalStrategySummary = {
 export type TraceTimingSummary = {
   totalMs: number | null;
   firstTokenMs: number | null;
+  preGenerationMs: number | null;
+  llmFirstTokenMs: number | null;
   conversationLoadMs: number | null;
   userMessagePersistMs: number | null;
   rewriteMs: number | null;
@@ -96,6 +104,7 @@ export type TraceSummary = {
   generationMode: TraceGenerationMode | null;
   contextMode: TraceContextMode | null;
   rewriteApplied: boolean;
+  rewriteSkippedReason: TraceRewriteSkippedReason | null;
   fallbackReason: TraceFallbackReason | null;
   resolvedLanguage: TraceResolvedLanguage | null;
   answerAttributionSummary: TraceAnswerAttributionSummary;
@@ -140,7 +149,12 @@ export type TraceSummary = {
   retrievedChunkCount: number;
   inputChunkCount: number;
   promptContextCount: number;
+  promptContextChars: number;
+  promptContextApproxTokens: number;
   contextGroupCount: number;
+  primaryChunkScoreAvg: number | null;
+  primaryChunkScoreMin: number | null;
+  contextGroupAvgLength: number | null;
   contextReadabilitySentence: string;
   citationCount: number;
   citationCountReadabilityLabel: string;

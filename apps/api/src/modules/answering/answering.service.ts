@@ -7,10 +7,16 @@ type RetrievedChunk = {
   chunkId: string;
   documentId: string;
   documentTitle: string;
+  chunkIndex?: number;
   content: string;
   score: number;
   pageNo: number | null;
   sectionTitle: string | null;
+  matchSource?: "fts" | "section_title" | "like_fallback" | "vector";
+  headingPath?: string[];
+  blockType?: "paragraph" | "heading" | "list" | "table" | "faq" | "quote" | "code";
+  listOrdinal?: number | null;
+  isTableLike?: boolean;
 };
 
 type RetrievedContextGroup = {
@@ -34,6 +40,7 @@ type CitationSelection = {
   chunks: RetrievedChunk[];
   attribution: "explicit" | "heuristic" | "none";
   source: "structured" | "inline_markers" | "heuristic" | "none";
+  reliability: "explicit" | "inferred" | "none";
 };
 
 type QualityEvaluation = {
@@ -67,6 +74,7 @@ export type AnsweringMetadata = {
   citationLimitHit: boolean;
   citationAttribution: CitationSelection["attribution"];
   citationSelectionSource: CitationSelection["source"];
+  citationReliability: CitationSelection["reliability"];
   missingInformationCount: number;
   missingInformationSource: "none" | "model" | "deterministic_default" | "suppressed_by_policy";
   answerTextSource: "model" | "deterministic_policy";
@@ -111,14 +119,24 @@ export class AnsweringService {
     contextGroups?: RetrievedContextGroup[];
   }) {
     const answerPolicy = this.normalizeAnswerPolicy(input.answerPolicy);
-    const llmChunks = this.buildAnswerContextChunks(input.chunks, input.contextGroups);
+    const questionType = this.inferQuestionType(input.question);
+    const heuristicSummaryMainItems =
+      questionType === "summary"
+        ? this.extractSummaryMainItemsHeuristically(input.chunks, input.contextGroups)
+        : [];
+    const llmChunks = this.buildAnswerContextChunksForQuestion(
+      input.question,
+      input.chunks,
+      input.contextGroups,
+      heuristicSummaryMainItems
+    );
 
     const isSummaryExperimentEnabled =
       ENABLE_SUMMARY_MAIN_ITEMS_EXPERIMENT &&
-      this.inferQuestionType(input.question) === "summary" &&
+      questionType === "summary" &&
       llmChunks.length > 0;
 
-    let summaryMainItems: string[] = [];
+    let summaryMainItems: string[] = heuristicSummaryMainItems;
     let systemPrompt = input.systemPrompt;
 
     if (isSummaryExperimentEnabled) {
@@ -155,7 +173,7 @@ Answering requirement:
       chunks: input.chunks,
       contextGroups: input.contextGroups,
       result,
-      summaryMainItems: isSummaryExperimentEnabled ? summaryMainItems : []
+      summaryMainItems
     });
   }
 
@@ -232,9 +250,10 @@ Answering requirement:
       answerStatus: "insufficient_context",
       missingInformation,
       usedFallback: true,
-      citationMode: answerPolicy.citationMode,
-      citationCount: 0,
-      chunkCount: 0,
+        citationMode: answerPolicy.citationMode,
+        citationCount: 0,
+        citationReliability: "none",
+        chunkCount: 0,
       topScore: null,
       coverageSummary: {
         questionType: this.inferQuestionType(input.question),
@@ -265,6 +284,7 @@ Answering requirement:
           citationLimitHit: false,
           citationAttribution: "none",
           citationSelectionSource: "none",
+          citationReliability: "none",
           missingInformationCount: missingInformation.length,
           missingInformationSource: "deterministic_default",
           answerTextSource: "deterministic_policy",
@@ -336,6 +356,7 @@ Answering requirement:
         usedFallback,
         citationMode: input.answerPolicy.citationMode,
         citationCount: 0,
+        citationReliability: "none",
         chunkCount: 0,
         topScore: null,
         coverageSummary
@@ -359,6 +380,7 @@ Answering requirement:
           citationLimitHit: false,
           citationAttribution: "none",
           citationSelectionSource: "none",
+          citationReliability: "none",
           missingInformationCount: missingInformation.length,
           missingInformationSource: this.resolveMissingInformationSource({
             answerStatus,
@@ -425,6 +447,7 @@ Answering requirement:
       citationMode: input.answerPolicy.citationMode,
       citationCount: citations.length,
       citationAttribution: citationSelection.attribution,
+      citationReliability: citationSelection.reliability,
       chunkCount: input.chunks.length,
       topScore: input.chunks[0]?.score ?? null,
       coverageSummary
@@ -450,6 +473,7 @@ Answering requirement:
         citationLimitHit: citationCountBeforeLimit > input.answerPolicy.maxCitations,
         citationAttribution: citationSelection.attribution,
         citationSelectionSource: citationSelection.source,
+        citationReliability: citationSelection.reliability,
         missingInformationCount: missingInformation.length,
         missingInformationSource: this.resolveMissingInformationSource({
           answerStatus,
@@ -468,7 +492,10 @@ Answering requirement:
           answerStatusProvided: input.result.answerStatus != null
         }),
         answerStatus,
-        coverageSummary
+        coverageSummary,
+        ...(input.summaryMainItems && input.summaryMainItems.length > 0
+          ? { summaryMainItems: input.summaryMainItems }
+          : {})
       },
       answerStatus,
       missingInformation,
@@ -803,8 +830,21 @@ Answering requirement:
   }
 
   private buildAnswerContextChunks(chunks: RetrievedChunk[], contextGroups?: RetrievedContextGroup[]) {
+    return this.buildAnswerContextChunksForQuestion("", chunks, contextGroups, []);
+  }
+
+  private buildAnswerContextChunksForQuestion(
+    question: string,
+    chunks: RetrievedChunk[],
+    contextGroups?: RetrievedContextGroup[],
+    summaryMainItems: string[] = []
+  ) {
+    const isSummaryQuestion = this.inferQuestionType(question) === "summary";
+
     if (!contextGroups || contextGroups.length === 0) {
-      return chunks;
+      return isSummaryQuestion
+        ? chunks.map(chunk => this.compactChunkForSummary(chunk, summaryMainItems))
+        : chunks;
     }
 
     return contextGroups.map(group => {
@@ -813,12 +853,81 @@ Answering requirement:
         chunkId: group.primaryChunkIds[0] ?? group.chunkIds[0] ?? primaryChunk.chunkId,
         documentId: group.documentId,
         documentTitle: group.documentTitle,
-        content: group.mergedContent,
+        content: isSummaryQuestion
+          ? this.buildSummaryContextGroupContent(group, chunks, summaryMainItems)
+          : group.mergedContent,
         score: primaryChunk?.score ?? 0,
         pageNo: group.pageNumbers[0] ?? null,
-        sectionTitle: group.sectionTitles.length > 0 ? group.sectionTitles.join(" / ") : null
+        sectionTitle: group.sectionTitles.length > 0 ? group.sectionTitles.join(" / ") : null,
+        ...(primaryChunk?.blockType ? { blockType: primaryChunk.blockType } : {}),
+        ...(primaryChunk?.headingPath ? { headingPath: primaryChunk.headingPath } : {})
       };
     });
+  }
+
+  private compactChunkForSummary(chunk: RetrievedChunk, summaryMainItems: string[]) {
+    const lines = chunk.content
+      .split(/\n+/)
+      .map(line => line.trim())
+      .filter(Boolean);
+    const listLines = lines.filter(line => /^([-*+]|\d+\.)\s+/.test(line)).slice(0, 4);
+    const compactParts = [
+      chunk.sectionTitle ? `Section: ${chunk.sectionTitle}` : null,
+      chunk.headingPath && chunk.headingPath.length > 0
+        ? `Heading path: ${chunk.headingPath.join(" > ")}`
+        : null,
+      summaryMainItems.length > 0 ? `Main items: ${summaryMainItems.join("; ")}` : null,
+      lines[0] ?? null,
+      lines[1] ?? null,
+      ...listLines
+    ].filter(Boolean);
+
+    return {
+      ...chunk,
+      content: compactParts.join("\n")
+    };
+  }
+
+  private buildSummaryContextGroupContent(
+    group: RetrievedContextGroup,
+    chunks: RetrievedChunk[],
+    summaryMainItems: string[]
+  ) {
+    return chunks
+      .filter(chunk => group.chunkIds.includes(chunk.chunkId))
+      .slice(0, 3)
+      .map(chunk => this.compactChunkForSummary(chunk, summaryMainItems).content)
+      .join("\n\n");
+  }
+
+  private extractSummaryMainItemsHeuristically(
+    chunks: RetrievedChunk[],
+    contextGroups?: RetrievedContextGroup[]
+  ) {
+    const candidates = [
+      ...(contextGroups?.flatMap(group => group.sectionTitles) ?? []),
+      ...chunks.flatMap(chunk => [
+        chunk.sectionTitle ?? "",
+        ...(chunk.headingPath ?? []),
+        ...chunk.content
+          .split(/\n+/)
+          .map(line => line.trim())
+          .filter(line => /^([-*+]|\d+\.)\s+/.test(line))
+          .map(line => line.replace(/^([-*+]|\d+\.)\s+/, "").trim())
+      ])
+    ];
+
+    const items: string[] = [];
+    for (const candidate of candidates) {
+      const normalized = candidate.replace(/^#+\s*/, "").trim();
+      if (!this.isLikelyPrimaryTopic(normalized) || items.includes(normalized)) {
+        continue;
+      }
+
+      items.push(normalized);
+    }
+
+    return items.slice(0, 6);
   }
 
   private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null): AnswerPolicy {
@@ -849,7 +958,8 @@ Answering requirement:
       return {
         chunks: validChunks,
         attribution: "explicit",
-        source: "structured"
+        source: "structured",
+        reliability: "explicit"
       };
     }
 
@@ -872,7 +982,8 @@ Answering requirement:
       return {
         chunks: uniqueExtractedFromAnswer,
         attribution: "explicit",
-        source: "inline_markers"
+        source: "inline_markers",
+        reliability: "explicit"
       };
     }
 
@@ -880,14 +991,16 @@ Answering requirement:
       return {
         chunks: [],
         attribution: "none",
-        source: "none"
+        source: "none",
+        reliability: "none"
       };
     }
 
     return {
       chunks: input.chunks.slice(0, Math.min(3, input.chunks.length)),
       attribution: input.chunks.length > 0 ? "heuristic" : "none",
-      source: input.chunks.length > 0 ? "heuristic" : "none"
+      source: input.chunks.length > 0 ? "heuristic" : "none",
+      reliability: input.chunks.length > 0 ? "inferred" : "none"
     };
   }
 
@@ -953,6 +1066,7 @@ Answering requirement:
     citationMode: "required" | "optional";
     citationCount: number;
     citationAttribution?: CitationSelection["attribution"];
+    citationReliability: CitationSelection["reliability"];
     chunkCount: number;
     topScore: number | null;
     coverageSummary?: {
@@ -990,6 +1104,14 @@ Answering requirement:
 
     if (input.usedFallback && input.answerStatus === "grounded") {
       flags.push("fallback_generation");
+    }
+
+    if (
+      input.answerStatus === "grounded" &&
+      input.citationMode === "required" &&
+      input.citationReliability === "inferred"
+    ) {
+      flags.push("inferred_citation_only");
     }
 
     const grounding =
