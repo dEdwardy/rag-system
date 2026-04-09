@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { GenerateAnswerInput, RewriteQueryInput } from "./llm.types";
+﻿import { Injectable } from "@nestjs/common";
+import { GenerateAnswerInput, JudgeRerankInput, RewriteQueryInput } from "./llm.types";
 
 type ManagedPrompt = {
   promptId: string;
@@ -11,6 +11,8 @@ type ManagedPrompt = {
 @Injectable()
 export class PromptManagerService {
   private readonly maxChunkContentLength = 1200;
+  private readonly maxSummaryChunkContentLength = 420;
+  private readonly maxCompactSummaryChunkContentLength = 260;
 
   getAnswerPromptId() {
     return "answer.v3";
@@ -25,62 +27,57 @@ export class PromptManagerService {
   }
 
   buildAnswerPrompt(input: GenerateAnswerInput): ManagedPrompt {
-    const isSummaryLike = /总结|概括|列举|哪些|维度|挑战|方面|类型|主要|分别|归纳/.test(input.question);
+    const isSummaryLike = this.isSummaryLikeQuestion(input.question);
+    const compactSummaryContext = isSummaryLike && input.chunks.length > 5;
+    const compactAnswerContext = input.chunks.length > 0;
     const summaryRules = isSummaryLike
       ? `
-- This is a summary/list-style question.
-- If the retrieved evidence supports several parallel main themes, categories, dimensions, challenges, techniques, aspects, or application areas, list all of them explicitly.
-- Do not omit supported points.
-- Prefer coverage over aggressive brevity when several distinct themes are present.
-`
+- Summary/list question: cover all supported peer items.`
       : "";
 
     const systemPrompt = `${input.systemPrompt}
 
-Answering rules:
-- Use only the provided retrieved sources.
-- Answer directly when the sources support it; otherwise use "insufficient_context".
-- Cite only the provided source indexes like [1] or [1][2].
-- Keep the answer factual and follow the requested answer policy.${summaryRules}`;
+Rules:
+- Use only the provided sources.
+- Answer directly if supported; otherwise use "insufficient_context".
+- Cite only source indexes like [1] or [1][2].
+- Stay factual and follow the answer policy.${summaryRules}`;
 
     const context = input.chunks
       .map(
         (chunk, index) =>
-          `[${index + 1}] document="${chunk.documentTitle}"${chunk.sectionTitle ? ` section="${chunk.sectionTitle}"` : ""} score=${chunk.score.toFixed(3)}\n${this.truncateChunkContent(chunk.content)}`
+          compactAnswerContext
+            ? `[${index + 1}]${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 48)}"` : ""}${chunk.documentTitle ? ` d="${this.compactLabel(chunk.documentTitle, 36)}"` : ""}\n${this.truncateChunkContent(chunk.content, isSummaryLike, compactSummaryContext)}`
+            : `[${index + 1}] d="${this.compactLabel(chunk.documentTitle, 48)}"${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 64)}"` : ""}\n${this.truncateChunkContent(chunk.content, isSummaryLike, compactSummaryContext)}`
       )
       .join("\n\n");
 
-    const userPrompt = `Question:
+    const userPrompt = `Q:
 ${input.question}
 
-Retrieved sources:
+Sources:
 ${context}
 
-Answer policy:
-- responseStyle=${input.answerPolicy.responseStyle}
+Policy:
+- style=${input.answerPolicy.responseStyle}
 - tone=${input.answerPolicy.tone}
-- outputFormat=${input.answerPolicy.outputFormat}
+- format=${input.answerPolicy.outputFormat}
 - language=${input.answerPolicy.language}
-- citationMode=${input.answerPolicy.citationMode}
+- citations=${input.answerPolicy.citationMode}
 - maxCitations=${input.answerPolicy.maxCitations}
-- noAnswerBehavior=${input.answerPolicy.noAnswerBehavior}
+- noAnswer=${input.answerPolicy.noAnswerBehavior}
 - includeMissingInformation=${input.answerPolicy.includeMissingInformation}
 
-Return JSON only with this shape:
+Return JSON only:
 {"answer":"string","status":"grounded|insufficient_context","citations":[1],"missingInformation":["string"]}
 
 Rules:
-- "citations" must contain only 1-based source indexes from the retrieved sources.
-- Use "grounded" only when the answer is supported by the provided sources.
-- Use "insufficient_context" when the sources do not support a reliable answer.
-- "missingInformation" should be an array and may be empty.
-- Match the requested responseStyle, tone, outputFormat, and language policy.
-- If outputFormat=bullets, prefer a short bullet list.
-- If outputFormat=markdown, use concise markdown structure without code fences unless needed.
-- If language=same_as_question, answer in the same language as the question.
-- If language=zh or language=en, answer in that language.
-- If includeMissingInformation=false, return an empty "missingInformation" array unless the answer is insufficient_context.
-- Do not wrap the JSON in markdown fences.`;
+- citations are 1-based source indexes only.
+- use grounded only when supported.
+- use insufficient_context when not supported.
+- keep missingInformation as an array.
+- match the requested policy.
+- do not wrap JSON in fences.`;
 
     return {
       promptId: this.getAnswerPromptId(),
@@ -97,8 +94,8 @@ Rules:
     const context = input.chunks
       .map(
         (chunk, index) =>
-          `[${index + 1}] document="${chunk.documentTitle}"${chunk.sectionTitle ? ` section="${chunk.sectionTitle}"` : ""}
-${this.truncateChunkContent(chunk.content)}`
+          `[${index + 1}]${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 48)}"` : ""}${chunk.documentTitle ? ` d="${this.compactLabel(chunk.documentTitle, 36)}"` : ""}
+${this.truncateChunkContent(chunk.content, true, true)}`
       )
       .join("\n\n");
 
@@ -112,17 +109,17 @@ Rules:
 - If the evidence supports three peer main items, include all three.
 - If no reliable peer main items are supported, return {"mainItems":[]}.`;
 
-    const userPrompt = `Question:
+    const userPrompt = `Q:
 ${input.question}
 
-Retrieved sources:
+Sources:
 ${context}
 
 Task:
-- Identify the parallel main items that should appear in the final answer.
-- Keep only main items.
-- Do not explain them.
-- Do not include unsupported items.`;
+- identify the parallel main items for the final answer
+- keep only main items
+- do not explain them
+- do not include unsupported items`;
 
     return {
       promptId: this.getSummaryMainItemsPromptId(),
@@ -130,15 +127,6 @@ Task:
       userPrompt,
       fullPrompt: `${systemPrompt}\n\n${userPrompt}`
     };
-  }
-
-  private truncateChunkContent(content: string) {
-    const normalized = content.replace(/\s+/g, " ").trim();
-    if (normalized.length <= this.maxChunkContentLength) {
-      return normalized;
-    }
-
-    return `${normalized.slice(0, this.maxChunkContentLength)}...`;
   }
 
   buildRewritePrompt(input: RewriteQueryInput): ManagedPrompt {
@@ -159,4 +147,64 @@ ${input.question}`;
       fullPrompt: `${systemPrompt}\n\n${userPrompt}`
     };
   }
+
+  buildJudgeRerankPrompt(input: JudgeRerankInput): ManagedPrompt {
+    const context = input.candidates
+      .map(
+        (candidate, index) =>
+          `[${index + 1}] chunkId="${candidate.chunkId}" document="${candidate.documentTitle}"${candidate.sectionTitle ? ` section="${candidate.sectionTitle}"` : ""} score=${candidate.score.toFixed(3)}\n${this.truncateChunkContent(candidate.content, true)}`
+      )
+      .join("\n\n");
+
+    const systemPrompt = `Rank the retrieved candidates for the question using only the provided snippets.
+
+Rules:
+- Return JSON only.
+- Use this exact shape: {"ranking":["chunkId1","chunkId2"]}.
+- Order the chunkIds from most relevant to least relevant.
+- Include only chunkIds from the provided candidate list.
+- Prefer the candidates that best answer the question directly.`;
+
+    const userPrompt = `Question:
+${input.question}
+
+Candidates:
+${context}`;
+
+    return {
+      promptId: `${this.getRewritePromptId()}:judge`,
+      systemPrompt,
+      userPrompt,
+      fullPrompt: `${systemPrompt}\n\n${userPrompt}`
+    };
+  }
+
+  private truncateChunkContent(content: string, summaryLike = false, compactSummary = false) {
+    const normalized = content.replace(/\s+/g, " ").trim();
+    const limit = summaryLike
+      ? compactSummary
+        ? this.maxCompactSummaryChunkContentLength
+        : this.maxSummaryChunkContentLength
+      : this.maxChunkContentLength;
+    if (normalized.length <= limit) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, limit)}...`;
+  }
+
+  private compactLabel(value: string, limit: number) {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    if (normalized.length <= limit) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, limit - 1)}...`;
+  }
+
+  private isSummaryLikeQuestion(question: string) {
+    return /summary|summarize|list|compare|categories|themes|steps|differences|鎬荤粨|姒傛嫭|鍒楀嚭|姣旇緝|鍖哄埆|瑕佺偣|鍝簺|鏂归潰|缁村害/i
+      .test(question);
+  }
 }
+

@@ -121,6 +121,7 @@ test("AnsweringService preserves structured answer metadata and enforces max cit
     citationLimitHit: true,
     citationAttribution: "explicit",
     citationSelectionSource: "structured",
+    citationReliability: "explicit",
     missingInformationCount: 0,
     missingInformationSource: "none",
     answerTextSource: "model",
@@ -674,6 +675,7 @@ test("AnsweringService prefers merged contextGroups content when calling the mod
     citationLimitHit: false,
     citationAttribution: "explicit",
     citationSelectionSource: "structured",
+    citationReliability: "explicit",
     missingInformationCount: 0,
     missingInformationSource: "none",
     answerTextSource: "model",
@@ -862,7 +864,7 @@ test("AnsweringService does not claim cited-source grounding when citations were
     grounding: "grounded",
     completeness: "complete",
     primaryIssue: "none",
-    flags: [],
+    flags: ["inferred_citation_only"],
     summary:
       "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
   });
@@ -915,7 +917,7 @@ test("AnsweringService localizes strong summaries when citations were heuristica
     grounding: "grounded",
     completeness: "complete",
     primaryIssue: "none",
-    flags: [],
+    flags: ["inferred_citation_only"],
     summary: "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
   });
 });

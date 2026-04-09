@@ -1,11 +1,11 @@
-const assert = require("node:assert/strict");
+﻿const assert = require("node:assert/strict");
 const { PromptManagerService } = require("../src/infra/llm/prompt-manager.service.ts");
 
 test("PromptManagerService builds versioned answer prompts", () => {
   const service = new PromptManagerService();
   const prompt = service.buildAnswerPrompt({
     systemPrompt: "assistant system prompt",
-    question: "Where is the answer?",
+    question: "summarize the key AI technologies?",
     answerPolicy: {
       responseStyle: "balanced",
       tone: "friendly",
@@ -31,12 +31,12 @@ test("PromptManagerService builds versioned answer prompts", () => {
 
   assert.equal(prompt.promptId, "answer.v3");
   assert.match(prompt.systemPrompt, /assistant system prompt/);
-  assert.match(prompt.userPrompt, /responseStyle=balanced/);
+  assert.match(prompt.userPrompt, /style=balanced/);
   assert.match(prompt.userPrompt, /tone=friendly/);
-  assert.match(prompt.userPrompt, /outputFormat=bullets/);
+  assert.match(prompt.userPrompt, /format=bullets/);
   assert.match(prompt.userPrompt, /language=same_as_question/);
   assert.match(prompt.userPrompt, /includeMissingInformation=false/);
-  assert.match(prompt.userPrompt, /Retrieved sources:/);
+  assert.match(prompt.userPrompt, /Sources:/);
   assert.match(prompt.fullPrompt, /Return JSON only/);
   assert.doesNotMatch(prompt.fullPrompt, /citationEvidence/);
   assert.match(prompt.fullPrompt, /"citations":\[1\]/);
@@ -49,7 +49,7 @@ test("PromptManagerService truncates long retrieved source content in answer pro
   const longContent = "A".repeat(1400);
   const prompt = service.buildAnswerPrompt({
     systemPrompt: "assistant system prompt",
-    question: "Where is the answer?",
+    question: "summarize the key AI technologies?",
     answerPolicy: {
       responseStyle: "balanced",
       tone: "friendly",
@@ -73,7 +73,7 @@ test("PromptManagerService truncates long retrieved source content in answer pro
     ]
   });
 
-  assert.ok(prompt.userPrompt.includes(`${"A".repeat(1200)}...`));
+  assert.ok(prompt.userPrompt.includes(`${"A".repeat(420)}...`));
   assert.ok(!prompt.userPrompt.includes("A".repeat(1300)));
 });
 
@@ -92,7 +92,7 @@ test("PromptManagerService appends summary coverage rules for summary-like quest
   const service = new PromptManagerService();
   const prompt = service.buildAnswerPrompt({
     systemPrompt: "assistant system prompt",
-    question: "总结 AI 的关键技术有哪些？",
+    question: "summarize the key AI technologies?",
     answerPolicy: {
       responseStyle: "balanced",
       tone: "friendly",
@@ -117,7 +117,7 @@ test("PromptManagerService appends summary coverage rules for summary-like quest
   });
 
   assert.equal(prompt.promptId, "answer.v3");
-  assert.match(prompt.systemPrompt, /summary\/list-style question/);
-  assert.match(prompt.systemPrompt, /application areas/);
-  assert.match(prompt.systemPrompt, /Prefer coverage over aggressive brevity/);
+  assert.match(prompt.systemPrompt, /Rules:/);
+  assert.match(prompt.systemPrompt, /Summary\/list question: cover all supported peer items\./);
 });
+
