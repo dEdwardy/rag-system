@@ -52,9 +52,7 @@ type ExpandedChunkRow = {
   sectionTitle: string | null;
   metadataJson: Prisma.JsonValue | null;
   pageNo: number | null;
-  document: {
-    title: string;
-  };
+  documentTitle: string;
 };
 
 export type RetrievalContextGroup = {
@@ -199,6 +197,81 @@ export class RetrievalService {
     let embeddingDiagnostics: VectorStoreEmbeddingDiagnostics | null = null;
 
     try {
+      if (candidateSelectionMode === "hybrid") {
+        const hybridLexicalCandidateLimit = this.resolveHybridLexicalCandidateLimit({
+          query: input.query,
+          topK: input.topK,
+          candidateLimit,
+          rerankEnabled: resolvedEnableRerank
+        });
+        const vectorOnlyResult = await this.runVectorSearch({
+          kbId: input.kbId,
+          query: input.query,
+          topK: vectorSearchTopK,
+          scoreThreshold: input.scoreThreshold,
+          filters: normalizedFilters,
+          phaseTiming,
+          includePayload: !resolvedEnableRerank
+        });
+        const vectorMatches = vectorOnlyResult.matches;
+        embeddingDiagnostics = vectorOnlyResult.embedding;
+
+        if (this.shouldUseVectorFastPathInHybrid({
+          query: input.query,
+          topK: input.topK,
+          scoreThreshold: input.scoreThreshold,
+          chunkWindow: input.chunkWindow ?? 0,
+          vectorMatches,
+          rerankEnabled: resolvedEnableRerank
+        })) {
+          return this.buildVectorOnlyResult({
+            kbId: input.kbId,
+            query: input.query,
+            topK: input.topK,
+            scoreThreshold: input.scoreThreshold,
+            chunkWindow: input.chunkWindow ?? 0,
+            filters: normalizedFilters,
+            documentVersions: input.documentVersions,
+            vectorMatches,
+            embedding: embeddingDiagnostics,
+            phaseTiming,
+            candidateLimit,
+            vectorSearchTopK,
+            rerankMode: resolvedRerankMode
+          });
+        }
+
+        const lexicalSearchStartedAt = Date.now();
+        const lexicalCandidates = await this.getLexicalCandidates({
+          kbId: input.kbId,
+          query: input.query,
+          limit: hybridLexicalCandidateLimit,
+          filters: normalizedFilters,
+          documentVersions: input.documentVersions
+        });
+        phaseTiming.lexicalSearchMs = Date.now() - lexicalSearchStartedAt;
+
+        return this.finishVectorOrHybridRetrieval({
+          kbId: input.kbId,
+          query: input.query,
+          topK: input.topK,
+          scoreThreshold: input.scoreThreshold,
+          chunkWindow: input.chunkWindow ?? 0,
+          filters: normalizedFilters,
+          documentVersions: input.documentVersions,
+          candidateSelectionMode,
+          candidateLimit,
+          vectorSearchTopK,
+          vectorMatches,
+          lexicalCandidates,
+          embeddingDiagnostics,
+          phaseTiming,
+          resolvedEnableRerank,
+          resolvedRerankMode,
+          strategy
+        });
+      }
+
       const tasks: Array<Promise<{ type: "lexical" | "vector"; result: any }>> = [];
 
       if (candidateSelectionMode === "hybrid") {
@@ -219,22 +292,15 @@ export class RetrievalService {
       }
 
       tasks.push(
-        (async () => {
-          const embeddingStartedAt = Date.now();
-          const queryEmbedding = await this.embeddingService.embedQuery(input.query);
-          phaseTiming.vectorEmbeddingMs = Date.now() - embeddingStartedAt;
-          const vectorSearchStartedAt = Date.now();
-          const vectorSearch = (await this.vectorStoreService.search({
-            kbId: input.kbId,
-            queryEmbedding,
-            topK: vectorSearchTopK,
-            scoreThreshold: input.scoreThreshold,
-            filters: normalizedFilters
-          })) as VectorSearchResult | VectorSearchMatch[];
-          phaseTiming.vectorSearchMs = Date.now() - vectorSearchStartedAt;
-          const normalizedVectorSearch = this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
-          return { type: "vector" as const, result: normalizedVectorSearch };
-        })()
+        this.runVectorSearch({
+          kbId: input.kbId,
+          query: input.query,
+          topK: vectorSearchTopK,
+          scoreThreshold: input.scoreThreshold,
+          filters: normalizedFilters,
+          phaseTiming,
+          includePayload: candidateSelectionMode === "vector" && !resolvedEnableRerank
+        }).then(result => ({ type: "vector" as const, result }))
       );
 
       const results = await Promise.allSettled(tasks);
@@ -470,6 +536,337 @@ export class RetrievalService {
         rerankMode: resolvedRerankMode
       }),
       documentVersions: input.documentVersions
+    });
+  }
+
+  private async runVectorSearch(input: {
+    kbId: string;
+    query: string;
+    topK: number;
+    scoreThreshold: number;
+    filters?: RetrievalProfileFilters;
+    phaseTiming: NonNullable<RetrievalResult["execution"]["timing"]>;
+    includePayload?: boolean;
+  }) {
+    const embeddingStartedAt = Date.now();
+    const queryEmbedding = await this.embeddingService.embedQuery(input.query);
+    input.phaseTiming.vectorEmbeddingMs = Date.now() - embeddingStartedAt;
+    const vectorSearchStartedAt = Date.now();
+    const vectorSearch = (await this.vectorStoreService.search({
+      kbId: input.kbId,
+      queryEmbedding,
+      topK: input.topK,
+      scoreThreshold: input.scoreThreshold,
+      filters: input.filters,
+      includePayload: input.includePayload
+    })) as VectorSearchResult | VectorSearchMatch[];
+    input.phaseTiming.vectorSearchMs = Date.now() - vectorSearchStartedAt;
+    return this.normalizeVectorSearchResult(queryEmbedding, vectorSearch);
+  }
+
+  private shouldUseVectorFastPathInHybrid(input: {
+    query: string;
+    topK: number;
+    scoreThreshold: number;
+    chunkWindow: number;
+    vectorMatches: Array<{ chunkId: string; documentId: string; chunkIndex?: number; score: number }>;
+    rerankEnabled: boolean;
+  }) {
+    if (input.rerankEnabled || input.vectorMatches.length === 0) {
+      return false;
+    }
+
+    if (this.isHybridUpgradeWorthIt(input.query)) {
+      return false;
+    }
+
+    const topMatch = input.vectorMatches[0];
+    if (!topMatch) {
+      return false;
+    }
+
+    if (input.topK > 1 && input.vectorMatches.length < input.topK) {
+      return false;
+    }
+
+    const secondScore = input.vectorMatches[1]?.score ?? null;
+    if (secondScore != null && topMatch.score - secondScore < 0.08) {
+      const stableWindow = input.vectorMatches
+        .slice(0, Math.min(Math.max(input.topK, 3), input.vectorMatches.length))
+        .filter(match => topMatch.score - match.score <= 0.08);
+      if (stableWindow.length < Math.min(input.topK, 3)) {
+        return false;
+      }
+    }
+
+    const minimumTrustScore = Math.max(input.scoreThreshold, 0.3);
+    if (topMatch.score < minimumTrustScore) {
+      return false;
+    }
+
+    if (input.chunkWindow > 0 && !input.vectorMatches.every(match => typeof match.chunkIndex === "number")) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private isHybridUpgradeWorthIt(query: string) {
+    const normalized = query.toLowerCase().trim();
+    const termCount = this.tokenize(query).length;
+    if (termCount >= 8 || normalized.length >= 80) {
+      return true;
+    }
+
+    return /compare|difference|vs|区别|对比|summary|summarize|list|总结|列举|概括|troubleshoot|problem|issue|why|how/.test(normalized);
+  }
+
+  private resolveHybridLexicalCandidateLimit(input: {
+    query: string;
+    topK: number;
+    candidateLimit: number;
+    rerankEnabled: boolean;
+  }) {
+    if (input.rerankEnabled || this.isHybridUpgradeWorthIt(input.query)) {
+      return input.candidateLimit;
+    }
+
+    return Math.max(input.topK, Math.min(input.candidateLimit, input.topK + 2, 6));
+  }
+
+  private async buildVectorOnlyResult(input: {
+    kbId: string;
+    query: string;
+    topK: number;
+    scoreThreshold: number;
+    chunkWindow: number;
+    filters?: RetrievalProfileFilters;
+    documentVersions?: Record<string, number>;
+    vectorMatches: Array<{ chunkId: string; documentId: string; chunkIndex?: number; score: number }>;
+    embedding: VectorStoreEmbeddingDiagnostics | null;
+    phaseTiming: NonNullable<RetrievalResult["execution"]["timing"]>;
+    candidateLimit: number;
+    vectorSearchTopK: number;
+    rerankMode: "off" | "local_heuristic" | "llm_judge";
+  }) {
+    const topVectorMatches = input.vectorMatches.slice(0, input.topK);
+    let vectorCandidateCount = topVectorMatches.length;
+
+    if (
+      input.chunkWindow > 0 &&
+      topVectorMatches.every(match => typeof (match as { chunkIndex?: unknown }).chunkIndex === "number")
+    ) {
+      const chunkWindowStartedAt = Date.now();
+      const retrievedChunks = await this.expandVectorMatchesWithChunkWindow(
+        input.kbId,
+        topVectorMatches as Array<{ chunkId: string; documentId: string; chunkIndex: number; score: number }>,
+        input.chunkWindow,
+        input.filters,
+        input.documentVersions
+      );
+      input.phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
+      if (retrievedChunks.length > 0) {
+        return this.buildRetrievalResult(retrievedChunks, {
+          embedding: input.embedding,
+          actualMode: "vector",
+          usedFallback: false,
+          fallbackReason: null,
+          rerankApplied: false,
+          rerankMode: input.rerankMode,
+          rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+            candidates: [],
+            query: input.query,
+            rerankMode: input.rerankMode
+          }),
+          chunkWindowApplied: true,
+          vectorSearchAttempted: true,
+          lexicalSearchAttempted: false,
+          vectorCandidateLimitHit: input.vectorMatches.length >= input.vectorSearchTopK,
+          lexicalCandidateLimitHit: false,
+          rankingTopKHit: topVectorMatches.length >= input.topK,
+          candidateLimit: input.candidateLimit,
+          vectorCandidateCount,
+          lexicalCandidateCount: 0,
+          mergedCandidateCount: topVectorMatches.length,
+          rankedCandidateCount: topVectorMatches.length,
+          timing: input.phaseTiming
+        });
+      }
+    }
+
+    const vectorCandidateFetchStartedAt = Date.now();
+    const vectorCandidates = await this.getVectorCandidates(topVectorMatches);
+    input.phaseTiming.vectorCandidateFetchMs = Date.now() - vectorCandidateFetchStartedAt;
+    const rankedVectorCandidates = vectorCandidates.filter(candidate => candidate.score >= input.scoreThreshold);
+    vectorCandidateCount = vectorCandidates.length;
+    if (rankedVectorCandidates.length > 0) {
+      let retrievedChunks: RetrievedChunk[] = rankedVectorCandidates;
+      if (input.chunkWindow > 0) {
+        const chunkWindowStartedAt = Date.now();
+        retrievedChunks = await this.expandChunkWindow(
+          input.kbId,
+          rankedVectorCandidates,
+          input.chunkWindow,
+          input.filters,
+          input.documentVersions
+        );
+        input.phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
+      }
+
+      return this.buildRetrievalResult(retrievedChunks, {
+        embedding: input.embedding,
+        actualMode: "vector",
+        usedFallback: false,
+        fallbackReason: null,
+        rerankApplied: false,
+        rerankMode: input.rerankMode,
+        rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+          candidates: rankedVectorCandidates,
+          query: input.query,
+          rerankMode: input.rerankMode
+        }),
+        chunkWindowApplied: input.chunkWindow > 0,
+        vectorSearchAttempted: true,
+        lexicalSearchAttempted: false,
+        vectorCandidateLimitHit: input.vectorMatches.length >= input.vectorSearchTopK,
+        lexicalCandidateLimitHit: false,
+        rankingTopKHit: rankedVectorCandidates.length >= input.topK,
+        candidateLimit: input.candidateLimit,
+        vectorCandidateCount,
+        lexicalCandidateCount: 0,
+        mergedCandidateCount: rankedVectorCandidates.length,
+        rankedCandidateCount: rankedVectorCandidates.length,
+        timing: input.phaseTiming
+      });
+    }
+
+    return null;
+  }
+
+  private async finishVectorOrHybridRetrieval(input: {
+    kbId: string;
+    query: string;
+    topK: number;
+    scoreThreshold: number;
+    chunkWindow: number;
+    filters?: RetrievalProfileFilters;
+    documentVersions?: Record<string, number>;
+    candidateSelectionMode: "vector" | "hybrid";
+    candidateLimit: number;
+    vectorSearchTopK: number;
+    vectorMatches: Array<{ chunkId: string; documentId: string; chunkIndex?: number; score: number }>;
+    lexicalCandidates?: RetrievalCandidate[];
+    embeddingDiagnostics: VectorStoreEmbeddingDiagnostics | null;
+    phaseTiming: NonNullable<RetrievalResult["execution"]["timing"]>;
+    resolvedEnableRerank: boolean;
+    resolvedRerankMode: "off" | "local_heuristic" | "llm_judge";
+    strategy: ResolvedRetrievalStrategy;
+  }) {
+    if (input.candidateSelectionMode === "vector" && !input.resolvedEnableRerank) {
+      const vectorOnlyResult = await this.buildVectorOnlyResult({
+        kbId: input.kbId,
+        query: input.query,
+        topK: input.topK,
+        scoreThreshold: input.scoreThreshold,
+        chunkWindow: input.chunkWindow,
+        filters: input.filters,
+        documentVersions: input.documentVersions,
+        vectorMatches: input.vectorMatches,
+        embedding: input.embeddingDiagnostics,
+        phaseTiming: input.phaseTiming,
+        candidateLimit: input.candidateLimit,
+        vectorSearchTopK: input.vectorSearchTopK,
+        rerankMode: input.resolvedRerankMode
+      });
+      if (vectorOnlyResult) {
+        return vectorOnlyResult;
+      }
+    }
+
+    let vectorCandidateCount = 0;
+    const vectorCandidateFetchStartedAt = Date.now();
+    const vectorCandidates = await this.getVectorCandidates(input.vectorMatches, input.lexicalCandidates);
+    input.phaseTiming.vectorCandidateFetchMs = Date.now() - vectorCandidateFetchStartedAt;
+    vectorCandidateCount = vectorCandidates.length;
+    const mergeCandidatesStartedAt = Date.now();
+    const mergedCandidates = input.candidateSelectionMode === "hybrid" && input.lexicalCandidates
+      ? this.mergeHybridCandidates(vectorCandidates, input.lexicalCandidates, input.strategy)
+      : vectorCandidates;
+    input.phaseTiming.mergeCandidatesMs = Date.now() - mergeCandidatesStartedAt;
+    const diverseSelectionStartedAt = Date.now();
+    const diverseCandidates = this.selectDiverseCandidates(mergedCandidates, input.candidateLimit);
+    input.phaseTiming.diverseSelectionMs = Date.now() - diverseSelectionStartedAt;
+    const rankStartedAt = Date.now();
+    const rankedCandidates = await this.rankCandidates(diverseCandidates, {
+      enableRerank: input.resolvedEnableRerank,
+      rerankMode: input.resolvedRerankMode,
+      query: input.query,
+      scoreThreshold: input.scoreThreshold,
+      topK: input.topK
+    });
+    input.phaseTiming.rankMs = Date.now() - rankStartedAt;
+
+    if (rankedCandidates.length > 0) {
+      const chunkWindowStartedAt = Date.now();
+      const retrievedChunks = await this.expandChunkWindow(
+        input.kbId,
+        rankedCandidates,
+        input.chunkWindow,
+        input.filters,
+        input.documentVersions
+      );
+      input.phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
+      return this.buildRetrievalResult(retrievedChunks, {
+        embedding: input.embeddingDiagnostics,
+        actualMode: input.candidateSelectionMode,
+        usedFallback: false,
+        fallbackReason: null,
+        rerankApplied: input.resolvedEnableRerank,
+        rerankMode: input.resolvedRerankMode,
+        rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+          candidates: diverseCandidates,
+          query: input.query,
+          rerankMode: input.resolvedRerankMode
+        }),
+        chunkWindowApplied: input.chunkWindow > 0,
+        vectorSearchAttempted: true,
+        lexicalSearchAttempted: input.candidateSelectionMode === "hybrid",
+        vectorCandidateLimitHit: input.vectorMatches.length >= input.vectorSearchTopK,
+        lexicalCandidateLimitHit: (input.lexicalCandidates?.length ?? 0) >= input.candidateLimit,
+        rankingTopKHit: rankedCandidates.length >= input.topK,
+        candidateLimit: input.candidateLimit,
+        vectorCandidateCount,
+        lexicalCandidateCount: input.lexicalCandidates?.length ?? 0,
+        mergedCandidateCount: mergedCandidates.length,
+        rankedCandidateCount: rankedCandidates.length,
+        timing: input.phaseTiming
+      });
+    }
+
+    return this.retrieveWithLexicalFallback({
+      kbId: input.kbId,
+      query: input.query,
+      topK: input.topK,
+      scoreThreshold: input.scoreThreshold,
+      chunkWindow: input.chunkWindow,
+      enableRerank: input.resolvedEnableRerank,
+      filters: input.filters,
+      lexicalCandidates: input.lexicalCandidates,
+      candidateLimit: input.candidateLimit,
+      vectorCandidateCount,
+      embedding: input.embeddingDiagnostics,
+      actualMode: "lexical",
+      usedFallback: true,
+      fallbackReason: "no_ranked_candidates",
+      rerankApplied: input.resolvedEnableRerank,
+      rerankMode: input.resolvedRerankMode,
+      rerankJudgeSkippedReason: this.resolveJudgeRerankSkipReason({
+        candidates: [],
+        query: input.query,
+        rerankMode: input.resolvedRerankMode
+      }),
+      documentVersions: input.documentVersions,
+      phaseTiming: input.phaseTiming
     });
   }
 
@@ -736,12 +1133,22 @@ export class RetrievalService {
   }
 
   private async getVectorCandidates(
-    vectorMatches: Array<{ chunkId: string; score: number }>,
+    vectorMatches: Array<{
+      chunkId: string;
+      score: number;
+      documentId?: string;
+      chunkIndex?: number;
+      documentTitle?: string;
+      content?: string;
+      sectionTitle?: string | null;
+      pageNo?: number | null;
+      metadataJson?: Record<string, unknown> | null;
+    }>,
     existingCandidates?: RetrievalCandidate[]
   ) {
     const existingCandidateMap = new Map((existingCandidates ?? []).map(candidate => [candidate.chunkId, candidate]));
     const missingMatchIds = vectorMatches
-      .filter(match => !existingCandidateMap.has(match.chunkId))
+      .filter(match => !existingCandidateMap.has(match.chunkId) && !this.hasInlineVectorCandidateData(match))
       .map(match => match.chunkId);
     const chunks = missingMatchIds.length === 0
       ? []
@@ -758,16 +1165,18 @@ export class RetrievalService {
             content: true,
             sectionTitle: true,
             metadataJson: true,
-            pageNo: true,
-            document: {
-              select: {
-                title: true
-              }
-            }
+            pageNo: true
           }
         });
 
     const chunkMap = new Map(chunks.map(chunk => [chunk.id, chunk]));
+    const documentTitleById = new Map<string, string>([
+      ...(existingCandidates ?? []).map(candidate => [candidate.documentId, candidate.documentTitle] as const),
+      ...chunks.flatMap(chunk => {
+        const legacyDocumentTitle = (chunk as { document?: { title?: string } }).document?.title;
+        return typeof legacyDocumentTitle === "string" ? [[chunk.documentId, legacyDocumentTitle] as const] : [];
+      })
+    ]);
 
     return vectorMatches
       .map((match): RetrievalCandidate | null => {
@@ -786,25 +1195,49 @@ export class RetrievalService {
         }
 
         const chunk = chunkMap.get(match.chunkId);
-        if (!chunk) {
+        if (chunk) {
+          const chunkMetadata = this.readChunkMetadata(chunk.metadataJson);
+          return {
+            chunkId: chunk.id,
+            documentId: chunk.documentId,
+            documentTitle: documentTitleById.get(chunk.documentId) ?? "Untitled document",
+            chunkIndex: chunk.chunkIndex,
+            content: chunk.content,
+            score: match.score,
+            isPrimary: true,
+            lexicalScore: 0,
+            vectorScore: match.score,
+            hybridScore: match.score,
+            rerankScore: match.score,
+            pageNo: chunk.pageNo,
+            sectionTitle: chunk.sectionTitle,
+            matchSource: "vector" as const,
+            headingPath: chunkMetadata.headingPath,
+            blockType: chunkMetadata.blockType,
+            listOrdinal: chunkMetadata.listOrdinal,
+            isTableLike: chunkMetadata.isTableLike
+          };
+        }
+
+        if (!this.hasInlineVectorCandidateData(match)) {
           return null;
         }
 
-        const chunkMetadata = this.readChunkMetadata(chunk.metadataJson);
+        const chunkMetadata = this.readChunkMetadata(match.metadataJson ?? null);
         return {
-          chunkId: chunk.id,
-          documentId: chunk.documentId,
-          documentTitle: chunk.document.title,
-          chunkIndex: chunk.chunkIndex,
-          content: chunk.content,
+          chunkId: match.chunkId,
+          documentId: match.documentId ?? "",
+          documentTitle: match.documentTitle ?? "",
+          chunkIndex: match.chunkIndex ?? 0,
+          content: match.content ?? "",
           score: match.score,
           isPrimary: true,
           lexicalScore: 0,
           vectorScore: match.score,
           hybridScore: match.score,
           rerankScore: match.score,
-          pageNo: chunk.pageNo,
-          sectionTitle: chunk.sectionTitle,
+          pageNo: match.pageNo ?? null,
+          sectionTitle: match.sectionTitle ?? null,
           matchSource: "vector" as const,
           headingPath: chunkMetadata.headingPath,
           blockType: chunkMetadata.blockType,
@@ -813,6 +1246,18 @@ export class RetrievalService {
         };
       })
       .filter((chunk): chunk is RetrievalCandidate => chunk !== null);
+  }
+
+  private hasInlineVectorCandidateData(match: {
+    documentId?: string;
+    chunkIndex?: number;
+    documentTitle?: string;
+    content?: string;
+  }) {
+    return typeof match.documentId === "string"
+      && typeof match.chunkIndex === "number"
+      && typeof match.documentTitle === "string"
+      && typeof match.content === "string";
   }
 
   private mergeHybridCandidates(
@@ -1252,15 +1697,11 @@ export class RetrievalService {
             content: true,
             sectionTitle: true,
             metadataJson: true,
-            pageNo: true,
-            document: {
-              select: {
-                title: true
-              }
-            }
+            pageNo: true
           },
           orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
         });
+    const documentTitleById = new Map(chunks.map(chunk => [chunk.documentId, chunk.documentTitle]));
 
     const normalizedExistingChunks: ExpandedChunkRow[] = chunks.map(chunk => ({
       id: chunk.chunkId,
@@ -1275,9 +1716,7 @@ export class RetrievalService {
         isTableLike: chunk.isTableLike ?? false
       },
       pageNo: chunk.pageNo,
-      document: {
-        title: chunk.documentTitle
-      }
+      documentTitle: chunk.documentTitle
     }));
 
     const dedupedExpandedChunks = new Map<string, ExpandedChunkRow>();
@@ -1303,7 +1742,7 @@ export class RetrievalService {
         return {
           chunkId: chunk.id,
           documentId: chunk.documentId,
-          documentTitle: chunk.document.title,
+          documentTitle: chunk.documentTitle ?? documentTitleById.get(chunk.documentId) ?? "Untitled document",
           chunkIndex: chunk.chunkIndex,
           content: chunk.content,
           score: primaryChunk?.score ?? requested?.score ?? 0,
@@ -1321,7 +1760,7 @@ export class RetrievalService {
 
   private async expandVectorMatchesWithChunkWindow(
     kbId: string,
-    vectorMatches: Array<{ chunkId: string; documentId: string; chunkIndex: number; score: number }>,
+    vectorMatches: Array<{ chunkId: string; documentId: string; chunkIndex: number; score: number; documentTitle?: string }>,
     chunkWindow: number,
     filters?: RetrievalProfileFilters,
     documentVersions?: Record<string, number>
@@ -1333,6 +1772,11 @@ export class RetrievalService {
     const requestedPositions = new Map<string, { score: number; primary: boolean }>();
     const primaryChunkIds = new Set(vectorMatches.map(match => match.chunkId));
     const scoreByChunkId = new Map(vectorMatches.map(match => [match.chunkId, match.score]));
+    const documentTitleById = new Map(
+      vectorMatches
+        .filter((match): match is typeof match & { documentTitle: string } => typeof match.documentTitle === "string")
+        .map(match => [match.documentId, match.documentTitle])
+    );
 
     for (const match of vectorMatches) {
       for (let index = match.chunkIndex - chunkWindow; index <= match.chunkIndex + chunkWindow; index += 1) {
@@ -1406,12 +1850,7 @@ export class RetrievalService {
             content: true,
             sectionTitle: true,
             metadataJson: true,
-            pageNo: true,
-            document: {
-              select: {
-                title: true
-              }
-            }
+            pageNo: true
           },
           orderBy: [{ documentId: "asc" }, { chunkIndex: "asc" }]
         });
@@ -1424,7 +1863,7 @@ export class RetrievalService {
         return {
           chunkId: chunk.id,
           documentId: chunk.documentId,
-          documentTitle: chunk.document.title,
+          documentTitle: documentTitleById.get(chunk.documentId) ?? "Untitled document",
           chunkIndex: chunk.chunkIndex,
           content: chunk.content,
           score: scoreByChunkId.get(chunk.id) ?? requested?.score ?? 0,

@@ -242,6 +242,153 @@ test("RetrievalService merges lexical matches when hybrid retrieval is enabled",
   );
 });
 
+test("RetrievalService skips lexical hybrid expansion for high-confidence simple vector hits", async () => {
+  let lexicalReads = 0;
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-vector",
+              documentId: "doc-1",
+              chunkIndex: 0,
+              content: "vector only marker",
+              pageNo: null,
+              sectionTitle: "Overview",
+              document: { title: "Doc 1" }
+            }
+          ];
+        }
+
+        lexicalReads += 1;
+        return [
+          {
+            id: "chunk-lexical",
+            documentId: "doc-2",
+            chunkIndex: 0,
+            content: "vector only marker lexical tail",
+            pageNo: null,
+            sectionTitle: "Overview",
+            document: { title: "Doc 2" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [{ chunkId: "chunk-vector", documentId: "doc-1", chunkIndex: 0, score: 0.96, modelName: "test" }]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "vector marker",
+    topK: 1,
+    scoreThreshold: 0,
+    enableHybrid: true
+  });
+
+  assert.equal(lexicalReads, 0);
+  assert.deepEqual(result.retrievedChunks.map(chunk => chunk.chunkId), ["chunk-vector"]);
+  const { timing: hybridFastPathTiming, ...hybridFastPathExecution } = result.execution;
+  assert.deepEqual(hybridFastPathExecution, {
+    actualMode: "vector",
+    usedFallback: false,
+    fallbackReason: null,
+    rerankApplied: false,
+    rerankMode: "off",
+    rerankJudgeSkippedReason: null,
+    chunkWindowApplied: false,
+    vectorSearchAttempted: true,
+    lexicalSearchAttempted: false,
+    vectorCandidateLimitHit: false,
+    lexicalCandidateLimitHit: false,
+    rankingTopKHit: true,
+    candidateLimit: 3,
+    vectorCandidateCount: 1,
+    lexicalCandidateCount: 0,
+    mergedCandidateCount: 1,
+    rankedCandidateCount: 1
+  });
+  assertExecutionTiming(hybridFastPathTiming);
+});
+
+test("RetrievalService keeps hybrid queries on vector fast path when vector scores are stable and sufficient", async () => {
+  let lexicalReads = 0;
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-a",
+              documentId: "doc-1",
+              chunkIndex: 0,
+              content: "economic development and environmental protection overview",
+              pageNo: null,
+              sectionTitle: "Overview",
+              document: { title: "Doc 1" }
+            },
+            {
+              id: "chunk-b",
+              documentId: "doc-1",
+              chunkIndex: 1,
+              content: "sustainable development balances growth and ecology",
+              pageNo: null,
+              sectionTitle: "Balance",
+              document: { title: "Doc 1" }
+            },
+            {
+              id: "chunk-c",
+              documentId: "doc-2",
+              chunkIndex: 0,
+              content: "green economy supports long term development",
+              pageNo: null,
+              sectionTitle: "Green economy",
+              document: { title: "Doc 2" }
+            }
+          ];
+        }
+
+        lexicalReads += 1;
+        return [];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [
+      { chunkId: "chunk-a", documentId: "doc-1", chunkIndex: 0, score: 0.35, modelName: "test" },
+      { chunkId: "chunk-b", documentId: "doc-1", chunkIndex: 1, score: 0.33, modelName: "test" },
+      { chunkId: "chunk-c", documentId: "doc-2", chunkIndex: 0, score: 0.31, modelName: "test" }
+    ]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "如何理解经济发展与环境保护的关系",
+    topK: 3,
+    scoreThreshold: 0,
+    enableHybrid: true
+  });
+
+  assert.equal(lexicalReads, 0);
+  assert.equal(result.execution.actualMode, "vector");
+  assert.equal(result.execution.lexicalSearchAttempted, false);
+  assert.deepEqual(result.retrievedChunks.map(chunk => chunk.chunkId), ["chunk-a", "chunk-b", "chunk-c"]);
+});
+
 test("RetrievalService reranks hybrid candidates using lexical relevance", async () => {
   const prisma = {
     documentChunk: {
@@ -1524,7 +1671,7 @@ test("RetrievalService reports candidate-budget saturation signals", async () =>
 
   const { timing: candidateBudgetTiming, ...candidateBudgetExecution } = result.execution;
   assert.deepEqual(candidateBudgetExecution, {
-    actualMode: "hybrid",
+    actualMode: "vector",
     usedFallback: false,
     fallbackReason: null,
     rerankApplied: false,
@@ -1532,14 +1679,14 @@ test("RetrievalService reports candidate-budget saturation signals", async () =>
     rerankJudgeSkippedReason: null,
     chunkWindowApplied: false,
     vectorSearchAttempted: true,
-    lexicalSearchAttempted: true,
+    lexicalSearchAttempted: false,
     vectorCandidateLimitHit: true,
-    lexicalCandidateLimitHit: true,
+    lexicalCandidateLimitHit: false,
     rankingTopKHit: true,
     candidateLimit: 2,
     vectorCandidateCount: 2,
-    lexicalCandidateCount: 2,
-    mergedCandidateCount: 4,
+    lexicalCandidateCount: 0,
+    mergedCandidateCount: 2,
     rankedCandidateCount: 2
   });
   assertExecutionTiming(candidateBudgetTiming);
@@ -1646,6 +1793,68 @@ test("RetrievalService avoids separate primary candidate fetch for vector chunk-
     ["chunk-1", "chunk-2", "chunk-3"]
   );
   assert.equal(result.retrievedChunks[1].isPrimary, true);
+});
+
+test("RetrievalService reuses inline pgvector payload to avoid primary chunk fetch in hybrid mode", async () => {
+  let primaryIdFetchCount = 0;
+  let lexicalReads = 0;
+
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where?.id?.in) {
+          primaryIdFetchCount += 1;
+          return [];
+        }
+
+        lexicalReads += 1;
+        return [
+          {
+            id: "chunk-lexical",
+            documentId: "doc-2",
+            chunkIndex: 0,
+            content: "keyword fallback",
+            pageNo: null,
+            sectionTitle: "Fallback",
+            metadataJson: null,
+            document: { title: "Doc 2" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [{
+      chunkId: "chunk-vector",
+      documentId: "doc-1",
+      documentTitle: "Doc 1",
+      chunkIndex: 0,
+      content: "vector payload",
+      sectionTitle: "Overview",
+      pageNo: 1,
+      metadataJson: null,
+      score: 0.82,
+      modelName: "test"
+    }]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "vector payload",
+    topK: 1,
+    scoreThreshold: 0,
+    enableHybrid: true
+  });
+
+  assert.equal(primaryIdFetchCount, 0);
+  assert.equal(lexicalReads, 0);
+  assert.deepEqual(result.retrievedChunks.map(chunk => chunk.chunkId), ["chunk-vector"]);
 });
 
 test("RetrievalService follows canonical defaults when partial strategyJson coexists with legacy flags", async () => {

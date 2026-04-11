@@ -73,6 +73,69 @@ test("PgVectorStoreService exposes active and indexed embedding diagnostics for 
   });
 });
 
+test("PgVectorStoreService caches indexed embedding summary across searches for the same knowledge base", async () => {
+  await withPgVectorEnv(async () => {
+    const fakePrisma = createFakePrisma({
+      queryResponses: [
+        [
+          {
+            modelName: "ollama:nomic-embed-text",
+            dimensions: 768,
+            recordCount: 2,
+            documentCount: 1
+          }
+        ],
+        [
+          {
+            chunkId: "chunk-1",
+            documentId: "doc-1",
+            chunkIndex: 0,
+            modelName: "ollama:nomic-embed-text",
+            score: 0.98
+          }
+        ],
+        [
+          {
+            chunkId: "chunk-2",
+            documentId: "doc-1",
+            chunkIndex: 1,
+            modelName: "ollama:nomic-embed-text",
+            score: 0.95
+          }
+        ]
+      ]
+    });
+    const service = new PgVectorStoreService(fakePrisma);
+    const embedding = createEmbedding({
+      provider: "ollama",
+      model: "nomic-embed-text",
+      modelName: "ollama:nomic-embed-text",
+      dimensions: 768,
+      provenance: {
+        modelSource: "env:OLLAMA_EMBEDDING_MODEL",
+        dimensionsSource: "provider_response",
+        fallback: "none"
+      },
+      vector: [1, 0, 0]
+    });
+
+    await service.search({
+      kbId: "kb-1",
+      queryEmbedding: embedding,
+      topK: 3,
+      scoreThreshold: 0
+    });
+    await service.search({
+      kbId: "kb-1",
+      queryEmbedding: embedding,
+      topK: 3,
+      scoreThreshold: 0
+    });
+
+    assert.equal(fakePrisma.queryCalls.length, 3);
+  });
+});
+
 test("PgVectorStoreService rejects indexing when embedding dimensions do not match configured pgvector dimensions", async () => {
   await withPgVectorEnv(
     {

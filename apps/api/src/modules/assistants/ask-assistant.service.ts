@@ -81,6 +81,19 @@ type AskRewriteResult = {
   skippedReason: RetrievalStrategySummary["rewriteSkippedReason"];
 };
 
+type AskConversationRef = {
+  id: string;
+};
+
+type AskPersistedMessage = {
+  id: string;
+};
+
+type TimedResult<T> = {
+  value: T;
+  durationMs: number;
+};
+
 type AskTimingSummary = {
   totalMs: number | null;
   firstTokenMs: number | null;
@@ -150,11 +163,19 @@ export class AskAssistantService {
             title: input.question.slice(0, 80)
           });
 
-    const userMessagePromise = this.messagesService.createMessage({
+    const conversationResult: TimedResult<AskConversationRef> = {
+      value: conversation,
+      durationMs: 0
+    };
+
+    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> = this.messagesService.createMessage({
       conversationId: conversation.id,
       role: MessageRole.user,
       content: input.question
-    });
+    }).then(message => ({
+      value: message,
+      durationMs: 0
+    }));
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -204,14 +225,14 @@ export class AskAssistantService {
     const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     
-    const userMessage = await userMessagePromise;
+    const { value: userMessage } = await userMessagePromise;
 
     const retrievalResult = await this.retrievalLimiter.execute(() =>
       this.retrieveOrCreateFailedTrace({
         assistantId: assistant.id,
         assistantKbId: assistant.kbId,
-        conversationId: conversation.id,
-        userMessageId: userMessage.id,
+        conversationPromise: Promise.resolve(conversationResult),
+        userMessagePromise,
         userQuery: input.question,
         retrievalQuery,
         retrievalProfile,
@@ -497,16 +518,19 @@ export class AskAssistantService {
     };
 
     const conversationStartedAt = Date.now();
-    const conversation =
+    const conversationPromise: Promise<TimedResult<AskConversationRef>> = (
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
-        : await this.conversationsService.createConversation({
+        ? this.conversationsService.getConversation(input.conversationId, authContext.identity)
+        : this.conversationsService.createConversation({
             tenantId: authContext.identity.tenantId,
             userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
-          });
-    const conversationLoadMs = Date.now() - conversationStartedAt;
+          })
+    ).then(conversation => ({
+      value: conversation,
+      durationMs: Date.now() - conversationStartedAt
+    }));
 
     await input.onEvent({
       type: "status",
@@ -514,14 +538,16 @@ export class AskAssistantService {
     });
 
     const userMessagePersistStartedAt = Date.now();
-    const userMessagePromise = this.messagesService.createMessage({
-      conversationId: conversation.id,
-      role: MessageRole.user,
-      content: input.question
-    }).then(message => ({
-      message,
-      durationMs: Date.now() - userMessagePersistStartedAt
-    }));
+    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> = conversationPromise
+      .then(({ value: conversation }) => this.messagesService.createMessage({
+        conversationId: conversation.id,
+        role: MessageRole.user,
+        content: input.question
+      }))
+      .then(message => ({
+        value: message,
+        durationMs: Date.now() - userMessagePersistStartedAt
+      }));
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -584,14 +610,12 @@ export class AskAssistantService {
       phase: "retrieving"
     });
 
-    const { message: userMessage, durationMs: userMessagePersistMs } = await userMessagePromise;
-
     const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(() =>
       this.retrieveOrCreateFailedTrace({
         assistantId: assistant.id,
         assistantKbId: assistant.kbId,
-        conversationId: conversation.id,
-        userMessageId: userMessage.id,
+        conversationPromise,
+        userMessagePromise,
         userQuery: input.question,
         retrievalQuery,
         retrievalProfile,
@@ -629,6 +653,10 @@ export class AskAssistantService {
         promptContextApproxTokens: null
       }) as AskRetrievalMetadataJson)
     ]);
+    const [
+      { value: conversation, durationMs: conversationLoadMs },
+      { value: userMessage, durationMs: userMessagePersistMs }
+    ] = await Promise.all([conversationPromise, userMessagePromise]);
     
     const traceCreateStartedAt = Date.now();
     const tracePromise = this.tracesService.createTrace({
@@ -1520,8 +1548,8 @@ export class AskAssistantService {
   private async retrieveOrCreateFailedTrace(input: {
     assistantId: string;
     assistantKbId: string;
-    conversationId: string;
-    userMessageId: string;
+    conversationPromise: Promise<TimedResult<AskConversationRef>>;
+    userMessagePromise: Promise<TimedResult<AskPersistedMessage>>;
     userQuery: string;
     retrievalQuery: string;
     retrievalProfile: {
@@ -1552,10 +1580,14 @@ export class AskAssistantService {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown retrieval pipeline error.";
       const embeddingDiagnostics = error instanceof VectorStoreCompatibilityError ? error.embeddingDiagnostics : null;
+      const [
+        { value: conversation },
+        { value: userMessage }
+      ] = await Promise.all([input.conversationPromise, input.userMessagePromise]);
       const failedTrace = await this.tracesService.createTrace({
-        conversationId: input.conversationId,
+        conversationId: conversation.id,
         assistantId: input.assistantId,
-        userMessageId: input.userMessageId,
+        userMessageId: userMessage.id,
         userQuery: input.userQuery,
         rewrittenQuery: input.retrievalQuery !== input.userQuery ? input.retrievalQuery : null,
         retrievalMetadataJson: this.buildRetrievalFailureMetadata({
