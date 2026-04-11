@@ -274,7 +274,7 @@ SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_STORAGE_BUCKET_UPLOADS=uploads
 SUPABASE_STORAGE_BUCKET_GENERATED=generated
-VECTOR_STORE_PROVIDER=filesystem
+VECTOR_STORE_PROVIDER=pgvector
 VECTOR_STORE_PGVECTOR_TABLE=ChunkEmbedding
 VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 ```
@@ -283,7 +283,8 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 - local filesystem storage has been removed; all storage operations now go through Supabase Storage API
 - the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between local and Supabase storage
 - `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
-- vector storage still defaults to the local filesystem; set `VECTOR_STORE_PROVIDER=pgvector` to switch vector persistence/search to PostgreSQL `pgvector`
+- vector storage now defaults to PostgreSQL `pgvector`; set `VECTOR_STORE_PROVIDER=filesystem` only for narrow compatibility/debug cases
+- the default runtime baseline is no longer local-only infra; normal development and deployment should assume Supabase Storage plus PostgreSQL-backed queue/vector services are available
 - current pgvector support is intentionally scoped to the verified `nomic-embed-text` setup and expects `VECTOR_STORE_PGVECTOR_DIMENSIONS=768`
 
 ## GitHub Actions production image and deploy

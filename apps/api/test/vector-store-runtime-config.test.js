@@ -1,13 +1,18 @@
 const assert = require("node:assert/strict");
+const test = require("node:test");
 
 const {
   resolveVectorStoreRuntimeConfig,
   VectorStoreRuntimeConfigError
 } = require("../src/infra/vector-store/vector-store-runtime-config.ts");
 
-test("resolveVectorStoreRuntimeConfig defaults to filesystem provider", () => {
+test("resolveVectorStoreRuntimeConfig defaults to pgvector provider", () => {
   const config = resolveVectorStoreRuntimeConfig({});
-  assert.deepEqual(config, { provider: "filesystem" });
+  assert.deepEqual(config, {
+    provider: "pgvector",
+    tableName: "ChunkEmbedding",
+    dimensions: 1024
+  });
 });
 
 test("resolveVectorStoreRuntimeConfig resolves pgvector provider with defaults", () => {
