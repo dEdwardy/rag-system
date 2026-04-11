@@ -313,11 +313,12 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
 
 ```text
 STORAGE_PROVIDER=oss
-OSS_ENDPOINT=https://oss-cn-chengdu.aliyuncs.com
+OSS_REGION=oss-cn-chengdu
+# Optional explicit endpoint override:
+# OSS_ENDPOINT=https://oss-cn-chengdu.aliyuncs.com
 OSS_ACCESS_KEY_ID=
 OSS_ACCESS_KEY_SECRET=
-OSS_BUCKET_UPLOADS=rag-system-uploads
-OSS_BUCKET_GENERATED=rag-system-generated
+OSS_BUCKET=rag-system
 VECTOR_STORE_PROVIDER=pgvector
 VECTOR_STORE_PGVECTOR_TABLE=ChunkEmbedding
 VECTOR_STORE_PGVECTOR_DIMENSIONS=768
@@ -327,8 +328,10 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=768
   - `STORAGE_PROVIDER=oss`
   - `STORAGE_PROVIDER=supabase`
   - `STORAGE_PROVIDER=local` only for narrow debug cases
+- OSS expects one bucket by default and separates files by object prefix: `uploads/...` and `generated/...`
+- set `OSS_REGION` for the normal path; `OSS_ENDPOINT` is optional when you need an explicit override
 - the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between OSS and Supabase storage
-- when using OSS, provide bucket-level credentials with write/read access to the configured upload/generated buckets
+- when using OSS, provide bucket-level credentials with read/write access to the configured bucket
 - vector storage now defaults to PostgreSQL `pgvector`; set `VECTOR_STORE_PROVIDER=filesystem` only for narrow compatibility/debug cases
 - the default runtime baseline is no longer local-only infra; normal development and deployment should assume Supabase Storage plus PostgreSQL-backed queue/vector services are available
 - current pgvector support is intentionally scoped to the verified `nomic-embed-text` setup and expects `VECTOR_STORE_PGVECTOR_DIMENSIONS=768`

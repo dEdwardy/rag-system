@@ -18,9 +18,11 @@ const criticalEnvSchema = z
     SUPABASE_STORAGE_BUCKET_UPLOADS: trimmedOptionalString,
     SUPABASE_STORAGE_BUCKET_GENERATED: trimmedOptionalString,
     OSS_ENDPOINT: trimmedOptionalString,
+    OSS_REGION: trimmedOptionalString,
     OSS_ACCESS_KEY_ID: trimmedOptionalString,
     OSS_ACCESS_KEY_SECRET: trimmedOptionalString,
     OSS_SECURITY_TOKEN: trimmedOptionalString,
+    OSS_BUCKET: trimmedOptionalString,
     OSS_BUCKET_UPLOADS: trimmedOptionalString,
     OSS_BUCKET_GENERATED: trimmedOptionalString,
     QUEUE_PROVIDER: z.enum(["database", "pgmq", "redis"]).optional().default("pgmq"),
@@ -75,11 +77,8 @@ const criticalEnvSchema = z
 
     if (env.STORAGE_PROVIDER === "oss") {
       const ossFields = [
-        ["OSS_ENDPOINT", env.OSS_ENDPOINT],
         ["OSS_ACCESS_KEY_ID", env.OSS_ACCESS_KEY_ID],
-        ["OSS_ACCESS_KEY_SECRET", env.OSS_ACCESS_KEY_SECRET],
-        ["OSS_BUCKET_UPLOADS", env.OSS_BUCKET_UPLOADS],
-        ["OSS_BUCKET_GENERATED", env.OSS_BUCKET_GENERATED]
+        ["OSS_ACCESS_KEY_SECRET", env.OSS_ACCESS_KEY_SECRET]
       ] as const;
 
       for (const [key, value] of ossFields) {
@@ -90,6 +89,22 @@ const criticalEnvSchema = z
             message: `${key} is required for OSS storage.`
           });
         }
+      }
+
+      if (!env.OSS_BUCKET && !env.OSS_BUCKET_UPLOADS && !env.OSS_BUCKET_GENERATED) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["OSS_BUCKET"],
+          message: "OSS_BUCKET is required for OSS storage unless legacy OSS_BUCKET_UPLOADS / OSS_BUCKET_GENERATED are provided."
+        });
+      }
+
+      if (!env.OSS_ENDPOINT && !env.OSS_REGION) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["OSS_REGION"],
+          message: "OSS_REGION or OSS_ENDPOINT is required for OSS storage."
+        });
       }
 
       if (env.OSS_ENDPOINT) {

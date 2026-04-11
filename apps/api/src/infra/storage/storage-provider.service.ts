@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { createHmac } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { Injectable } from "@nestjs/common";
@@ -31,6 +30,11 @@ export interface StorageProviderService {
 type ResolvedObjectTarget = {
   bucket: string;
   objectPath: string;
+};
+
+type OssClient = {
+  put: (name: string, data: Buffer, options?: { headers?: Record<string, string> }) => Promise<unknown>;
+  get: (name: string) => Promise<{ content: Buffer | NodeJS.ReadableStream | string }>;
 };
 
 @Injectable()
@@ -131,7 +135,12 @@ export class SupabaseStorageProviderService implements StorageProviderService {
 
 @Injectable()
 export class OssStorageProviderService implements StorageProviderService {
-  constructor(private readonly runtimeConfig: OssStorageRuntimeConfig) {}
+  private clientCache = new Map<string, Promise<OssClient>>();
+
+  constructor(
+    private readonly runtimeConfig: OssStorageRuntimeConfig,
+    private readonly clientFactory?: (bucket: string) => Promise<OssClient> | OssClient
+  ) {}
 
   async saveUploadedFile(input: SaveFileInput) {
     return this.saveBuffer({
@@ -153,20 +162,14 @@ export class OssStorageProviderService implements StorageProviderService {
 
   async readFileByStorageKey(storageKey: string) {
     const target = this.resolveObjectTarget(storageKey);
-    const request = this.buildSignedRequest({
-      method: "GET",
-      target
-    });
-    const response = await fetch(request.url, {
-      method: "GET",
-      headers: request.headers
-    });
+    const client = await this.getClient(target.bucket);
 
-    if (!response.ok) {
-      throw new Error(`OSS storage read failed (${response.status}): ${await safeReadResponseText(response)}`);
+    try {
+      const response = await client.get(target.objectPath);
+      return await this.readOssContent(response.content);
+    } catch (error) {
+      throw new Error(`OSS storage read failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    return Buffer.from(await response.arrayBuffer());
   }
 
   getStorageRoot() {
@@ -177,20 +180,16 @@ export class OssStorageProviderService implements StorageProviderService {
     const fileName = `${Date.now()}-${randomUUID()}${input.extension}`;
     const relativePath = join(input.directory, fileName).replaceAll("\\", "/");
     const target = this.resolveObjectTarget(relativePath);
-    const body = new Uint8Array(input.buffer);
-    const request = this.buildSignedRequest({
-      method: "PUT",
-      target,
-      contentType: input.contentType
-    });
-    const response = await fetch(request.url, {
-      method: "PUT",
-      headers: request.headers,
-      body
-    });
+    const client = await this.getClient(target.bucket);
 
-    if (!response.ok) {
-      throw new Error(`OSS storage upload failed (${response.status}): ${await safeReadResponseText(response)}`);
+    try {
+      await client.put(target.objectPath, input.buffer, {
+        headers: {
+          "Content-Type": input.contentType
+        }
+      });
+    } catch (error) {
+      throw new Error(`OSS storage upload failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return {
@@ -204,14 +203,14 @@ export class OssStorageProviderService implements StorageProviderService {
 
     if (normalizedStorageKey.startsWith("uploads/")) {
       return {
-        bucket: this.runtimeConfig.buckets.uploads,
+        bucket: this.runtimeConfig.bucket,
         objectPath: normalizedStorageKey.slice("uploads/".length)
       };
     }
 
     if (normalizedStorageKey.startsWith("generated/")) {
       return {
-        bucket: this.runtimeConfig.buckets.generated,
+        bucket: this.runtimeConfig.bucket,
         objectPath: normalizedStorageKey.slice("generated/".length)
       };
     }
@@ -219,46 +218,51 @@ export class OssStorageProviderService implements StorageProviderService {
     throw new Error(`Unsupported storage key for OSS storage: ${storageKey}`);
   }
 
-  private buildSignedRequest(input: {
-    method: "GET" | "PUT";
-    target: ResolvedObjectTarget;
-    contentType?: string;
-  }) {
-    const date = new Date().toUTCString();
-    const canonicalHeaders: Array<[string, string]> = [];
-    if (this.runtimeConfig.securityToken) {
-      canonicalHeaders.push(["x-oss-security-token", this.runtimeConfig.securityToken]);
-    }
-    canonicalHeaders.sort((a, b) => a[0].localeCompare(b[0]));
-    const canonicalizedHeaders = canonicalHeaders.map(([key, value]) => `${key}:${value}\n`).join("");
-    const resource = `/${input.target.bucket}/${input.target.objectPath}`;
-    const stringToSign = [
-      input.method,
-      "",
-      input.contentType ?? "",
-      date,
-      `${canonicalizedHeaders}${resource}`
-    ].join("\n");
-    const signature = createHmac("sha1", this.runtimeConfig.accessKeySecret)
-      .update(stringToSign, "utf8")
-      .digest("base64");
-    const headers: Record<string, string> = {
-      Date: date,
-      Authorization: `OSS ${this.runtimeConfig.accessKeyId}:${signature}`,
-      ...(input.contentType ? { "Content-Type": input.contentType } : {})
-    };
-
-    for (const [key, value] of canonicalHeaders) {
-      headers[key] = value;
+  private async getClient(bucket: string) {
+    const cached = this.clientCache.get(bucket);
+    if (cached) {
+      return cached;
     }
 
+    const created = this.createClient(bucket);
+    this.clientCache.set(bucket, created);
+    return created;
+  }
+
+  private async createClient(bucket: string): Promise<OssClient> {
+    if (this.clientFactory) {
+      return await this.clientFactory(bucket);
+    }
+
+    const ossModule = await import("ali-oss");
+    const OSS = ossModule.default;
     const endpoint = new URL(this.runtimeConfig.endpoint);
-    const objectUrl = new URL(`${encodeStoragePath(input.target.objectPath)}`, `${endpoint.protocol}//${input.target.bucket}.${endpoint.host}/`);
 
-    return {
-      url: objectUrl.toString(),
-      headers
-    };
+    return new OSS({
+      region: this.runtimeConfig.region,
+      endpoint: this.runtimeConfig.endpoint,
+      bucket,
+      accessKeyId: this.runtimeConfig.accessKeyId,
+      accessKeySecret: this.runtimeConfig.accessKeySecret,
+      stsToken: this.runtimeConfig.securityToken,
+      secure: endpoint.protocol === "https:"
+    }) as OssClient;
+  }
+
+  private async readOssContent(content: Buffer | NodeJS.ReadableStream | string) {
+    if (Buffer.isBuffer(content)) {
+      return content;
+    }
+
+    if (typeof content === "string") {
+      return Buffer.from(content, "utf8");
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of content) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 }
 

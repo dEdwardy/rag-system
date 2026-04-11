@@ -71,7 +71,7 @@ Use `apps/api/.env.local.example` as the starting point for local API runtime co
 
 - copy it to `apps/api/.env.local`
 - keep Docker-backed `DATABASE_URL` / `DIRECT_URL` / `REDIS_URL`
-- prefer OSS credentials for object storage now that the OSS provider is supported
+- prefer OSS credentials for object storage now that the OSS provider is supported; current setup expects a single bucket and separates files by `uploads/` and `generated/` prefixes
 
 ## Shared Infra Naming
 

@@ -12,14 +12,12 @@ export type SupabaseStorageRuntimeConfig = {
 
 export type OssStorageRuntimeConfig = {
   provider: "oss";
+  region: string;
   endpoint: string;
   accessKeyId: string;
   accessKeySecret: string;
   securityToken?: string;
-  buckets: {
-    uploads: string;
-    generated: string;
-  };
+  bucket: string;
 };
 
 export type LocalStorageRuntimeConfig = {
@@ -47,9 +45,11 @@ export function resolveStorageRuntimeConfig(env: NodeJS.ProcessEnv = process.env
   const uploadsBucket = readTrimmedEnv(env, "SUPABASE_STORAGE_BUCKET_UPLOADS");
   const generatedBucket = readTrimmedEnv(env, "SUPABASE_STORAGE_BUCKET_GENERATED");
   const ossEndpoint = readTrimmedEnv(env, "OSS_ENDPOINT");
+  const ossRegion = readTrimmedEnv(env, "OSS_REGION");
   const ossAccessKeyId = readTrimmedEnv(env, "OSS_ACCESS_KEY_ID");
   const ossAccessKeySecret = readTrimmedEnv(env, "OSS_ACCESS_KEY_SECRET");
   const ossSecurityToken = readTrimmedEnv(env, "OSS_SECURITY_TOKEN") ?? undefined;
+  const ossBucket = readTrimmedEnv(env, "OSS_BUCKET");
   const ossUploadsBucket = readTrimmedEnv(env, "OSS_BUCKET_UPLOADS");
   const ossGeneratedBucket = readTrimmedEnv(env, "OSS_BUCKET_GENERATED");
 
@@ -61,20 +61,20 @@ export function resolveStorageRuntimeConfig(env: NodeJS.ProcessEnv = process.env
   }
 
   if (storageProvider === "oss") {
-    if (!ossEndpoint || !ossAccessKeyId || !ossAccessKeySecret || !ossUploadsBucket || !ossGeneratedBucket) {
-      throw new StorageRuntimeConfigError("OSS storage requires OSS_ENDPOINT, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET, OSS_BUCKET_UPLOADS, and OSS_BUCKET_GENERATED.");
+    const resolvedBucket = ossBucket || ossUploadsBucket || ossGeneratedBucket;
+    const resolvedRegion = ossRegion || readRegionFromOssEndpoint(ossEndpoint);
+    if ((!ossEndpoint && !resolvedRegion) || !ossAccessKeyId || !ossAccessKeySecret || !resolvedBucket) {
+      throw new StorageRuntimeConfigError("OSS storage requires OSS_REGION or OSS_ENDPOINT, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET, and OSS_BUCKET (or compatible OSS_BUCKET_UPLOADS / OSS_BUCKET_GENERATED fallback values).");
     }
 
     return {
       provider: "oss",
-      endpoint: normalizeUrl(ossEndpoint, "OSS_ENDPOINT"),
+      region: resolvedRegion,
+      endpoint: normalizeUrl(ossEndpoint || `https://${resolvedRegion}.aliyuncs.com`, "OSS endpoint"),
       accessKeyId: ossAccessKeyId,
       accessKeySecret: ossAccessKeySecret,
       securityToken: ossSecurityToken,
-      buckets: {
-        uploads: ossUploadsBucket,
-        generated: ossGeneratedBucket
-      }
+      bucket: resolvedBucket
     };
   }
 
@@ -95,6 +95,20 @@ export function resolveStorageRuntimeConfig(env: NodeJS.ProcessEnv = process.env
       generated: generatedBucket
     }
   };
+}
+
+function readRegionFromOssEndpoint(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const host = new URL(value).hostname;
+    const match = host.match(/^(oss-[^.]+)\./);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function readTrimmedEnv(env: NodeJS.ProcessEnv, key: string) {
