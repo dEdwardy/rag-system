@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service";
 import { getDocumentIngestionQueueName } from "./queue.constants";
 import { QueueRuntimeConfigService } from "./queue-runtime-config";
@@ -17,7 +17,7 @@ export type RedisQueuedDocumentJob = {
 
 type RedisQueueClient = {
   isOpen?: boolean;
-  connect?: () => Promise<void>;
+  connect?: () => Promise<unknown>;
   quit?: () => Promise<void>;
   rPush: (key: string, value: string) => Promise<number>;
   lPop: (key: string) => Promise<string | null>;
@@ -175,6 +175,7 @@ export class RedisQueueProviderService implements QueueProviderService {
 
   constructor(
     @Inject(QueueRuntimeConfigService) queueRuntimeConfigService: QueueRuntimeConfigService,
+    @Optional()
     private readonly clientFactory?: () => Promise<RedisQueueClient> | RedisQueueClient
   ) {
     this.runtimeConfig = queueRuntimeConfigService.getConfig();
@@ -250,7 +251,7 @@ export class RedisQueueProviderService implements QueueProviderService {
     }
 
     const redisModule = await import("redis");
-    const client = redisModule.createClient({ url: redisUrl }) as RedisQueueClient;
+    const client = redisModule.createClient({ url: redisUrl }) as unknown as RedisQueueClient;
     if (client.connect && client.isOpen !== true) {
       await client.connect();
     }

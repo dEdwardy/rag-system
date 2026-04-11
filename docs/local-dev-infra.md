@@ -67,11 +67,10 @@ Storage runtime now exclusively uses Supabase Storage: normal development must c
 
 ## Local API env template
 
-Use `apps/api/.env.local.example` as the starting point for local API runtime config.
+Use `apps/api/.env` as the local API runtime config source.
 
-- copy it to `apps/api/.env.local`
 - keep Docker-backed `DATABASE_URL` / `DIRECT_URL` / `REDIS_URL`
-- prefer OSS credentials for object storage now that the OSS provider is supported; current setup expects a single bucket and separates files by `uploads/` and `generated/` prefixes
+- prefer OSS credentials for object storage now that the OSS provider is supported; current setup expects a single bucket and stores project files under `OSS_PREFIX`, for example `rag-system/uploads/...` and `rag-system/generated/...`
 
 ## Shared Infra Naming
 
@@ -87,11 +86,11 @@ Project containers should keep project-scoped names such as `rag-system-api`, `r
 
 ## Future Auth Direction
 
-Current auth keeps the existing session-cookie + access-JWT contract.
+Current auth uses access JWT + refresh JWT cookies.
 
 Planned simplification direction:
 
 - access JWT for normal API auth
-- Redis-backed refresh/session state when cross-process revocation or refresh coordination is needed
+- optional Redis-backed coordination only if cross-process revocation or shared refresh state is needed later
 
-This is now the recommended local/self-hosted baseline: set `AUTH_SESSION_STORE_PROVIDER=redis` so refresh/logout/session validation uses Redis instead of the database `AuthSession` table.
+Current local/self-hosted baseline no longer requires Redis for auth. Redis remains optional for future revocation/coordination needs.

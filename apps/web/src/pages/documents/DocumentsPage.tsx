@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import {
   useDocuments,
+  useDeleteDocument,
   useKnowledgeBases,
   useReindexDocument,
   useUploadDocument,
@@ -33,6 +34,7 @@ export function DocumentsPage() {
   const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "");
   const uploadBatchMutation = useUploadDocuments(activeKnowledgeBase?.id ?? "");
   const reindexMutation = useReindexDocument();
+  const deleteMutation = useDeleteDocument();
   const [isDragging, setIsDragging] = useState(false);
   const { t, locale, formatDateTime } = useI18n();
 
@@ -235,6 +237,32 @@ export function DocumentsPage() {
       }
     },
     [reindexMutation, t]
+  );
+
+  const handleDeleteDocument = useCallback(
+    async (documentId: string, title: string) => {
+      const confirmed = window.confirm(
+        locale === "zh" ? `确认删除资料“${title}”吗？` : `Delete document "${title}"?`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await deleteMutation.mutateAsync({ documentId });
+        notifications.show({
+          color: "indigo",
+          message: locale === "zh" ? `已删除资料：${title}` : `Deleted document: ${title}`
+        });
+      } catch (error) {
+        notifications.show({
+          color: "red",
+          message: error instanceof Error ? error.message : locale === "zh" ? "删除资料失败" : "Failed to delete document"
+        });
+      }
+    },
+    [deleteMutation, locale]
   );
 
   return (
@@ -529,7 +557,7 @@ export function DocumentsPage() {
                   </Table.Thead>
                   <Table.Tbody>
                     {documents.map(document => (
-                      <Table.Tr key={document.id}>
+                       <Table.Tr key={document.id}>
                         <Table.Td>
                           <Stack className="workspace-table-cell-title" gap={2}>
                             <Text className="workspace-table-cell-title-main" lineClamp={2}>
@@ -597,22 +625,37 @@ export function DocumentsPage() {
                             {t("common.actions.viewDetails")}
                           </Button>
                         </Table.Td>
-                        <Table.Td className="workspace-table-action">
-                          <Button
-                            className="workspace-button"
-                            color="indigo"
-                            loading={reindexMutation.isPending}
-                            onClick={async () => {
-                              await handleReindexDocument(document.id, document.kbId, document.title);
-                            }}
-                            radius="xl"
-                            size="xs"
-                            variant="light"
-                          >
-                            {t("common.actions.reindex")}
-                          </Button>
-                        </Table.Td>
-                      </Table.Tr>
+                         <Table.Td className="workspace-table-action">
+                           <Group gap="xs" justify="flex-end" wrap="nowrap">
+                             <Button
+                               className="workspace-button"
+                               color="indigo"
+                               loading={reindexMutation.isPending}
+                               onClick={async () => {
+                                 await handleReindexDocument(document.id, document.kbId, document.title);
+                               }}
+                               radius="xl"
+                               size="xs"
+                               variant="light"
+                             >
+                               {t("common.actions.reindex")}
+                             </Button>
+                             <Button
+                               className="workspace-button"
+                               color="red"
+                               loading={deleteMutation.isPending}
+                               onClick={async () => {
+                                 await handleDeleteDocument(document.id, document.title);
+                               }}
+                               radius="xl"
+                               size="xs"
+                               variant="light"
+                             >
+                               {t("common.actions.delete")}
+                             </Button>
+                           </Group>
+                         </Table.Td>
+                       </Table.Tr>
                     ))}
                   </Table.Tbody>
                 </Table>

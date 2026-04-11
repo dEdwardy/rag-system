@@ -18,6 +18,7 @@ export type OssStorageRuntimeConfig = {
   accessKeySecret: string;
   securityToken?: string;
   bucket: string;
+  objectPrefix: string;
 };
 
 export type LocalStorageRuntimeConfig = {
@@ -50,6 +51,7 @@ export function resolveStorageRuntimeConfig(env: NodeJS.ProcessEnv = process.env
   const ossAccessKeySecret = readTrimmedEnv(env, "OSS_ACCESS_KEY_SECRET");
   const ossSecurityToken = readTrimmedEnv(env, "OSS_SECURITY_TOKEN") ?? undefined;
   const ossBucket = readTrimmedEnv(env, "OSS_BUCKET");
+  const ossPrefix = readTrimmedEnv(env, "OSS_PREFIX");
   const ossUploadsBucket = readTrimmedEnv(env, "OSS_BUCKET_UPLOADS");
   const ossGeneratedBucket = readTrimmedEnv(env, "OSS_BUCKET_GENERATED");
 
@@ -67,14 +69,17 @@ export function resolveStorageRuntimeConfig(env: NodeJS.ProcessEnv = process.env
       throw new StorageRuntimeConfigError("OSS storage requires OSS_REGION or OSS_ENDPOINT, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET, and OSS_BUCKET (or compatible OSS_BUCKET_UPLOADS / OSS_BUCKET_GENERATED fallback values).");
     }
 
+    const region = resolvedRegion ?? "oss-cn-hangzhou";
+
     return {
       provider: "oss",
-      region: resolvedRegion,
-      endpoint: normalizeUrl(ossEndpoint || `https://${resolvedRegion}.aliyuncs.com`, "OSS endpoint"),
+      region,
+      endpoint: normalizeUrl(ossEndpoint || `https://${region}.aliyuncs.com`, "OSS endpoint"),
       accessKeyId: ossAccessKeyId,
       accessKeySecret: ossAccessKeySecret,
       securityToken: ossSecurityToken,
-      bucket: resolvedBucket
+      bucket: resolvedBucket,
+      objectPrefix: normalizeObjectPrefix(ossPrefix || "rag-system")
     };
   }
 
@@ -124,4 +129,8 @@ function normalizeUrl(value: string, envName: string) {
   } catch {
     throw new StorageRuntimeConfigError(`${envName} must be a valid URL. Received: ${value}`);
   }
+}
+
+function normalizeObjectPrefix(value: string) {
+  return value.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
 }

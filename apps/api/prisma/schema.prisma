@@ -122,7 +122,6 @@ model User {
   knowledgeBases KnowledgeBase[]
   retrievalProfiles RetrievalProfile[]
   conversations  Conversation[]
-  authSessions   AuthSession[]
   authIdentityLinks AuthIdentityLink[]
   evalQuestionSets EvalQuestionSet[]
   evalQuestionSetBaselineSnapshots EvalQuestionSetBaselineSnapshot[]
@@ -177,21 +176,6 @@ model EvalQuestionSetBaselineSnapshot {
   @@index([tenantId])
   @@index([ownerId])
   @@index([questionSetId])
-}
-
-model AuthSession {
-  id         String   @id @default(cuid())
-  userId     String
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  lastSeenAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
-  @@index([revokedAt])
 }
 
 model AuthIdentityLink {

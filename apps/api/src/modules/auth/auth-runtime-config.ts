@@ -5,7 +5,7 @@ import {
   DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME,
   DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
   DEFAULT_AUTH_OAUTH_STATE_TTL_SECONDS,
-  DEFAULT_AUTH_SESSION_COOKIE_NAME,
+  DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME,
   DEFAULT_AUTH_SESSION_TTL_HOURS,
   DEFAULT_DEV_LOGIN_EMAIL,
   DEFAULT_DEV_LOGIN_PASSWORD,
@@ -45,11 +45,10 @@ export type AuthRuntimeConfig = {
   redisUrl: string | null;
   sessionStoreKeyPrefix: string;
   sessionTtlHours: number;
-  // access JWT 的有效期。短时有效，过期后走 session 驱动续签。
   accessJwtTtlMinutes: number;
   sessionCookieName: string;
-  // access JWT 对应的 HttpOnly cookie 名称。
   accessTokenCookieName: string;
+  refreshTokenCookieName: string;
   oauthStateCookieName: string;
   loginProvenanceCookieName: string;
   oauthStateTtlSeconds: number;
@@ -107,9 +106,9 @@ export function resolveAuthRuntimeConfig(env: NodeJS.ProcessEnv = process.env): 
     sessionStoreKeyPrefix: readString(env.AUTH_SESSION_STORE_KEY_PREFIX) ?? "rag-auth",
     sessionTtlHours,
     accessJwtTtlMinutes,
-    sessionCookieName: readString(env.AUTH_SESSION_COOKIE_NAME) ?? DEFAULT_AUTH_SESSION_COOKIE_NAME,
-    // 支持按环境覆盖 access token cookie 名，默认 rag_access_token。
+    sessionCookieName: readString(env.AUTH_SESSION_COOKIE_NAME) ?? "rag_session",
     accessTokenCookieName: readString(env.AUTH_ACCESS_TOKEN_COOKIE_NAME) ?? DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME,
+    refreshTokenCookieName: readString(env.AUTH_REFRESH_TOKEN_COOKIE_NAME) ?? DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME,
     oauthStateCookieName: readString(env.AUTH_OAUTH_STATE_COOKIE_NAME) ?? DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
     loginProvenanceCookieName:
       readString(env.AUTH_LOGIN_PROVENANCE_COOKIE_NAME) ?? DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME,

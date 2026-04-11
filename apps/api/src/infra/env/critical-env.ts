@@ -23,6 +23,7 @@ const criticalEnvSchema = z
     OSS_ACCESS_KEY_SECRET: trimmedOptionalString,
     OSS_SECURITY_TOKEN: trimmedOptionalString,
     OSS_BUCKET: trimmedOptionalString,
+    OSS_PREFIX: trimmedOptionalString,
     OSS_BUCKET_UPLOADS: trimmedOptionalString,
     OSS_BUCKET_GENERATED: trimmedOptionalString,
     QUEUE_PROVIDER: z.enum(["database", "pgmq", "redis"]).optional().default("pgmq"),

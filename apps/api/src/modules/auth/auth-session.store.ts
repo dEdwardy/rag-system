@@ -1,7 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
-import { PrismaService } from "../../infra/database/prisma.service";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { AUTH_RUNTIME_CONFIG, type AuthRuntimeConfig } from "./auth-runtime-config";
 import type { AuthIdentity } from "./auth-identity.contract";
 
@@ -34,104 +32,13 @@ export interface AuthSessionStore {
   revokeSession(sessionId: string): Promise<void>;
 }
 
-export const AUTH_SESSION_STORE = Symbol("AUTH_SESSION_STORE");
-
 type RedisSessionClient = {
   isOpen?: boolean;
-  connect?: () => Promise<void>;
+  connect?: () => Promise<unknown>;
   get: (key: string) => Promise<string | null>;
   set: (key: string, value: string, options?: { PX?: number }) => Promise<unknown>;
   del: (key: string) => Promise<number>;
 };
-
-@Injectable()
-export class DatabaseAuthSessionStore implements AuthSessionStore {
-  constructor(private readonly prisma: PrismaService) {}
-
-  async createSession(input: CreateAuthSessionInput) {
-    const expiresAt = new Date(input.now.getTime() + input.ttlMs);
-    const session = await this.prisma.authSession.create({
-      data: {
-        userId: input.user.id,
-        expiresAt,
-        lastSeenAt: input.now
-      },
-      select: {
-        id: true
-      }
-    });
-
-    return {
-      id: session.id,
-      user: input.user,
-      expiresAtMs: expiresAt.getTime(),
-      lastSeenAtMs: input.now.getTime()
-    };
-  }
-
-  async getSession(sessionId: string) {
-    const session = await this.prisma.authSession.findUnique({
-      where: {
-        id: sessionId
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            tenantId: true,
-            name: true,
-            displayName: true,
-            email: true,
-            role: true,
-            status: true
-          }
-        }
-      }
-    });
-
-    if (session == null || session.revokedAt != null || session.expiresAt.getTime() <= Date.now() || session.user.status !== "active") {
-      return null;
-    }
-
-    return {
-      id: session.id,
-      user: {
-        id: session.user.id,
-        tenantId: session.user.tenantId,
-        name: session.user.name,
-        displayName: session.user.displayName,
-        email: session.user.email,
-        role: session.user.role
-      },
-      expiresAtMs: session.expiresAt.getTime(),
-      lastSeenAtMs: session.lastSeenAt?.getTime() ?? null
-    };
-  }
-
-  async touchSession(sessionId: string, lastSeenAt: Date) {
-    await this.prisma.authSession.updateMany({
-      where: {
-        id: sessionId,
-        revokedAt: null
-      },
-      data: {
-        lastSeenAt
-      }
-    });
-  }
-
-  async revokeSession(sessionId: string) {
-    await this.prisma.authSession.updateMany({
-      where: {
-        id: sessionId,
-        revokedAt: null
-      },
-      data: {
-        revokedAt: new Date()
-      }
-    });
-  }
-}
 
 @Injectable()
 export class RedisAuthSessionStore implements AuthSessionStore {
@@ -139,6 +46,7 @@ export class RedisAuthSessionStore implements AuthSessionStore {
 
   constructor(
     @Inject(AUTH_RUNTIME_CONFIG) private readonly authRuntimeConfig: AuthRuntimeConfig,
+    @Optional()
     private readonly clientFactory?: () => Promise<RedisSessionClient> | RedisSessionClient
   ) {}
 
@@ -219,7 +127,7 @@ export class RedisAuthSessionStore implements AuthSessionStore {
     }
 
     const redisModule = await import("redis");
-    const client = redisModule.createClient({ url: redisUrl }) as RedisSessionClient;
+    const client = redisModule.createClient({ url: redisUrl }) as unknown as RedisSessionClient;
     if (client.connect && client.isOpen !== true) {
       await client.connect();
     }
@@ -238,89 +146,4 @@ export function isAuthSessionStore(candidate: unknown): candidate is AuthSession
     && typeof (candidate as AuthSessionStore).getSession === "function"
     && typeof (candidate as AuthSessionStore).touchSession === "function"
     && typeof (candidate as AuthSessionStore).revokeSession === "function";
-}
-
-export function createDatabaseAuthSessionStoreFromPrisma(prisma: PrismaService | Prisma.TransactionClient) {
-  return {
-    createSession: async (input: CreateAuthSessionInput) => {
-      const expiresAt = new Date(input.now.getTime() + input.ttlMs);
-      const session = await prisma.authSession.create({
-        data: {
-          userId: input.user.id,
-          expiresAt,
-          lastSeenAt: input.now
-        },
-        select: {
-          id: true
-        }
-      });
-
-      return {
-        id: session.id,
-        user: input.user,
-        expiresAtMs: expiresAt.getTime(),
-        lastSeenAtMs: input.now.getTime()
-      } satisfies StoredAuthSession;
-    },
-    getSession: async (sessionId: string) => {
-      const session = await prisma.authSession.findUnique({
-        where: {
-          id: sessionId
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              tenantId: true,
-              name: true,
-              displayName: true,
-              email: true,
-              role: true,
-              status: true
-            }
-          }
-        }
-      });
-
-      if (session == null || session.revokedAt != null || session.expiresAt.getTime() <= Date.now() || session.user.status !== "active") {
-        return null;
-      }
-
-      return {
-        id: session.id,
-        user: {
-          id: session.user.id,
-          tenantId: session.user.tenantId,
-          name: session.user.name,
-          displayName: session.user.displayName,
-          email: session.user.email,
-          role: session.user.role
-        },
-        expiresAtMs: session.expiresAt.getTime(),
-        lastSeenAtMs: session.lastSeenAt?.getTime() ?? null
-      } satisfies StoredAuthSession;
-    },
-    touchSession: async (sessionId: string, lastSeenAt: Date) => {
-      await prisma.authSession.updateMany({
-        where: {
-          id: sessionId,
-          revokedAt: null
-        },
-        data: {
-          lastSeenAt
-        }
-      });
-    },
-    revokeSession: async (sessionId: string) => {
-      await prisma.authSession.updateMany({
-        where: {
-          id: sessionId,
-          revokedAt: null
-        },
-        data: {
-          revokedAt: new Date()
-        }
-      });
-    }
-  } satisfies AuthSessionStore;
 }

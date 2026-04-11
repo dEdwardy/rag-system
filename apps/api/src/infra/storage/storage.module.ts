@@ -27,6 +27,7 @@ export const STORAGE_RUNTIME_CONFIG = Symbol("STORAGE_RUNTIME_CONFIG");
           OSS_ACCESS_KEY_SECRET: configService.get("OSS_ACCESS_KEY_SECRET"),
           OSS_SECURITY_TOKEN: configService.get("OSS_SECURITY_TOKEN"),
           OSS_BUCKET: configService.get("OSS_BUCKET"),
+          OSS_PREFIX: configService.get("OSS_PREFIX"),
           OSS_BUCKET_UPLOADS: configService.get("OSS_BUCKET_UPLOADS"),
           OSS_BUCKET_GENERATED: configService.get("OSS_BUCKET_GENERATED"),
           SUPABASE_URL: configService.get("SUPABASE_URL"),

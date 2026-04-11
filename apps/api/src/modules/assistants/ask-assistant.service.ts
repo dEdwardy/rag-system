@@ -19,7 +19,7 @@ import { resolveRequestAuthContext, type RequestAuthContext } from "../auth/auth
 import { AnsweringService } from "../answering/answering.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { MessagesService } from "../messages/messages.service";
-import { RetrievalService } from "../retrieval/retrieval.service";
+import { RetrievalService, type RetrievalResult } from "../retrieval/retrieval.service";
 import {
   buildRewriteReadabilityLabel,
   buildRetrievalModeProvenanceSentence,
@@ -1563,9 +1563,9 @@ export class AskAssistantService {
     retrievalFilters?: RetrievalProfileFilters;
     rewritten: AskRewriteResult;
     documentVersions?: Record<string, number>;
-  }) {
+  }): Promise<RetrievalResult> {
     try {
-      return await this.retrievalService.retrieve({
+      const retrievalResult = await this.retrievalService.retrieve({
         kbId: input.assistantKbId,
         query: input.retrievalQuery,
         topK: input.retrievalProfile.topK,
@@ -1577,6 +1577,11 @@ export class AskAssistantService {
         strategy: input.retrievalStrategy,
         documentVersions: input.documentVersions
       });
+      if (!retrievalResult) {
+        throw new Error("Retrieval returned no result.");
+      }
+
+      return retrievalResult;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown retrieval pipeline error.";
       const embeddingDiagnostics = error instanceof VectorStoreCompatibilityError ? error.embeddingDiagnostics : null;

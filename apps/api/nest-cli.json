@@ -3,6 +3,7 @@
   "sourceRoot": "apps/api/src",
   "entryFile": "main",
   "compilerOptions": {
-    "outDir": "dist/apps/api"
+    "outDir": "dist",
+    "deleteOutDir": true
   }
 }

@@ -15,7 +15,7 @@
         "../../packages/shared/src/index.ts"
       ]
     },
-    "incremental": true,
+    "incremental": false,
     "skipLibCheck": true,
     "strict": true,
     "moduleResolution": "NodeNext",

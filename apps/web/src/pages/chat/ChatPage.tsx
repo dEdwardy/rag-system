@@ -1,9 +1,7 @@
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useOutletContext } from "react-router-dom";
-import type { AppShellOutletContext } from "../../app/AppShell";
-import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
+import { Link } from "react-router-dom";
 import { IconActionButton, IconActionLink } from "../../components/IconAction";
 import { StatePanel } from "../../components/StatePanel";
 import {
@@ -12,14 +10,10 @@ import {
   useDeleteConversation,
   useConversationMessages,
   useConversations,
-  useDocuments,
   useKnowledgeBases,
   useUpdateConversation
 } from "../../features/api/hooks";
-import {
-  getPrimaryAssistantForKnowledgeBase,
-  getPrimaryKnowledgeBase
-} from "../../features/api/workspace-selection";
+import { getPrimaryAssistantForKnowledgeBase, getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { AskStreamEvent, AskStreamFinalData, Conversation, Message } from "../../types/api";
 import { formatMessageTime } from "./chat-page-helpers";
@@ -229,62 +223,6 @@ function isAbortError(error: unknown) {
     : error instanceof Error && error.name === "AbortError";
 }
 
-function resolveWorkspaceStatus(input: {
-  copy: {
-    noActiveKnowledgeBase: string;
-    noDocuments: string;
-    libraryNeedsAttention: string;
-    libraryUpdating: string;
-    answerSettingsNeeded: string;
-    inProgress: string;
-    readyToAsk: string;
-  };
-  hasKnowledgeBase: boolean;
-  documentCount: number | null;
-  failedDocumentCount: number;
-  processingDocumentCount: number;
-  hasAssistant: boolean;
-  hasActiveStreamTurn: boolean;
-  streamStatusLabel: string | null;
-}): string {
-  const {
-    copy,
-    hasKnowledgeBase,
-    documentCount,
-    failedDocumentCount,
-    processingDocumentCount,
-    hasAssistant,
-    hasActiveStreamTurn,
-    streamStatusLabel
-  } = input;
-
-  if (!hasKnowledgeBase) {
-    return copy.noActiveKnowledgeBase;
-  }
-
-  if (documentCount === 0) {
-    return copy.noDocuments;
-  }
-
-  if (failedDocumentCount > 0) {
-    return copy.libraryNeedsAttention;
-  }
-
-  if (processingDocumentCount > 0) {
-    return copy.libraryUpdating;
-  }
-
-  if (!hasAssistant) {
-    return copy.answerSettingsNeeded;
-  }
-
-  if (hasActiveStreamTurn) {
-    return streamStatusLabel ?? copy.inProgress;
-  }
-
-  return copy.readyToAsk;
-}
-
 function resolveActiveTraceId(displayedMessages: DisplayedMessage[], activeStreamTurn: ActiveStreamTurn | null): string | null {
   if (activeStreamTurn?.assistantMessage.traceId != null) {
     return activeStreamTurn.assistantMessage.traceId;
@@ -316,26 +254,6 @@ function TypingIndicator() {
 
 function ActionSlotPlaceholder() {
   return <span aria-hidden="true" className="h-9 w-9 shrink-0 rounded-[10px] opacity-0" />;
-}
-
-function SummaryCard({
-  label,
-  value,
-  hint
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-4 py-4 shadow-[0_10px_28px_rgba(0,0,0,0.18)]">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--app-text-muted)]">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold text-[var(--app-text)]">{value}</div>
-      <div className="mt-1 text-[12px] leading-5 text-[var(--app-text-secondary)]">{hint}</div>
-    </div>
-  );
 }
 
 function ChatWorkspacePanelsFallback({
@@ -370,7 +288,6 @@ function ChatWorkspacePanelsFallback({
 }
 
 export function ChatPage() {
-  const { loginProvenance } = useOutletContext<AppShellOutletContext>();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeStreamTurn, setActiveStreamTurn] = useState<ActiveStreamTurn | null>(null);
   const [composerValue, setComposerValue] = useState("");
@@ -382,16 +299,13 @@ export function ChatPage() {
 
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
-  const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const conversationsQuery = useConversations();
   const fallbackConversationId = conversationsQuery.data?.[0]?.id ?? null;
   const isNewChat = activeConversationId === NEW_CHAT_CONVERSATION_ID;
   const resolvedConversationId = isNewChat ? null : activeConversationId ?? fallbackConversationId;
+  const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const activeAssistant = getPrimaryAssistantForKnowledgeBase(assistantsQuery.data, activeKnowledgeBase?.id ?? null);
   const messagesQuery = useConversationMessages(resolvedConversationId);
-  const shouldLoadChatDocuments =
-    activeKnowledgeBase != null && (conversationsQuery.isSuccess || messagesQuery.isSuccess || activeStreamTurn != null);
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", shouldLoadChatDocuments);
   const askStreamMutation = useAskAssistantStream(activeAssistant?.id ?? "");
   const updateConversationMutation = useUpdateConversation();
   const deleteConversationMutation = useDeleteConversation();
@@ -404,21 +318,6 @@ export function ChatPage() {
       heroSubtitle: t("chat.copy.heroSubtitle"),
       moreActionsHint: t("chat.copy.moreActionsHint"),
       moreActions: t("chat.copy.moreActions"),
-      currentKnowledgeBase: t("chat.copy.currentKnowledgeBase"),
-      currentKnowledgeBaseHintHasKb: t("chat.copy.currentKnowledgeBaseHintHasKb"),
-      currentKnowledgeBaseHintNoKb: t("chat.copy.currentKnowledgeBaseHintNoKb"),
-      currentAssistant: t("chat.copy.currentAssistant"),
-      currentAssistantHintHasAssistant: t("chat.copy.currentAssistantHintHasAssistant"),
-      currentAssistantHintNoAssistant: t("chat.copy.currentAssistantHintNoAssistant"),
-      noActiveKnowledgeBase: t("chat.copy.noActiveKnowledgeBase"),
-      noDocuments: t("chat.copy.noDocuments"),
-      libraryNeedsAttention: t("chat.copy.libraryNeedsAttention"),
-      libraryUpdating: t("chat.copy.libraryUpdating"),
-      noKnowledgeBaseName: t("chat.copy.noKnowledgeBaseName"),
-      noAssistantName: t("chat.copy.noAssistantName"),
-      askStatusHintHasAssistant: t("chat.copy.askStatusHintHasAssistant"),
-      askStatusHintNoAssistant: t("chat.copy.askStatusHintNoAssistant"),
-      askStatus: t("chat.copy.askStatus"),
       inputSection: t("chat.copy.inputSection"),
       inputHelpCanAsk: t("chat.copy.inputHelpCanAsk"),
       inputHelpDisabled: t("chat.copy.inputHelpDisabled"),
@@ -445,11 +344,7 @@ export function ChatPage() {
       preparingAnswer: t("chat.copy.preparingAnswer"),
       retrievingContext: t("chat.copy.retrievingContext"),
       generatingAnswer: t("chat.copy.generatingAnswer"),
-      answerSettingsNeeded: t("chat.copy.answerSettingsNeeded"),
-      inProgress: t("chat.copy.inProgress"),
-      readyToAsk: t("chat.copy.readyToAsk"),
-      noActiveKnowledgeBaseAction: t("chat.states.noActiveKnowledgeBaseAction"),
-      noAssistantForKnowledgeBaseAction: t("chat.states.noAssistantForKnowledgeBaseAction")
+      answerSettingsNeeded: t("chat.copy.answerSettingsNeeded")
     }),
     [t]
   );
@@ -489,85 +384,6 @@ export function ChatPage() {
   const activeTraceId = resolveActiveTraceId(displayedMessages, activeStreamTurn);
   const activeConversation = conversationsForWorkspace.find(conversation => conversation.id === resolvedConversationId) ?? null;
   const conversationCount = conversationsForWorkspace.length;
-  const documents = documentsQuery.data ?? [];
-  const documentsAreReady = shouldLoadChatDocuments && documentsQuery.isSuccess;
-  const documentCount = documents.length;
-  const processingDocumentCount = documents.filter(
-    document => document.status === "pending" || document.status === "processing"
-  ).length;
-  const failedDocumentCount = documents.filter(document => document.status === "failed").length;
-  const isOauthOnboardingActive =
-    loginProvenance.type === "oauth_session" && (!documentsAreReady || !(documentCount > 0 && conversationCount > 0));
-  const workspaceStatus = resolveWorkspaceStatus({
-    copy: chatCopy,
-    hasKnowledgeBase: activeKnowledgeBase != null,
-    documentCount: documentsAreReady ? documentCount : null,
-    failedDocumentCount: documentsAreReady ? failedDocumentCount : 0,
-    processingDocumentCount: documentsAreReady ? processingDocumentCount : 0,
-    hasAssistant: activeAssistant != null,
-    hasActiveStreamTurn: activeStreamTurn != null,
-    streamStatusLabel
-  });
-  const readinessPanel = useMemo(() => {
-    if (activeKnowledgeBase == null) {
-      return {
-        actionHref: "/knowledge-base",
-        actionLabel: chatCopy.noActiveKnowledgeBaseAction,
-        description: t("chat.states.noActiveKnowledgeBaseDescription"),
-        title: t("chat.states.noActiveKnowledgeBaseTitle")
-      } as const;
-    }
-
-    if (documentsAreReady && documentCount === 0) {
-      return {
-        actionHref: "/documents",
-        actionLabel: t("chat.states.noDocumentsAction"),
-        description: t("chat.states.noDocumentsDescription", { knowledgeBaseName: activeKnowledgeBase.name }),
-        title: t("chat.states.noDocumentsTitle")
-      } as const;
-    }
-
-    if (documentsAreReady && failedDocumentCount > 0) {
-      return {
-        actionHref: "/documents",
-        actionLabel: t("chat.states.failedDocumentsAction"),
-        description: t("chat.states.failedDocumentsDescription", { count: failedDocumentCount }),
-        title: t("chat.states.failedDocumentsTitle")
-      } as const;
-    }
-
-    if (documentsAreReady && processingDocumentCount > 0) {
-      return {
-        actionHref: "/documents",
-        actionLabel: t("chat.states.processingDocumentsAction"),
-        description: t("chat.states.processingDocumentsDescription", { count: processingDocumentCount }),
-        title: t("chat.states.processingDocumentsTitle")
-      } as const;
-    }
-
-    if (activeAssistant == null) {
-      return {
-        actionHref: "/assistant",
-        actionLabel: chatCopy.noAssistantForKnowledgeBaseAction,
-        description: t("chat.states.noAssistantForKnowledgeBaseDescription", {
-          knowledgeBaseName: activeKnowledgeBase.name
-        }),
-        title: t("chat.states.noAssistantForKnowledgeBaseTitle")
-      } as const;
-    }
-
-    return null;
-  }, [
-    activeAssistant,
-    activeKnowledgeBase,
-    chatCopy.noActiveKnowledgeBaseAction,
-    chatCopy.noAssistantForKnowledgeBaseAction,
-    documentCount,
-    documentsAreReady,
-    failedDocumentCount,
-    processingDocumentCount,
-    t
-  ]);
 
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
@@ -788,31 +604,6 @@ export function ChatPage() {
     [displayedMessages]
   );
 
-  const summaryCards = [
-    {
-      key: "knowledge-base",
-      hint: activeKnowledgeBase ? chatCopy.currentKnowledgeBaseHintHasKb : chatCopy.currentKnowledgeBaseHintNoKb,
-      label: chatCopy.currentKnowledgeBase,
-      value: activeKnowledgeBase?.name ?? chatCopy.noKnowledgeBaseName
-    },
-    {
-      key: "assistant",
-      hint: activeAssistant ? chatCopy.currentAssistantHintHasAssistant : chatCopy.currentAssistantHintNoAssistant,
-      label: chatCopy.currentAssistant,
-      value: activeAssistant?.name ?? chatCopy.answerSettingsNeeded
-    },
-    {
-      key: "ask-status",
-      hint: activeAssistant ? chatCopy.askStatusHintHasAssistant : chatCopy.askStatusHintNoAssistant,
-      label: chatCopy.askStatus,
-      value: workspaceStatus
-    }
-  ];
-
-  const visibleSummaryCards = isOauthOnboardingActive
-    ? summaryCards.filter(card => card.key === "knowledge-base" || card.key === "assistant" || card.key === "ask-status")
-    : summaryCards;
-  const mobileSummaryCards = visibleSummaryCards.filter(card => card.key === "ask-status");
   return (
       <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="chat-page">
       <section className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
@@ -864,37 +655,18 @@ export function ChatPage() {
           ref={transcriptRef}
         >
           <div className="flex flex-col gap-6">
-            <OauthWorkspaceWelcome
-              assistantCount={activeAssistant ? 1 : 0}
-              context="chat"
-              conversationCount={conversationCount}
-              documentCount={documentCount}
-            />
-
-            <div className="workspace-chat-summary grid gap-3 md:hidden">
-              {mobileSummaryCards.map(card => (
-                <SummaryCard hint={card.hint} key={card.key} label={card.label} value={card.value} />
-              ))}
-            </div>
-
-            <div className="hidden workspace-chat-summary gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
-              {visibleSummaryCards.map(card => (
-                <SummaryCard hint={card.hint} key={card.key} label={card.label} value={card.value} />
-              ))}
-            </div>
-
-            {readinessPanel != null ? (
+            {activeAssistant == null ? (
               <StatePanel
                 action={
                   <Link
                     className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
-                    to={readinessPanel.actionHref}
+                    to="/assistant"
                   >
-                    {readinessPanel.actionLabel}
+                    {t("chat.states.noAssistantForKnowledgeBaseAction")}
                   </Link>
                 }
-                description={readinessPanel.description}
-                title={readinessPanel.title}
+                description={chatCopy.inputHelpDisabled}
+                title={t("chat.states.noAssistantForKnowledgeBaseTitle")}
               />
             ) : resolvedConversationId == null && activeStreamTurn == null ? (
               <StatePanel
@@ -1057,9 +829,6 @@ export function ChatPage() {
                   {canAsk ? chatCopy.inputHelpCanAsk : chatCopy.inputHelpDisabled}
                 </div>
               </div>
-              <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1 text-[11px] text-[var(--app-text-secondary)]">
-                {workspaceStatus}
-              </span>
             </div>
 
             <div className="rounded-[22px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-3 transition duration-300 focus-within:border-[var(--app-accent)] focus-within:shadow-[0_0_0_3px_var(--app-accent-glow)] md:rounded-[24px]">

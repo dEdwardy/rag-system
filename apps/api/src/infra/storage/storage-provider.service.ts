@@ -204,14 +204,14 @@ export class OssStorageProviderService implements StorageProviderService {
     if (normalizedStorageKey.startsWith("uploads/")) {
       return {
         bucket: this.runtimeConfig.bucket,
-        objectPath: normalizedStorageKey.slice("uploads/".length)
+        objectPath: this.prependObjectPrefix(normalizedStorageKey)
       };
     }
 
     if (normalizedStorageKey.startsWith("generated/")) {
       return {
         bucket: this.runtimeConfig.bucket,
-        objectPath: normalizedStorageKey.slice("generated/".length)
+        objectPath: this.prependObjectPrefix(normalizedStorageKey)
       };
     }
 
@@ -227,6 +227,10 @@ export class OssStorageProviderService implements StorageProviderService {
     const created = this.createClient(bucket);
     this.clientCache.set(bucket, created);
     return created;
+  }
+
+  private prependObjectPrefix(storageKey: string) {
+    return `${this.runtimeConfig.objectPrefix}/${storageKey}`;
   }
 
   private async createClient(bucket: string): Promise<OssClient> {
