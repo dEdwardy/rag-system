@@ -15,6 +15,7 @@ import { HttpOidcOauthProvider, OIDC_OAUTH_PROVIDER } from "./oidc-oauth.provide
 import { AuthRoutePolicyGuard } from "./auth-route-policy.guard";
 import { AuthService } from "./auth.service";
 import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
+import { AUTH_SESSION_STORE, DatabaseAuthSessionStore, RedisAuthSessionStore, type AuthSessionStore } from "./auth-session.store";
 
 @Module({
   imports: [DatabaseModule],
@@ -30,6 +31,17 @@ import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
     {
       provide: AUTH_RUNTIME_CONFIG,
       useFactory: () => resolveAuthRuntimeConfig()
+    },
+    DatabaseAuthSessionStore,
+    RedisAuthSessionStore,
+    {
+      provide: AUTH_SESSION_STORE,
+      inject: [AUTH_RUNTIME_CONFIG, DatabaseAuthSessionStore, RedisAuthSessionStore],
+      useFactory: (
+        runtimeConfig: ReturnType<typeof resolveAuthRuntimeConfig>,
+        databaseStore: DatabaseAuthSessionStore,
+        redisStore: RedisAuthSessionStore
+      ): AuthSessionStore => runtimeConfig.sessionStoreProvider === "redis" ? redisStore : databaseStore
     },
     AuthService,
     {

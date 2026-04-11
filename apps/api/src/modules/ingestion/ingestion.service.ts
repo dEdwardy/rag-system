@@ -5,6 +5,7 @@ import { PrismaService } from "../../infra/database/prisma.service";
 import { getDocumentIngestionQueueName } from "../../infra/queue/queue.constants";
 import { QueueRuntimeConfigService } from "../../infra/queue/queue-runtime-config";
 import { QueueService } from "../../infra/queue/queue.service";
+import { QUEUE_PROVIDER_SERVICE, type QueueProviderService, type RedisQueuedDocumentJob } from "../../infra/queue/queue-provider.service";
 import { DocumentRunsService } from "../document-runs/document-runs.service";
 import { DocumentIngestionProcessor } from "./document-ingestion.processor";
 import type { DocumentIngestionJob } from "./document-ingestion.processor";
@@ -20,6 +21,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @Inject(QueueService) private readonly queueService: QueueService,
+    @Inject(QUEUE_PROVIDER_SERVICE) private readonly queueProviderService: QueueProviderService,
     @Inject(QueueRuntimeConfigService) private readonly queueRuntimeConfigService: QueueRuntimeConfigService,
     private readonly documentIngestionProcessor: DocumentIngestionProcessor,
     private readonly prisma: PrismaService,
@@ -52,6 +54,12 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       });
       return;
     }
+
+    if (runtimeConfig.provider === "redis") {
+      void Promise.resolve().then(() => this.startRedisWorker()).catch(error => {
+        this.logWorkerLoopError("redis startup", error);
+      });
+    }
   }
 
   private startDatabaseWorker() {
@@ -74,6 +82,17 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }, this.runtimeConfig.databasePollIntervalMs);
 
     void this.runWorkerPollSafely("pgmq", () => this.pollPgmqQueue());
+  }
+
+  private async startRedisWorker() {
+    this.logger.log("Starting redis-backed document ingestion worker.");
+    await this.queueService.ensureDocumentIngestionQueueReady();
+
+    this.databasePollTimer = setInterval(() => {
+      void this.runWorkerPollSafely("redis", () => this.pollRedisQueue());
+    }, this.runtimeConfig.databasePollIntervalMs);
+
+    void this.runWorkerPollSafely("redis", () => this.pollRedisQueue());
   }
 
   private async runWorkerPollSafely(workerName: string, operation: () => Promise<void>) {
@@ -135,6 +154,36 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
 
         this.activeTasks.add(taskId);
         this.processPgmqJobWithTimeout(job, taskId).finally(() => {
+          this.activeTasks.delete(taskId);
+          this.taskAbortControllers.delete(taskId);
+        });
+      }
+    } finally {
+      this.databasePollInFlight = false;
+    }
+  }
+
+  private async pollRedisQueue() {
+    if (this.databasePollInFlight) {
+      return;
+    }
+
+    this.databasePollInFlight = true;
+
+    try {
+      while (this.activeTasks.size < this.runtimeConfig.maxConcurrentIngestionTasks) {
+        const job = await this.queueProviderService.claimNextDocumentIngestionJob?.();
+        if (!job) {
+          break;
+        }
+
+        const taskId = `redis-${job.id}`;
+        if (this.activeTasks.has(taskId)) {
+          continue;
+        }
+
+        this.activeTasks.add(taskId);
+        this.processRedisJobWithTimeout(job, taskId).finally(() => {
           this.activeTasks.delete(taskId);
           this.taskAbortControllers.delete(taskId);
         });
@@ -314,6 +363,37 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async processRedisJob(job: RedisQueuedDocumentJob) {
+    try {
+      await this.documentIngestionProcessor.processDocument({
+        id: `redis-${job.id}`,
+        data: {
+          documentId: job.documentId,
+          documentVersion: job.documentVersion
+        }
+      });
+
+      await this.queueProviderService.completeDocumentIngestionJob?.(job);
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error("Unknown ingestion worker error.");
+      await this.queueProviderService.retryDocumentIngestionJob?.(job, normalizedError);
+      await this.handleFailedJob(
+        {
+          id: `redis-${job.id}`,
+          data: {
+            documentId: job.documentId,
+            documentVersion: job.documentVersion
+          },
+          attemptsMade: job.attempts + 1,
+          opts: {
+            attempts: job.maxAttempts
+          }
+        },
+        normalizedError
+      );
+    }
+  }
+
   private async handleFailedJob(
     job: { id?: string; data?: DocumentIngestionJob["data"]; attemptsMade?: number; opts?: { attempts?: number } } | undefined,
     error: Error
@@ -469,6 +549,26 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           Prisma.sql`SELECT pgmq.delete(${getDocumentIngestionQueueName()}, ${job.msg_id})`
         );
       }
+    }
+  }
+
+  private async processRedisJobWithTimeout(job: RedisQueuedDocumentJob, taskId: string) {
+    const abortController = new AbortController();
+    this.taskAbortControllers.set(taskId, abortController);
+
+    try {
+      await Promise.race([
+        this.processRedisJob(job),
+        new Promise<void>((_, reject) => {
+          const timeout = setTimeout(() => {
+            abortController.abort();
+            reject(new Error(`Task ${taskId} timed out after ${this.runtimeConfig.maxTaskTimeoutMs}ms`));
+          }, this.runtimeConfig.maxTaskTimeoutMs);
+          abortController.signal.addEventListener("abort", () => clearTimeout(timeout));
+        })
+      ]);
+    } catch (error) {
+      this.logger.error(`Redis job ${job.id} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

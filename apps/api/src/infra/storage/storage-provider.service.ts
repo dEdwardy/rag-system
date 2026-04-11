@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { Injectable } from "@nestjs/common";
-import { type SupabaseStorageRuntimeConfig, type LocalStorageRuntimeConfig } from "./storage-runtime-config";
+import { type SupabaseStorageRuntimeConfig, type OssStorageRuntimeConfig, type LocalStorageRuntimeConfig } from "./storage-runtime-config";
 import { resolveStorageRoot } from "./storage-root";
 
 type SaveFileInput = {
@@ -26,6 +27,11 @@ export interface StorageProviderService {
   readFileByStorageKey(storageKey: string): Promise<Buffer>;
   getStorageRoot(): string | null;
 }
+
+type ResolvedObjectTarget = {
+  bucket: string;
+  objectPath: string;
+};
 
 @Injectable()
 export class SupabaseStorageProviderService implements StorageProviderService {
@@ -119,6 +125,139 @@ export class SupabaseStorageProviderService implements StorageProviderService {
       Authorization: `Bearer ${this.runtimeConfig.serviceRoleKey}`,
       apikey: this.runtimeConfig.serviceRoleKey,
       ...(input?.contentType ? { "Content-Type": input.contentType } : {})
+    };
+  }
+}
+
+@Injectable()
+export class OssStorageProviderService implements StorageProviderService {
+  constructor(private readonly runtimeConfig: OssStorageRuntimeConfig) {}
+
+  async saveUploadedFile(input: SaveFileInput) {
+    return this.saveBuffer({
+      buffer: input.buffer,
+      directory: "uploads",
+      extension: extname(input.originalName),
+      contentType: input.mimeType || "application/octet-stream"
+    });
+  }
+
+  async saveGeneratedTextFile(input: { content: string }) {
+    return this.saveBuffer({
+      buffer: Buffer.from(input.content, "utf8"),
+      directory: "generated",
+      extension: ".txt",
+      contentType: "text/plain; charset=utf-8"
+    });
+  }
+
+  async readFileByStorageKey(storageKey: string) {
+    const target = this.resolveObjectTarget(storageKey);
+    const request = this.buildSignedRequest({
+      method: "GET",
+      target
+    });
+    const response = await fetch(request.url, {
+      method: "GET",
+      headers: request.headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`OSS storage read failed (${response.status}): ${await safeReadResponseText(response)}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  getStorageRoot() {
+    return null;
+  }
+
+  private async saveBuffer(input: SaveBufferInput) {
+    const fileName = `${Date.now()}-${randomUUID()}${input.extension}`;
+    const relativePath = join(input.directory, fileName).replaceAll("\\", "/");
+    const target = this.resolveObjectTarget(relativePath);
+    const body = new Uint8Array(input.buffer);
+    const request = this.buildSignedRequest({
+      method: "PUT",
+      target,
+      contentType: input.contentType
+    });
+    const response = await fetch(request.url, {
+      method: "PUT",
+      headers: request.headers,
+      body
+    });
+
+    if (!response.ok) {
+      throw new Error(`OSS storage upload failed (${response.status}): ${await safeReadResponseText(response)}`);
+    }
+
+    return {
+      storageKey: relativePath,
+      absolutePath: null
+    };
+  }
+
+  private resolveObjectTarget(storageKey: string): ResolvedObjectTarget {
+    const normalizedStorageKey = storageKey.replaceAll("\\", "/");
+
+    if (normalizedStorageKey.startsWith("uploads/")) {
+      return {
+        bucket: this.runtimeConfig.buckets.uploads,
+        objectPath: normalizedStorageKey.slice("uploads/".length)
+      };
+    }
+
+    if (normalizedStorageKey.startsWith("generated/")) {
+      return {
+        bucket: this.runtimeConfig.buckets.generated,
+        objectPath: normalizedStorageKey.slice("generated/".length)
+      };
+    }
+
+    throw new Error(`Unsupported storage key for OSS storage: ${storageKey}`);
+  }
+
+  private buildSignedRequest(input: {
+    method: "GET" | "PUT";
+    target: ResolvedObjectTarget;
+    contentType?: string;
+  }) {
+    const date = new Date().toUTCString();
+    const canonicalHeaders: Array<[string, string]> = [];
+    if (this.runtimeConfig.securityToken) {
+      canonicalHeaders.push(["x-oss-security-token", this.runtimeConfig.securityToken]);
+    }
+    canonicalHeaders.sort((a, b) => a[0].localeCompare(b[0]));
+    const canonicalizedHeaders = canonicalHeaders.map(([key, value]) => `${key}:${value}\n`).join("");
+    const resource = `/${input.target.bucket}/${input.target.objectPath}`;
+    const stringToSign = [
+      input.method,
+      "",
+      input.contentType ?? "",
+      date,
+      `${canonicalizedHeaders}${resource}`
+    ].join("\n");
+    const signature = createHmac("sha1", this.runtimeConfig.accessKeySecret)
+      .update(stringToSign, "utf8")
+      .digest("base64");
+    const headers: Record<string, string> = {
+      Date: date,
+      Authorization: `OSS ${this.runtimeConfig.accessKeyId}:${signature}`,
+      ...(input.contentType ? { "Content-Type": input.contentType } : {})
+    };
+
+    for (const [key, value] of canonicalHeaders) {
+      headers[key] = value;
+    }
+
+    const endpoint = new URL(this.runtimeConfig.endpoint);
+    const objectUrl = new URL(`${encodeStoragePath(input.target.objectPath)}`, `${endpoint.protocol}//${input.target.bucket}.${endpoint.host}/`);
+
+    return {
+      url: objectUrl.toString(),
+      headers
     };
   }
 }

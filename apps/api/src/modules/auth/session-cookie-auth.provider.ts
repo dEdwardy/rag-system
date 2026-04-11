@@ -4,6 +4,7 @@ import type { AuthIdentity } from "./auth-identity.contract";
 import { readNamedCookie } from "./auth-cookie.utils";
 import type { AuthIdentityProvider, AuthProviderRequest } from "./auth-provider.contract";
 import { AuthRuntimeConfigService } from "./auth-runtime-config";
+import { type AuthSessionStore, createDatabaseAuthSessionStoreFromPrisma, isAuthSessionStore } from "./auth-session.store";
 
 const SESSION_LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 const SESSION_IDENTITY_CACHE_TTL_MS = 10_000;
@@ -17,11 +18,16 @@ type CachedSessionIdentity = {
 @Injectable()
 export class SessionCookieAuthProvider implements AuthIdentityProvider {
   private readonly identityCache = new Map<string, CachedSessionIdentity>();
+  private readonly sessionStore: AuthSessionStore;
 
   constructor(
-    private readonly prisma: PrismaService,
+    prismaOrStore: PrismaService | AuthSessionStore,
     private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
-  ) {}
+  ) {
+    this.sessionStore = isAuthSessionStore(prismaOrStore)
+      ? prismaOrStore
+      : createDatabaseAuthSessionStoreFromPrisma(prismaOrStore);
+  }
 
   async resolveIdentity(input: { request: AuthProviderRequest }): Promise<AuthIdentity | null> {
     const sessionId = this.readSessionId(input.request.headers);
@@ -47,52 +53,18 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
       return cachedIdentity;
     }
 
-    const session = await this.prisma.authSession.findUnique({
-      where: {
-        id: sessionId
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            tenantId: true,
-            role: true,
-            status: true
-          }
-        }
-      }
-    });
+    const session = await this.sessionStore.getSession(sessionId);
 
     if (session == null) {
       return null;
     }
 
-    if (session.revokedAt != null || session.expiresAt.getTime() <= Date.now()) {
-      this.identityCache.delete(session.id);
-      await this.markSessionRevoked(session.id, session.revokedAt);
-      return null;
-    }
-
-    if (session.user.status !== "active") {
-      this.identityCache.delete(session.id);
-      await this.markSessionRevoked(session.id, session.revokedAt);
-      return null;
-    }
-
     const shouldRefreshLastSeenAt =
       options.updateLastSeenAt &&
-      (session.lastSeenAt == null || Date.now() - session.lastSeenAt.getTime() >= SESSION_LAST_SEEN_UPDATE_INTERVAL_MS);
+      (session.lastSeenAtMs == null || Date.now() - session.lastSeenAtMs >= SESSION_LAST_SEEN_UPDATE_INTERVAL_MS);
 
     if (shouldRefreshLastSeenAt) {
-      await this.prisma.authSession.updateMany({
-        where: {
-          id: session.id,
-          revokedAt: null
-        },
-        data: {
-          lastSeenAt: new Date()
-        }
-      });
+      await this.sessionStore.touchSession(session.id, new Date());
     }
 
     const identity = {
@@ -105,7 +77,7 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
 
     this.identityCache.set(sessionId, {
       identity,
-      expiresAtMs: session.expiresAt.getTime(),
+      expiresAtMs: session.expiresAtMs,
       cachedAtMs: Date.now()
     });
 
@@ -121,22 +93,9 @@ export class SessionCookieAuthProvider implements AuthIdentityProvider {
     return readNamedCookie(headers, cookieName);
   }
 
-  private async markSessionRevoked(sessionId: string, revokedAt: Date | null): Promise<void> {
+  private async markSessionRevoked(sessionId: string): Promise<void> {
     this.identityCache.delete(sessionId);
-
-    if (revokedAt != null) {
-      return;
-    }
-
-    await this.prisma.authSession.updateMany({
-      where: {
-        id: sessionId,
-        revokedAt: null
-      },
-      data: {
-        revokedAt: new Date()
-      }
-    });
+    await this.sessionStore.revokeSession(sessionId);
   }
 
   private readCachedIdentity(sessionId: string): AuthIdentity | null {

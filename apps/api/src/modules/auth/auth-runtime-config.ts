@@ -41,6 +41,9 @@ export type OidcRuntimeConfig = {
 export type AuthRuntimeConfig = {
   isDevelopmentLike: boolean;
   defaultTenantId: string;
+  sessionStoreProvider: "database" | "redis";
+  redisUrl: string | null;
+  sessionStoreKeyPrefix: string;
   sessionTtlHours: number;
   // access JWT 的有效期。短时有效，过期后走 session 驱动续签。
   accessJwtTtlMinutes: number;
@@ -99,6 +102,9 @@ export function resolveAuthRuntimeConfig(env: NodeJS.ProcessEnv = process.env): 
   return {
     isDevelopmentLike: (env.NODE_ENV ?? "").trim() !== "production",
     defaultTenantId: readString(env.AUTH_DEFAULT_TENANT_ID) ?? DEFAULT_DEV_TENANT_ID,
+    sessionStoreProvider: readAuthSessionStoreProvider(env.AUTH_SESSION_STORE_PROVIDER),
+    redisUrl: readString(env.REDIS_URL) ?? null,
+    sessionStoreKeyPrefix: readString(env.AUTH_SESSION_STORE_KEY_PREFIX) ?? "rag-auth",
     sessionTtlHours,
     accessJwtTtlMinutes,
     sessionCookieName: readString(env.AUTH_SESSION_COOKIE_NAME) ?? DEFAULT_AUTH_SESSION_COOKIE_NAME,
@@ -168,6 +174,19 @@ export function resolveAuthRuntimeConfig(env: NodeJS.ProcessEnv = process.env): 
       }
     }
   };
+}
+
+function readAuthSessionStoreProvider(rawValue: string | undefined): "database" | "redis" {
+  const normalized = rawValue?.trim().toLowerCase();
+  if (!normalized) {
+    return "database";
+  }
+
+  if (normalized === "database" || normalized === "redis") {
+    return normalized;
+  }
+
+  throw new AuthRuntimeConfigError("AUTH_SESSION_STORE_PROVIDER must be one of: database, redis.");
 }
 
 function readBoolean(rawValue: string | undefined, fallback: boolean): boolean {

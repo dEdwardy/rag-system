@@ -197,7 +197,7 @@ test("SessionCookieAuthProvider reuses a short-lived cached identity", async () 
   assert.equal(touchedSessions.length, 0);
 });
 
-test("SessionCookieAuthProvider revokes expired sessions and returns null", async () => {
+test("SessionCookieAuthProvider returns null for expired sessions", async () => {
   const revokedCalls = [];
   const provider = new SessionCookieAuthProvider({
     authSession: {
@@ -228,12 +228,7 @@ test("SessionCookieAuthProvider revokes expired sessions and returns null", asyn
   });
 
   assert.equal(identity, null);
-  assert.equal(revokedCalls.length, 1);
-  assert.deepEqual(revokedCalls[0].where, {
-    id: "expired-session",
-    revokedAt: null
-  });
-  assert.ok(revokedCalls[0].data.revokedAt instanceof Date);
+  assert.equal(revokedCalls.length, 0);
 });
 
 test("AccessJwtAuthProvider resolves identity from access token cookie without session lookup", async () => {

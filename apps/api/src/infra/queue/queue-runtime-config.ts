@@ -1,9 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 
-export type QueueProvider = "database" | "pgmq";
+export type QueueProvider = "database" | "pgmq" | "redis";
 
 export type QueueRuntimeConfig = {
   provider: QueueProvider;
+  redisUrl: string | null;
   queuePrefix: string | null;
   enableDocumentIngestionWorker: boolean;
   databasePollIntervalMs: number;
@@ -26,10 +27,15 @@ export class QueueRuntimeConfigError extends Error {
 export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env): QueueRuntimeConfig {
   const provider = (env.QUEUE_PROVIDER?.trim() || "pgmq") as QueueProvider;
 
-  if (provider !== "database" && provider !== "pgmq") {
+  if (provider !== "database" && provider !== "pgmq" && provider !== "redis") {
     throw new QueueRuntimeConfigError(
-      `Unsupported QUEUE_PROVIDER \"${env.QUEUE_PROVIDER}\". Expected \"database\" or \"pgmq\".`
+      `Unsupported QUEUE_PROVIDER \"${env.QUEUE_PROVIDER}\". Expected \"database\", \"pgmq\", or \"redis\".`
     );
+  }
+
+  const redisUrl = readOptionalString(env.REDIS_URL);
+  if (provider === "redis" && !redisUrl) {
+    throw new QueueRuntimeConfigError("REDIS_URL is required when QUEUE_PROVIDER=redis.");
   }
 
   const databasePollIntervalMs = parsePositiveInteger(env.QUEUE_DATABASE_POLL_INTERVAL_MS, 1000, "QUEUE_DATABASE_POLL_INTERVAL_MS");
@@ -45,6 +51,7 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
 
   return {
     provider,
+    redisUrl,
     queuePrefix: readOptionalString(env.QUEUE_PREFIX),
     enableDocumentIngestionWorker: env.DOCUMENT_INGESTION_WORKER_ENABLED !== "false",
     databasePollIntervalMs,

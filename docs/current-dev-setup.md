@@ -8,13 +8,14 @@
 Start local services:
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.local-infra.yml up -d
 ```
 
 This brings up:
 
 - PostgreSQL on `localhost:5432`
 - Redis on `localhost:6379`
+- PostgreSQL starts with `pgvector` enabled via init script
 
 ## Install dependencies
 
@@ -27,6 +28,15 @@ If this is a fresh checkout, copy the example env into the API app first:
 ```bash
 cp .env.example apps/api/.env
 ```
+
+For the local Docker Desktop infra baseline, prefer creating `apps/api/.env.local` from:
+
+```bash
+cp apps/api/.env.local.example apps/api/.env.local
+```
+
+- this local example assumes Docker Desktop provides PostgreSQL + Redis on `127.0.0.1`
+- object storage can now use OSS directly; keep valid `OSS_*` values in local env when moving off Supabase Storage
 
 For clean-checkout or CI-like validation, explicitly generate the Prisma client before API build/typecheck:
 
@@ -47,8 +57,9 @@ Current local PostgreSQL connection values:
 
 Queue runtime now runs in two supported modes:
 
-- `QUEUE_PROVIDER=pgmq` (default): Supabase Queues / `pgmq`-backed ingestion queue
-- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue fallback
+- `QUEUE_PROVIDER=pgmq`: Supabase Queues / `pgmq`-backed ingestion queue
+- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue mode for local/self-hosted Postgres
+- `QUEUE_PROVIDER=redis`: Redis-backed ingestion queue mode for local/self-hosted infra
 
 Database queue runtime settings:
 
@@ -61,6 +72,21 @@ QUEUE_DATABASE_MAX_ATTEMPTS=3
 
 - the database queue stores durable ingestion jobs in `IngestionQueueJob`
 - retries are handled by the API worker poll loop using the configured delay/max-attempt settings above
+- when using the local Docker Postgres stack without Redis queue enabled yet, `QUEUE_PROVIDER=database` remains the simplest fallback
+
+Redis queue runtime settings:
+
+```text
+QUEUE_PROVIDER=redis
+QUEUE_PREFIX=rag-local
+REDIS_URL=redis://127.0.0.1:6379
+QUEUE_DATABASE_POLL_INTERVAL_MS=1000
+QUEUE_DATABASE_RETRY_DELAY_MS=5000
+QUEUE_DATABASE_MAX_ATTEMPTS=3
+```
+
+- Redis queue currently uses a lightweight pending-list + delayed-retry implementation intended for local/self-hosted use
+- local Docker Desktop baseline now prefers `QUEUE_PROVIDER=redis`
 
 Supabase Queues / `pgmq` runtime settings:
 
@@ -75,6 +101,7 @@ QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS=300
 - `pgmq` requires the `pgmq` extension to exist on the target database; apply the approved migration rollout before switching runtime traffic
 - the API ensures the configured ingestion queue exists at runtime using the current `QUEUE_PREFIX`
 - message retry delay still uses `QUEUE_DATABASE_RETRY_DELAY_MS`, while `QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS` controls how long an in-flight message stays invisible before it can be delivered again
+- the local Docker Postgres stack in `docker-compose.local-infra.yml` does not install `pgmq`; use `QUEUE_PROVIDER=database` locally unless you provision `pgmq` separately
 
 Apply migrations:
 
@@ -133,6 +160,18 @@ This expects the local PostgreSQL stack to be running.
 
 - when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL
 - when `QUEUE_PROVIDER=pgmq`, the ingestion queue runs through the Supabase `pgmq` extension
+- when `QUEUE_PROVIDER=redis`, the ingestion queue runs from Redis using the configured `REDIS_URL`
+- local Docker Desktop baseline recommendation:
+
+```text
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rag_system
+DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:5432/rag_system
+QUEUE_PROVIDER=redis
+REDIS_URL=redis://127.0.0.1:6379
+VECTOR_STORE_PROVIDER=pgvector
+```
+
+- Redis is now the preferred local queue baseline; PostgreSQL-backed queue mode remains available as a fallback/debug path
 
 Health check:
 
@@ -182,6 +221,8 @@ AUTH_SESSION_TTL_HOURS=168
 AUTH_ACCESS_TOKEN_COOKIE_NAME=rag_access_token
 AUTH_ACCESS_JWT_TTL_MINUTES=15
 AUTH_ACCESS_JWT_SECRET=<production-use-a-strong-secret>
+AUTH_SESSION_STORE_PROVIDER=redis
+AUTH_SESSION_STORE_KEY_PREFIX=rag-auth
 AUTH_COOKIE_SECURE=false
 AUTH_COOKIE_SAME_SITE=Lax
 AUTH_RATE_LIMIT_REFRESH_WINDOW_MS=60000
@@ -194,6 +235,7 @@ AUTH_RATE_LIMIT_REFRESH_MAX=30
   - access JWT 过期后，前端请求层会在收到 `401` 时调用 `POST /auth/refresh`，成功后自动重放原请求
   - 为了平滑迁移，旧的 session-only 登录态仍保留 fallback；前端在启动或首次 `401` 后可通过 refresh 补发 access JWT
   - 生产环境必须显式配置强随机 `AUTH_ACCESS_JWT_SECRET`
+  - local/self-hosted recommendation now uses `AUTH_SESSION_STORE_PROVIDER=redis`, so refresh/logout/session validation no longer requires the database `AuthSession` table in that mode
 - production container startup should inject env at runtime (for example via `docker compose` `env_file` or container platform secrets); do not rely on baking `apps/api/.env.production` into the image
 - CORS behavior now differs by runtime mode:
   - development / non-production: allow request origins dynamically so local multi-port frontend work is not blocked by fixed origin lists
@@ -267,25 +309,35 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
   - treat `sitemap` / `sitemapindex` only as URL index hints, not as authorization grants
   - users are responsible for confirming rights-to-use before ingestion
   - external resync remains incremental-first: in-flight resync is not duplicated, and very recent `ready/completed` external docs are skipped for immediate repeat broad refetch
-- storage runtime now requires Supabase Storage:
+- storage runtime supports OSS or Supabase Storage:
 
 ```text
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET_UPLOADS=uploads
-SUPABASE_STORAGE_BUCKET_GENERATED=generated
+STORAGE_PROVIDER=oss
+OSS_ENDPOINT=https://oss-cn-chengdu.aliyuncs.com
+OSS_ACCESS_KEY_ID=
+OSS_ACCESS_KEY_SECRET=
+OSS_BUCKET_UPLOADS=rag-system-uploads
+OSS_BUCKET_GENERATED=rag-system-generated
 VECTOR_STORE_PROVIDER=pgvector
 VECTOR_STORE_PGVECTOR_TABLE=ChunkEmbedding
 VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 ```
 
-- the runtime now exclusively uses Supabase Storage for all file operations
-- local filesystem storage has been removed; all storage operations now go through Supabase Storage API
-- the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between local and Supabase storage
-- `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
+- supported object storage providers:
+  - `STORAGE_PROVIDER=oss`
+  - `STORAGE_PROVIDER=supabase`
+  - `STORAGE_PROVIDER=local` only for narrow debug cases
+- the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between OSS and Supabase storage
+- when using OSS, provide bucket-level credentials with write/read access to the configured upload/generated buckets
 - vector storage now defaults to PostgreSQL `pgvector`; set `VECTOR_STORE_PROVIDER=filesystem` only for narrow compatibility/debug cases
 - the default runtime baseline is no longer local-only infra; normal development and deployment should assume Supabase Storage plus PostgreSQL-backed queue/vector services are available
 - current pgvector support is intentionally scoped to the verified `nomic-embed-text` setup and expects `VECTOR_STORE_PGVECTOR_DIMENSIONS=768`
+- current migration direction for local development is: self-host Postgres/Redis with Docker Desktop, and prefer OSS for object storage when available
+- near-term migration direction:
+  - local infra: Docker Desktop `postgres + pgvector + redis`
+  - project services: app-local `api/web`
+  - shared infra naming: use `infra-postgres` / `infra-redis` when introducing long-lived shared containers outside this repo
+  - local/self-hosted auth session store can now run on Redis via `AUTH_SESSION_STORE_PROVIDER=redis`; database-backed sessions remain available as a compatibility fallback
 
 ## GitHub Actions production image and deploy
 

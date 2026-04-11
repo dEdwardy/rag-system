@@ -11,11 +11,15 @@ test("resolveQueueRuntimeConfig defaults to pgmq", () => {
 
   assert.deepEqual(config, {
     provider: "pgmq",
+    redisUrl: null,
+    queuePrefix: null,
     enableDocumentIngestionWorker: true,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
     databaseMaxAttempts: 3,
-    pgmqVisibilityTimeoutSeconds: 300
+    pgmqVisibilityTimeoutSeconds: 300,
+    maxConcurrentIngestionTasks: 3,
+    maxTaskTimeoutMs: 300000
   });
 });
 
@@ -30,11 +34,15 @@ test("resolveQueueRuntimeConfig supports database provider", () => {
 
   assert.deepEqual(config, {
     provider: "database",
+    redisUrl: null,
+    queuePrefix: null,
     enableDocumentIngestionWorker: false,
     databasePollIntervalMs: 250,
     databaseRetryDelayMs: 3000,
     databaseMaxAttempts: 5,
-    pgmqVisibilityTimeoutSeconds: 300
+    pgmqVisibilityTimeoutSeconds: 300,
+    maxConcurrentIngestionTasks: 3,
+    maxTaskTimeoutMs: 300000
   });
 });
 
@@ -46,11 +54,36 @@ test("resolveQueueRuntimeConfig supports pgmq provider", () => {
 
   assert.deepEqual(config, {
     provider: "pgmq",
+    redisUrl: null,
+    queuePrefix: null,
     enableDocumentIngestionWorker: true,
     databasePollIntervalMs: 1000,
     databaseRetryDelayMs: 5000,
     databaseMaxAttempts: 3,
-    pgmqVisibilityTimeoutSeconds: 45
+    pgmqVisibilityTimeoutSeconds: 45,
+    maxConcurrentIngestionTasks: 3,
+    maxTaskTimeoutMs: 300000
+  });
+});
+
+test("resolveQueueRuntimeConfig supports redis provider", () => {
+  const config = resolveQueueRuntimeConfig({
+    QUEUE_PROVIDER: "redis",
+    REDIS_URL: "redis://127.0.0.1:6379",
+    QUEUE_PREFIX: "rag-local"
+  });
+
+  assert.deepEqual(config, {
+    provider: "redis",
+    redisUrl: "redis://127.0.0.1:6379",
+    queuePrefix: "rag-local",
+    enableDocumentIngestionWorker: true,
+    databasePollIntervalMs: 1000,
+    databaseRetryDelayMs: 5000,
+    databaseMaxAttempts: 3,
+    pgmqVisibilityTimeoutSeconds: 300,
+    maxConcurrentIngestionTasks: 3,
+    maxTaskTimeoutMs: 300000
   });
 });
 

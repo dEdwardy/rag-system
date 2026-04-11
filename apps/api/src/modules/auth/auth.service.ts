@@ -33,17 +33,9 @@ import {
 } from "./oidc-oauth.provider";
 import { AuthRuntimeConfigService } from "./auth-runtime-config";
 import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
+import { AUTH_SESSION_STORE, type AuthSessionStore, type AuthUserSnapshot, createDatabaseAuthSessionStoreFromPrisma } from "./auth-session.store";
 
 type AuthWriteClient = Prisma.TransactionClient | PrismaService;
-type AuthUserSnapshot = {
-  id: string;
-  email: string | null;
-  name: string;
-  displayName: string | null;
-  role: AuthIdentity["role"];
-  tenantId: string;
-};
-
 type SessionResult = {
   identity: AuthIdentity;
   user: AuthUserSnapshot;
@@ -63,7 +55,9 @@ export class AuthService {
     @Inject(OIDC_OAUTH_PROVIDER)
     private readonly oidcOauthProvider: OidcOauthProvider = new HttpOidcOauthProvider(),
     private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService(),
-    private readonly sessionCookieAuthProvider: SessionCookieAuthProvider = new SessionCookieAuthProvider(prisma)
+    private readonly sessionCookieAuthProvider: SessionCookieAuthProvider = new SessionCookieAuthProvider(prisma),
+    @Inject(AUTH_SESSION_STORE)
+    private readonly authSessionStore: AuthSessionStore = createDatabaseAuthSessionStoreFromPrisma(prisma)
   ) {}
 
   async startOauthProvider(input: {
@@ -292,15 +286,7 @@ export class AuthService {
 
   async logout(input: { sessionId?: string | null }): Promise<{ ok: true }> {
     if (typeof input.sessionId === "string" && input.sessionId.length > 0) {
-      await this.prisma.authSession.updateMany({
-        where: {
-          id: input.sessionId,
-          revokedAt: null
-        },
-        data: {
-          revokedAt: new Date()
-        }
-      });
+      await this.authSessionStore.revokeSession(input.sessionId);
     }
 
     return { ok: true };
@@ -473,16 +459,13 @@ export class AuthService {
     now?: Date;
   }, prisma: AuthWriteClient = this.prisma): Promise<SessionResult> {
     const now = input.now ?? new Date();
-    const expiresAt = new Date(now.getTime() + this.resolveSessionTtlMs());
-    const session = await prisma.authSession.create({
-      data: {
-        userId: input.user.id,
-        expiresAt,
-        lastSeenAt: now
-      },
-      select: {
-        id: true
-      }
+    const sessionStore = prisma === this.prisma
+      ? this.authSessionStore
+      : createDatabaseAuthSessionStoreFromPrisma(prisma);
+    const session = await sessionStore.createSession({
+      user: input.user,
+      now,
+      ttlMs: this.resolveSessionTtlMs()
     });
 
     const identity: AuthIdentity = {
@@ -497,7 +480,7 @@ export class AuthService {
     return {
       identity,
       user: input.user,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: new Date(session.expiresAtMs).toISOString(),
       accessToken: accessToken.token,
       accessTokenExpiresAt: accessToken.expiresAt
     };
@@ -509,50 +492,17 @@ export class AuthService {
       updateLastSeenAt: boolean;
     }
   ): Promise<{ identity: AuthIdentity; user: AuthUserSnapshot } | null> {
-    const session = await this.prisma.authSession.findUnique({
-      where: {
-        id: sessionId
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            tenantId: true,
-            name: true,
-            displayName: true,
-            email: true,
-            role: true,
-            status: true
-          }
-        }
-      }
-    });
+    const session = await this.authSessionStore.getSession(sessionId);
 
     if (session == null) {
       return null;
     }
 
-    if (session.revokedAt != null || session.expiresAt.getTime() <= Date.now()) {
-      return null;
-    }
-
-    if (session.user.status !== "active") {
-      return null;
-    }
-
     const shouldRefreshLastSeenAt =
       options.updateLastSeenAt &&
-      (session.lastSeenAt == null || Date.now() - session.lastSeenAt.getTime() >= 5 * 60 * 1000);
+      (session.lastSeenAtMs == null || Date.now() - session.lastSeenAtMs >= 5 * 60 * 1000);
     if (shouldRefreshLastSeenAt) {
-      await this.prisma.authSession.updateMany({
-        where: {
-          id: session.id,
-          revokedAt: null
-        },
-        data: {
-          lastSeenAt: new Date()
-        }
-      });
+      await this.authSessionStore.touchSession(session.id, new Date());
     }
 
     return {
