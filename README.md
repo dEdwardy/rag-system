@@ -175,8 +175,8 @@ The current codebase supports:
 
 - document upload and async ingestion
 - chunking for Markdown, TXT, DOCX, and text-based PDF files
-- embedding generation with Ollama or OpenAI paths plus local fallback behavior
-- file-backed vector retrieval with lexical fallback
+- embedding generation with Ollama or OpenAI providers
+- pgvector-backed retrieval with lexical fallback
 - ask flow with citations, conversations, messages, and traces
 - a web MVP for chat, documents, knowledge base, and assistant configuration
 

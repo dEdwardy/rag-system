@@ -1,0 +1,50 @@
+services:
+  infra-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: infra-postgres
+    restart: unless-stopped
+    shm_size: 1g
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rag_system}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - infra-postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-rag_system}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - rag-infra-net
+
+  infra-redis:
+    image: redis:7-alpine
+    container_name: infra-redis
+    restart: unless-stopped
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"
+      ]
+    volumes:
+      - infra-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - rag-infra-net
+
+volumes:
+  infra-postgres-data:
+  infra-redis-data:
+
+networks:
+  rag-infra-net:
+    name: ${DOCKER_SHARED_NETWORK:-rag-infra-net}

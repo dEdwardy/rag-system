@@ -199,7 +199,6 @@
   - 修复了 `ask-success.test.js` 的接口期望同步
   - 移除了 `ReportCenterPage.tsx` 的未使用导入
   - 添加了 `ErrorCode.INGESTION_STATE_WRITE_FAILED`
-  - 补充了 `docs/project-full-status-review.md`
   - focused validation：
     - `pnpm typecheck`
     - `pnpm test:api:file -- test/ask-success.test.js`
