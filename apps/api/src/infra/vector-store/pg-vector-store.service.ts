@@ -16,8 +16,7 @@ import {
   VectorSearchInput,
   VectorSearchResult,
   VectorStore,
-  VectorStoreCompatibilityError,
-  VectorStoreRecord
+  VectorStoreCompatibilityError
 } from "./vector-store.types";
 
 type IndexedConfigRow = {

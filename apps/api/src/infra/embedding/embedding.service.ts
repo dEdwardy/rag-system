@@ -21,7 +21,7 @@ export class EmbeddingService {
       return [];
     }
 
-    const { cached, uncached, indices } = this.embeddingCacheService.getBatch(normalizedTexts);
+    const { cached, uncached } = this.embeddingCacheService.getBatch(normalizedTexts);
 
     if (uncached.length === 0) {
       const result: EmbeddingVector[] = [];

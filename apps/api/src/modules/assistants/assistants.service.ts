@@ -85,7 +85,8 @@ export class AssistantsService {
         throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
       }
 
-      const { knowledgeBase: _, ...scopedAssistant } = existingAssistant;
+      const { knowledgeBase, ...scopedAssistant } = existingAssistant;
+      void knowledgeBase;
       return scopedAssistant;
     }
 

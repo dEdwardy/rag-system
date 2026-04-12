@@ -125,14 +125,13 @@ export class VectorStoreService implements VectorStore {
       const raw = buffer.toString("utf8");
       const parsed = JSON.parse(raw) as VectorStoreRecord[];
       return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
+    } catch {
       // If the file doesn't exist, return an empty array
       return [];
     }
   }
 
   private async writeKnowledgeBaseVectors(kbId: string, records: VectorStoreRecord[]) {
-    const storageKey = this.getKnowledgeBaseStorageKey(kbId);
     const content = JSON.stringify(records);
     const buffer = Buffer.from(content, "utf8");
 

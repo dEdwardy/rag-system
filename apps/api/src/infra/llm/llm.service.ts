@@ -789,7 +789,9 @@ export class LlmService {
           if (recovered) {
             return recovered;
           }
-        } catch {}
+        } catch {
+          // Ignore malformed nested recovery candidates and continue scanning.
+        }
       }
     }
 
