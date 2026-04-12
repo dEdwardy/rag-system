@@ -237,6 +237,79 @@ export class EvalQuestionSetsService {
     });
   }
 
+  async listQuestionSets(identity: AuthIdentity) {
+    await this.ensureTenant(identity.tenantId);
+    await this.ensureOwner(identity.userId);
+
+    const questionSets = await this.prisma.evalQuestionSet.findMany({
+      where: {
+        tenantId: identity.tenantId,
+        ownerId: identity.userId
+      },
+      orderBy: [
+        { updatedAt: "desc" },
+        { createdAt: "desc" }
+      ],
+      include: {
+        baselineSnapshot: {
+          select: {
+            id: true,
+            version: true,
+            createdAt: true
+          }
+        },
+        snapshots: {
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+
+    return questionSets.map(questionSet => ({
+      id: questionSet.id,
+      name: questionSet.name,
+      description: questionSet.description,
+      status: questionSet.status,
+      currentVersion: questionSet.currentVersion,
+      questionCount: this.readQuestions(questionSet.questionsJson).length,
+      baselineSnapshotId: questionSet.baselineSnapshotId,
+      baselineChosenAt: questionSet.baselineChosenAt,
+      baselineVersion: questionSet.baselineSnapshot?.version ?? null,
+      baselineSnapshotCreatedAt: questionSet.baselineSnapshot?.createdAt ?? null,
+      latestEvalRanAt: questionSet.latestEvalRanAt,
+      snapshotCount: questionSet.snapshots.length,
+      createdAt: questionSet.createdAt,
+      updatedAt: questionSet.updatedAt
+    }));
+  }
+
+  async listBaselineSnapshots(id: string, identity: AuthIdentity) {
+    await this.getOwnedQuestionSet(id, identity);
+
+    const snapshots = await this.prisma.evalQuestionSetBaselineSnapshot.findMany({
+      where: {
+        questionSetId: id,
+        tenantId: identity.tenantId,
+        ownerId: identity.userId
+      },
+      orderBy: [
+        { version: "desc" },
+        { createdAt: "desc" }
+      ]
+    });
+
+    return snapshots.map(snapshot => ({
+      id: snapshot.id,
+      questionSetId: snapshot.questionSetId,
+      version: snapshot.version,
+      name: snapshot.name,
+      description: snapshot.description,
+      questionCount: this.readQuestions(snapshot.questionsJson).length,
+      createdAt: snapshot.createdAt
+    }));
+  }
+
   async updateQuestionSet(id: string, input: UpdateEvalQuestionSetInput, identity: AuthIdentity) {
     const questionSet = await this.getOwnedQuestionSet(id, identity);
     this.assertEditable(questionSet.status, id);

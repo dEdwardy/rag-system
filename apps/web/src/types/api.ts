@@ -605,6 +605,46 @@ export type EvalQuestionSetRunComparisonMetric = {
 
 export type EvalQuestionSetRunQualityGateMode = "warn" | "fail";
 
+export type EvalQuestionSetListItem = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: "draft" | "locked" | "archived";
+  currentVersion: number;
+  questionCount: number;
+  baselineSnapshotId: string | null;
+  baselineChosenAt: string | null;
+  baselineVersion: number | null;
+  baselineSnapshotCreatedAt: string | null;
+  latestEvalRanAt: string | null;
+  snapshotCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EvalQuestionSetRecord = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: "draft" | "locked" | "archived";
+  currentVersion: number;
+  baselineSnapshotId: string | null;
+  baselineChosenAt: string | null;
+  latestEvalRanAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EvalQuestionSetBaselineSnapshotRecord = {
+  id: string;
+  questionSetId: string;
+  version: number;
+  name: string;
+  description: string | null;
+  questionCount: number;
+  createdAt: string;
+};
+
 export type EvalQuestionSetRunQualityGate = {
   mode: EvalQuestionSetRunQualityGateMode;
   status: "passed" | "warning" | "failed";

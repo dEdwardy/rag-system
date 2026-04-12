@@ -7,6 +7,7 @@
     "loop:start": "node .opencode/loop/harness/control.mjs start",
     "loop:stop": "node .opencode/loop/harness/control.mjs stop",
     "loop:status": "node .opencode/loop/harness/control.mjs status",
+    "check:encoding": "node scripts/check-encoding.mjs",
     "dev:web": "pnpm --filter @rag-system/web dev",
     "dev:api": "pnpm --filter @rag-system/api start:dev",
     "build": "pnpm -r build",

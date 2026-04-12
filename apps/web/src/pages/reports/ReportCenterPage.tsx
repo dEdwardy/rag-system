@@ -1,9 +1,17 @@
-import { Badge, Button, Paper, Select, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import { Badge, Button, Paper, Select, Stack, Text, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { lazy, Suspense, type FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
-import { useAssistants, useRunEvalQuestionSet } from "../../features/api/hooks";
+import {
+  useAssistants,
+  useChooseEvalQuestionSetBaseline,
+  useCreateEvalQuestionSet,
+  useEvalQuestionSetBaselineSnapshots,
+  useEvalQuestionSets,
+  useRunEvalQuestionSet,
+  useSnapshotEvalQuestionSetBaseline
+} from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { writeStorageItem } from "../../lib/browser-storage";
 import {
@@ -645,8 +653,58 @@ function getQualityGateMetricStrategy(args: {
       : "Check whether overly high citations are coming from noisy hits.";
 }
 
+function formatQuestionSetOptionLabel(args: {
+  questionSet: {
+    name: string;
+    questionCount: number;
+    status: "draft" | "locked" | "archived";
+  };
+  locale: "zh" | "en";
+}) {
+  const countLabel =
+    args.locale === "zh"
+      ? `${args.questionSet.questionCount} 道题`
+      : `${args.questionSet.questionCount} questions`;
+  const statusLabel =
+    args.locale === "zh"
+      ? args.questionSet.status === "locked"
+        ? "已锁定"
+        : args.questionSet.status === "archived"
+          ? "已归档"
+          : "草稿"
+      : args.questionSet.status === "locked"
+        ? "locked"
+        : args.questionSet.status === "archived"
+          ? "archived"
+          : "draft";
+
+  return `${args.questionSet.name} (${countLabel} · ${statusLabel})`;
+}
+
+function formatBaselineSnapshotOptionLabel(args: {
+  snapshot: {
+    version: number;
+    name: string;
+    questionCount: number;
+    createdAt: string;
+  };
+  formatDateTime: (value: string) => string;
+  locale: "zh" | "en";
+}) {
+  const countLabel =
+    args.locale === "zh"
+      ? `${args.snapshot.questionCount} 道题`
+      : `${args.snapshot.questionCount} questions`;
+
+  return `v${args.snapshot.version} · ${args.snapshot.name} (${countLabel} · ${args.formatDateTime(args.snapshot.createdAt)})`;
+}
+
 export function ReportCenterPage() {
+  const questionSetsQuery = useEvalQuestionSets();
   const assistantsQuery = useAssistants();
+  const createQuestionSetMutation = useCreateEvalQuestionSet();
+  const snapshotBaselineMutation = useSnapshotEvalQuestionSetBaseline();
+  const chooseBaselineMutation = useChooseEvalQuestionSetBaseline();
   const runEvalMutation = useRunEvalQuestionSet();
   const { locale, formatDateTime } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -654,6 +712,10 @@ export function ReportCenterPage() {
   const [questionSetId, setQuestionSetId] = useState(() => searchParams.get("questionSetId") ?? "");
   const [assistantId, setAssistantId] = useState(() => searchParams.get("assistantId") ?? "");
   const [baselineSnapshotId, setBaselineSnapshotId] = useState(() => searchParams.get("baselineSnapshotId") ?? "");
+  const [draftQuestionSetName, setDraftQuestionSetName] = useState("");
+  const [draftQuestionSetDescription, setDraftQuestionSetDescription] = useState("");
+  const [draftQuestionLines, setDraftQuestionLines] = useState("");
+  const baselineSnapshotsQuery = useEvalQuestionSetBaselineSnapshots(questionSetId || null);
 
   // 表格排序和筛选状态
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
@@ -661,6 +723,7 @@ export function ReportCenterPage() {
   const [filterQuality, setFilterQuality] = useState<string>("");
   const [filterReviewState, setFilterReviewState] = useState<"" | "pending" | "reviewed">("");
   const [filterConclusion, setFilterConclusion] = useState<"" | ReviewConclusion>("");
+  const [showPriorityOnly, setShowPriorityOnly] = useState(false);
   const [focusedItemKey, setFocusedItemKey] = useState<string | null>(null);
   const [reviewedItemKeys, setReviewedItemKeys] = useState<string[]>([]);
   const [reviewConclusions, setReviewConclusions] = useState<Record<string, ReviewConclusion>>({});
@@ -679,12 +742,58 @@ export function ReportCenterPage() {
       })),
     [assistantsQuery.data]
   );
+  const questionSetOptions = useMemo(
+    () =>
+      (questionSetsQuery.data ?? []).map(questionSet => ({
+        value: questionSet.id,
+        label: formatQuestionSetOptionLabel({
+          questionSet,
+          locale
+        })
+      })),
+    [locale, questionSetsQuery.data]
+  );
+  const baselineSnapshotOptions = useMemo(
+    () =>
+      (baselineSnapshotsQuery.data ?? []).map(snapshot => ({
+        value: snapshot.id,
+        label: formatBaselineSnapshotOptionLabel({
+          snapshot,
+          formatDateTime,
+          locale
+        })
+      })),
+    [baselineSnapshotsQuery.data, formatDateTime, locale]
+  );
+  const selectedQuestionSet = useMemo(
+    () => (questionSetsQuery.data ?? []).find(questionSet => questionSet.id === questionSetId) ?? null,
+    [questionSetId, questionSetsQuery.data]
+  );
+  const selectedBaselineSnapshot = useMemo(
+    () => (baselineSnapshotsQuery.data ?? []).find(snapshot => snapshot.id === baselineSnapshotId) ?? null,
+    [baselineSnapshotId, baselineSnapshotsQuery.data]
+  );
+  const hasSelectedBaseline = baselineSnapshotId.trim().length > 0;
+  const draftQuestionItems = useMemo(
+    () =>
+      draftQuestionLines
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean),
+    [draftQuestionLines]
+  );
 
   useEffect(() => {
     if (!assistantId && assistantOptions.length > 0) {
       setAssistantId(assistantOptions[0].value);
     }
   }, [assistantId, assistantOptions]);
+
+  useEffect(() => {
+    if (!questionSetId && questionSetOptions.length > 0) {
+      setQuestionSetId(questionSetOptions[0].value);
+    }
+  }, [questionSetId, questionSetOptions]);
 
   useEffect(() => {
     const paramsFromUrl = readEvalRunParamsFromSearchParams(searchParams);
@@ -709,6 +818,43 @@ export function ReportCenterPage() {
       setSearchParams(nextSearchParams, { replace: true });
     }
   }, [assistantId, baselineSnapshotId, questionSetId, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!questionSetId) {
+      if (baselineSnapshotId) {
+        setBaselineSnapshotId("");
+      }
+      return;
+    }
+
+    if (baselineSnapshotsQuery.isLoading || baselineSnapshotsQuery.isFetching) {
+      return;
+    }
+
+    const snapshots = baselineSnapshotsQuery.data ?? [];
+    if (snapshots.length === 0) {
+      if (baselineSnapshotId) {
+        setBaselineSnapshotId("");
+      }
+      return;
+    }
+
+    if (snapshots.some(snapshot => snapshot.id === baselineSnapshotId)) {
+      return;
+    }
+
+    const preferredSnapshotId = selectedQuestionSet?.baselineSnapshotId ?? snapshots[0]?.id ?? "";
+    if (preferredSnapshotId && preferredSnapshotId !== baselineSnapshotId) {
+      setBaselineSnapshotId(preferredSnapshotId);
+    }
+  }, [
+    baselineSnapshotId,
+    baselineSnapshotsQuery.data,
+    baselineSnapshotsQuery.isFetching,
+    baselineSnapshotsQuery.isLoading,
+    questionSetId,
+    selectedQuestionSet?.baselineSnapshotId
+  ]);
 
   const evalRunStatus = runEvalMutation.isPending || isRunPending
     ? "running"
@@ -741,8 +887,66 @@ export function ReportCenterPage() {
         : evalRunStatus === "failed"
           ? "Run failed"
           : evalRunStatus === "completed"
-            ? "Run completed"
-            : "Idle";
+          ? "Run completed"
+          : "Idle";
+  const reportWorkflowSteps = [
+    {
+      key: "prepare",
+      title: locale === "zh" ? "准备题集" : "Prepare set",
+      detail:
+        selectedQuestionSet != null
+          ? locale === "zh"
+            ? hasSelectedBaseline
+              ? "题集和 baseline 已就绪"
+              : "题集已选中，下一步生成 baseline"
+            : "Question set selected"
+          : locale === "zh"
+            ? "先准备题集和 baseline"
+            : "Create a set and baseline first",
+      state: selectedQuestionSet != null && hasSelectedBaseline ? "completed" : "current"
+    },
+    {
+      key: "run",
+      title: locale === "zh" ? "运行检查" : "Run check",
+      detail:
+        runEvalMutation.data != null
+          ? locale === "zh"
+            ? "本轮检查已完成"
+            : "Current run completed"
+          : evalRunStatus === "running"
+            ? locale === "zh"
+              ? "质量检查正在运行"
+              : "Quality check in progress"
+            : selectedQuestionSet != null && hasSelectedBaseline
+              ? locale === "zh"
+                ? "选择 assistant 后即可运行"
+                : "Select an assistant to run"
+              : locale === "zh"
+                ? "准备完成后再运行"
+                : "Run after preparation",
+      state:
+        runEvalMutation.data != null
+          ? "completed"
+          : evalRunStatus === "running"
+            ? "current"
+            : selectedQuestionSet != null && hasSelectedBaseline
+              ? "current"
+              : "upcoming"
+    },
+    {
+      key: "review",
+      title: locale === "zh" ? "复盘结果" : "Review result",
+      detail:
+        runEvalMutation.data != null
+          ? locale === "zh"
+            ? "查看摘要、弱项和下一步动作"
+            : "Review summary, weakest items, and next actions"
+          : locale === "zh"
+            ? "运行完成后进入复盘"
+            : "Review after the run finishes",
+      state: runEvalMutation.data != null ? "current" : "upcoming"
+    }
+  ] as const;
 
   const qualitySummaryRows = useMemo(() => {
     if (deferredRunItems.length === 0) {
@@ -796,6 +1000,10 @@ export function ReportCenterPage() {
   const reviewedItemKeySet = useMemo(() => new Set(deferredReviewedItemKeys), [deferredReviewedItemKeys]);
   const topPriorityReviewedCount = topPriorityReviewItems.filter(({ item }) => reviewedItemKeySet.has(getEvalItemKey(item.index, item.question))).length;
   const reviewedRunItemCount = deferredRunItems.filter(item => reviewedItemKeySet.has(getEvalItemKey(item.index, item.question))).length;
+  const prioritizedItemKeySet = useMemo(
+    () => new Set(topPriorityReviewItems.map(({ item }) => getEvalItemKey(item.index, item.question))),
+    [topPriorityReviewItems]
+  );
   const reviewConclusionCount = Object.keys(reviewConclusions).length;
   const reviewConclusionSummary = useMemo(() => {
     const counts = new Map<ReviewConclusion, number>();
@@ -885,6 +1093,10 @@ export function ReportCenterPage() {
       setReviewUpdatedAt(null);
     }
   }, [reviewStateStorageKey]);
+
+  useEffect(() => {
+    setShowPriorityOnly(topPriorityReviewItems.length > 0);
+  }, [runEvalMutation.data?.startedAt, topPriorityReviewItems.length]);
 
   useEffect(() => {
     if (!reviewStateStorageKey || typeof window === "undefined") {
@@ -1055,23 +1267,67 @@ export function ReportCenterPage() {
   const selectedAssistantLabel =
     assistantOptions.find(option => option.value === assistantId)?.label ??
     (assistantId.trim().length > 0 ? assistantId.trim() : locale === "zh" ? "尚未选择" : "Not selected");
+  const selectedQuestionSetLabel =
+    selectedQuestionSet != null
+      ? `${selectedQuestionSet.name} (${selectedQuestionSet.id})`
+      : normalizedPreRunParams?.questionSetId ??
+        (locale === "zh" ? "尚未选择题集" : "Question set not selected");
+  const selectedBaselineSnapshotLabel =
+    selectedBaselineSnapshot != null
+      ? `v${selectedBaselineSnapshot.version} - ${selectedBaselineSnapshot.name} (${selectedBaselineSnapshot.id})`
+      : normalizedPreRunParams?.baselineSnapshotId
+        ? normalizedPreRunParams.baselineSnapshotId
+        : locale === "zh"
+          ? "本次 run 不绑定 baseline"
+          : "Not linked for this run";
+  const selectedQuestionSetSummaryRows = selectedQuestionSet
+    ? [
+        {
+          key: "questions",
+          label: locale === "zh" ? "题目数" : "Questions",
+          value: locale === "zh" ? `${selectedQuestionSet.questionCount} 道` : `${selectedQuestionSet.questionCount}`
+        },
+        {
+          key: "baseline-version",
+          label: locale === "zh" ? "Baseline 版本" : "Baseline version",
+          value:
+            selectedQuestionSet.baselineVersion != null
+              ? `v${selectedQuestionSet.baselineVersion}`
+              : locale === "zh"
+                ? "尚未绑定"
+                : "Not selected"
+        },
+        {
+          key: "last-run",
+          label: locale === "zh" ? "最近运行" : "Last run",
+          value:
+            selectedQuestionSet.latestEvalRanAt != null
+              ? formatDateTime(selectedQuestionSet.latestEvalRanAt)
+              : locale === "zh"
+                ? "还没有运行记录"
+                : "No runs yet"
+        }
+      ]
+    : [];
   const preRunContextRows = [
     {
       key: "question-set",
-      label: locale === "zh" ? "Question set" : "Question set",
-      value:
+      label: locale === "zh" ? "题集" : "Question set",
+      value: selectedQuestionSetLabel,
+      legacyValue:
         normalizedPreRunParams?.questionSetId ??
         (locale === "zh" ? "尚未填写（运行前会去除前后空格）" : "Not set (trimmed before run)")
     },
     {
       key: "assistant",
-      label: locale === "zh" ? "Assistant" : "Assistant",
+      label: locale === "zh" ? "助手" : "Assistant",
       value: selectedAssistantLabel
     },
     {
       key: "baseline",
-      label: locale === "zh" ? "Baseline snapshot" : "Baseline snapshot",
-      value:
+      label: locale === "zh" ? "基线快照" : "Baseline snapshot",
+      value: selectedBaselineSnapshotLabel,
+      legacyValue:
         normalizedPreRunParams?.baselineSnapshotId
           ? normalizedPreRunParams.baselineSnapshotId
           : locale === "zh"
@@ -1080,7 +1336,7 @@ export function ReportCenterPage() {
     },
     {
       key: "carry-through",
-      label: locale === "zh" ? "URL carry-through" : "URL carry-through",
+      label: locale === "zh" ? "URL 预填参数" : "URL carry-through",
       value:
         preRunContextPreview.searchParams?.toString() ??
         (locale === "zh"
@@ -1088,6 +1344,63 @@ export function ReportCenterPage() {
           : "Fill question set and assistant to carry through in URL")
     }
   ];
+  const preRunGuideSteps = [
+    {
+      key: "question-set",
+      title: locale === "zh" ? "准备题集" : "Prepare question set",
+      detail:
+        selectedQuestionSet != null
+          ? locale === "zh"
+            ? "题集已选中，可以直接复用。"
+            : "A question set is selected and ready to reuse."
+          : locale === "zh"
+            ? "先选择已有题集，或者在右侧新建一组。"
+            : "Select an existing set or create one on the right first.",
+      done: selectedQuestionSet != null
+    },
+    {
+      key: "baseline",
+      title: locale === "zh" ? "生成 baseline" : "Generate baseline",
+      detail:
+        hasSelectedBaseline
+          ? locale === "zh"
+            ? "当前题集已经绑定 baseline。"
+            : "This question set already has a baseline selected."
+          : locale === "zh"
+            ? "新题集第一次运行前，要先生成 baseline。"
+            : "For a new set, generate a baseline before the first run.",
+      done: hasSelectedBaseline
+    },
+    {
+      key: "assistant",
+      title: locale === "zh" ? "选择 assistant" : "Choose assistant",
+      detail:
+        assistantId.trim().length > 0
+          ? locale === "zh"
+            ? "Assistant 已选好，可以执行检查。"
+            : "An assistant is selected and ready to run."
+          : locale === "zh"
+            ? "最后再选 assistant，然后执行质量检查。"
+            : "Choose the assistant last, then run the quality check.",
+      done: assistantId.trim().length > 0
+    }
+  ] as const;
+  const preRunPrimaryTip =
+    selectedQuestionSet == null
+      ? locale === "zh"
+        ? "先完成第 1 步：从“已有题集”里选一组，或者在右侧直接新建题集。"
+        : "Start with step 1: select an existing question set or create one on the right."
+      : !hasSelectedBaseline
+        ? locale === "zh"
+          ? "当前最关键的是先生成 baseline；没有 baseline 时，这页不会允许执行 quality check。"
+          : "The next required action is to generate a baseline. Without it, this page will not let you run the quality check."
+        : assistantId.trim().length === 0
+          ? locale === "zh"
+            ? "题集和 baseline 都已经准备好了，现在只需要选择 assistant 就能运行。"
+            : "The question set and baseline are ready. Choose the assistant and you can run immediately."
+          : locale === "zh"
+            ? "准备已经完成，可以直接点击“Run quality check”。"
+            : "Preparation is complete. You can click Run quality check now.";
 
 
 
@@ -1196,6 +1509,7 @@ export function ReportCenterPage() {
 
   function focusRunItem(index: number, question: string) {
     const nextKey = getEvalItemKey(index, question);
+    setShowPriorityOnly(false);
     setFilterStatus("");
     setFilterQuality("");
     setFilterReviewState("");
@@ -1208,6 +1522,89 @@ export function ReportCenterPage() {
         block: "center"
       });
     });
+  }
+
+  async function onCreateQuestionSetSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedName = draftQuestionSetName.trim();
+    const trimmedDescription = draftQuestionSetDescription.trim();
+    const questions = draftQuestionItems;
+
+    if (!trimmedName || questions.length === 0) {
+      notifications.show({
+        color: "red",
+        message:
+          locale === "zh"
+            ? "请至少填写题集名称，并提供一条以上问题。"
+            : "Please add a question set name and at least one question.",
+        title: locale === "zh" ? "还不能创建题集" : "Question set is not ready"
+      });
+      return;
+    }
+
+    try {
+      const created = await createQuestionSetMutation.mutateAsync({
+        name: trimmedName,
+        ...(trimmedDescription ? { description: trimmedDescription } : {}),
+        questions
+      });
+
+      setQuestionSetId(created.id);
+      setBaselineSnapshotId(created.baselineSnapshotId ?? "");
+      setDraftQuestionSetName("");
+      setDraftQuestionSetDescription("");
+      setDraftQuestionLines("");
+
+      notifications.show({
+        color: "teal",
+        message:
+          locale === "zh"
+            ? "题集已创建并自动选中，接下来可以直接生成 baseline。"
+            : "Question set created and selected. You can generate a baseline next.",
+        title: locale === "zh" ? "题集创建成功" : "Question set created"
+      });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message: error instanceof Error ? error.message : locale === "zh" ? "创建题集失败。" : "Failed to create question set.",
+        title: locale === "zh" ? "创建失败" : "Creation failed"
+      });
+    }
+  }
+
+  async function onCreateBaselineClick() {
+    if (!questionSetId) {
+      return;
+    }
+
+    try {
+      const snapshot = await snapshotBaselineMutation.mutateAsync(questionSetId);
+      await chooseBaselineMutation.mutateAsync({
+        questionSetId,
+        snapshotId: snapshot.id
+      });
+      setBaselineSnapshotId(snapshot.id);
+
+      notifications.show({
+        color: "teal",
+        message:
+          locale === "zh"
+            ? "已为当前题集生成并选中 baseline。"
+            : "Created and selected a baseline for the current question set.",
+        title: locale === "zh" ? "Baseline 已就绪" : "Baseline ready"
+      });
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        message:
+          error instanceof Error
+            ? error.message
+            : locale === "zh"
+              ? "生成 baseline 失败。"
+              : "Failed to generate a baseline.",
+        title: locale === "zh" ? "Baseline 生成失败" : "Baseline creation failed"
+      });
+    }
   }
 
   function toggleReviewedItem(index: number, question: string) {
@@ -1282,6 +1679,10 @@ export function ReportCenterPage() {
 
     return filteredItems;
   }, [runEvalMutation.data?.items, sortConfig, filterStatus, filterQuality, filterReviewState, filterConclusion, reviewedItemKeySet, reviewConclusions]);
+  const displayedResults = useMemo(
+    () => (showPriorityOnly ? sortedAndFilteredItems.filter(item => prioritizedItemKeySet.has(getEvalItemKey(item.index, item.question))) : sortedAndFilteredItems),
+    [showPriorityOnly, sortedAndFilteredItems, prioritizedItemKeySet]
+  );
 
   // 获取唯一的状态和质量值用于筛选
   const statusOptions = useMemo(() => {
@@ -1324,6 +1725,48 @@ export function ReportCenterPage() {
 
       <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
         <Stack gap="md">
+          <Paper className="workspace-subpanel" p="md" radius="xl">
+            <div className="grid gap-3 md:grid-cols-3">
+              {reportWorkflowSteps.map((step, index) => {
+                const isCompleted = step.state === "completed";
+                const isCurrent = step.state === "current";
+
+                return (
+                  <div
+                    className={
+                      "rounded-2xl border p-4 " +
+                      (isCompleted
+                        ? "border-emerald-500/40 bg-emerald-500/10"
+                        : isCurrent
+                          ? "border-indigo-500/40 bg-indigo-500/10"
+                          : "border-white/10 bg-white/5")
+                    }
+                    key={step.key}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={
+                          "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold " +
+                          (isCompleted
+                            ? "bg-emerald-500 text-white"
+                            : isCurrent
+                              ? "bg-indigo-500 text-white"
+                              : "bg-white/10 text-[var(--app-text-muted)]")
+                        }
+                      >
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-[var(--app-text)]">{step.title}</div>
+                        <div className="text-xs text-[var(--app-text-muted)]">{step.detail}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Paper>
+
             <div>
               <div className="workspace-section-heading">{locale === "zh" ? "运行质量检查" : "Run quality check"}</div>
               <p className="mt-2 text-sm text-[var(--app-text-muted)]">
@@ -1333,36 +1776,349 @@ export function ReportCenterPage() {
               </p>
             </div>
 
+          <Paper className="workspace-subpanel" p="md" radius="xl">
+            <Stack gap="md">
+              <div>
+                <Text className="workspace-section-heading">
+                  {locale === "zh" ? "第一步：准备题集和 baseline" : "Step 1: prepare a question set and baseline"}
+                </Text>
+                <Text c="var(--app-text-muted)" size="sm">
+                  {locale === "zh"
+                    ? "第一次使用时，先准备一组稳定问题，再为这组问题生成 baseline。后面的质量检查和回归对比都会基于它。"
+                    : "For a first run, prepare a stable question set and generate its baseline first. The later quality checks and regression diffs will build on it."}
+                </Text>
+              </div>
+
+              <form className="grid gap-3 md:grid-cols-2" onSubmit={onCreateQuestionSetSubmit}>
+                <Paper className="workspace-subpanel" p="md" radius="lg">
+                  <Stack gap="sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <Text c="var(--app-text)" fw={700} size="sm">
+                        {locale === "zh" ? "复用已有题集" : "Reuse an existing set"}
+                      </Text>
+                      <Badge color="gray" variant="light">
+                        {questionSetOptions.length > 0
+                          ? locale === "zh"
+                            ? `${questionSetOptions.length} 组可用`
+                            : `${questionSetOptions.length} available`
+                          : locale === "zh"
+                            ? "还没有题集"
+                            : "No sets yet"}
+                      </Badge>
+                    </div>
+                    <Select
+                      data={questionSetOptions}
+                      description={
+                        locale === "zh"
+                          ? "已有题集时，直接从这里切换。"
+                          : "Switch here when you already have question sets."
+                      }
+                      label={locale === "zh" ? "已有题集" : "Existing question sets"}
+                      nothingFoundMessage={
+                        questionSetsQuery.isLoading
+                          ? locale === "zh"
+                            ? "正在加载题集..."
+                            : "Loading question sets..."
+                          : locale === "zh"
+                            ? "还没有题集，先在右侧创建一组"
+                            : "No question sets yet. Create one on the right."
+                      }
+                      onChange={value => {
+                        setQuestionSetId(value ?? "");
+                        setBaselineSnapshotId("");
+                      }}
+                      placeholder={locale === "zh" ? "从现有题集中选择" : "Select an existing question set"}
+                      searchable
+                      value={questionSetId || null}
+                    />
+                    <Paper className="workspace-subpanel" p="sm" radius="lg">
+                      <Stack gap={6}>
+                        <Text c="var(--app-text-muted)" size="xs">
+                          {locale === "zh" ? "当前已选题集" : "Selected question set"}
+                        </Text>
+                        <Text fw={600} size="sm">
+                          {selectedQuestionSetLabel}
+                        </Text>
+                        <div className="grid gap-2 md:grid-cols-3">
+                          {selectedQuestionSetSummaryRows.length > 0 ? (
+                            selectedQuestionSetSummaryRows.map(row => (
+                              <div className="workspace-meta-row" key={row.key}>
+                                <span className="workspace-meta-label">{row.label}</span>
+                                <span className="workspace-meta-value">{row.value}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="workspace-meta-row">
+                              <span className="workspace-meta-label">{locale === "zh" ? "状态" : "Status"}</span>
+                              <span className="workspace-meta-value">
+                                {locale === "zh" ? "还没有选中题集" : "No question set selected yet"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="workspace-meta-row">
+                          <span className="workspace-meta-label">{locale === "zh" ? "当前基线快照" : "Current baseline"}</span>
+                          <span className="workspace-meta-value">{selectedBaselineSnapshotLabel}</span>
+                        </div>
+                      </Stack>
+                    </Paper>
+                  </Stack>
+                </Paper>
+                <Paper className="workspace-subpanel" p="md" radius="lg">
+                  <Stack gap="sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <Text c="var(--app-text)" fw={700} size="sm">
+                        {locale === "zh" ? "新建题集" : "Create a new set"}
+                      </Text>
+                      <Badge color="indigo" variant="light">
+                        {locale === "zh" ? "一行一题" : "One question per line"}
+                      </Badge>
+                    </div>
+                    <Textarea
+                      autosize
+                      description={
+                        locale === "zh"
+                          ? "建议用能看出真实问答质量的一组稳定问题，一行一题。"
+                          : "Use a stable set of questions that reflects real answer quality, one question per line."
+                      }
+                      label={locale === "zh" ? "新题集问题" : "Questions for a new set"}
+                      minRows={4}
+                      maxRows={8}
+                      onChange={event => setDraftQuestionLines(event.currentTarget.value)}
+                      placeholder={locale === "zh" ? "问题 1\n问题 2\n问题 3" : "Question 1\nQuestion 2\nQuestion 3"}
+                      value={draftQuestionLines}
+                    />
+                    <Stack gap="sm">
+                  <Textarea
+                    autosize
+                    description={
+                      locale === "zh"
+                        ? "起一个容易识别的名字，方便以后直接选中。"
+                        : "Choose a clear name so this set is easy to identify later."
+                    }
+                    label={locale === "zh" ? "题集名称" : "Question set name"}
+                    minRows={1}
+                    onChange={event => setDraftQuestionSetName(event.currentTarget.value)}
+                    placeholder={locale === "zh" ? "例如：回归 smoke 集" : "Example: Regression smoke set"}
+                    value={draftQuestionSetName}
+                  />
+                  <Textarea
+                    autosize
+                    description={
+                      locale === "zh"
+                        ? "补一句用途说明，后续更容易区分不同题集。"
+                        : "Add a short description so different question sets stay easy to distinguish."
+                    }
+                    label={locale === "zh" ? "题集说明" : "Question set description"}
+                    minRows={2}
+                    onChange={event => setDraftQuestionSetDescription(event.currentTarget.value)}
+                    placeholder={
+                      locale === "zh"
+                        ? "用于 assistant 配置改动后的日常回归检查"
+                        : "Used for day-to-day regression checks after assistant changes"
+                    }
+                    value={draftQuestionSetDescription}
+                  />
+                  <Text c="var(--app-text-muted)" size="xs">
+                    {locale === "zh"
+                      ? `当前已整理 ${draftQuestionItems.length} 道题，创建后会自动选中这组题集。`
+                      : `${draftQuestionItems.length} questions prepared. The new question set will be selected automatically.`}
+                  </Text>
+                  <Button
+                    className="workspace-button"
+                    color="teal"
+                    loading={createQuestionSetMutation.isPending}
+                    radius="xl"
+                    type="submit"
+                    variant="light"
+                  >
+                    {locale === "zh" ? "创建题集并自动选中" : "Create and select question set"}
+                  </Button>
+                  <Button
+                    className="workspace-button"
+                    color={hasSelectedBaseline ? "teal" : "indigo"}
+                    disabled={!questionSetId}
+                    loading={snapshotBaselineMutation.isPending || chooseBaselineMutation.isPending}
+                    onClick={onCreateBaselineClick}
+                    radius="xl"
+                    type="button"
+                    variant={hasSelectedBaseline ? "subtle" : "filled"}
+                  >
+                    {hasSelectedBaseline
+                      ? locale === "zh"
+                        ? "重新生成基线快照"
+                        : "Regenerate baseline"
+                      : locale === "zh"
+                        ? "先生成基线快照"
+                        : "Generate baseline first"}
+                  </Button>
+                  <Text c="var(--app-text-muted)" size="xs">
+                    {hasSelectedBaseline
+                      ? locale === "zh"
+                        ? "基线快照已经就绪，下面再选助手并开始这轮质量检查。"
+                        : "The baseline is ready. Continue below to choose the assistant and start the quality check."
+                      : locale === "zh"
+                        ? "这里是当前最重要的一步。先生成基线快照，下面的正式运行才会开放。"
+                        : "This is the current blocking step. Generate the baseline first to unlock the formal run below."}
+                  </Text>
+                    </Stack>
+                  </Stack>
+                </Paper>
+              </form>
+            </Stack>
+          </Paper>
+
+          <div>
+            <div className="workspace-section-heading">{locale === "zh" ? "第二步：运行质量检查" : "Step 2: run the quality check"}</div>
+            <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+              {locale === "zh"
+                ? "题集和 baseline 就绪后，再选择本次要验证的 assistant，触发一轮正式检查。"
+                : "Once the question set and baseline are ready, choose the assistant you want to validate and trigger a formal check."}
+            </p>
+          </div>
+
+          <Paper className="workspace-subpanel" p="md" radius="xl">
+            <Stack gap="sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge color={selectedQuestionSet ? "teal" : "gray"} variant="light">
+                  {selectedQuestionSet ? (locale === "zh" ? "题集已就绪" : "Question set ready") : locale === "zh" ? "还没选题集" : "Question set missing"}
+                </Badge>
+                <Badge color={hasSelectedBaseline ? "teal" : "gray"} variant="light">
+                  {hasSelectedBaseline ? (locale === "zh" ? "基线快照已就绪" : "Baseline ready") : locale === "zh" ? "还没生成 baseline" : "Baseline missing"}
+                </Badge>
+                <Badge color={assistantId ? "teal" : "gray"} variant="light">
+                  {assistantId ? (locale === "zh" ? "助手已选好" : "Assistant ready") : locale === "zh" ? "还没选助手" : "Assistant missing"}
+                </Badge>
+              </div>
+              <Text c="var(--app-text-muted)" size="sm">
+                {selectedQuestionSet && hasSelectedBaseline && assistantId
+                  ? locale === "zh"
+                    ? "现在已经可以直接开始这轮质量检查。"
+                    : "Everything is ready. You can start this quality check now."
+                  : locale === "zh"
+                    ? "先把这三项补齐，再执行正式检查。"
+                    : "Complete these three items first, then run the formal quality check."}
+              </Text>
+            </Stack>
+          </Paper>
+
           <form className="grid gap-4 md:grid-cols-3" onSubmit={onRunEvalSubmit}>
-            <TextInput
-              label={locale === "zh" ? "Question set ID" : "Question set id"}
-              onChange={event => setQuestionSetId(event.currentTarget.value)}
+            <Select
+              label={locale === "zh" ? "题集" : "Question set"}
+              description={
+                locale === "zh"
+                  ? "先选一组题集，系统会基于这组固定问题来跑质量检查。"
+                  : "Pick a question set first. The report runs against that fixed set of questions."
+              }
+              disabled={questionSetsQuery.isLoading}
+              nothingFoundMessage={
+                questionSetsQuery.isLoading
+                  ? locale === "zh"
+                    ? "正在加载题集..."
+                    : "Loading question sets..."
+                  : locale === "zh"
+                    ? "当前还没有可用题集"
+                    : "No question sets yet"
+              }
+              onChange={value => {
+                setQuestionSetId(value ?? "");
+                setBaselineSnapshotId("");
+              }}
+              data={questionSetOptions}
               placeholder={locale === "zh" ? "例如：set-1" : "e.g. set-1"}
               required
-              value={questionSetId}
+              searchable
+              value={questionSetId || null}
               size="md"
             />
             <Select
               data={assistantOptions}
-              label={locale === "zh" ? "Assistant" : "Assistant"}
+              description={
+                locale === "zh"
+                  ? "选择这次要验证的 assistant 配置。"
+                  : "Choose the assistant configuration you want to validate."
+              }
+              label={locale === "zh" ? "助手" : "Assistant"}
               onChange={value => setAssistantId(value ?? "")}
               placeholder={locale === "zh" ? "选择 assistant" : "Select assistant"}
               searchable
               value={assistantId || null}
               size="md"
             />
-            <TextInput
-              label={locale === "zh" ? "Baseline snapshot（可选）" : "Baseline snapshot (optional)"}
-              onChange={event => setBaselineSnapshotId(event.currentTarget.value)}
+            <Select
+              label={
+                locale === "zh"
+                  ? "基线快照（首次运行前请先生成）"
+                  : "Baseline snapshot (generate one before the first run)"
+              }
+              clearable
+              data={baselineSnapshotOptions}
+              description={
+                locale === "zh"
+                  ? "用来做回归对比的 baseline。通常会自动带出该题集当前选中的 baseline。"
+                  : "Used for regression comparison. For a new question set, generate one first; it will then be auto-filled when available."
+              }
+              disabled={!questionSetId || baselineSnapshotsQuery.isLoading}
+              nothingFoundMessage={
+                !questionSetId
+                  ? locale === "zh"
+                    ? "请先选择题集"
+                    : "Select a question set first"
+                  : baselineSnapshotsQuery.isLoading
+                    ? locale === "zh"
+                      ? "正在加载 baseline..."
+                      : "Loading baselines..."
+                    : locale === "zh"
+                      ? "这个题集还没有 baseline 快照"
+                      : "No baseline snapshots for this question set"
+              }
+              onChange={value => setBaselineSnapshotId(value ?? "")}
               placeholder={locale === "zh" ? "例如：snapshot-1" : "e.g. snapshot-1"}
-              value={baselineSnapshotId}
+              searchable
+              value={baselineSnapshotId || null}
               size="md"
             />
 
             <div className="md:col-span-3">
-              <Button className="workspace-button w-full" color="indigo" loading={runEvalMutation.isPending || isRunPending} radius="xl" type="submit" variant="light" size="md">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <Text c="var(--app-text-muted)" size="xs">
+                  {hasSelectedBaseline
+                    ? locale === "zh"
+                      ? "准备完成后，这里就是本页的主操作。"
+                      : "Once preparation is complete, this becomes the main action on the page."
+                    : locale === "zh"
+                      ? "这一步会在基线快照准备好之后自动成为主操作。"
+                      : "This becomes the main action automatically once the baseline is ready."}
+                </Text>
+                <Badge color={hasSelectedBaseline ? "indigo" : "gray"} variant="light">
+                  {hasSelectedBaseline
+                    ? locale === "zh"
+                      ? "已解锁正式运行"
+                      : "Formal run unlocked"
+                    : locale === "zh"
+                      ? "等待基线快照"
+                      : "Waiting for baseline"}
+                </Badge>
+              </div>
+              <Button
+                className="workspace-button w-full"
+                color={hasSelectedBaseline ? "indigo" : "gray"}
+                disabled={!hasSelectedBaseline}
+                loading={runEvalMutation.isPending || isRunPending}
+                radius="xl"
+                type="submit"
+                variant={hasSelectedBaseline ? "filled" : "light"}
+                size="md"
+              >
                 {locale === "zh" ? "开始质量检查" : "Run quality check"}
               </Button>
+              {!hasSelectedBaseline ? (
+                <Text c="var(--app-text-muted)" mt={8} size="xs">
+                  {locale === "zh"
+                    ? "先在上面的第 1 步为当前题集生成 baseline，再运行质量检查。"
+                    : "Generate a baseline for the current question set in Step 1 before running the quality check."}
+                </Text>
+              ) : null}
             </div>
           </form>
 
@@ -1382,23 +2138,68 @@ export function ReportCenterPage() {
 
           {showPreRunGuidance ? (
             <Stack gap={6}>
+              <div>
+                <div className="workspace-section-heading">{locale === "zh" ? "第三步：看结果并继续复盘" : "Step 3: review the result and continue"}</div>
+                <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                  {locale === "zh"
+                    ? "跑完以后先看摘要，再看 weakest items 和下一步动作。需要深入时再跳到 Trace 或 Assistant。"
+                    : "After the run, start from the summary, then review weakest items and next actions. Open Trace or Assistant only when you need to go deeper."}
+                </p>
+              </div>
               <StatePanel
                 description={
                   locale === "zh"
                     ? "先执行一次质量检查，再从质量摘要、差异摘要和弱项列表开始查看。"
-                    : "Run one quality check first, then review the quality summary, diff summary, and weakest items."}
+                    : questionSetsQuery.data?.length
+                    ? "Choose a question set and assistant, then run one check. A baseline is auto-filled when available, and then you can review the summary, diff summary, and weakest items."
+                    : "There are no question sets yet, so this page cannot run a report yet. Usually you need to create a question set first and then generate a baseline snapshot."}
                 title={locale === "zh" ? "先跑一次质量检查" : "Start with one quality check"}
                 tone="empty"
               />
+              <Paper className="workspace-subpanel" p="md" radius="xl">
+                <Stack gap="sm">
+                  <Text className="workspace-section-heading">
+                    {locale === "zh" ? "第一次使用，先按这个顺序" : "First-time path"}
+                  </Text>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {preRunGuideSteps.map((step, index) => (
+                      <Paper className="workspace-subpanel" key={step.key} p="sm" radius="lg">
+                        <Stack gap={6}>
+                          <div className="flex items-center justify-between gap-2">
+                            <Text c="var(--app-text)" fw={600} size="sm">
+                              {locale === "zh" ? `步骤 ${index + 1}` : `Step ${index + 1}`}
+                            </Text>
+                            <Badge color={step.done ? "teal" : "gray"} variant="light">
+                              {step.done ? (locale === "zh" ? "已就绪" : "Ready") : locale === "zh" ? "下一步" : "Next"}
+                            </Badge>
+                          </div>
+                          <Text c="var(--app-text)" fw={600} size="sm">
+                            {step.title}
+                          </Text>
+                          <Text c="var(--app-text-muted)" size="xs">
+                            {step.detail}
+                          </Text>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </div>
+                  <div className="workspace-meta-row">
+                    <span className="workspace-meta-label">{locale === "zh" ? "现在最该做的" : "Do this now"}</span>
+                    <span className="workspace-meta-value">{preRunPrimaryTip}</span>
+                  </div>
+                </Stack>
+              </Paper>
               <Text c="var(--app-text-muted)" data-testid="report-center-pre-run-path" size="xs">
                 {locale === "zh"
-                  ? "建议路径：质量检查（触发首轮）→ 质量报告（查看摘要/差异/弱项）"
-                  : "Suggested path: quality check (trigger first run) -> quality reports (review summary/diff/weakest items)"}
+                  ? "建议路径：先跑一次质量检查 → 再看摘要、差异和弱项"
+                  : questionSetsQuery.data?.length
+                    ? "Suggested path: select question set -> select assistant -> confirm baseline -> run first quality check -> review summary / diff / weakest items"
+                    : "Setup path: create a question set -> generate a baseline snapshot -> come back here to run the quality check"}
               </Text>
               <Paper className="workspace-subpanel" p="md" radius="xl">
                 <Stack gap="xs">
                   <Text className="workspace-section-heading">
-                    {locale === "zh" ? "当前检查上下文" : "Current check context"}
+                    {locale === "zh" ? "当前准备情况" : "Current check context"}
                   </Text>
                   <div className="grid gap-2 md:grid-cols-3">
                     {preRunContextRows.map(row => (
@@ -1470,7 +2271,7 @@ export function ReportCenterPage() {
 
           <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
             <Stack gap="sm">
-              <div className="workspace-section-heading">{locale === "zh" ? "结果速读路径" : "Result review path"}</div>
+              <div className="workspace-section-heading">{locale === "zh" ? "结果查看顺序" : "Result review path"}</div>
               <Text c="var(--app-text-muted)" size="sm">
                 {locale === "zh"
                   ? "按 当前输入 -> 结果摘要 -> 差异 -> 弱项 -> 下一步 的顺序快速查看。"
@@ -1478,7 +2279,7 @@ export function ReportCenterPage() {
               </Text>
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="workspace-meta-row">
-                  <span className="workspace-meta-label">{locale === "zh" ? "当前输入" : "Current inputs"}</span>
+                  <span className="workspace-meta-label">{locale === "zh" ? "本次输入" : "Current inputs"}</span>
                   <span className="workspace-meta-value">
                     {runEvalMutation.data.questionSetId} · {runEvalMutation.data.assistantId}
                   </span>
@@ -1837,10 +2638,10 @@ export function ReportCenterPage() {
           {topPriorityReviewItems.length > 0 ? (
             <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
               <Stack gap="sm">
-                <div className="workspace-section-heading">{locale === "zh" ? "本次优先处理的 3 个问题" : "Top 3 issues to handle first"}</div>
+              <div className="workspace-section-heading">{locale === "zh" ? "本次优先处理的 3 个问题" : "Top 3 issues to handle first"}</div>
                 <Text c="var(--app-text-muted)" size="sm">
                   {locale === "zh"
-                    ? "先按这个顺序复盘，避免在完整结果表里来回找重点。"
+                    ? "先按这个顺序看，避免在完整结果表里来回找重点。"
                     : "Review in this order first so you do not have to search the full result table for the highest-value issues."}
                 </Text>
                 <div className="grid gap-3 lg:grid-cols-3">
@@ -2007,6 +2808,15 @@ export function ReportCenterPage() {
             </Paper>
           ) : null}
 
+          <div>
+            <div className="workspace-section-heading">{locale === "zh" ? "先看摘要和结论" : "Start with the takeaways"}</div>
+            <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+              {locale === "zh"
+                ? "这里先给你当前 run 的摘要、主要回归差异和建议的下一步动作。先读这一块，再决定要不要继续下钻。"
+                : "This section gives the run summary, the main regression signals, and the next recommended action. Read this first before drilling into details."}
+            </p>
+          </div>
+
           <Suspense fallback={<ReportAnalysisPanelsFallback locale={locale} />}>
             <ReportAnalysisPanels
               answerStatusDistribution={answerStatusDistribution}
@@ -2035,6 +2845,61 @@ export function ReportCenterPage() {
             />
           </Suspense>
 
+          <div>
+            <div className="workspace-section-heading">{locale === "zh" ? "再看问题分布和详细分析" : "Then inspect the detailed analysis"}</div>
+            <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+              {locale === "zh"
+                ? "需要判断问题更像 retrieval、citation 还是 answer 时，再看这部分的图表和分布。"
+                : "Use these charts and distributions when you need to decide whether the issue is more about retrieval, citations, or answer behavior."}
+            </p>
+          </div>
+
+          <Paper className="workspace-subpanel" p="md" radius="xl">
+            <Stack gap="xs">
+              <div className="workspace-section-heading">{locale === "zh" ? "最后再看完整结果表" : "Open the full results last"}</div>
+              <Text c="var(--app-text-muted)" size="sm">
+                {locale === "zh"
+                  ? "只有在你已经看过摘要、优先题和下一步动作之后，再来这里逐题细看。第一次使用时，不需要一上来就读完整表格。"
+                  : "Come here after you review the summary, the priority items, and the suggested next action. On a first pass, you do not need to start with the full table."}
+              </Text>
+              <div className="flex flex-wrap gap-2">
+                <Badge color="indigo" radius="sm" variant="light">
+                  {locale === "zh" ? `${topPriorityReviewItems.length} 条优先题` : `${topPriorityReviewItems.length} priority items`}
+                </Badge>
+                <Badge color="teal" radius="sm" variant="light">
+                  {locale === "zh" ? `${reviewedRunItemCount} / ${deferredRunItems.length} 已复盘` : `${reviewedRunItemCount} / ${deferredRunItems.length} reviewed`}
+                </Badge>
+                <Badge color="gray" radius="sm" variant="light">
+                  {locale === "zh" ? "支持按状态 / 质量 / 结论筛选" : "Filter by status / quality / conclusion"}
+                </Badge>
+              </div>
+              {topPriorityReviewItems.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="workspace-button"
+                    color={showPriorityOnly ? "indigo" : "gray"}
+                    onClick={() => setShowPriorityOnly(true)}
+                    radius="xl"
+                    size="xs"
+                    variant={showPriorityOnly ? "light" : "subtle"}
+                  >
+                    {locale === "zh" ? "默认只看优先题" : "Focus priority items"}
+                  </Button>
+                  <Button
+                    className="workspace-button"
+                    color={!showPriorityOnly ? "teal" : "gray"}
+                    onClick={() => setShowPriorityOnly(false)}
+                    radius="xl"
+                    size="xs"
+                    variant={!showPriorityOnly ? "light" : "subtle"}
+                  >
+                    {locale === "zh" ? "查看全部结果" : "Show all results"}
+                  </Button>
+                </div>
+              ) : null}
+            </Stack>
+          </Paper>
+
           <Suspense fallback={<ReportResultsTableFallback locale={locale} />}>
             <ReportResultsTable
               buildTraceReviewLink={buildTraceReviewLink}
@@ -2061,7 +2926,7 @@ export function ReportCenterPage() {
               setFilterReviewState={setFilterReviewState}
               setFilterStatus={setFilterStatus}
               sortConfig={sortConfig}
-              sortedAndFilteredItems={sortedAndFilteredItems}
+              sortedAndFilteredItems={displayedResults}
               statusOptions={statusOptions}
               toggleReviewedItem={toggleReviewedItem}
               updateReviewConclusion={updateReviewConclusion}

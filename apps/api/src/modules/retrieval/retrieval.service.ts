@@ -1343,7 +1343,7 @@ export class RetrievalService {
     return raw
       .toLowerCase()
       .replace(/\s+/g, " ")
-      .replace(/[�?�?].*$/, "")
+      .replace(/(?:\uFFFD|\?){2,}.*$/, "")
       .trim();
   }
 

@@ -33,6 +33,21 @@ Active repository files should use UTF-8 consistently:
 - if terminal rendering looks garbled, verify the file with a strict UTF-8 read before rewriting it
 - if a file is truly encoding-damaged, normalize it to valid UTF-8 first, then continue with the intended edit
 
+Repository encoding audit:
+
+```bash
+pnpm check:encoding
+```
+
+- this checks repository text files with strict UTF-8 decoding
+- it reports invalid UTF-8, replacement characters (`U+FFFD`), and common western mojibake markers
+- by default it skips generated directories such as `output/`, `tmp/`, `.playwright-cli/`, and `storage/`
+- to include those generated directories in a deeper audit, run:
+
+```bash
+node scripts/check-encoding.mjs --include-generated
+```
+
 If this is a fresh checkout, copy the example env into the API app first:
 
 ```bash

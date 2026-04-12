@@ -19,6 +19,15 @@ import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-v
 export class EvalQuestionSetsController {
   constructor(private readonly evalQuestionSetsService: EvalQuestionSetsService) {}
 
+  @Get()
+  listQuestionSets(@Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.evalQuestionSetsService.listQuestionSets(authContext.identity);
+  }
+
   @Post()
   createQuestionSet(
     @Body(new ZodValidationPipe(createEvalQuestionSetSchema)) input: CreateEvalQuestionSetInput,
@@ -113,5 +122,14 @@ export class EvalQuestionSetsController {
     });
 
     return this.evalQuestionSetsService.compareWithBaseline(id, authContext.identity);
+  }
+
+  @Get(":id/baselines/snapshots")
+  listBaselineSnapshots(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.evalQuestionSetsService.listBaselineSnapshots(id, authContext.identity);
   }
 }
