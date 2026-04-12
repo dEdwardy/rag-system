@@ -1278,8 +1278,8 @@ export function ReportCenterPage() {
       : normalizedPreRunParams?.baselineSnapshotId
         ? normalizedPreRunParams.baselineSnapshotId
         : locale === "zh"
-          ? "本次 run 不绑定 baseline"
-          : "Not linked for this run";
+          ? "尚未生成基线快照"
+          : "Baseline not ready yet";
   const selectedQuestionSetSummaryRows = selectedQuestionSet
     ? [
         {
@@ -1331,8 +1331,8 @@ export function ReportCenterPage() {
         normalizedPreRunParams?.baselineSnapshotId
           ? normalizedPreRunParams.baselineSnapshotId
           : locale === "zh"
-            ? "本次 run 不绑定"
-            : "Not linked for this run"
+            ? "尚未生成"
+            : "Not ready yet"
     },
     {
       key: "carry-through",
@@ -1401,6 +1401,8 @@ export function ReportCenterPage() {
           : locale === "zh"
             ? "准备已经完成，可以直接点击“Run quality check”。"
             : "Preparation is complete. You can click Run quality check now.";
+  const canRunQualityCheck =
+    questionSetId.trim().length > 0 && assistantId.trim().length > 0 && hasSelectedBaseline;
 
 
 
@@ -2102,21 +2104,29 @@ export function ReportCenterPage() {
               </div>
               <Button
                 className="workspace-button w-full"
-                color={hasSelectedBaseline ? "indigo" : "gray"}
-                disabled={!hasSelectedBaseline}
+                color={canRunQualityCheck ? "indigo" : "gray"}
+                disabled={!canRunQualityCheck}
                 loading={runEvalMutation.isPending || isRunPending}
                 radius="xl"
                 type="submit"
-                variant={hasSelectedBaseline ? "filled" : "light"}
+                variant={canRunQualityCheck ? "filled" : "light"}
                 size="md"
               >
                 {locale === "zh" ? "开始质量检查" : "Run quality check"}
               </Button>
-              {!hasSelectedBaseline ? (
+              {!canRunQualityCheck ? (
                 <Text c="var(--app-text-muted)" mt={8} size="xs">
-                  {locale === "zh"
-                    ? "先在上面的第 1 步为当前题集生成 baseline，再运行质量检查。"
-                    : "Generate a baseline for the current question set in Step 1 before running the quality check."}
+                  {!questionSetId
+                    ? locale === "zh"
+                      ? "先在上面的第 1 步选择或创建题集。"
+                      : "Choose or create a question set in Step 1 first."
+                    : !hasSelectedBaseline
+                      ? locale === "zh"
+                        ? "先在上面的第 1 步为当前题集生成 baseline，再运行质量检查。"
+                        : "Generate a baseline for the current question set in Step 1 before running the quality check."
+                      : locale === "zh"
+                        ? "还需要先选择助手，然后才能开始质量检查。"
+                        : "Choose an assistant before starting the quality check."}
                 </Text>
               ) : null}
             </div>
