@@ -322,7 +322,7 @@ export function ChatPage() {
       inputHelpCanAsk: t("chat.copy.inputHelpCanAsk"),
       inputHelpDisabled: t("chat.copy.inputHelpDisabled"),
       askInputPlaceholder: t("chat.copy.askInputPlaceholder"),
-      fileUploadComingSoon: t("chat.copy.fileUploadComingSoon"),
+      uploadFromLibrary: locale === "zh" ? "请到资料库页面上传文档" : "Add documents from the library page",
       enterHint: t("chat.copy.enterHint"),
       history: t("chat.copy.history"),
       newChat: t("chat.copy.newChat"),
@@ -850,10 +850,10 @@ export function ChatPage() {
                 />
                 <div className="flex items-center gap-2 pr-1">
                   <button
-                    aria-label={chatCopy.fileUploadComingSoon}
+                    aria-label={chatCopy.uploadFromLibrary}
                     className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] opacity-65"
                     disabled
-                    title={chatCopy.fileUploadComingSoon}
+                    title={chatCopy.uploadFromLibrary}
                     type="button"
                   >
                     <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
@@ -887,7 +887,7 @@ export function ChatPage() {
             </div>
             <div className="mt-2 flex items-center justify-between px-2 text-[11px] text-[var(--app-text-muted)]">
               <span>{chatCopy.enterHint}</span>
-              <span>{chatCopy.fileUploadComingSoon}</span>
+              <span>{chatCopy.uploadFromLibrary}</span>
             </div>
           </form>
         </div>

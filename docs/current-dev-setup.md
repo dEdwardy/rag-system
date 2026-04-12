@@ -23,6 +23,16 @@ This brings up:
 pnpm install
 ```
 
+## Encoding baseline
+
+Active repository files should use UTF-8 consistently:
+
+- save source, config, scripts, and docs as UTF-8
+- prefer UTF-8 without BOM unless a tool explicitly requires BOM
+- do not save Chinese copy in GBK, ANSI, or editor-local encodings
+- if terminal rendering looks garbled, verify the file with a strict UTF-8 read before rewriting it
+- if a file is truly encoding-damaged, normalize it to valid UTF-8 first, then continue with the intended edit
+
 If this is a fresh checkout, copy the example env into the API app first:
 
 ```bash
@@ -560,6 +570,7 @@ AUTH_REFRESH_TOKEN_COOKIE_NAME=rag_refresh_token
   - current local-account login baseline (`Phase 1`) scope:
     - pre-created users only (seed/admin/manual bootstrap); no public signup in this wave
     - local seed defaults are now explicit for local development: `AUTH_DEV_DEFAULT_USER_EMAIL` (default `default-user@example.com`) and `AUTH_DEV_DEFAULT_USER_PASSWORD` (default `local-password-1`)
+    - current private-beta web behavior also auto-fills that same seeded account after invite-gate acceptance, even outside localhost; remove this fallback after the invite-only test phase ends
     - no password reset / forgot-password / email verification in this wave
     - JWT model remains cookie-based auth (`rag_access_token` + `rag_refresh_token`), with `/auth/me` as the frontend auth anchor
     - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase

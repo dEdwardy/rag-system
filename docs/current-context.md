@@ -1,67 +1,62 @@
-# Current Context
+﻿# Current Context
 
 > 文档角色：`current-context`
-> 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、硬边界、最小验证和高频入口，详细历史按需回看其他文档。
-更新时间：2026-04-05
+> 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
+> 更新时间：2026-04-13
 
 ## Current Mainline
 
-- 当前默认工作方式：单线推进、小步增量、每轮收口，不并行展开多个大方向。
+- 当前默认工作方式仍然是：单线推进、小步增量、每轮收口，不并行展开多个大方向。
 - 当前代码现实已经明显前于旧计划口径：
   - `P0` read-model / metadata convergence：已完成
   - `P1` auth/login 最小闭环：已完成
   - `P2` owner-only ACL baseline：已完成
   - `P3` external-source family + guardrails：开发已完成，进入维护态
-  - `P5` eval / regression baseline：工程化能力已完成，进入基线治理/使用态
-- 当前更合适的下一批增量不再是继续把 `P3` / `P5` 当成主开发波次。
-- `docs / stage alignment` 和当前这轮 `P4 web capability carry-through` 收口已完成；接下来更适合：
-  - 在 `P4/P5/P6` 已完成收口的基础上做 bounded maintenance
-  - 或选择一个新的明确产品波次，并保持单线推进
-- 最近一轮 `API best-practices hardening` 维护已完成当前范围收口：
-  - 修正了 `assistants/:id/ask/stream` 的 pre-stream HTTP 错误语义
-  - 为公开 auth 路由补了限流
-  - 为 OAuth onboarding / 默认 workspace 初始化补了事务边界
-  - 收敛了 auth / bootstrap / queue 的运行时配置读取
-- 修复了存储配置读取不一致问题：确保批量上传和单个上传使用相同的存储配置，所有文件都上传到 Supabase Storage
-- 后端输入校验 follow-up 也已推进一小步：controller 层新增 `ZodValidationPipe` 承接 `@Body()` / `@Query()`，并对以 `cuid` 为主的 `id` 路由参数补了非空字符串参数 pipe，而不是 UUID pipe
-  - 整体仍保持 `Zod-first` 方向，不切回 DTO 验证栈
-- 当前前端主路径已进一步收口到普通用户闭环：`资料库 -> 回答设置 -> 对话`，并在 `Chat` 首屏补了 setup-first onboarding、统一 readiness 状态和收窄后的 onboarding 摘要区。
-- 当前 `P5` 已从“能看报告”推进到“能治理一轮质量问题”的使用态：
-  - `质量报告` 现在可维护本地 reviewed/pending 状态、结论分类、本轮改进重点、本地复盘记录和改后复查建议
-  - `质量报告 -> 诊断 -> 文档详情 -> 回答设置 -> 回质量报告` 的窄闭环已经打通
-  - 上述治理状态仍保持前端本地持久化边界，不引入新的后端 review schema
-- `Document Detail -> Run -> Trace` 路径补齐了一项可读性维护：文档详情把当前 ingestion 状态与 next action 收敛到一个主状态区域，降低首屏来回扫读成本。
-- Documents 工作台的主状态 readout 进一步补齐了状态到动作的窄路径：失败态可直达失败文档诊断、进行中可直达当前 run 观察、就绪态可直达 trace 结果。
-- 同一路径补齐 failure summary 文案契约：失败主摘要先用产品语言说明发生了什么，再引导到既有 trace 诊断后续动作，不把后端底层字段作为主视图。
-- Report Center 的 pre-run readout 补齐了 URL carry-through 预览，运行前可直接核对 question set、assistant、baseline snapshot 与将写入 URL 的参数串。
-- Report Center 的 result readout 补齐了 summary-before-details 顺序：结果区先给出 current inputs / summary / diff / weakest-item / next action 的一屏速读，再进入图表与明细。
-- Report Center 的 regression follow-up 文案进一步收紧：回归原因标签优先使用可读产品语言，next action 明确指向现有的 Run diff summary 与 Regression weakest items 路径，不新增详情页。
-- 当前产品交互临时收敛为 `single primary KB`：前端默认围绕首个知识库工作，`Chat` / `Documents` / `Assistant` 先按同一 KB 对齐，避免上传在一个 KB、提问却落到另一个 assistant 绑定 KB 的错位体验。
-- `Chat` 首屏已进一步显式展示当前 `KB / assistant`，并在“已有 KB 但未绑定 assistant”时优先给出空态引导，避免界面只表现为输入框不可用。
-- 多 KB / 多租户交互暂不在当前使用方式上展开；后续若恢复该方向，应在显式 workspace/tenant 上下文之上重做，而不是继续依赖前端隐式的独立首项选择。
-- 当前 dev / smoke 验证若保留额外 `KB`、`assistant`、`document` 或其他测试数据，应避免这些数据继续影响 `single primary KB` 前端默认路径；在前端尚未具备显式 workspace / KB 选择前，不要让临时验证数据成为默认首项或默认问答上下文。
+  - `P4` web capability carry-through：当前范围内已收口，进入 bounded follow-up
+  - `P5` eval / regression baseline：工程能力已完成，进入治理/使用态
+  - `P6` observability readability：已完成 bounded closeout
+- 因此，接下来更合适的做法是：
+  - 在已完成区域内继续做 bounded maintenance
+  - 或者先明确下一条新的单线产品增量，再推进最小收口 increment
+
+## Current Product Shape
+
+- 前端主路径已经收口到普通用户可用闭环：`资料库 -> 回答设置 -> 对话`。
+- 当前产品交互仍以 `single primary KB` 为主，不展开多 KB / 多租户交互重做。
+- Trace / Report / Assistant settings 已经形成可用的治理闭环，适合继续做小步提质，不适合再开一轮大平台化改造。
+- 文档上传、解析、切块、检索、回答、引用、trace 持久化都已具备，后续重点不再是“把链路搭出来”，而是“把已有链路做稳、做清楚、做快一点”。
+
+## Retrieval / Quality Baseline
+
+- 当前仓库对齐后的默认本地 retrieval baseline 是保守配置：
+  - `topK = 3`
+  - `chunkWindow = 0`
+  - `hybrid = OFF`
+  - `rerank = OFF`
+- 最近一轮 retrieval/answering 修补已经把结构化 Markdown 的“只命中标题、不带正文”问题缩小到了可接受范围。
+- 本地 smoke 基线目前是 `37/40` grounded；剩余拒答更像来源内容不足，而不是主链路失效。
+- 当前更值得做的是轻量自适应 retrieval，而不是直接把默认参数重新放大。
 
 ## Current Priorities
 
-- `bounded stability maintenance`：保留 `P3/P5/P6` 范围内的小型回归修补，但不再把它们描述成主开发方向。
-- `API maintenance hardening`：后端 best-practices 本轮已完成一个窄范围收口；后续若继续推进，仍应限定在小型安全性/一致性/可维护性修补，不扩成后端重构波次。
-- `quality-governance usage follow-up`：当前最合理的 `P5` 后续已变成使用态维护，而不是继续扩工程能力；优先保持现有 reports / trace / settings 治理闭环的可用性、可读性和 docs 同步。
-- `next product increment selection`：如果继续做产品增量，优先从已完成的当前收口基础上选择一个新的明确小波次，而不是重新把 `P3/P4/P5` 包装成未完成主线。
-- `docs freshness`：继续保持阶段判断、状态摘要和执行边界同步，避免文档再次落后于代码现实。
+- `bounded stability maintenance`：继续修当前已完成区域内的高频回归，但不再把 `P3/P5/P6` 包装成新的 feature wave。
+- `docs freshness`：保持阶段判断、当前状态和入口文档与代码现实一致。
+- `next product increment selection`：如果继续做产品增量，优先先选定下一条明确主线，再推进最小可验证增量。
+- `performance follow-up`：当前性能优化优先盯 `first token pre-generation`，而不是继续把主要精力投到模型输出层。
 
 ## Execution Order
 
-1. 维持 `P3/P5/P6` 范围内的 bounded maintenance，只接受窄范围、可验证的小改。
-2. 若继续做产品增量，先明确下一条单线主线，再按最小可收口 increment 推进。
-3. 继续保持阶段判断、状态摘要和高频入口文档同步。
+1. 维护 `P3/P4/P5/P6` 范围内的 bounded maintenance。
+2. 保持 docs、阶段判断和代码现实对齐。
+3. 如果开启新的产品波次，先明确主线，再做最小收口 increment。
 
 ## Do Not Do
 
-- 不把已经完成主开发的 `P3` / `P5` 重新包装成新的 feature wave。
-- 不把当前这轮已完成收口的 `P4` 页面承接工作重新写回“待开发主线”。
-- 不在没有明确收益时重开 source expansion、benchmark framework redesign、observability platform 化。
+- 不把已经完成主开发的 `P3/P5/P6` 重新包装成新的主 wave。
+- 不把当前 `P4` 收口重新写回“待开发主线”。
 - 不做 broad refactor、架构重写、schema / persistence 大改。
-- 不把 docs / queue / progress 的 bookkeeping 扩成新的产品方向。
+- 不在没有明确收益时重开 source expansion、benchmark framework redesign、observability platform 化。
+- 不为了少量质量提升就全局拉大 retrieval 默认参数。
 
 ## Validation Baseline
 
@@ -76,11 +71,12 @@
 - 当前进展摘要：[docs/current-progress.md](D:\FeProjects\rag-system\docs\current-progress.md)
 - 项目状态总览：[docs/project-status-overview.md](D:\FeProjects\rag-system\docs\project-status-overview.md)
 - 本地开发与验证：[docs/current-dev-setup.md](D:\FeProjects\rag-system\docs\current-dev-setup.md)
-- 仓库总览：`README.md`
+- retrieval / answering 后续优先级：[docs/retrieval-answering-next-steps-2026-04-13.md](D:\FeProjects\rag-system\docs\retrieval-answering-next-steps-2026-04-13.md)
+- 本地 smoke 结果：[docs/local-smoke-eval-2026-04-13.md](D:\FeProjects\rag-system\docs\local-smoke-eval-2026-04-13.md)
 
 ## Performance Note
 
-- ���� trace ˵����ǰƿ���Ѿ��ӻش�����/ģ�������ת���� request orchestration��
-- `LLM first token` �Ѿ�������ƿ����������Ҫ����ѹ������ `first token pre-generation` ���ͬ����·��
-- ��һ�����ȼ����Ự�����������û���Ϣд����ƻ򲢷���retrieval �ӽ׶β�֡�������������� rerank��
-- �����Ż��������ֻش��������䣬ֻ����ģ��ǰ�ı��ſ�����
+- 最新 trace 说明当前瓶颈已经从回答质量/模型输出，转到了 request orchestration。
+- `LLM first token` 已经不是主瓶颈，真正需要优先压缩的是 `first token pre-generation` 这段同步链路。
+- 下一步优先级：会话加载瘦身、用户消息写库后移或并发、retrieval 子阶段拆分、复杂题才启用重 rerank。
+- 后续优化继续保持回答质量不变，只削减模型前的编排开销。

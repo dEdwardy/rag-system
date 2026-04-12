@@ -1,11 +1,11 @@
 import { Badge } from "@mantine/core";
 import { FormEvent, startTransition, useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { BackendUnavailableScreen } from "../../components/BackendUnavailableScreen";
-import { useI18n } from "../../i18n/I18nProvider";
 import { useAuthMe, useAuthProviders, useLogin } from "../../features/api/hooks";
+import { useI18n } from "../../i18n/I18nProvider";
 import { isApiUnavailableError, resolveApiUrl } from "../../lib/api";
-import { isDevelopment, isInviteGateAccepted } from "../../lib/invite-gate";
+import { getPrivateBetaDefaultCredentials, isInviteGateAccepted } from "../../lib/invite-gate";
+import { BackendUnavailableScreen } from "../../components/BackendUnavailableScreen";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -21,18 +21,13 @@ export function LoginPage() {
   const githubOauthStartUrl = resolveApiUrl("/auth/oauth/github/start");
   const googleOauthStartUrl = resolveApiUrl("/auth/oauth/google/start");
   const oidcOauthStartUrl = resolveApiUrl("/auth/oauth/oidc/start");
-  const defaultCredentials = authProvidersQuery.data?.local.defaultCredentials ?? null;
+  const defaultCredentials = authProvidersQuery.data?.local.defaultCredentials ?? getPrivateBetaDefaultCredentials();
   const githubConfigured = authProvidersQuery.data?.oauth.github.configured ?? true;
   const googleConfigured = authProvidersQuery.data?.oauth.google.configured ?? true;
   const oidcConfigured = authProvidersQuery.data?.oauth.oidc.configured ?? true;
 
   useEffect(() => {
     if (!defaultCredentials) {
-      // 开发环境自动填充默认凭证
-      if (isDevelopment()) {
-        setEmail("default-user@example.com");
-        setPassword("local-password-1");
-      }
       return;
     }
 
@@ -61,16 +56,16 @@ export function LoginPage() {
         email: email.trim(),
         password
       },
-        {
-          onSuccess: () => {
-            startTransition(() => {
-              navigate("/", { replace: true });
-            });
-          },
-          onError: () => {
-            setTransitionTarget(null);
-          }
+      {
+        onSuccess: () => {
+          startTransition(() => {
+            navigate("/", { replace: true });
+          });
+        },
+        onError: () => {
+          setTransitionTarget(null);
         }
+      }
     );
   }
 
@@ -135,7 +130,7 @@ export function LoginPage() {
 
         {defaultCredentials ? (
           <div className="mt-4 rounded-md border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-3 text-sm text-[var(--app-text-secondary)]">
-            <p className="font-medium text-[var(--app-text)]">{t("auth.login.localDevAccount")}</p>
+            <p className="font-medium text-[var(--app-text)]">{locale === "zh" ? "内测默认账号" : "Default beta account"}</p>
             <p className="mt-1 break-all">{defaultCredentials.email} / {defaultCredentials.password}</p>
             <button
               className="mt-3 rounded-md border border-[var(--app-border)] px-3 py-1.5 text-xs text-[var(--app-text)] transition-[background-color,border-color] duration-150 hover:bg-[var(--app-bg-elevated)]"
@@ -145,7 +140,7 @@ export function LoginPage() {
               }}
               type="button"
             >
-              {t("auth.login.useDevCredentials")}
+              {locale === "zh" ? "填充默认账号" : "Use default beta account"}
             </button>
           </div>
         ) : null}
@@ -156,6 +151,7 @@ export function LoginPage() {
         <input
           className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           autoComplete="email"
+          disabled={isBusy}
           id="email"
           name="email"
           onChange={event => setEmail(event.target.value)}
@@ -163,7 +159,6 @@ export function LoginPage() {
           spellCheck={false}
           type="email"
           value={email}
-          disabled={isBusy}
         />
 
         <label className="mt-4 block text-sm text-[var(--app-text-secondary)]" htmlFor="password">
@@ -172,13 +167,13 @@ export function LoginPage() {
         <input
           className="mt-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,box-shadow,background-color] duration-150 focus-visible:border-[var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           autoComplete="current-password"
+          disabled={isBusy}
           id="password"
           name="password"
           onChange={event => setPassword(event.target.value)}
-          placeholder="••••••••"
+          placeholder={locale === "zh" ? "请输入密码" : "Enter your password"}
           type="password"
           value={password}
-          disabled={isBusy}
         />
 
         <div className="mt-5 space-y-2">
@@ -215,17 +210,19 @@ export function LoginPage() {
         </div>
 
         {loginMutation.error ? (
-          <p aria-live="polite" className="mt-3 text-sm text-red-400" role="alert">{loginMutation.error.message}</p>
+          <p aria-live="polite" className="mt-3 text-sm text-red-400" role="alert">
+            {loginMutation.error.message}
+          </p>
         ) : null}
 
         {isBusy ? (
           <p aria-live="polite" className="mt-3 text-xs text-[var(--app-text-muted)]">
             {transitionTarget === "password"
               ? locale === "zh"
-                ? "姝ｅ湪楠岃瘉鐧诲綍淇℃伅..."
+                ? "正在验证登录信息..."
                 : "Verifying credentials..."
               : locale === "zh"
-                ? "姝ｅ湪鎵撳紑鐧诲綍娴佺▼..."
+                ? "正在打开登录流程..."
                 : "Opening the sign-in flow..."}
           </p>
         ) : null}

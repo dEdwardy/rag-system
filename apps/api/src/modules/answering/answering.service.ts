@@ -324,7 +324,14 @@ Answering requirement:
     };
   }) {
     const usedFallback = input.result.usedFallback ?? input.result.modelName === "fallback-local";
-    const answerStatus = input.result.answerStatus ?? (input.chunks.length === 0 ? "insufficient_context" : "grounded");
+    const answerStatusResolution = this.resolveAnswerStatus({
+      answerStatus: input.result.answerStatus,
+      answer: input.result.answer,
+      citedChunkNumbers: input.result.citedChunkNumbers ?? [],
+      citationEvidence: input.result.citationEvidence ?? [],
+      hasRetrievedContext: input.chunks.length > 0
+    });
+    const answerStatus = answerStatusResolution.answerStatus;
     const resolvedLanguage = this.resolvePolicyLanguage(input.question, input.answerPolicy.language);
     const rawMissingInformation = input.result.missingInformation ?? [];
     const missingInformation = this.resolveMissingInformation({
@@ -395,9 +402,7 @@ Answering requirement:
             answerStatus,
             hasRetrievedContext: false
           }),
-          answerStatusSource: this.resolveAnswerStatusSource({
-            answerStatusProvided: input.result.answerStatus != null
-          }),
+          answerStatusSource: answerStatusResolution.source,
           answerStatus,
           coverageSummary,
           summaryMainItems: input.summaryMainItems ?? []
@@ -488,9 +493,7 @@ Answering requirement:
           answerStatus,
           hasRetrievedContext: input.chunks.length > 0
         }),
-        answerStatusSource: this.resolveAnswerStatusSource({
-          answerStatusProvided: input.result.answerStatus != null
-        }),
+        answerStatusSource: answerStatusResolution.source,
         answerStatus,
         coverageSummary,
         ...(input.summaryMainItems && input.summaryMainItems.length > 0
@@ -783,10 +786,73 @@ Answering requirement:
     return input.hasRetrievedContext ? "retrieved_context_insufficient" : "no_retrieval_hits";
   }
 
-  private resolveAnswerStatusSource(input: {
-    answerStatusProvided: boolean;
-  }): AnsweringMetadata["answerStatusSource"] {
-    return input.answerStatusProvided ? "model" : "inferred_from_retrieval";
+  private resolveAnswerStatus(input: {
+    answerStatus?: "grounded" | "insufficient_context";
+    answer: string;
+    citedChunkNumbers: number[];
+    citationEvidence: CitationEvidence[];
+    hasRetrievedContext: boolean;
+  }): {
+    answerStatus: "grounded" | "insufficient_context";
+    source: AnsweringMetadata["answerStatusSource"];
+  } {
+    if (input.answerStatus == null) {
+      return {
+        answerStatus: input.hasRetrievedContext ? "grounded" : "insufficient_context",
+        source: "inferred_from_retrieval"
+      };
+    }
+
+    if (input.answerStatus !== "insufficient_context" || !input.hasRetrievedContext) {
+      return {
+        answerStatus: input.answerStatus,
+        source: "model"
+      };
+    }
+
+    if (this.shouldPromoteRetrievedAnswerToGrounded(input)) {
+      return {
+        answerStatus: "grounded",
+        source: "inferred_from_retrieval"
+      };
+    }
+
+    return {
+      answerStatus: input.answerStatus,
+      source: "model"
+    };
+  }
+
+  private shouldPromoteRetrievedAnswerToGrounded(input: {
+    answer: string;
+    citedChunkNumbers: number[];
+    citationEvidence: CitationEvidence[];
+    hasRetrievedContext: boolean;
+  }) {
+    if (!input.hasRetrievedContext) {
+      return false;
+    }
+
+    if (this.isLikelyInsufficientContextAnswer(input.answer)) {
+      return false;
+    }
+
+    return input.citedChunkNumbers.length > 0 || input.citationEvidence.length > 0;
+  }
+
+  private isLikelyInsufficientContextAnswer(answer: string) {
+    const normalized = answer.replace(/\s+/g, " ").trim().toLowerCase();
+    if (!normalized) {
+      return true;
+    }
+
+    return [
+      "i don't have enough information in the retrieved sources to answer that reliably.",
+      "i couldn't find relevant information in the knowledge base.",
+      "based on the retrieved sources, i don't have enough information to answer reliably.",
+      "根据当前检索到的资料，我还没有足够信息来可靠回答这个问题。",
+      "根据当前检索到的资料，我没有足够信息来可靠回答这个问题。"
+    ].some(candidate => normalized === candidate.toLowerCase());
   }
 
   private buildInsufficientContextAnswer(

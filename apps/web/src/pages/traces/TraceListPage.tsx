@@ -12,11 +12,21 @@ import {
   Title
 } from "@mantine/core";
 import { useDeferredValue, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { StatePanel } from "../../components/StatePanel";
 import { useConversations, useLatestConversationTraces } from "../../features/api/hooks";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { TraceRecord } from "../../types/api";
+
+const TRACE_PAGE_SIZE = 12;
+
+function looksLikeUntranslatedKey(value: string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return /^[A-Z0-9_.-]+$/.test(value.trim());
+}
 
 function GroupLoader() {
   return (
@@ -36,13 +46,17 @@ function TraceConversationCard({
   conversationTitle: string;
   latestTrace: TraceRecord;
 }) {
-  const { formatDateTime, t } = useI18n();
+  const { formatDateTime, locale, t } = useI18n();
   const traceSummary = latestTrace.traceSummary;
   const timing = traceSummary.timingSummary;
-  const rewriteLabel =
-    traceSummary?.rewriteReadabilityLabel ??
-    (latestTrace.rewrittenQuery ? t("trace.copy.rewriteApplied") : t("trace.copy.rewriteNotApplied"));
-  const rewriteSkipLabel = traceSummary?.rewriteSkippedReason ?? null;
+  const rewriteAppliedLabel = locale === "zh" ? "已改写" : "Rewrite applied";
+  const rewriteNotAppliedLabel = locale === "zh" ? "未改写" : "No rewrite";
+  const rewriteLabel = !looksLikeUntranslatedKey(traceSummary?.rewriteReadabilityLabel)
+    ? traceSummary?.rewriteReadabilityLabel
+    : null;
+  const rewriteSkipLabel = !looksLikeUntranslatedKey(traceSummary?.rewriteSkippedReason)
+    ? traceSummary?.rewriteSkippedReason
+    : null;
   const latencyLabel =
     latestTrace.latencyMs != null ? `${latestTrace.latencyMs} ms` : t("trace.copy.modelUnknown");
   const candidateLabel =
@@ -104,12 +118,14 @@ function TraceConversationCard({
             <span className="workspace-meta-value">{latencyLabel}</span>
           </div>
           <div className="workspace-meta-row">
-            <span className="workspace-meta-label">{t("trace.copy.rewriteApplied")}</span>
-            <span className="workspace-meta-value">{rewriteLabel}</span>
+            <span className="workspace-meta-label">{rewriteAppliedLabel}</span>
+            <span className="workspace-meta-value">
+              {rewriteLabel ?? (latestTrace.rewrittenQuery ? rewriteAppliedLabel : rewriteNotAppliedLabel)}
+            </span>
           </div>
           {rewriteSkipLabel ? (
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">{t("trace.copy.rewriteNotApplied")}</span>
+              <span className="workspace-meta-label">{rewriteNotAppliedLabel}</span>
               <span className="workspace-meta-value">{rewriteSkipLabel}</span>
             </div>
           ) : null}
@@ -119,7 +135,7 @@ function TraceConversationCard({
           </div>
           {bottleneck && bottleneck.value >= 0 ? (
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">{t("trace.copy.slowestStage")}</span>
+              <span className="workspace-meta-label">{locale === "zh" ? "最慢阶段" : "Slowest stage"}</span>
               <span className="workspace-meta-value">
                 {bottleneck.label} · {bottleneck.value} ms
               </span>
@@ -142,20 +158,44 @@ function TraceConversationCard({
 
 export function TraceListPage() {
   const conversationsQuery = useConversations();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const location = useLocation();
   const deferredConversations = useDeferredValue(conversationsQuery.data ?? []);
   const conversationCount = deferredConversations.length;
-  const conversationIds = useMemo(() => deferredConversations.map(conversation => conversation.id), [deferredConversations]);
+  const totalPages = Math.max(1, Math.ceil(conversationCount / TRACE_PAGE_SIZE));
+  const requestedPage = Number(new URLSearchParams(location.search).get("page") ?? "1");
+  const resolvedPage =
+    Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(Math.floor(requestedPage), totalPages) : 1;
+  const pageStart = (resolvedPage - 1) * TRACE_PAGE_SIZE;
+  const pagedConversations = useMemo(
+    () => deferredConversations.slice(pageStart, pageStart + TRACE_PAGE_SIZE),
+    [deferredConversations, pageStart]
+  );
+  const conversationIds = useMemo(() => pagedConversations.map(conversation => conversation.id), [pagedConversations]);
   const latestTracesQuery = useLatestConversationTraces(conversationIds, conversationsQuery.isSuccess);
   const traceErrorMessage =
     latestTracesQuery.error instanceof Error
       ? latestTracesQuery.error.message
       : t("trace.copy.loadTracesError");
   const traceCards =
-    deferredConversations.flatMap(conversation => {
+    pagedConversations.flatMap(conversation => {
       const latestTrace = latestTracesQuery.latestTraceByConversationId[conversation.id] ?? null;
       return latestTrace ? [{ conversation, latestTrace }] : [];
     }) ?? [];
+  const visibleStart = conversationCount === 0 ? 0 : pageStart + 1;
+  const visibleEnd = Math.min(pageStart + pagedConversations.length, conversationCount);
+  const paginationSummary =
+    locale === "zh"
+      ? `显示第 ${visibleStart}-${visibleEnd} 条，共 ${conversationCount} 个会话`
+      : `Showing ${visibleStart}-${visibleEnd} of ${conversationCount} conversations`;
+
+  const buildPageHref = (page: number) => {
+    if (page <= 1) {
+      return "/traces";
+    }
+
+    return `/traces?page=${page}`;
+  };
 
   return (
     <Stack data-testid="traces-page" gap="md">
@@ -234,6 +274,62 @@ export function TraceListPage() {
               ))}
             </SimpleGrid>
           </div>
+          {totalPages > 1 ? (
+            <Paper className="workspace-panel-muted" mt="md" p="lg" radius="xl">
+              <Stack gap="sm">
+                <Group align="center" justify="space-between" wrap="wrap">
+                  <Text c="var(--app-text-muted)" size="sm">
+                    {paginationSummary}
+                  </Text>
+                  <Group gap="xs" wrap="wrap">
+                    <Button
+                      className="workspace-button"
+                      color="gray"
+                      component={Link}
+                      disabled={resolvedPage <= 1}
+                      to={buildPageHref(resolvedPage - 1)}
+                      radius="xl"
+                      size="xs"
+                      variant="light"
+                    >
+                      {locale === "zh" ? "上一页" : "Previous"}
+                    </Button>
+                    <Button
+                      className="workspace-button"
+                      color="gray"
+                      component={Link}
+                      disabled={resolvedPage >= totalPages}
+                      to={buildPageHref(resolvedPage + 1)}
+                      radius="xl"
+                      size="xs"
+                      variant="light"
+                    >
+                      {locale === "zh" ? "下一页" : "Next"}
+                    </Button>
+                  </Group>
+                </Group>
+                <Group gap="xs" wrap="wrap">
+                  {Array.from({ length: totalPages }, (_, index) => {
+                    const page = index + 1;
+                    return (
+                      <Button
+                        className="workspace-button"
+                        color={page === resolvedPage ? "indigo" : "gray"}
+                        component={Link}
+                        key={page}
+                        radius="xl"
+                        size="xs"
+                        to={buildPageHref(page)}
+                        variant={page === resolvedPage ? "filled" : "light"}
+                      >
+                        {page}
+                      </Button>
+                    );
+                  })}
+                </Group>
+              </Stack>
+            </Paper>
+          ) : null}
         </div>
       ) : (
         <StatePanel

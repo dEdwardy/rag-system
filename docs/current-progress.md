@@ -321,3 +321,24 @@
 - The trace detail sidebar now highlights the slowest timing stage so the main bottleneck is visible at a glance without manual inspection.
 - The trace list page now shows a compact slowest-stage preview on each conversation card so slow runs can be spotted without opening the detail page.
 - Summary/list answer prompts now use a tighter compact context mode once the retrieved chunk set gets larger, trimming prompt size to reduce first-token latency.
+
+## Recent Retrieval / Answering Alignment
+
+- The current default local retrieval profile is intentionally conservative and should be treated as the repository-aligned baseline:
+  - `topK = 3`
+  - `chunkWindow = 0`
+  - `hybrid = OFF`
+  - `rerank = OFF`
+- The local seeded assistant currently runs on that profile via `default-retrieval-profile` in `apps/api/prisma/seed.js`; older notes that describe the default shipped path as `chunkWindow = 1` or always-on hybrid are no longer current.
+- `apps/api/src/modules/retrieval/retrieval.service.ts` now applies a bounded structural fix for heading-like Markdown chunks:
+  - when `chunkWindow = 0`, heading-like primary hits can still pull in the trailing body chunk
+  - this improves structured document question answering without globally widening retrieval breadth
+- The same retrieval pass also fixed the settled-task type mismatch in vector retrieval, so hard vector compatibility errors keep their explicit failure contract instead of being misread as lexical fallback cases.
+- `apps/api/src/infra/llm/prompt-manager.service.ts` and `apps/api/src/modules/answering/answering.service.ts` now use a less over-conservative answer threshold, reducing the chance that citation-backed partial answers collapse into unnecessary `insufficient_context`.
+- Current local smoke result against `D:\\FeProjects\\rag-test\\question.md`:
+  - `37/40` grounded
+  - `3/40` insufficient-context
+  - the remaining three refusals currently look more like source-coverage limits than main-path retrieval regressions
+- Follow-up posture remains bounded:
+  - answer quality is now good enough to leave main-wave status and move into maintenance
+  - the next best retrieval investments are replayable smoke checks and light adaptive retrieval, not globally larger defaults or broad chunking rewrites

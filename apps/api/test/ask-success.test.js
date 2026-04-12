@@ -442,8 +442,8 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
   });
   assert.deepEqual(updateTraceCalls[0].input.retrievalMetadataJson, {
     ...createTraceCalls[0].retrievalMetadataJson,
-    promptContextApproxTokens: 215,
-    promptContextChars: 645
+    promptContextApproxTokens: 287,
+    promptContextChars: 719
   });
   assert.deepEqual(updateTraceCalls[0].input.answeringMetadataJson, {
     promptId: "answer.v3",
@@ -480,7 +480,9 @@ test("AskAssistantService completes the happy path with retrieval, messages, and
 
 Rules:
 - Use only the provided sources.
-- Answer directly if supported; otherwise use "insufficient_context".
+- Answer directly when the provided sources support a brief factual answer.
+- If the sources support part of the answer, give the supported answer first and mention the limitation briefly.
+- Use "insufficient_context" only when the sources do not support even a brief factual answer.
 - Cite only source indexes like [1] or [1][2].
 - Stay factual and follow the answer policy.`,
       userPrompt: `Q:
@@ -505,8 +507,8 @@ Return JSON only:
 
 Rules:
 - citations are 1-based source indexes only.
-- use grounded only when supported.
-- use insufficient_context when not supported.
+- use grounded when the sources support a brief factual answer.
+- use insufficient_context only when the sources do not support even a brief factual answer.
 - keep missingInformation as an array.
 - match the requested policy.
 - do not wrap JSON in fences.`
@@ -604,7 +606,9 @@ Rules:
 
 Rules:
 - Use only the provided sources.
-- Answer directly if supported; otherwise use "insufficient_context".
+- Answer directly when the provided sources support a brief factual answer.
+- If the sources support part of the answer, give the supported answer first and mention the limitation briefly.
+- Use "insufficient_context" only when the sources do not support even a brief factual answer.
 - Cite only source indexes like [1] or [1][2].
 - Stay factual and follow the answer policy.`,
       userPrompt: `Q:
@@ -629,8 +633,8 @@ Return JSON only:
 
 Rules:
 - citations are 1-based source indexes only.
-- use grounded only when supported.
-- use insufficient_context when not supported.
+- use grounded when the sources support a brief factual answer.
+- use insufficient_context only when the sources do not support even a brief factual answer.
 - keep missingInformation as an array.
 - match the requested policy.
 - do not wrap JSON in fences.`
@@ -1024,8 +1028,8 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
       neighborChunkCount: 0,
       timing: null
     },
-    promptContextApproxTokens: 197,
-    promptContextChars: 576
+    promptContextApproxTokens: 270,
+    promptContextChars: 650
   });
   assert.equal(result.retrievalMetadata.execution.neighborChunkCount, 0);
   assert.equal(
@@ -1111,7 +1115,9 @@ test("AskAssistantService can disable query rewrite and forwards resolved retrie
 
 Rules:
 - Use only the provided sources.
-- Answer directly if supported; otherwise use "insufficient_context".
+- Answer directly when the provided sources support a brief factual answer.
+- If the sources support part of the answer, give the supported answer first and mention the limitation briefly.
+- Use "insufficient_context" only when the sources do not support even a brief factual answer.
 - Cite only source indexes like [1] or [1][2].
 - Stay factual and follow the answer policy.`,
       userPrompt: `Q:
@@ -1135,8 +1141,8 @@ Return JSON only:
 
 Rules:
 - citations are 1-based source indexes only.
-- use grounded only when supported.
-- use insufficient_context when not supported.
+- use grounded when the sources support a brief factual answer.
+- use insufficient_context only when the sources do not support even a brief factual answer.
 - keep missingInformation as an array.
 - match the requested policy.
 - do not wrap JSON in fences.`

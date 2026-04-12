@@ -33,7 +33,9 @@ export function buildFailureTaxonomy(trace: {
     taxonomy.push("no_hit");
   }
 
-  const fallbackDetected = Boolean(summary?.usedFallback || summary?.strategySummary.usedFallback || summary?.primaryIssue === "fallback_generation");
+  const fallbackDetected = Boolean(
+    summary?.usedFallback || summary?.strategySummary.usedFallback || summary?.primaryIssue === "fallback_generation"
+  );
   if (fallbackDetected) {
     taxonomy.push("fallback");
   }

@@ -39,7 +39,9 @@ export class PromptManagerService {
 
 Rules:
 - Use only the provided sources.
-- Answer directly if supported; otherwise use "insufficient_context".
+- Answer directly when the provided sources support a brief factual answer.
+- If the sources support part of the answer, give the supported answer first and mention the limitation briefly.
+- Use "insufficient_context" only when the sources do not support even a brief factual answer.
 - Cite only source indexes like [1] or [1][2].
 - Stay factual and follow the answer policy.${summaryRules}`;
 
@@ -73,8 +75,8 @@ Return JSON only:
 
 Rules:
 - citations are 1-based source indexes only.
-- use grounded only when supported.
-- use insufficient_context when not supported.
+- use grounded when the sources support a brief factual answer.
+- use insufficient_context only when the sources do not support even a brief factual answer.
 - keep missingInformation as an array.
 - match the requested policy.
 - do not wrap JSON in fences.`;
@@ -207,4 +209,3 @@ ${context}`;
       .test(question);
   }
 }
-

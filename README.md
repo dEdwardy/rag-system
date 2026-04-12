@@ -160,10 +160,13 @@ For day-to-day backend work, prefer focused API test entrypoints such as `pnpm t
 
 ## Key Docs
 
-- [Docs guide](docs/README.md)
+- [Current context](docs/current-context.md)
 - [Next steps plan](docs/next_steps_rag_project_plan.md)
 - [Current dev setup](docs/current-dev-setup.md)
 - [Current progress](docs/current-progress.md)
+- [Retrieval / answering next steps](docs/retrieval-answering-next-steps-2026-04-13.md)
+- [Local smoke eval](docs/local-smoke-eval-2026-04-13.md)
+- [Online UX review](docs/online-ux-review-2026-04-13.md)
 - [Local dev infra](docs/local-dev-infra.md)
 - [Phase 1 RAG blueprint](docs/phase-1-rag-blueprint.md)
 - [Retrieval trace notes](docs/retrieval-trace.md)

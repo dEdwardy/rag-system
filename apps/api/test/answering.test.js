@@ -1993,6 +1993,55 @@ test("AnsweringService preserves best_effort answers even when context is insuff
   assert.equal(result.answeringMetadata.answerStatusSource, "model");
 });
 
+test("AnsweringService promotes cited retrieved answers when the model is overly conservative", async () => {
+  const llmService = {
+    generateAnswer: async () => ({
+      answer: "Reusable rocket technology lowers launch costs and makes missions more frequent. [1]",
+      modelName: "test-model",
+      answerStatus: "insufficient_context",
+      missingInformation: [],
+      citedChunkNumbers: [1]
+    })
+  };
+
+  const service = new AnsweringService(llmService);
+  const result = await service.generateAnswer({
+    question: "What is the significance of reusable rocket technology for space exploration?",
+    systemPrompt: "answer",
+    answerPolicy: {
+      responseStyle: "balanced",
+      tone: "neutral",
+      outputFormat: "paragraph",
+      language: "en",
+      citationMode: "required",
+      maxCitations: 3,
+      noAnswerBehavior: "say_insufficient_context",
+      includeMissingInformation: true
+    },
+    chunks: [
+      {
+        chunkId: "chunk-1",
+        documentId: "document-1",
+        documentTitle: "Space Exploration",
+        content: "Reusable rockets reduce launch costs and increase mission cadence for space exploration.",
+        score: 0.82,
+        pageNo: null,
+        sectionTitle: "Reusable rockets"
+      }
+    ]
+  });
+
+  assert.equal(
+    result.answer,
+    "Reusable rocket technology lowers launch costs and makes missions more frequent. [1]"
+  );
+  assert.equal(result.answerStatus, "grounded");
+  assert.equal(result.answeringMetadata.answerStatusSource, "inferred_from_retrieval");
+  assert.equal(result.answeringMetadata.insufficientContextReason, null);
+  assert.equal(result.answeringMetadata.answerTextSource, "model");
+  assert.equal(result.citations.length, 1);
+});
+
 test("AnsweringService localizes the deterministic insufficient-context fallback for Chinese questions", async () => {
   const llmService = {
     generateAnswer: async () => ({

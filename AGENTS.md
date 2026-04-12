@@ -146,6 +146,16 @@ Default validation policy:
 - cross-package changes should run the relevant package build or equivalent validation
 - avoid expensive full-suite validation when a smaller relevant check is sufficient for the current increment
 
+## Encoding
+
+- Treat UTF-8 as the required repository encoding for active source, config, script, and documentation files.
+- Save new or edited files as UTF-8. Do not introduce GBK, ANSI, or other local-only encodings for Chinese copy or comments.
+- Prefer UTF-8 without BOM unless a specific tool explicitly requires BOM.
+- If terminal output looks garbled, do not assume the file bytes are broken. Verify the file with a strict UTF-8 read before rewriting it.
+- If a file is genuinely encoding-damaged, normalize it to valid UTF-8 before making further logical edits.
+- When fixing or adding Chinese text, make sure the final file still round-trips as valid UTF-8.
+- For suspicious encoding changes, run a targeted UTF-8 validation step before closeout.
+
 ## Docs
 
 - If behavior, setup, workflow, or current status changes, update the relevant file in `docs/`.

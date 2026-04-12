@@ -155,6 +155,7 @@ export const messages = {
       askInputPlaceholder: "Ask a question and press Enter...",
       enterHint: "Press Enter to send, Shift + Enter for a new line",
       fileUploadComingSoon: "File upload coming soon",
+      uploadFromLibrary: "Add documents from the library page",
       history: "History",
       newChat: "New chat",
       conversationLabel: "Conversation",
@@ -602,6 +603,7 @@ export const messages = {
       latestResultSuccess: "Answer pipeline completed",
       latestResultNeedsInspection: "Needs diagnostics",
       traceId: "Diagnostic trace id",
+      slowestStage: "Slowest stage",
       viewTraceDetails: "View diagnostics",
       backToChat: "Back to chat"
     },
