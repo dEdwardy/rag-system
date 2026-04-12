@@ -274,23 +274,6 @@ export class RetrievalService {
 
       const tasks: Array<Promise<{ type: "lexical" | "vector"; result: any }>> = [];
 
-      if (candidateSelectionMode === "hybrid") {
-        tasks.push(
-          (async () => {
-            const lexicalSearchStartedAt = Date.now();
-            const result = await this.getLexicalCandidates({
-              kbId: input.kbId,
-              query: input.query,
-              limit: candidateLimit,
-              filters: normalizedFilters,
-              documentVersions: input.documentVersions
-            });
-            phaseTiming.lexicalSearchMs = Date.now() - lexicalSearchStartedAt;
-            return { type: "lexical" as const, result };
-          })()
-        );
-      }
-
       tasks.push(
         this.runVectorSearch({
           kbId: input.kbId,
@@ -316,7 +299,7 @@ export class RetrievalService {
             normalizedVectorSearch = result.value.result;
           }
         } else {
-          const taskType = index === 0 && candidateSelectionMode === "hybrid" ? "lexical" : "vector";
+          const taskType = index === 0 ? "lexical" : "vector";
           if (taskType === "vector" && (
             result.reason instanceof EmbeddingRuntimeConfigError ||
             result.reason instanceof VectorStoreCompatibilityError
@@ -335,7 +318,7 @@ export class RetrievalService {
       const vectorMatches = (normalizedVectorSearch as VectorSearchResult).matches;
       embeddingDiagnostics = (normalizedVectorSearch as VectorSearchResult).embedding;
 
-      if (vectorMatches.length > 0 || candidateSelectionMode === "hybrid") {
+      if (vectorMatches.length > 0) {
         if (candidateSelectionMode === "vector" && !resolvedEnableRerank) {
           const topVectorMatches = vectorMatches.slice(0, input.topK);
           vectorCandidateCount = topVectorMatches.length;
@@ -433,7 +416,7 @@ export class RetrievalService {
         phaseTiming.vectorCandidateFetchMs = Date.now() - vectorCandidateFetchStartedAt;
         vectorCandidateCount = vectorCandidates.length;
         const mergeCandidatesStartedAt = Date.now();
-        const mergedCandidates = candidateSelectionMode === "hybrid" && lexicalCandidates
+        const mergedCandidates = lexicalCandidates
           ? this.mergeHybridCandidates(vectorCandidates, lexicalCandidates, strategy)
           : vectorCandidates;
         phaseTiming.mergeCandidatesMs = Date.now() - mergeCandidatesStartedAt;
@@ -474,7 +457,7 @@ export class RetrievalService {
             }),
             chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
             vectorSearchAttempted: true,
-            lexicalSearchAttempted: candidateSelectionMode === "hybrid",
+            lexicalSearchAttempted: lexicalCandidates != null,
             vectorCandidateLimitHit: vectorMatches.length >= vectorSearchTopK,
             lexicalCandidateLimitHit: (lexicalCandidates?.length ?? 0) >= candidateLimit,
             rankingTopKHit: rankedCandidates.length >= input.topK,
@@ -1223,7 +1206,7 @@ export class RetrievalService {
           return null;
         }
 
-        const chunkMetadata = this.readChunkMetadata(match.metadataJson ?? null);
+        const chunkMetadata = this.readChunkMetadata(match.metadataJson as Prisma.JsonValue | null);
         return {
           chunkId: match.chunkId,
           documentId: match.documentId ?? "",
@@ -1718,9 +1701,13 @@ export class RetrievalService {
       pageNo: chunk.pageNo,
       documentTitle: chunk.documentTitle
     }));
+    const normalizedFetchedExpandedChunks: ExpandedChunkRow[] = fetchedExpandedChunks.map(chunk => ({
+      ...chunk,
+      documentTitle: documentTitleById.get(chunk.documentId) ?? "Untitled document"
+    }));
 
     const dedupedExpandedChunks = new Map<string, ExpandedChunkRow>();
-    for (const chunk of [...normalizedExistingChunks, ...fetchedExpandedChunks]) {
+    for (const chunk of [...normalizedExistingChunks, ...normalizedFetchedExpandedChunks]) {
       dedupedExpandedChunks.set(`${chunk.documentId}:${chunk.chunkIndex}`, chunk);
     }
     const expandedChunks = Array.from(dedupedExpandedChunks.values()).sort((left, right) =>

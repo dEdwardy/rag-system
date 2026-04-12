@@ -8,7 +8,7 @@ import type { Prisma } from "@prisma/client";
 import { compare } from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "../../infra/database/prisma.service";
-import { signAccessJwt } from "./access-jwt";
+import { signAccessJwt, verifyAccessJwt } from "./access-jwt";
 import {
   resolveCurrentAuthIdentity,
   type AuthIdentity,
@@ -32,24 +32,16 @@ import {
   type OidcOauthProvider
 } from "./oidc-oauth.provider";
 import { AuthRuntimeConfigService } from "./auth-runtime-config";
-import { SessionCookieAuthProvider } from "./session-cookie-auth.provider";
+import type { AuthUserSnapshot } from "./auth-session.store";
 
 type AuthWriteClient = Prisma.TransactionClient | PrismaService;
-type AuthUserSnapshot = {
-  id: string;
-  email: string | null;
-  name: string;
-  displayName: string | null;
-  role: AuthIdentity["role"];
-  tenantId: string;
-};
-
 type SessionResult = {
   identity: AuthIdentity;
   user: AuthUserSnapshot;
   expiresAt: string;
   accessToken: string;
   accessTokenExpiresAt: string;
+  refreshToken: string;
 };
 
 @Injectable()
@@ -62,8 +54,7 @@ export class AuthService {
     private readonly googleOauthProvider: GoogleOauthProvider = new HttpGoogleOauthProvider(),
     @Inject(OIDC_OAUTH_PROVIDER)
     private readonly oidcOauthProvider: OidcOauthProvider = new HttpOidcOauthProvider(),
-    private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService(),
-    private readonly sessionCookieAuthProvider: SessionCookieAuthProvider = new SessionCookieAuthProvider(prisma)
+    private readonly authRuntimeConfig: AuthRuntimeConfigService = new AuthRuntimeConfigService()
   ) {}
 
   async startOauthProvider(input: {
@@ -129,7 +120,8 @@ export class AuthService {
     }
 
     return this.createSessionResultForUser({
-      user: this.toAuthUserSnapshot(user)
+      user: this.toAuthUserSnapshot(user),
+      authSource: "local"
     });
   }
 
@@ -272,13 +264,11 @@ export class AuthService {
         prisma
       );
 
-        return this.createSessionResultForUser(
-          {
-            user: this.toAuthUserSnapshot(user),
-            now
-          },
-          prisma
-      );
+      return this.createSessionResultForUser({
+        user: this.toAuthUserSnapshot(user),
+        authSource: input.provider,
+        now
+      });
     });
   }
 
@@ -290,47 +280,61 @@ export class AuthService {
     return this.prisma.$transaction(async (prisma) => callback(prisma as AuthWriteClient));
   }
 
-  async logout(input: { sessionId?: string | null }): Promise<{ ok: true }> {
-    if (typeof input.sessionId === "string" && input.sessionId.length > 0) {
-      await this.prisma.authSession.updateMany({
-        where: {
-          id: input.sessionId,
-          revokedAt: null
-        },
-        data: {
-          revokedAt: new Date()
-        }
-      });
-    }
-
+  async logout(): Promise<{ ok: true }> {
     return { ok: true };
   }
 
-  async refreshAccessToken(input: { sessionId?: string | null }): Promise<{
+  async refreshAccessToken(input: { refreshToken?: string | null }): Promise<{
     identity: AuthIdentity;
     user: AuthUserSnapshot;
     accessToken: string;
     accessTokenExpiresAt: string;
+    refreshToken: string;
+    expiresAt: string;
   }> {
-    const sessionId = typeof input.sessionId === "string" ? input.sessionId.trim() : "";
-    if (sessionId.length === 0) {
-      throw new UnauthorizedException("Session is missing.");
+    const refreshToken = typeof input.refreshToken === "string" ? input.refreshToken.trim() : "";
+    if (refreshToken.length === 0) {
+      throw new UnauthorizedException("Refresh token is missing.");
     }
 
-    const resolvedSession = await this.resolveActiveSession(sessionId, {
-      updateLastSeenAt: true
+    const payload = this.verifyRefreshToken(refreshToken);
+    if (payload == null) {
+      throw new UnauthorizedException("Refresh token is invalid or expired.");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: payload.sub
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        name: true,
+        displayName: true,
+        email: true,
+        role: true,
+        status: true
+      }
     });
-    if (resolvedSession == null) {
-      throw new UnauthorizedException("Session is expired or revoked.");
+
+    if (user == null || user.status !== "active") {
+      throw new UnauthorizedException("Account is unavailable.");
     }
 
-    const identity = resolvedSession.identity;
+    const userSnapshot = this.toAuthUserSnapshot(user);
+    const identity = this.buildJwtIdentity({
+      user: userSnapshot,
+      authSource: this.normalizeJwtAuthSource(payload.authSource)
+    });
     const accessToken = this.issueAccessToken(identity);
+    const nextRefreshToken = this.issueRefreshToken(identity);
     return {
       identity,
-      user: resolvedSession.user,
+      user: userSnapshot,
       accessToken: accessToken.token,
-      accessTokenExpiresAt: accessToken.expiresAt
+      accessTokenExpiresAt: accessToken.expiresAt,
+      refreshToken: nextRefreshToken.token,
+      expiresAt: nextRefreshToken.expiresAt
     };
   }
 
@@ -470,100 +474,24 @@ export class AuthService {
 
   private async createSessionResultForUser(input: {
     user: AuthUserSnapshot;
+    authSource?: AuthIdentity["authSource"];
     now?: Date;
-  }, prisma: AuthWriteClient = this.prisma): Promise<SessionResult> {
+  }): Promise<SessionResult> {
     const now = input.now ?? new Date();
-    const expiresAt = new Date(now.getTime() + this.resolveSessionTtlMs());
-    const session = await prisma.authSession.create({
-      data: {
-        userId: input.user.id,
-        expiresAt,
-        lastSeenAt: now
-      },
-      select: {
-        id: true
-      }
+    const identity = this.buildJwtIdentity({
+      user: input.user,
+      authSource: input.authSource ?? "local"
     });
-
-    const identity: AuthIdentity = {
-      userId: input.user.id,
-      tenantId: input.user.tenantId,
-      role: input.user.role,
-      sessionId: session.id,
-      authSource: "session"
-    };
     const accessToken = this.issueAccessToken(identity, now);
+    const refreshToken = this.issueRefreshToken(identity, now);
 
     return {
       identity,
       user: input.user,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: refreshToken.expiresAt,
       accessToken: accessToken.token,
-      accessTokenExpiresAt: accessToken.expiresAt
-    };
-  }
-
-  private async resolveActiveSession(
-    sessionId: string,
-    options: {
-      updateLastSeenAt: boolean;
-    }
-  ): Promise<{ identity: AuthIdentity; user: AuthUserSnapshot } | null> {
-    const session = await this.prisma.authSession.findUnique({
-      where: {
-        id: sessionId
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            tenantId: true,
-            name: true,
-            displayName: true,
-            email: true,
-            role: true,
-            status: true
-          }
-        }
-      }
-    });
-
-    if (session == null) {
-      return null;
-    }
-
-    if (session.revokedAt != null || session.expiresAt.getTime() <= Date.now()) {
-      return null;
-    }
-
-    if (session.user.status !== "active") {
-      return null;
-    }
-
-    const shouldRefreshLastSeenAt =
-      options.updateLastSeenAt &&
-      (session.lastSeenAt == null || Date.now() - session.lastSeenAt.getTime() >= 5 * 60 * 1000);
-    if (shouldRefreshLastSeenAt) {
-      await this.prisma.authSession.updateMany({
-        where: {
-          id: session.id,
-          revokedAt: null
-        },
-        data: {
-          lastSeenAt: new Date()
-        }
-      });
-    }
-
-    return {
-      identity: {
-        userId: session.user.id,
-        tenantId: session.user.tenantId,
-        role: session.user.role,
-        sessionId: session.id,
-        authSource: "session"
-      },
-      user: this.toAuthUserSnapshot(session.user)
+      accessTokenExpiresAt: accessToken.expiresAt,
+      refreshToken: refreshToken.token
     };
   }
 
@@ -594,10 +522,6 @@ export class AuthService {
       throw new ServiceUnavailableException("AUTH_ACCESS_JWT_SECRET is not configured.");
     }
 
-    if (identity.sessionId == null || identity.sessionId.length === 0) {
-      throw new ServiceUnavailableException("Session-backed auth identity is missing session id.");
-    }
-
     const expiresAt = new Date(now.getTime() + this.resolveAccessJwtTtlMs());
     return {
       token: signAccessJwt({
@@ -605,12 +529,65 @@ export class AuthService {
         userId: identity.userId,
         tenantId: identity.tenantId,
         role: identity.role,
-        sessionId: identity.sessionId,
+        authSource: identity.authSource,
         issuedAtSeconds: Math.floor(now.getTime() / 1000),
-        expiresAtSeconds: Math.floor(expiresAt.getTime() / 1000)
+        expiresAtSeconds: Math.floor(expiresAt.getTime() / 1000),
+        tokenType: "access"
       }),
       expiresAt: expiresAt.toISOString()
     };
+  }
+
+  private issueRefreshToken(identity: AuthIdentity, now = new Date()) {
+    const config = this.authRuntimeConfig.getConfig();
+    const expiresAt = new Date(now.getTime() + this.resolveSessionTtlMs());
+    return {
+      token: signAccessJwt({
+        secret: config.accessJwtSecret,
+        userId: identity.userId,
+        tenantId: identity.tenantId,
+        role: identity.role,
+        authSource: identity.authSource,
+        issuedAtSeconds: Math.floor(now.getTime() / 1000),
+        expiresAtSeconds: Math.floor(expiresAt.getTime() / 1000),
+        tokenType: "refresh"
+      }),
+      expiresAt: expiresAt.toISOString()
+    };
+  }
+
+  private verifyRefreshToken(token: string) {
+    const config = this.authRuntimeConfig.getConfig();
+    if (config.accessJwtSecret.length === 0) {
+      return null;
+    }
+
+    return verifyAccessJwt({
+      token,
+      secret: config.accessJwtSecret,
+      expectedType: "refresh"
+    });
+  }
+
+  private buildJwtIdentity(input: {
+    user: AuthUserSnapshot;
+    authSource: AuthIdentity["authSource"];
+  }): AuthIdentity {
+    return {
+      userId: input.user.id,
+      tenantId: input.user.tenantId,
+      role: input.user.role,
+      sessionId: null,
+      authSource: input.authSource
+    };
+  }
+
+  private normalizeJwtAuthSource(authSource: string): AuthIdentity["authSource"] {
+    if (authSource === "github" || authSource === "google" || authSource === "oidc" || authSource === "local") {
+      return authSource;
+    }
+
+    return "local";
   }
 
   private async ensureDefaultWorkspaceForUser(input: {

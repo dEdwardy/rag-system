@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { Injectable } from "@nestjs/common";
-import { type SupabaseStorageRuntimeConfig, type LocalStorageRuntimeConfig } from "./storage-runtime-config";
+import { type SupabaseStorageRuntimeConfig, type OssStorageRuntimeConfig, type LocalStorageRuntimeConfig } from "./storage-runtime-config";
 import { resolveStorageRoot } from "./storage-root";
 
 type SaveFileInput = {
@@ -26,6 +26,16 @@ export interface StorageProviderService {
   readFileByStorageKey(storageKey: string): Promise<Buffer>;
   getStorageRoot(): string | null;
 }
+
+type ResolvedObjectTarget = {
+  bucket: string;
+  objectPath: string;
+};
+
+type OssClient = {
+  put: (name: string, data: Buffer, options?: { headers?: Record<string, string> }) => Promise<unknown>;
+  get: (name: string) => Promise<{ content: Buffer | NodeJS.ReadableStream | string }>;
+};
 
 @Injectable()
 export class SupabaseStorageProviderService implements StorageProviderService {
@@ -120,6 +130,143 @@ export class SupabaseStorageProviderService implements StorageProviderService {
       apikey: this.runtimeConfig.serviceRoleKey,
       ...(input?.contentType ? { "Content-Type": input.contentType } : {})
     };
+  }
+}
+
+@Injectable()
+export class OssStorageProviderService implements StorageProviderService {
+  private clientCache = new Map<string, Promise<OssClient>>();
+
+  constructor(
+    private readonly runtimeConfig: OssStorageRuntimeConfig,
+    private readonly clientFactory?: (bucket: string) => Promise<OssClient> | OssClient
+  ) {}
+
+  async saveUploadedFile(input: SaveFileInput) {
+    return this.saveBuffer({
+      buffer: input.buffer,
+      directory: "uploads",
+      extension: extname(input.originalName),
+      contentType: input.mimeType || "application/octet-stream"
+    });
+  }
+
+  async saveGeneratedTextFile(input: { content: string }) {
+    return this.saveBuffer({
+      buffer: Buffer.from(input.content, "utf8"),
+      directory: "generated",
+      extension: ".txt",
+      contentType: "text/plain; charset=utf-8"
+    });
+  }
+
+  async readFileByStorageKey(storageKey: string) {
+    const target = this.resolveObjectTarget(storageKey);
+    const client = await this.getClient(target.bucket);
+
+    try {
+      const response = await client.get(target.objectPath);
+      return await this.readOssContent(response.content);
+    } catch (error) {
+      throw new Error(`OSS storage read failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  getStorageRoot() {
+    return null;
+  }
+
+  private async saveBuffer(input: SaveBufferInput) {
+    const fileName = `${Date.now()}-${randomUUID()}${input.extension}`;
+    const relativePath = join(input.directory, fileName).replaceAll("\\", "/");
+    const target = this.resolveObjectTarget(relativePath);
+    const client = await this.getClient(target.bucket);
+
+    try {
+      await client.put(target.objectPath, input.buffer, {
+        headers: {
+          "Content-Type": input.contentType
+        }
+      });
+    } catch (error) {
+      throw new Error(`OSS storage upload failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    return {
+      storageKey: relativePath,
+      absolutePath: null
+    };
+  }
+
+  private resolveObjectTarget(storageKey: string): ResolvedObjectTarget {
+    const normalizedStorageKey = storageKey.replaceAll("\\", "/");
+
+    if (normalizedStorageKey.startsWith("uploads/")) {
+      return {
+        bucket: this.runtimeConfig.bucket,
+        objectPath: this.prependObjectPrefix(normalizedStorageKey)
+      };
+    }
+
+    if (normalizedStorageKey.startsWith("generated/")) {
+      return {
+        bucket: this.runtimeConfig.bucket,
+        objectPath: this.prependObjectPrefix(normalizedStorageKey)
+      };
+    }
+
+    throw new Error(`Unsupported storage key for OSS storage: ${storageKey}`);
+  }
+
+  private async getClient(bucket: string) {
+    const cached = this.clientCache.get(bucket);
+    if (cached) {
+      return cached;
+    }
+
+    const created = this.createClient(bucket);
+    this.clientCache.set(bucket, created);
+    return created;
+  }
+
+  private prependObjectPrefix(storageKey: string) {
+    return `${this.runtimeConfig.objectPrefix}/${storageKey}`;
+  }
+
+  private async createClient(bucket: string): Promise<OssClient> {
+    if (this.clientFactory) {
+      return await this.clientFactory(bucket);
+    }
+
+    const ossModule = await import("ali-oss");
+    const OSS = ossModule.default;
+    const endpoint = new URL(this.runtimeConfig.endpoint);
+
+    return new OSS({
+      region: this.runtimeConfig.region,
+      endpoint: this.runtimeConfig.endpoint,
+      bucket,
+      accessKeyId: this.runtimeConfig.accessKeyId,
+      accessKeySecret: this.runtimeConfig.accessKeySecret,
+      stsToken: this.runtimeConfig.securityToken,
+      secure: endpoint.protocol === "https:"
+    }) as OssClient;
+  }
+
+  private async readOssContent(content: Buffer | NodeJS.ReadableStream | string) {
+    if (Buffer.isBuffer(content)) {
+      return content;
+    }
+
+    if (typeof content === "string") {
+      return Buffer.from(content, "utf8");
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of content) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 }
 

@@ -4,7 +4,8 @@ const test = require("node:test");
 const { StorageRuntimeConfigError, resolveStorageRuntimeConfig } = require("../src/infra/storage/storage-runtime-config.ts");
 const {
   LocalStorageProviderService,
-  SupabaseStorageProviderService
+  SupabaseStorageProviderService,
+  OssStorageProviderService
 } = require("../src/infra/storage/storage-provider.service.ts");
 const { StorageService } = require("../src/infra/storage/storage.service.ts");
 const { withEnv } = require("./support/llm-test-helpers.js");
@@ -19,7 +20,7 @@ test("resolveStorageRuntimeConfig uses local storage when STORAGE_ROOT is provid
 test("resolveStorageRuntimeConfig rejects missing explicit storage runtime selection", () => {
   assert.throws(
     () => resolveStorageRuntimeConfig({}),
-    /Storage runtime requires Supabase storage config/
+    /Storage runtime requires complete Supabase storage config or an explicit supported STORAGE_PROVIDER/
   );
 });
 
@@ -28,6 +29,36 @@ test("resolveStorageRuntimeConfig allows explicit local fallback without a custo
 
   assert.equal(config.provider, "local");
   assert.equal(typeof config.storageRoot, "string");
+});
+
+test("resolveStorageRuntimeConfig resolves OSS storage when explicit OSS config is present", () => {
+  const config = resolveStorageRuntimeConfig({
+    STORAGE_PROVIDER: "oss",
+    OSS_REGION: "oss-cn-chengdu",
+    OSS_ACCESS_KEY_ID: "test-key-id",
+    OSS_ACCESS_KEY_SECRET: "test-key-secret",
+    OSS_BUCKET: "rag-system"
+  });
+
+  assert.equal(config.provider, "oss");
+  assert.equal(config.region, "oss-cn-chengdu");
+  assert.equal(config.endpoint, "https://oss-cn-chengdu.aliyuncs.com");
+  assert.equal(config.bucket, "rag-system");
+  assert.equal(config.objectPrefix, "rag-system");
+});
+
+test("resolveStorageRuntimeConfig respects explicit OSS prefix", () => {
+  const config = resolveStorageRuntimeConfig({
+    STORAGE_PROVIDER: "oss",
+    OSS_REGION: "oss-cn-chengdu",
+    OSS_ACCESS_KEY_ID: "test-key-id",
+    OSS_ACCESS_KEY_SECRET: "test-key-secret",
+    OSS_BUCKET: "shared-bucket",
+    OSS_PREFIX: "projects/rag-system"
+  });
+
+  assert.equal(config.provider, "oss");
+  assert.equal(config.objectPrefix, "projects/rag-system");
 });
 
 test("resolveStorageRuntimeConfig rejects partial Supabase storage config", () => {
@@ -151,4 +182,63 @@ test("StorageService delegates local storage behavior through the selected provi
   const service = new StorageService(new LocalStorageProviderService());
 
   assert.equal(typeof service.getStorageRoot(), "string");
+});
+
+test("StorageService stores uploads in OSS buckets while preserving storageKey shape", async () => {
+  const putCalls = [];
+  const service = new StorageService(
+    new OssStorageProviderService({
+      provider: "oss",
+      region: "oss-cn-chengdu",
+      endpoint: "https://oss-cn-chengdu.aliyuncs.com",
+      accessKeyId: "test-key-id",
+      accessKeySecret: "test-key-secret",
+      bucket: "rag-system",
+      objectPrefix: "rag-system"
+    }, async bucket => ({
+      put: async (name, data, options = {}) => {
+        putCalls.push({ bucket, name, data, options });
+      },
+      get: async () => ({ content: Buffer.from("", "utf8") })
+    }))
+  );
+  const stored = await service.saveUploadedFile({
+    buffer: Buffer.from("hello", "utf8"),
+    originalName: "notes.md",
+    mimeType: "text/markdown"
+  });
+
+  assert.match(stored.storageKey, /^uploads\/.+\.md$/);
+  assert.equal(stored.absolutePath, null);
+  assert.equal(putCalls.length, 1);
+  assert.equal(putCalls[0].bucket, "rag-system");
+  assert.match(putCalls[0].name, /^rag-system\/uploads\/.+\.md$/);
+  assert.equal(putCalls[0].options.headers["Content-Type"], "text/markdown");
+  assert.equal(putCalls[0].data.toString("utf8"), "hello");
+});
+
+test("StorageService reads generated files back from OSS", async () => {
+  const getCalls = [];
+  const service = new StorageService(
+    new OssStorageProviderService({
+      provider: "oss",
+      region: "oss-cn-chengdu",
+      endpoint: "https://oss-cn-chengdu.aliyuncs.com",
+      accessKeyId: "test-key-id",
+      accessKeySecret: "test-key-secret",
+      bucket: "rag-system",
+      objectPrefix: "rag-system"
+    }, async bucket => ({
+      put: async () => ({}),
+      get: async name => {
+        getCalls.push({ bucket, name });
+        return { content: Buffer.from("retrieved text", "utf8") };
+      }
+    }))
+  );
+
+  const content = await service.readFileByStorageKey("generated/sample.txt");
+
+  assert.equal(content.toString("utf8"), "retrieved text");
+  assert.deepEqual(getCalls, [{ bucket: "rag-system", name: "rag-system/generated/sample.txt" }]);
 });

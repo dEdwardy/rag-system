@@ -4,7 +4,12 @@ const {
   resolveEmbeddingRuntimeConfig
 } = require("../src/infra/embedding/embedding-runtime-config.ts");
 const { EmbeddingService } = require("../src/infra/embedding/embedding.service.ts");
+const { EmbeddingCacheService } = require("../src/infra/embedding/embedding-cache.service.ts");
 const { withEnv, withFetchMock } = require("./support/llm-test-helpers.js");
+
+function createEmbeddingService() {
+  return new EmbeddingService(new EmbeddingCacheService());
+}
 
 test("resolveEmbeddingRuntimeConfig preserves deterministic fallback defaults", () => {
   const config = resolveEmbeddingRuntimeConfig({});
@@ -249,8 +254,8 @@ test("resolveEmbeddingRuntimeConfig reports unusable OpenAI embedding provider w
   );
 });
 
-test("EmbeddingService keeps deterministic fallback embeddings when provider requests fail", async () => {
-  const service = new EmbeddingService();
+test("EmbeddingService fails clearly when provider requests fail", async () => {
+  const service = createEmbeddingService();
 
   await withEnv(
     {
@@ -262,19 +267,40 @@ test("EmbeddingService keeps deterministic fallback embeddings when provider req
     },
     async () => {
       await withFetchMock(async () => ({ ok: false, status: 503 }), async () => {
-        const [embedding] = await service.embedTexts(["fallback text"]);
+        await assert.rejects(service.embedTexts(["fallback text"]), error => {
+          assert.match(error.message, /Embedding provider request failed for all configured providers/);
+          assert.match(error.message, /openai:text-embedding-3-small/);
+          assert.match(error.message, /status 503/);
+          return true;
+        });
+      });
+    }
+  );
+});
 
-        assert.equal(embedding.provider, "fallback");
-        assert.equal(embedding.modelName, "fallback:hash-v1");
-        assert.equal(embedding.dimensions, 256);
-        assert.equal(embedding.vector.length, 256);
+test("EmbeddingService rejects indexing and retrieval when no usable provider is configured", async () => {
+  const service = createEmbeddingService();
+
+  await withEnv(
+    {
+      OLLAMA_BASE_URL: undefined,
+      OLLAMA_MODEL: undefined,
+      OLLAMA_EMBEDDING_MODEL: undefined,
+      OPENAI_API_KEY: undefined,
+      OPENAI_EMBEDDING_MODEL: undefined
+    },
+    async () => {
+      await assert.rejects(service.embedTexts(["provider required"]), error => {
+        assert.ok(error instanceof EmbeddingRuntimeConfigError);
+        assert.match(error.message, /no usable embedding provider is configured/);
+        return true;
       });
     }
   );
 });
 
 test("EmbeddingService rejects incompatible OpenAI dimensions with an explicit error", async () => {
-  const service = new EmbeddingService();
+  const service = createEmbeddingService();
 
   await withEnv(
     {
@@ -308,7 +334,7 @@ test("EmbeddingService rejects incompatible OpenAI dimensions with an explicit e
 });
 
 test("EmbeddingService sends multimodal text payloads for OpenAI-compatible embedding providers", async () => {
-  const service = new EmbeddingService();
+  const service = createEmbeddingService();
 
   await withEnv(
     {
@@ -355,7 +381,7 @@ test("EmbeddingService sends multimodal text payloads for OpenAI-compatible embe
 });
 
 test("EmbeddingService accepts multimodal text responses that return a single data.embedding object", async () => {
-  const service = new EmbeddingService();
+  const service = createEmbeddingService();
 
   await withEnv(
     {
@@ -390,7 +416,7 @@ test("EmbeddingService accepts multimodal text responses that return a single da
 });
 
 test("EmbeddingService sends multimodal text inputs one by one when the provider only returns one embedding object", async () => {
-  const service = new EmbeddingService();
+  const service = createEmbeddingService();
 
   await withEnv(
     {
@@ -445,7 +471,7 @@ test("EmbeddingService sends multimodal text inputs one by one when the provider
 });
 
 test("EmbeddingService dimension mismatch error explains default OpenAI embedding model usage", async () => {
-  const service = new EmbeddingService();
+  const service = createEmbeddingService();
 
   await withEnv(
     {
@@ -478,7 +504,7 @@ test("EmbeddingService dimension mismatch error explains default OpenAI embeddin
 });
 
 test("EmbeddingService rejects inconsistent Ollama response dimensions with an explicit error", async () => {
-  const service = new EmbeddingService();
+  const service = createEmbeddingService();
 
   await withEnv(
     {
@@ -512,7 +538,7 @@ test("EmbeddingService rejects inconsistent Ollama response dimensions with an e
 });
 
 test("EmbeddingService rejects Ollama responses that mismatch OLLAMA_EMBEDDING_DIMENSIONS", async () => {
-  const service = new EmbeddingService();
+  const service = createEmbeddingService();
 
   await withEnv(
     {

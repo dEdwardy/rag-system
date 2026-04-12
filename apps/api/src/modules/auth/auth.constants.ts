@@ -4,8 +4,8 @@ export const DEFAULT_DEV_AUTH_SOURCE = "dev_seed";
 export const DEFAULT_DEV_LOGIN_EMAIL = "default-user@example.com";
 export const DEFAULT_DEV_LOGIN_PASSWORD = "local-password-1";
 
-export const DEFAULT_AUTH_SESSION_COOKIE_NAME = "rag_session";
 export const DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME = "rag_access_token";
+export const DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME = "rag_refresh_token";
 export const DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME = "rag_login_provenance";
 export const DEFAULT_AUTH_SESSION_TTL_HOURS = 24 * 7;
 export const DEFAULT_AUTH_ACCESS_JWT_TTL_MINUTES = 15;

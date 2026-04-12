@@ -12,11 +12,24 @@ const criticalEnvSchema = z
   .object({
     DATABASE_URL: trimmedOptionalString,
 
+    STORAGE_PROVIDER: z.enum(["supabase", "oss", "local"]).optional().default("supabase"),
     SUPABASE_URL: trimmedOptionalString,
     SUPABASE_SERVICE_ROLE_KEY: trimmedOptionalString,
     SUPABASE_STORAGE_BUCKET_UPLOADS: trimmedOptionalString,
     SUPABASE_STORAGE_BUCKET_GENERATED: trimmedOptionalString,
-    QUEUE_PROVIDER: z.enum(["database", "pgmq"]).optional().default("pgmq"),
+    OSS_ENDPOINT: trimmedOptionalString,
+    OSS_REGION: trimmedOptionalString,
+    OSS_ACCESS_KEY_ID: trimmedOptionalString,
+    OSS_ACCESS_KEY_SECRET: trimmedOptionalString,
+    OSS_SECURITY_TOKEN: trimmedOptionalString,
+    OSS_BUCKET: trimmedOptionalString,
+    OSS_PREFIX: trimmedOptionalString,
+    OSS_BUCKET_UPLOADS: trimmedOptionalString,
+    OSS_BUCKET_GENERATED: trimmedOptionalString,
+    QUEUE_PROVIDER: z.enum(["database", "pgmq", "redis"]).optional().default("pgmq"),
+    REDIS_URL: trimmedOptionalString,
+    AUTH_SESSION_STORE_PROVIDER: z.enum(["database", "redis"]).optional(),
+    AUTH_SESSION_STORE_KEY_PREFIX: trimmedOptionalString,
     VECTOR_STORE_PROVIDER: z.enum(["filesystem", "pgvector"]).optional().default("pgvector"),
     OLLAMA_BASE_URL: trimmedOptionalString,
     OLLAMA_MODEL: trimmedOptionalString,
@@ -33,32 +46,77 @@ const criticalEnvSchema = z
       });
     }
 
-    const supabaseStorageFields = [
-      ["SUPABASE_URL", env.SUPABASE_URL],
-      ["SUPABASE_SERVICE_ROLE_KEY", env.SUPABASE_SERVICE_ROLE_KEY],
-      ["SUPABASE_STORAGE_BUCKET_UPLOADS", env.SUPABASE_STORAGE_BUCKET_UPLOADS],
-      ["SUPABASE_STORAGE_BUCKET_GENERATED", env.SUPABASE_STORAGE_BUCKET_GENERATED]
-    ] as const;
+    if (env.STORAGE_PROVIDER === "supabase") {
+      const supabaseStorageFields = [
+        ["SUPABASE_URL", env.SUPABASE_URL],
+        ["SUPABASE_SERVICE_ROLE_KEY", env.SUPABASE_SERVICE_ROLE_KEY],
+        ["SUPABASE_STORAGE_BUCKET_UPLOADS", env.SUPABASE_STORAGE_BUCKET_UPLOADS],
+        ["SUPABASE_STORAGE_BUCKET_GENERATED", env.SUPABASE_STORAGE_BUCKET_GENERATED]
+      ] as const;
 
-    // Always require Supabase storage
-    for (const [key, value] of supabaseStorageFields) {
-      if (!value) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [key],
-          message: `${key} is required for Supabase Storage.`
-        });
+      for (const [key, value] of supabaseStorageFields) {
+        if (!value) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required for Supabase Storage.`
+          });
+        }
+      }
+
+      if (env.SUPABASE_URL) {
+        const urlResult = z.string().url().safeParse(env.SUPABASE_URL);
+        if (!urlResult.success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["SUPABASE_URL"],
+            message: "SUPABASE_URL must be a valid URL."
+          });
+        }
       }
     }
 
-    if (env.SUPABASE_URL) {
-      const urlResult = z.string().url().safeParse(env.SUPABASE_URL);
-      if (!urlResult.success) {
+    if (env.STORAGE_PROVIDER === "oss") {
+      const ossFields = [
+        ["OSS_ACCESS_KEY_ID", env.OSS_ACCESS_KEY_ID],
+        ["OSS_ACCESS_KEY_SECRET", env.OSS_ACCESS_KEY_SECRET]
+      ] as const;
+
+      for (const [key, value] of ossFields) {
+        if (!value) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required for OSS storage.`
+          });
+        }
+      }
+
+      if (!env.OSS_BUCKET && !env.OSS_BUCKET_UPLOADS && !env.OSS_BUCKET_GENERATED) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["SUPABASE_URL"],
-          message: "SUPABASE_URL must be a valid URL."
+          path: ["OSS_BUCKET"],
+          message: "OSS_BUCKET is required for OSS storage unless legacy OSS_BUCKET_UPLOADS / OSS_BUCKET_GENERATED are provided."
         });
+      }
+
+      if (!env.OSS_ENDPOINT && !env.OSS_REGION) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["OSS_REGION"],
+          message: "OSS_REGION or OSS_ENDPOINT is required for OSS storage."
+        });
+      }
+
+      if (env.OSS_ENDPOINT) {
+        const urlResult = z.string().url().safeParse(env.OSS_ENDPOINT);
+        if (!urlResult.success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["OSS_ENDPOINT"],
+            message: "OSS_ENDPOINT must be a valid URL."
+          });
+        }
       }
     }
 
@@ -86,6 +144,22 @@ const criticalEnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ["OPENAI_API_KEY"],
         message: "OPENAI_API_KEY is required when OPENAI_EMBEDDING_MODEL is configured."
+      });
+    }
+
+    if (env.QUEUE_PROVIDER === "redis" && !env.REDIS_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["REDIS_URL"],
+        message: "REDIS_URL is required when QUEUE_PROVIDER=redis."
+      });
+    }
+
+    if (env.AUTH_SESSION_STORE_PROVIDER === "redis" && !env.REDIS_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["REDIS_URL"],
+        message: "REDIS_URL is required when AUTH_SESSION_STORE_PROVIDER=redis."
       });
     }
   });

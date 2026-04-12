@@ -8,13 +8,14 @@
 Start local services:
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.local-infra.yml up -d
 ```
 
 This brings up:
 
 - PostgreSQL on `localhost:5432`
 - Redis on `localhost:6379`
+- PostgreSQL starts with `pgvector` enabled via init script
 
 ## Install dependencies
 
@@ -27,6 +28,15 @@ If this is a fresh checkout, copy the example env into the API app first:
 ```bash
 cp .env.example apps/api/.env
 ```
+
+For the local Docker Desktop infra baseline, prefer creating `apps/api/.env.local` from:
+
+```bash
+cp apps/api/.env.local.example apps/api/.env.local
+```
+
+- this local example assumes Docker Desktop provides PostgreSQL + Redis on `127.0.0.1`
+- object storage can now use OSS directly; keep valid `OSS_*` values in local env when moving off Supabase Storage
 
 For clean-checkout or CI-like validation, explicitly generate the Prisma client before API build/typecheck:
 
@@ -47,8 +57,9 @@ Current local PostgreSQL connection values:
 
 Queue runtime now runs in two supported modes:
 
-- `QUEUE_PROVIDER=pgmq` (default): Supabase Queues / `pgmq`-backed ingestion queue
-- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue fallback
+- `QUEUE_PROVIDER=pgmq`: Supabase Queues / `pgmq`-backed ingestion queue
+- `QUEUE_PROVIDER=database`: PostgreSQL-backed ingestion queue mode for local/self-hosted Postgres
+- `QUEUE_PROVIDER=redis`: Redis-backed ingestion queue mode for local/self-hosted infra
 
 Database queue runtime settings:
 
@@ -57,10 +68,28 @@ QUEUE_PROVIDER=database
 QUEUE_DATABASE_POLL_INTERVAL_MS=1000
 QUEUE_DATABASE_RETRY_DELAY_MS=5000
 QUEUE_DATABASE_MAX_ATTEMPTS=3
+QUEUE_MAX_CONCURRENT_TASKS=1
 ```
 
 - the database queue stores durable ingestion jobs in `IngestionQueueJob`
 - retries are handled by the API worker poll loop using the configured delay/max-attempt settings above
+- for rate-limited embedding providers, keep `QUEUE_MAX_CONCURRENT_TASKS=1` so batch uploads are ingested serially instead of fanning out concurrent embedding calls
+- when using the local Docker Postgres stack without Redis queue enabled yet, `QUEUE_PROVIDER=database` remains the simplest fallback
+
+Redis queue runtime settings:
+
+```text
+QUEUE_PROVIDER=redis
+QUEUE_PREFIX=rag-local
+REDIS_URL=redis://127.0.0.1:6379
+QUEUE_DATABASE_POLL_INTERVAL_MS=1000
+QUEUE_DATABASE_RETRY_DELAY_MS=5000
+QUEUE_DATABASE_MAX_ATTEMPTS=3
+QUEUE_MAX_CONCURRENT_TASKS=1
+```
+
+- Redis queue currently uses a lightweight pending-list + delayed-retry implementation intended for local/self-hosted use
+- local Docker Desktop baseline now prefers `QUEUE_PROVIDER=redis`
 
 Supabase Queues / `pgmq` runtime settings:
 
@@ -75,6 +104,7 @@ QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS=300
 - `pgmq` requires the `pgmq` extension to exist on the target database; apply the approved migration rollout before switching runtime traffic
 - the API ensures the configured ingestion queue exists at runtime using the current `QUEUE_PREFIX`
 - message retry delay still uses `QUEUE_DATABASE_RETRY_DELAY_MS`, while `QUEUE_PGMQ_VISIBILITY_TIMEOUT_SECONDS` controls how long an in-flight message stays invisible before it can be delivered again
+- the local Docker Postgres stack in `docker-compose.local-infra.yml` does not install `pgmq`; use `QUEUE_PROVIDER=database` locally unless you provision `pgmq` separately
 
 Apply migrations:
 
@@ -133,6 +163,18 @@ This expects the local PostgreSQL stack to be running.
 
 - when `QUEUE_PROVIDER=database`, the ingestion queue runs from PostgreSQL
 - when `QUEUE_PROVIDER=pgmq`, the ingestion queue runs through the Supabase `pgmq` extension
+- when `QUEUE_PROVIDER=redis`, the ingestion queue runs from Redis using the configured `REDIS_URL`
+- local Docker Desktop baseline recommendation:
+
+```text
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rag_system
+DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:5432/rag_system
+QUEUE_PROVIDER=redis
+REDIS_URL=redis://127.0.0.1:6379
+VECTOR_STORE_PROVIDER=pgvector
+```
+
+- Redis is now the preferred local queue baseline; PostgreSQL-backed queue mode remains available as a fallback/debug path
 
 Health check:
 
@@ -174,12 +216,12 @@ Notes:
 - 本轮复盘结论：
   - 当前数据规模较小时，远端数据库内部 SQL 可能只有毫秒级，但应用侧 wall-time 仍可能达到数百毫秒到数秒
   - 出现这种情况时，应优先怀疑 Supabase pooler / 网络往返，而不是默认怀疑 SQL 或向量检索本身
-- 当前 auth 运行时已支持 `session + access JWT + session 驱动续签`：
+- 当前 auth 运行时已切到 `access JWT + refresh JWT` 双 cookie：
 
 ```text
-AUTH_SESSION_COOKIE_NAME=rag_session
 AUTH_SESSION_TTL_HOURS=168
 AUTH_ACCESS_TOKEN_COOKIE_NAME=rag_access_token
+AUTH_REFRESH_TOKEN_COOKIE_NAME=rag_refresh_token
 AUTH_ACCESS_JWT_TTL_MINUTES=15
 AUTH_ACCESS_JWT_SECRET=<production-use-a-strong-secret>
 AUTH_COOKIE_SECURE=false
@@ -189,11 +231,11 @@ AUTH_RATE_LIMIT_REFRESH_MAX=30
 ```
 
 - 说明：
-  - `rag_session` 仍然对应服务端 `authSession`，是 refresh / logout / revoke 的可信依据
-  - `rag_access_token` 是短时 access JWT，普通请求优先只验它，不查 `authSession + user`
-  - access JWT 过期后，前端请求层会在收到 `401` 时调用 `POST /auth/refresh`，成功后自动重放原请求
-  - 为了平滑迁移，旧的 session-only 登录态仍保留 fallback；前端在启动或首次 `401` 后可通过 refresh 补发 access JWT
+  - `rag_access_token` 是短时 access JWT，普通请求只验它
+  - `rag_refresh_token` 是长时 refresh JWT，前端请求层在 access token 过期收到 `401` 时会调用 `POST /auth/refresh` 自动续签并重放原请求
+  - 不再依赖服务端 `AuthSession` 表；logout 通过清除 cookie 结束当前浏览器登录态，不再提供服务端主动吊销
   - 生产环境必须显式配置强随机 `AUTH_ACCESS_JWT_SECRET`
+  - Redis auth session store 相关代码仍保留在仓库中，但当前主链不依赖它
 - production container startup should inject env at runtime (for example via `docker compose` `env_file` or container platform secrets); do not rely on baking `apps/api/.env.production` into the image
 - CORS behavior now differs by runtime mode:
   - development / non-production: allow request origins dynamically so local multi-port frontend work is not blocked by fixed origin lists
@@ -235,6 +277,7 @@ VECTOR_STORE_PGVECTOR_DIMENSIONS=1024
 - `OPENAI_EMBEDDING_API_MODE=standard` keeps the normal `/embeddings` request shape with string input.
 - `OPENAI_EMBEDDING_API_MODE=multimodal_text` switches to `/embeddings/multimodal` and sends text as `{ type: "text", text: ... }` items.
 - `VECTOR_STORE_PGVECTOR_DIMENSIONS` must match the active embedding output size. With pgvector, this is part of the database column type, so changing embedding size also requires a schema migration and a fresh reindex.
+- indexing and retrieval no longer silently fall back to local `fallback:hash-v1` embeddings when the dedicated provider request fails; provider failures now surface directly so they can be diagnosed instead of mixing `256d` fallback vectors with a `1024d` pgvector store
 - If a KB still contains old local `fallback:hash-v1` vectors, the first successful reindex with a dedicated embedding provider now replaces those legacy fallback vectors for that KB so reindex can recover without manual vector cleanup.
 - external source fetch runtime now also supports:
 
@@ -267,25 +310,39 @@ SOURCE_FETCH_BREAKER_CHALLENGE_PAUSE_MS=30000
   - treat `sitemap` / `sitemapindex` only as URL index hints, not as authorization grants
   - users are responsible for confirming rights-to-use before ingestion
   - external resync remains incremental-first: in-flight resync is not duplicated, and very recent `ready/completed` external docs are skipped for immediate repeat broad refetch
-- storage runtime now requires Supabase Storage:
+- storage runtime supports OSS or Supabase Storage:
 
 ```text
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET_UPLOADS=uploads
-SUPABASE_STORAGE_BUCKET_GENERATED=generated
+STORAGE_PROVIDER=oss
+OSS_REGION=oss-cn-chengdu
+# Optional explicit endpoint override:
+# OSS_ENDPOINT=https://oss-cn-chengdu.aliyuncs.com
+OSS_ACCESS_KEY_ID=
+OSS_ACCESS_KEY_SECRET=
+OSS_BUCKET=rag-system
+OSS_PREFIX=rag-system
 VECTOR_STORE_PROVIDER=pgvector
 VECTOR_STORE_PGVECTOR_TABLE=ChunkEmbedding
 VECTOR_STORE_PGVECTOR_DIMENSIONS=768
 ```
 
-- the runtime now exclusively uses Supabase Storage for all file operations
-- local filesystem storage has been removed; all storage operations now go through Supabase Storage API
-- the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between local and Supabase storage
-- `SUPABASE_SERVICE_ROLE_KEY` is intended for backend-only use; keep the buckets private and do not expose that key to the web app
+- supported object storage providers:
+  - `STORAGE_PROVIDER=oss`
+  - `STORAGE_PROVIDER=supabase`
+  - `STORAGE_PROVIDER=local` only for narrow debug cases
+- OSS expects one bucket by default and stores project files under `OSS_PREFIX`, for example `rag-system/uploads/...` and `rag-system/generated/...`
+- set `OSS_REGION` for the normal path; `OSS_ENDPOINT` is optional when you need an explicit override
+- the backend keeps the same logical `storageKey` prefixes (`uploads/...`, `generated/...`), so document records do not need a different path shape when switching between OSS and Supabase storage
+- when using OSS, provide bucket-level credentials with read/write access to the configured bucket
 - vector storage now defaults to PostgreSQL `pgvector`; set `VECTOR_STORE_PROVIDER=filesystem` only for narrow compatibility/debug cases
 - the default runtime baseline is no longer local-only infra; normal development and deployment should assume Supabase Storage plus PostgreSQL-backed queue/vector services are available
 - current pgvector support is intentionally scoped to the verified `nomic-embed-text` setup and expects `VECTOR_STORE_PGVECTOR_DIMENSIONS=768`
+- current migration direction for local development is: self-host Postgres/Redis with Docker Desktop, and prefer OSS for object storage when available
+- near-term migration direction:
+  - local infra: Docker Desktop `postgres + pgvector + redis`
+  - project services: app-local `api/web`
+  - shared infra naming: use `infra-postgres` / `infra-redis` when introducing long-lived shared containers outside this repo
+  - auth no longer depends on a server-side session store; Redis remains optional for future revocation/coordination work, not part of the current auth baseline
 
 ## GitHub Actions production image and deploy
 
@@ -478,24 +535,24 @@ Practical interpretation:
 
 - if a test still asserts the old local seeded-account path, old fixed markup, or pre-split i18n source shape, treat it as legacy by default
 - if a test still targets a current helper/contract but fails because of harness drift or wording drift, prefer rebaselining over deleting it
-- auth/session runtime now also supports:
+- auth runtime cookie defaults now include:
 
 ```text
-AUTH_SESSION_COOKIE_NAME=rag_session
 AUTH_LOGIN_PROVENANCE_COOKIE_NAME=rag_login_provenance
 AUTH_SESSION_TTL_HOURS=168
+AUTH_ACCESS_TOKEN_COOKIE_NAME=rag_access_token
+AUTH_REFRESH_TOKEN_COOKIE_NAME=rag_refresh_token
 ```
 
-- current auth cookie/session defaults:
-  - cookie name default is `rag_session`
-  - login session TTL default is `168` hours (`7` days)
+- current auth cookie defaults:
+  - refresh token TTL default is `168` hours (`7` days)
   - route policy baseline now distinguishes public and authenticated API routes:
     - public: `GET /health`, `GET /auth/providers`, `POST /auth/login`, `POST /auth/logout`
     - authenticated: `GET /auth/me`, `POST /auth/permissions/check`, plus the owner-scoped business controllers for `knowledge-bases`, `documents`, `assistants`, `conversations`, `traces`, `audit`, and `retrieval-profiles`
-    - `GET /auth/me` and the owner-scoped business routes require an authenticated session cookie and return `401` when unauthenticated
+    - `GET /auth/me` and the owner-scoped business routes require an authenticated access JWT cookie and return `401` when unauthenticated
   - backend now exposes minimal auth loop endpoints:
-    - `POST /auth/login` (Phase 1 local-account baseline: accepts `{ email, password }`, sets session cookie, returns identity)
-    - `POST /auth/logout` (revokes current session when present, clears cookie)
+    - `POST /auth/login` (accepts `{ email, password }`, sets access/refresh JWT cookies, returns identity)
+    - `POST /auth/logout` (clears auth cookies)
     - `GET /auth/providers` (returns local-login dev helper info plus OAuth provider configuration readiness for the login UI)
     - `GET /auth/me` (returns `{ identity, currentIdentity, loginProvenance }`)
       - `loginProvenance.type`: `local_session` or `oauth_session`
@@ -504,7 +561,7 @@ AUTH_SESSION_TTL_HOURS=168
     - pre-created users only (seed/admin/manual bootstrap); no public signup in this wave
     - local seed defaults are now explicit for local development: `AUTH_DEV_DEFAULT_USER_EMAIL` (default `default-user@example.com`) and `AUTH_DEV_DEFAULT_USER_PASSWORD` (default `local-password-1`)
     - no password reset / forgot-password / email verification in this wave
-    - session model remains local `AuthSession` + cookie-based auth (`rag_session`), with `/auth/me` as the frontend auth anchor
+    - JWT model remains cookie-based auth (`rag_access_token` + `rag_refresh_token`), with `/auth/me` as the frontend auth anchor
     - ACL boundary is preserved as owner-only (`owner_only_v1 + deny_by_default`), with no role/share expansion in this phase
   - auth `Phase 2/3/4 + real OIDC` current landed snapshot (queue wave sync):
     - `Phase 2` baseline is landed:
@@ -513,13 +570,13 @@ AUTH_SESSION_TTL_HOURS=168
       - reserved provider route shape remains `GET /auth/oauth/:provider/start` + `GET /auth/oauth/:provider/callback`
     - `Phase 3` GitHub flow is landed in backend runtime:
       - `/auth/oauth/github/start` builds redirect URL + state cookie
-      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then creates local `AuthSession`, writes `rag_session`, and redirects back to the web app success URL
+      - `/auth/oauth/github/callback` validates state, exchanges code, links/creates local user through `AuthIdentityLink(provider, subject)`, then writes access/refresh JWT cookies and redirects back to the web app success URL
       - local GitHub app setups may also point the callback URL at `/auth/github/callback`; the backend now accepts that alias and runs the same callback flow
     - `Phase 4` Google flow is landed with the same backend pattern:
-      - `/auth/oauth/google/start` and `/auth/oauth/google/callback` follow the same state + identity-link + local-session bridge semantics
+      - `/auth/oauth/google/start` and `/auth/oauth/google/callback` follow the same state + identity-link + JWT cookie bridge semantics
     - real `oidc` flow is now landed with the same backend identity-link/session bridge pattern:
       - `/auth/oauth/oidc/start` resolves OIDC discovery metadata (`authorization_endpoint`) and redirects with the existing state-cookie guard
-      - `/auth/oauth/oidc/callback` resolves discovery metadata (`token_endpoint` + `userinfo_endpoint`), exchanges code, reads stable `sub`, then links/creates local user via `AuthIdentityLink(provider, subject)` and creates local `AuthSession`
+      - `/auth/oauth/oidc/callback` resolves discovery metadata (`token_endpoint` + `userinfo_endpoint`), exchanges code, reads stable `sub`, then links/creates local user via `AuthIdentityLink(provider, subject)` and writes JWT cookies
     - runtime env requirements currently used by code paths above:
       - shared OAuth state controls: `AUTH_OAUTH_STATE_COOKIE_NAME` (default `rag_oauth_state`), `AUTH_OAUTH_STATE_TTL_SECONDS` (default `600`)
       - shared post-login redirect control: `AUTH_OAUTH_SUCCESS_REDIRECT_URI` (fallbacks: `AUTH_WEB_SUCCESS_REDIRECT_URI`, then first `CORS_ORIGIN`, then `http://localhost:5173`)
@@ -528,9 +585,9 @@ AUTH_SESSION_TTL_HOURS=168
       - OIDC start/callback config: `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET`, `AUTH_OIDC_REDIRECT_URI` (optional: `AUTH_OIDC_SCOPE`, default `openid email profile`)
       - optional default tenant for first-time OAuth auto-create path: `AUTH_DEFAULT_TENANT_ID` (fallback `default-tenant`)
     - behavior boundary kept unchanged:
-      - `/auth/me` contract remains `{ identity, currentIdentity, loginProvenance }`; this wave does not change identity/session payload shape
-      - local login + session-cookie flow remains active (`POST /auth/login` + `rag_session` + `GET /auth/me`)
-      - OAuth/OIDC callback still bridges into local persisted session (`AuthSession` + `rag_session`), not provider token session state on frontend
+      - `/auth/me` contract remains `{ identity, currentIdentity, loginProvenance }`; this wave does not change identity payload shape
+      - local login stays cookie-based (`POST /auth/login` + JWT cookies + `GET /auth/me`)
+      - OAuth/OIDC callback still bridges into local app auth cookies, not provider token state on frontend
       - owner-only ACL behavior remains unchanged; this auth increment does not reopen ACL expansion
   - current ACL baseline (`owner_only_v1`) default stance is **deny by default**:
     - allow only when `tenantId` matches and `ownerId === userId`

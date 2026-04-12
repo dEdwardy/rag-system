@@ -1,10 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { createHash } from "node:crypto";
 import {
   createResolvedEmbeddingConfigFromProviderResponse,
   EmbeddingRuntimeConfigError,
   EmbeddingVector,
-  FallbackEmbeddingRuntimeConfig,
   OllamaEmbeddingRuntimeConfig,
   OpenAiEmbeddingRuntimeConfig,
   resolveEmbeddingRuntimeConfig,
@@ -35,6 +33,7 @@ export class EmbeddingService {
 
     const runtimeConfig = resolveEmbeddingRuntimeConfig();
     let uncachedEmbeddings: EmbeddingVector[] | null = null;
+    const providerFailures: string[] = [];
 
     for (const providerConfig of runtimeConfig.providers) {
       if (providerConfig.provider === "ollama") {
@@ -45,6 +44,7 @@ export class EmbeddingService {
           if (error instanceof EmbeddingRuntimeConfigError) {
             throw error;
           }
+          providerFailures.push(this.formatProviderFailure(providerConfig.provider, providerConfig.model, error));
           continue;
         }
       }
@@ -57,16 +57,20 @@ export class EmbeddingService {
           if (error instanceof EmbeddingRuntimeConfigError) {
             throw error;
           }
+          providerFailures.push(this.formatProviderFailure(providerConfig.provider, providerConfig.model, error));
           continue;
         }
       }
-
-      uncachedEmbeddings = uncached.map(text => this.buildFallbackEmbedding(text, providerConfig));
-      break;
     }
 
     if (!uncachedEmbeddings) {
-      throw new Error("Embedding runtime resolution returned no embedding provider.");
+      if (providerFailures.length > 0) {
+        throw new Error(`Embedding provider request failed for all configured providers: ${providerFailures.join("; ")}`);
+      }
+
+      throw new EmbeddingRuntimeConfigError(
+        "Invalid embedding config: no usable embedding provider is configured. Configure OpenAI or Ollama embeddings before indexing or retrieval."
+      );
     }
 
     this.embeddingCacheService.setBatch(uncached, uncachedEmbeddings);
@@ -94,6 +98,11 @@ export class EmbeddingService {
     }
 
     return embedding;
+  }
+
+  private formatProviderFailure(provider: "ollama" | "openai", model: string, error: unknown) {
+    const reason = error instanceof Error ? error.message : "Unknown provider error.";
+    return `${provider}:${model} -> ${reason}`;
   }
 
   private async embedWithOllama(providerConfig: OllamaEmbeddingRuntimeConfig, inputs: string[]): Promise<EmbeddingVector[]> {
@@ -217,46 +226,4 @@ export class EmbeddingService {
     }));
   }
 
-  private buildFallbackEmbedding(text: string, fallbackConfig: FallbackEmbeddingRuntimeConfig): EmbeddingVector {
-    const dimensions = fallbackConfig.config.dimensions;
-    const vector = new Array<number>(dimensions).fill(0);
-    const terms = this.tokenize(text);
-
-    if (terms.length === 0) {
-      return {
-        vector,
-        ...fallbackConfig.config
-      };
-    }
-
-    for (const term of terms) {
-      const hash = createHash("sha256").update(term).digest();
-      const bucket = hash.readUInt16BE(0) % dimensions;
-      const direction = hash[2] % 2 === 0 ? 1 : -1;
-      vector[bucket] += direction;
-    }
-
-    return {
-      vector: this.normalizeVector(vector),
-      ...fallbackConfig.config
-    };
-  }
-
-  private tokenize(text: string) {
-    return text
-      .toLowerCase()
-      .split(/[^a-z0-9\u4e00-\u9fa5]+/i)
-      .map(term => term.trim())
-      .filter(Boolean);
-  }
-
-  private normalizeVector(vector: number[]) {
-    const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
-
-    if (magnitude === 0) {
-      return vector;
-    }
-
-    return vector.map(value => value / magnitude);
-  }
 }
