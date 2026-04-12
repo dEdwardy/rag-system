@@ -18,7 +18,7 @@ export class VectorStoreRuntimeConfigError extends Error {
 }
 
 export function resolveVectorStoreRuntimeConfig(env: NodeJS.ProcessEnv = process.env): VectorStoreRuntimeConfig {
-  const provider = env.VECTOR_STORE_PROVIDER?.trim() || "filesystem";
+  const provider = env.VECTOR_STORE_PROVIDER?.trim() || "pgvector";
 
   if (provider === "filesystem") {
     return { provider };

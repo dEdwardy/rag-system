@@ -3,7 +3,7 @@ import {
   DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME,
   DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME,
   DEFAULT_AUTH_OAUTH_STATE_COOKIE_NAME,
-  DEFAULT_AUTH_SESSION_COOKIE_NAME
+  DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME
 } from "./auth.constants";
 import { buildCookie, buildExpiredCookie, readNamedCookie as readCookieValue } from "./auth-cookie.utils";
 import { AuthRateLimit } from "./auth-rate-limit.decorator";
@@ -50,8 +50,8 @@ export class AuthController {
     });
 
     response.setHeader("Set-Cookie", [
-      this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
       this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
+      this.buildRefreshTokenCookieValue(result.refreshToken, result.expiresAt),
       this.buildLoginProvenanceCookieValue(LOCAL_LOGIN_PROVENANCE_COOKIE_VALUE, result.expiresAt)
     ]);
 
@@ -75,10 +75,13 @@ export class AuthController {
     @Res({ passthrough: true }) response: { setHeader: (name: string, value: string | string[]) => void }
   ) {
     const result = await this.authService.refreshAccessToken({
-      sessionId: this.readNamedCookie(request.headers, this.resolveSessionCookieName())
+      refreshToken: this.readNamedCookie(request.headers, this.resolveRefreshTokenCookieName())
     });
 
-    response.setHeader("Set-Cookie", this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt));
+    response.setHeader("Set-Cookie", [
+      this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
+      this.buildRefreshTokenCookieValue(result.refreshToken, result.expiresAt)
+    ]);
 
     return {
       ok: true,
@@ -93,14 +96,12 @@ export class AuthController {
     @Req() request?: ApiRequestWithAuthContext,
     @Res({ passthrough: true }) response?: { setHeader: (name: string, value: string | string[]) => void }
   ) {
-    await this.authService.logout({
-      sessionId: request?.authContext?.identity?.sessionId
-    });
+    await this.authService.logout();
 
     if (response != null) {
       response.setHeader("Set-Cookie", [
-        this.buildClearSessionCookieValue(),
         this.buildClearAccessTokenCookieValue(),
+        this.buildClearRefreshTokenCookieValue(),
         this.buildClearLoginProvenanceCookieValue()
       ]);
     }
@@ -196,8 +197,8 @@ export class AuthController {
 
     response.setHeader("Set-Cookie", [
       this.buildClearOauthStateCookieValue(),
-      this.buildSessionCookieValue(result.identity.sessionId, result.expiresAt),
       this.buildAccessTokenCookieValue(result.accessToken, result.accessTokenExpiresAt),
+      this.buildRefreshTokenCookieValue(result.refreshToken, result.expiresAt),
       this.buildLoginProvenanceCookieValue(params.provider, result.expiresAt)
     ]);
     response.redirect(302, this.resolveOauthSuccessRedirectUrl());
@@ -247,14 +248,14 @@ export class AuthController {
     return readCookieValue(headers, cookieName);
   }
 
-  private resolveSessionCookieName() {
-    const cookieName = this.authRuntimeConfig.getConfig().sessionCookieName;
-    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_SESSION_COOKIE_NAME;
-  }
-
   private resolveAccessTokenCookieName() {
     const cookieName = this.authRuntimeConfig.getConfig().accessTokenCookieName;
     return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_ACCESS_TOKEN_COOKIE_NAME;
+  }
+
+  private resolveRefreshTokenCookieName() {
+    const cookieName = this.authRuntimeConfig.getConfig().refreshTokenCookieName;
+    return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_REFRESH_TOKEN_COOKIE_NAME;
   }
 
   private resolveOauthStateCookieName() {
@@ -267,10 +268,10 @@ export class AuthController {
     return cookieName.length > 0 ? cookieName : DEFAULT_AUTH_LOGIN_PROVENANCE_COOKIE_NAME;
   }
 
-  private buildSessionCookieValue(sessionId: string | null, expiresAtIso: string): string {
+  private buildRefreshTokenCookieValue(token: string, expiresAtIso: string): string {
     return buildCookie({
-      name: this.resolveSessionCookieName(),
-      value: sessionId ?? "",
+      name: this.resolveRefreshTokenCookieName(),
+      value: token,
       expires: new Date(expiresAtIso),
       httpOnly: true,
       sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
@@ -289,9 +290,9 @@ export class AuthController {
     });
   }
 
-  private buildClearSessionCookieValue(): string {
+  private buildClearRefreshTokenCookieValue(): string {
     return buildExpiredCookie({
-      name: this.resolveSessionCookieName(),
+      name: this.resolveRefreshTokenCookieName(),
       sameSite: this.authRuntimeConfig.getConfig().cookieSameSite,
       secure: this.authRuntimeConfig.getConfig().cookieSecure
     });

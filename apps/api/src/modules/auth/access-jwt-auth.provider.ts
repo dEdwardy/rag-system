@@ -24,7 +24,8 @@ export class AccessJwtAuthProvider implements AuthIdentityProvider {
 
     const payload = verifyAccessJwt({
       token,
-      secret: config.accessJwtSecret
+      secret: config.accessJwtSecret,
+      expectedType: "access"
     });
     if (payload == null) {
       return null;
@@ -34,8 +35,8 @@ export class AccessJwtAuthProvider implements AuthIdentityProvider {
       userId: payload.sub,
       tenantId: payload.tenantId,
       role: payload.role,
-      sessionId: payload.sid,
-      authSource: "session"
+      sessionId: null,
+      authSource: payload.authSource
     };
   }
 }

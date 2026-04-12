@@ -22,3 +22,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - rag-infra-net
+
+networks:
+  rag-infra-net:
+    external: true
+    name: ${DOCKER_SHARED_NETWORK:-rag-infra-net}

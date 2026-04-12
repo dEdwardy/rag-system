@@ -4,7 +4,8 @@ type AccessJwtPayload = {
   sub: string;
   tenantId: string;
   role: string;
-  sid: string;
+  authSource: string;
+  typ: "access" | "refresh";
   iat: number;
   exp: number;
 };
@@ -19,18 +20,20 @@ export function signAccessJwt(input: {
   userId: string;
   tenantId: string;
   role: string;
-  sessionId: string;
+  authSource: string;
   issuedAtSeconds: number;
   expiresAtSeconds: number;
+  tokenType?: "access" | "refresh";
 }): string {
   const encodedHeader = encodeBase64Url(JSON.stringify(JWT_HEADER));
   const encodedPayload = encodeBase64Url(JSON.stringify({
-    sub: input.userId,
-    tenantId: input.tenantId,
-    role: input.role,
-    sid: input.sessionId,
-    iat: input.issuedAtSeconds,
-    exp: input.expiresAtSeconds
+      sub: input.userId,
+      tenantId: input.tenantId,
+      role: input.role,
+      authSource: input.authSource,
+      typ: input.tokenType ?? "access",
+      iat: input.issuedAtSeconds,
+      exp: input.expiresAtSeconds
   } satisfies AccessJwtPayload));
   const signingInput = `${encodedHeader}.${encodedPayload}`;
   const signature = createHmac("sha256", input.secret).update(signingInput).digest("base64url");
@@ -41,6 +44,8 @@ export function verifyAccessJwt(input: {
   token: string;
   secret: string;
   nowMs?: number;
+  allowExpired?: boolean;
+  expectedType?: "access" | "refresh";
 }): AccessJwtPayload | null {
   const parts = input.token.split(".");
   if (parts.length !== 3) {
@@ -70,15 +75,20 @@ export function verifyAccessJwt(input: {
     typeof payload?.sub !== "string" ||
     typeof payload.tenantId !== "string" ||
     typeof payload.role !== "string" ||
-    typeof payload.sid !== "string" ||
+    typeof payload.authSource !== "string" ||
+    (payload.typ !== "access" && payload.typ !== "refresh") ||
     typeof payload.iat !== "number" ||
     typeof payload.exp !== "number"
   ) {
     return null;
   }
 
+  if (input.expectedType && payload.typ !== input.expectedType) {
+    return null;
+  }
+
   const nowSeconds = Math.floor((input.nowMs ?? Date.now()) / 1000);
-  if (payload.exp <= nowSeconds) {
+  if (!input.allowExpired && payload.exp <= nowSeconds) {
     return null;
   }
 
@@ -86,7 +96,8 @@ export function verifyAccessJwt(input: {
     sub: payload.sub,
     tenantId: payload.tenantId,
     role: payload.role,
-    sid: payload.sid,
+    authSource: payload.authSource,
+    typ: payload.typ,
     iat: payload.iat,
     exp: payload.exp
   };

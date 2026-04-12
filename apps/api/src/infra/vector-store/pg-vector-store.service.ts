@@ -33,11 +33,24 @@ type SearchRow = {
   chunkIndex: number;
   modelName: string;
   score: number;
+  documentTitle: string;
+  content: string;
+  sectionTitle: string | null;
+  pageNo: number | null;
+  metadataJson: Prisma.JsonValue | null;
 };
+
+type CachedIndexedEmbeddingSummary = {
+  value: IndexedEmbeddingDiagnostics | null;
+  expiresAtMs: number;
+};
+
+const INDEXED_EMBEDDING_CACHE_TTL_MS = 10_000;
 
 @Injectable()
 export class PgVectorStoreService implements VectorStore {
   private readonly runtimeConfig = resolveVectorStoreRuntimeConfig();
+  private readonly indexedEmbeddingCache = new Map<string, CachedIndexedEmbeddingSummary>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -85,10 +98,13 @@ export class PgVectorStoreService implements VectorStore {
 
       await transaction.$executeRaw(this.buildInsertVectorsSql(input));
     });
+
+    this.invalidateIndexedEmbeddingSummary(input.kbId);
   }
 
   async deleteDocumentVectors(kbId: string, documentId: string) {
     await this.prisma.$executeRaw(this.buildDeleteDocumentVectorsSql(kbId, documentId));
+    this.invalidateIndexedEmbeddingSummary(kbId);
   }
 
   async search(input: VectorSearchInput): Promise<VectorSearchResult> {
@@ -113,16 +129,31 @@ export class PgVectorStoreService implements VectorStore {
         documentId: row.documentId,
         chunkIndex: row.chunkIndex,
         score: Number(row.score),
-        modelName: row.modelName
+        modelName: row.modelName,
+        documentTitle: row.documentTitle,
+        content: row.content,
+        sectionTitle: row.sectionTitle,
+        pageNo: row.pageNo,
+        metadataJson: this.readMetadataJson(row.metadataJson)
       })),
       embedding: embeddingDiagnostics
     };
   }
 
   private async readIndexedEmbeddingSummary(kbId: string, excludedDocumentId?: string) {
+    if (!excludedDocumentId) {
+      const cachedSummary = this.readCachedIndexedEmbeddingSummary(kbId);
+      if (cachedSummary !== undefined) {
+        return cachedSummary;
+      }
+    }
+
     const rows = await this.prisma.$queryRaw<IndexedConfigRow[]>(this.buildIndexedConfigSql(kbId, excludedDocumentId));
 
     if (rows.length === 0) {
+      if (!excludedDocumentId) {
+        this.writeCachedIndexedEmbeddingSummary(kbId, null);
+      }
       return null;
     }
 
@@ -136,7 +167,7 @@ export class PgVectorStoreService implements VectorStore {
 
     const [row] = rows;
     const parsed = parseEmbeddingModelName(row.modelName, kbId);
-    return {
+    const summary = {
       provider: parsed.provider,
       model: parsed.model,
       modelName: row.modelName,
@@ -145,6 +176,37 @@ export class PgVectorStoreService implements VectorStore {
       recordCount: this.toCount(row.recordCount),
       documentCount: this.toCount(row.documentCount)
     } satisfies IndexedEmbeddingDiagnostics;
+
+    if (!excludedDocumentId) {
+      this.writeCachedIndexedEmbeddingSummary(kbId, summary);
+    }
+
+    return summary;
+  }
+
+  private readCachedIndexedEmbeddingSummary(kbId: string) {
+    const cached = this.indexedEmbeddingCache.get(kbId);
+    if (!cached) {
+      return undefined;
+    }
+
+    if (cached.expiresAtMs <= Date.now()) {
+      this.indexedEmbeddingCache.delete(kbId);
+      return undefined;
+    }
+
+    return cached.value;
+  }
+
+  private writeCachedIndexedEmbeddingSummary(kbId: string, value: IndexedEmbeddingDiagnostics | null) {
+    this.indexedEmbeddingCache.set(kbId, {
+      value,
+      expiresAtMs: Date.now() + INDEXED_EMBEDDING_CACHE_TTL_MS
+    });
+  }
+
+  private invalidateIndexedEmbeddingSummary(kbId: string) {
+    this.indexedEmbeddingCache.delete(kbId);
   }
 
   private buildDeleteDocumentVectorsSql(kbId: string, documentId: string) {
@@ -225,26 +287,47 @@ export class PgVectorStoreService implements VectorStore {
 
   private buildSearchSql(input: VectorSearchInput) {
     const vectorLiteral = this.serializeVector(input.queryEmbedding.vector);
-    const conditions: Prisma.Sql[] = [Prisma.sql`"kbId" = ${input.kbId}`];
+    const conditions: Prisma.Sql[] = [Prisma.sql`ce."kbId" = ${input.kbId}`];
+    const includePayload = input.includePayload !== false;
 
     if (input.documentIds && input.documentIds.length > 0) {
-      conditions.push(Prisma.sql`"documentId" IN (${Prisma.join(input.documentIds)})`);
+      conditions.push(Prisma.sql`ce."documentId" IN (${Prisma.join(input.documentIds)})`);
     }
 
     this.appendFilterConditions(conditions, input.filters);
 
-    conditions.push(Prisma.sql`1 - ("embedding" <=> ${vectorLiteral}::vector) >= ${input.scoreThreshold}`);
+    conditions.push(Prisma.sql`1 - (ce."embedding" <=> ${vectorLiteral}::vector) >= ${input.scoreThreshold}`);
+
+    const selectColumns: Prisma.Sql[] = [
+      Prisma.sql`ce."chunkId"`,
+      Prisma.sql`ce."documentId"`,
+      Prisma.sql`ce."chunkIndex"`,
+      Prisma.sql`ce."modelName"`
+    ];
+
+    if (includePayload) {
+      selectColumns.push(
+        Prisma.sql`ce."content"`,
+        Prisma.sql`ce."sectionTitle"`,
+        Prisma.sql`ce."pageNo"`,
+        Prisma.sql`ce."metadataJson"`,
+        Prisma.sql`d."title" AS "documentTitle"`
+      );
+    }
+
+    selectColumns.push(Prisma.sql`1 - (ce."embedding" <=> ${vectorLiteral}::vector) AS "score"`);
+
+    const documentJoin = includePayload
+      ? Prisma.sql` JOIN "Document" d ON d."id" = ce."documentId"`
+      : Prisma.empty;
 
     return Prisma.sql`
       SELECT
-        "chunkId",
-        "documentId",
-        "chunkIndex",
-        "modelName",
-        1 - ("embedding" <=> ${vectorLiteral}::vector) AS "score"
-      FROM ${this.tableIdentifier()}
+        ${Prisma.join(selectColumns, ", ")}
+      FROM ${this.tableIdentifier()} ce
+      ${documentJoin}
       WHERE ${Prisma.join(conditions, " AND ")}
-      ORDER BY "embedding" <=> ${vectorLiteral}::vector
+      ORDER BY ce."embedding" <=> ${vectorLiteral}::vector
       LIMIT ${input.topK}
     `;
   }
@@ -255,22 +338,22 @@ export class PgVectorStoreService implements VectorStore {
     }
 
     if (filters.documentIds?.include?.length) {
-      conditions.push(Prisma.sql`"documentId" IN (${Prisma.join(filters.documentIds.include)})`);
+      conditions.push(Prisma.sql`ce."documentId" IN (${Prisma.join(filters.documentIds.include)})`);
     }
 
     if (filters.documentIds?.exclude?.length) {
-      conditions.push(Prisma.sql`"documentId" NOT IN (${Prisma.join(filters.documentIds.exclude)})`);
+      conditions.push(Prisma.sql`ce."documentId" NOT IN (${Prisma.join(filters.documentIds.exclude)})`);
     }
 
     const sectionConditions: Prisma.Sql[] = [];
     if (filters.sectionTitles?.include?.length) {
-      sectionConditions.push(Prisma.sql`COALESCE("sectionTitle", '') IN (${Prisma.join(filters.sectionTitles.include)})`);
+      sectionConditions.push(Prisma.sql`COALESCE(ce."sectionTitle", '') IN (${Prisma.join(filters.sectionTitles.include)})`);
     }
 
     if (filters.sectionTitles?.contains?.length) {
       sectionConditions.push(
           Prisma.sql`(${Prisma.join(
-          filters.sectionTitles.contains.map(value => Prisma.sql`LOWER(COALESCE("sectionTitle", '')) LIKE ${`%${value.toLowerCase()}%`}`),
+          filters.sectionTitles.contains.map(value => Prisma.sql`LOWER(COALESCE(ce."sectionTitle", '')) LIKE ${`%${value.toLowerCase()}%`}`),
           " OR "
         )})`
       );
@@ -281,11 +364,11 @@ export class PgVectorStoreService implements VectorStore {
     }
 
     if (filters.sectionTitles?.exclude?.length) {
-      conditions.push(Prisma.sql`COALESCE("sectionTitle", '') NOT IN (${Prisma.join(filters.sectionTitles.exclude)})`);
+      conditions.push(Prisma.sql`COALESCE(ce."sectionTitle", '') NOT IN (${Prisma.join(filters.sectionTitles.exclude)})`);
     }
 
     if (filters.pageNumbers?.exclude?.length) {
-      conditions.push(Prisma.sql`("pageNo" IS NULL OR "pageNo" NOT IN (${Prisma.join(filters.pageNumbers.exclude)}))`);
+      conditions.push(Prisma.sql`(ce."pageNo" IS NULL OR ce."pageNo" NOT IN (${Prisma.join(filters.pageNumbers.exclude)}))`);
     }
 
     if (
@@ -296,21 +379,21 @@ export class PgVectorStoreService implements VectorStore {
       const pageConditions: Prisma.Sql[] = [];
 
       if (filters.pageNumbers?.include?.length) {
-        pageConditions.push(Prisma.sql`"pageNo" IN (${Prisma.join(filters.pageNumbers.include)})`);
+        pageConditions.push(Prisma.sql`ce."pageNo" IN (${Prisma.join(filters.pageNumbers.include)})`);
       }
 
       const rangeConditions: Prisma.Sql[] = [];
       if (filters.pageNumbers?.min !== undefined) {
-        rangeConditions.push(Prisma.sql`"pageNo" >= ${filters.pageNumbers.min}`);
+        rangeConditions.push(Prisma.sql`ce."pageNo" >= ${filters.pageNumbers.min}`);
       }
       if (filters.pageNumbers?.max !== undefined) {
-        rangeConditions.push(Prisma.sql`"pageNo" <= ${filters.pageNumbers.max}`);
+        rangeConditions.push(Prisma.sql`ce."pageNo" <= ${filters.pageNumbers.max}`);
       }
       if (rangeConditions.length > 0) {
         pageConditions.push(Prisma.sql`(${Prisma.join(rangeConditions, " AND ")})`);
       }
 
-      conditions.push(Prisma.sql`("pageNo" IS NOT NULL AND (${Prisma.join(pageConditions, " OR ")}))`);
+      conditions.push(Prisma.sql`(ce."pageNo" IS NOT NULL AND (${Prisma.join(pageConditions, " OR ")}))`);
     }
   }
 
@@ -320,6 +403,14 @@ export class PgVectorStoreService implements VectorStore {
 
   private toCount(value: bigint | number) {
     return typeof value === "bigint" ? Number(value) : value;
+  }
+
+  private readMetadataJson(value: Prisma.JsonValue | null) {
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+
+    return value as Record<string, unknown>;
   }
 
   private getRuntimeConfig() {

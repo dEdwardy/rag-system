@@ -52,3 +52,6 @@ package-lock.json
 .opencode/
 apps/web/.agents/
 apps/web/.claude/
+docker/infra/images/
+docker/infra/*.tar
+docker/infra/*.tar.gz

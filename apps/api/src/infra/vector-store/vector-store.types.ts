@@ -40,6 +40,7 @@ export type VectorSearchInput = {
   scoreThreshold: number;
   documentIds?: string[];
   filters?: RetrievalProfileFilters;
+  includePayload?: boolean;
 };
 
 export type VectorSearchMatch = {
@@ -48,6 +49,11 @@ export type VectorSearchMatch = {
   chunkIndex: number;
   score: number;
   modelName: string;
+  documentTitle?: string;
+  content?: string;
+  sectionTitle?: string | null;
+  pageNo?: number | null;
+  metadataJson?: Record<string, unknown> | null;
 };
 
 export type ActiveEmbeddingDiagnostics = {
