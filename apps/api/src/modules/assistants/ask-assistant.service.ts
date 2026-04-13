@@ -1,47 +1,59 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
-import { AnswerPolicy } from "../../infra/llm/llm.types";
-import { LlmService } from "../../infra/llm/llm.service";
-import { PromptManagerService } from "../../infra/llm/prompt-manager.service";
-import { ConcurrencyLimiter, ResultCache } from "../../common/concurrency-utils";
-import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
+import { Injectable, Logger } from '@nestjs/common';
+import { MessageRole, Prisma, TraceStatus } from '@prisma/client';
+import { AnswerPolicy } from '../../infra/llm/llm.types';
+import { LlmService } from '../../infra/llm/llm.service';
+import { PromptManagerService } from '../../infra/llm/prompt-manager.service';
+import {
+  ConcurrencyLimiter,
+  ResultCache
+} from '../../common/concurrency-utils';
+import {
+  VectorStoreCompatibilityError,
+  VectorStoreEmbeddingDiagnostics
+} from '../../infra/vector-store/vector-store.types';
 import {
   buildAnswerEvidenceSourceReadabilityLabel,
   buildAnswerAttributionSummary
-} from "../answering/answer-attribution-summary";
+} from '../answering/answer-attribution-summary';
 import {
   buildAnswerProvenanceFields,
-  buildAnswerSourceReadability,
-} from "../answering/answer-source-readability";
-import { buildMissingInformationProvenanceSentence } from "../answering/missing-information-provenance";
-import { buildMissingInformationSourceReadabilityLabel } from "../answering/missing-information-source-readability";
-import { resolveRequestAuthContext, type RequestAuthContext } from "../auth/auth-identity.contract";
-import { AnsweringService } from "../answering/answering.service";
-import { ConversationsService } from "../conversations/conversations.service";
-import { MessagesService } from "../messages/messages.service";
-import { RetrievalService, type RetrievalResult } from "../retrieval/retrieval.service";
+  buildAnswerSourceReadability
+} from '../answering/answer-source-readability';
+import { buildMissingInformationProvenanceSentence } from '../answering/missing-information-provenance';
+import { buildMissingInformationSourceReadabilityLabel } from '../answering/missing-information-source-readability';
+import {
+  resolveRequestAuthContext,
+  type RequestAuthContext
+} from '../auth/auth-identity.contract';
+import { AnsweringService } from '../answering/answering.service';
+import { ConversationsService } from '../conversations/conversations.service';
+import { MessagesService } from '../messages/messages.service';
+import {
+  RetrievalService,
+  type RetrievalResult
+} from '../retrieval/retrieval.service';
 import {
   buildRewriteReadabilityLabel,
   buildRetrievalModeProvenanceSentence,
   buildStrategyReadabilityLabel
-} from "../retrieval/strategy-readability";
+} from '../retrieval/strategy-readability';
 import {
   RetrievalProfileFilters,
   RetrievalStrategy,
   resolveRetrievalStrategy,
   retrievalProfileFiltersSchema
-} from "../retrieval-profiles/retrieval-profile.schemas";
-import { TracesService } from "../traces/traces.service";
-import { answerPolicySchema } from "./assistant.schemas";
-import { AssistantsService } from "./assistants.service";
-import { AskAssistantError } from "./ask-assistant.error";
+} from '../retrieval-profiles/retrieval-profile.schemas';
+import { TracesService } from '../traces/traces.service';
+import { answerPolicySchema } from './assistant.schemas';
+import { AssistantsService } from './assistants.service';
+import { AskAssistantError } from './ask-assistant.error';
 import type {
   TraceAnswerAttributionSummary,
   RetrievalStrategySummary,
   TraceCitationAttribution,
   TraceCitationSelectionSource,
   TraceSummary
-} from "@rag-system/shared";
+} from '@rag-system/shared';
 
 type AskResultChunk = {
   chunkId: string;
@@ -66,10 +78,10 @@ type AskRetrievalMetadataJson = Prisma.InputJsonObject & {
 type AskRewriteDecision = {
   shouldRewrite: boolean;
   skippedReason:
-    | "disabled_by_default"
-    | "query_too_short"
-    | "not_summary_or_complex_question"
-    | "latency_budget_exceeded"
+    | 'disabled_by_default'
+    | 'query_too_short'
+    | 'not_summary_or_complex_question'
+    | 'latency_budget_exceeded'
     | null;
 };
 
@@ -78,14 +90,14 @@ type AskRewriteResult = {
   modelName: string | null;
   usedFallback: boolean | null;
   promptId: string | null;
-  skippedReason: RetrievalStrategySummary["rewriteSkippedReason"];
+  skippedReason: RetrievalStrategySummary['rewriteSkippedReason'];
 };
 
 type AskConversationRef = {
   id: string;
 };
 
-type AssistantRecord = Awaited<ReturnType<AssistantsService["getAssistant"]>>;
+type AssistantRecord = Awaited<ReturnType<AssistantsService['getAssistant']>>;
 
 type AskPersistedMessage = {
   id: string;
@@ -123,7 +135,10 @@ export class AskAssistantService {
   private readonly logger = new Logger(AskAssistantService.name);
   private readonly retrievalLimiter = new ConcurrencyLimiter(5);
   private readonly llmLimiter = new ConcurrencyLimiter(3);
-  private readonly assistantCache = new ResultCache<string, AssistantRecord>(100, 60000);
+  private readonly assistantCache = new ResultCache<string, AssistantRecord>(
+    100,
+    60000
+  );
 
   constructor(
     private readonly assistantsService: AssistantsService,
@@ -146,18 +161,27 @@ export class AskAssistantService {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
-    
-    const assistant = await this.assistantCache.getOrSet(input.assistantId, () =>
-      this.assistantsService.getAssistant(input.assistantId, authContext.identity)
+
+    const assistant = await this.assistantCache.getOrSet(
+      input.assistantId,
+      () =>
+        this.assistantsService.getAssistant(
+          input.assistantId,
+          authContext.identity
+        )
     );
-    
-    const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
-      strategyJson?: unknown;
-    };
+
+    const retrievalProfile =
+      assistant.retrievalProfile as typeof assistant.retrievalProfile & {
+        strategyJson?: unknown;
+      };
 
     const conversation =
       input.conversationId != null
-        ? await this.conversationsService.getConversation(input.conversationId, authContext.identity)
+        ? await this.conversationsService.getConversation(
+            input.conversationId,
+            authContext.identity
+          )
         : await this.conversationsService.createConversation({
             tenantId: authContext.identity.tenantId,
             userId: authContext.identity.userId,
@@ -170,26 +194,34 @@ export class AskAssistantService {
       durationMs: 0
     };
 
-    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> = this.messagesService.createMessage({
-      conversationId: conversation.id,
-      role: MessageRole.user,
-      content: input.question
-    }).then(message => ({
-      value: message,
-      durationMs: 0
-    }));
+    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> =
+      this.messagesService
+        .createMessage({
+          conversationId: conversation.id,
+          role: MessageRole.user,
+          content: input.question
+        })
+        .then((message) => ({
+          value: message,
+          durationMs: 0
+        }));
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
       topK: retrievalProfile.topK,
       enableHybrid: retrievalProfile.enableHybrid,
       enableRerank: retrievalProfile.enableRerank,
-      strategyJson: retrievalProfile.strategyJson as RetrievalStrategy | undefined
+      strategyJson: retrievalProfile.strategyJson as
+        | RetrievalStrategy
+        | undefined
     });
-    
-    const rewriteDecision = this.resolveRewriteDecision(input.question, retrievalStrategy);
+
+    const rewriteDecision = this.resolveRewriteDecision(
+      input.question,
+      retrievalStrategy
+    );
     let rewritten: AskRewriteResult;
-    
+
     if (rewriteDecision.shouldRewrite) {
       try {
         const rewriteResult = await this.llmLimiter.execute(() =>
@@ -207,7 +239,7 @@ export class AskAssistantService {
           modelName: null,
           usedFallback: null,
           promptId: null,
-          skippedReason: "latency_budget_exceeded"
+          skippedReason: 'latency_budget_exceeded'
         };
       }
     } else {
@@ -219,14 +251,18 @@ export class AskAssistantService {
         skippedReason: rewriteDecision.skippedReason
       };
     }
-    
+
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
-    const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
-      assistant.retrievalProfile.filtersJson ?? undefined
-    );
-    const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
+    const retrievalFilters = retrievalProfileFiltersSchema
+      .optional()
+      .parse(assistant.retrievalProfile.filtersJson ?? undefined);
+    const answerPolicy =
+      answerPolicySchema
+        .nullable()
+        .optional()
+        .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
-    
+
     const { value: userMessage } = await userMessagePromise;
 
     const retrievalResult = await this.retrievalLimiter.execute(() =>
@@ -244,60 +280,83 @@ export class AskAssistantService {
         documentVersions: input.documentVersions
       })
     );
-    
+
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
-    
+
     const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
       Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
-      Promise.resolve(this.buildRetrievalMetadata({
-        strategy: retrievalStrategy,
-        filters: retrievalFilters,
-        rewrittenQuery: rewritten.rewrittenQuery,
-        rewriteSkippedReason: rewritten.skippedReason,
-        rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
-        rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
-        rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
-        originalQuestion: input.question,
-        topK: retrievalProfile.topK,
-        scoreThreshold: retrievalProfile.scoreThreshold,
-        chunkWindow: retrievalProfile.chunkWindow,
-        retrievedChunks,
-        contextGroups,
-        embedding: retrievalResult.embedding,
-        execution: retrievalResult.execution,
-        promptContextChars: null,
-        promptContextApproxTokens: null
-      }) as AskRetrievalMetadataJson)
+      Promise.resolve(
+        this.buildRetrievalMetadata({
+          strategy: retrievalStrategy,
+          filters: retrievalFilters,
+          rewrittenQuery: rewritten.rewrittenQuery,
+          rewriteSkippedReason: rewritten.skippedReason,
+          rewriteModelName: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.modelName
+            : null,
+          rewritePromptId: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.promptId
+            : null,
+          rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.usedFallback
+            : null,
+          originalQuestion: input.question,
+          topK: retrievalProfile.topK,
+          scoreThreshold: retrievalProfile.scoreThreshold,
+          chunkWindow: retrievalProfile.chunkWindow,
+          retrievedChunks,
+          contextGroups,
+          embedding: retrievalResult.embedding,
+          execution: retrievalResult.execution,
+          promptContextChars: null,
+          promptContextApproxTokens: null
+        }) as AskRetrievalMetadataJson
+      )
     ]);
-    
-    const [strategyReadabilityLabel, retrievalModeProvenanceSentence, rewriteReadabilityLabel] = await Promise.all([
+
+    const [
+      strategyReadabilityLabel,
+      retrievalModeProvenanceSentence,
+      rewriteReadabilityLabel
+    ] = await Promise.all([
       buildStrategyReadabilityLabel({
         retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-        retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
-        fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
-        strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+        retrievalQuerySource:
+          retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+        fallbackReason:
+          retrievalMetadata.strategySummary?.fallbackReason ?? null,
+        strategyUsedFallback:
+          retrievalMetadata.strategySummary?.usedFallback ?? null
       }),
       buildRetrievalModeProvenanceSentence({
         retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-        strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
-        fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+        strategyUsedFallback:
+          retrievalMetadata.strategySummary?.usedFallback ?? null,
+        fallbackReason:
+          retrievalMetadata.strategySummary?.fallbackReason ?? null
       }),
       buildRewriteReadabilityLabel({
-        rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
-        rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
-        rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
-        rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
+        rewriteEnabled:
+          retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+        rewriteApplied:
+          retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+        rewriteUsedFallback:
+          retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+        rewritePromptId:
+          retrievalMetadata.strategySummary?.rewritePromptId ?? null
       })
     ]);
-    
+
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
       assistantId: assistant.id,
       userMessageId: userMessage.id,
       userQuery: input.question,
       rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-      retrievedChunkIdsJson: retrievedChunks.map((chunk: AskResultChunk) => chunk.chunkId),
+      retrievedChunkIdsJson: retrievedChunks.map(
+        (chunk: AskResultChunk) => chunk.chunkId
+      ),
       retrievalScoresJson,
       retrievalMetadataJson: retrievalMetadata,
       modelName: rewritten.modelName ?? undefined,
@@ -310,11 +369,15 @@ export class AskAssistantService {
       chunks: retrievedChunks,
       contextGroups
     });
-    const retrievalMetadataWithPrompt = this.withPromptContextMetrics(retrievalMetadata, promptSnapshot);
+    const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
+      retrievalMetadata,
+      promptSnapshot
+    );
 
     try {
       const resolvedAnswerResult =
-        retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
+        retrievedChunks.length === 0 &&
+        normalizedAnswerPolicy.noAnswerBehavior === 'say_insufficient_context'
           ? this.answeringService.buildDeterministicInsufficientContextResult({
               question: input.question,
               answerPolicy: normalizedAnswerPolicy
@@ -335,37 +398,60 @@ export class AskAssistantService {
       });
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
+      await this.conversationsService.touchConversation(
+        conversation.id,
+        authContext.identity
+      );
       await this.tracesService.updateTrace(trace.id, {
         assistantMessageId: assistantMessage.id,
         citationsJson: resolvedAnswerResult.citations,
         retrievalMetadataJson: retrievalMetadataWithPrompt,
-        answeringMetadataJson: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
+        answeringMetadataJson: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
         qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - startedAt,
         modelName: resolvedAnswerResult.modelName,
-        rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map((chunk: AskResultChunk) => chunk.chunkId),
+        rewrittenQuery:
+          retrievalQuery !== input.question ? retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
         retrievalScoresJson,
         status: TraceStatus.success
       });
 
-      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
-      const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
-      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
-      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
-        answerEvidenceSourceReadabilityLabel
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(
+        resolvedAnswerResult.answeringMetadata
       );
-      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const answerAttributionSource = this.resolveAnswerAttributionSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const answerEvidenceSourceReadabilityLabel =
+        buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence =
+        this.buildAnswerEvidenceSourceReadabilitySentence(
+          answerEvidenceSourceReadabilityLabel
+        );
+      const answerTextSource = this.resolveAnswerTextSource(
+        resolvedAnswerResult.answeringMetadata
+      );
       const rawAnswerTextSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerTextSource
           : null
       );
-      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const answerStatusSource = this.resolveAnswerStatusSource(
+        resolvedAnswerResult.answeringMetadata
+      );
       const rawAnswerStatusSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerStatusSource
           : null
       );
       const answerSourceReadability = buildAnswerSourceReadability({
@@ -381,39 +467,51 @@ export class AskAssistantService {
         answerStatusSourceReadabilitySentence
       } = answerSourceReadability;
       const answerAttributionReadabilitySentence =
-        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
-      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = buildAnswerProvenanceFields({
-        answerTextSource,
-        answerStatusSource,
-        answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
-        answerTextSourceReadabilityLabel,
-        answerStatusSourceReadabilityLabel,
-        answerAttributionReadabilitySentence
-      });
-      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
-      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
-        missingInformationSource,
-        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
-        missingInformationCount: this.resolveMissingInformationCount({
-          answeringMetadata: resolvedAnswerResult.answeringMetadata,
-          missingInformation: resolvedAnswerResult.missingInformation
-        })
-      });
+        answerAttributionSummary.readabilitySentence ??
+        'Answer attribution is unknown; source evidence is unknown.';
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } =
+        buildAnswerProvenanceFields({
+          answerTextSource,
+          answerStatusSource,
+          answerAttributionReadabilityResolvedLabel:
+            answerAttributionSummary.readabilityResolvedLabel,
+          answerTextSourceReadabilityLabel,
+          answerStatusSourceReadabilityLabel,
+          answerAttributionReadabilitySentence
+        });
+      const missingInformationSource = this.resolveMissingInformationSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const missingInformationProvenanceSentence =
+        buildMissingInformationProvenanceSentence({
+          missingInformationSource,
+          insufficientContextReason: this.resolveInsufficientContextReason(
+            resolvedAnswerResult.answeringMetadata
+          ),
+          missingInformationCount: this.resolveMissingInformationCount({
+            answeringMetadata: resolvedAnswerResult.answeringMetadata,
+            missingInformation: resolvedAnswerResult.missingInformation
+          })
+        });
       this.logAskTiming({
-        route: "ask",
-        status: "success",
+        route: 'ask',
+        status: 'success',
         assistantId: assistant.id,
         conversationId: conversation.id,
         traceId: trace.id,
-        retrievalMode: retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
+        retrievalMode:
+          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
         timing: null,
         retrievalExecution:
-          typeof retrievalMetadataWithPrompt.execution === "object" && retrievalMetadataWithPrompt.execution !== null
+          typeof retrievalMetadataWithPrompt.execution === 'object' &&
+          retrievalMetadataWithPrompt.execution !== null
             ? retrievalMetadataWithPrompt.execution
             : null,
-        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(retrievalMetadataWithPrompt)
+        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
+          retrievalMetadataWithPrompt
+        )
       });
-      
+
       return {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -430,7 +528,9 @@ export class AskAssistantService {
         retrievalMetadata: retrievalMetadataWithPrompt,
         answerAttributionSummary,
         answerAttributionReadabilitySentence,
-        answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
+        answerAttribution: this.resolveAnswerAttribution(
+          resolvedAnswerResult.answeringMetadata
+        ),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel,
@@ -445,49 +545,62 @@ export class AskAssistantService {
         answerProvenanceReadabilitySentence,
         missingInformationSource,
         missingInformationProvenanceSentence,
-        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
-          missingInformationSource
-        }),
-        answeringMetadata: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
+        missingInformationSourceReadabilityLabel:
+          buildMissingInformationSourceReadabilityLabel({
+            missingInformationSource
+          }),
+        answeringMetadata: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
         missingInformation: resolvedAnswerResult.missingInformation,
         qualityEvaluation: resolvedAnswerResult.qualityEvaluation
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown ask pipeline error.";
+      const message =
+        error instanceof Error ? error.message : 'Unknown ask pipeline error.';
       this.logAskTiming({
-        route: "ask",
-        status: this.isAbortError(error) ? "aborted" : "failed",
+        route: 'ask',
+        status: this.isAbortError(error) ? 'aborted' : 'failed',
         assistantId: assistant.id,
         conversationId: conversation.id,
         traceId: trace.id,
         retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
         timing: null,
         retrievalExecution:
-          typeof retrievalMetadata.execution === "object" && retrievalMetadata.execution !== null
+          typeof retrievalMetadata.execution === 'object' &&
+          retrievalMetadata.execution !== null
             ? retrievalMetadata.execution
             : null,
-        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(retrievalMetadata),
+        retrievalDiagnostics:
+          this.buildRetrievalLogDiagnostics(retrievalMetadata),
         errorMessage: message
       });
       await this.tracesService.updateTrace(trace.id, {
         latencyMs: Date.now() - startedAt,
         modelName: rewritten.modelName ?? undefined,
-        rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map((chunk: AskResultChunk) => chunk.chunkId),
+        rewrittenQuery:
+          retrievalQuery !== input.question ? retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
         retrievalScoresJson,
-        retrievalMetadataJson: this.withFailureMetadata(this.withPromptContextMetrics(retrievalMetadata, promptSnapshot), {
-          stage: "answering",
-          message
-        }),
+        retrievalMetadataJson: this.withFailureMetadata(
+          this.withPromptContextMetrics(retrievalMetadata, promptSnapshot),
+          {
+            stage: 'answering',
+            message
+          }
+        ),
         status: TraceStatus.failed,
         errorMessage: message
       });
       throw new AskAssistantError({
         traceId: trace.id,
         details: {
-          stage: "answering",
+          stage: 'answering',
           cause: message
         }
       });
@@ -502,68 +615,85 @@ export class AskAssistantService {
     signal?: AbortSignal;
     onEvent: (
       event:
-        | { type: "status"; phase: "started" | "retrieving" | "generating" }
-        | { type: "answer_delta"; delta: string }
-        | { type: "final"; data: Record<string, unknown> }
+        | { type: 'status'; phase: 'started' | 'retrieving' | 'generating' }
+        | { type: 'answer_delta'; delta: string }
+        | { type: 'final'; data: Record<string, unknown> }
     ) => void | Promise<void>;
   }) {
     const authContext = resolveRequestAuthContext({
       authContext: input.authContext
     });
-    
-    const assistant = await this.assistantCache.getOrSet(input.assistantId, () =>
-      this.assistantsService.getAssistant(input.assistantId, authContext.identity)
+
+    const assistant = await this.assistantCache.getOrSet(
+      input.assistantId,
+      () =>
+        this.assistantsService.getAssistant(
+          input.assistantId,
+          authContext.identity
+        )
     );
-    
-    const retrievalProfile = assistant.retrievalProfile as typeof assistant.retrievalProfile & {
-      strategyJson?: unknown;
-    };
+
+    const retrievalProfile =
+      assistant.retrievalProfile as typeof assistant.retrievalProfile & {
+        strategyJson?: unknown;
+      };
 
     const conversationStartedAt = Date.now();
     const conversationPromise: Promise<TimedResult<AskConversationRef>> = (
       input.conversationId != null
-        ? this.conversationsService.getConversation(input.conversationId, authContext.identity)
+        ? this.conversationsService.getConversation(
+            input.conversationId,
+            authContext.identity
+          )
         : this.conversationsService.createConversation({
             tenantId: authContext.identity.tenantId,
             userId: authContext.identity.userId,
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           })
-    ).then(conversation => ({
+    ).then((conversation) => ({
       value: conversation,
       durationMs: Date.now() - conversationStartedAt
     }));
 
     await input.onEvent({
-      type: "status",
-      phase: "started"
+      type: 'status',
+      phase: 'started'
     });
 
     const userMessagePersistStartedAt = Date.now();
-    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> = conversationPromise
-      .then(({ value: conversation }) => this.messagesService.createMessage({
-        conversationId: conversation.id,
-        role: MessageRole.user,
-        content: input.question
-      }))
-      .then(message => ({
-        value: message,
-        durationMs: Date.now() - userMessagePersistStartedAt
-      }));
+    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> =
+      conversationPromise
+        .then(({ value: conversation }) =>
+          this.messagesService.createMessage({
+            conversationId: conversation.id,
+            role: MessageRole.user,
+            content: input.question
+          })
+        )
+        .then((message) => ({
+          value: message,
+          durationMs: Date.now() - userMessagePersistStartedAt
+        }));
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
       topK: retrievalProfile.topK,
       enableHybrid: retrievalProfile.enableHybrid,
       enableRerank: retrievalProfile.enableRerank,
-      strategyJson: retrievalProfile.strategyJson as RetrievalStrategy | undefined
+      strategyJson: retrievalProfile.strategyJson as
+        | RetrievalStrategy
+        | undefined
     });
-    
-    const rewriteDecision = this.resolveRewriteDecision(input.question, retrievalStrategy);
+
+    const rewriteDecision = this.resolveRewriteDecision(
+      input.question,
+      retrievalStrategy
+    );
     let rewritten: AskRewriteResult;
     let rewriteMs = 0;
     let llmQueueWaitMs = 0;
-    
+
     if (rewriteDecision.shouldRewrite) {
       try {
         const rewriteResult = await this.llmLimiter.executeMeasured(() =>
@@ -587,7 +717,7 @@ export class AskAssistantService {
           modelName: null,
           usedFallback: null,
           promptId: null,
-          skippedReason: "latency_budget_exceeded"
+          skippedReason: 'latency_budget_exceeded'
         };
       }
     } else {
@@ -599,67 +729,80 @@ export class AskAssistantService {
         skippedReason: rewriteDecision.skippedReason
       };
     }
-    
+
     const retrievalQuery = rewritten.rewrittenQuery || input.question;
-    const retrievalFilters = retrievalProfileFiltersSchema.optional().parse(
-      assistant.retrievalProfile.filtersJson ?? undefined
-    );
-    const answerPolicy = answerPolicySchema.nullable().optional().parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
+    const retrievalFilters = retrievalProfileFiltersSchema
+      .optional()
+      .parse(assistant.retrievalProfile.filtersJson ?? undefined);
+    const answerPolicy =
+      answerPolicySchema
+        .nullable()
+        .optional()
+        .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
 
     await input.onEvent({
-      type: "status",
-      phase: "retrieving"
+      type: 'status',
+      phase: 'retrieving'
     });
 
-    const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(() =>
-      this.retrieveOrCreateFailedTrace({
-        assistantId: assistant.id,
-        assistantKbId: assistant.kbId,
-        conversationPromise,
-        userMessagePromise,
-        userQuery: input.question,
-        retrievalQuery,
-        retrievalProfile,
-        retrievalStrategy,
-        retrievalFilters,
-        rewritten
-      })
+    const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(
+      () =>
+        this.retrieveOrCreateFailedTrace({
+          assistantId: assistant.id,
+          assistantKbId: assistant.kbId,
+          conversationPromise,
+          userMessagePromise,
+          userQuery: input.question,
+          retrievalQuery,
+          retrievalProfile,
+          retrievalStrategy,
+          retrievalFilters,
+          rewritten
+        })
     );
     const retrievalResult = retrievalResultMeasured.result;
     const retrievalMs = retrievalResultMeasured.runMs;
     const retrievalQueueWaitMs = retrievalResultMeasured.waitMs;
-    
+
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
-    
+
     const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
       Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
-      Promise.resolve(this.buildRetrievalMetadata({
-        strategy: retrievalStrategy,
-        filters: retrievalFilters,
-        rewrittenQuery: rewritten.rewrittenQuery,
-        rewriteSkippedReason: rewritten.skippedReason,
-        rewriteModelName: retrievalStrategy.queryRewrite.enabled ? rewritten.modelName : null,
-        rewritePromptId: retrievalStrategy.queryRewrite.enabled ? rewritten.promptId : null,
-        rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled ? rewritten.usedFallback : null,
-        originalQuestion: input.question,
-        topK: retrievalProfile.topK,
-        scoreThreshold: retrievalProfile.scoreThreshold,
-        chunkWindow: retrievalProfile.chunkWindow,
-        retrievedChunks,
-        contextGroups,
-        embedding: retrievalResult.embedding,
-        execution: retrievalResult.execution,
-        promptContextChars: null,
-        promptContextApproxTokens: null
-      }) as AskRetrievalMetadataJson)
+      Promise.resolve(
+        this.buildRetrievalMetadata({
+          strategy: retrievalStrategy,
+          filters: retrievalFilters,
+          rewrittenQuery: rewritten.rewrittenQuery,
+          rewriteSkippedReason: rewritten.skippedReason,
+          rewriteModelName: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.modelName
+            : null,
+          rewritePromptId: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.promptId
+            : null,
+          rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.usedFallback
+            : null,
+          originalQuestion: input.question,
+          topK: retrievalProfile.topK,
+          scoreThreshold: retrievalProfile.scoreThreshold,
+          chunkWindow: retrievalProfile.chunkWindow,
+          retrievedChunks,
+          contextGroups,
+          embedding: retrievalResult.embedding,
+          execution: retrievalResult.execution,
+          promptContextChars: null,
+          promptContextApproxTokens: null
+        }) as AskRetrievalMetadataJson
+      )
     ]);
     const [
       { value: conversation, durationMs: conversationLoadMs },
       { value: userMessage, durationMs: userMessagePersistMs }
     ] = await Promise.all([conversationPromise, userMessagePromise]);
-    
+
     const traceCreateStartedAt = Date.now();
     const tracePromise = this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -667,7 +810,9 @@ export class AskAssistantService {
       userMessageId: userMessage.id,
       userQuery: input.question,
       rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map((chunk: AskResultChunk) => chunk.chunkId),
+      retrievedChunkIdsJson: retrievedChunks.map(
+        (chunk: AskResultChunk) => chunk.chunkId
+      ),
       retrievalScoresJson,
       retrievalMetadataJson: retrievalMetadata,
       modelName: rewritten.modelName ?? undefined,
@@ -678,50 +823,55 @@ export class AskAssistantService {
 
     try {
       await input.onEvent({
-        type: "status",
-        phase: "generating"
+        type: 'status',
+        phase: 'generating'
       });
 
       let firstTokenMs: number | null = null;
       const generationStartedAt = Date.now();
       const preGenerationMs = generationStartedAt - startedAt;
       const resolvedAnswerResult =
-        retrievedChunks.length === 0 && normalizedAnswerPolicy.noAnswerBehavior === "say_insufficient_context"
+        retrievedChunks.length === 0 &&
+        normalizedAnswerPolicy.noAnswerBehavior === 'say_insufficient_context'
           ? await (async () => {
-              const deterministicResult = this.answeringService.buildDeterministicInsufficientContextResult({
-                question: input.question,
-                answerPolicy: normalizedAnswerPolicy
-              });
+              const deterministicResult =
+                this.answeringService.buildDeterministicInsufficientContextResult(
+                  {
+                    question: input.question,
+                    answerPolicy: normalizedAnswerPolicy
+                  }
+                );
               firstTokenMs = Date.now() - startedAt;
               await input.onEvent({
-                type: "answer_delta",
+                type: 'answer_delta',
                 delta: deterministicResult.answer
               });
 
               return deterministicResult;
             })()
           : await (async () => {
-              const streamResultMeasured = await this.llmLimiter.executeMeasured(() =>
-                this.llmService.generateAnswerStream({
-                question: input.question,
-                systemPrompt: assistant.systemPrompt,
-                answerPolicy: normalizedAnswerPolicy,
-                chunks: this.answeringService.buildStreamAnswerContext({
-                  chunks: retrievedChunks,
-                  contextGroups
-                }),
-                signal: input.signal,
-                onDelta: async delta => {
-                  if (firstTokenMs == null) {
-                    firstTokenMs = Date.now() - startedAt;
-                  }
-                  await input.onEvent({
-                    type: "answer_delta",
-                    delta
-                  });
-                }
-              })
-              );
+              const streamResultMeasured =
+                await this.llmLimiter.executeMeasured(() =>
+                  this.llmService.generateAnswerStream({
+                    question: input.question,
+                    systemPrompt: assistant.systemPrompt,
+                    answerPolicy: normalizedAnswerPolicy,
+                    chunks: this.answeringService.buildStreamAnswerContext({
+                      chunks: retrievedChunks,
+                      contextGroups
+                    }),
+                    signal: input.signal,
+                    onDelta: async (delta) => {
+                      if (firstTokenMs == null) {
+                        firstTokenMs = Date.now() - startedAt;
+                      }
+                      await input.onEvent({
+                        type: 'answer_delta',
+                        delta
+                      });
+                    }
+                  })
+                );
               llmQueueWaitMs += streamResultMeasured.waitMs;
               const streamResult = streamResultMeasured.result;
 
@@ -750,24 +900,42 @@ export class AskAssistantService {
         chunks: retrievedChunks,
         contextGroups
       });
-      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(retrievalMetadata, promptSnapshot);
-      const [strategyReadabilityLabel, retrievalModeProvenanceSentence, rewriteReadabilityLabel] = await Promise.all([
+      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
+        retrievalMetadata,
+        promptSnapshot
+      );
+      const [
+        strategyReadabilityLabel,
+        retrievalModeProvenanceSentence,
+        rewriteReadabilityLabel
+      ] = await Promise.all([
         buildStrategyReadabilityLabel({
-          retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-          retrievalQuerySource: retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
-          fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null,
-          strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null
+          retrievalMode:
+            retrievalMetadata.strategySummary?.retrievalMode ?? null,
+          retrievalQuerySource:
+            retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+          fallbackReason:
+            retrievalMetadata.strategySummary?.fallbackReason ?? null,
+          strategyUsedFallback:
+            retrievalMetadata.strategySummary?.usedFallback ?? null
         }),
         buildRetrievalModeProvenanceSentence({
-          retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-          strategyUsedFallback: retrievalMetadata.strategySummary?.usedFallback ?? null,
-          fallbackReason: retrievalMetadata.strategySummary?.fallbackReason ?? null
+          retrievalMode:
+            retrievalMetadata.strategySummary?.retrievalMode ?? null,
+          strategyUsedFallback:
+            retrievalMetadata.strategySummary?.usedFallback ?? null,
+          fallbackReason:
+            retrievalMetadata.strategySummary?.fallbackReason ?? null
         }),
         buildRewriteReadabilityLabel({
-          rewriteEnabled: retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
-          rewriteApplied: retrievalMetadata.strategySummary?.rewriteApplied ?? false,
-          rewriteUsedFallback: retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
-          rewritePromptId: retrievalMetadata.strategySummary?.rewritePromptId ?? null
+          rewriteEnabled:
+            retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+          rewriteApplied:
+            retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+          rewriteUsedFallback:
+            retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+          rewritePromptId:
+            retrievalMetadata.strategySummary?.rewritePromptId ?? null
         })
       ]);
       const assistantMessagePersistStartedAt = Date.now();
@@ -778,16 +946,23 @@ export class AskAssistantService {
         content: resolvedAnswerResult.answer,
         traceId: trace.id
       });
-      const assistantMessagePersistMs = Date.now() - assistantMessagePersistStartedAt;
+      const assistantMessagePersistMs =
+        Date.now() - assistantMessagePersistStartedAt;
 
       await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(conversation.id, authContext.identity);
+      await this.conversationsService.touchConversation(
+        conversation.id,
+        authContext.identity
+      );
       const traceFinalizeStartedAt = Date.now();
       const persistedTimingSummary = this.buildTimingSummary({
         totalMs: Date.now() - startedAt,
         firstTokenMs,
         preGenerationMs,
-        llmFirstTokenMs: firstTokenMs != null ? Math.max(0, firstTokenMs - preGenerationMs) : null,
+        llmFirstTokenMs:
+          firstTokenMs != null
+            ? Math.max(0, firstTokenMs - preGenerationMs)
+            : null,
         conversationLoadMs,
         userMessagePersistMs,
         rewriteMs,
@@ -806,12 +981,18 @@ export class AskAssistantService {
           ...(retrievalMetadataWithPrompt as Record<string, unknown>),
           timing: persistedTimingSummary
         } as AskRetrievalMetadataJson,
-        answeringMetadataJson: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
+        answeringMetadataJson: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
         qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
         latencyMs: Date.now() - startedAt,
         modelName: resolvedAnswerResult.modelName,
-        rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map((chunk: AskResultChunk) => chunk.chunkId),
+        rewrittenQuery:
+          retrievalQuery !== input.question ? retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
         retrievalScoresJson,
         status: TraceStatus.success
       });
@@ -819,38 +1000,57 @@ export class AskAssistantService {
         ...persistedTimingSummary,
         traceFinalizeMs: Date.now() - traceFinalizeStartedAt
       });
-      const timingReadabilitySentence = this.buildTimingReadabilitySentence(timingSummary);
+      const timingReadabilitySentence =
+        this.buildTimingReadabilitySentence(timingSummary);
       this.logAskTiming({
-        route: "ask_stream",
-        status: "success",
+        route: 'ask_stream',
+        status: 'success',
         assistantId: assistant.id,
         conversationId: conversation.id,
         traceId: trace.id,
-        retrievalMode: retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
+        retrievalMode:
+          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
         timing: timingSummary,
         retrievalExecution:
-          typeof retrievalMetadataWithPrompt.execution === "object" && retrievalMetadataWithPrompt.execution !== null
+          typeof retrievalMetadataWithPrompt.execution === 'object' &&
+          retrievalMetadataWithPrompt.execution !== null
             ? retrievalMetadataWithPrompt.execution
             : null,
-        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(retrievalMetadataWithPrompt)
+        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
+          retrievalMetadataWithPrompt
+        )
       });
 
-      const answerAttributionSummary = this.resolveAnswerAttributionSummary(resolvedAnswerResult.answeringMetadata);
-      const answerAttributionSource = this.resolveAnswerAttributionSource(resolvedAnswerResult.answeringMetadata);
-      const answerEvidenceSourceReadabilityLabel = buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
-      const answerEvidenceSourceReadabilitySentence = this.buildAnswerEvidenceSourceReadabilitySentence(
-        answerEvidenceSourceReadabilityLabel
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(
+        resolvedAnswerResult.answeringMetadata
       );
-      const answerTextSource = this.resolveAnswerTextSource(resolvedAnswerResult.answeringMetadata);
+      const answerAttributionSource = this.resolveAnswerAttributionSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const answerEvidenceSourceReadabilityLabel =
+        buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence =
+        this.buildAnswerEvidenceSourceReadabilitySentence(
+          answerEvidenceSourceReadabilityLabel
+        );
+      const answerTextSource = this.resolveAnswerTextSource(
+        resolvedAnswerResult.answeringMetadata
+      );
       const rawAnswerTextSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerTextSource
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerTextSource
           : null
       );
-      const answerStatusSource = this.resolveAnswerStatusSource(resolvedAnswerResult.answeringMetadata);
+      const answerStatusSource = this.resolveAnswerStatusSource(
+        resolvedAnswerResult.answeringMetadata
+      );
       const rawAnswerStatusSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === "object" && resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>).answerStatusSource
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerStatusSource
           : null
       );
       const answerSourceReadability = buildAnswerSourceReadability({
@@ -866,24 +1066,32 @@ export class AskAssistantService {
         answerStatusSourceReadabilitySentence
       } = answerSourceReadability;
       const answerAttributionReadabilitySentence =
-        answerAttributionSummary.readabilitySentence ?? "Answer attribution is unknown; source evidence is unknown.";
-      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } = buildAnswerProvenanceFields({
-        answerTextSource,
-        answerStatusSource,
-        answerAttributionReadabilityResolvedLabel: answerAttributionSummary.readabilityResolvedLabel,
-        answerTextSourceReadabilityLabel,
-        answerStatusSourceReadabilityLabel,
-        answerAttributionReadabilitySentence
-      });
-      const missingInformationSource = this.resolveMissingInformationSource(resolvedAnswerResult.answeringMetadata);
-      const missingInformationProvenanceSentence = buildMissingInformationProvenanceSentence({
-        missingInformationSource,
-        insufficientContextReason: this.resolveInsufficientContextReason(resolvedAnswerResult.answeringMetadata),
-        missingInformationCount: this.resolveMissingInformationCount({
-          answeringMetadata: resolvedAnswerResult.answeringMetadata,
-          missingInformation: resolvedAnswerResult.missingInformation
-        })
-      });
+        answerAttributionSummary.readabilitySentence ??
+        'Answer attribution is unknown; source evidence is unknown.';
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } =
+        buildAnswerProvenanceFields({
+          answerTextSource,
+          answerStatusSource,
+          answerAttributionReadabilityResolvedLabel:
+            answerAttributionSummary.readabilityResolvedLabel,
+          answerTextSourceReadabilityLabel,
+          answerStatusSourceReadabilityLabel,
+          answerAttributionReadabilitySentence
+        });
+      const missingInformationSource = this.resolveMissingInformationSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const missingInformationProvenanceSentence =
+        buildMissingInformationProvenanceSentence({
+          missingInformationSource,
+          insufficientContextReason: this.resolveInsufficientContextReason(
+            resolvedAnswerResult.answeringMetadata
+          ),
+          missingInformationCount: this.resolveMissingInformationCount({
+            answeringMetadata: resolvedAnswerResult.answeringMetadata,
+            missingInformation: resolvedAnswerResult.missingInformation
+          })
+        });
       const finalResult = {
         conversationId: conversation.id,
         userMessageId: userMessage.id,
@@ -902,7 +1110,9 @@ export class AskAssistantService {
         timingReadabilitySentence,
         answerAttributionSummary,
         answerAttributionReadabilitySentence,
-        answerAttribution: this.resolveAnswerAttribution(resolvedAnswerResult.answeringMetadata),
+        answerAttribution: this.resolveAnswerAttribution(
+          resolvedAnswerResult.answeringMetadata
+        ),
         answerAttributionSource,
         answerEvidenceSource: answerAttributionSource,
         answerEvidenceSourceReadabilityLabel,
@@ -917,10 +1127,14 @@ export class AskAssistantService {
         answerProvenanceReadabilitySentence,
         missingInformationSource,
         missingInformationProvenanceSentence,
-        missingInformationSourceReadabilityLabel: buildMissingInformationSourceReadabilityLabel({
-          missingInformationSource
-        }),
-        answeringMetadata: this.withPromptSnapshot(resolvedAnswerResult.answeringMetadata, promptSnapshot),
+        missingInformationSourceReadabilityLabel:
+          buildMissingInformationSourceReadabilityLabel({
+            missingInformationSource
+          }),
+        answeringMetadata: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
         modelName: resolvedAnswerResult.modelName,
         answerStatus: resolvedAnswerResult.answerStatus,
         missingInformation: resolvedAnswerResult.missingInformation,
@@ -928,7 +1142,7 @@ export class AskAssistantService {
       };
 
       await input.onEvent({
-        type: "final",
+        type: 'final',
         data: finalResult
       });
 
@@ -938,7 +1152,8 @@ export class AskAssistantService {
         throw error;
       }
 
-      const message = error instanceof Error ? error.message : "Unknown ask pipeline error.";
+      const message =
+        error instanceof Error ? error.message : 'Unknown ask pipeline error.';
       const resolvedTrace = trace ?? (await tracePromise);
       trace = resolvedTrace;
       const promptSnapshot = this.buildPromptSnapshot({
@@ -948,7 +1163,10 @@ export class AskAssistantService {
         chunks: retrievedChunks,
         contextGroups
       });
-      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(retrievalMetadata, promptSnapshot);
+      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
+        retrievalMetadata,
+        promptSnapshot
+      );
       const failureTimingSummary = this.buildTimingSummary({
         totalMs: Date.now() - startedAt,
         firstTokenMs: null,
@@ -966,40 +1184,50 @@ export class AskAssistantService {
         retrievalQueueWaitMs
       });
       this.logAskTiming({
-        route: "ask_stream",
-        status: "failed",
+        route: 'ask_stream',
+        status: 'failed',
         assistantId: assistant.id,
         conversationId: conversation.id,
         traceId: resolvedTrace.id,
-        retrievalMode: retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
+        retrievalMode:
+          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
         timing: failureTimingSummary,
         retrievalExecution:
-          typeof retrievalMetadataWithPrompt.execution === "object" && retrievalMetadataWithPrompt.execution !== null
+          typeof retrievalMetadataWithPrompt.execution === 'object' &&
+          retrievalMetadataWithPrompt.execution !== null
             ? retrievalMetadataWithPrompt.execution
             : null,
-        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(retrievalMetadataWithPrompt),
+        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
+          retrievalMetadataWithPrompt
+        ),
         errorMessage: message
       });
       await this.tracesService.updateTrace(resolvedTrace.id, {
         latencyMs: Date.now() - startedAt,
         modelName: rewritten.modelName ?? undefined,
-        rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map((chunk: AskResultChunk) => chunk.chunkId),
+        rewrittenQuery:
+          retrievalQuery !== input.question ? retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
         retrievalScoresJson,
-        retrievalMetadataJson: this.withFailureMetadata({
-          ...(retrievalMetadataWithPrompt as Record<string, unknown>),
-          timing: failureTimingSummary
-        } as AskRetrievalMetadataJson, {
-          stage: "answering",
-          message
-        }),
+        retrievalMetadataJson: this.withFailureMetadata(
+          {
+            ...(retrievalMetadataWithPrompt as Record<string, unknown>),
+            timing: failureTimingSummary
+          } as AskRetrievalMetadataJson,
+          {
+            stage: 'answering',
+            message
+          }
+        ),
         status: TraceStatus.failed,
         errorMessage: message
       });
       throw new AskAssistantError({
         traceId: resolvedTrace.id,
         details: {
-          stage: "answering",
+          stage: 'answering',
           cause: message
         }
       });
@@ -1058,7 +1286,8 @@ export class AskAssistantService {
     promptSnapshot: PromptSnapshot
   ): AskRetrievalMetadataJson {
     const promptContextChars = promptSnapshot.userPrompt.length;
-    const promptContextApproxTokens = this.approximateTokenCount(promptSnapshot.systemPrompt) +
+    const promptContextApproxTokens =
+      this.approximateTokenCount(promptSnapshot.systemPrompt) +
       this.approximateTokenCount(promptSnapshot.userPrompt);
 
     return {
@@ -1069,28 +1298,31 @@ export class AskAssistantService {
   }
 
   private buildTimingReadabilitySentence(timing: AskTimingSummary) {
-    const render = (label: string, value: number | null) => `${label} ${value == null ? "n/a" : `${value}ms`}`;
-    return [
-      render("total", timing.totalMs),
-      render("first token", timing.firstTokenMs),
-      render("pre-generation", timing.preGenerationMs),
-      render("llm first token", timing.llmFirstTokenMs),
-      render("conversation", timing.conversationLoadMs),
-      render("persist user", timing.userMessagePersistMs),
-      render("rewrite", timing.rewriteMs),
-      render("retrieval", timing.retrievalMs),
-      render("trace create", timing.traceCreateMs),
-      render("generation", timing.answerGenerationMs),
-      render("persist assistant", timing.assistantMessagePersistMs),
-      render("trace finalize", timing.traceFinalizeMs),
-      render("llm queue", timing.llmQueueWaitMs),
-      render("retrieval queue", timing.retrievalQueueWaitMs)
-    ].join("; ") + ".";
+    const render = (label: string, value: number | null) =>
+      `${label} ${value == null ? 'n/a' : `${value}ms`}`;
+    return (
+      [
+        render('total', timing.totalMs),
+        render('first token', timing.firstTokenMs),
+        render('pre-generation', timing.preGenerationMs),
+        render('llm first token', timing.llmFirstTokenMs),
+        render('conversation', timing.conversationLoadMs),
+        render('persist user', timing.userMessagePersistMs),
+        render('rewrite', timing.rewriteMs),
+        render('retrieval', timing.retrievalMs),
+        render('trace create', timing.traceCreateMs),
+        render('generation', timing.answerGenerationMs),
+        render('persist assistant', timing.assistantMessagePersistMs),
+        render('trace finalize', timing.traceFinalizeMs),
+        render('llm queue', timing.llmQueueWaitMs),
+        render('retrieval queue', timing.retrievalQueueWaitMs)
+      ].join('; ') + '.'
+    );
   }
 
   private logAskTiming(input: {
-    route: "ask" | "ask_stream";
-    status: "success" | "failed" | "aborted";
+    route: 'ask' | 'ask_stream';
+    status: 'success' | 'failed' | 'aborted';
     assistantId: string;
     conversationId: string;
     traceId: string;
@@ -1101,7 +1333,7 @@ export class AskAssistantService {
     errorMessage?: string;
   }) {
     const payload = {
-      event: "ask_timing",
+      event: 'ask_timing',
       route: input.route,
       status: input.status,
       assistantId: input.assistantId,
@@ -1114,7 +1346,7 @@ export class AskAssistantService {
       errorMessage: input.errorMessage ?? null
     };
 
-    if (input.status === "success") {
+    if (input.status === 'success') {
       this.logger.log(JSON.stringify(payload));
       return;
     }
@@ -1123,40 +1355,66 @@ export class AskAssistantService {
   }
 
   private buildRetrievalLogDiagnostics(retrievalMetadata: unknown) {
-    if (typeof retrievalMetadata !== "object" || retrievalMetadata == null || Array.isArray(retrievalMetadata)) {
+    if (
+      typeof retrievalMetadata !== 'object' ||
+      retrievalMetadata == null ||
+      Array.isArray(retrievalMetadata)
+    ) {
       return null;
     }
 
     const metadata = retrievalMetadata as Record<string, unknown>;
     const execution =
-      typeof metadata.execution === "object" && metadata.execution !== null && !Array.isArray(metadata.execution)
+      typeof metadata.execution === 'object' &&
+      metadata.execution !== null &&
+      !Array.isArray(metadata.execution)
         ? (metadata.execution as Record<string, unknown>)
         : null;
     const timing =
-      execution != null && typeof execution.timing === "object" && execution.timing !== null && !Array.isArray(execution.timing)
+      execution != null &&
+      typeof execution.timing === 'object' &&
+      execution.timing !== null &&
+      !Array.isArray(execution.timing)
         ? (execution.timing as Record<string, unknown>)
         : null;
     const embedding =
-      typeof metadata.embedding === "object" && metadata.embedding !== null && !Array.isArray(metadata.embedding)
+      typeof metadata.embedding === 'object' &&
+      metadata.embedding !== null &&
+      !Array.isArray(metadata.embedding)
         ? (metadata.embedding as Record<string, unknown>)
         : null;
     const activeEmbedding =
-      embedding != null && typeof embedding.active === "object" && embedding.active !== null && !Array.isArray(embedding.active)
+      embedding != null &&
+      typeof embedding.active === 'object' &&
+      embedding.active !== null &&
+      !Array.isArray(embedding.active)
         ? (embedding.active as Record<string, unknown>)
         : null;
     const indexedEmbedding =
-      embedding != null && typeof embedding.indexed === "object" && embedding.indexed !== null && !Array.isArray(embedding.indexed)
+      embedding != null &&
+      typeof embedding.indexed === 'object' &&
+      embedding.indexed !== null &&
+      !Array.isArray(embedding.indexed)
         ? (embedding.indexed as Record<string, unknown>)
         : null;
 
-    const retrievalQuery = typeof execution?.retrievalQuery === "string" ? execution.retrievalQuery : "";
-    const vectorCandidateCount = this.readNumber(execution?.vectorCandidateCount);
+    const retrievalQuery =
+      typeof execution?.retrievalQuery === 'string'
+        ? execution.retrievalQuery
+        : '';
+    const vectorCandidateCount = this.readNumber(
+      execution?.vectorCandidateCount
+    );
     const retrievedChunkCount = this.readNumber(execution?.retrievedChunkCount);
     const contextGroupCount = this.readNumber(execution?.contextGroupCount);
-    const lexicalCandidateCount = this.readNumber(execution?.lexicalCandidateCount);
+    const lexicalCandidateCount = this.readNumber(
+      execution?.lexicalCandidateCount
+    );
     const candidateLimit = this.readNumber(execution?.candidateLimit);
     const vectorSearchMs = this.readNumber(timing?.vectorSearchMs);
-    const vectorCandidateFetchMs = this.readNumber(timing?.vectorCandidateFetchMs);
+    const vectorCandidateFetchMs = this.readNumber(
+      timing?.vectorCandidateFetchMs
+    );
     const chunkWindowMs = this.readNumber(timing?.chunkWindowMs);
     const lexicalSearchMs = this.readNumber(timing?.lexicalSearchMs);
 
@@ -1175,19 +1433,27 @@ export class AskAssistantService {
       retrievedChunkCount,
       contextGroupCount,
       vectorSearchMsPerVectorCandidate:
-        vectorSearchMs != null && vectorCandidateCount != null && vectorCandidateCount > 0
+        vectorSearchMs != null &&
+        vectorCandidateCount != null &&
+        vectorCandidateCount > 0
           ? Number((vectorSearchMs / vectorCandidateCount).toFixed(2))
           : null,
       vectorFetchMsPerVectorCandidate:
-        vectorCandidateFetchMs != null && vectorCandidateCount != null && vectorCandidateCount > 0
+        vectorCandidateFetchMs != null &&
+        vectorCandidateCount != null &&
+        vectorCandidateCount > 0
           ? Number((vectorCandidateFetchMs / vectorCandidateCount).toFixed(2))
           : null,
       chunkWindowMsPerRetrievedChunk:
-        chunkWindowMs != null && retrievedChunkCount != null && retrievedChunkCount > 0
+        chunkWindowMs != null &&
+        retrievedChunkCount != null &&
+        retrievedChunkCount > 0
           ? Number((chunkWindowMs / retrievedChunkCount).toFixed(2))
           : null,
       lexicalCandidatesPerBudget:
-        lexicalCandidateCount != null && candidateLimit != null && candidateLimit > 0
+        lexicalCandidateCount != null &&
+        candidateLimit != null &&
+        candidateLimit > 0
           ? Number((lexicalCandidateCount / candidateLimit).toFixed(3))
           : null,
       lexicalSearchMs,
@@ -1199,19 +1465,19 @@ export class AskAssistantService {
 
   private normalizeAnswerPolicy(input?: Partial<AnswerPolicy> | null) {
     return {
-      responseStyle: input?.responseStyle ?? "concise",
-      tone: input?.tone ?? "neutral",
-      outputFormat: input?.outputFormat ?? "paragraph",
-      language: input?.language ?? "auto",
-      citationMode: input?.citationMode ?? "required",
+      responseStyle: input?.responseStyle ?? 'concise',
+      tone: input?.tone ?? 'neutral',
+      outputFormat: input?.outputFormat ?? 'paragraph',
+      language: input?.language ?? 'auto',
+      citationMode: input?.citationMode ?? 'required',
       maxCitations: input?.maxCitations ?? 3,
-      noAnswerBehavior: input?.noAnswerBehavior ?? "say_insufficient_context",
+      noAnswerBehavior: input?.noAnswerBehavior ?? 'say_insufficient_context',
       includeMissingInformation: input?.includeMissingInformation ?? true
     } as const;
   }
 
   private isAbortError(error: unknown) {
-    return error instanceof Error && error.name === "AbortError";
+    return error instanceof Error && error.name === 'AbortError';
   }
 
   private resolveRewriteDecision(
@@ -1219,14 +1485,14 @@ export class AskAssistantService {
     retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>
   ): AskRewriteDecision {
     const mode = retrievalStrategy.queryRewrite.mode;
-    if (!retrievalStrategy.queryRewrite.enabled || mode === "off") {
+    if (!retrievalStrategy.queryRewrite.enabled || mode === 'off') {
       return {
         shouldRewrite: false,
-        skippedReason: "disabled_by_default"
+        skippedReason: 'disabled_by_default'
       };
     }
 
-    if (mode === "always") {
+    if (mode === 'always') {
       return {
         shouldRewrite: true,
         skippedReason: null
@@ -1234,26 +1500,38 @@ export class AskAssistantService {
     }
 
     const normalizedQuestion = this.normalizeQuestion(question);
-    const termCount = normalizedQuestion.length === 0 ? 0 : normalizedQuestion.split(/\s+/).length;
-    if (normalizedQuestion.length < 18 || termCount < 6) {
+    const termCount =
+      normalizedQuestion.length === 0
+        ? 0
+        : normalizedQuestion.split(/\s+/).length;
+    const isSummaryOrComplexQuestion =
+      this.isSummaryOrComplexQuestion(question);
+    if (
+      !isSummaryOrComplexQuestion &&
+      (normalizedQuestion.length < 18 || termCount < 6)
+    ) {
       return {
         shouldRewrite: false,
-        skippedReason: "query_too_short"
+        skippedReason: 'query_too_short'
       };
     }
 
-    if (!this.isSummaryOrComplexQuestion(question)) {
+    if (!isSummaryOrComplexQuestion) {
       return {
         shouldRewrite: false,
-        skippedReason: "not_summary_or_complex_question"
+        skippedReason: 'not_summary_or_complex_question'
       };
     }
 
-    const estimatedRewriteLatencyMs = 180 + termCount * 30 + Math.ceil(normalizedQuestion.length / 12);
-    if (retrievalStrategy.queryRewrite.maxAddedLatencyMs < estimatedRewriteLatencyMs) {
+    const estimatedRewriteLatencyMs =
+      180 + termCount * 30 + Math.ceil(normalizedQuestion.length / 12);
+    if (
+      retrievalStrategy.queryRewrite.maxAddedLatencyMs <
+      estimatedRewriteLatencyMs
+    ) {
       return {
         shouldRewrite: false,
-        skippedReason: "latency_budget_exceeded"
+        skippedReason: 'latency_budget_exceeded'
       };
     }
 
@@ -1264,16 +1542,17 @@ export class AskAssistantService {
   }
 
   private isSummaryOrComplexQuestion(question: string) {
-    return /summary|compare|difference|list|steps|why|how|issue|problem|debug|error|tradeoff|versus|vs\b|\?|总结|概括|列出|比较|区别|排查|问题|原因|步骤|有哪些/i
-      .test(question);
+    return /summary|compare|difference|list|steps|why|how|issue|problem|debug|error|tradeoff|versus|vs\b|\?|benefit|benefits|importance|important|impact|value|role|meaning|what.*for|what.*benefit|\u603b\u7ed3|\u6982\u62ec|\u5217\u51fa|\u6bd4\u8f83|\u533a\u522b|\u6392\u67e5|\u95ee\u9898|\u539f\u56e0|\u6b65\u9aa4|\u6709\u54ea\u4e9b|\u610f\u4e49|\u4f5c\u7528|\u4ef7\u503c|\u5f71\u54cd|\u91cd\u8981|\u597d\u5904|\u6709\u4ec0\u4e48\u7528|\u6709\u4ec0\u4e48\u4ef7\u503c|\u4e3a\u4ec0\u4e48\u91cd\u8981/i.test(
+      question
+    );
   }
 
   private normalizeQuestion(question: string) {
-    return question.toLowerCase().replace(/\s+/g, " ").trim();
+    return question.toLowerCase().replace(/\s+/g, ' ').trim();
   }
 
   private approximateTokenCount(value: string) {
-    const normalized = value.replace(/\s+/g, " ").trim();
+    const normalized = value.replace(/\s+/g, ' ').trim();
     if (!normalized) {
       return 0;
     }
@@ -1281,87 +1560,120 @@ export class AskAssistantService {
     return Math.ceil(normalized.length / 4);
   }
 
-  private resolveAnswerAttribution(answeringMetadata: unknown): TraceCitationAttribution | null {
-    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+  private resolveAnswerAttribution(
+    answeringMetadata: unknown
+  ): TraceCitationAttribution | null {
+    if (typeof answeringMetadata !== 'object' || answeringMetadata === null) {
       return null;
     }
 
-    const attribution = (answeringMetadata as Record<string, unknown>).citationAttribution;
-    return attribution === "explicit" || attribution === "heuristic" || attribution === "none"
+    const attribution = (answeringMetadata as Record<string, unknown>)
+      .citationAttribution;
+    return attribution === 'explicit' ||
+      attribution === 'heuristic' ||
+      attribution === 'none'
       ? attribution
       : null;
   }
 
-  private resolveAnswerAttributionSource(answeringMetadata: unknown): TraceCitationSelectionSource | null {
-    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+  private resolveAnswerAttributionSource(
+    answeringMetadata: unknown
+  ): TraceCitationSelectionSource | null {
+    if (typeof answeringMetadata !== 'object' || answeringMetadata === null) {
       return null;
     }
 
-    const source = (answeringMetadata as Record<string, unknown>).citationSelectionSource;
-    return source === "structured" || source === "inline_markers" || source === "heuristic" || source === "none"
+    const source = (answeringMetadata as Record<string, unknown>)
+      .citationSelectionSource;
+    return source === 'structured' ||
+      source === 'inline_markers' ||
+      source === 'heuristic' ||
+      source === 'none'
       ? source
       : null;
   }
 
-  private resolveAnswerAttributionSummary(answeringMetadata: unknown): TraceAnswerAttributionSummary {
+  private resolveAnswerAttributionSummary(
+    answeringMetadata: unknown
+  ): TraceAnswerAttributionSummary {
     return buildAnswerAttributionSummary({
       attribution: this.resolveAnswerAttribution(answeringMetadata),
       source: this.resolveAnswerAttributionSource(answeringMetadata)
     });
   }
 
-  private resolveAnswerTextSource(answeringMetadata: unknown): TraceSummary["answerTextSource"] {
-    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+  private resolveAnswerTextSource(
+    answeringMetadata: unknown
+  ): TraceSummary['answerTextSource'] {
+    if (typeof answeringMetadata !== 'object' || answeringMetadata === null) {
       return null;
     }
 
-    const source = (answeringMetadata as Record<string, unknown>).answerTextSource;
-    return source === "model" || source === "deterministic_policy" ? source : null;
+    const source = (answeringMetadata as Record<string, unknown>)
+      .answerTextSource;
+    return source === 'model' || source === 'deterministic_policy'
+      ? source
+      : null;
   }
 
-  private resolveAnswerStatusSource(answeringMetadata: unknown): TraceSummary["answerStatusSource"] {
-    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+  private resolveAnswerStatusSource(
+    answeringMetadata: unknown
+  ): TraceSummary['answerStatusSource'] {
+    if (typeof answeringMetadata !== 'object' || answeringMetadata === null) {
       return null;
     }
 
-    const source = (answeringMetadata as Record<string, unknown>).answerStatusSource;
-    return source === "model" || source === "inferred_from_retrieval" || source === "deterministic_policy"
+    const source = (answeringMetadata as Record<string, unknown>)
+      .answerStatusSource;
+    return source === 'model' ||
+      source === 'inferred_from_retrieval' ||
+      source === 'deterministic_policy'
       ? source
       : null;
   }
 
   private readString(value: unknown): string | null {
-    return typeof value === "string" ? value : null;
+    return typeof value === 'string' ? value : null;
   }
 
   private readNumber(value: unknown): number | null {
-    return typeof value === "number" && Number.isFinite(value) ? value : null;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 
   private buildAnswerEvidenceSourceReadabilitySentence(
-    answerEvidenceSourceReadabilityLabel: TraceSummary["answerEvidenceSourceReadabilityLabel"]
-  ): TraceSummary["answerEvidenceSourceReadabilitySentence"] {
+    answerEvidenceSourceReadabilityLabel: TraceSummary['answerEvidenceSourceReadabilityLabel']
+  ): TraceSummary['answerEvidenceSourceReadabilitySentence'] {
     return `Answer evidence source is ${answerEvidenceSourceReadabilityLabel}.`;
   }
 
-  private resolveMissingInformationSource(answeringMetadata: unknown): TraceSummary["missingInformationSource"] {
-    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+  private resolveMissingInformationSource(
+    answeringMetadata: unknown
+  ): TraceSummary['missingInformationSource'] {
+    if (typeof answeringMetadata !== 'object' || answeringMetadata === null) {
       return null;
     }
 
-    const source = (answeringMetadata as Record<string, unknown>).missingInformationSource;
-    return source === "none" || source === "model" || source === "deterministic_default" || source === "suppressed_by_policy"
+    const source = (answeringMetadata as Record<string, unknown>)
+      .missingInformationSource;
+    return source === 'none' ||
+      source === 'model' ||
+      source === 'deterministic_default' ||
+      source === 'suppressed_by_policy'
       ? source
       : null;
   }
 
-  private resolveInsufficientContextReason(answeringMetadata: unknown): TraceSummary["insufficientContextReason"] {
-    if (typeof answeringMetadata !== "object" || answeringMetadata === null) {
+  private resolveInsufficientContextReason(
+    answeringMetadata: unknown
+  ): TraceSummary['insufficientContextReason'] {
+    if (typeof answeringMetadata !== 'object' || answeringMetadata === null) {
       return null;
     }
 
-    const reason = (answeringMetadata as Record<string, unknown>).insufficientContextReason;
-    return reason === "no_retrieval_hits" || reason === "retrieved_context_insufficient"
+    const reason = (answeringMetadata as Record<string, unknown>)
+      .insufficientContextReason;
+    return reason === 'no_retrieval_hits' ||
+      reason === 'retrieved_context_insufficient'
       ? reason
       : null;
   }
@@ -1370,17 +1682,25 @@ export class AskAssistantService {
     answeringMetadata: unknown;
     missingInformation: unknown;
   }) {
-    if (typeof input.answeringMetadata === "object" && input.answeringMetadata !== null) {
-      const count = (input.answeringMetadata as Record<string, unknown>).missingInformationCount;
-      if (typeof count === "number") {
+    if (
+      typeof input.answeringMetadata === 'object' &&
+      input.answeringMetadata !== null
+    ) {
+      const count = (input.answeringMetadata as Record<string, unknown>)
+        .missingInformationCount;
+      if (typeof count === 'number') {
         return count;
       }
     }
 
-    return Array.isArray(input.missingInformation) ? input.missingInformation.length : 0;
+    return Array.isArray(input.missingInformation)
+      ? input.missingInformation.length
+      : 0;
   }
 
-  private buildRetrievalScoresJson(chunks: AskResultChunk[]): Prisma.InputJsonValue {
+  private buildRetrievalScoresJson(
+    chunks: AskResultChunk[]
+  ): Prisma.InputJsonValue {
     return chunks.map((chunk: AskResultChunk) => ({
       chunkId: chunk.chunkId,
       documentId: chunk.documentId,
@@ -1399,7 +1719,7 @@ export class AskAssistantService {
   }
 
   private buildContentPreview(content: string) {
-    const normalized = content.replace(/\s+/g, " ").trim();
+    const normalized = content.replace(/\s+/g, ' ').trim();
     if (normalized.length <= 220) {
       return normalized;
     }
@@ -1411,7 +1731,7 @@ export class AskAssistantService {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
     rewrittenQuery: string | null;
-    rewriteSkippedReason: RetrievalStrategySummary["rewriteSkippedReason"];
+    rewriteSkippedReason: RetrievalStrategySummary['rewriteSkippedReason'];
     rewriteModelName: string | null;
     rewritePromptId: string | null;
     rewriteUsedFallback: boolean | null;
@@ -1425,15 +1745,15 @@ export class AskAssistantService {
     promptContextChars: number | null;
     promptContextApproxTokens: number | null;
     execution: {
-      actualMode: "vector" | "hybrid" | "lexical";
+      actualMode: 'vector' | 'hybrid' | 'lexical';
       usedFallback: boolean;
-      fallbackReason: "vector_error" | "no_ranked_candidates" | null;
+      fallbackReason: 'vector_error' | 'no_ranked_candidates' | null;
       rerankApplied: boolean;
-      rerankMode?: "off" | "local_heuristic" | "llm_judge";
+      rerankMode?: 'off' | 'local_heuristic' | 'llm_judge';
       rerankJudgeSkippedReason?:
-        | "candidate_set_too_large"
-        | "query_too_simple"
-        | "judge_dependencies_missing"
+        | 'candidate_set_too_large'
+        | 'query_too_simple'
+        | 'judge_dependencies_missing'
         | null;
       chunkWindowApplied: boolean;
       vectorSearchAttempted: boolean;
@@ -1459,31 +1779,47 @@ export class AskAssistantService {
       };
     };
   }): Prisma.InputJsonValue {
-    const rewriteApplied = Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion);
+    const rewriteApplied = Boolean(
+      input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
+    );
     const retrievalQuerySource = !input.strategy.queryRewrite.enabled
-      ? "original_disabled"
+      ? 'original_disabled'
       : rewriteApplied
-        ? "rewritten"
-        : "original_unchanged";
+        ? 'rewritten'
+        : 'original_unchanged';
 
-    const primaryChunks = input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true);
-    const primaryChunkScores = primaryChunks.map((chunk: AskResultChunk) => chunk.score);
-    const primaryChunkScoreAvg = primaryChunkScores.length > 0
-      ? Number((primaryChunkScores.reduce((sum, score) => sum + score, 0) / primaryChunkScores.length).toFixed(4))
-      : null;
-    const primaryChunkScoreMin = primaryChunkScores.length > 0
-      ? Number(Math.min(...primaryChunkScores).toFixed(4))
-      : null;
-    const contextGroupAvgLength = input.contextGroups.length > 0
-      ? Number(
-          (
-            input.contextGroups.reduce((sum, group) => {
-              const groupLength = (group as { mergedContent?: string }).mergedContent?.length ?? 0;
-              return sum + groupLength;
-            }, 0) / input.contextGroups.length
-          ).toFixed(2)
-        )
-      : null;
+    const primaryChunks = input.retrievedChunks.filter(
+      (chunk) => chunk.isPrimary ?? true
+    );
+    const primaryChunkScores = primaryChunks.map(
+      (chunk: AskResultChunk) => chunk.score
+    );
+    const primaryChunkScoreAvg =
+      primaryChunkScores.length > 0
+        ? Number(
+            (
+              primaryChunkScores.reduce((sum, score) => sum + score, 0) /
+              primaryChunkScores.length
+            ).toFixed(4)
+          )
+        : null;
+    const primaryChunkScoreMin =
+      primaryChunkScores.length > 0
+        ? Number(Math.min(...primaryChunkScores).toFixed(4))
+        : null;
+    const contextGroupAvgLength =
+      input.contextGroups.length > 0
+        ? Number(
+            (
+              input.contextGroups.reduce((sum, group) => {
+                const groupLength =
+                  (group as { mergedContent?: string }).mergedContent?.length ??
+                  0;
+                return sum + groupLength;
+              }, 0) / input.contextGroups.length
+            ).toFixed(2)
+          )
+        : null;
 
     return {
       strategy: input.strategy,
@@ -1498,9 +1834,15 @@ export class AskAssistantService {
         applied: rewriteApplied,
         finalQuerySource: retrievalQuerySource,
         skippedReason: input.rewriteSkippedReason,
-        usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
-        modelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
-        promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+        usedFallback: input.strategy.queryRewrite.enabled
+          ? input.rewriteUsedFallback
+          : null,
+        modelName: input.strategy.queryRewrite.enabled
+          ? input.rewriteModelName
+          : null,
+        promptId: input.strategy.queryRewrite.enabled
+          ? input.rewritePromptId
+          : null
       },
       strategySummary: {
         retrievalMode: input.execution.actualMode,
@@ -1509,9 +1851,15 @@ export class AskAssistantService {
         rewriteEnabled: input.strategy.queryRewrite.enabled,
         rewriteApplied,
         rewriteSkippedReason: input.rewriteSkippedReason,
-        rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
-        rewritePromptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null,
-        rewriteModelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
+        rewriteUsedFallback: input.strategy.queryRewrite.enabled
+          ? input.rewriteUsedFallback
+          : null,
+        rewritePromptId: input.strategy.queryRewrite.enabled
+          ? input.rewritePromptId
+          : null,
+        rewriteModelName: input.strategy.queryRewrite.enabled
+          ? input.rewriteModelName
+          : null,
         fallbackReason: input.execution.fallbackReason,
         usedFallback: input.execution.usedFallback
       },
@@ -1525,8 +1873,11 @@ export class AskAssistantService {
         usedFallback: input.execution.usedFallback,
         fallbackReason: input.execution.fallbackReason,
         rerankApplied: input.execution.rerankApplied,
-        rerankMode: input.execution.rerankMode ?? (input.execution.rerankApplied ? "local_heuristic" : "off"),
-        rerankJudgeSkippedReason: input.execution.rerankJudgeSkippedReason ?? null,
+        rerankMode:
+          input.execution.rerankMode ??
+          (input.execution.rerankApplied ? 'local_heuristic' : 'off'),
+        rerankJudgeSkippedReason:
+          input.execution.rerankJudgeSkippedReason ?? null,
         chunkWindowApplied: input.execution.chunkWindowApplied,
         vectorSearchAttempted: input.execution.vectorSearchAttempted,
         lexicalSearchAttempted: input.execution.lexicalSearchAttempted,
@@ -1541,8 +1892,12 @@ export class AskAssistantService {
         timing: input.execution.timing ?? null,
         retrievedChunkCount: input.retrievedChunks.length,
         contextGroupCount: input.contextGroups.length,
-        primaryChunkCount: input.retrievedChunks.filter(chunk => chunk.isPrimary ?? true).length,
-        neighborChunkCount: input.retrievedChunks.filter(chunk => !(chunk.isPrimary ?? true)).length
+        primaryChunkCount: input.retrievedChunks.filter(
+          (chunk) => chunk.isPrimary ?? true
+        ).length,
+        neighborChunkCount: input.retrievedChunks.filter(
+          (chunk) => !(chunk.isPrimary ?? true)
+        ).length
       }
     } as Prisma.InputJsonValue;
   }
@@ -1580,38 +1935,54 @@ export class AskAssistantService {
         documentVersions: input.documentVersions
       });
       if (!retrievalResult) {
-        throw new Error("Retrieval returned no result.");
+        throw new Error('Retrieval returned no result.');
       }
 
       return retrievalResult;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown retrieval pipeline error.";
-      const embeddingDiagnostics = error instanceof VectorStoreCompatibilityError ? error.embeddingDiagnostics : null;
-      const [
-        { value: conversation },
-        { value: userMessage }
-      ] = await Promise.all([input.conversationPromise, input.userMessagePromise]);
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unknown retrieval pipeline error.';
+      const embeddingDiagnostics =
+        error instanceof VectorStoreCompatibilityError
+          ? error.embeddingDiagnostics
+          : null;
+      const [{ value: conversation }, { value: userMessage }] =
+        await Promise.all([
+          input.conversationPromise,
+          input.userMessagePromise
+        ]);
       const failedTrace = await this.tracesService.createTrace({
         conversationId: conversation.id,
         assistantId: input.assistantId,
         userMessageId: userMessage.id,
         userQuery: input.userQuery,
-        rewrittenQuery: input.retrievalQuery !== input.userQuery ? input.retrievalQuery : null,
+        rewrittenQuery:
+          input.retrievalQuery !== input.userQuery
+            ? input.retrievalQuery
+            : null,
         retrievalMetadataJson: this.buildRetrievalFailureMetadata({
           strategy: input.retrievalStrategy,
           filters: input.retrievalFilters,
           rewrittenQuery: input.rewritten.rewrittenQuery,
           rewriteSkippedReason: input.rewritten.skippedReason,
-          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.modelName : null,
-          rewritePromptId: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.promptId : null,
-          rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled ? input.rewritten.usedFallback : null,
+          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.modelName
+            : null,
+          rewritePromptId: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.promptId
+            : null,
+          rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.usedFallback
+            : null,
           originalQuestion: input.userQuery,
           topK: input.retrievalProfile.topK,
           scoreThreshold: input.retrievalProfile.scoreThreshold,
           chunkWindow: input.retrievalProfile.chunkWindow,
           embedding: embeddingDiagnostics,
           failure: {
-            stage: "retrieval",
+            stage: 'retrieval',
             message
           }
         }),
@@ -1622,7 +1993,7 @@ export class AskAssistantService {
       throw new AskAssistantError({
         traceId: failedTrace.id,
         details: {
-          stage: "retrieval",
+          stage: 'retrieval',
           cause: message
         }
       });
@@ -1633,7 +2004,7 @@ export class AskAssistantService {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
     rewrittenQuery: string | null;
-    rewriteSkippedReason: RetrievalStrategySummary["rewriteSkippedReason"];
+    rewriteSkippedReason: RetrievalStrategySummary['rewriteSkippedReason'];
     rewriteModelName: string | null;
     rewritePromptId: string | null;
     rewriteUsedFallback: boolean | null;
@@ -1643,16 +2014,18 @@ export class AskAssistantService {
     chunkWindow: number;
     embedding?: VectorStoreEmbeddingDiagnostics | null;
     failure: {
-      stage: "retrieval";
+      stage: 'retrieval';
       message: string;
     };
   }): Prisma.InputJsonValue {
-    const rewriteApplied = Boolean(input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion);
+    const rewriteApplied = Boolean(
+      input.rewrittenQuery && input.rewrittenQuery !== input.originalQuestion
+    );
     const retrievalQuerySource = !input.strategy.queryRewrite.enabled
-      ? "original_disabled"
+      ? 'original_disabled'
       : rewriteApplied
-        ? "rewritten"
-        : "original_unchanged";
+        ? 'rewritten'
+        : 'original_unchanged';
 
     return {
       strategy: input.strategy,
@@ -1662,9 +2035,15 @@ export class AskAssistantService {
         applied: rewriteApplied,
         finalQuerySource: retrievalQuerySource,
         skippedReason: input.rewriteSkippedReason,
-        usedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
-        modelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
-        promptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null
+        usedFallback: input.strategy.queryRewrite.enabled
+          ? input.rewriteUsedFallback
+          : null,
+        modelName: input.strategy.queryRewrite.enabled
+          ? input.rewriteModelName
+          : null,
+        promptId: input.strategy.queryRewrite.enabled
+          ? input.rewritePromptId
+          : null
       },
       strategySummary: {
         retrievalMode: null,
@@ -1673,9 +2052,15 @@ export class AskAssistantService {
         rewriteEnabled: input.strategy.queryRewrite.enabled,
         rewriteApplied,
         rewriteSkippedReason: input.rewriteSkippedReason,
-        rewriteUsedFallback: input.strategy.queryRewrite.enabled ? input.rewriteUsedFallback : null,
-        rewritePromptId: input.strategy.queryRewrite.enabled ? input.rewritePromptId : null,
-        rewriteModelName: input.strategy.queryRewrite.enabled ? input.rewriteModelName : null,
+        rewriteUsedFallback: input.strategy.queryRewrite.enabled
+          ? input.rewriteUsedFallback
+          : null,
+        rewritePromptId: input.strategy.queryRewrite.enabled
+          ? input.rewritePromptId
+          : null,
+        rewriteModelName: input.strategy.queryRewrite.enabled
+          ? input.rewriteModelName
+          : null,
         fallbackReason: null,
         usedFallback: null
       },
@@ -1695,7 +2080,7 @@ export class AskAssistantService {
 
   private withFailureMetadata(
     retrievalMetadata: AskRetrievalMetadataJson,
-    failure: { stage: "answering"; message: string }
+    failure: { stage: 'answering'; message: string }
   ): AskRetrievalMetadataJson {
     return {
       ...(retrievalMetadata as Record<string, unknown>),
@@ -1710,8 +2095,14 @@ export class AskAssistantService {
     answeringMetadata: unknown,
     promptSnapshot: PromptSnapshot
   ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
-    if (typeof answeringMetadata !== "object" || answeringMetadata == null || Array.isArray(answeringMetadata)) {
-      return answeringMetadata == null ? undefined : (answeringMetadata as Prisma.InputJsonValue);
+    if (
+      typeof answeringMetadata !== 'object' ||
+      answeringMetadata == null ||
+      Array.isArray(answeringMetadata)
+    ) {
+      return answeringMetadata == null
+        ? undefined
+        : (answeringMetadata as Prisma.InputJsonValue);
     }
 
     return {
