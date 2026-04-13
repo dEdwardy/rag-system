@@ -3,16 +3,22 @@
   "private": true,
   "packageManager": "pnpm@10.5.2",
   "scripts": {
+    "prepare": "husky",
     "opencode:loop": "node .opencode/loop/harness/control.mjs",
     "loop:start": "node .opencode/loop/harness/control.mjs start",
     "loop:stop": "node .opencode/loop/harness/control.mjs stop",
     "loop:status": "node .opencode/loop/harness/control.mjs status",
     "check:encoding": "node scripts/check-encoding.mjs",
+    "lint:fast": "oxlint apps packages scripts",
+    "lint:ci": "pnpm --filter @rag-system/api lint && pnpm --filter @rag-system/web lint",
     "dev:web": "pnpm --filter @rag-system/web dev",
     "dev:api": "pnpm --filter @rag-system/api start:dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
+    "typecheck:ci": "pnpm --filter @rag-system/api typecheck && pnpm --filter @rag-system/web typecheck",
     "test:api": "pnpm --filter @rag-system/api test:all",
     "test:api:fast:llm": "pnpm --filter @rag-system/api test:fast:llm",
     "test:api:fast:retrieval": "pnpm --filter @rag-system/api test:fast:retrieval",
@@ -39,7 +45,22 @@
     "test:web:smoke:legacy": "pnpm --filter @rag-system/web test:smoke:legacy",
     "test:web-smoke": "pnpm run test:web:smoke"
   },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "oxlint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
+  },
   "dependencies": {
     "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "oxlint": "^1.59.0",
+    "prettier": "^3.8.2"
   }
 }

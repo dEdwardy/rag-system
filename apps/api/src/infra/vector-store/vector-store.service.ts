@@ -1,5 +1,8 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { STORAGE_PROVIDER_SERVICE, type StorageProviderService } from "../storage/storage-provider.service";
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  STORAGE_PROVIDER_SERVICE,
+  type StorageProviderService
+} from '../storage/storage-provider.service';
 import {
   assertCompatibleEmbeddingConfigs,
   buildEmbeddingDiagnostics,
@@ -7,18 +10,27 @@ import {
   shouldReplaceIndexedFallbackDuringIndexing,
   summarizeIndexedEmbedding,
   summarizeUpsertEmbeddings
-} from "./vector-store.shared";
-import { ReplaceDocumentVectorsInput, VectorSearchInput, VectorSearchResult, VectorStore, VectorStoreRecord } from "./vector-store.types";
+} from './vector-store.shared';
+import {
+  ReplaceDocumentVectorsInput,
+  VectorSearchInput,
+  VectorSearchResult,
+  VectorStore,
+  VectorStoreRecord
+} from './vector-store.types';
 
 @Injectable()
 export class VectorStoreService implements VectorStore {
-  constructor(@Inject(STORAGE_PROVIDER_SERVICE) private readonly storageProviderService: StorageProviderService) {}
+  constructor(
+    @Inject(STORAGE_PROVIDER_SERVICE)
+    private readonly storageProviderService: StorageProviderService
+  ) {}
 
   async replaceDocumentVectors(input: ReplaceDocumentVectorsInput) {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
     const nextDocumentEmbedding = summarizeUpsertEmbeddings(input);
     const existingIndexedEmbedding = summarizeIndexedEmbedding(
-      records.filter(record => record.documentId !== input.documentId),
+      records.filter((record) => record.documentId !== input.documentId),
       input.kbId
     );
 
@@ -47,11 +59,13 @@ export class VectorStoreService implements VectorStore {
         kbId: input.kbId,
         active: nextDocumentEmbedding,
         indexed: existingIndexedEmbedding,
-        action: "indexing"
+        action: 'indexing'
       });
     }
 
-    const existingRecordsWithoutDocument = records.filter(record => record.documentId !== input.documentId);
+    const existingRecordsWithoutDocument = records.filter(
+      (record) => record.documentId !== input.documentId
+    );
     const newRecords = input.records.map(({ embedding, ...record }) => ({
       ...record,
       modelName: embedding.modelName,
@@ -66,7 +80,9 @@ export class VectorStoreService implements VectorStore {
 
   async deleteDocumentVectors(kbId: string, documentId: string) {
     const records = await this.readKnowledgeBaseVectors(kbId);
-    const nextRecords = records.filter(record => record.documentId !== documentId);
+    const nextRecords = records.filter(
+      (record) => record.documentId !== documentId
+    );
 
     if (nextRecords.length === records.length) {
       return;
@@ -78,36 +94,44 @@ export class VectorStoreService implements VectorStore {
   async search(input: VectorSearchInput): Promise<VectorSearchResult> {
     const records = await this.readKnowledgeBaseVectors(input.kbId);
     const indexedEmbedding = summarizeIndexedEmbedding(records, input.kbId);
-    const embeddingDiagnostics = buildEmbeddingDiagnostics(input.queryEmbedding, indexedEmbedding);
+    const embeddingDiagnostics = buildEmbeddingDiagnostics(
+      input.queryEmbedding,
+      indexedEmbedding
+    );
 
     if (indexedEmbedding) {
       assertCompatibleEmbeddingConfigs({
         kbId: input.kbId,
         active: embeddingDiagnostics.active,
         indexed: indexedEmbedding,
-        action: "retrieval",
+        action: 'retrieval',
         diagnostics: embeddingDiagnostics
       });
     }
 
-    const normalizedQueryVector = this.normalizeVector(input.queryEmbedding.vector);
+    const normalizedQueryVector = this.normalizeVector(
+      input.queryEmbedding.vector
+    );
     const documentIds = new Set(input.documentIds ?? []);
     const matches = records
-      .filter(record => {
+      .filter((record) => {
         if (documentIds.size === 0) {
           return matchesVectorStoreFilters(record, input.filters);
         }
 
-        return documentIds.has(record.documentId) && matchesVectorStoreFilters(record, input.filters);
+        return (
+          documentIds.has(record.documentId) &&
+          matchesVectorStoreFilters(record, input.filters)
+        );
       })
-      .map(record => ({
+      .map((record) => ({
         chunkId: record.chunkId,
         documentId: record.documentId,
         chunkIndex: record.chunkIndex,
         score: this.cosineSimilarity(normalizedQueryVector, record.vector),
         modelName: record.modelName
       }))
-      .filter(record => record.score >= input.scoreThreshold)
+      .filter((record) => record.score >= input.scoreThreshold)
       .sort((left, right) => right.score - left.score)
       .slice(0, input.topK);
 
@@ -121,8 +145,9 @@ export class VectorStoreService implements VectorStore {
     const storageKey = this.getKnowledgeBaseStorageKey(kbId);
 
     try {
-      const buffer = await this.storageProviderService.readFileByStorageKey(storageKey);
-      const raw = buffer.toString("utf8");
+      const buffer =
+        await this.storageProviderService.readFileByStorageKey(storageKey);
+      const raw = buffer.toString('utf8');
       const parsed = JSON.parse(raw) as VectorStoreRecord[];
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -131,14 +156,18 @@ export class VectorStoreService implements VectorStore {
     }
   }
 
-  private async writeKnowledgeBaseVectors(kbId: string, records: VectorStoreRecord[]) {
+  private async writeKnowledgeBaseVectors(
+    kbId: string,
+    records: VectorStoreRecord[]
+  ) {
     const content = JSON.stringify(records);
-    const buffer = Buffer.from(content, "utf8");
+    const buffer = Buffer.from(content, 'utf8');
+    const storageKey = this.getKnowledgeBaseStorageKey(kbId);
 
-    await this.storageProviderService.saveUploadedFile({
+    await this.storageProviderService.saveFileByStorageKey({
+      storageKey,
       buffer,
-      originalName: `${kbId}.json`,
-      mimeType: "application/json"
+      contentType: 'application/json'
     });
   }
 
@@ -147,7 +176,11 @@ export class VectorStoreService implements VectorStore {
   }
 
   private cosineSimilarity(left: number[], right: number[]) {
-    if (left.length === 0 || right.length === 0 || left.length !== right.length) {
+    if (
+      left.length === 0 ||
+      right.length === 0 ||
+      left.length !== right.length
+    ) {
       return 0;
     }
 
@@ -171,12 +204,14 @@ export class VectorStoreService implements VectorStore {
   }
 
   private normalizeVector(vector: number[]) {
-    const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+    const magnitude = Math.sqrt(
+      vector.reduce((sum, value) => sum + value * value, 0)
+    );
 
     if (magnitude === 0) {
       return vector;
     }
 
-    return vector.map(value => value / magnitude);
+    return vector.map((value) => value / magnitude);
   }
 }

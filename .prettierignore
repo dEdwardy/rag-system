@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+output
+tmp
+storage
+.playwright-cli
+.sisyphus
+docker/infra/images
+pnpm-lock.yaml

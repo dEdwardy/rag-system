@@ -48,6 +48,25 @@ pnpm check:encoding
 node scripts/check-encoding.mjs --include-generated
 ```
 
+## Local quality gate
+
+Current recommended local quality workflow:
+
+```bash
+pnpm install
+pnpm lint:fast
+pnpm lint
+pnpm typecheck
+```
+
+- `pnpm install` now installs repo Git hooks through `husky`
+- `pre-commit` runs `lint-staged`, which applies `oxlint --fix` and `prettier --write` to staged files only
+- `pre-push` runs focused app typechecks for `@rag-system/api` and `@rag-system/web`
+- `pnpm lint:fast` is the quick Rust-based lint lane powered by `oxlint`
+- `pnpm lint` remains the canonical ESLint lane for the repo
+- `pnpm format` is the targeted formatting lane; whole-repo `prettier --check` still reflects historical formatting backlog and is not part of the current CI gate
+- PR CI now runs app lint + typecheck before builds and focused tests
+
 If this is a fresh checkout, copy the example env into the API app first:
 
 ```bash
@@ -1358,11 +1377,11 @@ Notes:
     - `MAX_CHILD_SITEMAPS=20` 仍为实现常量（本波次不做 per-source 动态配置）
     - web page 仍按静态 HTML 提取，不引入 JS 渲染抓取
   - queue-ready slices（按顺序）：
-    1) `source follow-up gap list`
-    2) `source diagnostics consistency`
-    3) `source resync recovery guards`
-    4) `new source type review`
-    5) `source follow-up docs`
+    1. `source follow-up gap list`
+    2. `source diagnostics consistency`
+    3. `source resync recovery guards`
+    4. `new source type review`
+    5. `source follow-up docs`
   - remaining safe follow-up gaps（current source wave，docs/planning snapshot）：
     - `source retry/timeout diagnostics consistency`
     - `web page body-quality diagnostics`
@@ -1546,25 +1565,26 @@ The following path has been validated locally on `2026-03-21`:
    - `answeringMetadata` is returned with prompt id, normalized answer policy, resolved language, generation mode, context mode, prompt-context count, citation counts before/after truncation, citation attribution/source, missing-information count/source, answer-text source, answer-status source, and insufficient-context reason
    - citations are returned
    - citation `snippet` prefers a validated verbatim quote from the cited source when the model provides one
-  - `contextGroups` is returned as an array
-  - contiguous same-document chunks may be merged into one `contextGroup.mergedContent`
-  - current `contextGroups` item shape includes:
-    - `documentId`
-    - `documentTitle`
-    - `startChunkIndex`
-    - `endChunkIndex`
-    - `chunkIds`
-    - `primaryChunkIds`
-    - `mergedContent`
-    - `pageNumbers`
-    - `sectionTitles`
-  - answer may include inline source markers like `[1]`
-   - `retrievedChunks` include vector similarity scores
-   - trace may contain `rewrittenQuery`
-   - trace `retrievalScoresJson` may contain `vectorScore`, `lexicalScore`, `hybridScore`, and `rerankScore`
-   - trace `retrievalMetadataJson` records the effective retrieval strategy, filters, rewrite execution, and retrieval summary, including final query source and attempted search paths
-   - trace `answeringMetadataJson` records the effective answer prompt id and normalized answer-policy execution, including citation provenance, citation truncation, missing-information provenance, answer-text source, answer-status source, and insufficient-context reason
-   - trace persistence is successful
+
+- `contextGroups` is returned as an array
+- contiguous same-document chunks may be merged into one `contextGroup.mergedContent`
+- current `contextGroups` item shape includes:
+  - `documentId`
+  - `documentTitle`
+  - `startChunkIndex`
+  - `endChunkIndex`
+  - `chunkIds`
+  - `primaryChunkIds`
+  - `mergedContent`
+  - `pageNumbers`
+  - `sectionTitles`
+- answer may include inline source markers like `[1]`
+- `retrievedChunks` include vector similarity scores
+- trace may contain `rewrittenQuery`
+- trace `retrievalScoresJson` may contain `vectorScore`, `lexicalScore`, `hybridScore`, and `rerankScore`
+- trace `retrievalMetadataJson` records the effective retrieval strategy, filters, rewrite execution, and retrieval summary, including final query source and attempted search paths
+- trace `answeringMetadataJson` records the effective answer prompt id and normalized answer-policy execution, including citation provenance, citation truncation, missing-information provenance, answer-text source, answer-status source, and insufficient-context reason
+- trace persistence is successful
 
 ## Current implementation scope
 

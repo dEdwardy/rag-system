@@ -164,10 +164,20 @@ If you run frontend and backend OpenCode sessions in parallel, prefer separate G
 ```bash
 pnpm build
 pnpm lint
+pnpm lint:fast
 pnpm typecheck
+pnpm format
 pnpm test:api:fast
 pnpm test:api
 ```
+
+Local quality gate baseline:
+
+- `husky` now installs Git hooks from the repo root via `pnpm install`
+- `pre-commit` runs `lint-staged`, which applies `oxlint --fix` and `prettier --write` only to staged files
+- `pre-push` runs focused app typechecks (`api` + `web`) before the branch leaves your machine
+- `prettier` is currently used on staged files and targeted local formatting, not yet as a whole-repo CI gate
+- PR CI remains the final gate and runs repo install, app lint, app typecheck, builds, and focused API tests
 
 For day-to-day backend work, prefer focused API test entrypoints such as `pnpm test:api:fast`, `pnpm test:api:file -- test/<name>.test.js`, or the themed commands documented in [docs/current-dev-setup.md](docs/current-dev-setup.md). Reserve full `pnpm test:api` runs for broader closeout verification.
 

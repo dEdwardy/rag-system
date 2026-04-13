@@ -13,6 +13,10 @@ export class StorageService {
     return this.storageProviderService.saveGeneratedTextFile(input);
   }
 
+  saveFileByStorageKey(input: { storageKey: string; buffer: Buffer; contentType?: string }) {
+    return this.storageProviderService.saveFileByStorageKey(input);
+  }
+
   readFileByStorageKey(storageKey: string) {
     return this.storageProviderService.readFileByStorageKey(storageKey);
   }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { Injectable } from "@nestjs/common";
 import { type SupabaseStorageRuntimeConfig, type OssStorageRuntimeConfig } from "./storage-runtime-config";
 import { resolveStorageRoot } from "./storage-root";
@@ -23,6 +23,11 @@ export const STORAGE_PROVIDER_SERVICE = Symbol("STORAGE_PROVIDER_SERVICE");
 export interface StorageProviderService {
   saveUploadedFile(input: SaveFileInput): Promise<{ storageKey: string; absolutePath: string | null }>;
   saveGeneratedTextFile(input: { content: string }): Promise<{ storageKey: string; absolutePath: string | null }>;
+  saveFileByStorageKey(input: {
+    storageKey: string;
+    buffer: Buffer;
+    contentType?: string;
+  }): Promise<{ storageKey: string; absolutePath: string | null }>;
   readFileByStorageKey(storageKey: string): Promise<Buffer>;
   getStorageRoot(): string | null;
 }
@@ -57,6 +62,29 @@ export class SupabaseStorageProviderService implements StorageProviderService {
       extension: ".txt",
       contentType: "text/plain; charset=utf-8"
     });
+  }
+
+  async saveFileByStorageKey(input: { storageKey: string; buffer: Buffer; contentType?: string }) {
+    const { bucket, objectPath } = this.resolveSupabaseTarget(input.storageKey);
+    const response = await fetch(
+      `${this.runtimeConfig.supabaseUrl}/storage/v1/object/${bucket}/${encodeStoragePath(objectPath)}`,
+      {
+        method: "POST",
+        headers: this.buildSupabaseHeaders({
+          contentType: input.contentType || "application/octet-stream"
+        }),
+        body: new Uint8Array(input.buffer)
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Supabase storage upload failed (${response.status}): ${await safeReadResponseText(response)}`);
+    }
+
+    return {
+      storageKey: input.storageKey,
+      absolutePath: null
+    };
   }
 
   async readFileByStorageKey(storageKey: string) {
@@ -158,6 +186,26 @@ export class OssStorageProviderService implements StorageProviderService {
       extension: ".txt",
       contentType: "text/plain; charset=utf-8"
     });
+  }
+
+  async saveFileByStorageKey(input: { storageKey: string; buffer: Buffer; contentType?: string }) {
+    const target = this.resolveObjectTarget(input.storageKey);
+    const client = await this.getClient(target.bucket);
+
+    try {
+      await client.put(target.objectPath, input.buffer, {
+        headers: {
+          "Content-Type": input.contentType || "application/octet-stream"
+        }
+      });
+    } catch (error) {
+      throw new Error(`OSS storage upload failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    return {
+      storageKey: input.storageKey,
+      absolutePath: null
+    };
   }
 
   async readFileByStorageKey(storageKey: string) {
@@ -310,6 +358,23 @@ export class LocalStorageProviderService implements StorageProviderService {
       extension: ".txt",
       contentType: "text/plain; charset=utf-8"
     });
+  }
+
+  async saveFileByStorageKey(input: { storageKey: string; buffer: Buffer }) {
+    const normalizedStorageKey = input.storageKey.replaceAll("/", "\\");
+    const absolutePath = join(this.storageRoot, normalizedStorageKey);
+    const absoluteDirectory = dirname(absolutePath);
+
+    if (!existsSync(absoluteDirectory)) {
+      mkdirSync(absoluteDirectory, { recursive: true });
+    }
+
+    writeFileSync(absolutePath, input.buffer);
+
+    return {
+      storageKey: input.storageKey,
+      absolutePath
+    };
   }
 
   async readFileByStorageKey(storageKey: string) {

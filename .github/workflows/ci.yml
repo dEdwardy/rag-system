@@ -35,6 +35,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run lint checks
+        run: pnpm run lint:ci
+
+      - name: Run type checks
+        run: pnpm run typecheck:ci
+
       - name: Build API
         run: pnpm --filter @rag-system/api build
 
