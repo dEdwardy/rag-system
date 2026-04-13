@@ -7,6 +7,17 @@ import { AuthenticatedRoute } from "../auth/auth-route-policy";
 import { buildHttpExceptionResponse } from "../../common/http-exception.filter";
 import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
 
+type StreamResponse = {
+  on?: (event: string, listener: () => void) => void;
+  status: (code: number) => StreamResponse;
+  setHeader: (name: string, value: string) => void;
+  flushHeaders?: () => void;
+  write: (chunk: string) => void;
+  json: (payload: unknown) => void;
+  end: () => void;
+  headersSent?: boolean;
+};
+
 @AuthenticatedRoute()
 @Controller("assistants")
 export class AssistantsController {
@@ -64,7 +75,7 @@ export class AssistantsController {
   async askAssistantStream(
     @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
     @Body(new ZodValidationPipe(askAssistantSchema)) input: AskAssistantInput,
-    @Res() response: any,
+    @Res() response: StreamResponse,
     @Req() request?: ApiRequestWithAuthContext
   ) {
     let streamStarted = false;

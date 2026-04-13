@@ -211,7 +211,7 @@ export function UsagePage() {
     recentIssueCount,
     nonRetryableFailureCount,
     retryableFailureCount,
-    deferredTimeRange
+    timeRange
   ]);
 
 
@@ -237,7 +237,7 @@ export function UsagePage() {
     recentIssueCount,
     runSummaryActionTarget,
     retryableFailureCount,
-    deferredTimeRange
+    timeRange
   ]);
 
   const healthPanelErrorMessage =

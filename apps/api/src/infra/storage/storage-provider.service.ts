@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { Injectable } from "@nestjs/common";
-import { type SupabaseStorageRuntimeConfig, type OssStorageRuntimeConfig, type LocalStorageRuntimeConfig } from "./storage-runtime-config";
+import { type SupabaseStorageRuntimeConfig, type OssStorageRuntimeConfig } from "./storage-runtime-config";
 import { resolveStorageRoot } from "./storage-root";
 
 type SaveFileInput = {

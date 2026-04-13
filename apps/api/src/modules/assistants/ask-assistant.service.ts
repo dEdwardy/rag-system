@@ -3,7 +3,7 @@ import { MessageRole, Prisma, TraceStatus } from "@prisma/client";
 import { AnswerPolicy } from "../../infra/llm/llm.types";
 import { LlmService } from "../../infra/llm/llm.service";
 import { PromptManagerService } from "../../infra/llm/prompt-manager.service";
-import { ConcurrencyLimiter, PromisePool, ResultCache } from "../../common/concurrency-utils";
+import { ConcurrencyLimiter, ResultCache } from "../../common/concurrency-utils";
 import { VectorStoreCompatibilityError, VectorStoreEmbeddingDiagnostics } from "../../infra/vector-store/vector-store.types";
 import {
   buildAnswerEvidenceSourceReadabilityLabel,
@@ -85,6 +85,8 @@ type AskConversationRef = {
   id: string;
 };
 
+type AssistantRecord = Awaited<ReturnType<AssistantsService["getAssistant"]>>;
+
 type AskPersistedMessage = {
   id: string;
 };
@@ -121,7 +123,7 @@ export class AskAssistantService {
   private readonly logger = new Logger(AskAssistantService.name);
   private readonly retrievalLimiter = new ConcurrencyLimiter(5);
   private readonly llmLimiter = new ConcurrencyLimiter(3);
-  private readonly assistantCache = new ResultCache<string, any>(100, 60000);
+  private readonly assistantCache = new ResultCache<string, AssistantRecord>(100, 60000);
 
   constructor(
     private readonly assistantsService: AssistantsService,
@@ -199,7 +201,7 @@ export class AskAssistantService {
           ...rewriteResult,
           skippedReason: null
         };
-      } catch (error) {
+      } catch {
         rewritten = {
           rewrittenQuery: null,
           modelName: null,

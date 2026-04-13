@@ -29,7 +29,7 @@ export function resolveQueueRuntimeConfig(env: NodeJS.ProcessEnv = process.env):
 
   if (provider !== "database" && provider !== "pgmq" && provider !== "redis") {
     throw new QueueRuntimeConfigError(
-      `Unsupported QUEUE_PROVIDER \"${env.QUEUE_PROVIDER}\". Expected \"database\", \"pgmq\", or \"redis\".`
+      `Unsupported QUEUE_PROVIDER "${env.QUEUE_PROVIDER}". Expected "database", "pgmq", or "redis".`
     );
   }
 

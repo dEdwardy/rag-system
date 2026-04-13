@@ -15,6 +15,9 @@ import {
   DocumentChunk,
   DocumentRunRecord,
   DocumentRecord,
+  EvalQuestionSetBaselineSnapshotRecord,
+  EvalQuestionSetListItem,
+  EvalQuestionSetRecord,
   KnowledgeBase,
   KnowledgeBaseDocumentRunRecord,
   KnowledgeBaseDocumentRunComparison,
@@ -684,6 +687,84 @@ export function useRunEvalQuestionSet() {
           ...(payload.qualityGateMode ? { qualityGateMode: payload.qualityGateMode } : {})
         }
       })
+  });
+}
+
+export function useEvalQuestionSets(enabled = true) {
+  return useQuery({
+    queryKey: ["eval-question-sets"],
+    queryFn: () => apiRequest<EvalQuestionSetListItem[]>("/eval/question-sets"),
+    enabled
+  });
+}
+
+export function useEvalQuestionSetBaselineSnapshots(questionSetId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["eval-question-set-baseline-snapshots", questionSetId],
+    queryFn: () =>
+      apiRequest<EvalQuestionSetBaselineSnapshotRecord[]>(`/eval/question-sets/${questionSetId}/baselines/snapshots`),
+    enabled: enabled && questionSetId != null && questionSetId.trim().length > 0
+  });
+}
+
+export function useCreateEvalQuestionSet() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { name: string; description?: string; questions: string[] }) =>
+      apiRequest<EvalQuestionSetRecord>("/eval/question-sets", {
+        method: "POST",
+        body: payload
+      }),
+    onSuccess: async createdQuestionSet => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["eval-question-sets"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["eval-question-set-baseline-snapshots", createdQuestionSet.id]
+        })
+      ]);
+    }
+  });
+}
+
+export function useSnapshotEvalQuestionSetBaseline() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (questionSetId: string) =>
+      apiRequest<EvalQuestionSetBaselineSnapshotRecord>(`/eval/question-sets/${questionSetId}/baselines/snapshots`, {
+        method: "POST"
+      }),
+    onSuccess: async snapshot => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["eval-question-sets"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["eval-question-set-baseline-snapshots", snapshot.questionSetId]
+        })
+      ]);
+    }
+  });
+}
+
+export function useChooseEvalQuestionSetBaseline() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { questionSetId: string; snapshotId: string }) =>
+      apiRequest<EvalQuestionSetRecord>(`/eval/question-sets/${payload.questionSetId}/baselines/choose`, {
+        method: "POST",
+        body: {
+          snapshotId: payload.snapshotId
+        }
+      }),
+    onSuccess: async updatedQuestionSet => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["eval-question-sets"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["eval-question-set-baseline-snapshots", updatedQuestionSet.id]
+        })
+      ]);
+    }
   });
 }
 

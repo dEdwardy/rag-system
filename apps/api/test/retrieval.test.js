@@ -176,6 +176,78 @@ test("RetrievalService expands neighbor chunks when chunkWindow is enabled", asy
   assert.equal(chunks[1].score, 0.9);
 });
 
+test("RetrievalService auto-expands the trailing neighbor for markdown heading chunks when chunkWindow is disabled", async () => {
+  const prisma = {
+    documentChunk: {
+      findMany: async args => {
+        if (args.where.id?.in) {
+          return [
+            {
+              id: "chunk-heading",
+              documentId: "doc-1",
+              chunkIndex: 2,
+              content: "## Goals",
+              metadataJson: { blockType: "paragraph", headingPath: [] },
+              pageNo: null,
+              sectionTitle: "Goals",
+              document: { title: "Doc 1" }
+            }
+          ];
+        }
+
+        return [
+          {
+            id: "chunk-heading",
+            documentId: "doc-1",
+            chunkIndex: 2,
+            content: "## Goals",
+            metadataJson: { blockType: "paragraph", headingPath: [] },
+            pageNo: null,
+            sectionTitle: "Goals",
+            document: { title: "Doc 1" }
+          },
+          {
+            id: "chunk-body",
+            documentId: "doc-1",
+            chunkIndex: 3,
+            content: "- Explore distant planets",
+            metadataJson: { blockType: "list", headingPath: ["Goals"] },
+            pageNo: null,
+            sectionTitle: "Goals",
+            document: { title: "Doc 1" }
+          }
+        ];
+      }
+    }
+  };
+
+  const embeddingService = {
+    embedQuery: async () => ({ vector: [1, 0] })
+  };
+
+  const vectorStoreService = {
+    search: async () => [{ chunkId: "chunk-heading", documentId: "doc-1", score: 0.9, modelName: "test" }]
+  };
+
+  const service = new RetrievalService(prisma, embeddingService, vectorStoreService);
+  const result = await service.retrieve({
+    kbId: "kb-1",
+    query: "What are the goals?",
+    topK: 1,
+    scoreThreshold: 0,
+    chunkWindow: 0
+  });
+
+  assert.deepEqual(
+    result.retrievedChunks.map(chunk => ({ chunkId: chunk.chunkId, isPrimary: chunk.isPrimary })),
+    [
+      { chunkId: "chunk-heading", isPrimary: true },
+      { chunkId: "chunk-body", isPrimary: false }
+    ]
+  );
+  assert.equal(result.execution.chunkWindowApplied, true);
+});
+
 test("RetrievalService merges lexical matches when hybrid retrieval is enabled", async () => {
   const prisma = {
     documentChunk: {

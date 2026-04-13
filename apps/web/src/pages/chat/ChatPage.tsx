@@ -15,7 +15,7 @@ import {
 } from "../../features/api/hooks";
 import { getPrimaryAssistantForKnowledgeBase, getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
 import { useI18n } from "../../i18n/I18nProvider";
-import type { AskStreamEvent, AskStreamFinalData, Conversation, Message } from "../../types/api";
+import type { AskStreamEvent, AskStreamFinalData, Message } from "../../types/api";
 import { formatMessageTime } from "./chat-page-helpers";
 import {
   applyChatStreamEvent,
@@ -311,7 +311,7 @@ export function ChatPage() {
   const deleteConversationMutation = useDeleteConversation();
   const queryClient = useQueryClient();
   const { locale, t } = useI18n();
-  const conversationsForWorkspace = conversationsQuery.data ?? [];
+  const conversationsForWorkspace = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
   const chatCopy = useMemo(
     () => ({
       heroTitle: t("chat.copy.heroTitle"),
@@ -322,7 +322,7 @@ export function ChatPage() {
       inputHelpCanAsk: t("chat.copy.inputHelpCanAsk"),
       inputHelpDisabled: t("chat.copy.inputHelpDisabled"),
       askInputPlaceholder: t("chat.copy.askInputPlaceholder"),
-      fileUploadComingSoon: t("chat.copy.fileUploadComingSoon"),
+      uploadFromLibrary: locale === "zh" ? "请到资料库页面上传文档" : "Add documents from the library page",
       enterHint: t("chat.copy.enterHint"),
       history: t("chat.copy.history"),
       newChat: t("chat.copy.newChat"),
@@ -346,7 +346,7 @@ export function ChatPage() {
       generatingAnswer: t("chat.copy.generatingAnswer"),
       answerSettingsNeeded: t("chat.copy.answerSettingsNeeded")
     }),
-    [t]
+    [locale, t]
   );
 
   const canAsk = activeAssistant != null;
@@ -383,8 +383,6 @@ export function ChatPage() {
 
   const activeTraceId = resolveActiveTraceId(displayedMessages, activeStreamTurn);
   const activeConversation = conversationsForWorkspace.find(conversation => conversation.id === resolvedConversationId) ?? null;
-  const conversationCount = conversationsForWorkspace.length;
-
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
       syncFinalTurnToMessageCache({
@@ -850,10 +848,10 @@ export function ChatPage() {
                 />
                 <div className="flex items-center gap-2 pr-1">
                   <button
-                    aria-label={chatCopy.fileUploadComingSoon}
+                    aria-label={chatCopy.uploadFromLibrary}
                     className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] opacity-65"
                     disabled
-                    title={chatCopy.fileUploadComingSoon}
+                    title={chatCopy.uploadFromLibrary}
                     type="button"
                   >
                     <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
@@ -887,7 +885,7 @@ export function ChatPage() {
             </div>
             <div className="mt-2 flex items-center justify-between px-2 text-[11px] text-[var(--app-text-muted)]">
               <span>{chatCopy.enterHint}</span>
-              <span>{chatCopy.fileUploadComingSoon}</span>
+              <span>{chatCopy.uploadFromLibrary}</span>
             </div>
           </form>
         </div>

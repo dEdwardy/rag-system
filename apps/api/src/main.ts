@@ -3,12 +3,10 @@ import { AppModule } from "./app.module";
 import { GlobalHttpExceptionFilter } from "./common/http-exception.filter";
 import { RequestTimingInterceptor } from "./common/request-timing.interceptor";
 import { resolveApiRuntimeConfig } from "./infra/env/api-runtime-config";
-import { validateCriticalRuntimeEnv } from "./infra/env/critical-env";
 
 const REQUEST_TIMING_LOG_ENV = "API_ENABLE_REQUEST_TIMING_LOGS";
 
 async function bootstrap() {
-  // validateCriticalRuntimeEnv(process.env);
   const runtimeConfig = resolveApiRuntimeConfig();
   const app = await NestFactory.create(AppModule);
   const corsOptions = buildCorsOptions(runtimeConfig);

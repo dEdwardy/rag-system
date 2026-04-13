@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 export enum ErrorCode {
   // External source errors
   EXTERNAL_SOURCE_FETCH_FAILED = "EXTERNAL_SOURCE_FETCH_FAILED",
@@ -26,7 +28,7 @@ export interface ErrorDiagnostics {
   message: string;
   sourceType?: string;
   sourceName?: string;
-  [key: string]: any;
+  [key: string]: Prisma.InputJsonValue | undefined;
 }
 
 export interface PartialErrorDiagnostics extends ErrorDiagnostics {
@@ -50,7 +52,7 @@ export const createErrorDiagnostics = (
   options?: {
     sourceType?: string;
     sourceName?: string;
-    [key: string]: any;
+    [key: string]: Prisma.InputJsonValue | undefined;
   }
 ): ErrorDiagnostics => {
   return {
@@ -78,7 +80,7 @@ export const createPartialErrorDiagnostics = (
     sourceName?: string;
     boundaryHit?: boolean;
     boundaryReasons?: string[];
-    [key: string]: any;
+    [key: string]: Prisma.InputJsonValue | undefined;
   }
 ): PartialErrorDiagnostics => {
   return {

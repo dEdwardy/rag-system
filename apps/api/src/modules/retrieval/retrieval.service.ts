@@ -272,10 +272,11 @@ export class RetrievalService {
         });
       }
 
-      const tasks: Array<Promise<{ type: "lexical" | "vector"; result: any }>> = [];
+      const tasks: Array<{ type: "lexical" | "vector"; promise: Promise<unknown> }> = [];
 
-      tasks.push(
-        this.runVectorSearch({
+      tasks.push({
+        type: "vector",
+        promise: this.runVectorSearch({
           kbId: input.kbId,
           query: input.query,
           topK: vectorSearchTopK,
@@ -283,23 +284,23 @@ export class RetrievalService {
           filters: normalizedFilters,
           phaseTiming,
           includePayload: candidateSelectionMode === "vector" && !resolvedEnableRerank
-        }).then(result => ({ type: "vector" as const, result }))
-      );
+        })
+      });
 
-      const results = await Promise.allSettled(tasks);
+      const results = await Promise.allSettled(tasks.map(task => task.promise));
 
       let lexicalCandidates: RetrievalCandidate[] | undefined;
       let normalizedVectorSearch: VectorSearchResult | null = null;
 
       results.forEach((result, index) => {
+        const taskType = tasks[index]?.type ?? "vector";
         if (result.status === "fulfilled") {
-          if (result.value.type === "lexical") {
-            lexicalCandidates = result.value.result;
-          } else if (result.value.type === "vector") {
-            normalizedVectorSearch = result.value.result;
+          if (taskType === "lexical") {
+            lexicalCandidates = result.value as RetrievalCandidate[];
+          } else if (taskType === "vector") {
+            normalizedVectorSearch = result.value as VectorSearchResult;
           }
         } else {
-          const taskType = index === 0 ? "lexical" : "vector";
           if (taskType === "vector" && (
             result.reason instanceof EmbeddingRuntimeConfigError ||
             result.reason instanceof VectorStoreCompatibilityError
@@ -369,18 +370,15 @@ export class RetrievalService {
             const rankedVectorCandidates = vectorCandidates.filter(candidate => candidate.score >= input.scoreThreshold);
             vectorCandidateCount = vectorCandidates.length;
             if (rankedVectorCandidates.length > 0) {
-              let retrievedChunks: RetrievedChunk[] = rankedVectorCandidates;
-              if ((input.chunkWindow ?? 0) > 0) {
-                const chunkWindowStartedAt = Date.now();
-                retrievedChunks = await this.expandChunkWindow(
-                  input.kbId,
-                  rankedVectorCandidates,
-                  input.chunkWindow ?? 0,
-                  normalizedFilters,
-                  input.documentVersions
-                );
-                phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
-              }
+              const chunkWindowStartedAt = Date.now();
+              const retrievedChunks = await this.expandChunkWindow(
+                input.kbId,
+                rankedVectorCandidates,
+                input.chunkWindow ?? 0,
+                normalizedFilters,
+                input.documentVersions
+              );
+              phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
 
               return this.buildRetrievalResult(retrievedChunks, {
                 embedding: embeddingDiagnostics,
@@ -394,7 +392,7 @@ export class RetrievalService {
                   query: input.query,
                   rerankMode: resolvedRerankMode
                 }),
-                chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+                chunkWindowApplied: this.didApplyChunkExpansion(input.chunkWindow ?? 0, retrievedChunks),
                 vectorSearchAttempted: true,
                 lexicalSearchAttempted: false,
                 vectorCandidateLimitHit: vectorMatches.length >= vectorSearchTopK,
@@ -683,18 +681,15 @@ export class RetrievalService {
     const rankedVectorCandidates = vectorCandidates.filter(candidate => candidate.score >= input.scoreThreshold);
     vectorCandidateCount = vectorCandidates.length;
     if (rankedVectorCandidates.length > 0) {
-      let retrievedChunks: RetrievedChunk[] = rankedVectorCandidates;
-      if (input.chunkWindow > 0) {
-        const chunkWindowStartedAt = Date.now();
-        retrievedChunks = await this.expandChunkWindow(
-          input.kbId,
-          rankedVectorCandidates,
-          input.chunkWindow,
-          input.filters,
-          input.documentVersions
-        );
-        input.phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
-      }
+      const chunkWindowStartedAt = Date.now();
+      const retrievedChunks = await this.expandChunkWindow(
+        input.kbId,
+        rankedVectorCandidates,
+        input.chunkWindow,
+        input.filters,
+        input.documentVersions
+      );
+      input.phaseTiming.chunkWindowMs = Date.now() - chunkWindowStartedAt;
 
       return this.buildRetrievalResult(retrievedChunks, {
         embedding: input.embedding,
@@ -708,7 +703,7 @@ export class RetrievalService {
           query: input.query,
           rerankMode: input.rerankMode
         }),
-        chunkWindowApplied: input.chunkWindow > 0,
+        chunkWindowApplied: this.didApplyChunkExpansion(input.chunkWindow, retrievedChunks),
         vectorSearchAttempted: true,
         lexicalSearchAttempted: false,
         vectorCandidateLimitHit: input.vectorMatches.length >= input.vectorSearchTopK,
@@ -811,7 +806,7 @@ export class RetrievalService {
           query: input.query,
           rerankMode: input.resolvedRerankMode
         }),
-        chunkWindowApplied: input.chunkWindow > 0,
+        chunkWindowApplied: this.didApplyChunkExpansion(input.chunkWindow, retrievedChunks),
         vectorSearchAttempted: true,
         lexicalSearchAttempted: input.candidateSelectionMode === "hybrid",
         vectorCandidateLimitHit: input.vectorMatches.length >= input.vectorSearchTopK,
@@ -930,7 +925,7 @@ export class RetrievalService {
         rerankApplied: input.rerankApplied,
         rerankMode: input.rerankMode,
         rerankJudgeSkippedReason: input.rerankJudgeSkippedReason,
-        chunkWindowApplied: (input.chunkWindow ?? 0) > 0,
+        chunkWindowApplied: this.didApplyChunkExpansion(input.chunkWindow ?? 0, retrievedChunks),
         vectorSearchAttempted: input.usedFallback,
         lexicalSearchAttempted: true,
         vectorCandidateLimitHit: input.vectorCandidateCount >= input.candidateLimit,
@@ -1348,7 +1343,7 @@ export class RetrievalService {
     return raw
       .toLowerCase()
       .replace(/\s+/g, " ")
-      .replace(/[�?�?].*$/, "")
+      .replace(/(?:\uFFFD|\?){2,}.*$/, "")
       .trim();
   }
 
@@ -1601,29 +1596,18 @@ export class RetrievalService {
     filters?: RetrievalProfileFilters,
     documentVersions?: Record<string, number>
   ): Promise<RetrievedChunk[]> {
-    if (chunkWindow <= 0 || chunks.length === 0) {
+    if (chunks.length === 0) {
       return chunks;
     }
 
-    const requestedPositions = new Map<string, { score: number; primary: boolean }>();
+    const requestedPositions = this.buildRequestedChunkPositions(chunks, chunkWindow);
+    if (requestedPositions.size === chunks.length && chunkWindow <= 0) {
+      return chunks;
+    }
+
     const existingChunkPositions = new Map<string, RetrievedChunk>();
     for (const chunk of chunks) {
       existingChunkPositions.set(`${chunk.documentId}:${chunk.chunkIndex}`, chunk);
-      for (let index = chunk.chunkIndex - chunkWindow; index <= chunk.chunkIndex + chunkWindow; index += 1) {
-        if (index < 0) {
-          continue;
-        }
-
-        const key = `${chunk.documentId}:${index}`;
-        const existing = requestedPositions.get(key);
-        const isPrimary = index === chunk.chunkIndex;
-        if (!existing || chunk.score > existing.score || (isPrimary && !existing.primary)) {
-          requestedPositions.set(key, {
-            score: chunk.score,
-            primary: isPrimary
-          });
-        }
-      }
     }
 
     const missingPositionEntries = Array.from(requestedPositions.keys())
@@ -2361,5 +2345,59 @@ export class RetrievalService {
     }
 
     return clauses.slice(1).reduce((combined, clause) => Prisma.sql`${combined} ${Prisma.raw(operator)} ${clause}`, clauses[0]);
+  }
+
+  private buildRequestedChunkPositions(chunks: RetrievedChunk[], chunkWindow: number) {
+    const requestedPositions = new Map<string, { score: number; primary: boolean }>();
+
+    for (const chunk of chunks) {
+      const expansionOffsets =
+        chunkWindow > 0
+          ? Array.from({ length: chunkWindow * 2 + 1 }, (_, index) => index - chunkWindow)
+          : this.shouldAutoExpandTrailingNeighbor(chunk)
+            ? [0, 1]
+            : [0];
+
+      for (const offset of expansionOffsets) {
+        const index = chunk.chunkIndex + offset;
+        if (index < 0) {
+          continue;
+        }
+
+        const key = `${chunk.documentId}:${index}`;
+        const existing = requestedPositions.get(key);
+        const isPrimary = offset === 0;
+        if (!existing || chunk.score > existing.score || (isPrimary && !existing.primary)) {
+          requestedPositions.set(key, {
+            score: chunk.score,
+            primary: isPrimary
+          });
+        }
+      }
+    }
+
+    return requestedPositions;
+  }
+
+  private shouldAutoExpandTrailingNeighbor(chunk: RetrievedChunk) {
+    return chunk.blockType === "heading" || this.looksLikeStandaloneHeading(chunk.content);
+  }
+
+  private looksLikeStandaloneHeading(content: string) {
+    const normalized = content.trim();
+    if (normalized.length === 0 || normalized.length > 160) {
+      return false;
+    }
+
+    const lines = normalized.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length !== 1) {
+      return false;
+    }
+
+    return /^#{1,6}\s+\S/.test(lines[0] ?? "");
+  }
+
+  private didApplyChunkExpansion(chunkWindow: number, retrievedChunks: RetrievedChunk[]) {
+    return chunkWindow > 0 || retrievedChunks.some(chunk => !chunk.isPrimary);
   }
 }

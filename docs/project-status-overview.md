@@ -66,6 +66,22 @@ RAG 主链路、PC Web chat、external source 第一轮、auth/ACL 最小闭环�
 - 文档阶段判断如果再次落后于代码现实，仍然容易误导下一步优先级。
 - `P5` 的工程能力已落地，但长期 baseline 治理仍依赖人来使用和维护。
 - 当前这轮 `P4` 收口虽已完成，但后续如果继续开新产品波次，仍需要先明确主线，避免再次扩散为并行波次。
+- retrieval/answering 质量已经进入“可用但仍需维护”的阶段；当前更值得做的是轻量自适应 retrieval 和可重放 smoke 基线，而不是直接把默认 `topK` / `chunkWindow` 全局拉大。
+
+## Current Retrieval Baseline
+
+- Current local default retrieval profile:
+  - `topK = 3`
+  - `chunkWindow = 0`
+  - `hybrid = OFF`
+  - `rerank = OFF`
+- Recent local smoke run result:
+  - `37/40` grounded against `D:\\FeProjects\\rag-test\\question.md`
+  - the remaining refusals currently look closer to source coverage limits than clear main-path regressions
+- Recommended next retrieval wave:
+  - replayable smoke tooling
+  - lightweight dynamic retrieval expansion
+  - further structured-document context assembly
 
 ## Where to Look
 

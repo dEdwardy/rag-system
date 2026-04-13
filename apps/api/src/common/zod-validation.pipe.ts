@@ -8,6 +8,7 @@ export class ZodValidationPipe<TOutput = unknown> implements PipeTransform<unkno
   constructor(private readonly schema: ZodType<TOutput>) {}
 
   transform(value: unknown, _metadata: ArgumentMetadata): TOutput {
+    void _metadata;
     try {
       return this.schema.parse(value);
     } catch (error) {

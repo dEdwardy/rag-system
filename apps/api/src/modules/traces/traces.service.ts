@@ -50,6 +50,7 @@ export class TracesService {
     userQuery: true,
     rewrittenQuery: true,
     retrievedChunkIdsJson: true,
+    retrievalScoresJson: true,
     retrievalMetadataJson: true,
     citationsJson: true,
     answeringMetadataJson: true,
@@ -83,7 +84,7 @@ export class TracesService {
         throw new NotFoundException(`Trace ${id} not found.`);
       }
 
-      return this.attachTraceSummary(trace as any);
+      return this.attachTraceSummary(trace);
     });
   }
 

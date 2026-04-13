@@ -53,7 +53,7 @@ export class ParsingService {
       const parsed = await parser.getText();
       const normalizedText = parsed.text
         .replace(/\r\n/g, "\n")
-        .replace(/\u0000/g, "")
+        .replaceAll("\0", "")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
@@ -73,7 +73,7 @@ export class ParsingService {
     });
     const normalizedText = parsed.value
       .replace(/\r\n/g, "\n")
-      .replace(/\u0000/g, "")
+      .replaceAll("\0", "")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 

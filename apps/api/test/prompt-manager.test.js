@@ -31,6 +31,8 @@ test("PromptManagerService builds versioned answer prompts", () => {
 
   assert.equal(prompt.promptId, "answer.v3");
   assert.match(prompt.systemPrompt, /assistant system prompt/);
+  assert.match(prompt.systemPrompt, /Answer directly when the provided sources support a brief factual answer\./);
+  assert.match(prompt.systemPrompt, /Use "insufficient_context" only when the sources do not support even a brief factual answer\./);
   assert.match(prompt.userPrompt, /style=balanced/);
   assert.match(prompt.userPrompt, /tone=friendly/);
   assert.match(prompt.userPrompt, /format=bullets/);
@@ -120,4 +122,3 @@ test("PromptManagerService appends summary coverage rules for summary-like quest
   assert.match(prompt.systemPrompt, /Rules:/);
   assert.match(prompt.systemPrompt, /Summary\/list question: cover all supported peer items\./);
 });
-

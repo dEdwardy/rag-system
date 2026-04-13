@@ -41,7 +41,7 @@ type RetrievalScoreRecord = {
   isPrimary: boolean | null;
   pageNo: number | null;
   sectionTitle: string | null;
-  score: number;
+  score: number | null;
   vectorScore: number | null;
   lexicalScore: number | null;
   hybridScore: number | null;
@@ -198,7 +198,7 @@ function createUnscoredRankedEntry(chunkId: string): RankedEntry {
     isPrimary: null,
     pageNo: null,
     sectionTitle: null,
-    score: 0,
+    score: null,
     vectorScore: null,
     lexicalScore: null,
     hybridScore: null,
@@ -210,7 +210,11 @@ function buildRankedEntries(scores: RetrievalScoreRecord[], retrievedChunkIds: s
   const scoreChunkIds = new Set(scores.map(item => item.chunkId));
   const scoredEntries = scores
     .slice()
-    .sort((left, right) => right.score - left.score || left.chunkId.localeCompare(right.chunkId));
+    .sort(
+      (left, right) =>
+        (right.score ?? Number.NEGATIVE_INFINITY) - (left.score ?? Number.NEGATIVE_INFINITY) ||
+        left.chunkId.localeCompare(right.chunkId)
+    );
   const unscoredEntries = retrievedChunkIds
     .filter(chunkId => !scoreChunkIds.has(chunkId))
     .map(chunkId => createUnscoredRankedEntry(chunkId));

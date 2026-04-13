@@ -389,9 +389,9 @@ export function KnowledgeBasePage() {
           ) : null}
 
           {documents.length > 0 ? (
-            <Alert color={nextActionTone} radius="xl" variant="light">
-              <Group align="flex-start" justify="space-between" wrap="wrap">
-                <div>
+            <Paper className={`workspace-feedback-banner workspace-feedback-banner-${nextActionTone}`} p="md" radius="xl">
+              <div className="workspace-feedback-alert__content">
+                <div className="workspace-feedback-alert__copy">
                   <Text c="var(--app-text)" fw={700} size="sm">
                     {t("knowledgeBase.feedback.title")}
                   </Text>
@@ -400,7 +400,7 @@ export function KnowledgeBasePage() {
                   </Text>
                 </div>
                 <Button
-                  className="workspace-button"
+                  className="workspace-button workspace-feedback-alert__action"
                   color={nextActionTone}
                   component={Link}
                   radius="xl"
@@ -410,8 +410,8 @@ export function KnowledgeBasePage() {
                 >
                   {nextActionButtonLabel}
                 </Button>
-              </Group>
-            </Alert>
+              </div>
+            </Paper>
           ) : null}
 
           <OauthWorkspaceWelcome

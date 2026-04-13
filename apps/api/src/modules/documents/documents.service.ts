@@ -1494,7 +1494,23 @@ export class DocumentsService {
           : retryable;
 
     // Extract only the fields we want to keep from the original diagnostics
-    const { code, failedStage, documentVersion: _, sourceKind: __, schemaVersion, category, message: ___, ...otherDiagnostics } = diagnostics;
+    const {
+      code: _code,
+      failedStage: _failedStage,
+      documentVersion: _documentVersion,
+      sourceKind: _sourceKind,
+      schemaVersion: _schemaVersion,
+      category: _category,
+      message: _message,
+      ...otherDiagnostics
+    } = diagnostics;
+    void _code;
+    void _failedStage;
+    void _documentVersion;
+    void _sourceKind;
+    void _schemaVersion;
+    void _category;
+    void _message;
 
     const partialDiagnostics = createPartialErrorDiagnostics(
       ErrorCode.EXTERNAL_SOURCE_PARTIAL_SUCCESS,
