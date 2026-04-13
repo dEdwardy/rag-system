@@ -107,7 +107,7 @@ The repository now includes GitHub Actions workflows for CI plus manual producti
 - `ci.yml`: install, build, typecheck, and fast API validation
 - `docker-image.yml`: optional workflow that builds the production image and pushes it to `ghcr.io/<owner>/<repo>`
 - `deploy.yml`: manual deployment that SSHes to the server, checks out the requested `branch/tag/commit`, and runs `docker compose up -d app`
-- `deploy-offline-ecs.yml`: offline ECS deployment that builds `rag-system:latest`, compresses it to a `.tar.gz`, uploads it over SSH/SCP, then runs `docker load` and `docker compose up -d app` on the server
+- `deploy-offline-ecs.yml`: offline ECS deployment workflow; on PRs it runs a deploy preflight by building and compressing the app image, and on `master` pushes it uploads the archive to ECS, runs `docker load`, then runs `docker compose up -d app`
 - `rollback.yml`: manual rollback that SSHes to the server, checks out the requested stable `tag/commit`, and restarts the app from the prepared image
 
 Server-side deployment assumptions:
@@ -141,7 +141,7 @@ Recommended personal-project release pattern:
 
 - tag each stable release before production deploy
 - use `deploy.yml` with `target_ref=master` for normal releases
-- if the ECS host cannot pull code or images from the internet, use `deploy-offline-ecs.yml` instead so GitHub Actions pushes a compressed image archive to the server for you
+- if the ECS host cannot pull code or images from the internet, use `deploy-offline-ecs.yml` instead; PRs will preflight the packaging path and `master` pushes will push the compressed image archive to the server for you
 - in the current ECS split, routine releases should not redeploy PostgreSQL or Redis; update only the app directory unless infra itself changes
 - use `rollback.yml` with a stable tag or commit when rollback is needed
 

@@ -1,6 +1,9 @@
 name: Deploy Offline ECS
 
 on:
+  pull_request:
+    branches:
+      - master
   push:
     branches:
       - master
@@ -67,7 +70,14 @@ jobs:
           docker save ${IMAGE_REPO}:latest | gzip > output/deploy/${{ steps.vars.outputs.archive_name }}
           ls -lh output/deploy/${{ steps.vars.outputs.archive_name }}
 
+      - name: PR deploy preflight complete
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -eu
+          echo "PR preflight passed: app image built and compressed archive created."
+
       - name: Prepare remote upload directory
+        if: ${{ github.event_name != 'pull_request' }}
         uses: appleboy/ssh-action@v1.2.2
         env:
           REMOTE_IMAGE_DIR: ${{ secrets.REMOTE_IMAGE_DIR }}
@@ -84,6 +94,7 @@ jobs:
             mkdir -p "$remote_dir"
 
       - name: Upload image archive
+        if: ${{ github.event_name != 'pull_request' }}
         uses: appleboy/scp-action@v0.1.7
         env:
           REMOTE_IMAGE_DIR: ${{ secrets.REMOTE_IMAGE_DIR }}
@@ -97,6 +108,7 @@ jobs:
           strip_components: 2
 
       - name: Load image and restart app
+        if: ${{ github.event_name != 'pull_request' }}
         uses: appleboy/ssh-action@v1.2.2
         env:
           ARCHIVE_NAME: ${{ steps.vars.outputs.archive_name }}
