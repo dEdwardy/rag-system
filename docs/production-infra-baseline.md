@@ -33,6 +33,7 @@ docker compose ps
 
 The infra compose creates a named Docker network, default `rag-infra-net`.
 The app compose references that network as an external network so both projects can resolve `infra-postgres` and `infra-redis` by container name.
+In the current ECS deployment shape, this infra directory is maintained separately from the app checkout and should not be part of routine app releases.
 
 ## App env wiring
 
@@ -57,6 +58,8 @@ If you intentionally need host access for debugging, add explicit `ports:` mappi
 - PostgreSQL automatically enables the `vector` extension from `docker/infra/postgres/init/001-create-extensions.sql`
 - Redis persistence is enabled with AOF
 - this compose is only the infra layer; the app container is still started from the repository root `docker-compose.yml`
+- after first-time setup, normal releases should update only the app directory on ECS and run `docker compose up -d app` there
+- only sync changes into the ECS infra directory when PostgreSQL / Redis config or infra compose itself truly changes
 - after the database is up, apply schema changes with the approved production path:
 
 ```bash

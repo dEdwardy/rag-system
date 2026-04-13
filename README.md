@@ -116,6 +116,7 @@ Server-side deployment assumptions:
 - the repository is already checked out on the server at a stable path
 - production env stays on the server, for example `apps/api/.env.production`
 - the server runs `docker compose` from the repository root
+- if you use a separate ECS infra directory such as `/usr/pros/infra`, keep infra lifecycle operations there and let deploy workflows touch only the app checkout such as `/usr/pros/rag-system`
 
 Required GitHub secrets for `deploy.yml`:
 
@@ -141,6 +142,7 @@ Recommended personal-project release pattern:
 - tag each stable release before production deploy
 - use `deploy.yml` with `target_ref=master` for normal releases
 - if the ECS host cannot pull code or images from the internet, use `deploy-offline-ecs.yml` instead so GitHub Actions pushes a compressed image archive to the server for you
+- in the current ECS split, routine releases should not redeploy PostgreSQL or Redis; update only the app directory unless infra itself changes
 - use `rollback.yml` with a stable tag or commit when rollback is needed
 
 The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path; for the simplest fallback path you can also preload `rag-system:latest` on the server with `docker load` and let `docker compose up -d app` start it directly.
