@@ -145,6 +145,14 @@ Recommended personal-project release pattern:
 - in the current ECS split, routine releases should not redeploy PostgreSQL or Redis; update only the app directory unless infra itself changes
 - use `rollback.yml` with a stable tag or commit when rollback is needed
 
+Current release discipline for this private repository:
+
+- work on feature branches, not directly on `master`
+- open a PR into `master` for every release-bound change
+- wait for PR `CI` and `Deploy Offline ECS` preflight to pass before merge
+- treat `master` push / merge as production deploy, because it triggers ECS app rollout
+- GitHub branch protection / rulesets may not be enforceable on the current private plan, so follow this flow as an operating rule even when GitHub cannot hard-block bypasses
+
 The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path; for the simplest fallback path you can also preload `rag-system:latest` on the server with `docker load` and let `docker compose up -d app` start it directly.
 
 ### 7. Optional OpenCode harness
