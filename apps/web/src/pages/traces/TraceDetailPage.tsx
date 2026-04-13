@@ -638,7 +638,7 @@ export function TraceDetailPage() {
                   </Text>
                 </Paper>
                 <Paper className="workspace-metric-card workspace-metric-card-compact workspace-metric-card-info" p="lg" radius="xl">
-                  <Text className="workspace-metric-label">{locale === "zh" ? "棣栭儴 token" : "First token split"}</Text>
+                  <Text className="workspace-metric-label">{locale === "zh" ? "首帧 token" : "First token split"}</Text>
                   <Text className="workspace-metric-value">
                     {traceSummary?.timingSummary?.llmFirstTokenMs != null
                       ? `${traceSummary.timingSummary.llmFirstTokenMs} ms`
@@ -646,7 +646,7 @@ export function TraceDetailPage() {
                   </Text>
                   <Text className="workspace-metric-subtle">
                     {locale === "zh"
-                      ? `鍓嶇疆 ${traceSummary?.timingSummary?.preGenerationMs ?? "-"} ms`
+                      ? `前置耗时 ${traceSummary?.timingSummary?.preGenerationMs ?? "-"} ms`
                       : `Pre-gen ${traceSummary?.timingSummary?.preGenerationMs ?? "-"} ms`}
                   </Text>
                 </Paper>
