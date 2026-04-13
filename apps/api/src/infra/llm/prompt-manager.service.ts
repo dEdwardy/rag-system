@@ -1,5 +1,9 @@
-﻿import { Injectable } from "@nestjs/common";
-import { GenerateAnswerInput, JudgeRerankInput, RewriteQueryInput } from "./llm.types";
+﻿import { Injectable } from '@nestjs/common';
+import {
+  GenerateAnswerInput,
+  JudgeRerankInput,
+  RewriteQueryInput
+} from './llm.types';
 
 type ManagedPrompt = {
   promptId: string;
@@ -15,15 +19,15 @@ export class PromptManagerService {
   private readonly maxCompactSummaryChunkContentLength = 260;
 
   getAnswerPromptId() {
-    return "answer.v3";
+    return 'answer.v3';
   }
 
   getRewritePromptId() {
-    return "rewrite-query.v1";
+    return 'rewrite-query.v1';
   }
 
   getSummaryMainItemsPromptId() {
-    return "summary-main-items.v1";
+    return 'summary-main-items.v1';
   }
 
   buildAnswerPrompt(input: GenerateAnswerInput): ManagedPrompt {
@@ -33,7 +37,7 @@ export class PromptManagerService {
     const summaryRules = isSummaryLike
       ? `
 - Summary/list question: cover all supported peer items.`
-      : "";
+      : '';
 
     const systemPrompt = `${input.systemPrompt}
 
@@ -46,13 +50,12 @@ Rules:
 - Stay factual and follow the answer policy.${summaryRules}`;
 
     const context = input.chunks
-      .map(
-        (chunk, index) =>
-          compactAnswerContext
-            ? `[${index + 1}]${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 48)}"` : ""}${chunk.documentTitle ? ` d="${this.compactLabel(chunk.documentTitle, 36)}"` : ""}\n${this.truncateChunkContent(chunk.content, isSummaryLike, compactSummaryContext)}`
-            : `[${index + 1}] d="${this.compactLabel(chunk.documentTitle, 48)}"${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 64)}"` : ""}\n${this.truncateChunkContent(chunk.content, isSummaryLike, compactSummaryContext)}`
+      .map((chunk, index) =>
+        compactAnswerContext
+          ? `[${index + 1}]${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 48)}"` : ''}${chunk.documentTitle ? ` d="${this.compactLabel(chunk.documentTitle, 36)}"` : ''}\n${this.truncateChunkContent(chunk.content, isSummaryLike, compactSummaryContext)}`
+          : `[${index + 1}] d="${this.compactLabel(chunk.documentTitle, 48)}"${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 64)}"` : ''}\n${this.truncateChunkContent(chunk.content, isSummaryLike, compactSummaryContext)}`
       )
-      .join("\n\n");
+      .join('\n\n');
 
     const userPrompt = `Q:
 ${input.question}
@@ -91,15 +94,15 @@ Rules:
 
   buildSummaryMainItemsPrompt(input: {
     question: string;
-    chunks: GenerateAnswerInput["chunks"];
+    chunks: GenerateAnswerInput['chunks'];
   }): ManagedPrompt {
     const context = input.chunks
       .map(
         (chunk, index) =>
-          `[${index + 1}]${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 48)}"` : ""}${chunk.documentTitle ? ` d="${this.compactLabel(chunk.documentTitle, 36)}"` : ""}
+          `[${index + 1}]${chunk.sectionTitle ? ` s="${this.compactLabel(chunk.sectionTitle, 48)}"` : ''}${chunk.documentTitle ? ` d="${this.compactLabel(chunk.documentTitle, 36)}"` : ''}
 ${this.truncateChunkContent(chunk.content, true, true)}`
       )
-      .join("\n\n");
+      .join('\n\n');
 
     const systemPrompt = `Extract only the parallel main items needed to answer a summary/list-style question.
 
@@ -154,9 +157,9 @@ ${input.question}`;
     const context = input.candidates
       .map(
         (candidate, index) =>
-          `[${index + 1}] chunkId="${candidate.chunkId}" document="${candidate.documentTitle}"${candidate.sectionTitle ? ` section="${candidate.sectionTitle}"` : ""} score=${candidate.score.toFixed(3)}\n${this.truncateChunkContent(candidate.content, true)}`
+          `[${index + 1}] chunkId="${candidate.chunkId}" document="${candidate.documentTitle}"${candidate.sectionTitle ? ` section="${candidate.sectionTitle}"` : ''} score=${candidate.score.toFixed(3)}\n${this.truncateChunkContent(candidate.content, true)}`
       )
-      .join("\n\n");
+      .join('\n\n');
 
     const systemPrompt = `Rank the retrieved candidates for the question using only the provided snippets.
 
@@ -181,8 +184,12 @@ ${context}`;
     };
   }
 
-  private truncateChunkContent(content: string, summaryLike = false, compactSummary = false) {
-    const normalized = content.replace(/\s+/g, " ").trim();
+  private truncateChunkContent(
+    content: string,
+    summaryLike = false,
+    compactSummary = false
+  ) {
+    const normalized = content.replace(/\s+/g, ' ').trim();
     const limit = summaryLike
       ? compactSummary
         ? this.maxCompactSummaryChunkContentLength
@@ -196,7 +203,7 @@ ${context}`;
   }
 
   private compactLabel(value: string, limit: number) {
-    const normalized = value.replace(/\s+/g, " ").trim();
+    const normalized = value.replace(/\s+/g, ' ').trim();
     if (normalized.length <= limit) {
       return normalized;
     }
@@ -205,7 +212,8 @@ ${context}`;
   }
 
   private isSummaryLikeQuestion(question: string) {
-    return /summary|summarize|list|compare|categories|themes|steps|differences|鎬荤粨|姒傛嫭|鍒楀嚭|姣旇緝|鍖哄埆|瑕佺偣|鍝簺|鏂归潰|缁村害/i
-      .test(question);
+    return /summary|summarize|list|compare|categories|themes|steps|differences|benefit|benefits|importance|important|impact|value|role|meaning|what.*for|what.*benefit|总结|概括|列出|比较|区别|要点|有哪些|方面|维度|意义|作用|价值|影响|重要|好处|有什么用|有什么价值|为什么重要/i.test(
+      question
+    );
   }
 }
