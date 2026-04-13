@@ -107,6 +107,7 @@ The repository now includes GitHub Actions workflows for CI plus manual producti
 - `ci.yml`: install, build, typecheck, and fast API validation
 - `docker-image.yml`: optional workflow that builds the production image and pushes it to `ghcr.io/<owner>/<repo>`
 - `deploy.yml`: manual deployment that SSHes to the server, checks out the requested `branch/tag/commit`, and runs `docker compose up -d app`
+- `deploy-offline-ecs.yml`: offline ECS deployment that builds `rag-system:latest`, compresses it to a `.tar.gz`, uploads it over SSH/SCP, then runs `docker load` and `docker compose up -d app` on the server
 - `rollback.yml`: manual rollback that SSHes to the server, checks out the requested stable `tag/commit`, and restarts the app from the prepared image
 
 Server-side deployment assumptions:
@@ -124,12 +125,22 @@ Required GitHub secrets for `deploy.yml`:
 - `SSH_PORT` (optional; defaults to `22`)
 - `DEPLOY_PATH`: absolute repository path on the server, such as `/home/deploy/rag-system`
 
+Required GitHub secrets for `deploy-offline-ecs.yml`:
+
+- `SSH_HOST`
+- `SSH_USER`
+- `SSH_PRIVATE_KEY`
+- `SSH_PORT` (optional; defaults to `22`)
+- `DEPLOY_PATH`: absolute repository path on the server, such as `/usr/pros/rag-system`
+- `REMOTE_IMAGE_DIR` (optional): remote temporary upload directory, default `/tmp/rag-system-deploy`
+
 Keep the required deploy secrets in repository-level GitHub Actions secrets for the simplest setup.
 
 Recommended personal-project release pattern:
 
 - tag each stable release before production deploy
 - use `deploy.yml` with `target_ref=master` for normal releases
+- if the ECS host cannot pull code or images from the internet, use `deploy-offline-ecs.yml` instead so GitHub Actions pushes a compressed image archive to the server for you
 - use `rollback.yml` with a stable tag or commit when rollback is needed
 
 The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path; for the simplest fallback path you can also preload `rag-system:latest` on the server with `docker load` and let `docker compose up -d app` start it directly.

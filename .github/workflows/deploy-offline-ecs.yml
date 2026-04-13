@@ -1,0 +1,122 @@
+name: Deploy Offline ECS
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Git branch, tag, or commit to build and deploy
+        required: false
+        default: master
+
+concurrency:
+  group: deploy-offline-ecs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      IMAGE_REPO: rag-system
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.target_ref || github.sha }}
+
+      - name: Validate deploy inputs
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          REMOTE_IMAGE_DIR: ${{ secrets.REMOTE_IMAGE_DIR }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -eu
+          test -n "$SSH_HOST" || { echo "SSH_HOST is required"; exit 1; }
+          test -n "$SSH_USER" || { echo "SSH_USER is required"; exit 1; }
+          test -n "$DEPLOY_PATH" || { echo "DEPLOY_PATH is required"; exit 1; }
+          echo "REMOTE_IMAGE_DIR=${REMOTE_IMAGE_DIR:-/tmp/rag-system-deploy}"
+
+      - name: Compute image bundle names
+        id: vars
+        run: |
+          set -eu
+          short_sha="$(git rev-parse --short HEAD)"
+          archive_name="rag-system-${short_sha}.tar.gz"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "archive_name=$archive_name" >> "$GITHUB_OUTPUT"
+
+      - name: Build application image
+        run: |
+          set -eu
+          docker build \
+            -t ${IMAGE_REPO}:latest \
+            -t ${IMAGE_REPO}:${{ steps.vars.outputs.short_sha }} \
+            .
+
+      - name: Export compressed image archive
+        run: |
+          set -eu
+          mkdir -p output/deploy
+          docker save ${IMAGE_REPO}:latest | gzip > output/deploy/${{ steps.vars.outputs.archive_name }}
+          ls -lh output/deploy/${{ steps.vars.outputs.archive_name }}
+
+      - name: Prepare remote upload directory
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          REMOTE_IMAGE_DIR: ${{ secrets.REMOTE_IMAGE_DIR }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: REMOTE_IMAGE_DIR
+          script_stop: true
+          script: |
+            set -eu
+            remote_dir="${REMOTE_IMAGE_DIR:-/tmp/rag-system-deploy}"
+            mkdir -p "$remote_dir"
+
+      - name: Upload image archive
+        uses: appleboy/scp-action@v0.1.7
+        env:
+          REMOTE_IMAGE_DIR: ${{ secrets.REMOTE_IMAGE_DIR }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: output/deploy/${{ steps.vars.outputs.archive_name }}
+          target: ${{ secrets.REMOTE_IMAGE_DIR || '/tmp/rag-system-deploy' }}
+          strip_components: 2
+
+      - name: Load image and restart app
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          ARCHIVE_NAME: ${{ steps.vars.outputs.archive_name }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_REPO: ${{ env.IMAGE_REPO }}
+          REMOTE_IMAGE_DIR: ${{ secrets.REMOTE_IMAGE_DIR }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: ARCHIVE_NAME,DEPLOY_PATH,IMAGE_REPO,REMOTE_IMAGE_DIR
+          script_stop: true
+          script: |
+            set -eu
+            remote_dir="${REMOTE_IMAGE_DIR:-/tmp/rag-system-deploy}"
+            archive_path="$remote_dir/$ARCHIVE_NAME"
+            test -f "$archive_path" || { echo "Archive not found: $archive_path"; exit 1; }
+            gzip -dc "$archive_path" | docker load
+            cd "$DEPLOY_PATH"
+            docker compose up -d app
+            rm -f "$archive_path"
+            docker image prune -f
