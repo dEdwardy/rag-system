@@ -151,6 +151,11 @@ Default validation policy:
 - Treat UTF-8 as the required repository encoding for active source, config, script, and documentation files.
 - Save new or edited files as UTF-8. Do not introduce GBK, ANSI, or other local-only encodings for Chinese copy or comments.
 - Prefer UTF-8 without BOM unless a specific tool explicitly requires BOM.
+- Treat any newly introduced Chinese mojibake as a release-blocking regression, especially in `apps/web/src`, `apps/api/src`, `docs/`, and `AGENTS.md` files.
+- Do not paste garbled terminal text back into source files. If terminal output looks broken, inspect the file bytes or reread the file with explicit UTF-8 before editing.
+- When a file contains Chinese copy, prefer moving user-facing strings into existing i18n message files instead of adding more ad-hoc inline literals.
+- After editing any file that contains Chinese text, run a targeted encoding validation step before closeout. Minimum options: `pnpm check:encoding` or an equivalent strict UTF-8 read of the touched files.
+- If you discover an encoding-damaged file, fix the encoding first and only then continue with logical edits. Do not mix broad feature changes with encoding rescue in the same file unless required.
 - If terminal output looks garbled, do not assume the file bytes are broken. Verify the file with a strict UTF-8 read before rewriting it.
 - If a file is genuinely encoding-damaged, normalize it to valid UTF-8 before making further logical edits.
 - When fixing or adding Chinese text, make sure the final file still round-trips as valid UTF-8.

@@ -1,7 +1,13 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-const optionalBoundedListLimitSchema = z.coerce.number().int().min(1).max(100).optional();
+const optionalBoundedListLimitSchema = z.coerce
+  .number()
+  .int()
+  .min(1)
+  .max(100)
+  .optional();
 const boundedListLimitSchema = optionalBoundedListLimitSchema.default(20);
+const boundedPageSchema = z.coerce.number().int().min(1).default(1);
 
 export const createDocumentSchema = z.object({
   sourceType: z.string().min(1).max(50),
@@ -17,23 +23,25 @@ export const createWebPageDocumentSchema = z.object({
   url: z
     .string()
     .url()
-    .refine(value => {
+    .refine((value) => {
       const parsed = new URL(value);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    }, "URL must use http or https."),
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    }, 'URL must use http or https.'),
   title: z.string().min(1).max(255).optional()
 });
 
-export type CreateWebPageDocumentInput = z.infer<typeof createWebPageDocumentSchema>;
+export type CreateWebPageDocumentInput = z.infer<
+  typeof createWebPageDocumentSchema
+>;
 
 export const createFeedDocumentSchema = z.object({
   url: z
     .string()
     .url()
-    .refine(value => {
+    .refine((value) => {
       const parsed = new URL(value);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    }, "URL must use http or https."),
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    }, 'URL must use http or https.'),
   title: z.string().min(1).max(255).optional(),
   maxItems: z.number().int().min(1).max(50).optional().default(20)
 });
@@ -44,34 +52,55 @@ export const createSitemapDocumentSchema = z.object({
   url: z
     .string()
     .url()
-    .refine(value => {
+    .refine((value) => {
       const parsed = new URL(value);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    }, "URL must use http or https."),
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    }, 'URL must use http or https.'),
   title: z.string().min(1).max(255).optional(),
   maxPages: z.number().int().min(1).max(50).optional().default(20)
 });
 
-export type CreateSitemapDocumentInput = z.infer<typeof createSitemapDocumentSchema>;
+export type CreateSitemapDocumentInput = z.infer<
+  typeof createSitemapDocumentSchema
+>;
 
 export const listKnowledgeBaseDocumentsSchema = z.object({
   limit: optionalBoundedListLimitSchema
 });
 
-export type ListKnowledgeBaseDocumentsInput = z.infer<typeof listKnowledgeBaseDocumentsSchema>;
+export type ListKnowledgeBaseDocumentsInput = z.infer<
+  typeof listKnowledgeBaseDocumentsSchema
+>;
+
+export const listPagedKnowledgeBaseDocumentsSchema = z.object({
+  limit: boundedListLimitSchema,
+  page: boundedPageSchema
+});
+
+export type ListPagedKnowledgeBaseDocumentsInput = z.infer<
+  typeof listPagedKnowledgeBaseDocumentsSchema
+>;
 
 export const listKnowledgeBaseDocumentRunsSchema = z.object({
   documentId: z.string().min(1).optional(),
   sourceType: z.string().min(1).max(50).optional(),
-  status: z.enum(["pending", "processing", "ready", "failed", "skipped"]).optional(),
-  trigger: z.enum(["upload", "reindex", "external_resync"]).optional(),
+  status: z
+    .enum(['pending', 'processing', 'ready', 'failed', 'skipped'])
+    .optional(),
+  trigger: z.enum(['upload', 'reindex', 'external_resync']).optional(),
   issueOnly: z.coerce.boolean().optional().default(false),
-  sinceHours: z.coerce.number().positive().max(24 * 30).optional(),
+  sinceHours: z.coerce
+    .number()
+    .positive()
+    .max(24 * 30)
+    .optional(),
   includeDiagnostics: z.coerce.boolean().optional().default(false),
   limit: boundedListLimitSchema
 });
 
-export type ListKnowledgeBaseDocumentRunsInput = z.infer<typeof listKnowledgeBaseDocumentRunsSchema>;
+export type ListKnowledgeBaseDocumentRunsInput = z.infer<
+  typeof listKnowledgeBaseDocumentRunsSchema
+>;
 
 export const listDocumentRunsSchema = z.object({
   limit: optionalBoundedListLimitSchema
@@ -83,22 +112,37 @@ export const compareKnowledgeBaseDocumentRunsSchema = z
   .object({
     documentId: z.string().min(1).optional(),
     sourceType: z.string().min(1).max(50).optional(),
-    status: z.enum(["pending", "processing", "ready", "failed", "skipped"]).optional(),
-    trigger: z.enum(["upload", "reindex", "external_resync"]).optional(),
+    status: z
+      .enum(['pending', 'processing', 'ready', 'failed', 'skipped'])
+      .optional(),
+    trigger: z.enum(['upload', 'reindex', 'external_resync']).optional(),
     issueOnly: z.coerce.boolean().optional().default(false),
     leftRunId: z.string().min(1).optional(),
     rightRunId: z.string().min(1).optional(),
-    leftSinceHours: z.coerce.number().positive().max(24 * 30).optional(),
-    rightSinceHours: z.coerce.number().positive().max(24 * 30).optional()
+    leftSinceHours: z.coerce
+      .number()
+      .positive()
+      .max(24 * 30)
+      .optional(),
+    rightSinceHours: z.coerce
+      .number()
+      .positive()
+      .max(24 * 30)
+      .optional()
   })
   .superRefine((value, ctx) => {
-    const hasRunPair = typeof value.leftRunId === "string" && typeof value.rightRunId === "string";
-    const hasSnapshotPair = typeof value.leftSinceHours === "number" && typeof value.rightSinceHours === "number";
+    const hasRunPair =
+      typeof value.leftRunId === 'string' &&
+      typeof value.rightRunId === 'string';
+    const hasSnapshotPair =
+      typeof value.leftSinceHours === 'number' &&
+      typeof value.rightSinceHours === 'number';
 
     if (!hasRunPair && !hasSnapshotPair) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Provide either leftRunId+rightRunId or leftSinceHours+rightSinceHours."
+        message:
+          'Provide either leftRunId+rightRunId or leftSinceHours+rightSinceHours.'
       });
       return;
     }
@@ -106,36 +150,46 @@ export const compareKnowledgeBaseDocumentRunsSchema = z
     if (hasRunPair && hasSnapshotPair) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Run comparison and snapshot comparison inputs cannot be mixed."
+        message:
+          'Run comparison and snapshot comparison inputs cannot be mixed.'
       });
       return;
     }
 
-    if ((value.leftRunId && !value.rightRunId) || (!value.leftRunId && value.rightRunId)) {
+    if (
+      (value.leftRunId && !value.rightRunId) ||
+      (!value.leftRunId && value.rightRunId)
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "leftRunId and rightRunId must be provided together."
+        message: 'leftRunId and rightRunId must be provided together.'
       });
     }
 
     if (
-      (typeof value.leftSinceHours === "number" && typeof value.rightSinceHours !== "number") ||
-      (typeof value.leftSinceHours !== "number" && typeof value.rightSinceHours === "number")
+      (typeof value.leftSinceHours === 'number' &&
+        typeof value.rightSinceHours !== 'number') ||
+      (typeof value.leftSinceHours !== 'number' &&
+        typeof value.rightSinceHours === 'number')
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "leftSinceHours and rightSinceHours must be provided together."
+        message: 'leftSinceHours and rightSinceHours must be provided together.'
       });
     }
   });
 
-export type CompareKnowledgeBaseDocumentRunsInput = z.infer<typeof compareKnowledgeBaseDocumentRunsSchema>;
+export type CompareKnowledgeBaseDocumentRunsInput = z.infer<
+  typeof compareKnowledgeBaseDocumentRunsSchema
+>;
 
 export const listConversationTracesSchema = z.object({
   limit: boundedListLimitSchema
 });
 
-export type ListConversationTracesInput = z.infer<typeof listConversationTracesSchema>;
+export type ListConversationTracesInput = z.infer<
+  typeof listConversationTracesSchema
+>;
 
 export const listTracesSchema = z.object({
   query: z.string().trim().min(1).max(200).optional(),
@@ -145,20 +199,25 @@ export const listTracesSchema = z.object({
 export type ListTracesInput = z.infer<typeof listTracesSchema>;
 
 export const listLatestConversationTracesSchema = z.object({
-  conversationIds: z.preprocess(value => {
-    if (Array.isArray(value)) {
-      return value;
-    }
+  conversationIds: z.preprocess(
+    (value) => {
+      if (Array.isArray(value)) {
+        return value;
+      }
 
-    if (typeof value === "string") {
-      return value
-        .split(",")
-        .map(item => item.trim())
-        .filter(item => item.length > 0);
-    }
+      if (typeof value === 'string') {
+        return value
+          .split(',')
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0);
+      }
 
-    return [];
-  }, z.array(z.string().min(1)).max(100))
+      return [];
+    },
+    z.array(z.string().min(1)).max(100)
+  )
 });
 
-export type ListLatestConversationTracesInput = z.infer<typeof listLatestConversationTracesSchema>;
+export type ListLatestConversationTracesInput = z.infer<
+  typeof listLatestConversationTracesSchema
+>;

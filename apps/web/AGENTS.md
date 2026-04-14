@@ -16,6 +16,7 @@ Apply it together with the repository-root `AGENTS.md`.
 - prefer small, local UI increments over broad redesigns unless the task explicitly asks for redesign
 - preserve existing backend contracts unless the task explicitly includes contract changes
 - when frontend work depends on backend behavior, read `apps/api` and `packages/shared` first, then align the UI to the existing contract before considering backend edits
+- treat Chinese UI copy and inline labels as encoding-sensitive; if a page shows mojibake in local dev, verify the source file encoding before changing layout or CSS
 
 ## Frontend Execution Bias
 

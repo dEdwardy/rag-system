@@ -1,31 +1,38 @@
-const assert = require("node:assert/strict");
-const { ConversationsService } = require("../src/modules/conversations/conversations.service.ts");
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const {
+  ConversationsService
+} = require('../src/modules/conversations/conversations.service.ts');
 
-test("ConversationsService scopes list and lookup by identity when provided", async () => {
+test('ConversationsService scopes list and lookup by identity when provided', async () => {
   const findManyCalls = [];
   const findUniqueCalls = [];
 
   const service = new ConversationsService({
     conversation: {
-      findMany: async args => {
+      findMany: async (args) => {
         findManyCalls.push(args);
-        return [{ id: "conversation-1" }];
+        return [{ id: 'conversation-1' }];
       },
-      findUnique: async args => {
+      findUnique: async (args) => {
         findUniqueCalls.push(args);
-        return { id: "conversation-1", tenantId: "tenant-42", userId: "user-42" };
+        return {
+          id: 'conversation-1',
+          tenantId: 'tenant-42',
+          userId: 'user-42'
+        };
       },
-      update: async () => ({ id: "conversation-1" })
+      update: async () => ({ id: 'conversation-1' })
     }
   });
 
   await service.listConversations({
-    tenantId: "tenant-42",
-    userId: "user-42"
+    tenantId: 'tenant-42',
+    userId: 'user-42'
   });
-  await service.getConversation("conversation-1", {
-    tenantId: "tenant-42",
-    userId: "user-42"
+  await service.getConversation('conversation-1', {
+    tenantId: 'tenant-42',
+    userId: 'user-42'
   });
 
   assert.deepEqual(findManyCalls, [
@@ -41,18 +48,18 @@ test("ConversationsService scopes list and lookup by identity when provided", as
         updatedAt: true
       },
       where: {
-        tenantId: "tenant-42",
-        userId: "user-42",
-        status: "active"
+        tenantId: 'tenant-42',
+        userId: 'user-42',
+        status: 'active'
       },
       orderBy: {
-        updatedAt: "desc"
+        updatedAt: 'desc'
       }
     }
   ]);
   assert.deepEqual(findUniqueCalls, [
     {
-      where: { id: "conversation-1" },
+      where: { id: 'conversation-1' },
       select: {
         id: true,
         tenantId: true,
@@ -67,51 +74,131 @@ test("ConversationsService scopes list and lookup by identity when provided", as
   ]);
 });
 
-test("ConversationsService returns not found for out-of-scope conversation lookup", async () => {
+test('ConversationsService returns paged conversations with total counts', async () => {
+  const findManyCalls = [];
+  const countCalls = [];
+
+  const service = new ConversationsService({
+    conversation: {
+      findMany: async (args) => {
+        findManyCalls.push(args);
+        return [{ id: 'conversation-2' }, { id: 'conversation-1' }];
+      },
+      count: async (args) => {
+        countCalls.push(args);
+        return 26;
+      },
+      findUnique: async () => ({
+        id: 'conversation-1',
+        tenantId: 'tenant-42',
+        userId: 'user-42'
+      }),
+      update: async () => ({ id: 'conversation-1' })
+    }
+  });
+
+  const result = await service.listPagedConversations(
+    {
+      tenantId: 'tenant-42',
+      userId: 'user-42'
+    },
+    {
+      page: 2,
+      limit: 12
+    }
+  );
+
+  assert.deepEqual(result, {
+    items: [{ id: 'conversation-2' }, { id: 'conversation-1' }],
+    total: 26,
+    page: 2,
+    pageSize: 12,
+    totalPages: 3
+  });
+  assert.deepEqual(findManyCalls, [
+    {
+      select: {
+        id: true,
+        tenantId: true,
+        userId: true,
+        assistantId: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      where: {
+        tenantId: 'tenant-42',
+        userId: 'user-42',
+        status: 'active'
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      },
+      skip: 12,
+      take: 12
+    }
+  ]);
+  assert.deepEqual(countCalls, [
+    {
+      where: {
+        tenantId: 'tenant-42',
+        userId: 'user-42',
+        status: 'active'
+      }
+    }
+  ]);
+});
+
+test('ConversationsService returns not found for out-of-scope conversation lookup', async () => {
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
       findUnique: async () => null,
       update: async () => {
-        throw new Error("update should not be reached");
+        throw new Error('update should not be reached');
       }
     }
   });
 
   await assert.rejects(
-    service.getConversation("conversation-missing", {
-      tenantId: "tenant-42",
-      userId: "user-42"
+    service.getConversation('conversation-missing', {
+      tenantId: 'tenant-42',
+      userId: 'user-42'
     }),
     /Conversation conversation-missing not found\./
   );
 });
 
-test("ConversationsService scopes conversation touch writes by owner identity", async () => {
+test('ConversationsService scopes conversation touch writes by owner identity', async () => {
   const findUniqueCalls = [];
   const updateCalls = [];
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
-      findUnique: async args => {
+      findUnique: async (args) => {
         findUniqueCalls.push(args);
-        return { id: "conversation-1", tenantId: "tenant-42", userId: "user-42" };
+        return {
+          id: 'conversation-1',
+          tenantId: 'tenant-42',
+          userId: 'user-42'
+        };
       },
-      update: async args => {
+      update: async (args) => {
         updateCalls.push(args);
-        return { id: "conversation-1" };
+        return { id: 'conversation-1' };
       }
     }
   });
 
-  await service.touchConversation("conversation-1", {
-    tenantId: "tenant-42",
-    userId: "user-42"
+  await service.touchConversation('conversation-1', {
+    tenantId: 'tenant-42',
+    userId: 'user-42'
   });
 
   assert.deepEqual(findUniqueCalls, [
     {
-      where: { id: "conversation-1" },
+      where: { id: 'conversation-1' },
       select: {
         id: true,
         tenantId: true,
@@ -126,28 +213,28 @@ test("ConversationsService scopes conversation touch writes by owner identity", 
   ]);
   assert.equal(updateCalls.length, 1);
   assert.deepEqual(updateCalls[0].where, {
-    id: "conversation-1"
+    id: 'conversation-1'
   });
   assert.equal(updateCalls[0].data.updatedAt instanceof Date, true);
 });
 
-test("ConversationsService blocks out-of-scope conversation touch writes", async () => {
+test('ConversationsService blocks out-of-scope conversation touch writes', async () => {
   const updateCalls = [];
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
       findUnique: async () => null,
-      update: async args => {
+      update: async (args) => {
         updateCalls.push(args);
-        return { id: "conversation-1" };
+        return { id: 'conversation-1' };
       }
     }
   });
 
   await assert.rejects(
-    service.touchConversation("conversation-1", {
-      tenantId: "tenant-42",
-      userId: "user-42"
+    service.touchConversation('conversation-1', {
+      tenantId: 'tenant-42',
+      userId: 'user-42'
     }),
     /Conversation conversation-1 not found\./
   );
@@ -155,19 +242,23 @@ test("ConversationsService blocks out-of-scope conversation touch writes", async
   assert.equal(updateCalls.length, 0);
 });
 
-test("ConversationsService blocks conversation lookup when owner scope does not match", async () => {
+test('ConversationsService blocks conversation lookup when owner scope does not match', async () => {
   const service = new ConversationsService({
     conversation: {
       findMany: async () => [],
-      findUnique: async () => ({ id: "conversation-1", tenantId: "tenant-42", userId: "user-other" }),
-      update: async () => ({ id: "conversation-1" })
+      findUnique: async () => ({
+        id: 'conversation-1',
+        tenantId: 'tenant-42',
+        userId: 'user-other'
+      }),
+      update: async () => ({ id: 'conversation-1' })
     }
   });
 
   await assert.rejects(
-    service.getConversation("conversation-1", {
-      tenantId: "tenant-42",
-      userId: "user-42"
+    service.getConversation('conversation-1', {
+      tenantId: 'tenant-42',
+      userId: 'user-42'
     }),
     /Conversation conversation-1 not found\./
   );

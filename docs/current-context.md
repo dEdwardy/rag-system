@@ -25,6 +25,7 @@
 - 当前产品交互仍以 `single primary KB` 为主，不展开多 KB / 多租户交互重做。
 - Trace / Report / Assistant settings 已经形成可用的治理闭环，适合继续做小步提质，不适合再开一轮大平台化改造。
 - 文档上传、解析、切块、检索、回答、引用、trace 持久化都已具备，后续重点不再是“把链路搭出来”，而是“把已有链路做稳、做清楚、做快一点”。
+- 最近一轮前端 bounded maintenance 已把几个最明显的大列表边界补齐：`DocumentsPage` 真分页、`TraceListPage` 真分页、聊天侧边栏按需“加载更多”会话、`ReportResultsTable` 分页、`DocumentDetailChunksPanel` 分页。
 
 ## Retrieval / Quality Baseline
 
