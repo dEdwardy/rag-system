@@ -126,14 +126,16 @@ export async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    let message = `Request failed with status ${response.status}.`;
-
-    try {
-      const errorPayload = (await response.json()) as { message?: string };
-      message = errorPayload.message ?? message;
-    } catch {
-      // ignore parsing failures
+    const errorPayload = await readErrorResponsePayload(response);
+    if (isLikelyDevProxyStartupFailure(response, errorPayload.rawText)) {
+      throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
+        status: response.status,
+        code: API_UNREACHABLE_CODE
+      });
     }
+
+    const message =
+      errorPayload.message ?? `Request failed with status ${response.status}.`;
 
     throw createApiRequestError(message, { status: response.status });
   }
@@ -153,14 +155,16 @@ export async function apiStreamRequest<TEvent>(
   });
 
   if (!response.ok || !response.body) {
-    let message = `Request failed with status ${response.status}.`;
-
-    try {
-      const errorPayload = (await response.json()) as { message?: string };
-      message = errorPayload.message ?? message;
-    } catch {
-      // ignore parsing failures
+    const errorPayload = await readErrorResponsePayload(response);
+    if (isLikelyDevProxyStartupFailure(response, errorPayload.rawText)) {
+      throw createApiRequestError(API_UNREACHABLE_MESSAGE, {
+        status: response.status,
+        code: API_UNREACHABLE_CODE
+      });
     }
+
+    const message =
+      errorPayload.message ?? `Request failed with status ${response.status}.`;
 
     throw createApiRequestError(message, { status: response.status });
   }
@@ -276,6 +280,54 @@ function resolveRequestBody(body: unknown) {
   }
 
   return body instanceof FormData ? body : JSON.stringify(body);
+}
+
+async function readErrorResponsePayload(response: Response): Promise<{
+  message: string | null;
+  rawText: string | null;
+}> {
+  try {
+    const rawText = await response.text();
+    if (!rawText) {
+      return { message: null, rawText: null };
+    }
+
+    try {
+      const parsed = JSON.parse(rawText) as { message?: string };
+      return {
+        message: typeof parsed.message === 'string' ? parsed.message : null,
+        rawText
+      };
+    } catch {
+      return {
+        message: rawText.trim() || null,
+        rawText
+      };
+    }
+  } catch {
+    return { message: null, rawText: null };
+  }
+}
+
+function isLikelyDevProxyStartupFailure(
+  response: Response,
+  rawText: string | null
+) {
+  if (!isSameOriginDevApiBase() || response.status !== 500 || !rawText) {
+    return false;
+  }
+
+  const normalizedText = rawText.toLowerCase();
+  return (
+    normalizedText.includes('error occurred while trying to proxy') ||
+    normalizedText.includes('econnrefused') ||
+    normalizedText.includes('socket hang up') ||
+    normalizedText.includes('proxy error')
+  );
+}
+
+function isSameOriginDevApiBase() {
+  return API_BASE_URL === '/api';
 }
 
 function shouldRetryWithRefresh(

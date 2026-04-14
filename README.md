@@ -153,6 +153,27 @@ Current release discipline for this private repository:
 - treat `master` push / merge as production deploy, because it triggers ECS app rollout
 - GitHub branch protection / rulesets may not be enforceable on the current private plan, so follow this flow as an operating rule even when GitHub cannot hard-block bypasses
 
+Recommended branch discipline for this repository:
+
+- keep only two long-lived branches: `dev` and `master`
+- treat `dev` as the default integration branch for day-to-day work
+- treat `master` as release-ready / production-bound history
+- create short-lived task branches from `dev`, not from `master`
+- use one branch for one bounded increment; do not mix feature work, cleanup, and unrelated refactors on the same branch
+- preferred branch names: `feat/<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`, `perf/<topic>`, `hotfix/<topic>`
+- merge task branches back into `dev` after focused validation, then delete them promptly
+- merge `dev` into `master` only when a real release-ready increment is ready; avoid empty "history-sync only" merges unless there is a concrete release reason
+- if a branch sits for long enough that its purpose is no longer obvious or its merge cost becomes high, prefer closing it and recreating a fresh branch from current `dev`
+
+Practical branch flow:
+
+1. update local `dev`
+2. create a short-lived branch from `dev`
+3. implement one bounded change and run the smallest relevant validation
+4. open or update a PR into `dev`
+5. delete the task branch after merge
+6. promote `dev` into `master` only for release-ready changes
+
 The compose file still accepts an optional `APP_IMAGE` override for the GHCR-based path; for the simplest fallback path you can also preload `rag-system:latest` on the server with `docker load` and let `docker compose up -d app` start it directly.
 
 ### 7. Optional OpenCode harness

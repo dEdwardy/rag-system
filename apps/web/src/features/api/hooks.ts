@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest, apiStreamRequest } from "../../lib/api";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiRequest, apiStreamRequest } from '../../lib/api';
 import {
   AuditEventRecord,
   AuthLoginResponse,
@@ -26,18 +26,21 @@ import {
   EvalQuestionSetRunQualityGateMode,
   HealthResponse,
   Message,
+  PagedConversations,
+  PagedDocumentRecords,
   RetrievalProfileFilters,
   RetrievalStrategy,
   RetrievalProfile,
-  TraceRecord
-} from "../../types/api";
+  TraceRecord,
+  KnowledgeBaseDocumentSummary
+} from '../../types/api';
 
-const AUTH_ME_QUERY_KEY = ["auth", "me"] as const;
+const AUTH_ME_QUERY_KEY = ['auth', 'me'] as const;
 
 export function useAuthMe(enabled = true) {
   return useQuery({
     queryKey: AUTH_ME_QUERY_KEY,
-    queryFn: () => apiRequest<AuthMeResponse>("/auth/me"),
+    queryFn: () => apiRequest<AuthMeResponse>('/auth/me'),
     enabled,
     retry: false,
     staleTime: 30_000
@@ -46,8 +49,8 @@ export function useAuthMe(enabled = true) {
 
 export function useAuthProviders(enabled = true) {
   return useQuery({
-    queryKey: ["auth", "providers"],
-    queryFn: () => apiRequest<AuthProvidersResponse>("/auth/providers"),
+    queryKey: ['auth', 'providers'],
+    queryFn: () => apiRequest<AuthProvidersResponse>('/auth/providers'),
     enabled,
     retry: false
   });
@@ -55,8 +58,8 @@ export function useAuthProviders(enabled = true) {
 
 export function useApiHealth() {
   return useQuery({
-    queryKey: ["health"],
-    queryFn: () => apiRequest<HealthResponse>("/health"),
+    queryKey: ['health'],
+    queryFn: () => apiRequest<HealthResponse>('/health'),
     retry: false,
     refetchInterval: 30000
   });
@@ -64,7 +67,7 @@ export function useApiHealth() {
 
 export function useAuditEvents(
   input: {
-    source?: "all" | "trace" | "document_run";
+    source?: 'all' | 'trace' | 'document_run';
     issueOnly?: boolean;
     sinceHours?: number;
     query?: string;
@@ -72,27 +75,29 @@ export function useAuditEvents(
   } = {}
 ) {
   return useQuery({
-    queryKey: ["audit-events", input],
+    queryKey: ['audit-events', input],
     queryFn: () => {
       const params = new URLSearchParams();
       if (input.source != null) {
-        params.set("source", input.source);
+        params.set('source', input.source);
       }
       if (input.issueOnly != null) {
-        params.set("issueOnly", String(input.issueOnly));
+        params.set('issueOnly', String(input.issueOnly));
       }
       if (input.sinceHours != null) {
-        params.set("sinceHours", String(input.sinceHours));
+        params.set('sinceHours', String(input.sinceHours));
       }
       if (input.query != null && input.query.trim().length > 0) {
-        params.set("query", input.query.trim());
+        params.set('query', input.query.trim());
       }
       if (input.limit != null) {
-        params.set("limit", String(input.limit));
+        params.set('limit', String(input.limit));
       }
 
       const query = params.toString();
-      return apiRequest<AuditEventRecord[]>(`/audit/events${query ? `?${query}` : ""}`);
+      return apiRequest<AuditEventRecord[]>(
+        `/audit/events${query ? `?${query}` : ''}`
+      );
     },
     refetchInterval: 15000
   });
@@ -103,27 +108,30 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: (payload: { email: string; password: string }) =>
-      apiRequest<AuthLoginResponse>("/auth/login", {
-        method: "POST",
+      apiRequest<AuthLoginResponse>('/auth/login', {
+        method: 'POST',
         body: payload
       }),
-    onSuccess: login => {
-      queryClient.setQueryData<AuthMeResponse>(AUTH_ME_QUERY_KEY, current => ({
-        identity: login.identity,
-        currentIdentity: login.identity,
-        user: login.user,
-        loginProvenance: current?.loginProvenance ?? {
-          type: "local_session",
-          oauthProvider: null
-        }
-      }));
+    onSuccess: (login) => {
+      queryClient.setQueryData<AuthMeResponse>(
+        AUTH_ME_QUERY_KEY,
+        (current) => ({
+          identity: login.identity,
+          currentIdentity: login.identity,
+          user: login.user,
+          loginProvenance: current?.loginProvenance ?? {
+            type: 'local_session',
+            oauthProvider: null
+          }
+        })
+      );
     }
   });
 }
 
 export async function refreshAuthSession() {
-  return apiRequest<AuthRefreshResponse>("/auth/refresh", {
-    method: "POST"
+  return apiRequest<AuthRefreshResponse>('/auth/refresh', {
+    method: 'POST'
   });
 }
 
@@ -132,8 +140,8 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: () =>
-      apiRequest<{ ok: true }>("/auth/logout", {
-        method: "POST"
+      apiRequest<{ ok: true }>('/auth/logout', {
+        method: 'POST'
       }),
     onSuccess: () => {
       queryClient.removeQueries();
@@ -143,22 +151,22 @@ export function useLogout() {
 
 export function useAssistants() {
   return useQuery({
-    queryKey: ["assistants"],
-    queryFn: () => apiRequest<Assistant[]>("/assistants")
+    queryKey: ['assistants'],
+    queryFn: () => apiRequest<Assistant[]>('/assistants')
   });
 }
 
 export function useRetrievalProfiles() {
   return useQuery({
-    queryKey: ["retrieval-profiles"],
-    queryFn: () => apiRequest<RetrievalProfile[]>("/retrieval-profiles")
+    queryKey: ['retrieval-profiles'],
+    queryFn: () => apiRequest<RetrievalProfile[]>('/retrieval-profiles')
   });
 }
 
 export function useKnowledgeBases(enabled = true) {
   return useQuery({
-    queryKey: ["knowledge-bases"],
-    queryFn: () => apiRequest<KnowledgeBase[]>("/knowledge-bases"),
+    queryKey: ['knowledge-bases'],
+    queryFn: () => apiRequest<KnowledgeBase[]>('/knowledge-bases'),
     enabled
   });
 }
@@ -168,25 +176,30 @@ export function useCreateKnowledgeBase() {
 
   return useMutation({
     mutationFn: (payload: { name: string; description?: string }) =>
-      apiRequest<KnowledgeBase>("/knowledge-bases", {
-        method: "POST",
+      apiRequest<KnowledgeBase>('/knowledge-bases', {
+        method: 'POST',
         body: payload
       }),
-    onSuccess: async createdKnowledgeBase => {
-      queryClient.setQueryData<KnowledgeBase[]>(["knowledge-bases"], currentKnowledgeBases => {
-        const otherKnowledgeBases = (currentKnowledgeBases ?? []).filter(
-          knowledgeBase => knowledgeBase.id !== createdKnowledgeBase.id
-        );
+    onSuccess: async (createdKnowledgeBase) => {
+      queryClient.setQueryData<KnowledgeBase[]>(
+        ['knowledge-bases'],
+        (currentKnowledgeBases) => {
+          const otherKnowledgeBases = (currentKnowledgeBases ?? []).filter(
+            (knowledgeBase) => knowledgeBase.id !== createdKnowledgeBase.id
+          );
 
-        return [createdKnowledgeBase, ...otherKnowledgeBases].sort(
-          (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
-        );
-      });
+          return [createdKnowledgeBase, ...otherKnowledgeBases].sort(
+            (left, right) =>
+              new Date(right.createdAt).getTime() -
+              new Date(left.createdAt).getTime()
+          );
+        }
+      );
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] }),
-        queryClient.invalidateQueries({ queryKey: ["documents"] }),
-        queryClient.invalidateQueries({ queryKey: ["assistants"] })
+        queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
+        queryClient.invalidateQueries({ queryKey: ['documents'] }),
+        queryClient.invalidateQueries({ queryKey: ['assistants'] })
       ]);
     }
   });
@@ -194,58 +207,125 @@ export function useCreateKnowledgeBase() {
 
 export function useDocuments(knowledgeBaseId: string, enabled = true) {
   return useQuery({
-    queryKey: ["documents", knowledgeBaseId],
-    queryFn: () => apiRequest<DocumentRecord[]>(`/knowledge-bases/${knowledgeBaseId}/documents`),
+    queryKey: ['documents', knowledgeBaseId],
+    queryFn: () =>
+      apiRequest<DocumentRecord[]>(
+        `/knowledge-bases/${knowledgeBaseId}/documents`
+      ),
     enabled,
-    refetchInterval: query => {
+    refetchInterval: (query) => {
       const documents = query.state.data;
       if (!documents) {
         return false;
       }
 
-      return documents.some(document => document.status === "pending" || document.status === "processing")
+      return documents.some(
+        (document) =>
+          document.status === 'pending' || document.status === 'processing'
+      )
         ? 2000
         : false;
     }
   });
 }
 
+export function usePagedDocuments(
+  knowledgeBaseId: string,
+  input: {
+    page: number;
+    limit: number;
+  },
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ['documents-paged', knowledgeBaseId, input],
+    queryFn: () =>
+      apiRequest<PagedDocumentRecords>(
+        `/knowledge-bases/${knowledgeBaseId}/documents/paged?page=${input.page}&limit=${input.limit}`
+      ),
+    enabled,
+    refetchInterval: (query) => {
+      const pagedDocuments = query.state.data;
+      if (!pagedDocuments) {
+        return false;
+      }
+
+      return pagedDocuments.items.some(
+        (document) =>
+          document.status === 'pending' || document.status === 'processing'
+      )
+        ? 2000
+        : false;
+    }
+  });
+}
+
+export function useKnowledgeBaseDocumentSummary(
+  knowledgeBaseId: string,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ['documents-summary', knowledgeBaseId],
+    queryFn: () =>
+      apiRequest<KnowledgeBaseDocumentSummary>(
+        `/knowledge-bases/${knowledgeBaseId}/documents/summary`
+      ),
+    enabled,
+    refetchInterval: (query) => {
+      const summary = query.state.data;
+      if (!summary) {
+        return false;
+      }
+
+      return summary.processingDocuments > 0 ? 2000 : false;
+    }
+  });
+}
+
 export function useDocumentChunks(documentId: string | null) {
   return useQuery({
-    queryKey: ["document-chunks", documentId],
-    queryFn: () => apiRequest<DocumentChunk[]>(`/documents/${documentId}/chunks`),
+    queryKey: ['document-chunks', documentId],
+    queryFn: () =>
+      apiRequest<DocumentChunk[]>(`/documents/${documentId}/chunks`),
     enabled: documentId != null
   });
 }
 
 export function useDocument(documentId: string | null) {
   return useQuery({
-    queryKey: ["document", documentId],
+    queryKey: ['document', documentId],
     queryFn: () => apiRequest<DocumentRecord>(`/documents/${documentId}`),
     enabled: documentId != null,
-    refetchInterval: query => {
+    refetchInterval: (query) => {
       const document = query.state.data;
       if (!document) {
         return false;
       }
 
-      return document.status === "pending" || document.status === "processing" ? 2000 : false;
+      return document.status === 'pending' || document.status === 'processing'
+        ? 2000
+        : false;
     }
   });
 }
 
 export function useDocumentRuns(documentId: string | null) {
   return useQuery({
-    queryKey: ["document-runs", documentId],
-    queryFn: () => apiRequest<DocumentRunRecord[]>(`/documents/${documentId}/runs`),
+    queryKey: ['document-runs', documentId],
+    queryFn: () =>
+      apiRequest<DocumentRunRecord[]>(`/documents/${documentId}/runs`),
     enabled: documentId != null,
-    refetchInterval: query => {
+    refetchInterval: (query) => {
       const runs = query.state.data;
       if (!runs?.length) {
         return false;
       }
 
-      return runs.some(run => run.status === "pending" || run.status === "processing") ? 2000 : false;
+      return runs.some(
+        (run) => run.status === 'pending' || run.status === 'processing'
+      )
+        ? 2000
+        : false;
     }
   });
 }
@@ -257,46 +337,50 @@ export function useKnowledgeBaseDocumentRuns(
     sinceHours?: number;
     includeDiagnostics?: boolean;
     issueOnly?: boolean;
-    status?: DocumentRunRecord["status"];
+    status?: DocumentRunRecord['status'];
     sourceType?: string;
   } = {}
 ) {
   return useQuery({
-    queryKey: ["knowledge-base-document-runs", knowledgeBaseId, input],
+    queryKey: ['knowledge-base-document-runs', knowledgeBaseId, input],
     queryFn: () => {
       const params = new URLSearchParams();
       if (input.limit != null) {
-        params.set("limit", String(input.limit));
+        params.set('limit', String(input.limit));
       }
       if (input.sinceHours != null) {
-        params.set("sinceHours", String(input.sinceHours));
+        params.set('sinceHours', String(input.sinceHours));
       }
       if (input.includeDiagnostics != null) {
-        params.set("includeDiagnostics", String(input.includeDiagnostics));
+        params.set('includeDiagnostics', String(input.includeDiagnostics));
       }
       if (input.issueOnly != null) {
-        params.set("issueOnly", String(input.issueOnly));
+        params.set('issueOnly', String(input.issueOnly));
       }
       if (input.status != null) {
-        params.set("status", input.status);
+        params.set('status', input.status);
       }
       if (input.sourceType != null) {
-        params.set("sourceType", input.sourceType);
+        params.set('sourceType', input.sourceType);
       }
 
       const query = params.toString();
       return apiRequest<KnowledgeBaseDocumentRunRecord[]>(
-        `/knowledge-bases/${knowledgeBaseId}/document-runs${query ? `?${query}` : ""}`
+        `/knowledge-bases/${knowledgeBaseId}/document-runs${query ? `?${query}` : ''}`
       );
     },
     enabled: knowledgeBaseId != null,
-    refetchInterval: query => {
+    refetchInterval: (query) => {
       const runs = query.state.data;
       if (!runs?.length) {
         return false;
       }
 
-      return runs.some(run => run.status === "pending" || run.status === "processing") ? 2000 : false;
+      return runs.some(
+        (run) => run.status === 'pending' || run.status === 'processing'
+      )
+        ? 2000
+        : false;
     }
   });
 }
@@ -306,48 +390,50 @@ export function useKnowledgeBaseDocumentRunSummary(
   input: {
     documentId?: string;
     sourceType?: string;
-    status?: DocumentRunRecord["status"];
-    trigger?: DocumentRunRecord["trigger"];
+    status?: DocumentRunRecord['status'];
+    trigger?: DocumentRunRecord['trigger'];
     issueOnly?: boolean;
     sinceHours?: number;
   } = {}
 ) {
   return useQuery({
-    queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId, input],
+    queryKey: ['knowledge-base-document-runs-summary', knowledgeBaseId, input],
     queryFn: () => {
       const params = new URLSearchParams();
       if (input.documentId != null) {
-        params.set("documentId", input.documentId);
+        params.set('documentId', input.documentId);
       }
       if (input.sourceType != null) {
-        params.set("sourceType", input.sourceType);
+        params.set('sourceType', input.sourceType);
       }
       if (input.status != null) {
-        params.set("status", input.status);
+        params.set('status', input.status);
       }
       if (input.trigger != null) {
-        params.set("trigger", input.trigger);
+        params.set('trigger', input.trigger);
       }
       if (input.issueOnly != null) {
-        params.set("issueOnly", String(input.issueOnly));
+        params.set('issueOnly', String(input.issueOnly));
       }
       if (input.sinceHours != null) {
-        params.set("sinceHours", String(input.sinceHours));
+        params.set('sinceHours', String(input.sinceHours));
       }
 
       const query = params.toString();
       return apiRequest<KnowledgeBaseDocumentRunSummary>(
-        `/knowledge-bases/${knowledgeBaseId}/document-runs/summary${query ? `?${query}` : ""}`
+        `/knowledge-bases/${knowledgeBaseId}/document-runs/summary${query ? `?${query}` : ''}`
       );
     },
     enabled: knowledgeBaseId != null,
-    refetchInterval: query => {
+    refetchInterval: (query) => {
       const summary = query.state.data;
       if (!summary) {
         return false;
       }
 
-      return summary.byStatus.pending > 0 || summary.byStatus.processing > 0 ? 2000 : false;
+      return summary.byStatus.pending > 0 || summary.byStatus.processing > 0
+        ? 2000
+        : false;
     }
   });
 }
@@ -358,8 +444,8 @@ export function useKnowledgeBaseDocumentRunComparison(
     | {
         documentId?: string;
         sourceType?: string;
-        status?: DocumentRunRecord["status"];
-        trigger?: DocumentRunRecord["trigger"];
+        status?: DocumentRunRecord['status'];
+        trigger?: DocumentRunRecord['trigger'];
         issueOnly?: boolean;
         leftRunId: string;
         rightRunId: string;
@@ -367,8 +453,8 @@ export function useKnowledgeBaseDocumentRunComparison(
     | {
         documentId?: string;
         sourceType?: string;
-        status?: DocumentRunRecord["status"];
-        trigger?: DocumentRunRecord["trigger"];
+        status?: DocumentRunRecord['status'];
+        trigger?: DocumentRunRecord['trigger'];
         issueOnly?: boolean;
         leftSinceHours: number;
         rightSinceHours: number;
@@ -376,31 +462,35 @@ export function useKnowledgeBaseDocumentRunComparison(
   enabled = true
 ) {
   return useQuery({
-    queryKey: ["knowledge-base-document-runs-comparison", knowledgeBaseId, input],
+    queryKey: [
+      'knowledge-base-document-runs-comparison',
+      knowledgeBaseId,
+      input
+    ],
     queryFn: () => {
       const params = new URLSearchParams();
       if (input.documentId != null) {
-        params.set("documentId", input.documentId);
+        params.set('documentId', input.documentId);
       }
       if (input.sourceType != null) {
-        params.set("sourceType", input.sourceType);
+        params.set('sourceType', input.sourceType);
       }
       if (input.status != null) {
-        params.set("status", input.status);
+        params.set('status', input.status);
       }
       if (input.trigger != null) {
-        params.set("trigger", input.trigger);
+        params.set('trigger', input.trigger);
       }
       if (input.issueOnly != null) {
-        params.set("issueOnly", String(input.issueOnly));
+        params.set('issueOnly', String(input.issueOnly));
       }
 
-      if ("leftRunId" in input) {
-        params.set("leftRunId", input.leftRunId);
-        params.set("rightRunId", input.rightRunId);
+      if ('leftRunId' in input) {
+        params.set('leftRunId', input.leftRunId);
+        params.set('rightRunId', input.rightRunId);
       } else {
-        params.set("leftSinceHours", String(input.leftSinceHours));
-        params.set("rightSinceHours", String(input.rightSinceHours));
+        params.set('leftSinceHours', String(input.leftSinceHours));
+        params.set('rightSinceHours', String(input.rightSinceHours));
       }
 
       return apiRequest<KnowledgeBaseDocumentRunComparison>(
@@ -413,8 +503,22 @@ export function useKnowledgeBaseDocumentRunComparison(
 
 export function useConversations(enabled = true) {
   return useQuery({
-    queryKey: ["conversations"],
-    queryFn: () => apiRequest<Conversation[]>("/conversations"),
+    queryKey: ['conversations'],
+    queryFn: () => apiRequest<Conversation[]>('/conversations'),
+    enabled
+  });
+}
+
+export function usePagedConversations(
+  input: { page: number; limit: number },
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ['conversations-paged', input],
+    queryFn: () =>
+      apiRequest<PagedConversations>(
+        `/conversations/paged?page=${input.page}&limit=${input.limit}`
+      ),
     enabled
   });
 }
@@ -423,40 +527,59 @@ export function useUpdateConversation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: { conversationId: string; input: UpdateConversationInput }) =>
+    mutationFn: (payload: {
+      conversationId: string;
+      input: UpdateConversationInput;
+    }) =>
       apiRequest<Conversation>(`/conversations/${payload.conversationId}`, {
-        method: "PATCH",
+        method: 'PATCH',
         body: payload.input
       }),
-    onMutate: async payload => {
-      await queryClient.cancelQueries({ queryKey: ["conversations"] });
-      const previousConversations = queryClient.getQueryData<Conversation[]>(["conversations"]);
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['conversations'] });
+      const previousConversations = queryClient.getQueryData<Conversation[]>([
+        'conversations'
+      ]);
 
-      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
-        current?.map(item =>
-          item.id === payload.conversationId
-            ? {
-                ...item,
-                ...payload.input,
-                updatedAt: new Date().toISOString()
-              }
-            : item
-        ) ?? current
+      queryClient.setQueryData<Conversation[]>(
+        ['conversations'],
+        (current) =>
+          current?.map((item) =>
+            item.id === payload.conversationId
+              ? {
+                  ...item,
+                  ...payload.input,
+                  updatedAt: new Date().toISOString()
+                }
+              : item
+          ) ?? current
       );
 
       return { previousConversations };
     },
     onError: (_error, _payload, context) => {
       if (context?.previousConversations) {
-        queryClient.setQueryData(["conversations"], context.previousConversations);
+        queryClient.setQueryData(
+          ['conversations'],
+          context.previousConversations
+        );
       }
     },
-    onSuccess: conversation => {
-      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
-        current?.map(item => (item.id === conversation.id ? conversation : item)) ?? current
+    onSuccess: (conversation) => {
+      queryClient.setQueryData<Conversation[]>(
+        ['conversations'],
+        (current) =>
+          current?.map((item) =>
+            item.id === conversation.id ? conversation : item
+          ) ?? current
       );
-      queryClient.invalidateQueries({ queryKey: ["conversation-messages", conversation.id] });
-      queryClient.invalidateQueries({ queryKey: ["conversation-traces", conversation.id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-paged'] });
+      queryClient.invalidateQueries({
+        queryKey: ['conversation-messages', conversation.id]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['conversation-traces', conversation.id]
+      });
     }
   });
 }
@@ -467,60 +590,83 @@ export function useDeleteConversation() {
   return useMutation({
     mutationFn: (conversationId: string) =>
       apiRequest<Conversation>(`/conversations/${conversationId}`, {
-        method: "DELETE"
+        method: 'DELETE'
       }),
-    onMutate: async conversationId => {
-      await queryClient.cancelQueries({ queryKey: ["conversations"] });
-      const previousConversations = queryClient.getQueryData<Conversation[]>(["conversations"]);
+    onMutate: async (conversationId) => {
+      await queryClient.cancelQueries({ queryKey: ['conversations'] });
+      const previousConversations = queryClient.getQueryData<Conversation[]>([
+        'conversations'
+      ]);
 
-      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
-        current?.filter(item => item.id !== conversationId) ?? current
+      queryClient.setQueryData<Conversation[]>(
+        ['conversations'],
+        (current) =>
+          current?.filter((item) => item.id !== conversationId) ?? current
       );
 
       return { previousConversations };
     },
     onError: (_error, _conversationId, context) => {
       if (context?.previousConversations) {
-        queryClient.setQueryData(["conversations"], context.previousConversations);
+        queryClient.setQueryData(
+          ['conversations'],
+          context.previousConversations
+        );
       }
     },
-    onSuccess: conversation => {
-      queryClient.setQueryData<Conversation[]>(["conversations"], current =>
-        current?.filter(item => item.id !== conversation.id) ?? current
+    onSuccess: (conversation) => {
+      queryClient.setQueryData<Conversation[]>(
+        ['conversations'],
+        (current) =>
+          current?.filter((item) => item.id !== conversation.id) ?? current
       );
-      queryClient.removeQueries({ queryKey: ["conversation-messages", conversation.id] });
-      queryClient.removeQueries({ queryKey: ["conversation-traces", conversation.id] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-paged'] });
+      queryClient.removeQueries({
+        queryKey: ['conversation-messages', conversation.id]
+      });
+      queryClient.removeQueries({
+        queryKey: ['conversation-traces', conversation.id]
+      });
     }
   });
 }
 
 export function useConversationMessages(conversationId: string | null) {
   return useQuery({
-    queryKey: ["conversation-messages", conversationId],
-    queryFn: () => apiRequest<Message[]>(`/conversations/${conversationId}/messages`),
+    queryKey: ['conversation-messages', conversationId],
+    queryFn: () =>
+      apiRequest<Message[]>(`/conversations/${conversationId}/messages`),
     enabled: conversationId != null
   });
 }
 
 export function useConversationTraces(conversationId: string | null) {
   return useQuery({
-    queryKey: ["conversation-traces", conversationId],
-    queryFn: () => apiRequest<TraceRecord[]>(`/conversations/${conversationId}/traces?limit=1`),
+    queryKey: ['conversation-traces', conversationId],
+    queryFn: () =>
+      apiRequest<TraceRecord[]>(
+        `/conversations/${conversationId}/traces?limit=1`
+      ),
     enabled: conversationId != null
   });
 }
 
-export function useLatestConversationTraces(conversationIds: string[], enabled = true) {
+export function useLatestConversationTraces(
+  conversationIds: string[],
+  enabled = true
+) {
   const tracesQuery = useQuery({
-    queryKey: ["latest-conversation-traces", conversationIds],
+    queryKey: ['latest-conversation-traces', conversationIds],
     queryFn: () =>
       apiRequest<Array<{ conversationId: string; trace: TraceRecord }>>(
-        `/traces/latest-by-conversation?conversationIds=${encodeURIComponent(conversationIds.join(","))}`
+        `/traces/latest-by-conversation?conversationIds=${encodeURIComponent(conversationIds.join(','))}`
       ),
     enabled: enabled && conversationIds.length > 0
   });
 
-  const latestTraceByConversationId = conversationIds.reduce<Record<string, TraceRecord | null>>((acc, conversationId) => {
+  const latestTraceByConversationId = conversationIds.reduce<
+    Record<string, TraceRecord | null>
+  >((acc, conversationId) => {
     acc[conversationId] = null;
     return acc;
   }, {});
@@ -531,7 +677,9 @@ export function useLatestConversationTraces(conversationIds: string[], enabled =
 
   const isLoading = tracesQuery.isLoading;
   const isError = tracesQuery.isError;
-  const failedConversationCount = tracesQuery.isError ? conversationIds.length : 0;
+  const failedConversationCount = tracesQuery.isError
+    ? conversationIds.length
+    : 0;
   const error = tracesQuery.error ?? null;
 
   return {
@@ -545,7 +693,7 @@ export function useLatestConversationTraces(conversationIds: string[], enabled =
 
 export function useTrace(traceId: string | null) {
   return useQuery({
-    queryKey: ["trace", traceId],
+    queryKey: ['trace', traceId],
     queryFn: () => apiRequest<TraceRecord>(`/traces/${traceId}`),
     enabled: traceId != null
   });
@@ -553,18 +701,18 @@ export function useTrace(traceId: string | null) {
 
 export function useTraces(input: { query?: string; limit?: number } = {}) {
   return useQuery({
-    queryKey: ["traces", input],
+    queryKey: ['traces', input],
     queryFn: () => {
       const params = new URLSearchParams();
       if (input.query != null && input.query.trim().length > 0) {
-        params.set("query", input.query.trim());
+        params.set('query', input.query.trim());
       }
       if (input.limit != null) {
-        params.set("limit", String(input.limit));
+        params.set('limit', String(input.limit));
       }
 
       const query = params.toString();
-      return apiRequest<TraceRecord[]>(`/traces${query ? `?${query}` : ""}`);
+      return apiRequest<TraceRecord[]>(`/traces${query ? `?${query}` : ''}`);
     }
   });
 }
@@ -575,16 +723,17 @@ export function useAskAssistant(assistantId: string) {
   return useMutation({
     mutationFn: (payload: { question: string; conversationId?: string }) =>
       apiRequest<AskResponse>(`/assistants/${assistantId}/ask`, {
-        method: "POST",
+        method: 'POST',
         body: payload
       }),
-    onSuccess: result => {
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-paged'] });
       queryClient.invalidateQueries({
-        queryKey: ["conversation-messages", result.conversationId]
+        queryKey: ['conversation-messages', result.conversationId]
       });
       queryClient.invalidateQueries({
-        queryKey: ["conversation-traces", result.conversationId]
+        queryKey: ['conversation-traces', result.conversationId]
       });
     }
   });
@@ -600,26 +749,30 @@ export function useAskAssistantStream(assistantId: string) {
       onEvent: (event: AskStreamEvent) => void;
       signal?: AbortSignal;
     }) => {
-      await apiStreamRequest<AskStreamEvent>(`/assistants/${assistantId}/ask/stream`, {
-        method: "POST",
-        body: {
-          question: payload.question,
-          conversationId: payload.conversationId
-        },
-        signal: payload.signal,
-        onEvent: payload.onEvent
-      });
+      await apiStreamRequest<AskStreamEvent>(
+        `/assistants/${assistantId}/ask/stream`,
+        {
+          method: 'POST',
+          body: {
+            question: payload.question,
+            conversationId: payload.conversationId
+          },
+          signal: payload.signal,
+          onEvent: payload.onEvent
+        }
+      );
     },
     onSuccess: (_, variables) => {
       if (variables.conversationId) {
         queryClient.invalidateQueries({
-          queryKey: ["conversation-messages", variables.conversationId]
+          queryKey: ['conversation-messages', variables.conversationId]
         });
         queryClient.invalidateQueries({
-          queryKey: ["conversation-traces", variables.conversationId]
+          queryKey: ['conversation-traces', variables.conversationId]
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-paged'] });
     }
   });
 }
@@ -634,14 +787,14 @@ export function useUpdateAssistant(assistantId: string) {
       systemPrompt?: string;
       retrievalProfileId?: string;
       answerPolicyJson?: AnswerPolicy | null;
-      status?: "active" | "inactive";
+      status?: 'active' | 'inactive';
     }) =>
       apiRequest<Assistant>(`/assistants/${assistantId}`, {
-        method: "PATCH",
+        method: 'PATCH',
         body: payload
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assistants"] });
+      queryClient.invalidateQueries({ queryKey: ['assistants'] });
     }
   });
 }
@@ -660,13 +813,16 @@ export function useUpdateRetrievalProfile(retrievalProfileId: string) {
       filtersJson?: RetrievalProfileFilters | null;
       strategyJson?: RetrievalStrategy | null;
     }) =>
-      apiRequest<RetrievalProfile>(`/retrieval-profiles/${retrievalProfileId}`, {
-        method: "PATCH",
-        body: payload
-      }),
+      apiRequest<RetrievalProfile>(
+        `/retrieval-profiles/${retrievalProfileId}`,
+        {
+          method: 'PATCH',
+          body: payload
+        }
+      ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["retrieval-profiles"] });
-      queryClient.invalidateQueries({ queryKey: ["assistants"] });
+      queryClient.invalidateQueries({ queryKey: ['retrieval-profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['assistants'] });
     }
   });
 }
@@ -679,30 +835,42 @@ export function useRunEvalQuestionSet() {
       baselineSnapshotId?: string;
       qualityGateMode?: EvalQuestionSetRunQualityGateMode;
     }) =>
-      apiRequest<EvalQuestionSetRunResult>(`/eval/question-sets/${payload.questionSetId}/runs`, {
-        method: "POST",
-        body: {
-          assistantId: payload.assistantId,
-          ...(payload.baselineSnapshotId ? { baselineSnapshotId: payload.baselineSnapshotId } : {}),
-          ...(payload.qualityGateMode ? { qualityGateMode: payload.qualityGateMode } : {})
+      apiRequest<EvalQuestionSetRunResult>(
+        `/eval/question-sets/${payload.questionSetId}/runs`,
+        {
+          method: 'POST',
+          body: {
+            assistantId: payload.assistantId,
+            ...(payload.baselineSnapshotId
+              ? { baselineSnapshotId: payload.baselineSnapshotId }
+              : {}),
+            ...(payload.qualityGateMode
+              ? { qualityGateMode: payload.qualityGateMode }
+              : {})
+          }
         }
-      })
+      )
   });
 }
 
 export function useEvalQuestionSets(enabled = true) {
   return useQuery({
-    queryKey: ["eval-question-sets"],
-    queryFn: () => apiRequest<EvalQuestionSetListItem[]>("/eval/question-sets"),
+    queryKey: ['eval-question-sets'],
+    queryFn: () => apiRequest<EvalQuestionSetListItem[]>('/eval/question-sets'),
     enabled
   });
 }
 
-export function useEvalQuestionSetBaselineSnapshots(questionSetId: string | null, enabled = true) {
+export function useEvalQuestionSetBaselineSnapshots(
+  questionSetId: string | null,
+  enabled = true
+) {
   return useQuery({
-    queryKey: ["eval-question-set-baseline-snapshots", questionSetId],
+    queryKey: ['eval-question-set-baseline-snapshots', questionSetId],
     queryFn: () =>
-      apiRequest<EvalQuestionSetBaselineSnapshotRecord[]>(`/eval/question-sets/${questionSetId}/baselines/snapshots`),
+      apiRequest<EvalQuestionSetBaselineSnapshotRecord[]>(
+        `/eval/question-sets/${questionSetId}/baselines/snapshots`
+      ),
     enabled: enabled && questionSetId != null && questionSetId.trim().length > 0
   });
 }
@@ -711,16 +879,23 @@ export function useCreateEvalQuestionSet() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: { name: string; description?: string; questions: string[] }) =>
-      apiRequest<EvalQuestionSetRecord>("/eval/question-sets", {
-        method: "POST",
+    mutationFn: (payload: {
+      name: string;
+      description?: string;
+      questions: string[];
+    }) =>
+      apiRequest<EvalQuestionSetRecord>('/eval/question-sets', {
+        method: 'POST',
         body: payload
       }),
-    onSuccess: async createdQuestionSet => {
+    onSuccess: async (createdQuestionSet) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["eval-question-sets"] }),
+        queryClient.invalidateQueries({ queryKey: ['eval-question-sets'] }),
         queryClient.invalidateQueries({
-          queryKey: ["eval-question-set-baseline-snapshots", createdQuestionSet.id]
+          queryKey: [
+            'eval-question-set-baseline-snapshots',
+            createdQuestionSet.id
+          ]
         })
       ]);
     }
@@ -732,14 +907,20 @@ export function useSnapshotEvalQuestionSetBaseline() {
 
   return useMutation({
     mutationFn: (questionSetId: string) =>
-      apiRequest<EvalQuestionSetBaselineSnapshotRecord>(`/eval/question-sets/${questionSetId}/baselines/snapshots`, {
-        method: "POST"
-      }),
-    onSuccess: async snapshot => {
+      apiRequest<EvalQuestionSetBaselineSnapshotRecord>(
+        `/eval/question-sets/${questionSetId}/baselines/snapshots`,
+        {
+          method: 'POST'
+        }
+      ),
+    onSuccess: async (snapshot) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["eval-question-sets"] }),
+        queryClient.invalidateQueries({ queryKey: ['eval-question-sets'] }),
         queryClient.invalidateQueries({
-          queryKey: ["eval-question-set-baseline-snapshots", snapshot.questionSetId]
+          queryKey: [
+            'eval-question-set-baseline-snapshots',
+            snapshot.questionSetId
+          ]
         })
       ]);
     }
@@ -751,17 +932,23 @@ export function useChooseEvalQuestionSetBaseline() {
 
   return useMutation({
     mutationFn: (payload: { questionSetId: string; snapshotId: string }) =>
-      apiRequest<EvalQuestionSetRecord>(`/eval/question-sets/${payload.questionSetId}/baselines/choose`, {
-        method: "POST",
-        body: {
-          snapshotId: payload.snapshotId
+      apiRequest<EvalQuestionSetRecord>(
+        `/eval/question-sets/${payload.questionSetId}/baselines/choose`,
+        {
+          method: 'POST',
+          body: {
+            snapshotId: payload.snapshotId
+          }
         }
-      }),
-    onSuccess: async updatedQuestionSet => {
+      ),
+    onSuccess: async (updatedQuestionSet) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["eval-question-sets"] }),
+        queryClient.invalidateQueries({ queryKey: ['eval-question-sets'] }),
         queryClient.invalidateQueries({
-          queryKey: ["eval-question-set-baseline-snapshots", updatedQuestionSet.id]
+          queryKey: [
+            'eval-question-set-baseline-snapshots',
+            updatedQuestionSet.id
+          ]
         })
       ]);
     }
@@ -774,17 +961,32 @@ export function useUploadDocument(knowledgeBaseId: string) {
   return useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append('file', file);
 
-      return apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/upload`, {
-        method: "POST",
-        body: formData
-      });
+      return apiRequest<DocumentRecord>(
+        `/knowledge-bases/${knowledgeBaseId}/documents/upload`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+      queryClient.invalidateQueries({
+        queryKey: ['documents', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-paged', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-summary', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs-summary', knowledgeBaseId]
+      });
     }
   });
 }
@@ -795,19 +997,34 @@ export function useUploadDocuments(knowledgeBaseId: string) {
   return useMutation({
     mutationFn: async (files: File[]) => {
       const formData = new FormData();
-      files.forEach(file => {
-        formData.append("files", file);
+      files.forEach((file) => {
+        formData.append('files', file);
       });
 
-      return apiRequest<DocumentRecord[]>(`/knowledge-bases/${knowledgeBaseId}/documents/upload-batch`, {
-        method: "POST",
-        body: formData
-      });
+      return apiRequest<DocumentRecord[]>(
+        `/knowledge-bases/${knowledgeBaseId}/documents/upload-batch`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+      queryClient.invalidateQueries({
+        queryKey: ['documents', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-paged', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-summary', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs-summary', knowledgeBaseId]
+      });
     }
   });
 }
@@ -817,14 +1034,29 @@ export function useCreateWebPageDocument(knowledgeBaseId: string) {
 
   return useMutation({
     mutationFn: (payload: { url: string; title?: string }) =>
-      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/web-page`, {
-        method: "POST",
-        body: payload
-      }),
+      apiRequest<DocumentRecord>(
+        `/knowledge-bases/${knowledgeBaseId}/documents/web-page`,
+        {
+          method: 'POST',
+          body: payload
+        }
+      ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+      queryClient.invalidateQueries({
+        queryKey: ['documents', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-paged', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-summary', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs-summary', knowledgeBaseId]
+      });
     }
   });
 }
@@ -834,14 +1066,29 @@ export function useCreateFeedDocument(knowledgeBaseId: string) {
 
   return useMutation({
     mutationFn: (payload: { url: string; title?: string }) =>
-      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/feed`, {
-        method: "POST",
-        body: payload
-      }),
+      apiRequest<DocumentRecord>(
+        `/knowledge-bases/${knowledgeBaseId}/documents/feed`,
+        {
+          method: 'POST',
+          body: payload
+        }
+      ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+      queryClient.invalidateQueries({
+        queryKey: ['documents', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-paged', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-summary', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs-summary', knowledgeBaseId]
+      });
     }
   });
 }
@@ -851,14 +1098,29 @@ export function useCreateSitemapDocument(knowledgeBaseId: string) {
 
   return useMutation({
     mutationFn: (payload: { url: string; title?: string; maxPages?: number }) =>
-      apiRequest<DocumentRecord>(`/knowledge-bases/${knowledgeBaseId}/documents/sitemap`, {
-        method: "POST",
-        body: payload
-      }),
+      apiRequest<DocumentRecord>(
+        `/knowledge-bases/${knowledgeBaseId}/documents/sitemap`,
+        {
+          method: 'POST',
+          body: payload
+        }
+      ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", knowledgeBaseId] });
+      queryClient.invalidateQueries({
+        queryKey: ['documents', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-paged', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-summary', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs', knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs-summary', knowledgeBaseId]
+      });
     }
   });
 }
@@ -867,17 +1129,43 @@ export function useReindexDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ documentId }: { documentId: string; knowledgeBaseId: string }) =>
+    mutationFn: ({
+      documentId
+    }: {
+      documentId: string;
+      knowledgeBaseId: string;
+    }) =>
       apiRequest<DocumentRecord>(`/documents/${documentId}/reindex`, {
-        method: "POST"
+        method: 'POST'
       }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["documents", variables.knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["document", variables.documentId] });
-      queryClient.invalidateQueries({ queryKey: ["document-chunks", variables.documentId] });
-      queryClient.invalidateQueries({ queryKey: ["document-runs", variables.documentId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs", variables.knowledgeBaseId] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary", variables.knowledgeBaseId] });
+      queryClient.invalidateQueries({
+        queryKey: ['documents', variables.knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-paged', variables.knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['documents-summary', variables.knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['document', variables.documentId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['document-chunks', variables.documentId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['document-runs', variables.documentId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs', variables.knowledgeBaseId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          'knowledge-base-document-runs-summary',
+          variables.knowledgeBaseId
+        ]
+      });
     }
   });
 }
@@ -888,15 +1176,27 @@ export function useDeleteDocument() {
   return useMutation({
     mutationFn: ({ documentId }: { documentId: string }) =>
       apiRequest<{ success: boolean }>(`/documents/${documentId}`, {
-        method: "DELETE"
+        method: 'DELETE'
       }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs"] });
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-document-runs-summary"] });
-      queryClient.removeQueries({ queryKey: ["document", variables.documentId] });
-      queryClient.removeQueries({ queryKey: ["document-chunks", variables.documentId] });
-      queryClient.removeQueries({ queryKey: ["document-runs", variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['documents-paged'] });
+      queryClient.invalidateQueries({ queryKey: ['documents-summary'] });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['knowledge-base-document-runs-summary']
+      });
+      queryClient.removeQueries({
+        queryKey: ['document', variables.documentId]
+      });
+      queryClient.removeQueries({
+        queryKey: ['document-chunks', variables.documentId]
+      });
+      queryClient.removeQueries({
+        queryKey: ['document-runs', variables.documentId]
+      });
     }
   });
 }

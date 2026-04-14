@@ -1,55 +1,178 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-test("web ask response type covers current backend answeringMetadata shape", async () => {
-  const source = await readFile(resolve(__dirname, "../src/types/api.ts"), "utf8");
+test('web ask response type covers current backend answeringMetadata shape', async () => {
+  const source = await readFile(
+    resolve(__dirname, '../src/types/api.ts'),
+    'utf8'
+  );
 
   assert.match(source, /answeringMetadata\?:\s*AskAnsweringMetadata;/);
   assert.match(source, /strategySummary\?:\s*RetrievalStrategySummary;/);
-  assert.match(source, /strategyReadabilityLabel\?:\s*TraceSummary\["strategyReadabilityLabel"\];/);
-  assert.match(source, /retrievalModeProvenanceSentence\?:\s*TraceSummary\["retrievalModeProvenanceSentence"\];/);
-  assert.match(source, /rewriteReadabilityLabel\?:\s*TraceSummary\["rewriteReadabilityLabel"\];/);
-  assert.match(source, /answerAttributionSummary\?:\s*TraceAnswerAttributionSummary;/);
-  assert.match(source, /answerAttributionReadabilitySentence\?:\s*TraceSummary\["answerAttributionReadabilitySentence"\];/);
-  assert.match(source, /answerAttribution\?:\s*TraceCitationAttribution \| null;/);
-  assert.match(source, /answerAttributionSource\?:\s*TraceCitationSelectionSource \| null;/);
-  assert.match(source, /answerEvidenceSource\?:\s*TraceCitationSelectionSource \| null;/);
-  assert.match(source, /answerEvidenceSourceReadabilityLabel\?:\s*TraceSummary\["answerEvidenceSourceReadabilityLabel"\];/);
-  assert.match(source, /answerEvidenceSourceReadabilitySentence\?:\s*TraceSummary\["answerEvidenceSourceReadabilitySentence"\];/);
+  assert.match(
+    source,
+    /strategyReadabilityLabel\?:\s*TraceSummary\[['"]strategyReadabilityLabel['"]\];/
+  );
+  assert.match(
+    source,
+    /retrievalModeProvenanceSentence\?:\s*TraceSummary\[['"]retrievalModeProvenanceSentence['"]\];/
+  );
+  assert.match(
+    source,
+    /rewriteReadabilityLabel\?:\s*TraceSummary\[['"]rewriteReadabilityLabel['"]\];/
+  );
+  assert.match(
+    source,
+    /answerAttributionSummary\?:\s*TraceAnswerAttributionSummary;/
+  );
+  assert.match(
+    source,
+    /answerAttributionReadabilitySentence\?:\s*TraceSummary\[['"]answerAttributionReadabilitySentence['"]\];/
+  );
+  assert.match(
+    source,
+    /answerAttribution\?:\s*TraceCitationAttribution \| null;/
+  );
+  assert.match(
+    source,
+    /answerAttributionSource\?:\s*TraceCitationSelectionSource \| null;/
+  );
+  assert.match(
+    source,
+    /answerEvidenceSource\?:\s*TraceCitationSelectionSource \| null;/
+  );
+  assert.match(
+    source,
+    /answerEvidenceSourceReadabilityLabel\?:\s*TraceSummary\[['"]answerEvidenceSourceReadabilityLabel['"]\];/
+  );
+  assert.match(
+    source,
+    /answerEvidenceSourceReadabilitySentence\?:\s*TraceSummary\[['"]answerEvidenceSourceReadabilitySentence['"]\];/
+  );
   assert.match(source, /answerTextSource\?:\s*TraceAnswerTextSource \| null;/);
-  assert.match(source, /answerTextSourceReadabilityLabel\?:\s*TraceSummary\["answerTextSourceReadabilityLabel"\];/);
-  assert.match(source, /answerTextSourceReadabilitySentence\?:\s*TraceSummary\["answerTextSourceReadabilitySentence"\];/);
-  assert.match(source, /answerStatusSource\?:\s*TraceAnswerStatusSource \| null;/);
-  assert.match(source, /answerStatusSourceReadabilityLabel\?:\s*TraceSummary\["answerStatusSourceReadabilityLabel"\];/);
-  assert.match(source, /answerStatusSourceReadabilitySentence\?:\s*TraceSummary\["answerStatusSourceReadabilitySentence"\];/);
-  assert.match(source, /answerProvenanceSentence\?:\s*TraceSummary\["answerProvenanceSentence"\];/);
-  assert.match(source, /answerProvenanceReadabilitySentence\?:\s*TraceSummary\["answerProvenanceReadabilitySentence"\];/);
-  assert.match(source, /missingInformationSource\?:\s*TraceSummary\["missingInformationSource"\];/);
-  assert.match(source, /missingInformationProvenanceSentence\?:\s*TraceSummary\["missingInformationProvenanceSentence"\];/);
-  assert.match(source, /missingInformationSourceReadabilityLabel\?:\s*TraceSummary\["missingInformationSourceReadabilityLabel"\];/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*promptId: string;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*usedFallback: boolean;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerPolicy: AnswerPolicy;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*resolvedLanguage: TraceResolvedLanguage;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*generationMode: TraceGenerationMode;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*contextMode: TraceContextMode;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*inputChunkCount: number;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*promptContextCount: number;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*contextGroupCount: number;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationCountBeforeLimit: number;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationCount: number;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationLimitHit: boolean;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationAttribution: TraceCitationAttribution;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*citationSelectionSource: TraceCitationSelectionSource;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*missingInformationCount: number;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*missingInformationSource: TraceMissingInformationSource;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerTextSource: TraceAnswerTextSource;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*insufficientContextReason: TraceInsufficientContextReason \| null;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerStatusSource: TraceAnswerStatusSource;/);
-  assert.match(source, /export type AskAnsweringMetadata = \{[\s\S]*answerStatus: TraceAnswerStatus;/);
+  assert.match(
+    source,
+    /answerTextSourceReadabilityLabel\?:\s*TraceSummary\[['"]answerTextSourceReadabilityLabel['"]\];/
+  );
+  assert.match(
+    source,
+    /answerTextSourceReadabilitySentence\?:\s*TraceSummary\[['"]answerTextSourceReadabilitySentence['"]\];/
+  );
+  assert.match(
+    source,
+    /answerStatusSource\?:\s*TraceAnswerStatusSource \| null;/
+  );
+  assert.match(
+    source,
+    /answerStatusSourceReadabilityLabel\?:\s*TraceSummary\[['"]answerStatusSourceReadabilityLabel['"]\];/
+  );
+  assert.match(
+    source,
+    /answerStatusSourceReadabilitySentence\?:\s*TraceSummary\[['"]answerStatusSourceReadabilitySentence['"]\];/
+  );
+  assert.match(
+    source,
+    /answerProvenanceSentence\?:\s*TraceSummary\[['"]answerProvenanceSentence['"]\];/
+  );
+  assert.match(
+    source,
+    /answerProvenanceReadabilitySentence\?:\s*TraceSummary\[['"]answerProvenanceReadabilitySentence['"]\];/
+  );
+  assert.match(
+    source,
+    /missingInformationSource\?:\s*TraceSummary\[['"]missingInformationSource['"]\];/
+  );
+  assert.match(
+    source,
+    /missingInformationProvenanceSentence\?:\s*TraceSummary\[['"]missingInformationProvenanceSentence['"]\];/
+  );
+  assert.match(
+    source,
+    /missingInformationSourceReadabilityLabel\?:\s*TraceSummary\[['"]missingInformationSourceReadabilityLabel['"]\];/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*promptId: string;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*usedFallback: boolean;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*answerPolicy: AnswerPolicy;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*resolvedLanguage: TraceResolvedLanguage;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*generationMode: TraceGenerationMode;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*contextMode: TraceContextMode;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*inputChunkCount: number;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*promptContextCount: number;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*contextGroupCount: number;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*citationCountBeforeLimit: number;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*citationCount: number;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*citationLimitHit: boolean;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*citationAttribution: TraceCitationAttribution;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*citationSelectionSource: TraceCitationSelectionSource;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*missingInformationCount: number;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*missingInformationSource: TraceMissingInformationSource;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*answerTextSource: TraceAnswerTextSource;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*insufficientContextReason: TraceInsufficientContextReason \| null;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*answerStatusSource: TraceAnswerStatusSource;/
+  );
+  assert.match(
+    source,
+    /export type AskAnsweringMetadata = \{[\s\S]*answerStatus: TraceAnswerStatus;/
+  );
 });

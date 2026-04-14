@@ -11,10 +11,13 @@ import {
   UploadedFile,
   UploadedFiles,
   UseInterceptors
-} from "@nestjs/common";
-import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
-import { resolveRequestAuthContext, type ApiRequestWithAuthContext } from "../auth/auth-identity.contract";
-import { AuthenticatedRoute } from "../auth/auth-route-policy";
+} from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import {
+  resolveRequestAuthContext,
+  type ApiRequestWithAuthContext
+} from '../auth/auth-identity.contract';
+import { AuthenticatedRoute } from '../auth/auth-route-policy';
 import {
   CompareKnowledgeBaseDocumentRunsInput,
   CreateDocumentInput,
@@ -27,204 +30,363 @@ import {
   ListDocumentRunsInput,
   ListKnowledgeBaseDocumentRunsInput,
   ListKnowledgeBaseDocumentsInput,
+  ListPagedKnowledgeBaseDocumentsInput,
   listDocumentRunsSchema,
   listKnowledgeBaseDocumentsSchema,
+  listPagedKnowledgeBaseDocumentsSchema,
   listKnowledgeBaseDocumentRunsSchema,
   createSitemapDocumentSchema,
   createWebPageDocumentSchema
-} from "./document.schemas";
-import { DocumentsService } from "./documents.service";
-import { nonEmptyStringParamSchema, ZodValidationPipe } from "../../common/zod-validation.pipe";
+} from './document.schemas';
+import { DocumentsService } from './documents.service';
+import {
+  nonEmptyStringParamSchema,
+  ZodValidationPipe
+} from '../../common/zod-validation.pipe';
 
-const knowledgeBaseDocumentRunSummarySchema = listKnowledgeBaseDocumentRunsSchema.pick({
-  documentId: true,
-  sourceType: true,
-  status: true,
-  trigger: true,
-  issueOnly: true,
-  sinceHours: true
-});
+const knowledgeBaseDocumentRunSummarySchema =
+  listKnowledgeBaseDocumentRunsSchema.pick({
+    documentId: true,
+    sourceType: true,
+    status: true,
+    trigger: true,
+    issueOnly: true,
+    sinceHours: true
+  });
 
 @AuthenticatedRoute()
 @Controller()
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  @Get("knowledge-bases/:id/documents")
+  @Get('knowledge-bases/:id/documents')
   listKnowledgeBaseDocuments(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Query(new ZodValidationPipe(listKnowledgeBaseDocumentsSchema)) query: ListKnowledgeBaseDocumentsInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Query(new ZodValidationPipe(listKnowledgeBaseDocumentsSchema))
+    query: ListKnowledgeBaseDocumentsInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.listKnowledgeBaseDocuments(knowledgeBaseId, query, authContext.identity);
+    return this.documentsService.listKnowledgeBaseDocuments(
+      knowledgeBaseId,
+      query,
+      authContext.identity
+    );
   }
 
-  @Get("knowledge-bases/:id/document-runs")
+  @Get('knowledge-bases/:id/documents/paged')
+  listPagedKnowledgeBaseDocuments(
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Query(new ZodValidationPipe(listPagedKnowledgeBaseDocumentsSchema))
+    query: ListPagedKnowledgeBaseDocumentsInput,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.documentsService.listPagedKnowledgeBaseDocuments(
+      knowledgeBaseId,
+      query,
+      authContext.identity
+    );
+  }
+
+  @Get('knowledge-bases/:id/documents/summary')
+  getKnowledgeBaseDocumentSummary(
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+
+    return this.documentsService.getKnowledgeBaseDocumentSummary(
+      knowledgeBaseId,
+      authContext.identity
+    );
+  }
+
+  @Get('knowledge-bases/:id/document-runs')
   listKnowledgeBaseDocumentRuns(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Query(new ZodValidationPipe(listKnowledgeBaseDocumentRunsSchema)) query: ListKnowledgeBaseDocumentRunsInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Query(new ZodValidationPipe(listKnowledgeBaseDocumentRunsSchema))
+    query: ListKnowledgeBaseDocumentRunsInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.listKnowledgeBaseDocumentRuns(knowledgeBaseId, query, authContext.identity);
+    return this.documentsService.listKnowledgeBaseDocumentRuns(
+      knowledgeBaseId,
+      query,
+      authContext.identity
+    );
   }
 
-  @Get("knowledge-bases/:id/document-runs/summary")
+  @Get('knowledge-bases/:id/document-runs/summary')
   getKnowledgeBaseDocumentRunSummary(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Query(new ZodValidationPipe(knowledgeBaseDocumentRunSummarySchema)) query: Pick<
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Query(new ZodValidationPipe(knowledgeBaseDocumentRunSummarySchema))
+    query: Pick<
       ListKnowledgeBaseDocumentRunsInput,
-      "documentId" | "sourceType" | "status" | "trigger" | "issueOnly" | "sinceHours"
+      | 'documentId'
+      | 'sourceType'
+      | 'status'
+      | 'trigger'
+      | 'issueOnly'
+      | 'sinceHours'
     >,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.getKnowledgeBaseDocumentRunSummary(knowledgeBaseId, query, authContext.identity);
+    return this.documentsService.getKnowledgeBaseDocumentRunSummary(
+      knowledgeBaseId,
+      query,
+      authContext.identity
+    );
   }
 
-  @Get("knowledge-bases/:id/document-runs/comparison")
+  @Get('knowledge-bases/:id/document-runs/comparison')
   getKnowledgeBaseDocumentRunComparison(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Query(new ZodValidationPipe(compareKnowledgeBaseDocumentRunsSchema)) query: CompareKnowledgeBaseDocumentRunsInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Query(new ZodValidationPipe(compareKnowledgeBaseDocumentRunsSchema))
+    query: CompareKnowledgeBaseDocumentRunsInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.getKnowledgeBaseDocumentRunComparison(knowledgeBaseId, query, authContext.identity);
+    return this.documentsService.getKnowledgeBaseDocumentRunComparison(
+      knowledgeBaseId,
+      query,
+      authContext.identity
+    );
   }
 
-  @Post("knowledge-bases/:id/documents")
+  @Post('knowledge-bases/:id/documents')
   createDocument(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Body(new ZodValidationPipe(createDocumentSchema)) body: CreateDocumentInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Body(new ZodValidationPipe(createDocumentSchema))
+    body: CreateDocumentInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.createDocument(knowledgeBaseId, body, authContext.identity);
+    return this.documentsService.createDocument(
+      knowledgeBaseId,
+      body,
+      authContext.identity
+    );
   }
 
-  @Post("knowledge-bases/:id/reindex")
+  @Post('knowledge-bases/:id/reindex')
   reindexKnowledgeBase(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.reindexKnowledgeBase(knowledgeBaseId, authContext.identity);
+    return this.documentsService.reindexKnowledgeBase(
+      knowledgeBaseId,
+      authContext.identity
+    );
   }
 
-  @Post("knowledge-bases/:id/documents/web-page")
+  @Post('knowledge-bases/:id/documents/web-page')
   createWebPageDocument(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Body(new ZodValidationPipe(createWebPageDocumentSchema)) body: CreateWebPageDocumentInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Body(new ZodValidationPipe(createWebPageDocumentSchema))
+    body: CreateWebPageDocumentInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.createWebPageDocument(knowledgeBaseId, body, authContext.identity);
+    return this.documentsService.createWebPageDocument(
+      knowledgeBaseId,
+      body,
+      authContext.identity
+    );
   }
 
-  @Post("knowledge-bases/:id/documents/feed")
+  @Post('knowledge-bases/:id/documents/feed')
   createFeedDocument(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Body(new ZodValidationPipe(createFeedDocumentSchema)) body: CreateFeedDocumentInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Body(new ZodValidationPipe(createFeedDocumentSchema))
+    body: CreateFeedDocumentInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.createFeedDocument(knowledgeBaseId, body, authContext.identity);
+    return this.documentsService.createFeedDocument(
+      knowledgeBaseId,
+      body,
+      authContext.identity
+    );
   }
 
-  @Post("knowledge-bases/:id/documents/sitemap")
+  @Post('knowledge-bases/:id/documents/sitemap')
   createSitemapDocument(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
-    @Body(new ZodValidationPipe(createSitemapDocumentSchema)) body: CreateSitemapDocumentInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
+    @Body(new ZodValidationPipe(createSitemapDocumentSchema))
+    body: CreateSitemapDocumentInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.createSitemapDocument(knowledgeBaseId, body, authContext.identity);
+    return this.documentsService.createSitemapDocument(
+      knowledgeBaseId,
+      body,
+      authContext.identity
+    );
   }
 
-  @Post("knowledge-bases/:id/documents/upload")
-  @UseInterceptors(FileInterceptor("file"))
+  @Post('knowledge-bases/:id/documents/upload')
+  @UseInterceptors(FileInterceptor('file'))
   uploadDocument(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
     @Req() request: ApiRequestWithAuthContext | undefined,
-    @UploadedFile() file?: {
+    @UploadedFile()
+    file?: {
       buffer: Buffer;
       originalname: string;
       mimetype: string;
     }
   ) {
     if (!file) {
-      throw new BadRequestException("File is required.");
+      throw new BadRequestException('File is required.');
     }
 
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.uploadDocument(knowledgeBaseId, file, authContext.identity);
+    return this.documentsService.uploadDocument(
+      knowledgeBaseId,
+      file,
+      authContext.identity
+    );
   }
 
-  @Post("knowledge-bases/:id/documents/upload-batch")
-  @UseInterceptors(FilesInterceptor("files"))
+  @Post('knowledge-bases/:id/documents/upload-batch')
+  @UseInterceptors(FilesInterceptor('files'))
   uploadDocuments(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) knowledgeBaseId: string,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema))
+    knowledgeBaseId: string,
     @Req() request: ApiRequestWithAuthContext | undefined,
-    @UploadedFiles() files?: Array<{
+    @UploadedFiles()
+    files?: Array<{
       buffer: Buffer;
       originalname: string;
       mimetype: string;
     }>
   ) {
     if (!files || files.length === 0) {
-      throw new BadRequestException("Files are required.");
+      throw new BadRequestException('Files are required.');
     }
 
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.uploadDocuments(knowledgeBaseId, files, authContext.identity);
+    return this.documentsService.uploadDocuments(
+      knowledgeBaseId,
+      files,
+      authContext.identity
+    );
   }
 
-  @Get("documents/:id")
-  getDocument(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+  @Get('documents/:id')
+  getDocument(
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
     return this.documentsService.getDocument(id, authContext.identity);
   }
 
-  @Get("documents/:id/runs")
+  @Get('documents/:id/runs')
   listDocumentRuns(
-    @Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
-    @Query(new ZodValidationPipe(listDocumentRunsSchema)) query: ListDocumentRunsInput,
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Query(new ZodValidationPipe(listDocumentRunsSchema))
+    query: ListDocumentRunsInput,
     @Req() request?: ApiRequestWithAuthContext
   ) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
-    return this.documentsService.listDocumentRuns(id, query, authContext.identity);
+    return this.documentsService.listDocumentRuns(
+      id,
+      query,
+      authContext.identity
+    );
   }
 
-  @Get("documents/:id/chunks")
-  listDocumentChunks(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+  @Get('documents/:id/chunks')
+  listDocumentChunks(
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
     return this.documentsService.listDocumentChunks(id, authContext.identity);
   }
 
-  @Delete("documents/:id")
-  deleteDocument(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+  @Delete('documents/:id')
+  deleteDocument(
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
     return this.documentsService.deleteDocument(id, authContext.identity);
   }
 
-  @Post("documents/:id/reindex")
-  reindexDocument(@Param("id", new ZodValidationPipe(nonEmptyStringParamSchema)) id: string, @Req() request?: ApiRequestWithAuthContext) {
-    const authContext = resolveRequestAuthContext({ authContext: request?.authContext });
+  @Post('documents/:id/reindex')
+  reindexDocument(
+    @Param('id', new ZodValidationPipe(nonEmptyStringParamSchema)) id: string,
+    @Req() request?: ApiRequestWithAuthContext
+  ) {
+    const authContext = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
     return this.documentsService.reindexDocument(id, authContext.identity);
   }

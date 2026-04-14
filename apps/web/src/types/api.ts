@@ -18,7 +18,7 @@ import type {
   TraceRetrievalMode,
   TraceRetrievalQuerySource,
   TraceSummary
-} from "@rag-system/shared";
+} from '@rag-system/shared';
 
 export type AuthIdentity = {
   userId: string;
@@ -42,8 +42,8 @@ export type AuthMeResponse = {
   currentIdentity: AuthIdentity;
   user?: AuthUser | null;
   loginProvenance: {
-    type: "local_session" | "oauth_session";
-    oauthProvider: "github" | "google" | "oidc" | null;
+    type: 'local_session' | 'oauth_session';
+    oauthProvider: 'github' | 'google' | 'oidc' | null;
   };
 };
 
@@ -86,12 +86,12 @@ export type AuthProvidersResponse = {
 };
 
 export type HealthResponse = {
-  status: "ok";
+  status: 'ok';
 };
 
 export type AuditEventRecord = {
   id: string;
-  kind: "trace" | "document_run";
+  kind: 'trace' | 'document_run';
   entityId: string;
   event: string;
   status: string;
@@ -125,7 +125,7 @@ export type RetrievalProfileFilters = {
   pageNumbers?: NumberStrategyFilter;
 };
 
-export type RetrievalMode = "vector" | "hybrid" | "lexical";
+export type RetrievalMode = 'vector' | 'hybrid' | 'lexical';
 
 export type RetrievalStrategy = {
   queryRewrite?: {
@@ -146,13 +146,13 @@ export type RetrievalStrategy = {
 };
 
 export type AnswerPolicy = {
-  responseStyle: "concise" | "balanced" | "detailed";
-  tone?: "neutral" | "friendly" | "direct";
-  outputFormat?: "paragraph" | "bullets" | "markdown";
-  language?: "auto" | "same_as_question" | "zh" | "en";
-  citationMode: "required" | "optional";
+  responseStyle: 'concise' | 'balanced' | 'detailed';
+  tone?: 'neutral' | 'friendly' | 'direct';
+  outputFormat?: 'paragraph' | 'bullets' | 'markdown';
+  language?: 'auto' | 'same_as_question' | 'zh' | 'en';
+  citationMode: 'required' | 'optional';
   maxCitations: number;
-  noAnswerBehavior: "say_insufficient_context" | "best_effort";
+  noAnswerBehavior: 'say_insufficient_context' | 'best_effort';
   includeMissingInformation?: boolean;
 };
 
@@ -179,7 +179,7 @@ export type Assistant = {
   systemPrompt: string;
   retrievalProfileId: string;
   answerPolicyJson: AnswerPolicy | null;
-  status: "active" | "inactive";
+  status: 'active' | 'inactive';
   retrievalProfile?: RetrievalProfile;
 };
 
@@ -189,7 +189,7 @@ export type KnowledgeBase = {
   ownerId: string;
   name: string;
   description: string | null;
-  status: "active" | "inactive";
+  status: 'active' | 'inactive';
   createdAt: string;
   updatedAt: string;
 };
@@ -202,8 +202,14 @@ export type DocumentRecord = {
   title: string;
   mimeType: string;
   storageKey: string;
-  status: "pending" | "processing" | "ready" | "failed";
-  processingStage: "uploaded" | "parsing" | "chunking" | "indexing" | "completed" | "failed";
+  status: 'pending' | 'processing' | 'ready' | 'failed';
+  processingStage:
+    | 'uploaded'
+    | 'parsing'
+    | 'chunking'
+    | 'indexing'
+    | 'completed'
+    | 'failed';
   version: number;
   chunkCount: number;
   errorMessage: string | null;
@@ -211,16 +217,45 @@ export type DocumentRecord = {
   updatedAt: string;
 };
 
-export type DocumentRunStatus = "pending" | "processing" | "ready" | "failed" | "skipped";
+export type PagedDocumentRecords = {
+  items: DocumentRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
 
-export type DocumentRunTrigger = "upload" | "reindex" | "external_resync";
+export type KnowledgeBaseDocumentSummary = {
+  totalDocuments: number;
+  readyDocuments: number;
+  processingDocuments: number;
+  failedDocuments: number;
+  totalChunks: number;
+};
+
+export type PagedConversations = {
+  items: Conversation[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type DocumentRunStatus =
+  | 'pending'
+  | 'processing'
+  | 'ready'
+  | 'failed'
+  | 'skipped';
+
+export type DocumentRunTrigger = 'upload' | 'reindex' | 'external_resync';
 
 export type DocumentRunFailedStage =
-  | "source_fetch"
-  | "parsing"
-  | "chunking"
-  | "indexing"
-  | "stale_guard"
+  | 'source_fetch'
+  | 'parsing'
+  | 'chunking'
+  | 'indexing'
+  | 'stale_guard'
   | null;
 
 export type DocumentRunRecord = {
@@ -267,8 +302,8 @@ export type KnowledgeBaseDocumentRunRecord = {
     sourceType: string;
     sourceName: string;
     title: string;
-    status: DocumentRecord["status"];
-    processingStage: DocumentRecord["processingStage"];
+    status: DocumentRecord['status'];
+    processingStage: DocumentRecord['processingStage'];
     version: number;
   };
 };
@@ -330,9 +365,11 @@ export type KnowledgeBaseDocumentRunSummary = {
   boundaryStats: KnowledgeBaseDocumentRunBoundaryStats;
   latestRetryableFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
   latestPartialSourceFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
-  latestBoundaryHit: (KnowledgeBaseDocumentRunSummaryAnchor & {
-    boundarySummary: KnowledgeBaseDocumentRunBoundarySummary | null;
-  }) | null;
+  latestBoundaryHit:
+    | (KnowledgeBaseDocumentRunSummaryAnchor & {
+        boundarySummary: KnowledgeBaseDocumentRunBoundarySummary | null;
+      })
+    | null;
   latestSkipped: KnowledgeBaseDocumentRunSummaryAnchor | null;
   latestFailure: KnowledgeBaseDocumentRunSummaryAnchor | null;
 };
@@ -364,7 +401,7 @@ export type KnowledgeBaseDocumentRunComparisonSnapshotDifference = {
   left: number;
   right: number;
   delta: number;
-  trend: "up" | "down";
+  trend: 'up' | 'down';
   summary: string;
 };
 
@@ -418,13 +455,13 @@ export type KnowledgeBaseDocumentRunIssueHotspotSlice = {
 
 export type KnowledgeBaseDocumentRunComparison =
   | {
-      mode: "run";
+      mode: 'run';
       left: KnowledgeBaseDocumentRunComparisonRunSnapshot;
       right: KnowledgeBaseDocumentRunComparisonRunSnapshot;
       meaningfulDifferences: KnowledgeBaseDocumentRunComparisonRunDifference[];
     }
   | {
-      mode: "snapshot";
+      mode: 'snapshot';
       left: {
         sinceHours: number;
         summary: KnowledgeBaseDocumentRunSummary;
@@ -554,8 +591,8 @@ export type AskAnsweringMetadata = {
 
 export type AskQualityEvaluation = {
   overall: TraceQualityOverall;
-  grounding: "grounded" | "partially_grounded" | "ungrounded";
-  completeness: "complete" | "partial" | "insufficient";
+  grounding: 'grounded' | 'partially_grounded' | 'ungrounded';
+  completeness: 'complete' | 'partial' | 'insufficient';
   primaryIssue: TracePrimaryIssue;
   flags: string[];
   summary: string;
@@ -564,7 +601,7 @@ export type AskQualityEvaluation = {
 export type EvalQuestionSetRunItem = {
   index: number;
   question: string;
-  status: "succeeded" | "failed";
+  status: 'succeeded' | 'failed';
   traceId: string | null;
   conversationId: string | null;
   answerStatus: string | null;
@@ -591,25 +628,25 @@ export type EvalQuestionSetRunSummary = {
 
 export type EvalQuestionSetRunComparisonMetric = {
   metric:
-    | "succeeded"
-    | "failed"
-    | "successRate"
-    | "groundedRate"
-    | "strongRate"
-    | "fallbackRate"
-    | "averageCitationCount";
+    | 'succeeded'
+    | 'failed'
+    | 'successRate'
+    | 'groundedRate'
+    | 'strongRate'
+    | 'fallbackRate'
+    | 'averageCitationCount';
   current: number;
   baseline: number;
   delta: number;
 };
 
-export type EvalQuestionSetRunQualityGateMode = "warn" | "fail";
+export type EvalQuestionSetRunQualityGateMode = 'warn' | 'fail';
 
 export type EvalQuestionSetListItem = {
   id: string;
   name: string;
   description: string | null;
-  status: "draft" | "locked" | "archived";
+  status: 'draft' | 'locked' | 'archived';
   currentVersion: number;
   questionCount: number;
   baselineSnapshotId: string | null;
@@ -626,7 +663,7 @@ export type EvalQuestionSetRecord = {
   id: string;
   name: string;
   description: string | null;
-  status: "draft" | "locked" | "archived";
+  status: 'draft' | 'locked' | 'archived';
   currentVersion: number;
   baselineSnapshotId: string | null;
   baselineChosenAt: string | null;
@@ -647,12 +684,17 @@ export type EvalQuestionSetBaselineSnapshotRecord = {
 
 export type EvalQuestionSetRunQualityGate = {
   mode: EvalQuestionSetRunQualityGateMode;
-  status: "passed" | "warning" | "failed";
+  status: 'passed' | 'warning' | 'failed';
   limitVersion: string;
   breachedMetricCount: number;
   breachedMetrics: Array<{
-    metric: "successRate" | "groundedRate" | "strongRate" | "fallbackRate" | "averageCitationCount";
-    limitType: "min" | "max";
+    metric:
+      | 'successRate'
+      | 'groundedRate'
+      | 'strongRate'
+      | 'fallbackRate'
+      | 'averageCitationCount';
+    limitType: 'min' | 'max';
     limit: number;
     current: number;
     delta: number;
@@ -663,12 +705,16 @@ export type EvalQuestionSetRunQualityGate = {
 export type EvalQuestionSetFailureDrilldownItem = {
   index: number;
   question: string;
-  severity: "critical" | "high" | "medium";
+  severity: 'critical' | 'high' | 'medium';
   reasonCodes: Array<
-    "became_failed" | "became_insufficient_context" | "quality_degraded" | "fallback_introduced" | "citations_decreased"
+    | 'became_failed'
+    | 'became_insufficient_context'
+    | 'quality_degraded'
+    | 'fallback_introduced'
+    | 'citations_decreased'
   >;
   baseline: {
-    status: "succeeded" | "failed";
+    status: 'succeeded' | 'failed';
     answerStatus: string | null;
     qualityOverall: string | null;
     qualityPrimaryIssue: string | null;
@@ -676,7 +722,7 @@ export type EvalQuestionSetFailureDrilldownItem = {
     usedFallback: boolean | null;
   };
   current: {
-    status: "succeeded" | "failed";
+    status: 'succeeded' | 'failed';
     answerStatus: string | null;
     qualityOverall: string | null;
     qualityPrimaryIssue: string | null;
@@ -735,30 +781,30 @@ export type EvalQuestionSetRunResult = {
       improvedMetrics: EvalQuestionSetRunComparisonMetric[];
       topRegressionReasons: Array<{
         reasonCode:
-          | "became_failed"
-          | "became_insufficient_context"
-          | "quality_degraded"
-          | "fallback_introduced"
-          | "citations_decreased";
+          | 'became_failed'
+          | 'became_insufficient_context'
+          | 'quality_degraded'
+          | 'fallback_introduced'
+          | 'citations_decreased';
         count: number;
       }>;
     };
   };
   reportExports?: {
     markdown: {
-      format: "markdown";
+      format: 'markdown';
       fileName: string;
       mimeType: string;
       content: string;
     };
     json: {
-      format: "json";
+      format: 'json';
       fileName: string;
       mimeType: string;
       content: string;
     };
     html: {
-      format: "html";
+      format: 'html';
       fileName: string;
       mimeType: string;
       content: string;
@@ -777,30 +823,30 @@ export type AskResponse = {
   retrievedChunks: RetrievedChunk[];
   contextGroups?: ContextGroup[];
   strategySummary?: RetrievalStrategySummary;
-  strategyReadabilityLabel?: TraceSummary["strategyReadabilityLabel"];
-  retrievalModeProvenanceSentence?: TraceSummary["retrievalModeProvenanceSentence"];
-  rewriteReadabilityLabel?: TraceSummary["rewriteReadabilityLabel"];
+  strategyReadabilityLabel?: TraceSummary['strategyReadabilityLabel'];
+  retrievalModeProvenanceSentence?: TraceSummary['retrievalModeProvenanceSentence'];
+  rewriteReadabilityLabel?: TraceSummary['rewriteReadabilityLabel'];
   retrievalMetadata?: AskRetrievalMetadata;
-  timingSummary?: TraceSummary["timingSummary"];
-  timingReadabilitySentence?: TraceSummary["timingReadabilitySentence"];
+  timingSummary?: TraceSummary['timingSummary'];
+  timingReadabilitySentence?: TraceSummary['timingReadabilitySentence'];
   answerAttributionSummary?: TraceAnswerAttributionSummary;
-  answerAttributionReadabilitySentence?: TraceSummary["answerAttributionReadabilitySentence"];
+  answerAttributionReadabilitySentence?: TraceSummary['answerAttributionReadabilitySentence'];
   answerAttribution?: TraceCitationAttribution | null;
   answerAttributionSource?: TraceCitationSelectionSource | null;
   answerEvidenceSource?: TraceCitationSelectionSource | null;
-  answerEvidenceSourceReadabilityLabel?: TraceSummary["answerEvidenceSourceReadabilityLabel"];
-  answerEvidenceSourceReadabilitySentence?: TraceSummary["answerEvidenceSourceReadabilitySentence"];
+  answerEvidenceSourceReadabilityLabel?: TraceSummary['answerEvidenceSourceReadabilityLabel'];
+  answerEvidenceSourceReadabilitySentence?: TraceSummary['answerEvidenceSourceReadabilitySentence'];
   answerTextSource?: TraceAnswerTextSource | null;
-  answerTextSourceReadabilityLabel?: TraceSummary["answerTextSourceReadabilityLabel"];
-  answerTextSourceReadabilitySentence?: TraceSummary["answerTextSourceReadabilitySentence"];
+  answerTextSourceReadabilityLabel?: TraceSummary['answerTextSourceReadabilityLabel'];
+  answerTextSourceReadabilitySentence?: TraceSummary['answerTextSourceReadabilitySentence'];
   answerStatusSource?: TraceAnswerStatusSource | null;
-  answerStatusSourceReadabilityLabel?: TraceSummary["answerStatusSourceReadabilityLabel"];
-  answerStatusSourceReadabilitySentence?: TraceSummary["answerStatusSourceReadabilitySentence"];
-  answerProvenanceSentence?: TraceSummary["answerProvenanceSentence"];
-  answerProvenanceReadabilitySentence?: TraceSummary["answerProvenanceReadabilitySentence"];
-  missingInformationSource?: TraceSummary["missingInformationSource"];
-  missingInformationProvenanceSentence?: TraceSummary["missingInformationProvenanceSentence"];
-  missingInformationSourceReadabilityLabel?: TraceSummary["missingInformationSourceReadabilityLabel"];
+  answerStatusSourceReadabilityLabel?: TraceSummary['answerStatusSourceReadabilityLabel'];
+  answerStatusSourceReadabilitySentence?: TraceSummary['answerStatusSourceReadabilitySentence'];
+  answerProvenanceSentence?: TraceSummary['answerProvenanceSentence'];
+  answerProvenanceReadabilitySentence?: TraceSummary['answerProvenanceReadabilitySentence'];
+  missingInformationSource?: TraceSummary['missingInformationSource'];
+  missingInformationProvenanceSentence?: TraceSummary['missingInformationProvenanceSentence'];
+  missingInformationSourceReadabilityLabel?: TraceSummary['missingInformationSourceReadabilityLabel'];
   answeringMetadata?: AskAnsweringMetadata;
   answerStatus?: TraceAnswerStatus;
   missingInformation?: string[];
@@ -809,25 +855,30 @@ export type AskResponse = {
 
 export type AskStreamFinalData = Pick<
   AskResponse,
-  "conversationId" | "assistantMessageId" | "traceId" | "answer" | "citations" | "modelName"
+  | 'conversationId'
+  | 'assistantMessageId'
+  | 'traceId'
+  | 'answer'
+  | 'citations'
+  | 'modelName'
 > &
   Partial<AskResponse>;
 
 export type AskStreamEvent =
   | {
-      type: "status";
-      phase: "started" | "retrieving" | "generating";
+      type: 'status';
+      phase: 'started' | 'retrieving' | 'generating';
     }
   | {
-      type: "answer_delta";
+      type: 'answer_delta';
       delta: string;
     }
   | {
-      type: "final";
+      type: 'final';
       data: AskStreamFinalData;
     }
   | {
-      type: "error";
+      type: 'error';
       message: string;
       code?: string;
       traceId?: string | null;
@@ -840,7 +891,7 @@ export type Conversation = {
   userId: string;
   assistantId: string;
   title: string;
-  status: "active" | "archived";
+  status: 'active' | 'archived';
   createdAt: string;
   updatedAt: string;
 };
@@ -852,7 +903,7 @@ export type UpdateConversationInput = {
 export type Message = {
   id: string;
   conversationId: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
   traceId: string | null;
   createdAt: string;
@@ -888,7 +939,7 @@ export type TraceRecord = {
   modelName: string | null;
   latencyMs: number | null;
   traceSummary: TraceSummary;
-  status: "success" | "failed";
+  status: 'success' | 'failed';
   errorMessage: string | null;
   createdAt: string;
 };

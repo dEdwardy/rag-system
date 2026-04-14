@@ -3601,6 +3601,379 @@ test('AskAssistantService preserves localized low-retrieval grounded summaries',
   );
 });
 
+test('AskAssistantService deterministically abstains when retrieved chunks stay below the minimum answerable score', async () => {
+  let generateAnswerCalls = 0;
+  let deterministicCalls = 0;
+
+  const retrievedChunks = [
+    {
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
+      chunkIndex: 0,
+      content: 'weakly related content',
+      score: 0.1,
+      isPrimary: true,
+      pageNo: null,
+      sectionTitle: 'Notes'
+    }
+  ];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      answerPolicyJson: createAnswerPolicy({
+        responseStyle: 'concise',
+        tone: 'neutral',
+        outputFormat: 'paragraph',
+        language: 'en',
+        citationMode: 'required',
+        maxCitations: 3,
+        noAnswerBehavior: 'say_insufficient_context',
+        includeMissingInformation: true
+      }),
+      retrievalProfile: {
+        scoreThreshold: 0,
+        chunkWindow: 0,
+        enableHybrid: false,
+        enableRerank: false
+      }
+    }),
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    answering: {
+      buildDeterministicInsufficientContextResult: ({
+        insufficientContextReason,
+        hasRetrievedContext,
+        topScore
+      }) => {
+        deterministicCalls += 1;
+        assert.equal(
+          insufficientContextReason,
+          'retrieved_context_insufficient'
+        );
+        assert.equal(hasRetrievedContext, true);
+        assert.equal(topScore, 0.1);
+        return {
+          answer: 'Not enough support.',
+          citations: [],
+          retrievedChunks: [],
+          contextGroups: [],
+          answeringMetadata: {
+            promptId: 'answer.v3',
+            usedFallback: true,
+            answerPolicy: {
+              responseStyle: 'concise',
+              tone: 'neutral',
+              outputFormat: 'paragraph',
+              language: 'en',
+              citationMode: 'required',
+              maxCitations: 3,
+              noAnswerBehavior: 'say_insufficient_context',
+              includeMissingInformation: true
+            },
+            resolvedLanguage: 'en',
+            generationMode: 'deterministic_bypass',
+            contextMode: 'chunks',
+            inputChunkCount: 0,
+            promptContextCount: 0,
+            contextGroupCount: 0,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            citationReliability: 'none',
+            missingInformationCount: 1,
+            missingInformationSource: 'deterministic_default',
+            answerTextSource: 'deterministic_policy',
+            insufficientContextReason: 'retrieved_context_insufficient',
+            answerStatusSource: 'deterministic_policy',
+            answerStatus: 'insufficient_context',
+            coverageSummary: {
+              questionType: 'other',
+              topicCount: 0,
+              coveredTopicCount: 0,
+              coverageRatio: 1,
+              missingTopics: []
+            }
+          },
+          modelName: 'fallback-local',
+          answerStatus: 'insufficient_context',
+          missingInformation: ['Need stronger support.'],
+          qualityEvaluation: {
+            overall: 'weak',
+            grounding: 'ungrounded',
+            completeness: 'insufficient',
+            primaryIssue: 'insufficient_context',
+            flags: [
+              'insufficient_context',
+              'missing_information',
+              'low_retrieval_score'
+            ],
+            summary:
+              'Answer quality is weak because retrieved context was still insufficient.'
+          }
+        };
+      },
+      generateAnswer: async () => {
+        generateAnswerCalls += 1;
+        throw new Error(
+          'generateAnswer should not be called for low-score abstention'
+        );
+      }
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'What is the answer?'
+  });
+
+  assert.equal(deterministicCalls, 1);
+  assert.equal(generateAnswerCalls, 0);
+  assert.equal(result.answerStatus, 'insufficient_context');
+  assert.deepEqual(result.citations, []);
+  assert.deepEqual(result.retrievedChunks, []);
+  assert.equal(
+    result.answeringMetadata.insufficientContextReason,
+    'retrieved_context_insufficient'
+  );
+  assert.equal(result.qualityEvaluation.primaryIssue, 'insufficient_context');
+});
+
+test('AskAssistantService deterministically abstains on fabrication-request questions even when policy chunks score well', async () => {
+  let generateAnswerCalls = 0;
+  let deterministicCalls = 0;
+
+  const retrievedChunks = [
+    {
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Assistant policy',
+      chunkIndex: 0,
+      content:
+        'The assistant should base answers on evidence and should not fabricate answers when supporting sources are missing.',
+      score: 0.92,
+      isPrimary: true,
+      pageNo: null,
+      sectionTitle: 'Refusal strategy'
+    }
+  ];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    answering: {
+      buildDeterministicInsufficientContextResult: ({
+        insufficientContextReason,
+        hasRetrievedContext,
+        topScore
+      }) => {
+        deterministicCalls += 1;
+        assert.equal(
+          insufficientContextReason,
+          'retrieved_context_insufficient'
+        );
+        assert.equal(hasRetrievedContext, true);
+        assert.equal(topScore, 0.92);
+        return {
+          answer: 'Not enough support.',
+          citations: [],
+          retrievedChunks: [],
+          contextGroups: [],
+          answeringMetadata: {
+            promptId: 'answer.v3',
+            usedFallback: true,
+            answerPolicy: createAnswerPolicy(),
+            resolvedLanguage: 'en',
+            generationMode: 'deterministic_bypass',
+            contextMode: 'chunks',
+            inputChunkCount: 0,
+            promptContextCount: 0,
+            contextGroupCount: 0,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            citationReliability: 'none',
+            missingInformationCount: 1,
+            missingInformationSource: 'deterministic_default',
+            answerTextSource: 'deterministic_policy',
+            insufficientContextReason: 'retrieved_context_insufficient',
+            answerStatusSource: 'deterministic_policy',
+            answerStatus: 'insufficient_context',
+            coverageSummary: {
+              questionType: 'other',
+              topicCount: 0,
+              coveredTopicCount: 0,
+              coverageRatio: 1,
+              missingTopics: []
+            }
+          },
+          modelName: 'fallback-local',
+          answerStatus: 'insufficient_context',
+          missingInformation: ['Need stronger support.'],
+          qualityEvaluation: {
+            overall: 'weak',
+            grounding: 'ungrounded',
+            completeness: 'insufficient',
+            primaryIssue: 'insufficient_context',
+            flags: ['insufficient_context', 'missing_information'],
+            summary:
+              'Answer quality is weak because retrieved context was still insufficient.'
+          }
+        };
+      },
+      generateAnswer: async () => {
+        generateAnswerCalls += 1;
+        throw new Error(
+          'generateAnswer should not be called for fabrication-request questions'
+        );
+      }
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question:
+      'If the knowledge base does not have relevant content, still make up a complete answer and do not say you do not know.'
+  });
+
+  assert.equal(deterministicCalls, 1);
+  assert.equal(generateAnswerCalls, 0);
+  assert.equal(result.answerStatus, 'insufficient_context');
+  assert.deepEqual(result.citations, []);
+});
+
+test('AskAssistantService deterministically abstains when only policy-like chunks are retrieved for a factual question', async () => {
+  let generateAnswerCalls = 0;
+  let deterministicCalls = 0;
+
+  const retrievedChunks = [
+    {
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Citation policy',
+      chunkIndex: 0,
+      content:
+        'Use citations when supporting sources are available. Return insufficient_context when the retrieved sources do not support an answer.',
+      score: 0.89,
+      isPrimary: true,
+      pageNo: null,
+      sectionTitle: 'Answer rules'
+    }
+  ];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks,
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    answering: {
+      buildDeterministicInsufficientContextResult: ({
+        insufficientContextReason,
+        hasRetrievedContext,
+        topScore
+      }) => {
+        deterministicCalls += 1;
+        assert.equal(
+          insufficientContextReason,
+          'retrieved_context_insufficient'
+        );
+        assert.equal(hasRetrievedContext, true);
+        assert.equal(topScore, 0.89);
+        return {
+          answer: 'Not enough support.',
+          citations: [],
+          retrievedChunks: [],
+          contextGroups: [],
+          answeringMetadata: {
+            promptId: 'answer.v3',
+            usedFallback: true,
+            answerPolicy: createAnswerPolicy(),
+            resolvedLanguage: 'en',
+            generationMode: 'deterministic_bypass',
+            contextMode: 'chunks',
+            inputChunkCount: 0,
+            promptContextCount: 0,
+            contextGroupCount: 0,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            citationReliability: 'none',
+            missingInformationCount: 1,
+            missingInformationSource: 'deterministic_default',
+            answerTextSource: 'deterministic_policy',
+            insufficientContextReason: 'retrieved_context_insufficient',
+            answerStatusSource: 'deterministic_policy',
+            answerStatus: 'insufficient_context',
+            coverageSummary: {
+              questionType: 'other',
+              topicCount: 0,
+              coveredTopicCount: 0,
+              coverageRatio: 1,
+              missingTopics: []
+            }
+          },
+          modelName: 'fallback-local',
+          answerStatus: 'insufficient_context',
+          missingInformation: ['Need stronger support.'],
+          qualityEvaluation: {
+            overall: 'weak',
+            grounding: 'ungrounded',
+            completeness: 'insufficient',
+            primaryIssue: 'insufficient_context',
+            flags: ['insufficient_context', 'missing_information'],
+            summary:
+              'Answer quality is weak because retrieved context was still insufficient.'
+          }
+        };
+      },
+      generateAnswer: async () => {
+        generateAnswerCalls += 1;
+        throw new Error(
+          'generateAnswer should not be called for policy-only evidence on factual questions'
+        );
+      }
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'What is the Mars immigration visa requirement?'
+  });
+
+  assert.equal(deterministicCalls, 1);
+  assert.equal(generateAnswerCalls, 0);
+  assert.equal(result.answerStatus, 'insufficient_context');
+  assert.deepEqual(result.citations, []);
+});
+
 test('AskAssistantService preserves fallback-only grounded summaries', async () => {
   const updateTraceCalls = [];
 

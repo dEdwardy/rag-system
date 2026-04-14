@@ -10,157 +10,199 @@ import {
   Table,
   Text,
   Title
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { StatePanel } from "../../components/StatePanel";
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { StatePanel } from '../../components/StatePanel';
 import {
-  useDocuments,
   useDeleteDocument,
+  useKnowledgeBaseDocumentSummary,
   useKnowledgeBases,
+  usePagedDocuments,
   useReindexDocument,
   useUploadDocument,
   useUploadDocuments
-} from "../../features/api/hooks";
-import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
-import { useI18n } from "../../i18n/I18nProvider";
+} from '../../features/api/hooks';
+import { getPrimaryKnowledgeBase } from '../../features/api/workspace-selection';
+import { useI18n } from '../../i18n/I18nProvider';
+
+const DOCUMENTS_PAGE_SIZE = 20;
 
 export function DocumentsPage() {
   const knowledgeBasesQuery = useKnowledgeBases();
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const hasActiveKnowledgeBase = activeKnowledgeBase != null;
-  const documentsQuery = useDocuments(activeKnowledgeBase?.id ?? "", hasActiveKnowledgeBase);
-  const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? "");
-  const uploadBatchMutation = useUploadDocuments(activeKnowledgeBase?.id ?? "");
+  const [page, setPage] = useState(1);
+  const documentsQuery = usePagedDocuments(
+    activeKnowledgeBase?.id ?? '',
+    { page, limit: DOCUMENTS_PAGE_SIZE },
+    hasActiveKnowledgeBase
+  );
+  const documentsSummaryQuery = useKnowledgeBaseDocumentSummary(
+    activeKnowledgeBase?.id ?? '',
+    hasActiveKnowledgeBase
+  );
+  const uploadMutation = useUploadDocument(activeKnowledgeBase?.id ?? '');
+  const uploadBatchMutation = useUploadDocuments(activeKnowledgeBase?.id ?? '');
   const reindexMutation = useReindexDocument();
   const deleteMutation = useDeleteDocument();
   const [isDragging, setIsDragging] = useState(false);
   const { t, locale, formatDateTime } = useI18n();
 
-  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
-  const isDocumentsLoading = documentsQuery.isLoading && !documentsQuery.isError;
-  const { documentCount, readyCount, processingCount, failedCount } = useMemo(
-    () =>
-      documents.reduce(
-        (acc, document) => {
-          acc.documentCount += 1;
-          if (document.status === "ready") {
-            acc.readyCount += 1;
-          } else if (document.status === "pending" || document.status === "processing") {
-            acc.processingCount += 1;
-          } else if (document.status === "failed") {
-            acc.failedCount += 1;
-          }
-          return acc;
-        },
-        {
-          documentCount: 0,
-          readyCount: 0,
-          processingCount: 0,
-          failedCount: 0
-        }
-      ),
-    [documents]
+  const pagedDocuments = documentsQuery.data;
+  const documents = useMemo(
+    () => pagedDocuments?.items ?? [],
+    [pagedDocuments]
   );
+  const isDocumentsLoading =
+    documentsQuery.isLoading && !documentsQuery.isError;
+  const summary = documentsSummaryQuery.data ?? {
+    totalDocuments: 0,
+    readyDocuments: 0,
+    processingDocuments: 0,
+    failedDocuments: 0,
+    totalChunks: 0
+  };
+  const documentCount = summary.totalDocuments;
+  const readyCount = summary.readyDocuments;
+  const processingCount = summary.processingDocuments;
+  const failedCount = summary.failedDocuments;
   const hasProcessingDocuments = processingCount > 0;
+  const totalPages = pagedDocuments?.totalPages ?? 1;
+  const visibleStart =
+    documentCount === 0 ? 0 : (page - 1) * DOCUMENTS_PAGE_SIZE + 1;
+  const visibleEnd =
+    documentCount === 0
+      ? 0
+      : Math.min(page * DOCUMENTS_PAGE_SIZE, documentCount);
   const firstFailedDocument = useMemo(
-    () => documents.find(document => document.status === "failed") ?? null,
+    () => documents.find((document) => document.status === 'failed') ?? null,
     [documents]
   );
   const firstProcessingDocument = useMemo(
-    () => documents.find(document => document.status === "pending" || document.status === "processing") ?? null,
+    () =>
+      documents.find(
+        (document) =>
+          document.status === 'pending' || document.status === 'processing'
+      ) ?? null,
     [documents]
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeKnowledgeBase?.id]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   const workspaceSurfaceState = useMemo(() => {
     if (!hasActiveKnowledgeBase) {
       return {
-        badgeColor: "gray",
-        badgeLabel: t("documents.workspaceStatusNoActiveKnowledgeBase"),
-        nextAction: t("documents.workspaceNextActionNoActiveKnowledgeBase"),
-        nextActionHref: "/knowledge-base",
-        nextActionLabel: t("documents.workspaceNextActionLinkNoActiveKnowledgeBase")
+        badgeColor: 'gray',
+        badgeLabel: t('documents.workspaceStatusNoActiveKnowledgeBase'),
+        nextAction: t('documents.workspaceNextActionNoActiveKnowledgeBase'),
+        nextActionHref: '/knowledge-base',
+        nextActionLabel: t(
+          'documents.workspaceNextActionLinkNoActiveKnowledgeBase'
+        )
       } as const;
     }
 
     if (failedCount > 0) {
       return {
-        badgeColor: "red",
-        badgeLabel: t("documents.workspaceStatusNeedsAttention"),
-        nextAction: t("documents.workspaceNextActionNeedsAttention"),
-        nextActionHref: firstFailedDocument ? `/documents/${firstFailedDocument.id}` : "/documents",
-        nextActionLabel: t("documents.workspaceNextActionLinkNeedsAttention")
+        badgeColor: 'red',
+        badgeLabel: t('documents.workspaceStatusNeedsAttention'),
+        nextAction: t('documents.workspaceNextActionNeedsAttention'),
+        nextActionHref: firstFailedDocument
+          ? `/documents/${firstFailedDocument.id}`
+          : '/documents',
+        nextActionLabel: t('documents.workspaceNextActionLinkNeedsAttention')
       } as const;
     }
 
     if (hasProcessingDocuments) {
       return {
-        badgeColor: "yellow",
-        badgeLabel: t("documents.workspaceStatusProcessing"),
-        nextAction: t("documents.workspaceNextActionProcessing"),
-        nextActionHref: firstProcessingDocument ? `/documents/${firstProcessingDocument.id}` : "/documents",
-        nextActionLabel: t("documents.workspaceNextActionLinkProcessing")
+        badgeColor: 'yellow',
+        badgeLabel: t('documents.workspaceStatusProcessing'),
+        nextAction: t('documents.workspaceNextActionProcessing'),
+        nextActionHref: firstProcessingDocument
+          ? `/documents/${firstProcessingDocument.id}`
+          : '/documents',
+        nextActionLabel: t('documents.workspaceNextActionLinkProcessing')
       } as const;
     }
 
     return {
-      badgeColor: "indigo",
-      badgeLabel: t("documents.workspaceStatusReady"),
-      nextAction: t("documents.workspaceNextActionReady"),
-      nextActionHref: "/",
-      nextActionLabel: t("documents.workspaceNextActionLinkReady")
+      badgeColor: 'indigo',
+      badgeLabel: t('documents.workspaceStatusReady'),
+      nextAction: t('documents.workspaceNextActionReady'),
+      nextActionHref: '/',
+      nextActionLabel: t('documents.workspaceNextActionLinkReady')
     } as const;
-  }, [failedCount, firstFailedDocument, firstProcessingDocument, hasActiveKnowledgeBase, hasProcessingDocuments, t]);
+  }, [
+    failedCount,
+    firstFailedDocument,
+    firstProcessingDocument,
+    hasActiveKnowledgeBase,
+    hasProcessingDocuments,
+    t
+  ]);
 
   const noActiveKnowledgeBaseStatePanel = (
     <StatePanel
       action={
-        <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/knowledge-base" variant="light">
-          {t("documents.noActiveKnowledgeBaseAction")}
+        <Button
+          className="workspace-button"
+          color="indigo"
+          component={Link}
+          radius="xl"
+          to="/knowledge-base"
+          variant="light"
+        >
+          {t('documents.noActiveKnowledgeBaseAction')}
         </Button>
       }
-      description={t("documents.noActiveKnowledgeBaseDescription")}
-      title={t("documents.noActiveKnowledgeBaseTitle")}
+      description={t('documents.noActiveKnowledgeBaseDescription')}
+      title={t('documents.noActiveKnowledgeBaseTitle')}
     />
   );
 
   const metricCards = useMemo(
     () => [
       {
-        key: "total",
-        label: locale === "zh" ? "资料总数" : "Total items",
+        key: 'total',
+        label: locale === 'zh' ? '资料总数' : 'Total items',
         value: documentCount,
         subtle:
-          locale === "zh"
-            ? "当前资料库中的全部资料"
-            : "All library items in the current workspace library"
+          locale === 'zh'
+            ? '当前资料库中的全部资料项'
+            : 'All library items in the current workspace library'
       },
       {
-        key: "ready",
-        label: locale === "zh" ? "可检索" : "Ready",
+        key: 'ready',
+        label: locale === 'zh' ? '可检索' : 'Ready',
         value: readyCount,
-        subtle:
-          locale === "zh"
-            ? "已经可以用于提问"
-            : "Ready to use in chat"
+        subtle: locale === 'zh' ? '已经可以用于对话' : 'Ready to use in chat'
       },
       {
-        key: "processing",
-        label: locale === "zh" ? "处理中" : "Processing",
+        key: 'processing',
+        label: locale === 'zh' ? '处理中' : 'Processing',
         value: processingCount,
         subtle:
-          locale === "zh"
-            ? "正在导入或更新中"
-            : "Being added or refreshed"
+          locale === 'zh' ? '正在导入或更新中' : 'Being added or refreshed'
       },
       {
-        key: "failed",
-        label: locale === "zh" ? "需要关注" : "Needs attention",
+        key: 'failed',
+        label: locale === 'zh' ? '需要关注' : 'Needs attention',
         value: failedCount,
         subtle:
-          locale === "zh"
-            ? "有资料需要重试或清理"
-            : "Some items need retry or cleanup"
+          locale === 'zh'
+            ? '有资料项需要重试或清理'
+            : 'Some items need retry or cleanup'
       }
     ],
     [documentCount, failedCount, locale, processingCount, readyCount]
@@ -168,30 +210,37 @@ export function DocumentsPage() {
 
   const handleUploadFiles = useCallback(
     (files: File[] | FileList | null) => {
-      if (!files || (Array.isArray(files) ? files.length === 0 : files.length === 0) || !activeKnowledgeBase) {
+      if (
+        !files ||
+        (Array.isArray(files) ? files.length === 0 : files.length === 0) ||
+        !activeKnowledgeBase
+      ) {
         return;
       }
 
       const fileArray = Array.isArray(files) ? files : Array.from(files);
-
-      // 立即显示开始上传的通知
       notifications.show({
-        color: "blue",
-        message: t("documents.uploadBatchStart", { count: fileArray.length })
+        color: 'blue',
+        message: t('documents.uploadBatchStart', { count: fileArray.length })
       });
 
-      // 后台执行上传，不等待完成
       uploadBatchMutation.mutate(fileArray, {
         onSuccess: () => {
           notifications.show({
-            color: "indigo",
-            message: t("documents.uploadBatchSuccess", { count: fileArray.length })
+            color: 'indigo',
+            message: t('documents.uploadBatchSuccess', {
+              count: fileArray.length
+            })
           });
+          setPage(1);
         },
         onError: (error) => {
           notifications.show({
-            color: "red",
-            message: error instanceof Error ? error.message : t("documents.uploadBatchError")
+            color: 'red',
+            message:
+              error instanceof Error
+                ? error.message
+                : t('documents.uploadBatchError')
           });
         }
       });
@@ -226,13 +275,14 @@ export function DocumentsPage() {
           knowledgeBaseId
         });
         notifications.show({
-          color: "indigo",
-          message: t("documents.reindexRequested", { title })
+          color: 'indigo',
+          message: t('documents.reindexRequested', { title })
         });
       } catch (error) {
         notifications.show({
-          color: "red",
-          message: error instanceof Error ? error.message : t("documents.reindexError")
+          color: 'red',
+          message:
+            error instanceof Error ? error.message : t('documents.reindexError')
         });
       }
     },
@@ -242,7 +292,9 @@ export function DocumentsPage() {
   const handleDeleteDocument = useCallback(
     async (documentId: string, title: string) => {
       const confirmed = window.confirm(
-        locale === "zh" ? `确认删除资料“${title}”吗？` : `Delete document "${title}"?`
+        locale === 'zh'
+          ? `确认删除资料“${title}”吗？`
+          : `Delete document "${title}"?`
       );
 
       if (!confirmed) {
@@ -252,13 +304,21 @@ export function DocumentsPage() {
       try {
         await deleteMutation.mutateAsync({ documentId });
         notifications.show({
-          color: "indigo",
-          message: locale === "zh" ? `已删除资料：${title}` : `Deleted document: ${title}`
+          color: 'indigo',
+          message:
+            locale === 'zh'
+              ? `已删除资料：${title}`
+              : `Deleted document: ${title}`
         });
       } catch (error) {
         notifications.show({
-          color: "red",
-          message: error instanceof Error ? error.message : locale === "zh" ? "删除资料失败" : "Failed to delete document"
+          color: 'red',
+          message:
+            error instanceof Error
+              ? error.message
+              : locale === 'zh'
+                ? '删除资料失败'
+                : 'Failed to delete document'
         });
       }
     },
@@ -273,21 +333,25 @@ export function DocumentsPage() {
             <Box className="workspace-hero-icon">DOC</Box>
             <div className="workspace-hero-copy">
               <Text className="workspace-hero-kicker">
-                {locale === "zh" ? "资料库" : "Library"}
+                {locale === 'zh' ? '资料库' : 'Library'}
               </Text>
               <Title
                 order={3}
                 c="var(--app-text)"
-                style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+                style={{
+                  fontFamily: 'var(--app-font-display)',
+                  letterSpacing: '-0.03em'
+                }}
               >
-                {t("documents.title")}
+                {t('documents.title')}
               </Title>
               <Text c="var(--app-text-muted)" mt={4} size="sm">
-                {t("documents.subtitle")}
+                {t('documents.subtitle')}
               </Text>
               <Group gap="xs" mt="sm">
                 <Badge color="gray" radius="sm" variant="light">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}
+                  {activeKnowledgeBase?.name ??
+                    (locale === 'zh' ? '尚无活动资料库' : 'No active library')}
                 </Badge>
                 <Badge
                   color={workspaceSurfaceState.badgeColor}
@@ -303,16 +367,16 @@ export function DocumentsPage() {
           <Stack align="flex-end" gap={10}>
             <Text className="workspace-hero-sidecopy" ta="right">
               {activeKnowledgeBase
-                ? t("documents.currentKnowledgeBaseHintHasKb")
-                : t("documents.currentKnowledgeBaseHintNoKb")}
+                ? t('documents.currentKnowledgeBaseHintHasKb')
+                : t('documents.currentKnowledgeBaseHintNoKb')}
             </Text>
             <Badge color="gray" radius="sm" variant="light">
-              {`${t("documents.currentKnowledgeBaseLabel")}: ${activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}`}
+              {`${t('documents.currentKnowledgeBaseLabel')}: ${activeKnowledgeBase?.name ?? (locale === 'zh' ? '尚无活动资料库' : 'No active library')}`}
             </Badge>
             <Box
               style={{
-                position: "relative",
-                width: "100%",
+                position: 'relative',
+                width: '100%',
                 maxWidth: 300
               }}
             >
@@ -321,40 +385,44 @@ export function DocumentsPage() {
                 radius="xl"
                 style={{
                   border: isDragging
-                    ? "2px dashed var(--mantine-color-indigo-5)"
-                    : "2px dashed var(--app-border)",
+                    ? '2px dashed var(--mantine-color-indigo-5)'
+                    : '2px dashed var(--app-border)',
                   backgroundColor: isDragging
-                    ? "rgba(99, 102, 241, 0.1)"
-                    : "transparent",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  transition: "all 0.2s ease"
+                    ? 'rgba(99, 102, 241, 0.1)'
+                    : 'transparent',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease'
                 }}
-                onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
                 onDrop={handleDrop}
               >
-                <FileButton
-                  multiple
-                  onChange={handleUploadFiles}
-                >
-                  {props => (
+                <FileButton multiple onChange={handleUploadFiles}>
+                  {(props) => (
                     <Button
                       {...props}
                       className="workspace-button"
                       color="indigo"
                       disabled={!hasActiveKnowledgeBase}
-                      loading={uploadMutation.isPending || uploadBatchMutation.isPending}
-                      radius="xl"
                       fullWidth
+                      loading={
+                        uploadMutation.isPending ||
+                        uploadBatchMutation.isPending
+                      }
+                      radius="xl"
                       variant="light"
                     >
-                      {locale === "zh" ? "选择或拖拽文件" : "Select or drag files"}
+                      {locale === 'zh'
+                        ? '选择或拖拽文件'
+                        : 'Select or drag files'}
                     </Button>
                   )}
                 </FileButton>
                 <Text size="sm" c="var(--app-text-muted)" mt="sm">
-                  {locale === "zh" ? "支持多文件上传" : "Supports multiple files"}
+                  {locale === 'zh'
+                    ? '支持多文件上传'
+                    : 'Supports multiple files'}
                 </Text>
               </Paper>
             </Box>
@@ -364,55 +432,100 @@ export function DocumentsPage() {
 
       {knowledgeBasesQuery.isError ? (
         <StatePanel
-          description={knowledgeBasesQuery.error instanceof Error ? knowledgeBasesQuery.error.message : undefined}
-          title={t("documents.loadKbError")}
+          description={
+            knowledgeBasesQuery.error instanceof Error
+              ? knowledgeBasesQuery.error.message
+              : undefined
+          }
+          title={t('documents.loadKbError')}
           tone="error"
         />
       ) : null}
       {documentsQuery.isError ? (
         <StatePanel
-          description={documentsQuery.error instanceof Error ? documentsQuery.error.message : undefined}
-          title={t("documents.loadDocumentsError")}
+          description={
+            documentsQuery.error instanceof Error
+              ? documentsQuery.error.message
+              : undefined
+          }
+          title={t('documents.loadDocumentsError')}
+          tone="error"
+        />
+      ) : null}
+      {documentsSummaryQuery.isError ? (
+        <StatePanel
+          description={
+            documentsSummaryQuery.error instanceof Error
+              ? documentsSummaryQuery.error.message
+              : undefined
+          }
+          title={t('documents.loadDocumentsError')}
           tone="error"
         />
       ) : null}
       {uploadMutation.isError ? (
         <Alert color="red" radius="xl" variant="light">
-          {uploadMutation.error instanceof Error ? uploadMutation.error.message : t("documents.uploadError")}
+          {uploadMutation.error instanceof Error
+            ? uploadMutation.error.message
+            : t('documents.uploadError')}
         </Alert>
       ) : null}
       {uploadBatchMutation.isError ? (
         <Alert color="red" radius="xl" variant="light">
-          {uploadBatchMutation.error instanceof Error ? uploadBatchMutation.error.message : t("documents.uploadBatchError")}
+          {uploadBatchMutation.error instanceof Error
+            ? uploadBatchMutation.error.message
+            : t('documents.uploadBatchError')}
         </Alert>
       ) : null}
       {hasProcessingDocuments ? (
         <Alert color="yellow" radius="xl" variant="light">
-          {t("documents.processingBanner")}
+          {t('documents.processingBanner')}
         </Alert>
       ) : null}
-      {hasActiveKnowledgeBase && readyCount > 0 && !hasProcessingDocuments && failedCount === 0 ? (
-        <Alert color="teal" radius="xl" variant="light">
-          <Group align="flex-start" justify="space-between" wrap="wrap">
-            <div>
+      {hasActiveKnowledgeBase &&
+      readyCount > 0 &&
+      !hasProcessingDocuments &&
+      failedCount === 0 ? (
+        <Paper
+          className="workspace-feedback-banner workspace-feedback-banner-teal"
+          p="md"
+          radius="xl"
+        >
+          <div className="workspace-feedback-alert__content">
+            <div className="workspace-feedback-alert__copy">
               <Text c="var(--app-text)" fw={700} size="sm">
-                {t("documents.readyBannerTitle")}
+                {t('documents.readyBannerTitle')}
               </Text>
               <Text c="var(--app-text-muted)" mt={4} size="sm">
-                {t("documents.readyBannerDescription", { count: readyCount })}
+                {t('documents.readyBannerDescription', { count: readyCount })}
               </Text>
             </div>
-            <Button className="workspace-button" color="teal" component={Link} radius="xl" size="xs" to="/" variant="light">
-              {t("documents.workspaceNextActionLinkReady")}
-            </Button>
-          </Group>
-        </Alert>
+            <div className="workspace-feedback-alert__action">
+              <Button
+                className="workspace-button"
+                color="teal"
+                component={Link}
+                radius="xl"
+                size="xs"
+                to="/"
+                variant="light"
+              >
+                {t('documents.workspaceNextActionLinkReady')}
+              </Button>
+            </div>
+          </div>
+        </Paper>
       ) : null}
 
       <div className="workspace-split-summary">
         <div className="workspace-metric-grid">
-          {metricCards.map(metric => (
-            <Paper className="workspace-metric-card workspace-metric-card-compact" key={metric.key} p="lg" radius="xl">
+          {metricCards.map((metric) => (
+            <Paper
+              className="workspace-metric-card workspace-metric-card-compact"
+              key={metric.key}
+              p="lg"
+              radius="xl"
+            >
               <Text className="workspace-metric-label">{metric.label}</Text>
               <Text className="workspace-metric-value">{metric.value}</Text>
               <Text className="workspace-metric-subtle">{metric.subtle}</Text>
@@ -424,24 +537,39 @@ export function DocumentsPage() {
           <Stack gap="md">
             <div>
               <Text className="workspace-section-heading">
-                {locale === "zh" ? "当前资料概览" : "Library snapshot"}
+                {locale === 'zh' ? '当前资料概览' : 'Library snapshot'}
               </Text>
               <Text className="workspace-section-copy">
-                {locale === "zh"
-                  ? "这一页主要用来管理资料。先看可用数量、处理中项目和需要处理的失败项。"
-                  : "This page stays focused on library management. Start with readiness, items in progress, and anything that needs attention."}
+                {locale === 'zh'
+                  ? '这一页主要用于管理资料。统计区看全库，列表区只加载当前分页，避免文档变多后仍然全量刷新。'
+                  : 'This page stays focused on library management. Summary cards cover the whole library while the list only loads the current page.'}
               </Text>
             </div>
             <div className="workspace-meta-list">
               <div className="workspace-meta-row">
-                <span className="workspace-meta-label">{locale === "zh" ? "当前资料空间" : "Current library"}</span>
+                <span className="workspace-meta-label">
+                  {locale === 'zh' ? '当前资料库' : 'Current library'}
+                </span>
                 <span className="workspace-meta-value">
-                  {activeKnowledgeBase?.name ?? (locale === "zh" ? "尚无活动资料空间" : "No active library")}
+                  {activeKnowledgeBase?.name ??
+                    (locale === 'zh' ? '尚无活动资料库' : 'No active library')}
                 </span>
               </div>
               <div className="workspace-meta-row">
-                <span className="workspace-meta-label">{locale === "zh" ? "下一步" : "Next action"}</span>
-                <span className="workspace-meta-value">{workspaceSurfaceState.nextAction}</span>
+                <span className="workspace-meta-label">
+                  {locale === 'zh' ? '资料分块' : 'Chunks'}
+                </span>
+                <span className="workspace-meta-value">
+                  {summary.totalChunks}
+                </span>
+              </div>
+              <div className="workspace-meta-row">
+                <span className="workspace-meta-label">
+                  {locale === 'zh' ? '下一步' : 'Next action'}
+                </span>
+                <span className="workspace-meta-value">
+                  {workspaceSurfaceState.nextAction}
+                </span>
               </div>
             </div>
             <Button
@@ -459,17 +587,21 @@ export function DocumentsPage() {
         </Paper>
       </div>
 
-      <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+      <Paper
+        className="workspace-panel-hover workspace-panel-strong"
+        p="lg"
+        radius="xl"
+      >
         <Stack gap="md">
           <Group justify="space-between" wrap="nowrap">
             <div>
               <Text className="workspace-section-heading">
-                {locale === "zh" ? "资料列表" : "Library items"}
+                {locale === 'zh' ? '资料列表' : 'Library items'}
               </Text>
               <Text className="workspace-section-copy">
-                {locale === "zh"
-                  ? "当前仅保留文件上传入口；上传后再查看每份资料的状态、更新时间，以及是否已经可以用于问答。"
-                  : "Only file upload is available for now. After upload, review each item’s status, update time, and readiness for chat."}
+                {locale === 'zh'
+                  ? '当前列表按页加载，先看状态、分块数和更新时间；如果某份资料异常，再进入详情继续排查。'
+                  : 'The list now loads one page at a time. Scan status, chunk count, and update time first, then open details only when something looks off.'}
               </Text>
             </div>
             {documentCount ? (
@@ -482,9 +614,18 @@ export function DocumentsPage() {
           {!hasActiveKnowledgeBase ? (
             noActiveKnowledgeBaseStatePanel
           ) : isDocumentsLoading ? (
-            <div aria-live="polite" className="workspace-loading-grid" role="status">
+            <div
+              aria-live="polite"
+              className="workspace-loading-grid"
+              role="status"
+            >
               {Array.from({ length: 3 }).map((_, index) => (
-                <Paper className="workspace-panel-hover workspace-skeleton-panel" key={index} p="lg" radius="xl">
+                <Paper
+                  className="workspace-panel-hover workspace-skeleton-panel"
+                  key={index}
+                  p="lg"
+                  radius="xl"
+                >
                   <Stack gap="md">
                     <div className="workspace-skeleton-line short" />
                     <div className="workspace-skeleton-line long" />
@@ -493,29 +634,41 @@ export function DocumentsPage() {
                   </Stack>
                 </Paper>
               ))}
-              <span className="sr-only">{t("documents.loadingTitle")}</span>
+              <span className="sr-only">{t('documents.loadingTitle')}</span>
             </div>
           ) : documents.length ? (
             <div className="workspace-table-shell">
               <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3">
-                <Text className="workspace-table-hint">
-                  {locale === "zh"
-                    ? "先看状态、片段数和更新时间；如果某份资料异常，再进入详情继续排查。"
-                    : "Scan status, chunk count, and update time first, then open item details only when something looks off."}
-                </Text>
-                <Badge color={failedCount > 0 ? "red" : hasProcessingDocuments ? "yellow" : "indigo"} radius="sm" variant="light">
-                  {failedCount > 0
-                    ? locale === "zh"
-                      ? `${failedCount} 个待处理`
-                      : `${failedCount} need review`
-                    : hasProcessingDocuments
-                      ? locale === "zh"
-                        ? `${processingCount} 个处理中`
-                        : `${processingCount} processing`
-                      : locale === "zh"
-                        ? "列表已就绪"
-                        : "List ready"}
-                </Badge>
+                <Group align="center" justify="space-between" wrap="wrap">
+                  <Text className="workspace-table-hint">
+                    {locale === 'zh'
+                      ? `当前显示第 ${visibleStart}-${visibleEnd} 条，共 ${documentCount} 条。`
+                      : `Showing ${visibleStart}-${visibleEnd} of ${documentCount} items.`}
+                  </Text>
+                  <Badge
+                    color={
+                      failedCount > 0
+                        ? 'red'
+                        : hasProcessingDocuments
+                          ? 'yellow'
+                          : 'indigo'
+                    }
+                    radius="sm"
+                    variant="light"
+                  >
+                    {failedCount > 0
+                      ? locale === 'zh'
+                        ? `${failedCount} 个待处理`
+                        : `${failedCount} need review`
+                      : hasProcessingDocuments
+                        ? locale === 'zh'
+                          ? `${processingCount} 个处理中`
+                          : `${processingCount} processing`
+                        : locale === 'zh'
+                          ? '列表已就绪'
+                          : 'List ready'}
+                  </Badge>
+                </Group>
               </div>
               <Table.ScrollContainer minWidth={760}>
                 <Table
@@ -524,50 +677,59 @@ export function DocumentsPage() {
                   striped="odd"
                   styles={{
                     table: {
-                      color: "var(--app-text)"
+                      color: 'var(--app-text)'
                     },
                     thead: {
-                      background: "rgba(255,255,255,0.03)"
+                      background: 'rgba(255,255,255,0.03)'
                     },
                     tr: {
-                      borderColor: "var(--app-border)"
+                      borderColor: 'var(--app-border)'
                     },
                     th: {
-                      color: "var(--app-text-secondary)",
+                      color: 'var(--app-text-secondary)',
                       fontWeight: 700,
-                      textTransform: "uppercase",
+                      textTransform: 'uppercase',
                       fontSize: 12,
-                      letterSpacing: "0.04em"
+                      letterSpacing: '0.04em'
                     },
                     td: {
-                      color: "var(--app-text)"
+                      color: 'var(--app-text)'
                     }
                   }}
                 >
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>{t("common.fields.title")}</Table.Th>
-                      <Table.Th>{t("common.fields.status")}</Table.Th>
-                      <Table.Th>{t("common.fields.stage")}</Table.Th>
-                      <Table.Th>{t("common.fields.chunks")}</Table.Th>
-                      <Table.Th>{t("common.fields.updated")}</Table.Th>
-                      <Table.Th>{t("common.fields.details")}</Table.Th>
+                      <Table.Th>{t('common.fields.title')}</Table.Th>
+                      <Table.Th>{t('common.fields.status')}</Table.Th>
+                      <Table.Th>{t('common.fields.stage')}</Table.Th>
+                      <Table.Th>{t('common.fields.chunks')}</Table.Th>
+                      <Table.Th>{t('common.fields.updated')}</Table.Th>
+                      <Table.Th>{t('common.fields.details')}</Table.Th>
                       <Table.Th />
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {documents.map(document => (
-                       <Table.Tr key={document.id}>
+                    {documents.map((document) => (
+                      <Table.Tr key={document.id}>
                         <Table.Td>
                           <Stack className="workspace-table-cell-title" gap={2}>
-                            <Text className="workspace-table-cell-title-main" lineClamp={2}>
+                            <Text
+                              className="workspace-table-cell-title-main"
+                              lineClamp={2}
+                            >
                               {document.title}
                             </Text>
-                            <Text className="workspace-table-cell-meta" lineClamp={1}>
+                            <Text
+                              className="workspace-table-cell-meta"
+                              lineClamp={1}
+                            >
                               {document.sourceType} · {document.sourceName}
                             </Text>
                             {document.errorMessage ? (
-                              <Text className="workspace-table-cell-copy" lineClamp={2}>
+                              <Text
+                                className="workspace-table-cell-copy"
+                                lineClamp={2}
+                              >
                                 {document.errorMessage}
                               </Text>
                             ) : null}
@@ -577,11 +739,11 @@ export function DocumentsPage() {
                           <div className="workspace-table-badge-stack">
                             <Badge
                               color={
-                                document.status === "ready"
-                                  ? "indigo"
-                                  : document.status === "failed"
-                                    ? "red"
-                                    : "yellow"
+                                document.status === 'ready'
+                                  ? 'indigo'
+                                  : document.status === 'failed'
+                                    ? 'red'
+                                    : 'yellow'
                               }
                               variant="light"
                             >
@@ -594,11 +756,17 @@ export function DocumentsPage() {
                         </Table.Td>
                         <Table.Td>
                           <Text className="workspace-table-cell-copy">
-                            {t(`common.processingStage.${document.processingStage}`)}
+                            {t(
+                              `common.processingStage.${document.processingStage}`
+                            )}
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <Text className="workspace-table-number" fw={600} size="sm">
+                          <Text
+                            className="workspace-table-number"
+                            fw={600}
+                            size="sm"
+                          >
                             {document.chunkCount}
                           </Text>
                         </Table.Td>
@@ -607,7 +775,10 @@ export function DocumentsPage() {
                             <Text className="workspace-table-cell-copy workspace-table-number">
                               {formatDateTime(document.updatedAt)}
                             </Text>
-                            <Text className="workspace-table-cell-meta" lineClamp={1}>
+                            <Text
+                              className="workspace-table-cell-meta"
+                              lineClamp={1}
+                            >
                               ID: {document.id}
                             </Text>
                           </Stack>
@@ -622,49 +793,104 @@ export function DocumentsPage() {
                             to={`/documents/${document.id}`}
                             variant="light"
                           >
-                            {t("common.actions.viewDetails")}
+                            {t('common.actions.viewDetails')}
                           </Button>
                         </Table.Td>
-                         <Table.Td className="workspace-table-action">
-                           <Group gap="xs" justify="flex-end" wrap="nowrap">
-                             <Button
-                               className="workspace-button"
-                               color="indigo"
-                               loading={reindexMutation.isPending}
-                               onClick={async () => {
-                                 await handleReindexDocument(document.id, document.kbId, document.title);
-                               }}
-                               radius="xl"
-                               size="xs"
-                               variant="light"
-                             >
-                               {t("common.actions.reindex")}
-                             </Button>
-                             <Button
-                               className="workspace-button"
-                               color="red"
-                               loading={deleteMutation.isPending}
-                               onClick={async () => {
-                                 await handleDeleteDocument(document.id, document.title);
-                               }}
-                               radius="xl"
-                               size="xs"
-                               variant="light"
-                             >
-                               {t("common.actions.delete")}
-                             </Button>
-                           </Group>
-                         </Table.Td>
-                       </Table.Tr>
+                        <Table.Td className="workspace-table-action">
+                          <Group gap="xs" justify="flex-end" wrap="nowrap">
+                            <Button
+                              className="workspace-button"
+                              color="indigo"
+                              loading={reindexMutation.isPending}
+                              onClick={async () => {
+                                await handleReindexDocument(
+                                  document.id,
+                                  document.kbId,
+                                  document.title
+                                );
+                              }}
+                              radius="xl"
+                              size="xs"
+                              variant="light"
+                            >
+                              {t('common.actions.reindex')}
+                            </Button>
+                            <Button
+                              className="workspace-button"
+                              color="red"
+                              loading={deleteMutation.isPending}
+                              onClick={async () => {
+                                await handleDeleteDocument(
+                                  document.id,
+                                  document.title
+                                );
+                              }}
+                              radius="xl"
+                              size="xs"
+                              variant="light"
+                            >
+                              {t('common.actions.delete')}
+                            </Button>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
                     ))}
                   </Table.Tbody>
                 </Table>
               </Table.ScrollContainer>
+              {totalPages > 1 ? (
+                <Paper
+                  className="workspace-panel-muted"
+                  mt="md"
+                  p="lg"
+                  radius="xl"
+                >
+                  <Stack gap="sm">
+                    <Group align="center" justify="space-between" wrap="wrap">
+                      <Text c="var(--app-text-muted)" size="sm">
+                        {locale === 'zh'
+                          ? `第 ${page} / ${totalPages} 页`
+                          : `Page ${page} of ${totalPages}`}
+                      </Text>
+                      <Group gap="xs" wrap="wrap">
+                        <Button
+                          className="workspace-button"
+                          color="gray"
+                          disabled={page <= 1}
+                          onClick={() =>
+                            setPage((current) => Math.max(1, current - 1))
+                          }
+                          radius="xl"
+                          size="xs"
+                          variant="light"
+                        >
+                          {locale === 'zh' ? '上一页' : 'Previous'}
+                        </Button>
+                        <Button
+                          className="workspace-button"
+                          color="gray"
+                          disabled={page >= totalPages}
+                          onClick={() =>
+                            setPage((current) =>
+                              Math.min(totalPages, current + 1)
+                            )
+                          }
+                          radius="xl"
+                          size="xs"
+                          variant="light"
+                        >
+                          {locale === 'zh' ? '下一页' : 'Next'}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </Stack>
+                </Paper>
+              ) : null}
             </div>
           ) : (
             <StatePanel
-              description={t("documents.emptyDescription")}
-              title={t("documents.emptyTitle")}
+              description={t('documents.emptyDescription')}
+              title={t('documents.emptyTitle')}
             />
           )}
         </Stack>
