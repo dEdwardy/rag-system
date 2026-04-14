@@ -47,6 +47,7 @@ const ChatWorkspacePanels = lazy(async () => {
 
 const NEW_CHAT_CONVERSATION_ID = '__new_chat__';
 const CHAT_HISTORY_PANEL_LIMIT = 12;
+const CHAT_HISTORY_API_LIMIT_MAX = 100;
 
 type ActiveStreamTurn = {
   conversationId: string | null;
@@ -1198,7 +1199,8 @@ export function ChatPage() {
             setChatHistoryVisibleCount((current) =>
               Math.min(
                 current + CHAT_HISTORY_PANEL_LIMIT,
-                totalConversationCount || current + CHAT_HISTORY_PANEL_LIMIT
+                totalConversationCount || current + CHAT_HISTORY_PANEL_LIMIT,
+                CHAT_HISTORY_API_LIMIT_MAX
               )
             );
           }}

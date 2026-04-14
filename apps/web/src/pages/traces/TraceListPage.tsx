@@ -340,7 +340,7 @@ export function TraceListPage() {
           title={t('trace.copy.conversationsError')}
           tone="error"
         />
-      ) : deferredConversations.length ? (
+      ) : conversationCount > 0 ? (
         <div className="workspace-trace-list">
           {latestTracesQuery.isLoading ? (
             <Paper className="workspace-panel-muted" mb="md" p="lg" radius="xl">
@@ -357,13 +357,13 @@ export function TraceListPage() {
           ) : null}
           <div
             className={
-              deferredConversations.length === 1
+              pagedConversations.length === 1
                 ? 'workspace-list-shell-compact'
                 : undefined
             }
           >
             <SimpleGrid
-              cols={{ base: 1, lg: deferredConversations.length > 1 ? 2 : 1 }}
+              cols={{ base: 1, lg: pagedConversations.length > 1 ? 2 : 1 }}
               spacing="md"
             >
               {traceCards.map(({ conversation, latestTrace }) => (
