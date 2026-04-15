@@ -31,7 +31,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "pnpm exec prisma generate",
     "prisma:migrate": "pnpm exec prisma migrate dev",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "repair:upload-filenames": "node scripts/repair-upload-filenames.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

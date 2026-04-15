@@ -261,3 +261,32 @@ test('apiRequest records an expired-session notice when refresh token is invalid
     global.window = originalWindow;
   }
 });
+
+test('apiRequest treats dev proxy startup 500 as backend unavailable', async () => {
+  const { apiRequest, isApiUnavailableError } = await loadFreshApiModule();
+  const originalFetch = global.fetch;
+
+  global.fetch = async () =>
+    new Response(
+      'Error occurred while trying to proxy: localhost:5173/auth/me',
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8'
+        }
+      }
+    );
+
+  try {
+    await assert.rejects(
+      () => apiRequest('/auth/me'),
+      (error) =>
+        error instanceof Error &&
+        error.message ===
+          'Cannot reach the API service. Start the backend and refresh the page.' &&
+        isApiUnavailableError(error)
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

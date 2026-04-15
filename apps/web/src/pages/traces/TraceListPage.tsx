@@ -10,13 +10,16 @@ import {
   Stack,
   Text,
   Title
-} from "@mantine/core";
-import { useDeferredValue, useMemo } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { StatePanel } from "../../components/StatePanel";
-import { useConversations, useLatestConversationTraces } from "../../features/api/hooks";
-import { useI18n } from "../../i18n/I18nProvider";
-import type { TraceRecord } from "../../types/api";
+} from '@mantine/core';
+import { useDeferredValue, useMemo } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { StatePanel } from '../../components/StatePanel';
+import {
+  useLatestConversationTraces,
+  usePagedConversations
+} from '../../features/api/hooks';
+import { useI18n } from '../../i18n/I18nProvider';
+import type { TraceRecord } from '../../types/api';
 
 const TRACE_PAGE_SIZE = 12;
 
@@ -49,32 +52,48 @@ function TraceConversationCard({
   const { formatDateTime, locale, t } = useI18n();
   const traceSummary = latestTrace.traceSummary;
   const timing = traceSummary.timingSummary;
-  const rewriteAppliedLabel = locale === "zh" ? "已改写" : "Rewrite applied";
-  const rewriteNotAppliedLabel = locale === "zh" ? "未改写" : "No rewrite";
-  const rewriteLabel = !looksLikeUntranslatedKey(traceSummary?.rewriteReadabilityLabel)
+  const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
+  const rewriteNotAppliedLabel = locale === 'zh' ? '未改写' : 'No rewrite';
+  const rewriteLabel = !looksLikeUntranslatedKey(
+    traceSummary?.rewriteReadabilityLabel
+  )
     ? traceSummary?.rewriteReadabilityLabel
     : null;
-  const rewriteSkipLabel = !looksLikeUntranslatedKey(traceSummary?.rewriteSkippedReason)
+  const rewriteSkipLabel = !looksLikeUntranslatedKey(
+    traceSummary?.rewriteSkippedReason
+  )
     ? traceSummary?.rewriteSkippedReason
     : null;
   const latencyLabel =
-    latestTrace.latencyMs != null ? `${latestTrace.latencyMs} ms` : t("trace.copy.modelUnknown");
+    latestTrace.latencyMs != null
+      ? `${latestTrace.latencyMs} ms`
+      : t('trace.copy.modelUnknown');
   const candidateLabel =
     traceSummary?.candidateCountReadabilityLabel ??
-    `${latestTrace.retrievalScoresJson?.length ?? 0} ${t("trace.copy.citations")}`;
+    `${latestTrace.retrievalScoresJson?.length ?? 0} ${t('trace.copy.citations')}`;
   const bottleneck =
     timing != null
       ? [
-          { label: "First token", value: timing.firstTokenMs },
-          { label: "Answer generation", value: timing.answerGenerationMs },
-          { label: "Retrieval", value: timing.retrievalMs }
+          { label: 'First token', value: timing.firstTokenMs },
+          { label: 'Answer generation', value: timing.answerGenerationMs },
+          { label: 'Retrieval', value: timing.retrievalMs }
         ]
-          .filter((item): item is { label: string; value: number } => typeof item.value === "number")
-          .reduce((current, item) => (item.value > current.value ? item : current), { label: "", value: -1 })
+          .filter(
+            (item): item is { label: string; value: number } =>
+              typeof item.value === 'number'
+          )
+          .reduce(
+            (current, item) => (item.value > current.value ? item : current),
+            { label: '', value: -1 }
+          )
       : null;
 
   return (
-    <Paper className="workspace-citation-card workspace-panel-muted" p="lg" radius="xl">
+    <Paper
+      className="workspace-citation-card workspace-panel-muted"
+      p="lg"
+      radius="xl"
+    >
       <Stack gap="md">
         <Group align="flex-start" justify="space-between" wrap="nowrap">
           <Stack gap={8}>
@@ -82,16 +101,25 @@ function TraceConversationCard({
               <Text c="var(--app-text)" fw={700} size="sm">
                 {conversationTitle}
               </Text>
-              <Text c="var(--app-text-secondary)" lineClamp={2} mt={6} size="sm">
+              <Text
+                c="var(--app-text-secondary)"
+                lineClamp={2}
+                mt={6}
+                size="sm"
+              >
                 {latestTrace.userQuery}
               </Text>
             </div>
             <Group gap="xs">
-              <Badge color={latestTrace.status === "success" ? "teal" : "red"} radius="sm" variant="light">
+              <Badge
+                color={latestTrace.status === 'success' ? 'teal' : 'red'}
+                radius="sm"
+                variant="light"
+              >
                 {latestTrace.status}
               </Badge>
               <Badge color="gray" radius="sm" variant="light">
-                {latestTrace.modelName ?? t("trace.copy.modelUnknown")}
+                {latestTrace.modelName ?? t('trace.copy.modelUnknown')}
               </Badge>
             </Group>
           </Stack>
@@ -102,40 +130,55 @@ function TraceConversationCard({
 
         <div className="workspace-meta-list">
           <div className="workspace-meta-row">
-            <span className="workspace-meta-label">{t("trace.copy.latestResult")}</span>
+            <span className="workspace-meta-label">
+              {t('trace.copy.latestResult')}
+            </span>
             <span className="workspace-meta-value">
-              {latestTrace.status === "success"
-                ? t("trace.copy.latestResultSuccess")
-                : t("trace.copy.latestResultNeedsInspection")}
+              {latestTrace.status === 'success'
+                ? t('trace.copy.latestResultSuccess')
+                : t('trace.copy.latestResultNeedsInspection')}
             </span>
           </div>
           <div className="workspace-meta-row">
-            <span className="workspace-meta-label">{t("trace.copy.traceId")}</span>
+            <span className="workspace-meta-label">
+              {t('trace.copy.traceId')}
+            </span>
             <span className="workspace-meta-value">{latestTrace.id}</span>
           </div>
           <div className="workspace-meta-row">
-            <span className="workspace-meta-label">{t("common.fields.latency")}</span>
+            <span className="workspace-meta-label">
+              {t('common.fields.latency')}
+            </span>
             <span className="workspace-meta-value">{latencyLabel}</span>
           </div>
           <div className="workspace-meta-row">
             <span className="workspace-meta-label">{rewriteAppliedLabel}</span>
             <span className="workspace-meta-value">
-              {rewriteLabel ?? (latestTrace.rewrittenQuery ? rewriteAppliedLabel : rewriteNotAppliedLabel)}
+              {rewriteLabel ??
+                (latestTrace.rewrittenQuery
+                  ? rewriteAppliedLabel
+                  : rewriteNotAppliedLabel)}
             </span>
           </div>
           {rewriteSkipLabel ? (
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">{rewriteNotAppliedLabel}</span>
+              <span className="workspace-meta-label">
+                {rewriteNotAppliedLabel}
+              </span>
               <span className="workspace-meta-value">{rewriteSkipLabel}</span>
             </div>
           ) : null}
           <div className="workspace-meta-row">
-            <span className="workspace-meta-label">{t("trace.copy.latestResult")}</span>
+            <span className="workspace-meta-label">
+              {t('trace.copy.latestResult')}
+            </span>
             <span className="workspace-meta-value">{candidateLabel}</span>
           </div>
           {bottleneck && bottleneck.value >= 0 ? (
             <div className="workspace-meta-row">
-              <span className="workspace-meta-label">{locale === "zh" ? "最慢阶段" : "Slowest stage"}</span>
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? '最慢阶段' : 'Slowest stage'}
+              </span>
               <span className="workspace-meta-value">
                 {bottleneck.label} · {bottleneck.value} ms
               </span>
@@ -144,11 +187,17 @@ function TraceConversationCard({
         </div>
 
         <Stack gap="xs">
-          <Anchor c="var(--app-text)" component={Link} fw={600} size="sm" to={`/traces/${latestTrace.id}`}>
-            {t("trace.copy.viewTraceDetails")}
+          <Anchor
+            c="var(--app-text)"
+            component={Link}
+            fw={600}
+            size="sm"
+            to={`/traces/${latestTrace.id}`}
+          >
+            {t('trace.copy.viewTraceDetails')}
           </Anchor>
           <Anchor c="var(--app-text-muted)" component={Link} size="sm" to="/">
-            {t("trace.copy.backToChat")}
+            {t('trace.copy.backToChat')}
           </Anchor>
         </Stack>
       </Stack>
@@ -157,41 +206,61 @@ function TraceConversationCard({
 }
 
 export function TraceListPage() {
-  const conversationsQuery = useConversations();
   const { t, locale } = useI18n();
   const location = useLocation();
-  const deferredConversations = useDeferredValue(conversationsQuery.data ?? []);
-  const conversationCount = deferredConversations.length;
-  const totalPages = Math.max(1, Math.ceil(conversationCount / TRACE_PAGE_SIZE));
-  const requestedPage = Number(new URLSearchParams(location.search).get("page") ?? "1");
-  const resolvedPage =
-    Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(Math.floor(requestedPage), totalPages) : 1;
+  const requestedPage = Number(
+    new URLSearchParams(location.search).get('page') ?? '1'
+  );
+  const safeRequestedPage =
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? Math.floor(requestedPage)
+      : 1;
+  const conversationsQuery = usePagedConversations({
+    page: safeRequestedPage,
+    limit: TRACE_PAGE_SIZE
+  });
+  const deferredConversations = useDeferredValue(
+    conversationsQuery.data?.items ?? []
+  );
+  const conversationCount = conversationsQuery.data?.total ?? 0;
+  const totalPages = conversationsQuery.data?.totalPages ?? 1;
+  const resolvedPage = Math.min(safeRequestedPage, totalPages);
   const pageStart = (resolvedPage - 1) * TRACE_PAGE_SIZE;
   const pagedConversations = useMemo(
-    () => deferredConversations.slice(pageStart, pageStart + TRACE_PAGE_SIZE),
-    [deferredConversations, pageStart]
+    () => deferredConversations,
+    [deferredConversations]
   );
-  const conversationIds = useMemo(() => pagedConversations.map(conversation => conversation.id), [pagedConversations]);
-  const latestTracesQuery = useLatestConversationTraces(conversationIds, conversationsQuery.isSuccess);
+  const conversationIds = useMemo(
+    () => pagedConversations.map((conversation) => conversation.id),
+    [pagedConversations]
+  );
+  const latestTracesQuery = useLatestConversationTraces(
+    conversationIds,
+    conversationsQuery.isSuccess
+  );
   const traceErrorMessage =
     latestTracesQuery.error instanceof Error
       ? latestTracesQuery.error.message
-      : t("trace.copy.loadTracesError");
+      : t('trace.copy.loadTracesError');
   const traceCards =
-    pagedConversations.flatMap(conversation => {
-      const latestTrace = latestTracesQuery.latestTraceByConversationId[conversation.id] ?? null;
+    pagedConversations.flatMap((conversation) => {
+      const latestTrace =
+        latestTracesQuery.latestTraceByConversationId[conversation.id] ?? null;
       return latestTrace ? [{ conversation, latestTrace }] : [];
     }) ?? [];
   const visibleStart = conversationCount === 0 ? 0 : pageStart + 1;
-  const visibleEnd = Math.min(pageStart + pagedConversations.length, conversationCount);
+  const visibleEnd = Math.min(
+    pageStart + pagedConversations.length,
+    conversationCount
+  );
   const paginationSummary =
-    locale === "zh"
+    locale === 'zh'
       ? `显示第 ${visibleStart}-${visibleEnd} 条，共 ${conversationCount} 个会话`
       : `Showing ${visibleStart}-${visibleEnd} of ${conversationCount} conversations`;
 
   const buildPageHref = (page: number) => {
     if (page <= 1) {
-      return "/traces";
+      return '/traces';
     }
 
     return `/traces?page=${page}`;
@@ -202,19 +271,27 @@ export function TraceListPage() {
       <Paper className="workspace-hero" p="lg" radius="xl">
         <div className="workspace-hero-split">
           <div className="workspace-hero-copy">
-            <Text className="workspace-link" component={Link} size="sm" to="/workbench">
-              {t("common.actions.backToWorkbench")}
+            <Text
+              className="workspace-link"
+              component={Link}
+              size="sm"
+              to="/workbench"
+            >
+              {t('common.actions.backToWorkbench')}
             </Text>
             <Text className="workspace-hero-kicker">Workbench</Text>
             <Title
               order={3}
               c="var(--app-text)"
-              style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+              style={{
+                fontFamily: 'var(--app-font-display)',
+                letterSpacing: '-0.03em'
+              }}
             >
-              {t("trace.copy.traceHeading")}
+              {t('trace.copy.traceHeading')}
             </Title>
             <Text c="var(--app-text-muted)" mt={4} size="sm">
-              {t("trace.copy.traceDescription")}
+              {t('trace.copy.traceDescription')}
             </Text>
           </div>
           <Stack align="flex-end" gap={10}>
@@ -222,16 +299,25 @@ export function TraceListPage() {
               {conversationCount}
             </Badge>
             <Text className="workspace-hero-sidecopy" ta="right">
-              {t("trace.copy.traceSidecopy")}
+              {t('trace.copy.traceSidecopy')}
             </Text>
           </Stack>
         </div>
       </Paper>
 
       {conversationsQuery.isLoading ? (
-        <div aria-live="polite" className="workspace-loading-grid" role="status">
+        <div
+          aria-live="polite"
+          className="workspace-loading-grid"
+          role="status"
+        >
           {Array.from({ length: 4 }).map((_, index) => (
-            <Paper className="workspace-panel-hover workspace-skeleton-panel" key={index} p="lg" radius="xl">
+            <Paper
+              className="workspace-panel-hover workspace-skeleton-panel"
+              key={index}
+              p="lg"
+              radius="xl"
+            >
               <Stack gap="md">
                 <div className="workspace-skeleton-line medium" />
                 <div className="workspace-skeleton-line short" />
@@ -240,15 +326,21 @@ export function TraceListPage() {
               </Stack>
             </Paper>
           ))}
-          <span className="sr-only">{t("trace.copy.loadingConversations")}</span>
+          <span className="sr-only">
+            {t('trace.copy.loadingConversations')}
+          </span>
         </div>
       ) : conversationsQuery.isError ? (
         <StatePanel
-          description={conversationsQuery.error instanceof Error ? conversationsQuery.error.message : undefined}
-          title={t("trace.copy.conversationsError")}
+          description={
+            conversationsQuery.error instanceof Error
+              ? conversationsQuery.error.message
+              : undefined
+          }
+          title={t('trace.copy.conversationsError')}
           tone="error"
         />
-      ) : deferredConversations.length ? (
+      ) : conversationCount > 0 ? (
         <div className="workspace-trace-list">
           {latestTracesQuery.isLoading ? (
             <Paper className="workspace-panel-muted" mb="md" p="lg" radius="xl">
@@ -257,14 +349,23 @@ export function TraceListPage() {
           ) : null}
           {latestTracesQuery.isError ? (
             <Alert color="red" mb="md" radius="lg" variant="light">
-              {t("trace.copy.partialLoadError", {
+              {t('trace.copy.partialLoadError', {
                 count: latestTracesQuery.failedConversationCount,
                 error: traceErrorMessage
               })}
             </Alert>
           ) : null}
-          <div className={deferredConversations.length === 1 ? "workspace-list-shell-compact" : undefined}>
-            <SimpleGrid cols={{ base: 1, lg: deferredConversations.length > 1 ? 2 : 1 }} spacing="md">
+          <div
+            className={
+              pagedConversations.length === 1
+                ? 'workspace-list-shell-compact'
+                : undefined
+            }
+          >
+            <SimpleGrid
+              cols={{ base: 1, lg: pagedConversations.length > 1 ? 2 : 1 }}
+              spacing="md"
+            >
               {traceCards.map(({ conversation, latestTrace }) => (
                 <TraceConversationCard
                   conversationTitle={conversation.title}
@@ -292,7 +393,7 @@ export function TraceListPage() {
                       size="xs"
                       variant="light"
                     >
-                      {locale === "zh" ? "上一页" : "Previous"}
+                      {locale === 'zh' ? '上一页' : 'Previous'}
                     </Button>
                     <Button
                       className="workspace-button"
@@ -304,7 +405,7 @@ export function TraceListPage() {
                       size="xs"
                       variant="light"
                     >
-                      {locale === "zh" ? "下一页" : "Next"}
+                      {locale === 'zh' ? '下一页' : 'Next'}
                     </Button>
                   </Group>
                 </Group>
@@ -314,13 +415,13 @@ export function TraceListPage() {
                     return (
                       <Button
                         className="workspace-button"
-                        color={page === resolvedPage ? "indigo" : "gray"}
+                        color={page === resolvedPage ? 'indigo' : 'gray'}
                         component={Link}
                         key={page}
                         radius="xl"
                         size="xs"
                         to={buildPageHref(page)}
-                        variant={page === resolvedPage ? "filled" : "light"}
+                        variant={page === resolvedPage ? 'filled' : 'light'}
                       >
                         {page}
                       </Button>
@@ -333,8 +434,8 @@ export function TraceListPage() {
         </div>
       ) : (
         <StatePanel
-          description={t("trace.copy.noConversationsDescription")}
-          title={t("trace.copy.noConversationsTitle")}
+          description={t('trace.copy.noConversationsDescription')}
+          title={t('trace.copy.noConversationsTitle')}
         />
       )}
 
@@ -347,7 +448,7 @@ export function TraceListPage() {
         variant="light"
         w="fit-content"
       >
-        {t("common.actions.backToWorkbench")}
+        {t('common.actions.backToWorkbench')}
       </Button>
     </Stack>
   );

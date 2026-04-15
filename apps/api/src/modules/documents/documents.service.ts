@@ -1,14 +1,24 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { DocumentProcessingStage, DocumentRunFailedStage, DocumentRunTrigger, DocumentStatus, Prisma } from "@prisma/client";
-import { PrismaService } from "../../infra/database/prisma.service";
-import { FeedSourceService } from "../../infra/feed-source/feed-source.service";
-import { SitemapSourceService } from "../../infra/sitemap-source/sitemap-source.service";
-import { StorageService } from "../../infra/storage/storage.service";
-import { WebPageService } from "../../infra/web-page/web-page.service";
-import { DocumentRunsService } from "../document-runs/document-runs.service";
-import { IngestionService } from "../ingestion/ingestion.service";
-import { IndexingService } from "../indexing/indexing.service";
-import { KnowledgeBasesService } from "../knowledge-bases/knowledge-bases.service";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException
+} from '@nestjs/common';
+import {
+  DocumentProcessingStage,
+  DocumentRunFailedStage,
+  DocumentRunTrigger,
+  DocumentStatus,
+  Prisma
+} from '@prisma/client';
+import { PrismaService } from '../../infra/database/prisma.service';
+import { FeedSourceService } from '../../infra/feed-source/feed-source.service';
+import { SitemapSourceService } from '../../infra/sitemap-source/sitemap-source.service';
+import { StorageService } from '../../infra/storage/storage.service';
+import { WebPageService } from '../../infra/web-page/web-page.service';
+import { DocumentRunsService } from '../document-runs/document-runs.service';
+import { IngestionService } from '../ingestion/ingestion.service';
+import { IndexingService } from '../indexing/indexing.service';
+import { KnowledgeBasesService } from '../knowledge-bases/knowledge-bases.service';
 import {
   CompareKnowledgeBaseDocumentRunsInput,
   CreateDocumentInput,
@@ -17,14 +27,20 @@ import {
   CreateWebPageDocumentInput,
   ListDocumentRunsInput,
   ListKnowledgeBaseDocumentsInput,
-  ListKnowledgeBaseDocumentRunsInput
-} from "./document.schemas";
-import { ErrorCode, createErrorDiagnostics, createPartialErrorDiagnostics } from "../../common/error-codes";
+  ListKnowledgeBaseDocumentRunsInput,
+  ListPagedKnowledgeBaseDocumentsInput
+} from './document.schemas';
+import {
+  ErrorCode,
+  createErrorDiagnostics,
+  createPartialErrorDiagnostics
+} from '../../common/error-codes';
+import { normalizeUploadedFilename } from '../../common/upload-filename';
 
 type ExternalSourceConfig =
-  | { kind: "web_page"; url: string }
-  | { kind: "feed"; url: string; maxItems: number }
-  | { kind: "sitemap"; url: string; maxPages: number };
+  | { kind: 'web_page'; url: string }
+  | { kind: 'feed'; url: string; maxItems: number }
+  | { kind: 'sitemap'; url: string; maxPages: number };
 
 type FetchedExternalSource = {
   title: string | null;
@@ -32,7 +48,10 @@ type FetchedExternalSource = {
   diagnostics?: ExternalSourcePartialDiagnostics | null;
 };
 
-type ExternalSourcePartialDiagnostics = Record<string, Prisma.InputJsonValue> & {
+type ExternalSourcePartialDiagnostics = Record<
+  string,
+  Prisma.InputJsonValue
+> & {
   partial: boolean;
 };
 
@@ -93,18 +112,136 @@ export class DocumentsService {
               }
             })
       },
-      ...(this.documentListSelect === undefined ? {} : { select: this.documentListSelect }),
+      ...(this.documentListSelect === undefined
+        ? {}
+        : { select: this.documentListSelect }),
       ...(input.limit === undefined ? {} : { take: input.limit }),
       orderBy: {
-        updatedAt: "desc"
+        updatedAt: 'desc'
       }
     });
 
     if (documents.length === 0 && scope != null) {
-      await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
+      await this.knowledgeBasesService.getKnowledgeBase(
+        knowledgeBaseId,
+        scope,
+        { preserveForbiddenOnMiss: true }
+      );
     }
 
     return documents;
+  }
+
+  async listPagedKnowledgeBaseDocuments(
+    knowledgeBaseId: string,
+    input: ListPagedKnowledgeBaseDocumentsInput,
+    scope?: DocumentAccessScope | null
+  ) {
+    const where = {
+      kbId: knowledgeBaseId,
+      ...(scope == null
+        ? {}
+        : {
+            knowledgeBase: {
+              tenantId: scope.tenantId,
+              ownerId: scope.userId
+            }
+          })
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.document.findMany({
+        where,
+        ...(this.documentListSelect === undefined
+          ? {}
+          : { select: this.documentListSelect }),
+        take: input.limit,
+        skip: (input.page - 1) * input.limit,
+        orderBy: {
+          updatedAt: 'desc'
+        }
+      }),
+      this.prisma.document.count({
+        where
+      })
+    ]);
+
+    if (items.length === 0 && total === 0 && scope != null) {
+      await this.knowledgeBasesService.getKnowledgeBase(
+        knowledgeBaseId,
+        scope,
+        { preserveForbiddenOnMiss: true }
+      );
+    }
+
+    const totalPages = Math.max(1, Math.ceil(total / input.limit));
+
+    return {
+      items,
+      total,
+      page: input.page,
+      pageSize: input.limit,
+      totalPages
+    };
+  }
+
+  async getKnowledgeBaseDocumentSummary(
+    knowledgeBaseId: string,
+    scope?: DocumentAccessScope | null
+  ) {
+    const where = {
+      kbId: knowledgeBaseId,
+      ...(scope == null
+        ? {}
+        : {
+            knowledgeBase: {
+              tenantId: scope.tenantId,
+              ownerId: scope.userId
+            }
+          })
+    };
+
+    const documents = await this.prisma.document.findMany({
+      where,
+      select: {
+        id: true,
+        status: true,
+        chunkCount: true
+      }
+    });
+
+    if (documents.length === 0 && scope != null) {
+      await this.knowledgeBasesService.getKnowledgeBase(
+        knowledgeBaseId,
+        scope,
+        { preserveForbiddenOnMiss: true }
+      );
+    }
+
+    return documents.reduce(
+      (acc, document) => {
+        acc.totalDocuments += 1;
+        acc.totalChunks += document.chunkCount;
+        if (document.status === 'ready') {
+          acc.readyDocuments += 1;
+        } else if (
+          document.status === 'pending' ||
+          document.status === 'processing'
+        ) {
+          acc.processingDocuments += 1;
+        } else if (document.status === 'failed') {
+          acc.failedDocuments += 1;
+        }
+        return acc;
+      },
+      {
+        totalDocuments: 0,
+        readyDocuments: 0,
+        processingDocuments: 0,
+        failedDocuments: 0,
+        totalChunks: 0
+      }
+    );
   }
 
   async listKnowledgeBaseDocumentRuns(
@@ -112,20 +249,35 @@ export class DocumentsService {
     input: ListKnowledgeBaseDocumentRunsInput,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
-    return this.documentRunsService.listKnowledgeBaseRuns(knowledgeBaseId, input);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, {
+      preserveForbiddenOnMiss: true
+    });
+    return this.documentRunsService.listKnowledgeBaseRuns(
+      knowledgeBaseId,
+      input
+    );
   }
 
   async getKnowledgeBaseDocumentRunSummary(
     knowledgeBaseId: string,
     input?: Pick<
       ListKnowledgeBaseDocumentRunsInput,
-      "documentId" | "sourceType" | "status" | "trigger" | "issueOnly" | "sinceHours"
+      | 'documentId'
+      | 'sourceType'
+      | 'status'
+      | 'trigger'
+      | 'issueOnly'
+      | 'sinceHours'
     >,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
-    return this.documentRunsService.getKnowledgeBaseRunSummary(knowledgeBaseId, input);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, {
+      preserveForbiddenOnMiss: true
+    });
+    return this.documentRunsService.getKnowledgeBaseRunSummary(
+      knowledgeBaseId,
+      input
+    );
   }
 
   async getKnowledgeBaseDocumentRunComparison(
@@ -133,12 +285,22 @@ export class DocumentsService {
     input: CompareKnowledgeBaseDocumentRunsInput,
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
-    return this.documentRunsService.getKnowledgeBaseRunComparison(knowledgeBaseId, input);
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, {
+      preserveForbiddenOnMiss: true
+    });
+    return this.documentRunsService.getKnowledgeBaseRunComparison(
+      knowledgeBaseId,
+      input
+    );
   }
 
-  async reindexKnowledgeBase(knowledgeBaseId: string, scope?: DocumentAccessScope | null) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
+  async reindexKnowledgeBase(
+    knowledgeBaseId: string,
+    scope?: DocumentAccessScope | null
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, {
+      preserveForbiddenOnMiss: true
+    });
 
     const documents = await this.prisma.document.findMany({
       where: {
@@ -149,36 +311,44 @@ export class DocumentsService {
         sourceType: true
       },
       orderBy: {
-        updatedAt: "desc"
+        updatedAt: 'desc'
       }
     });
 
-    const externalDocuments = documents.filter(document => this.isExternalSourceType(document.sourceType));
-    const ingestionDocuments = documents.filter(document => !this.isExternalSourceType(document.sourceType));
+    const externalDocuments = documents.filter((document) =>
+      this.isExternalSourceType(document.sourceType)
+    );
+    const ingestionDocuments = documents.filter(
+      (document) => !this.isExternalSourceType(document.sourceType)
+    );
 
-    const reindexedDocuments = await this.bulkQueueIngestionDocuments(ingestionDocuments.map(document => document.id));
+    const reindexedDocuments = await this.bulkQueueIngestionDocuments(
+      ingestionDocuments.map((document) => document.id)
+    );
     await this.runWithConcurrency(
       externalDocuments,
       DocumentsService.KB_REINDEX_EXTERNAL_CONCURRENCY,
-      document => this.reindexDocument(document.id)
+      (document) => this.reindexDocument(document.id)
     );
 
     const documentIds = [
-      ...reindexedDocuments.map(document => document.id),
-      ...externalDocuments.map(document => document.id)
+      ...reindexedDocuments.map((document) => document.id),
+      ...externalDocuments.map((document) => document.id)
     ];
 
-    const orderedDocumentIds = documents.map(document => document.id).filter(id => documentIds.includes(id));
+    const orderedDocumentIds = documents
+      .map((document) => document.id)
+      .filter((id) => documentIds.includes(id));
 
     return {
       knowledgeBaseId,
       requestedCount: documents.length,
       documentIds: orderedDocumentIds
-    }
+    };
   }
 
   async getDocument(id: string, scope?: DocumentAccessScope | null) {
-    if (scope && typeof this.prisma.document.findFirst !== "function") {
+    if (scope && typeof this.prisma.document.findFirst !== 'function') {
       const existingDocument = await this.prisma.document.findUnique({
         where: {
           id
@@ -207,12 +377,16 @@ export class DocumentsService {
         throw new NotFoundException(`Document ${id} not found.`);
       }
 
-      await this.knowledgeBasesService.getKnowledgeBase(existingDocument.kbId, scope, { preserveForbiddenOnMiss: true });
+      await this.knowledgeBasesService.getKnowledgeBase(
+        existingDocument.kbId,
+        scope,
+        { preserveForbiddenOnMiss: true }
+      );
       return existingDocument;
     }
 
     const document = scope
-      ? typeof this.prisma.document.findFirst === "function"
+      ? typeof this.prisma.document.findFirst === 'function'
         ? await this.prisma.document.findFirst({
             where: {
               id,
@@ -286,7 +460,11 @@ export class DocumentsService {
       throw new NotFoundException(`Document ${id} not found.`);
     }
 
-    await this.knowledgeBasesService.getKnowledgeBase(existingDocument.kbId, scope, { preserveForbiddenOnMiss: true });
+    await this.knowledgeBasesService.getKnowledgeBase(
+      existingDocument.kbId,
+      scope,
+      { preserveForbiddenOnMiss: true }
+    );
     throw new NotFoundException(`Document ${id} not found.`);
   }
 
@@ -320,7 +498,7 @@ export class DocumentsService {
         updatedAt: true
       },
       orderBy: {
-        chunkIndex: "asc"
+        chunkIndex: 'asc'
       }
     });
 
@@ -331,7 +509,11 @@ export class DocumentsService {
     return chunks;
   }
 
-  async listDocumentRuns(id: string, input: ListDocumentRunsInput, scope?: DocumentAccessScope | null) {
+  async listDocumentRuns(
+    id: string,
+    input: ListDocumentRunsInput,
+    scope?: DocumentAccessScope | null
+  ) {
     const runs = await this.documentRunsService.listDocumentRuns(
       id,
       input,
@@ -354,8 +536,14 @@ export class DocumentsService {
     return runs;
   }
 
-  async createDocument(knowledgeBaseId: string, input: CreateDocumentInput, scope?: DocumentAccessScope | null) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
+  async createDocument(
+    knowledgeBaseId: string,
+    input: CreateDocumentInput,
+    scope?: DocumentAccessScope | null
+  ) {
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, {
+      preserveForbiddenOnMiss: true
+    });
 
     return this.prisma.document.create({
       data: {
@@ -382,20 +570,21 @@ export class DocumentsService {
     },
     scope?: DocumentAccessScope | null
   ) {
+    const normalizedOriginalName = normalizeUploadedFilename(file.originalname);
     const storedFile = await this.storageService.saveUploadedFile({
       buffer: file.buffer,
-      originalName: file.originalname,
-      mimeType: file.mimetype || "application/octet-stream"
+      originalName: normalizedOriginalName,
+      mimeType: file.mimetype || 'application/octet-stream'
     });
 
     const document = await this.createDocument(
       knowledgeBaseId,
       {
-      sourceType: "upload",
-      sourceName: file.originalname,
-      title: file.originalname,
-      mimeType: file.mimetype || "application/octet-stream",
-      storageKey: storedFile.storageKey
+        sourceType: 'upload',
+        sourceName: normalizedOriginalName,
+        title: normalizedOriginalName,
+        mimeType: file.mimetype || 'application/octet-stream',
+        storageKey: storedFile.storageKey
       },
       scope
     );
@@ -438,13 +627,13 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(
       knowledgeBaseId,
       {
-      sourceType: "web_page",
-      sourceName: normalizedUrl,
-      title: input.title ?? null,
-      sourceConfig: {
-        kind: "web_page",
-        url: normalizedUrl
-      }
+        sourceType: 'web_page',
+        sourceName: normalizedUrl,
+        title: input.title ?? null,
+        sourceConfig: {
+          kind: 'web_page',
+          url: normalizedUrl
+        }
       },
       scope
     );
@@ -462,45 +651,59 @@ export class DocumentsService {
       reservedDocument,
       () => this.webPageService.fetchWebPage(normalizedUrl)
     );
-    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(reservedDocument, async () => {
-      const storedFile = await this.storageService.saveGeneratedTextFile({
-        content: fetchedPage.content
-      });
+    const finalizedDocument =
+      await this.persistExternalSourceResultOrRecordFailure(
+        reservedDocument,
+        async () => {
+          const storedFile = await this.storageService.saveGeneratedTextFile({
+            content: fetchedPage.content
+          });
 
-      return this.finalizeExternalDocument(reservedDocument, {
-        title: input.title ?? fetchedPage.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
-        mimeType: "text/plain",
-        storageKey: storedFile.storageKey,
-        diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
-          reservedDocument.version,
-          fetchedPage.diagnostics,
-          this.buildWebPartialDiagnosticsMessage(fetchedPage.diagnostics),
-          false,
-          "web"
-        )
-      });
-    });
+          return this.finalizeExternalDocument(reservedDocument, {
+            title:
+              input.title ??
+              fetchedPage.title ??
+              reservedDocument.title ??
+              this.buildRemoteSourceFallbackTitle(normalizedUrl),
+            mimeType: 'text/plain',
+            storageKey: storedFile.storageKey,
+            diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+              reservedDocument.version,
+              fetchedPage.diagnostics,
+              this.buildWebPartialDiagnosticsMessage(fetchedPage.diagnostics),
+              false,
+              'web'
+            )
+          });
+        }
+      );
 
     if (finalizedDocument.applied) {
-      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
+      await this.enqueueExternalDocumentOrRecordFailure(
+        finalizedDocument.document
+      );
     }
 
     return finalizedDocument.document;
   }
 
-  async createFeedDocument(knowledgeBaseId: string, input: CreateFeedDocumentInput, scope?: DocumentAccessScope | null) {
+  async createFeedDocument(
+    knowledgeBaseId: string,
+    input: CreateFeedDocumentInput,
+    scope?: DocumentAccessScope | null
+  ) {
     const normalizedUrl = this.normalizeRemoteSourceUrl(input.url);
     const reservedDocument = await this.reserveExternalDocument(
       knowledgeBaseId,
       {
-      sourceType: "feed",
-      sourceName: normalizedUrl,
-      title: input.title ?? null,
-      sourceConfig: {
-        kind: "feed",
-        url: normalizedUrl,
-        maxItems: input.maxItems
-      }
+        sourceType: 'feed',
+        sourceName: normalizedUrl,
+        title: input.title ?? null,
+        sourceConfig: {
+          kind: 'feed',
+          url: normalizedUrl,
+          maxItems: input.maxItems
+        }
       },
       scope
     );
@@ -514,33 +717,45 @@ export class DocumentsService {
       return this.getDocument(reservedDocument.id);
     }
 
-    const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
-      this.feedSourceService.fetchFeed({
-        url: normalizedUrl,
-        maxItems: input.maxItems
-      })
+    const fetchedFeed = await this.fetchExternalSourceOrRecordFailure(
+      reservedDocument,
+      () =>
+        this.feedSourceService.fetchFeed({
+          url: normalizedUrl,
+          maxItems: input.maxItems
+        })
     );
-    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(reservedDocument, async () => {
-      const storedFile = await this.storageService.saveGeneratedTextFile({
-        content: fetchedFeed.content
-      });
+    const finalizedDocument =
+      await this.persistExternalSourceResultOrRecordFailure(
+        reservedDocument,
+        async () => {
+          const storedFile = await this.storageService.saveGeneratedTextFile({
+            content: fetchedFeed.content
+          });
 
-      return this.finalizeExternalDocument(reservedDocument, {
-        title: input.title ?? fetchedFeed.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
-        mimeType: "text/plain",
-        storageKey: storedFile.storageKey,
-        diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
-          reservedDocument.version,
-          fetchedFeed.diagnostics,
-          this.buildFeedPartialDiagnosticsMessage(fetchedFeed.diagnostics),
-          false,
-          "feed"
-        )
-      });
-    });
+          return this.finalizeExternalDocument(reservedDocument, {
+            title:
+              input.title ??
+              fetchedFeed.title ??
+              reservedDocument.title ??
+              this.buildRemoteSourceFallbackTitle(normalizedUrl),
+            mimeType: 'text/plain',
+            storageKey: storedFile.storageKey,
+            diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+              reservedDocument.version,
+              fetchedFeed.diagnostics,
+              this.buildFeedPartialDiagnosticsMessage(fetchedFeed.diagnostics),
+              false,
+              'feed'
+            )
+          });
+        }
+      );
 
     if (finalizedDocument.applied) {
-      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
+      await this.enqueueExternalDocumentOrRecordFailure(
+        finalizedDocument.document
+      );
     }
 
     return finalizedDocument.document;
@@ -555,14 +770,14 @@ export class DocumentsService {
     const reservedDocument = await this.reserveExternalDocument(
       knowledgeBaseId,
       {
-      sourceType: "sitemap",
-      sourceName: normalizedUrl,
-      title: input.title ?? null,
-      sourceConfig: {
-        kind: "sitemap",
-        url: normalizedUrl,
-        maxPages: input.maxPages
-      }
+        sourceType: 'sitemap',
+        sourceName: normalizedUrl,
+        title: input.title ?? null,
+        sourceConfig: {
+          kind: 'sitemap',
+          url: normalizedUrl,
+          maxPages: input.maxPages
+        }
       },
       scope
     );
@@ -576,33 +791,46 @@ export class DocumentsService {
       return this.getDocument(reservedDocument.id);
     }
 
-    const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(reservedDocument, () =>
-      this.sitemapSourceService.fetchSitemap({
-        url: normalizedUrl,
-        maxPages: input.maxPages
-      })
+    const fetchedSitemap = await this.fetchExternalSourceOrRecordFailure(
+      reservedDocument,
+      () =>
+        this.sitemapSourceService.fetchSitemap({
+          url: normalizedUrl,
+          maxPages: input.maxPages
+        })
     );
-    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(reservedDocument, async () => {
-      const storedFile = await this.storageService.saveGeneratedTextFile({
-        content: fetchedSitemap.content
-      });
+    const finalizedDocument =
+      await this.persistExternalSourceResultOrRecordFailure(
+        reservedDocument,
+        async () => {
+          const storedFile = await this.storageService.saveGeneratedTextFile({
+            content: fetchedSitemap.content
+          });
 
-      return this.finalizeExternalDocument(reservedDocument, {
-        title: input.title ?? reservedDocument.title ?? this.buildRemoteSourceFallbackTitle(normalizedUrl),
-        mimeType: "text/plain",
-        storageKey: storedFile.storageKey,
-        diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
-          reservedDocument.version,
-          fetchedSitemap.diagnostics,
-          this.buildSitemapPartialDiagnosticsMessage(fetchedSitemap.diagnostics),
-          true,
-          "sitemap"
-        )
-      });
-    });
+          return this.finalizeExternalDocument(reservedDocument, {
+            title:
+              input.title ??
+              reservedDocument.title ??
+              this.buildRemoteSourceFallbackTitle(normalizedUrl),
+            mimeType: 'text/plain',
+            storageKey: storedFile.storageKey,
+            diagnosticsJson: this.buildExternalSourcePartialDiagnostics(
+              reservedDocument.version,
+              fetchedSitemap.diagnostics,
+              this.buildSitemapPartialDiagnosticsMessage(
+                fetchedSitemap.diagnostics
+              ),
+              true,
+              'sitemap'
+            )
+          });
+        }
+      );
 
     if (finalizedDocument.applied) {
-      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
+      await this.enqueueExternalDocumentOrRecordFailure(
+        finalizedDocument.document
+      );
     }
 
     return finalizedDocument.document;
@@ -661,7 +889,7 @@ export class DocumentsService {
 
   private buildRemoteSourceFallbackTitle(url: string) {
     const parsed = new URL(url);
-    const path = `${parsed.hostname}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+    const path = `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`;
     return path.slice(0, 255);
   }
 
@@ -675,7 +903,9 @@ export class DocumentsService {
     },
     scope?: DocumentAccessScope | null
   ) {
-    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, { preserveForbiddenOnMiss: true });
+    await this.knowledgeBasesService.getKnowledgeBase(knowledgeBaseId, scope, {
+      preserveForbiddenOnMiss: true
+    });
 
     const existingDocument = await this.prisma.document.findFirst({
       where: {
@@ -691,9 +921,11 @@ export class DocumentsService {
           kbId: knowledgeBaseId,
           sourceType: input.sourceType,
           sourceName: input.sourceName,
-          title: input.title ?? this.buildRemoteSourceFallbackTitle(input.sourceName),
-          mimeType: "text/plain",
-          storageKey: "external-source:pending",
+          title:
+            input.title ??
+            this.buildRemoteSourceFallbackTitle(input.sourceName),
+          mimeType: 'text/plain',
+          storageKey: 'external-source:pending',
           sourceConfigJson: input.sourceConfig,
           status: DocumentStatus.pending,
           processingStage: DocumentProcessingStage.uploaded,
@@ -708,7 +940,10 @@ export class DocumentsService {
       },
       data: {
         sourceName: input.sourceName,
-        title: input.title ?? existingDocument.title ?? this.buildRemoteSourceFallbackTitle(input.sourceName),
+        title:
+          input.title ??
+          existingDocument.title ??
+          this.buildRemoteSourceFallbackTitle(input.sourceName),
         sourceConfigJson: input.sourceConfig,
         status: DocumentStatus.pending,
         processingStage: DocumentProcessingStage.uploaded,
@@ -727,7 +962,7 @@ export class DocumentsService {
       id: string;
       version: number;
     },
-    input: Pick<CreateDocumentInput, "title" | "mimeType" | "storageKey"> & {
+    input: Pick<CreateDocumentInput, 'title' | 'mimeType' | 'storageKey'> & {
       diagnosticsJson?: Prisma.InputJsonValue | null;
     }
   ) {
@@ -754,8 +989,11 @@ export class DocumentsService {
     };
   }
 
-  private async resolveExternalDocumentAfterUpdate(document: { id: string; version: number }) {
-    if (typeof this.prisma.document.findUnique === "function") {
+  private async resolveExternalDocumentAfterUpdate(document: {
+    id: string;
+    version: number;
+  }) {
+    if (typeof this.prisma.document.findUnique === 'function') {
       const currentDocument = await this.prisma.document.findUnique({
         where: { id: document.id }
       });
@@ -793,10 +1031,14 @@ export class DocumentsService {
       return false;
     }
 
-    await this.documentRunsService.markRunFailed(document.id, document.version, {
-      failedStage: DocumentRunFailedStage.source_fetch,
-      diagnosticsJson: diagnostics
-    });
+    await this.documentRunsService.markRunFailed(
+      document.id,
+      document.version,
+      {
+        failedStage: DocumentRunFailedStage.source_fetch,
+        diagnosticsJson: diagnostics
+      }
+    );
 
     return true;
   }
@@ -808,7 +1050,7 @@ export class DocumentsService {
     },
     data: Prisma.DocumentUpdateManyMutationInput
   ) {
-    if (typeof this.prisma.document.updateMany === "function") {
+    if (typeof this.prisma.document.updateMany === 'function') {
       const result = await this.prisma.document.updateMany({
         where: {
           id: document.id,
@@ -849,11 +1091,14 @@ export class DocumentsService {
     try {
       return await operation();
     } catch (error) {
-      const message = this.resolveErrorMessage(error, "Unknown external source fetch error.");
+      const message = this.resolveErrorMessage(
+        error,
+        'Unknown external source fetch error.'
+      );
       const retryable = this.isRetryableExternalSourceError(error);
       const diagnostics = createErrorDiagnostics(
         ErrorCode.EXTERNAL_SOURCE_FETCH_FAILED,
-        "source_fetch",
+        'source_fetch',
         retryable,
         document.version,
         message,
@@ -879,11 +1124,14 @@ export class DocumentsService {
     try {
       return await operation();
     } catch (error) {
-      const message = this.resolveErrorMessage(error, "Unknown external source persistence error.");
+      const message = this.resolveErrorMessage(
+        error,
+        'Unknown external source persistence error.'
+      );
       const retryable = this.isRetryableExternalSourceError(error);
       const diagnostics = createErrorDiagnostics(
         ErrorCode.EXTERNAL_SOURCE_PERSIST_FAILED,
-        "source_fetch",
+        'source_fetch',
         retryable,
         document.version,
         message
@@ -895,33 +1143,55 @@ export class DocumentsService {
     }
   }
 
-  private async enqueueIngestionDocumentOrRecordFailure(document: { id: string; version: number }) {
+  private async enqueueIngestionDocumentOrRecordFailure(document: {
+    id: string;
+    version: number;
+  }) {
     try {
-      await this.ingestionService.enqueueDocument(document.id, document.version);
+      await this.ingestionService.enqueueDocument(
+        document.id,
+        document.version
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown ingestion enqueue error.";
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unknown ingestion enqueue error.';
       const diagnostics = createErrorDiagnostics(
         ErrorCode.INGESTION_ENQUEUE_FAILED,
-        "parsing",
+        'parsing',
         true,
         document.version,
         message
       );
 
-      await this.recordIngestionFailureIfCurrent(document, diagnostics, message);
+      await this.recordIngestionFailureIfCurrent(
+        document,
+        diagnostics,
+        message
+      );
 
       throw error;
     }
   }
 
-  private async enqueueExternalDocumentOrRecordFailure(document: { id: string; version: number }) {
+  private async enqueueExternalDocumentOrRecordFailure(document: {
+    id: string;
+    version: number;
+  }) {
     try {
-      await this.ingestionService.enqueueDocument(document.id, document.version);
+      await this.ingestionService.enqueueDocument(
+        document.id,
+        document.version
+      );
     } catch (error) {
-      const message = this.resolveErrorMessage(error, "Unknown external enqueue error.");
+      const message = this.resolveErrorMessage(
+        error,
+        'Unknown external enqueue error.'
+      );
       const diagnostics = createErrorDiagnostics(
         ErrorCode.EXTERNAL_SOURCE_ENQUEUE_FAILED,
-        "source_fetch",
+        'source_fetch',
         true,
         document.version,
         message
@@ -935,11 +1205,13 @@ export class DocumentsService {
 
   private normalizeRemoteSourceUrl(url: string) {
     const parsed = new URL(url);
-    parsed.hash = "";
+    parsed.hash = '';
     return parsed.toString();
   }
 
-  private async resyncExternalDocument(document: Awaited<ReturnType<DocumentsService["getDocument"]>>) {
+  private async resyncExternalDocument(
+    document: Awaited<ReturnType<DocumentsService['getDocument']>>
+  ) {
     const queuedDocument = await this.prisma.document.update({
       where: { id: document.id },
       data: {
@@ -972,52 +1244,65 @@ export class DocumentsService {
       }
     );
 
-    const fetchedSource = await this.fetchExternalSourceOrRecordFailure(queuedDocument, () =>
-      this.fetchExternalSourceFromConfig(sourceConfig)
+    const fetchedSource = await this.fetchExternalSourceOrRecordFailure(
+      queuedDocument,
+      () => this.fetchExternalSourceFromConfig(sourceConfig)
     );
-    const finalizedDocument = await this.persistExternalSourceResultOrRecordFailure(queuedDocument, async () => {
-      const storedFile = await this.storageService.saveGeneratedTextFile({
-        content: fetchedSource.content
-      });
+    const finalizedDocument =
+      await this.persistExternalSourceResultOrRecordFailure(
+        queuedDocument,
+        async () => {
+          const storedFile = await this.storageService.saveGeneratedTextFile({
+            content: fetchedSource.content
+          });
 
-      return this.finalizeExternalDocument(queuedDocument, {
-        title: fetchedSource.title ?? document.title ?? this.buildRemoteSourceFallbackTitle(document.sourceName),
-        mimeType: "text/plain",
-        storageKey: storedFile.storageKey,
-        diagnosticsJson:
-          sourceConfig.kind === "sitemap"
-               ? (this.buildExternalSourcePartialDiagnostics(
-                   queuedDocument.version,
-                   fetchedSource.diagnostics ?? null,
-                   this.buildSitemapPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
-                   true,
-                   "sitemap"
-                 ) ??
-                null)
-              : sourceConfig.kind === "feed"
+          return this.finalizeExternalDocument(queuedDocument, {
+            title:
+              fetchedSource.title ??
+              document.title ??
+              this.buildRemoteSourceFallbackTitle(document.sourceName),
+            mimeType: 'text/plain',
+            storageKey: storedFile.storageKey,
+            diagnosticsJson:
+              sourceConfig.kind === 'sitemap'
                 ? (this.buildExternalSourcePartialDiagnostics(
                     queuedDocument.version,
                     fetchedSource.diagnostics ?? null,
-                    this.buildFeedPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
-                    false,
-                    "feed"
-                  ) ??
-                null)
-             : sourceConfig.kind === "web_page"
-                ? (this.buildExternalSourcePartialDiagnostics(
-                    queuedDocument.version,
-                    fetchedSource.diagnostics ?? null,
-                    this.buildWebPartialDiagnosticsMessage(fetchedSource.diagnostics ?? null),
-                    false,
-                    "web"
-                  ) ??
-               null)
-             : null
-      });
-    });
+                    this.buildSitemapPartialDiagnosticsMessage(
+                      fetchedSource.diagnostics ?? null
+                    ),
+                    true,
+                    'sitemap'
+                  ) ?? null)
+                : sourceConfig.kind === 'feed'
+                  ? (this.buildExternalSourcePartialDiagnostics(
+                      queuedDocument.version,
+                      fetchedSource.diagnostics ?? null,
+                      this.buildFeedPartialDiagnosticsMessage(
+                        fetchedSource.diagnostics ?? null
+                      ),
+                      false,
+                      'feed'
+                    ) ?? null)
+                  : sourceConfig.kind === 'web_page'
+                    ? (this.buildExternalSourcePartialDiagnostics(
+                        queuedDocument.version,
+                        fetchedSource.diagnostics ?? null,
+                        this.buildWebPartialDiagnosticsMessage(
+                          fetchedSource.diagnostics ?? null
+                        ),
+                        false,
+                        'web'
+                      ) ?? null)
+                    : null
+          });
+        }
+      );
 
     if (finalizedDocument.applied) {
-      await this.enqueueExternalDocumentOrRecordFailure(finalizedDocument.document);
+      await this.enqueueExternalDocumentOrRecordFailure(
+        finalizedDocument.document
+      );
     }
 
     return this.getDocument(document.id);
@@ -1028,12 +1313,15 @@ export class DocumentsService {
       return [] as Array<{ id: string; version: number }>;
     }
 
-    if (typeof this.prisma.$queryRaw !== "function" || typeof this.prisma.documentRun.createMany !== "function") {
+    if (
+      typeof this.prisma.$queryRaw !== 'function' ||
+      typeof this.prisma.documentRun.createMany !== 'function'
+    ) {
       const queuedDocuments: Array<{ id: string; version: number }> = [];
       await this.runWithConcurrency(
         documentIds,
         DocumentsService.KB_REINDEX_INGESTION_CONCURRENCY,
-        async documentId => {
+        async (documentId) => {
           const document = await this.reindexDocument(documentId);
           queuedDocuments.push({ id: document.id, version: document.version });
         }
@@ -1041,7 +1329,9 @@ export class DocumentsService {
       return queuedDocuments;
     }
 
-    const queuedDocuments = await this.prisma.$queryRaw<Array<{ id: string; version: number }>>(
+    const queuedDocuments = await this.prisma.$queryRaw<
+      Array<{ id: string; version: number }>
+    >(
       Prisma.sql`
         UPDATE "Document" AS d
         SET
@@ -1063,11 +1353,11 @@ export class DocumentsService {
 
     const startedAt = new Date();
     await this.prisma.documentRun.createMany({
-      data: queuedDocuments.map(document => ({
+      data: queuedDocuments.map((document) => ({
         documentId: document.id,
         version: document.version,
         trigger: DocumentRunTrigger.reindex,
-        status: "pending",
+        status: 'pending',
         diagnosticsJson: Prisma.JsonNull,
         startedAt
       })),
@@ -1077,13 +1367,17 @@ export class DocumentsService {
     await this.runWithConcurrency(
       queuedDocuments,
       DocumentsService.KB_REINDEX_INGESTION_CONCURRENCY,
-      document => this.enqueueIngestionDocumentOrRecordFailure(document)
+      (document) => this.enqueueIngestionDocumentOrRecordFailure(document)
     );
 
     return queuedDocuments;
   }
 
-  private async runWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<unknown>) {
+  private async runWithConcurrency<T>(
+    items: T[],
+    concurrency: number,
+    worker: (item: T) => Promise<unknown>
+  ) {
     if (items.length === 0) {
       return;
     }
@@ -1121,10 +1415,13 @@ export class DocumentsService {
       const message =
         error instanceof Error
           ? error.message
-          : this.buildExternalSourceConfigErrorMessage("invalid", document.sourceType ?? undefined);
+          : this.buildExternalSourceConfigErrorMessage(
+              'invalid',
+              document.sourceType ?? undefined
+            );
       const diagnostics = createErrorDiagnostics(
         ErrorCode.EXTERNAL_SOURCE_CONFIG_INVALID,
-        "source_fetch",
+        'source_fetch',
         false,
         document.version,
         message
@@ -1136,8 +1433,11 @@ export class DocumentsService {
     }
   }
 
-  private async ensureCurrentExternalDocumentVersion(document: { id: string; version: number }) {
-    if (typeof this.prisma.document.findUnique !== "function") {
+  private async ensureCurrentExternalDocumentVersion(document: {
+    id: string;
+    version: number;
+  }) {
+    if (typeof this.prisma.document.findUnique !== 'function') {
       return true;
     }
 
@@ -1152,24 +1452,31 @@ export class DocumentsService {
       return true;
     }
 
-    await this.documentRunsService.markRunSkipped(document.id, document.version, {
-      failedStage: DocumentRunFailedStage.stale_guard,
-      diagnosticsJson: createErrorDiagnostics(
-        ErrorCode.EXTERNAL_SOURCE_RUN_SUPERSEDED,
-        "stale_guard",
-        false,
-        document.version,
-        "Skipped stale external source update because a newer document version is already active.",
-        {
-          currentDocumentVersion: currentDocument.version
-        }
-      )
-    });
+    await this.documentRunsService.markRunSkipped(
+      document.id,
+      document.version,
+      {
+        failedStage: DocumentRunFailedStage.stale_guard,
+        diagnosticsJson: createErrorDiagnostics(
+          ErrorCode.EXTERNAL_SOURCE_RUN_SUPERSEDED,
+          'stale_guard',
+          false,
+          document.version,
+          'Skipped stale external source update because a newer document version is already active.',
+          {
+            currentDocumentVersion: currentDocument.version
+          }
+        )
+      }
+    );
 
     return false;
   }
 
-  private async shouldContinueCurrentExternalRun(document: { id: string; version: number }) {
+  private async shouldContinueCurrentExternalRun(document: {
+    id: string;
+    version: number;
+  }) {
     return this.ensureCurrentExternalDocumentVersion(document);
   }
 
@@ -1194,16 +1501,23 @@ export class DocumentsService {
         diagnosticsJson: diagnostics
       }
     });
-    await this.documentRunsService.markRunFailed(document.id, document.version, {
-      failedStage: DocumentRunFailedStage.parsing,
-      diagnosticsJson: diagnostics
-    });
+    await this.documentRunsService.markRunFailed(
+      document.id,
+      document.version,
+      {
+        failedStage: DocumentRunFailedStage.parsing,
+        diagnosticsJson: diagnostics
+      }
+    );
 
     return true;
   }
 
-  private async ensureCurrentIngestionDocumentVersion(document: { id: string; version: number }) {
-    if (typeof this.prisma.document.findUnique !== "function") {
+  private async ensureCurrentIngestionDocumentVersion(document: {
+    id: string;
+    version: number;
+  }) {
+    if (typeof this.prisma.document.findUnique !== 'function') {
       return true;
     }
 
@@ -1218,19 +1532,23 @@ export class DocumentsService {
       return true;
     }
 
-    await this.documentRunsService.markRunSkipped(document.id, document.version, {
-      failedStage: DocumentRunFailedStage.stale_guard,
-      diagnosticsJson: createErrorDiagnostics(
-        ErrorCode.INGESTION_RUN_SUPERSEDED,
-        "stale_guard",
-        false,
-        document.version,
-        "Skipped stale ingestion enqueue failure handling because a newer document version is already active.",
-        {
-          currentDocumentVersion: currentDocument.version
-        }
-      )
-    });
+    await this.documentRunsService.markRunSkipped(
+      document.id,
+      document.version,
+      {
+        failedStage: DocumentRunFailedStage.stale_guard,
+        diagnosticsJson: createErrorDiagnostics(
+          ErrorCode.INGESTION_RUN_SUPERSEDED,
+          'stale_guard',
+          false,
+          document.version,
+          'Skipped stale ingestion enqueue failure handling because a newer document version is already active.',
+          {
+            currentDocumentVersion: currentDocument.version
+          }
+        )
+      }
+    );
 
     return false;
   }
@@ -1242,51 +1560,79 @@ export class DocumentsService {
       sourceName?: string;
     }
   ): ExternalSourceConfig {
-    const legacyFallbackConfig = this.resolveLegacyExternalSourceConfigFromDocumentIdentity(
-      legacyExternalIdentity
-    );
+    const legacyFallbackConfig =
+      this.resolveLegacyExternalSourceConfigFromDocumentIdentity(
+        legacyExternalIdentity
+      );
     const sourceTypeHintFromConfig =
-      value && typeof value === "object" && !Array.isArray(value) && typeof value.kind === "string"
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      typeof value.kind === 'string'
         ? value.kind
         : undefined;
     const sourceTypeHint =
-      sourceTypeHintFromConfig && this.resolveExternalSourceFamilyReadabilityLabel(sourceTypeHintFromConfig)
+      sourceTypeHintFromConfig &&
+      this.resolveExternalSourceFamilyReadabilityLabel(sourceTypeHintFromConfig)
         ? sourceTypeHintFromConfig
-        : legacyExternalIdentity?.sourceType ?? sourceTypeHintFromConfig;
+        : (legacyExternalIdentity?.sourceType ?? sourceTypeHintFromConfig);
 
-    if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.kind !== "string") {
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      typeof value.kind !== 'string'
+    ) {
       if (legacyFallbackConfig) {
         return legacyFallbackConfig;
       }
 
-      throw new Error(this.buildExternalSourceConfigErrorMessage("missing", sourceTypeHint));
+      throw new Error(
+        this.buildExternalSourceConfigErrorMessage('missing', sourceTypeHint)
+      );
     }
 
-    if (value.kind === "web_page" && typeof value.url === "string" && this.isValidRemoteSourceUrl(value.url)) {
+    if (
+      value.kind === 'web_page' &&
+      typeof value.url === 'string' &&
+      this.isValidRemoteSourceUrl(value.url)
+    ) {
       return {
-        kind: "web_page",
+        kind: 'web_page',
         url: value.url
       };
     }
 
-    if (value.kind === "feed" && typeof value.url === "string" && this.isValidRemoteSourceUrl(value.url)) {
-      const maxItems = this.resolveExternalSourceBoundOrLegacyDefault(value.maxItems);
+    if (
+      value.kind === 'feed' &&
+      typeof value.url === 'string' &&
+      this.isValidRemoteSourceUrl(value.url)
+    ) {
+      const maxItems = this.resolveExternalSourceBoundOrLegacyDefault(
+        value.maxItems
+      );
 
       if (maxItems !== null) {
         return {
-          kind: "feed",
+          kind: 'feed',
           url: value.url,
           maxItems
         };
       }
     }
 
-    if (value.kind === "sitemap" && typeof value.url === "string" && this.isValidRemoteSourceUrl(value.url)) {
-      const maxPages = this.resolveExternalSourceBoundOrLegacyDefault(value.maxPages);
+    if (
+      value.kind === 'sitemap' &&
+      typeof value.url === 'string' &&
+      this.isValidRemoteSourceUrl(value.url)
+    ) {
+      const maxPages = this.resolveExternalSourceBoundOrLegacyDefault(
+        value.maxPages
+      );
 
       if (maxPages !== null) {
         return {
-          kind: "sitemap",
+          kind: 'sitemap',
           url: value.url,
           maxPages
         };
@@ -1297,31 +1643,34 @@ export class DocumentsService {
       return legacyFallbackConfig;
     }
 
-    throw new Error(this.buildExternalSourceConfigErrorMessage("invalid", sourceTypeHint));
+    throw new Error(
+      this.buildExternalSourceConfigErrorMessage('invalid', sourceTypeHint)
+    );
   }
 
   private buildExternalSourceConfigErrorMessage(
-    reason: "missing" | "invalid",
+    reason: 'missing' | 'invalid',
     sourceType?: string
   ) {
-    const sourceFamilyLabel = this.resolveExternalSourceFamilyReadabilityLabel(sourceType);
+    const sourceFamilyLabel =
+      this.resolveExternalSourceFamilyReadabilityLabel(sourceType);
     return sourceFamilyLabel
       ? `External ${sourceFamilyLabel} source config is ${reason}.`
       : `External source config is ${reason}.`;
   }
 
   private resolveExternalSourceFamilyReadabilityLabel(sourceType?: string) {
-    if (typeof sourceType !== "string") {
+    if (typeof sourceType !== 'string') {
       return null;
     }
 
     const normalized = sourceType.trim().toLowerCase();
 
-    if (normalized === "web_page") {
-      return "web page";
+    if (normalized === 'web_page') {
+      return 'web page';
     }
 
-    if (normalized === "feed" || normalized === "sitemap") {
+    if (normalized === 'feed' || normalized === 'sitemap') {
       return normalized;
     }
 
@@ -1332,12 +1681,14 @@ export class DocumentsService {
     sourceType?: string;
     sourceName?: string;
   }): ExternalSourceConfig | null {
-    if (!identity || typeof identity.sourceName !== "string") {
+    if (!identity || typeof identity.sourceName !== 'string') {
       return null;
     }
 
     const normalizedSourceType =
-      typeof identity.sourceType === "string" ? identity.sourceType.trim().toLowerCase() : undefined;
+      typeof identity.sourceType === 'string'
+        ? identity.sourceType.trim().toLowerCase()
+        : undefined;
 
     let normalizedSourceName: string;
     try {
@@ -1346,24 +1697,24 @@ export class DocumentsService {
       return null;
     }
 
-    if (normalizedSourceType === "web_page") {
+    if (normalizedSourceType === 'web_page') {
       return {
-        kind: "web_page",
+        kind: 'web_page',
         url: normalizedSourceName
       };
     }
 
-    if (normalizedSourceType === "feed") {
+    if (normalizedSourceType === 'feed') {
       return {
-        kind: "feed",
+        kind: 'feed',
         url: normalizedSourceName,
         maxItems: 20
       };
     }
 
-    if (normalizedSourceType === "sitemap") {
+    if (normalizedSourceType === 'sitemap') {
       return {
-        kind: "sitemap",
+        kind: 'sitemap',
         url: normalizedSourceName,
         maxPages: 20
       };
@@ -1372,12 +1723,14 @@ export class DocumentsService {
     return null;
   }
 
-  private async fetchExternalSourceFromConfig(sourceConfig: ExternalSourceConfig): Promise<FetchedExternalSource> {
-    if (sourceConfig.kind === "web_page") {
+  private async fetchExternalSourceFromConfig(
+    sourceConfig: ExternalSourceConfig
+  ): Promise<FetchedExternalSource> {
+    if (sourceConfig.kind === 'web_page') {
       return this.webPageService.fetchWebPage(sourceConfig.url);
     }
 
-    if (sourceConfig.kind === "feed") {
+    if (sourceConfig.kind === 'feed') {
       return this.feedSourceService.fetchFeed({
         url: sourceConfig.url,
         maxItems: sourceConfig.maxItems
@@ -1397,16 +1750,25 @@ export class DocumentsService {
   }
 
   private isExternalSourceType(sourceType?: string | null) {
-    if (typeof sourceType !== "string") {
+    if (typeof sourceType !== 'string') {
       return false;
     }
 
     const normalizedSourceType = sourceType.trim().toLowerCase();
-    return normalizedSourceType === "web_page" || normalizedSourceType === "feed" || normalizedSourceType === "sitemap";
+    return (
+      normalizedSourceType === 'web_page' ||
+      normalizedSourceType === 'feed' ||
+      normalizedSourceType === 'sitemap'
+    );
   }
 
-  private isExternalResyncInProgress(document: { status: DocumentStatus; processingStage: DocumentProcessingStage }) {
-    const hasInFlightStatus = document.status === DocumentStatus.pending || document.status === DocumentStatus.processing;
+  private isExternalResyncInProgress(document: {
+    status: DocumentStatus;
+    processingStage: DocumentProcessingStage;
+  }) {
+    const hasInFlightStatus =
+      document.status === DocumentStatus.pending ||
+      document.status === DocumentStatus.processing;
     const hasInFlightStage =
       document.processingStage === DocumentProcessingStage.uploaded ||
       document.processingStage === DocumentProcessingStage.parsing ||
@@ -1421,7 +1783,10 @@ export class DocumentsService {
     processingStage: DocumentProcessingStage;
     updatedAt?: Date | null;
   }) {
-    if (document.status !== DocumentStatus.ready || document.processingStage !== DocumentProcessingStage.completed) {
+    if (
+      document.status !== DocumentStatus.ready ||
+      document.processingStage !== DocumentProcessingStage.completed
+    ) {
       return false;
     }
 
@@ -1430,7 +1795,10 @@ export class DocumentsService {
     }
 
     const elapsedMs = Date.now() - document.updatedAt.getTime();
-    return elapsedMs >= 0 && elapsedMs < DocumentsService.EXTERNAL_RESYNC_MIN_INTERVAL_MS;
+    return (
+      elapsedMs >= 0 &&
+      elapsedMs < DocumentsService.EXTERNAL_RESYNC_MIN_INTERVAL_MS
+    );
   }
 
   private isRetryableExternalSourceError(error: unknown) {
@@ -1438,17 +1806,21 @@ export class DocumentsService {
   }
 
   private resolveErrorMessage(error: unknown, fallback: string) {
-    if (error instanceof Error && typeof error.message === "string" && error.message.trim().length > 0) {
+    if (
+      error instanceof Error &&
+      typeof error.message === 'string' &&
+      error.message.trim().length > 0
+    ) {
       return error.message;
     }
 
-    if (typeof error === "string" && error.trim().length > 0) {
+    if (typeof error === 'string' && error.trim().length > 0) {
       return error;
     }
 
-    if (error && typeof error === "object" && "message" in error) {
+    if (error && typeof error === 'object' && 'message' in error) {
       const candidate = (error as { message?: unknown }).message;
-      if (typeof candidate === "string" && candidate.trim().length > 0) {
+      if (typeof candidate === 'string' && candidate.trim().length > 0) {
         return candidate;
       }
     }
@@ -1461,33 +1833,41 @@ export class DocumentsService {
     diagnostics: ExternalSourcePartialDiagnostics | null | undefined,
     message: string,
     retryable: boolean,
-    sourceKind: "feed" | "sitemap" | "web"
+    sourceKind: 'feed' | 'sitemap' | 'web'
   ) {
     if (!diagnostics?.partial) {
       return null;
     }
 
-    const {
-      retryableFailureCount,
-      nonRetryableFailureCount
-    } = this.resolveExternalPartialFailureRetryabilityCounts(diagnostics);
-    const contentTypeFallbackApplied = diagnostics.contentTypeFallbackApplied === true;
+    const { retryableFailureCount, nonRetryableFailureCount } =
+      this.resolveExternalPartialFailureRetryabilityCounts(diagnostics);
+    const contentTypeFallbackApplied =
+      diagnostics.contentTypeFallbackApplied === true;
     const bodyMissing = diagnostics.bodyMissing === true;
     const bodyQualityLow = diagnostics.bodyQualityLow === true;
-    const bodyReadabilitySignal = this.resolveWebBodyReadabilitySignal(sourceKind, bodyMissing, bodyQualityLow);
+    const bodyReadabilitySignal = this.resolveWebBodyReadabilitySignal(
+      sourceKind,
+      bodyMissing,
+      bodyQualityLow
+    );
     const partialFailureCount =
-      this.getNumericDiagnosticField(diagnostics, "failedEntryCount") +
-      this.getNumericDiagnosticField(diagnostics, "failedPageCount") +
-      this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount") +
-      this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
+      this.getNumericDiagnosticField(diagnostics, 'failedEntryCount') +
+      this.getNumericDiagnosticField(diagnostics, 'failedPageCount') +
+      this.getNumericDiagnosticField(diagnostics, 'failedChildSitemapCount') +
+      this.getNumericDiagnosticField(diagnostics, 'skippedDuplicateEntryCount');
     const partialSignalCount =
-      partialFailureCount + (contentTypeFallbackApplied ? 1 : 0) + (bodyMissing ? 1 : 0) + (bodyQualityLow ? 1 : 0);
+      partialFailureCount +
+      (contentTypeFallbackApplied ? 1 : 0) +
+      (bodyMissing ? 1 : 0) +
+      (bodyQualityLow ? 1 : 0);
     const boundaryHit = diagnostics.boundaryHit === true;
     const boundaryReasons = Array.isArray(diagnostics.boundaryReasons)
-      ? diagnostics.boundaryReasons.filter((reason): reason is string => typeof reason === "string")
+      ? diagnostics.boundaryReasons.filter(
+          (reason): reason is string => typeof reason === 'string'
+        )
       : [];
     const resolvedRetryable =
-      typeof diagnostics.retryable === "boolean"
+      typeof diagnostics.retryable === 'boolean'
         ? diagnostics.retryable
         : retryableFailureCount > 0
           ? true
@@ -1514,7 +1894,7 @@ export class DocumentsService {
 
     const partialDiagnostics = createPartialErrorDiagnostics(
       ErrorCode.EXTERNAL_SOURCE_PARTIAL_SUCCESS,
-      "source_fetch",
+      'source_fetch',
       resolvedRetryable,
       documentVersion,
       message,
@@ -1533,93 +1913,118 @@ export class DocumentsService {
     return partialDiagnostics satisfies Prisma.InputJsonValue;
   }
 
-  private resolveWebBodyReadabilitySignal(sourceKind: "feed" | "sitemap" | "web", bodyMissing: boolean, bodyQualityLow: boolean) {
-    if (sourceKind !== "web") {
+  private resolveWebBodyReadabilitySignal(
+    sourceKind: 'feed' | 'sitemap' | 'web',
+    bodyMissing: boolean,
+    bodyQualityLow: boolean
+  ) {
+    if (sourceKind !== 'web') {
       return null;
     }
 
     if (bodyMissing) {
-      return "body_missing" as const;
+      return 'body_missing' as const;
     }
 
     if (bodyQualityLow) {
-      return "body_quality_low" as const;
+      return 'body_quality_low' as const;
     }
 
     return null;
   }
 
-  private buildSitemapPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
-    const failedPageCount = this.getNumericDiagnosticField(diagnostics, "failedPageCount");
-    const failedChildSitemapCount = this.getNumericDiagnosticField(diagnostics, "failedChildSitemapCount");
-    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
+  private buildSitemapPartialDiagnosticsMessage(
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined
+  ) {
+    const failedPageCount = this.getNumericDiagnosticField(
+      diagnostics,
+      'failedPageCount'
+    );
+    const failedChildSitemapCount = this.getNumericDiagnosticField(
+      diagnostics,
+      'failedChildSitemapCount'
+    );
+    const contentTypeFallbackApplied =
+      diagnostics?.contentTypeFallbackApplied === true;
 
     if (failedPageCount > 0 && failedChildSitemapCount > 0) {
-      return "Sitemap source completed with partial child sitemap and page fetch failures.";
+      return 'Sitemap source completed with partial child sitemap and page fetch failures.';
     }
 
     if (failedChildSitemapCount > 0) {
-      return "Sitemap source completed with partial child sitemap fetch failures.";
+      return 'Sitemap source completed with partial child sitemap fetch failures.';
     }
 
     if (contentTypeFallbackApplied) {
-      return "Sitemap source completed with content-type fallback sniffing.";
+      return 'Sitemap source completed with content-type fallback sniffing.';
     }
 
-    return "Sitemap source completed with partial page fetch failures.";
+    return 'Sitemap source completed with partial page fetch failures.';
   }
 
-  private buildFeedPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
-    const failedEntryCount = this.getNumericDiagnosticField(diagnostics, "failedEntryCount");
-    const skippedDuplicateEntryCount = this.getNumericDiagnosticField(diagnostics, "skippedDuplicateEntryCount");
+  private buildFeedPartialDiagnosticsMessage(
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined
+  ) {
+    const failedEntryCount = this.getNumericDiagnosticField(
+      diagnostics,
+      'failedEntryCount'
+    );
+    const skippedDuplicateEntryCount = this.getNumericDiagnosticField(
+      diagnostics,
+      'skippedDuplicateEntryCount'
+    );
     const boundaryHit = diagnostics?.boundaryHit === true;
-    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
+    const contentTypeFallbackApplied =
+      diagnostics?.contentTypeFallbackApplied === true;
 
     if (failedEntryCount > 0) {
-      return "Feed source completed with partial entry validation failures.";
+      return 'Feed source completed with partial entry validation failures.';
     }
 
     if (skippedDuplicateEntryCount > 0) {
-      return "Feed source completed with duplicate entries skipped.";
+      return 'Feed source completed with duplicate entries skipped.';
     }
 
     if (boundaryHit) {
-      return "Feed source completed with max-items boundary truncation.";
+      return 'Feed source completed with max-items boundary truncation.';
     }
 
     if (contentTypeFallbackApplied) {
-      return "Feed source completed with content-type fallback sniffing.";
+      return 'Feed source completed with content-type fallback sniffing.';
     }
 
-    return "Feed source completed with partial diagnostics.";
+    return 'Feed source completed with partial diagnostics.';
   }
 
-  private buildWebPartialDiagnosticsMessage(diagnostics: ExternalSourcePartialDiagnostics | null | undefined) {
+  private buildWebPartialDiagnosticsMessage(
+    diagnostics: ExternalSourcePartialDiagnostics | null | undefined
+  ) {
     const bodyMissing = diagnostics?.bodyMissing === true;
     const bodyQualityLow = diagnostics?.bodyQualityLow === true;
-    const contentTypeFallbackApplied = diagnostics?.contentTypeFallbackApplied === true;
+    const contentTypeFallbackApplied =
+      diagnostics?.contentTypeFallbackApplied === true;
 
     if (bodyMissing && contentTypeFallbackApplied) {
-      return "Web page source completed with content-type fallback sniffing and body-missing diagnostics.";
+      return 'Web page source completed with content-type fallback sniffing and body-missing diagnostics.';
     }
 
     if (bodyMissing) {
-      return "Web page source completed with body-missing diagnostics.";
+      return 'Web page source completed with body-missing diagnostics.';
     }
 
     if (bodyQualityLow && contentTypeFallbackApplied) {
-      return "Web page source completed with content-type fallback sniffing and low body-quality diagnostics.";
+      return 'Web page source completed with content-type fallback sniffing and low body-quality diagnostics.';
     }
 
     if (bodyQualityLow) {
-      return "Web page source completed with low body-quality diagnostics.";
+      return 'Web page source completed with low body-quality diagnostics.';
     }
 
     if (contentTypeFallbackApplied) {
-      return "Web page source completed with content-type fallback sniffing.";
+      return 'Web page source completed with content-type fallback sniffing.';
     }
 
-    return "Web page source completed with partial diagnostics.";
+    return 'Web page source completed with partial diagnostics.';
   }
 
   private getNumericDiagnosticField(
@@ -1627,14 +2032,20 @@ export class DocumentsService {
     key: string
   ) {
     const value = diagnostics?.[key];
-    return typeof value === "number" ? value : 0;
+    return typeof value === 'number' ? value : 0;
   }
 
   private resolveExternalPartialFailureRetryabilityCounts(
     diagnostics: ExternalSourcePartialDiagnostics | null | undefined
   ) {
-    const retryableFailureCount = this.getNumericDiagnosticField(diagnostics, "retryableFailureCount");
-    const nonRetryableFailureCount = this.getNumericDiagnosticField(diagnostics, "nonRetryableFailureCount");
+    const retryableFailureCount = this.getNumericDiagnosticField(
+      diagnostics,
+      'retryableFailureCount'
+    );
+    const nonRetryableFailureCount = this.getNumericDiagnosticField(
+      diagnostics,
+      'nonRetryableFailureCount'
+    );
 
     if (retryableFailureCount > 0 || nonRetryableFailureCount > 0) {
       return {
@@ -1643,11 +2054,10 @@ export class DocumentsService {
       };
     }
 
-    const inferredCounts = this.countRetryabilityFromDiagnosticCollections(diagnostics, [
-      "failedEntries",
-      "failedPages",
-      "failedChildSitemaps"
-    ]);
+    const inferredCounts = this.countRetryabilityFromDiagnosticCollections(
+      diagnostics,
+      ['failedEntries', 'failedPages', 'failedChildSitemaps']
+    );
 
     return inferredCounts;
   }
@@ -1666,7 +2076,7 @@ export class DocumentsService {
       }
 
       for (const item of items) {
-        if (!item || typeof item !== "object") {
+        if (!item || typeof item !== 'object') {
           continue;
         }
 
@@ -1689,7 +2099,7 @@ export class DocumentsService {
   }
 
   private resolveExternalSourceBoundOrLegacyDefault(value: unknown) {
-    if (typeof value === "number") {
+    if (typeof value === 'number') {
       return value;
     }
 
@@ -1703,7 +2113,7 @@ export class DocumentsService {
   private isValidRemoteSourceUrl(url: string) {
     try {
       const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     } catch {
       return false;
     }

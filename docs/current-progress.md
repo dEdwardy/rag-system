@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-更新时间：2026-04-05
+> 更新时间：2026-04-05
 
 ## Current Snapshot
 
@@ -17,6 +17,19 @@
   - 或从新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments
+
+- `frontend large-list containment pass` completed a bounded maintenance wave on the current web admin / workspace surfaces without opening a new frontend architecture track
+  - `apps/api/src/modules/documents/documents.controller.ts` / `documents.service.ts` added paged document-list and document-summary endpoints, and `apps/web/src/pages/documents/DocumentsPage.tsx` now renders the library from `summary + paged list` instead of full-document fetches
+  - `apps/web/src/pages/usage/UsagePage.tsx`, `apps/web/src/pages/workbench/WorkbenchPage.tsx`, and `apps/web/src/pages/assistant/AssistantPage.tsx` now consume document summary counts directly instead of pulling the full document array only to derive totals
+  - `apps/api/src/modules/conversations/conversations.controller.ts` / `conversations.service.ts` added `GET /conversations/paged`, and `apps/web/src/pages/traces/TraceListPage.tsx` now uses server-backed conversation pagination instead of client-side `slice()` over the full history
+  - `apps/web/src/pages/chat/ChatPage.tsx` and `apps/web/src/pages/chat/ChatWorkspacePanels.tsx` now bound conversation history with paged “load more” behavior, reducing both sidebar render cost and full-history fetch pressure on the main chat route
+  - `apps/web/src/pages/reports/ReportResultsTable.tsx` now paginates large eval result sets locally, and `apps/web/src/pages/documents/DocumentDetailChunksPanel.tsx` now paginates chunk inspection while auto-jumping to the focused chunk page when entered from trace review
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm --filter @rag-system/web test:guard`
+    - `pnpm test:api:file -- test/document-runs-summary.test.js`
+    - `pnpm test:api:file -- test/conversations.service.test.js`
+    - `git diff --check -- apps/api/src/modules/documents/documents.controller.ts apps/api/src/modules/documents/documents.service.ts apps/api/test/document-runs-summary.test.js apps/api/src/modules/conversations/conversations.controller.ts apps/api/src/modules/conversations/conversations.service.ts apps/api/test/conversations.service.test.js apps/web/src/features/api/hooks.ts apps/web/src/pages/documents/DocumentsPage.tsx apps/web/src/pages/usage/UsagePage.tsx apps/web/src/pages/workbench/WorkbenchPage.tsx apps/web/src/pages/assistant/AssistantPage.tsx apps/web/src/pages/traces/TraceListPage.tsx apps/web/src/pages/chat/ChatPage.tsx apps/web/src/pages/chat/ChatWorkspacePanels.tsx apps/web/src/pages/reports/ReportResultsTable.tsx apps/web/src/pages/documents/DocumentDetailChunksPanel.tsx docs/current-context.md docs/current-progress.md`
 
 - `Supabase / Prisma 延迟排查复盘` 沉淀了这轮首字节优化的关键结论，供后续同类项目复用
   - 现象：应用侧 `ask_timing` 日志里 `retrievalMs`、`vectorSearchMs`、`vectorCandidateFetchMs` 很高，但数据库表规模很小，和直觉不符

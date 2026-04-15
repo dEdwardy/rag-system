@@ -130,6 +130,36 @@ type PromptSnapshot = {
   userPrompt: string;
 };
 
+const MIN_ANSWERABLE_PRIMARY_SCORE = 0.2;
+const FABRICATION_REQUEST_PATTERNS = [
+  /if\s+(the\s+)?(knowledge\s*base|sources?)\s+(does\s+not|don't|do not)\s+(have|contain|include)/i,
+  /不要说不知(道|晓)/,
+  /尽量给我一个完整答案/,
+  /没有相关内容.*完整答案/,
+  /even if (the )?(knowledge\s*base|sources?) (do not|don't|does not) (have|contain|include)/i,
+  /make up a complete answer/i
+] as const;
+const POLICY_LIKE_TEXT_PATTERNS = [
+  /\b(citation|citations|insufficient[_\s-]?context|missing information|supporting sources|retrieved sources)\b/i,
+  /\b(system|assistant)\s+(policy|behavior|boundary|boundaries|capability|capabilities)\b/i,
+  /\b(refusal|abstain|hallucinat|prompt injection)\b/i,
+  /引用策略/,
+  /拒答/,
+  /能力边界/,
+  /系统策略/,
+  /不要伪造答案/,
+  /没有依据/
+] as const;
+const POLICY_QUESTION_PATTERNS = [
+  /\b(system|assistant|policy|citation|citations|refusal|abstain|hallucination|prompt injection)\b/i,
+  /系统/,
+  /助手/,
+  /引用/,
+  /拒答/,
+  /策略/,
+  /能力边界/
+] as const;
+
 @Injectable()
 export class AskAssistantService {
   private readonly logger = new Logger(AskAssistantService.name);
@@ -375,20 +405,32 @@ export class AskAssistantService {
     );
 
     try {
-      const resolvedAnswerResult =
-        retrievedChunks.length === 0 &&
-        normalizedAnswerPolicy.noAnswerBehavior === 'say_insufficient_context'
-          ? this.answeringService.buildDeterministicInsufficientContextResult({
-              question: input.question,
-              answerPolicy: normalizedAnswerPolicy
-            })
-          : await this.answeringService.generateAnswer({
-              question: input.question,
-              systemPrompt: assistant.systemPrompt,
-              answerPolicy: normalizedAnswerPolicy,
-              chunks: retrievedChunks,
-              contextGroups
-            });
+      const shouldBypassAnswerGeneration =
+        normalizedAnswerPolicy.noAnswerBehavior ===
+          'say_insufficient_context' &&
+        this.shouldDeterministicallyAbstain({
+          question: input.question,
+          retrievedChunks,
+          scoreThreshold: retrievalProfile.scoreThreshold
+        });
+      const resolvedAnswerResult = shouldBypassAnswerGeneration
+        ? this.answeringService.buildDeterministicInsufficientContextResult({
+            question: input.question,
+            answerPolicy: normalizedAnswerPolicy,
+            hasRetrievedContext: retrievedChunks.length > 0,
+            insufficientContextReason:
+              retrievedChunks.length > 0
+                ? 'retrieved_context_insufficient'
+                : 'no_retrieval_hits',
+            topScore: retrievedChunks[0]?.score ?? null
+          })
+        : await this.answeringService.generateAnswer({
+            question: input.question,
+            systemPrompt: assistant.systemPrompt,
+            answerPolicy: normalizedAnswerPolicy,
+            chunks: retrievedChunks,
+            contextGroups
+          });
 
       const assistantMessage = await this.messagesService.createMessage({
         conversationId: conversation.id,
@@ -1317,6 +1359,70 @@ export class AskAssistantService {
         render('llm queue', timing.llmQueueWaitMs),
         render('retrieval queue', timing.retrievalQueueWaitMs)
       ].join('; ') + '.'
+    );
+  }
+
+  private shouldDeterministicallyAbstain(input: {
+    question: string;
+    retrievedChunks: AskResultChunk[];
+    scoreThreshold: number;
+  }) {
+    if (input.retrievedChunks.length === 0) {
+      return true;
+    }
+
+    const primaryChunks = input.retrievedChunks.filter(
+      (chunk) => chunk.isPrimary ?? true
+    );
+    const candidateChunks =
+      primaryChunks.length > 0 ? primaryChunks : input.retrievedChunks;
+    const minAnswerableScore = Math.max(
+      input.scoreThreshold,
+      MIN_ANSWERABLE_PRIMARY_SCORE
+    );
+
+    if (this.isExplicitFabricationRequest(input.question)) {
+      return true;
+    }
+
+    if (
+      this.isPolicyLikeOnlyEvidence(candidateChunks) &&
+      !this.isPolicyQuestion(input.question)
+    ) {
+      return true;
+    }
+
+    return !candidateChunks.some((chunk) => chunk.score >= minAnswerableScore);
+  }
+
+  private isExplicitFabricationRequest(question: string) {
+    return FABRICATION_REQUEST_PATTERNS.some((pattern) =>
+      pattern.test(question)
+    );
+  }
+
+  private isPolicyQuestion(question: string) {
+    return POLICY_QUESTION_PATTERNS.some((pattern) => pattern.test(question));
+  }
+
+  private isPolicyLikeOnlyEvidence(chunks: AskResultChunk[]) {
+    return (
+      chunks.length > 0 &&
+      chunks.every((chunk) => this.isPolicyLikeChunk(chunk))
+    );
+  }
+
+  private isPolicyLikeChunk(chunk: AskResultChunk) {
+    const searchableText = [
+      chunk.documentTitle,
+      chunk.sectionTitle ?? '',
+      chunk.content
+    ]
+      .join('\n')
+      .trim();
+
+    return POLICY_LIKE_TEXT_PATTERNS.some((pattern) =>
+      pattern.test(searchableText)
     );
   }
 
