@@ -1,56 +1,62 @@
-const assert = require("node:assert/strict");
-const { test } = require("node:test");
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
 
-const { AssistantsService } = require("../src/modules/assistants/assistants.service.ts");
-const { RetrievalProfilesController } = require("../src/modules/retrieval-profiles/retrieval-profiles.controller.ts");
-const { RetrievalProfilesService } = require("../src/modules/retrieval-profiles/retrieval-profiles.service.ts");
+const {
+  AssistantsService
+} = require('../src/modules/assistants/assistants.service.ts');
+const {
+  RetrievalProfilesController
+} = require('../src/modules/retrieval-profiles/retrieval-profiles.controller.ts');
+const {
+  RetrievalProfilesService
+} = require('../src/modules/retrieval-profiles/retrieval-profiles.service.ts');
 
 function buildRequest() {
   return {
     authContext: {
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       },
       currentIdentity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     }
   };
 }
 
-test("RetrievalProfilesController passes request identity to read/write service calls", async () => {
+test('RetrievalProfilesController passes request identity to read/write service calls', async () => {
   const calls = [];
   const controller = new RetrievalProfilesController({
-    listRetrievalProfiles: async identity => {
-      calls.push({ type: "list", identity });
+    listRetrievalProfiles: async (identity) => {
+      calls.push({ type: 'list', identity });
       return [];
     },
     getRetrievalProfile: async (id, identity) => {
-      calls.push({ type: "get", id, identity });
+      calls.push({ type: 'get', id, identity });
       return { id };
     },
     createRetrievalProfile: async (input, identity) => {
-      calls.push({ type: "create", input, identity });
-      return { id: "profile-1" };
+      calls.push({ type: 'create', input, identity });
+      return { id: 'profile-1' };
     },
     updateRetrievalProfile: async (id, input, identity) => {
-      calls.push({ type: "update", id, input, identity });
+      calls.push({ type: 'update', id, input, identity });
       return { id };
     }
   });
 
   const request = buildRequest();
   await controller.listRetrievalProfiles(request);
-  await controller.getRetrievalProfile("profile-1", request);
+  await controller.getRetrievalProfile('profile-1', request);
   await controller.createRetrievalProfile(
     {
-      name: "Scoped profile",
+      name: 'Scoped profile',
       topK: 3,
       chunkWindow: 0,
       enableHybrid: false,
@@ -60,7 +66,7 @@ test("RetrievalProfilesController passes request identity to read/write service 
     request
   );
   await controller.updateRetrievalProfile(
-    "profile-1",
+    'profile-1',
     {
       topK: 5
     },
@@ -69,28 +75,28 @@ test("RetrievalProfilesController passes request identity to read/write service 
 
   assert.deepEqual(calls, [
     {
-      type: "list",
+      type: 'list',
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     },
     {
-      type: "get",
-      id: "profile-1",
+      type: 'get',
+      id: 'profile-1',
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     },
     {
-      type: "create",
+      type: 'create',
       input: {
-        name: "Scoped profile",
+        name: 'Scoped profile',
         topK: 3,
         chunkWindow: 0,
         enableHybrid: false,
@@ -98,64 +104,74 @@ test("RetrievalProfilesController passes request identity to read/write service 
         scoreThreshold: 0
       },
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     },
     {
-      type: "update",
-      id: "profile-1",
+      type: 'update',
+      id: 'profile-1',
       input: {
         topK: 5
       },
       identity: {
-        userId: "user-auth",
-        tenantId: "tenant-auth",
-        sessionId: "session-1",
-        authSource: "session"
+        userId: 'user-auth',
+        tenantId: 'tenant-auth',
+        sessionId: 'session-1',
+        authSource: 'session'
       }
     }
   ]);
 });
 
-test("RetrievalProfilesService applies owner scope to list/get and stamps owner on create", async () => {
+test('RetrievalProfilesService applies owner scope to list/get and stamps owner on create', async () => {
   const calls = {
     list: [],
     get: [],
     create: []
   };
-  const fakeService = Object.assign(Object.create(RetrievalProfilesService.prototype), {
-    prisma: {
-      retrievalProfile: {
-        findMany: async args => {
-          calls.list.push(args);
-          return [];
-        },
-        findFirst: async args => {
-          calls.get.push(args);
-          return { id: "profile-1" };
-        },
-        create: async args => {
-          calls.create.push(args);
-          return { id: "profile-1" };
+  const fakeService = Object.assign(
+    Object.create(RetrievalProfilesService.prototype),
+    {
+      prisma: {
+        retrievalProfile: {
+          findMany: async (args) => {
+            calls.list.push(args);
+            return [];
+          },
+          findFirst: async (args) => {
+            calls.get.push(args);
+            return { id: 'profile-1' };
+          },
+          create: async (args) => {
+            calls.create.push(args);
+            return { id: 'profile-1' };
+          }
         }
       }
     }
-  });
+  );
 
   const scope = {
-    tenantId: "tenant-auth",
-    userId: "user-auth"
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
   };
 
-  await RetrievalProfilesService.prototype.listRetrievalProfiles.call(fakeService, scope);
-  await RetrievalProfilesService.prototype.getRetrievalProfile.call(fakeService, "profile-1", scope);
+  await RetrievalProfilesService.prototype.listRetrievalProfiles.call(
+    fakeService,
+    scope
+  );
+  await RetrievalProfilesService.prototype.getRetrievalProfile.call(
+    fakeService,
+    'profile-1',
+    scope
+  );
   await RetrievalProfilesService.prototype.createRetrievalProfile.call(
     fakeService,
     {
-      name: "Scoped profile",
+      name: 'Scoped profile',
       topK: 3,
       chunkWindow: 0,
       enableHybrid: false,
@@ -168,29 +184,29 @@ test("RetrievalProfilesService applies owner scope to list/get and stamps owner 
   assert.deepEqual(calls.list, [
     {
       where: {
-        tenantId: "tenant-auth",
-        ownerId: "user-auth"
+        tenantId: 'tenant-auth',
+        ownerId: 'user-auth'
       },
       orderBy: {
-        createdAt: "desc"
+        createdAt: 'desc'
       }
     }
   ]);
   assert.deepEqual(calls.get, [
     {
       where: {
-        id: "profile-1",
-        tenantId: "tenant-auth",
-        ownerId: "user-auth"
+        id: 'profile-1',
+        tenantId: 'tenant-auth',
+        ownerId: 'user-auth'
       }
     }
   ]);
   assert.deepEqual(calls.create, [
     {
       data: {
-        tenantId: "tenant-auth",
-        ownerId: "user-auth",
-        name: "Scoped profile",
+        tenantId: 'tenant-auth',
+        ownerId: 'user-auth',
+        name: 'Scoped profile',
         topK: 3,
         chunkWindow: 0,
         enableHybrid: false,
@@ -201,41 +217,93 @@ test("RetrievalProfilesService applies owner scope to list/get and stamps owner 
   ]);
 });
 
-test("AssistantsService validates retrievalProfileId within current identity scope", async () => {
+test('AssistantsService validates retrievalProfileId within current identity scope', async () => {
   const observedCalls = [];
   const scope = {
-    tenantId: "tenant-auth",
-    userId: "user-auth"
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
   };
 
-  const fakeService = Object.assign(Object.create(AssistantsService.prototype), {
-    getAssistant: async () => ({ id: "assistant-1" }),
-    retrievalProfilesService: {
-      getRetrievalProfile: async (id, receivedScope) => {
-        observedCalls.push({ id, scope: receivedScope });
-        return { id };
-      }
-    },
-    prisma: {
-      assistant: {
-        update: async () => ({ id: "assistant-1" })
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      getAssistant: async () => ({ id: 'assistant-1' }),
+      retrievalProfilesService: {
+        getRetrievalProfile: async (id, receivedScope) => {
+          observedCalls.push({ id, scope: receivedScope });
+          return { id };
+        }
+      },
+      prisma: {
+        assistant: {
+          update: async () => ({ id: 'assistant-1' })
+        }
       }
     }
-  });
+  );
 
   await AssistantsService.prototype.updateAssistant.call(
     fakeService,
-    "assistant-1",
+    'assistant-1',
     {
-      retrievalProfileId: "profile-owned"
+      retrievalProfileId: 'profile-owned'
     },
     scope
   );
 
   assert.deepEqual(observedCalls, [
     {
-      id: "profile-owned",
+      id: 'profile-owned',
       scope
     }
   ]);
+});
+
+test('AssistantsService prefers the canonical default assistant in list results for the same owner scope', async () => {
+  const scope = {
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
+  };
+
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      prisma: {
+        assistant: {
+          findMany: async () => [
+            {
+              id: 'assistant-secondary',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-1',
+              name: 'Research Assistant',
+              description: null,
+              systemPrompt: 'secondary',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active'
+            },
+            {
+              id: 'assistant-default',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-1',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'default',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active'
+            }
+          ]
+        }
+      }
+    }
+  );
+
+  const assistants = await AssistantsService.prototype.listAssistants.call(
+    fakeService,
+    scope
+  );
+
+  assert.equal(assistants[0]?.id, 'assistant-default');
+  assert.equal(assistants[1]?.id, 'assistant-secondary');
 });

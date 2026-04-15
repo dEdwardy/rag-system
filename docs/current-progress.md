@@ -18,6 +18,51 @@
 
 ## Recent Landed Increments
 
+- `default assistant backfill/repair hardening` tightened the default-user bootstrap path without opening a new template or team wave
+  - `apps/api/src/modules/auth/auth.service.ts` now treats the default assistant path as a repairable baseline: it still creates the primary knowledge base / retrieval profile / assistant when missing, and it now also repairs the existing assistant binding when the primary KB relationship or retrieval profile drifted out of sync
+  - the OAuth bootstrap copy for default KB / assistant provisioning now uses product-facing default-assistant language instead of OAuth-specific placeholder text
+  - `apps/api/test/auth-provider-boundary.test.js` now covers both first-time provisioning and the repair path for an already-provisioned but stale default assistant
+  - focused validation:
+    - `pnpm --filter @rag-system/api exec vitest run test/auth-provider-boundary.test.js`
+    - `git diff --check -- apps/api/src/modules/auth/auth.service.ts apps/api/test/auth-provider-boundary.test.js docs/current-progress.md`
+
+- `default assistant repair-state copy alignment` tightened the frontend empty-state wording around the same bootstrap contract
+  - `apps/web/src/pages/assistant/AssistantPage.tsx` now treats the no-assistant branch as a temporary default-assistant repair/preparation state instead of telling the user to bind one manually
+  - `apps/web/src/pages/chat/ChatPage.tsx` now shows the same repair-state wording and includes the current library name in the no-assistant state instead of falling back to a generic disabled-composer message
+  - `apps/web/src/i18n/messages.en.ts` and `messages.zh.ts` now align the assistant/chat empty-state copy to the backend reality: the system is expected to provision or repair the default assistant automatically for the current primary library
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/i18n-copy.test.js`
+    - `git diff --check -- apps/web/src/pages/assistant/AssistantPage.tsx apps/web/src/pages/chat/ChatPage.tsx apps/web/src/i18n/messages.en.ts apps/web/src/i18n/messages.zh.ts docs/current-progress.md`
+
+- `default assistant binding visibility` added a small readout so the default path is easier to understand without reading IDs
+  - `apps/web/src/pages/assistant/AssistantSettingsForm.tsx` now shows the current primary library name and an explicit default-assistant binding readout in the side status panel
+  - `apps/web/src/pages/assistant/AssistantPage.tsx` passes the resolved primary knowledge base into the settings form instead of making users infer the binding indirectly
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/i18n-copy.test.js`
+    - `git diff --check -- apps/web/src/pages/assistant/AssistantPage.tsx apps/web/src/pages/assistant/AssistantSettingsForm.tsx apps/web/src/i18n/messages.en.ts apps/web/src/i18n/messages.zh.ts docs/current-progress.md`
+
+- `default path refresh fallback` added a small user-facing retry action without changing backend contracts
+  - `apps/web/src/pages/assistant/AssistantPage.tsx` and `apps/web/src/pages/chat/ChatPage.tsx` now offer a refresh action when the default assistant is still being prepared, so users can explicitly re-fetch the current knowledge base / assistant / retrieval-profile path
+  - `apps/web/src/i18n/messages.en.ts` and `messages.zh.ts` now include matching “refresh default path” labels for assistant/chat empty states
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/i18n-copy.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/assistant/AssistantPage.tsx apps/web/src/pages/chat/ChatPage.tsx apps/web/src/i18n/messages.en.ts apps/web/src/i18n/messages.zh.ts docs/current-progress.md`
+
+- `default assistant identification tightening` made the current single-library path less ambiguous when multiple assistants point at the same library
+  - `apps/web/src/features/api/workspace-selection.ts` now prefers the canonical `Default Assistant` for the active knowledge base before falling back to other same-library assistants
+  - `apps/web/test/workspace-selection.test.js` now covers same-library duplicate-assistant cases so the current default-path selection rule stays explicit
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/workspace-selection.test.js`
+    - `git diff --check -- apps/web/src/features/api/workspace-selection.ts apps/web/test/workspace-selection.test.js docs/current-progress.md`
+
+- `default assistant priority alignment in api list reads` brought the same default-assistant rule into the backend read path
+  - `apps/api/src/modules/assistants/assistants.service.ts` now reorders scoped assistant list results so the canonical `Default Assistant` stays ahead of other same-owner assistants
+  - `apps/api/test/retrieval-profiles-auth-scope.test.js` now verifies the backend list path keeps the canonical default assistant first
+  - focused validation:
+    - `pnpm --filter @rag-system/api exec node --test test/retrieval-profiles-auth-scope.test.js`
+    - `git diff --check -- apps/api/src/modules/assistants/assistants.service.ts apps/api/test/retrieval-profiles-auth-scope.test.js docs/current-progress.md`
+
 - `frontend large-list containment pass` completed a bounded maintenance wave on the current web admin / workspace surfaces without opening a new frontend architecture track
   - `apps/api/src/modules/documents/documents.controller.ts` / `documents.service.ts` added paged document-list and document-summary endpoints, and `apps/web/src/pages/documents/DocumentsPage.tsx` now renders the library from `summary + paged list` instead of full-document fetches
   - `apps/web/src/pages/usage/UsagePage.tsx`, `apps/web/src/pages/workbench/WorkbenchPage.tsx`, and `apps/web/src/pages/assistant/AssistantPage.tsx` now consume document summary counts directly instead of pulling the full document array only to derive totals

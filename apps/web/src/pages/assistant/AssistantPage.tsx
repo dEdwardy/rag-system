@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Badge,
@@ -39,6 +40,7 @@ const AssistantSettingsForm = lazy(async () => {
 });
 
 export function AssistantPage() {
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
@@ -77,7 +79,16 @@ export function AssistantPage() {
     retrievalProfilesQuery.error instanceof Error
       ? retrievalProfilesQuery.error.message
       : undefined;
-  const canRenderForm = assistant != null && retrievalProfile != null;
+  const canRenderForm =
+    assistant != null && retrievalProfile != null && knowledgeBase != null;
+
+  const refreshDefaultAssistantPath = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
+      queryClient.invalidateQueries({ queryKey: ['assistants'] }),
+      queryClient.invalidateQueries({ queryKey: ['retrieval-profiles'] })
+    ]);
+  };
 
   return (
     <Stack data-testid="assistant-page" gap="md">
@@ -132,11 +143,11 @@ export function AssistantPage() {
               <Text c="var(--app-text-secondary)" mt="sm" size="sm">
                 {assistant
                   ? locale === 'zh'
-                    ? '先确认助手身份与回答策略，再按需进入检索调优。'
+                    ? '默认助手已经就绪。先确认回答策略，只有在默认路径表现不对时再继续调优。'
                     : 'Start with the assistant identity and answer policy, then move into retrieval tuning only when needed.'
                   : locale === 'zh'
-                    ? '先准备好当前资料空间的回答设置，再继续调整策略。'
-                    : 'Set up answer settings for the active library first, then tune the policy as needed.'}
+                    ? '当前资料库的默认助手仍在补建或修复中；它出现后再继续做必要的设置调整。'
+                    : 'The default assistant for the active library is still being prepared or repaired. Tune settings after it appears.'}
               </Text>
             </div>
           </Group>
@@ -270,12 +281,13 @@ export function AssistantPage() {
               <Button
                 className="workspace-button"
                 color="indigo"
-                component={Link}
+                onClick={() => {
+                  void refreshDefaultAssistantPath();
+                }}
                 radius="xl"
-                to="/knowledge-base"
-                variant="light"
+                variant="filled"
               >
-                {t('assistant.noAssistantForKnowledgeBaseAction')}
+                {t('assistant.noAssistantForKnowledgeBaseRefreshAction')}
               </Button>
               <Button
                 className="workspace-button"
@@ -308,6 +320,7 @@ export function AssistantPage() {
               updateRetrievalProfileMutation.isPending
             }
             key={`${assistant.id}:${retrievalProfile.id}`}
+            knowledgeBase={knowledgeBase}
             locale={locale}
             retrievalProfile={retrievalProfile}
             saveSettings={async (values) => {

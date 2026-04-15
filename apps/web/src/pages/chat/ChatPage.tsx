@@ -711,6 +711,14 @@ export function ChatPage() {
     }
   };
 
+  const refreshDefaultAssistantPath = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
+      queryClient.invalidateQueries({ queryKey: ['assistants'] }),
+      queryClient.invalidateQueries({ queryKey: ['retrieval-profiles'] })
+    ]);
+  }, [queryClient]);
+
   const findRegenerateQuestion = useCallback(
     (messageIndex: number) => {
       for (let index = messageIndex - 1; index >= 0; index -= 1) {
@@ -789,14 +797,34 @@ export function ChatPage() {
             {activeAssistant == null ? (
               <StatePanel
                 action={
-                  <Link
-                    className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
-                    to="/assistant"
-                  >
-                    {t('chat.states.noAssistantForKnowledgeBaseAction')}
-                  </Link>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <button
+                      className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
+                      onClick={() => {
+                        void refreshDefaultAssistantPath();
+                      }}
+                      type="button"
+                    >
+                      {t(
+                        'chat.states.noAssistantForKnowledgeBaseRefreshAction'
+                      )}
+                    </button>
+                    <Link
+                      className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
+                      to="/assistant"
+                    >
+                      {t('chat.states.noAssistantForKnowledgeBaseAction')}
+                    </Link>
+                  </div>
                 }
-                description={chatCopy.inputHelpDisabled}
+                description={t(
+                  'chat.states.noAssistantForKnowledgeBaseDescription',
+                  {
+                    knowledgeBaseName:
+                      activeKnowledgeBase?.name ??
+                      t('chat.copy.noKnowledgeBaseName')
+                  }
+                )}
                 title={t('chat.states.noAssistantForKnowledgeBaseTitle')}
               />
             ) : resolvedConversationId == null && activeStreamTurn == null ? (

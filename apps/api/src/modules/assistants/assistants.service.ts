@@ -1,14 +1,23 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
-import { PrismaService } from "../../infra/database/prisma.service";
-import { buildResourceAccessDeniedHint, evaluateOwnerResourceAccess } from "../auth/resource-access-policy.contract";
-import { RetrievalProfilesService } from "../retrieval-profiles/retrieval-profiles.service";
-import { UpdateAssistantInput } from "./assistant.schemas";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../infra/database/prisma.service';
+import {
+  buildResourceAccessDeniedHint,
+  evaluateOwnerResourceAccess
+} from '../auth/resource-access-policy.contract';
+import { RetrievalProfilesService } from '../retrieval-profiles/retrieval-profiles.service';
+import { UpdateAssistantInput } from './assistant.schemas';
 
 type AssistantAccessScope = {
   tenantId: string;
   userId: string;
 };
+
+const DEFAULT_ASSISTANT_NAME = 'Default Assistant';
 
 @Injectable()
 export class AssistantsService {
@@ -30,28 +39,30 @@ export class AssistantsService {
   ) {}
 
   listAssistants(scope?: AssistantAccessScope | null) {
-    return this.prisma.assistant.findMany({
-      select: this.assistantListSelect,
-      ...(scope
-        ? {
-            where: {
-              tenantId: scope.tenantId,
-              knowledgeBase: {
-                is: {
-                  ownerId: scope.userId
+    return this.prisma.assistant
+      .findMany({
+        select: this.assistantListSelect,
+        ...(scope
+          ? {
+              where: {
+                tenantId: scope.tenantId,
+                knowledgeBase: {
+                  is: {
+                    ownerId: scope.userId
+                  }
                 }
               }
             }
-          }
-        : {}),
-      orderBy: {
-        createdAt: "desc"
-      }
-    });
+          : {}),
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
+      .then((assistants) => assistants.slice().sort(compareAssistantPriority));
   }
 
   async getAssistant(id: string, scope?: AssistantAccessScope | null) {
-    if (scope && typeof this.prisma.assistant.findFirst !== "function") {
+    if (scope && typeof this.prisma.assistant.findFirst !== 'function') {
       const existingAssistant = await this.prisma.assistant.findUnique({
         where: { id },
         include: {
@@ -72,9 +83,9 @@ export class AssistantsService {
 
       const accessDecision = evaluateOwnerResourceAccess({
         identity: scope,
-        action: "read",
+        action: 'read',
         resource: {
-          kind: "knowledge_base",
+          kind: 'knowledge_base',
           resourceId: existingAssistant.knowledgeBase.id,
           tenantId: existingAssistant.knowledgeBase.tenantId,
           ownerId: existingAssistant.knowledgeBase.ownerId
@@ -82,7 +93,9 @@ export class AssistantsService {
       });
 
       if (!accessDecision.allowed) {
-        throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
+        throw new ForbiddenException(
+          buildResourceAccessDeniedHint(accessDecision)
+        );
       }
 
       const { knowledgeBase, ...scopedAssistant } = existingAssistant;
@@ -91,7 +104,7 @@ export class AssistantsService {
     }
 
     const assistant = scope
-      ? typeof this.prisma.assistant.findFirst === "function"
+      ? typeof this.prisma.assistant.findFirst === 'function'
         ? await this.prisma.assistant.findFirst({
             where: {
               id,
@@ -140,9 +153,9 @@ export class AssistantsService {
 
     const accessDecision = evaluateOwnerResourceAccess({
       identity: scope,
-      action: "read",
+      action: 'read',
       resource: {
-        kind: "knowledge_base",
+        kind: 'knowledge_base',
         resourceId: existingAssistant.knowledgeBase.id,
         tenantId: existingAssistant.knowledgeBase.tenantId,
         ownerId: existingAssistant.knowledgeBase.ownerId
@@ -150,28 +163,45 @@ export class AssistantsService {
     });
 
     if (!accessDecision.allowed) {
-      throw new ForbiddenException(buildResourceAccessDeniedHint(accessDecision));
+      throw new ForbiddenException(
+        buildResourceAccessDeniedHint(accessDecision)
+      );
     }
 
     throw new NotFoundException(`Assistant ${id} not found.`);
   }
 
-  async updateAssistant(id: string, input: UpdateAssistantInput, scope?: AssistantAccessScope | null) {
+  async updateAssistant(
+    id: string,
+    input: UpdateAssistantInput,
+    scope?: AssistantAccessScope | null
+  ) {
     await this.getAssistant(id, scope);
 
     if (input.retrievalProfileId) {
-      await this.retrievalProfilesService.getRetrievalProfile(input.retrievalProfileId, scope);
+      await this.retrievalProfilesService.getRetrievalProfile(
+        input.retrievalProfileId,
+        scope
+      );
     }
 
     const data: Prisma.AssistantUncheckedUpdateInput = {
       ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
-      ...(input.retrievalProfileId !== undefined ? { retrievalProfileId: input.retrievalProfileId } : {}),
+      ...(input.description !== undefined
+        ? { description: input.description }
+        : {}),
+      ...(input.systemPrompt !== undefined
+        ? { systemPrompt: input.systemPrompt }
+        : {}),
+      ...(input.retrievalProfileId !== undefined
+        ? { retrievalProfileId: input.retrievalProfileId }
+        : {}),
       ...(input.answerPolicyJson !== undefined
         ? {
             answerPolicyJson:
-              input.answerPolicyJson === null ? Prisma.JsonNull : (input.answerPolicyJson as Prisma.InputJsonValue)
+              input.answerPolicyJson === null
+                ? Prisma.JsonNull
+                : (input.answerPolicyJson as Prisma.InputJsonValue)
           }
         : {}),
       ...(input.status !== undefined ? { status: input.status } : {})
@@ -185,4 +215,34 @@ export class AssistantsService {
       }
     });
   }
+}
+
+function compareAssistantPriority(
+  left: {
+    name: string;
+    status: 'active' | 'inactive';
+  },
+  right: {
+    name: string;
+    status: 'active' | 'inactive';
+  }
+) {
+  return scoreAssistantPriority(right) - scoreAssistantPriority(left);
+}
+
+function scoreAssistantPriority(assistant: {
+  name: string;
+  status: 'active' | 'inactive';
+}) {
+  let score = 0;
+
+  if (assistant.name === DEFAULT_ASSISTANT_NAME) {
+    score += 100;
+  }
+
+  if (assistant.status === 'active') {
+    score += 10;
+  }
+
+  return score;
 }
