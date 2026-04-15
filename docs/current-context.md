@@ -1,8 +1,8 @@
-﻿# Current Context
+# Current Context
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
-> 更新时间：2026-04-13
+> 更新时间：2026-04-16
 
 ## Current Mainline
 
@@ -15,9 +15,11 @@
   - `P4` web capability carry-through：当前范围内已收口，进入 bounded follow-up
   - `P5` eval / regression baseline：工程能力已完成，进入治理/使用态
   - `P6` observability readability：已完成 bounded closeout
-- 因此，接下来更合适的做法是：
-  - 在已完成区域内继续做 bounded maintenance
-  - 或者先明确下一条新的单线产品增量，再推进最小收口 increment
+- 因此，当前最合适的推进方式不是继续扩新产品外壳，而是把默认主路径做稳：
+  - 新用户进入后有默认助手
+  - 用户知道先去上传资料
+  - 资料 ready 后能直接提问
+  - 回答带 citations，问题可通过 trace 排查
 
 ## Current Product Shape
 
@@ -25,7 +27,7 @@
 - 当前产品交互仍以 `single primary KB` 为主，不展开多 KB / 多租户交互重做。
 - Trace / Report / Assistant settings 已经形成可用的治理闭环，适合继续做小步提质，不适合再开一轮大平台化改造。
 - 文档上传、解析、切块、检索、回答、引用、trace 持久化都已具备，后续重点不再是“把链路搭出来”，而是“把已有链路做稳、做清楚、做快一点”。
-- 最近一轮前端 bounded maintenance 已把几个最明显的大列表边界补齐：`DocumentsPage` 真分页、`TraceListPage` 真分页、聊天侧边栏按需“加载更多”会话、`ReportResultsTable` 分页、`DocumentDetailChunksPanel` 分页。
+- 当前默认助手基线已经落地：新用户会自动获得默认助手实例；用户看到的是默认助手，而不是内部模板概念。
 
 ## Retrieval / Quality Baseline
 
@@ -36,27 +38,29 @@
   - `rerank = OFF`
 - 最近一轮 retrieval/answering 修补已经把结构化 Markdown 的“只命中标题、不带正文”问题缩小到了可接受范围。
 - 本地 smoke 基线目前是 `37/40` grounded；剩余拒答更像来源内容不足，而不是主链路失效。
-- 当前更值得做的是轻量自适应 retrieval，而不是直接把默认参数重新放大。
+- 当前更值得做的是主路径稳定性和默认体验收口，而不是继续放大 retrieval 默认参数或扩展产品外壳。
 
 ## Current Priorities
 
-- `bounded stability maintenance`：继续修当前已完成区域内的高频回归，但不再把 `P3/P5/P6` 包装成新的 feature wave。
+- `default-path hardening`：围绕“上传资料并问出可信答案”这条默认路径继续补齐缺口。
+- `default assistant lifecycle`：优先处理默认助手恢复、唯一性、与主知识库绑定、空态和异常态闭环。
+- `single primary KB clarity`：保持单主知识库语义清晰，上传后状态和 next action 更直接。
+- `focused validation`：优先补与默认主路径直接相关的 focused tests 和回归保护。
 - `docs freshness`：保持阶段判断、当前状态和入口文档与代码现实一致。
-- `next product increment selection`：如果继续做产品增量，优先先选定下一条明确主线，再推进最小可验证增量。
-- `performance follow-up`：当前性能优化优先盯 `first token pre-generation`，而不是继续把主要精力投到模型输出层。
 
 ## Execution Order
 
-1. 维护 `P3/P4/P5/P6` 范围内的 bounded maintenance。
-2. 保持 docs、阶段判断和代码现实对齐。
-3. 如果开启新的产品波次，先明确主线，再做最小收口 increment。
+1. 优先补默认助手生命周期相关缺口。
+2. 收口默认助手与主知识库的关系和页面状态反馈。
+3. 补主路径需要的 focused validation。
+4. 保持 docs、阶段判断和代码现实对齐。
 
 ## Do Not Do
 
-- 不把已经完成主开发的 `P3/P5/P6` 重新包装成新的主 wave。
-- 不把当前 `P4` 收口重新写回“待开发主线”。
+- 不把团队接入、workspace / tenant 产品化、SaaS 化当成当前主线。
+- 不展开多知识库交互、多模板系统、模板 marketplace、复杂权限矩阵。
+- 不把 README / demo / setup / source-distribution 包装继续当作当前优先项。
 - 不做 broad refactor、架构重写、schema / persistence 大改。
-- 不在没有明确收益时重开 source expansion、benchmark framework redesign、observability platform 化。
 - 不为了少量质量提升就全局拉大 retrieval 默认参数。
 
 ## Validation Baseline
