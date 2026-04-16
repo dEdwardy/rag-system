@@ -546,7 +546,9 @@ export function DocumentsPage() {
                     component={Link}
                     key={question}
                     radius="sm"
-                    to={buildChatStarterQuestionHref(question)}
+                    to={buildChatStarterQuestionHref(question, {
+                      autoAsk: true
+                    })}
                     variant="light"
                   >
                     {question}

@@ -103,6 +103,7 @@ export function buildChatReadinessState(
 type StarterQuestionContext = 'chat' | 'documents';
 
 const CHAT_STARTER_QUESTION_PARAM = 'starterQuestion';
+const CHAT_AUTO_ASK_PARAM = 'ask';
 
 const CHINESE_STARTER_QUESTIONS = {
   chat: [
@@ -139,7 +140,10 @@ export function buildStarterQuestions(
     : [...ENGLISH_STARTER_QUESTIONS[context]];
 }
 
-export function buildChatStarterQuestionHref(question: string) {
+export function buildChatStarterQuestionHref(
+  question: string,
+  options?: { autoAsk?: boolean }
+) {
   const normalizedQuestion = question.trim();
   if (!normalizedQuestion) {
     return '/';
@@ -147,6 +151,9 @@ export function buildChatStarterQuestionHref(question: string) {
 
   const searchParams = new URLSearchParams();
   searchParams.set(CHAT_STARTER_QUESTION_PARAM, normalizedQuestion);
+  if (options?.autoAsk) {
+    searchParams.set(CHAT_AUTO_ASK_PARAM, '1');
+  }
   return `/?${searchParams.toString()}`;
 }
 
@@ -159,6 +166,11 @@ export function parseChatStarterQuestionFromSearch(search: string) {
 
   const normalizedQuestion = rawQuestion.trim();
   return normalizedQuestion.length > 0 ? normalizedQuestion : null;
+}
+
+export function parseChatAutoAskFromSearch(search: string) {
+  const searchParams = new URLSearchParams(search);
+  return searchParams.get(CHAT_AUTO_ASK_PARAM) === '1';
 }
 
 type TraceSummaryHintInput = {

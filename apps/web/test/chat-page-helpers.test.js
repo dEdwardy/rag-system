@@ -318,6 +318,16 @@ test('chat page helpers build chat starter question href', async () => {
   assert.equal(result, '/?starterQuestion=What+are+these+items+about%3F');
 });
 
+test('chat page helpers build auto-ask starter question href', async () => {
+  const { buildChatStarterQuestionHref } = await loadChatPageHelpers();
+
+  const result = buildChatStarterQuestionHref('What are these items about?', {
+    autoAsk: true
+  });
+
+  assert.equal(result, '/?starterQuestion=What+are+these+items+about%3F&ask=1');
+});
+
 test('chat page helpers parse chat starter question from search', async () => {
   const { parseChatStarterQuestionFromSearch } = await loadChatPageHelpers();
 
@@ -329,6 +339,14 @@ test('chat page helpers parse chat starter question from search', async () => {
   );
   assert.equal(parseChatStarterQuestionFromSearch('?starterQuestion=+'), null);
   assert.equal(parseChatStarterQuestionFromSearch(''), null);
+});
+
+test('chat page helpers parse chat auto-ask flag from search', async () => {
+  const { parseChatAutoAskFromSearch } = await loadChatPageHelpers();
+
+  assert.equal(parseChatAutoAskFromSearch('?starterQuestion=What&ask=1'), true);
+  assert.equal(parseChatAutoAskFromSearch('?starterQuestion=What'), false);
+  assert.equal(parseChatAutoAskFromSearch('?ask=0'), false);
 });
 
 test('chat page helpers build trace summary hint with scan-first priority', async () => {

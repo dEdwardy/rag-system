@@ -36,6 +36,7 @@ import type {
 import {
   buildTraceSummaryHint,
   buildChatReadinessState,
+  parseChatAutoAskFromSearch,
   parseChatStarterQuestionFromSearch,
   buildStarterQuestions,
   formatMessageTime
@@ -364,6 +365,7 @@ export function ChatPage() {
     useState<Record<string, string>>({});
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
+  const autoSubmittedStarterSearchRef = useRef<string | null>(null);
 
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
@@ -454,6 +456,10 @@ export function ChatPage() {
   );
   const starterQuestionFromSearch = useMemo(
     () => parseChatStarterQuestionFromSearch(location.search),
+    [location.search]
+  );
+  const shouldAutoAskStarterFromSearch = useMemo(
+    () => parseChatAutoAskFromSearch(location.search),
     [location.search]
   );
 
@@ -772,6 +778,31 @@ export function ChatPage() {
       streamAbortControllerRef.current = null;
     }
   };
+
+  useEffect(() => {
+    if (!starterQuestionFromSearch || !shouldAutoAskStarterFromSearch) {
+      return;
+    }
+
+    if (autoSubmittedStarterSearchRef.current === location.search) {
+      return;
+    }
+
+    if (!canSubmitQuestion || activeConversationId != null || isNewChat) {
+      return;
+    }
+
+    autoSubmittedStarterSearchRef.current = location.search;
+    void submitQuestion({ question: starterQuestionFromSearch });
+  }, [
+    activeConversationId,
+    canSubmitQuestion,
+    isNewChat,
+    location.search,
+    shouldAutoAskStarterFromSearch,
+    starterQuestionFromSearch,
+    submitQuestion
+  ]);
 
   const refreshDefaultAssistantPath = useCallback(async () => {
     await Promise.all([
