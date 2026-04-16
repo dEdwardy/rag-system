@@ -11,9 +11,11 @@
   - `P3` external-source family + guardrails：开发已完成，当前只保留维护态 follow-up
   - `P4` 当前这一轮 web capability carry-through：收口已完成，当前只保留 bounded follow-up
   - `P5` eval / regression baseline：工程能力已完成，当前只保留基线治理和使用态 follow-up
+- 默认助手 / 默认知识库 / 默认 retrieval profile 的 bootstrap 与 repair 也已经落地，默认路径不应再被视为待搭建能力。
 - 因此，`P3` / 当前这轮 `P4` / `P5` 不应再被视为“下一步主开发波次”。
 - 当前更合适的下一步是：
   - 在已完成区域内继续做 bounded maintenance
+  - 继续收紧 canonical default assistant 行为和默认路径文案
   - 或从新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments

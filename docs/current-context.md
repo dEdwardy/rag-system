@@ -7,7 +7,7 @@
 ## Current Mainline
 
 - 当前默认工作方式仍然是：单线推进、小步增量、每轮收口，不并行展开多个大方向。
-- 当前代码现实已经明显前于旧计划口径：
+- 代码现实已经明显前于旧计划口径：
   - `P0` read-model / metadata convergence：已完成
   - `P1` auth/login 最小闭环：已完成
   - `P2` owner-only ACL baseline：已完成
@@ -15,11 +15,12 @@
   - `P4` web capability carry-through：当前范围内已收口，进入 bounded follow-up
   - `P5` eval / regression baseline：工程能力已完成，进入治理/使用态
   - `P6` observability readability：已完成 bounded closeout
-- 因此，当前最合适的推进方式不是继续扩新产品外壳，而是把默认主路径做稳：
-  - 新用户进入后有默认助手
-  - 用户知道先去上传资料
-  - 资料 ready 后能直接提问
-  - 回答带 citations，问题可通过 trace 排查
+- 当前默认主路径也已经落地并对齐到代码行为：
+  - 新用户进入后会得到默认助手 / 默认知识库 / 默认 retrieval profile 的 bootstrap 或 repair
+  - 用户会被引导先上传资料，再开始提问
+  - 资料 ready 后可直接进入提问与设置路径
+  - 回答保留 citations，问题可通过 trace 排查
+- 因此，当前最合适的推进方式不是继续扩新产品外壳，而是做 bounded maintenance，并把默认路径上的细小一致性继续收紧。
 
 ## Current Product Shape
 
@@ -42,16 +43,16 @@
 
 ## Current Priorities
 
-- `default-path hardening`：围绕“上传资料并问出可信答案”这条默认路径继续补齐缺口。
-- `default assistant lifecycle`：优先处理默认助手恢复、唯一性、与主知识库绑定、空态和异常态闭环。
+- `bounded maintenance`：在已完成的默认主路径上继续收紧边界一致性，而不是开启新产品波次。
 - `single primary KB clarity`：保持单主知识库语义清晰，上传后状态和 next action 更直接。
+- `canonical default assistant selection`：维持默认助手的确定性优先级和 repair 行为，避免同库重复数据造成歧义。
 - `focused validation`：优先补与默认主路径直接相关的 focused tests 和回归保护。
 - `docs freshness`：保持阶段判断、当前状态和入口文档与代码现实一致。
 
 ## Execution Order
 
-1. 优先补默认助手生命周期相关缺口。
-2. 收口默认助手与主知识库的关系和页面状态反馈。
+1. 继续收紧默认助手 / 主知识库 / retrieval profile 的 canonical 选择与 repair 语义。
+2. 继续收口默认路径的状态反馈和 next action 文案。
 3. 补主路径需要的 focused validation。
 4. 保持 docs、阶段判断和代码现实对齐。
 
