@@ -53,8 +53,8 @@ pnpm --filter @rag-system/web test:smoke:legacy
 Default validation policy:
 
 - frontend-only changes should run at least the relevant build or typecheck if available
-- use `test:guard` for contract, helper, copy, theme, and source-structure regressions that do not need a browser session
-- use `test:guard:legacy` only when your change is expected to touch older source/UX guardrails that are still being triaged and are not part of the stable default guard gate
+- use `test:guard` for the current stable Vitest-backed guard lane
+- use `test:guard:legacy` only when your change is expected to touch older `node:test` source/UX guardrails that are still being triaged and are not part of the stable default guard gate
 - use `test:legacy` when you explicitly want the current legacy guard backlog
 - the current browser smoke path is still a manual legacy local-dev lane tied to seeded accounts; use `test:smoke:legacy` only when you intentionally want that local browser verification
 - `test:smoke` currently aliases that same legacy smoke lane for compatibility
