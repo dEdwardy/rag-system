@@ -840,26 +840,35 @@ export class AskAssistantService {
         }) as AskRetrievalMetadataJson
       )
     ]);
-    const [
-      { value: conversation, durationMs: conversationLoadMs },
-      { value: userMessage, durationMs: userMessagePersistMs }
-    ] = await Promise.all([conversationPromise, userMessagePromise]);
+    const conversationAndUserMessagePromise = Promise.all([
+      conversationPromise,
+      userMessagePromise
+    ]).then(([conversationResult, userMessageResult]) => ({
+      conversation: conversationResult.value,
+      conversationLoadMs: conversationResult.durationMs,
+      userMessage: userMessageResult.value,
+      userMessagePersistMs: userMessageResult.durationMs
+    }));
 
     const traceCreateStartedAt = Date.now();
-    const tracePromise = this.tracesService.createTrace({
-      conversationId: conversation.id,
-      assistantId: assistant.id,
-      userMessageId: userMessage.id,
-      userQuery: input.question,
-      rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-      retrievedChunkIdsJson: retrievedChunks.map(
-        (chunk: AskResultChunk) => chunk.chunkId
-      ),
-      retrievalScoresJson,
-      retrievalMetadataJson: retrievalMetadata,
-      modelName: rewritten.modelName ?? undefined,
-      status: TraceStatus.success
-    });
+    const tracePromise = conversationAndUserMessagePromise.then(
+      ({ conversation, userMessage }) =>
+        this.tracesService.createTrace({
+          conversationId: conversation.id,
+          assistantId: assistant.id,
+          userMessageId: userMessage.id,
+          userQuery: input.question,
+          rewrittenQuery:
+            retrievalQuery !== input.question ? retrievalQuery : null,
+          retrievedChunkIdsJson: retrievedChunks.map(
+            (chunk: AskResultChunk) => chunk.chunkId
+          ),
+          retrievalScoresJson,
+          retrievalMetadataJson: retrievalMetadata,
+          modelName: rewritten.modelName ?? undefined,
+          status: TraceStatus.success
+        })
+    );
     let trace: { id: string } | null = null;
     let traceCreateMs = 0;
 
@@ -933,6 +942,12 @@ export class AskAssistantService {
               });
             })();
       const answerGenerationMs = Date.now() - generationStartedAt;
+      const {
+        conversation,
+        conversationLoadMs,
+        userMessage,
+        userMessagePersistMs
+      } = await conversationAndUserMessagePromise;
       trace = await tracePromise;
       traceCreateMs = Date.now() - traceCreateStartedAt;
       const promptSnapshot = this.buildPromptSnapshot({
@@ -1196,6 +1211,8 @@ export class AskAssistantService {
 
       const message =
         error instanceof Error ? error.message : 'Unknown ask pipeline error.';
+      const { conversation, conversationLoadMs, userMessagePersistMs } =
+        await conversationAndUserMessagePromise;
       const resolvedTrace = trace ?? (await tracePromise);
       trace = resolvedTrace;
       const promptSnapshot = this.buildPromptSnapshot({
