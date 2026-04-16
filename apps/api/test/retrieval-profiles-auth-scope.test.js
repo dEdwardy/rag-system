@@ -470,3 +470,58 @@ test('AssistantsService prefers an active canonical default assistant over an in
   assert.equal(assistants[0]?.id, 'assistant-default-z');
   assert.equal(assistants[1]?.id, 'assistant-default-a');
 });
+
+test('AssistantsService treats canonical default assistant naming drift as default in list priority', async () => {
+  const scope = {
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
+  };
+
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      prisma: {
+        assistant: {
+          findMany: async () => [
+            {
+              id: 'assistant-secondary',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-primary',
+              name: 'Research Assistant',
+              description: null,
+              systemPrompt: 'secondary',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active',
+              knowledgeBase: {
+                name: 'Default Knowledge Base'
+              }
+            },
+            {
+              id: 'assistant-default-name-drift',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-primary',
+              name: ' default assistant ',
+              description: null,
+              systemPrompt: 'default with name drift',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'inactive',
+              knowledgeBase: {
+                name: ' default knowledge base '
+              }
+            }
+          ]
+        }
+      }
+    }
+  );
+
+  const assistants = await AssistantsService.prototype.listAssistants.call(
+    fakeService,
+    scope
+  );
+
+  assert.equal(assistants[0]?.id, 'assistant-default-name-drift');
+  assert.equal(assistants[1]?.id, 'assistant-secondary');
+});

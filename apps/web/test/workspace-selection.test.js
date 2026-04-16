@@ -114,6 +114,31 @@ test('workspace selection deterministically keeps one canonical default assistan
   assert.equal(assistant?.id, 'assistant-default-a');
 });
 
+test('workspace selection treats canonical default assistant naming drift as default for the same knowledge base', async () => {
+  const { getPrimaryAssistantForKnowledgeBase } =
+    await loadWorkspaceSelectionHelpers();
+
+  const assistant = getPrimaryAssistantForKnowledgeBase(
+    [
+      {
+        id: 'assistant-secondary',
+        kbId: 'kb-1',
+        name: 'Research Assistant',
+        status: 'active'
+      },
+      {
+        id: 'assistant-default-name-drift',
+        kbId: 'kb-1',
+        name: ' default assistant ',
+        status: 'inactive'
+      }
+    ],
+    'kb-1'
+  );
+
+  assert.equal(assistant?.id, 'assistant-default-name-drift');
+});
+
 test('workspace selection does not silently fall back to an assistant from another knowledge base', async () => {
   const { getPrimaryAssistantForKnowledgeBase } =
     await loadWorkspaceSelectionHelpers();

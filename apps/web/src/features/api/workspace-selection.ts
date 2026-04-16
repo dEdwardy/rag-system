@@ -42,7 +42,7 @@ function compareAssistantPriority(left: Assistant, right: Assistant) {
 function scoreAssistantPriority(assistant: Assistant) {
   let score = 0;
 
-  if (assistant.name === DEFAULT_ASSISTANT_NAME) {
+  if (isDefaultAssistantName(assistant.name)) {
     score += 100;
   }
 
@@ -51,4 +51,11 @@ function scoreAssistantPriority(assistant: Assistant) {
   }
 
   return score;
+}
+
+function isDefaultAssistantName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    name.trim().toLowerCase() === DEFAULT_ASSISTANT_NAME.toLowerCase()
+  );
 }

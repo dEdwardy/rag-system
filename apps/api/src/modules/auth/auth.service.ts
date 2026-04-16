@@ -1139,7 +1139,7 @@ function scoreCanonicalDefaultAssistantCandidate(
 ) {
   let score = 0;
 
-  if (assistant.name === DEFAULT_ASSISTANT_TEMPLATE.name) {
+  if (isDefaultAssistantName(assistant.name)) {
     score += 100;
   }
 
@@ -1148,4 +1148,11 @@ function scoreCanonicalDefaultAssistantCandidate(
   }
 
   return score;
+}
+
+function isDefaultAssistantName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    name.trim().toLowerCase() === DEFAULT_ASSISTANT_TEMPLATE.name.toLowerCase()
+  );
 }

@@ -272,13 +272,13 @@ function scoreAssistantPriority(assistant: {
   let score = 0;
 
   if (
-    assistant.name === DEFAULT_ASSISTANT_NAME &&
-    assistant.knowledgeBase?.name === DEFAULT_PRIMARY_KB_NAME
+    isDefaultAssistantName(assistant.name) &&
+    isDefaultPrimaryKbName(assistant.knowledgeBase?.name)
   ) {
     score += 1000;
   }
 
-  if (assistant.name === DEFAULT_ASSISTANT_NAME) {
+  if (isDefaultAssistantName(assistant.name)) {
     score += 100;
   }
 
@@ -287,4 +287,18 @@ function scoreAssistantPriority(assistant: {
   }
 
   return score;
+}
+
+function isDefaultAssistantName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    name.trim().toLowerCase() === DEFAULT_ASSISTANT_NAME.toLowerCase()
+  );
+}
+
+function isDefaultPrimaryKbName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    name.trim().toLowerCase() === DEFAULT_PRIMARY_KB_NAME.toLowerCase()
+  );
 }

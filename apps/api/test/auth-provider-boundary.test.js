@@ -1719,6 +1719,109 @@ test('AuthService completeOauthProviderCallback repairs the canonical default as
   });
 });
 
+test('AuthService completeOauthProviderCallback repairs the canonical default assistant first when stale naming includes casing/whitespace drift', async () => {
+  const calls = {
+    assistantUpdate: null
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({ id: 'link-oauth-repair-canonical-name-drift-1' })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-repair-canonical-name-drift-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findFirst: async () => ({
+          id: 'kb-oauth-repair-canonical-name-drift-1'
+        }),
+        create: async () => {
+          throw new Error('knowledge base should not be created');
+        }
+      },
+      retrievalProfile: {
+        findFirst: async () => ({
+          id: 'rp-oauth-repair-canonical-name-drift-1'
+        }),
+        create: async () => {
+          throw new Error('retrieval profile should not be created');
+        }
+      },
+      assistant: {
+        findMany: async () => [
+          {
+            id: 'assistant-secondary-1',
+            kbId: 'kb-oauth-repair-canonical-name-drift-1',
+            retrievalProfileId: 'rp-secondary-1',
+            status: 'active',
+            name: 'Research Assistant'
+          },
+          {
+            id: 'assistant-default-name-drift-1',
+            kbId: 'kb-oauth-repair-canonical-name-drift-1',
+            retrievalProfileId: 'rp-stale-default-1',
+            status: 'inactive',
+            name: ' default assistant '
+          }
+        ],
+        create: async () => {
+          throw new Error(
+            'assistant should not be created when canonical repair is possible'
+          );
+        },
+        update: async ({ where, data }) => {
+          calls.assistantUpdate = { where, data };
+          return { id: 'assistant-default-name-drift-1' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-repair-canonical-name-drift-1',
+        email: 'oauth-repair-canonical-name-drift@example.com',
+        profileSnapshot: {
+          id: 4999,
+          login: 'oauth-repair-canonical-name-drift-user',
+          name: 'OAuth Repair Canonical Name Drift User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-repair-canonical-name-drift-1',
+    state: 'state-oauth-repair-canonical-name-drift-1',
+    expectedState: 'state-oauth-repair-canonical-name-drift-1'
+  });
+
+  assert.equal(
+    result.identity.userId,
+    'user-oauth-repair-canonical-name-drift-1'
+  );
+  assert.deepEqual(calls.assistantUpdate, {
+    where: {
+      id: 'assistant-default-name-drift-1'
+    },
+    data: {
+      kbId: 'kb-oauth-repair-canonical-name-drift-1',
+      retrievalProfileId: 'rp-oauth-repair-canonical-name-drift-1',
+      status: 'active'
+    }
+  });
+});
+
 test('AuthController oauthProviderCallback validates state cookie and writes oauth JWT cookies', async () => {
   const cookies = [];
   const callbackCalls = [];
