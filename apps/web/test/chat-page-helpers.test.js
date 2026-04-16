@@ -424,6 +424,21 @@ test('chat page helpers explain insufficient-context weak-evidence reason', asyn
   );
 });
 
+test('chat page helpers explain insufficient-context reason even without explicit answer status', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    insufficientContextReason: 'retrieved_context_insufficient',
+    answerStatusSourceReadabilitySentence:
+      'Answer status from fallback metadata.'
+  });
+
+  assert.equal(
+    result,
+    'Marked as insufficient context: retrieved source evidence was too weak for a reliable answer.'
+  );
+});
+
 test('chat page helpers show fallback hint when fallback metadata is true', async () => {
   const { buildTraceSummaryHint } = await loadChatPageHelpers();
 
@@ -445,6 +460,17 @@ test('chat page helpers show missing-information count hint', async () => {
   });
 
   assert.equal(result, 'Answer reports 2 missing information items.');
+});
+
+test('chat page helpers show singular missing-information count hint', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    missingInformationCount: 1,
+    retrievalModeProvenanceSentence: 'Retrieval ran in vector mode.'
+  });
+
+  assert.equal(result, 'Answer reports 1 missing information item.');
 });
 
 test('chat page helpers return null trace summary hint when all fields are blank', async () => {
