@@ -202,12 +202,14 @@ export const messages = {
       noConversationsTitle: '还没有会话',
       noConversationsDescription: '向助手提问后，这里会出现第一个会话。',
       noActiveConversationTitle: '当前没有激活会话',
-      noActiveConversationDescription: '请选择一个会话，或直接发起新提问开始。',
+      noActiveConversationDescription:
+        '当前至少有一条资料已就绪。现在直接点击首问并发送，或先选择历史会话继续。',
       loadingMessagesTitle: '正在加载消息',
       loadingMessagesDescription: '加载消息与对应的诊断引用。',
       messagesErrorTitle: '加载消息失败。',
       noMessagesTitle: '暂无消息',
-      noMessagesDescription: '这个会话还没有持久化消息。',
+      noMessagesDescription:
+        '这个会话还没有持久化消息。现在发送一个首问，即可生成第一轮回答。',
       noActiveKnowledgeBaseTitle: '当前工作区还没有可用资料库',
       noActiveKnowledgeBaseDescription:
         '请先创建或恢复工作区资料库。只有当前工作区存在活动资料库后，对话才会开放。',

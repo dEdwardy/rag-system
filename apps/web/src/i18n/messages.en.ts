@@ -214,12 +214,13 @@ export const messages = {
         'Ask the assistant to create the first conversation.',
       noActiveConversationTitle: 'No active conversation',
       noActiveConversationDescription:
-        'Select a conversation or ask a new question to begin.',
+        'At least one library item is ready. Pick a starter question and send it now, or select a past conversation to continue.',
       loadingMessagesTitle: 'Loading messages',
       loadingMessagesDescription: 'Loading messages and trace references.',
       messagesErrorTitle: 'Failed to load messages.',
       noMessagesTitle: 'No messages',
-      noMessagesDescription: 'This conversation has no persisted messages yet.',
+      noMessagesDescription:
+        'This conversation has no persisted messages yet. Send one starter question now to create the first answer turn.',
       noActiveKnowledgeBaseTitle: 'No active workspace library',
       noActiveKnowledgeBaseDescription:
         'Create or restore a workspace library first. Chat only becomes available after the current workspace has an active library.',
