@@ -485,6 +485,8 @@ export const messages = {
         'Review the items with issues before adding more material.',
       waitForProcessing:
         'Wait for the current updates to finish, then check the refreshed states.',
+      chatWhileProcessing:
+        'Some library items are still updating, but ready items can already support chat. Start asking now and return to library status as updates finish.',
       prepareDefaultAssistant:
         'The library is ready. Open answer settings so the default assistant can finish preparing or repairing before chat.',
       workspaceReady:

@@ -118,7 +118,8 @@ export function KnowledgeBasePage() {
   const nextActionTone =
     nextAction.action === 'review_failed_documents'
       ? 'red'
-      : nextAction.action === 'wait_for_processing'
+      : nextAction.action === 'wait_for_processing' ||
+          nextAction.action === 'chat_while_processing'
         ? 'yellow'
         : nextAction.action === 'workspace_ready'
           ? 'teal'

@@ -138,3 +138,22 @@ test('knowledge base next action points to assistant when duplicate assistants s
     actionHref: '/assistant'
   });
 });
+
+test('knowledge base next action allows chat when ready items exist while other items are still processing', async () => {
+  const { buildKnowledgeBaseWorkspaceNextAction } =
+    await loadKnowledgeBaseHelpers();
+
+  const nextAction = buildKnowledgeBaseWorkspaceNextAction({
+    documents: [
+      { status: 'ready', chunkCount: 6 },
+      { status: 'processing', chunkCount: 0 }
+    ],
+    assistantCount: 1
+  });
+
+  assert.deepEqual(nextAction, {
+    action: 'chat_while_processing',
+    labelKey: 'knowledgeBase.nextAction.chatWhileProcessing',
+    actionHref: '/'
+  });
+});
