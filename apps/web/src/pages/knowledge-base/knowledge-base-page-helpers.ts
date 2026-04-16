@@ -125,7 +125,7 @@ export function buildKnowledgeBaseWorkspaceNextAction({
     };
   }
 
-  if (assistantCount === 0) {
+  if (assistantCount !== 1) {
     return {
       action: 'prepare_default_assistant',
       labelKey: 'knowledgeBase.nextAction.prepareDefaultAssistant',

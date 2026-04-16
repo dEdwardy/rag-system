@@ -219,18 +219,28 @@ export class AssistantsService {
 
 function compareAssistantPriority(
   left: {
+    id: string;
     name: string;
     status: 'active' | 'inactive';
   },
   right: {
+    id: string;
     name: string;
     status: 'active' | 'inactive';
   }
 ) {
-  return scoreAssistantPriority(right) - scoreAssistantPriority(left);
+  const scoreDifference =
+    scoreAssistantPriority(right) - scoreAssistantPriority(left);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return left.id.localeCompare(right.id);
 }
 
 function scoreAssistantPriority(assistant: {
+  id: string;
   name: string;
   status: 'active' | 'inactive';
 }) {

@@ -307,3 +307,52 @@ test('AssistantsService prefers the canonical default assistant in list results 
   assert.equal(assistants[0]?.id, 'assistant-default');
   assert.equal(assistants[1]?.id, 'assistant-secondary');
 });
+
+test('AssistantsService deterministically keeps one canonical default assistant first when duplicates exist for the same knowledge base', async () => {
+  const scope = {
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
+  };
+
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      prisma: {
+        assistant: {
+          findMany: async () => [
+            {
+              id: 'assistant-default-z',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-1',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'duplicate default',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active'
+            },
+            {
+              id: 'assistant-default-a',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-1',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'canonical default',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active'
+            }
+          ]
+        }
+      }
+    }
+  );
+
+  const assistants = await AssistantsService.prototype.listAssistants.call(
+    fakeService,
+    scope
+  );
+
+  assert.equal(assistants[0]?.id, 'assistant-default-a');
+  assert.equal(assistants[1]?.id, 'assistant-default-z');
+});

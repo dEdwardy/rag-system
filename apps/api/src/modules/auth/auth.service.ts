@@ -744,7 +744,7 @@ export class AuthService {
         }
       }));
 
-    const existingAssistant = await prisma.assistant.findFirst({
+    const existingAssistantForPrimaryKb = await prisma.assistant.findFirst({
       where: {
         tenantId: input.tenantId,
         kbId: knowledgeBase.id
@@ -756,6 +756,23 @@ export class AuthService {
         status: true
       }
     });
+
+    const existingAssistant =
+      existingAssistantForPrimaryKb ??
+      (await prisma.assistant.findFirst({
+        where: {
+          tenantId: input.tenantId,
+          knowledgeBase: {
+            ownerId: input.userId
+          }
+        },
+        select: {
+          id: true,
+          kbId: true,
+          retrievalProfileId: true,
+          status: true
+        }
+      }));
 
     if (existingAssistant == null) {
       await prisma.assistant.create({

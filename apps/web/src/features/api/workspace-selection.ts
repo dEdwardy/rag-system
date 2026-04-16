@@ -24,13 +24,19 @@ export function getPrimaryAssistantForKnowledgeBase(
   }
 
   return (
-    assistantsForKnowledgeBase
-      .slice()
-      .sort(
-        (left, right) =>
-          scoreAssistantPriority(right) - scoreAssistantPriority(left)
-      )[0] ?? null
+    assistantsForKnowledgeBase.slice().sort(compareAssistantPriority)[0] ?? null
   );
+}
+
+function compareAssistantPriority(left: Assistant, right: Assistant) {
+  const scoreDifference =
+    scoreAssistantPriority(right) - scoreAssistantPriority(left);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return left.id.localeCompare(right.id);
 }
 
 function scoreAssistantPriority(assistant: Assistant) {

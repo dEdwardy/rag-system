@@ -122,3 +122,19 @@ test('knowledge base next action points to assistant when the library is ready b
     actionHref: '/assistant'
   });
 });
+
+test('knowledge base next action points to assistant when duplicate assistants still need repair', async () => {
+  const { buildKnowledgeBaseWorkspaceNextAction } =
+    await loadKnowledgeBaseHelpers();
+
+  const nextAction = buildKnowledgeBaseWorkspaceNextAction({
+    documents: [{ status: 'ready', chunkCount: 6 }],
+    assistantCount: 2
+  });
+
+  assert.deepEqual(nextAction, {
+    action: 'prepare_default_assistant',
+    labelKey: 'knowledgeBase.nextAction.prepareDefaultAssistant',
+    actionHref: '/assistant'
+  });
+});
