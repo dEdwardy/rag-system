@@ -272,6 +272,115 @@ test('AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(typeof events[5].data.timingReadabilitySentence, 'string');
 });
 
+test('AskAssistantService stream still emits a consistent final payload when provider returns without deltas', async () => {
+  const events = [];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord(),
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            chunkIndex: 0,
+            content: 'marker content',
+            score: 0.9,
+            isPrimary: true,
+            pageNo: 1,
+            sectionTitle: 'Facts'
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    answering: {
+      buildStreamAnswerContext: ({ chunks }) => chunks,
+      finalizeStreamedAnswer: async (input) => ({
+        answer: input.rawAnswer,
+        modelName: input.modelName,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: input.promptId,
+          usedFallback: input.usedFallback,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: input.chunks.length,
+          promptContextCount: input.chunks.length,
+          contextGroupCount: input.contextGroups.length,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'Answer is grounded in cited sources with no reported gaps.'
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async () => ({
+        rawAnswer: 'Provider returned final text only.',
+        modelName: 'test-model',
+        promptId: 'answer.v2',
+        usedFallback: false
+      })
+    }
+  });
+
+  const finalResult = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
+      events.push(event);
+    }
+  });
+
+  assert.deepEqual(
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    ['status:started', 'status:retrieving', 'status:generating', 'final']
+  );
+  assert.equal(finalResult.answer, 'Provider returned final text only.');
+  assert.equal(events[3].data.answer, 'Provider returned final text only.');
+  assert.equal(finalResult.traceId, 'trace-1');
+  assert.equal(finalResult.timingSummary.firstTokenMs, null);
+});
+
 test('AskAssistantService stream uses request current identity when creating a new conversation', async () => {
   const createConversationCalls = [];
 
