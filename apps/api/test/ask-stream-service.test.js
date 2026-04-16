@@ -1,13 +1,15 @@
-const assert = require("node:assert/strict");
+const assert = require('node:assert/strict');
 
-const { AskAssistantService } = require("../src/modules/assistants/ask-assistant.service.ts");
+const {
+  AskAssistantService
+} = require('../src/modules/assistants/ask-assistant.service.ts');
 const {
   createAnswerPolicy,
   createAskAssistantService,
   createAssistantRecord
-} = require("./support/ask-assistant-test-helpers.js");
+} = require('./support/ask-assistant-test-helpers.js');
 
-test("AskAssistantService exposes a dedicated stream orchestration path with progress, deltas, and final payload", async () => {
+test('AskAssistantService exposes a dedicated stream orchestration path with progress, deltas, and final payload', async () => {
   const events = [];
 
   const service = createAskAssistantService({
@@ -16,20 +18,20 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
       retrieve: async () => ({
         retrievedChunks: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
             chunkIndex: 0,
-            content: "marker content",
+            content: 'marker content',
             score: 0.9,
             isPrimary: true,
             pageNo: 1,
-            sectionTitle: "Facts"
+            sectionTitle: 'Facts'
           }
         ],
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -37,50 +39,52 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
-        modelName: "ollama:qwen-test",
+        modelName: 'ollama:qwen-test',
         citations: [],
         retrievedChunks: input.chunks,
         contextGroups: input.contextGroups,
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: 'answer.v2',
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          resolvedLanguage: "en",
-          generationMode: "generated",
-          contextMode: "chunks",
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           promptContextCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCountBeforeLimit: 0,
           citationCount: 0,
           citationLimitHit: false,
-          citationAttribution: "none",
-          citationSelectionSource: "none",
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
           missingInformationCount: 0,
-          missingInformationSource: "none",
-          answerTextSource: "model",
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
           insufficientContextReason: null,
-          answerStatusSource: "model",
-          answerStatus: "grounded"
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "strong",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "none",
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
           flags: [],
-          summary: "Answer is grounded in cited sources with no reported gaps."
+          summary: 'Answer is grounded in cited sources with no reported gaps.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async () => ({})
     },
     llm: {
@@ -90,148 +94,205 @@ test("AskAssistantService exposes a dedicated stream orchestration path with pro
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        input.onDelta("Alpha ");
-        input.onDelta("Beta");
+      generateAnswerStream: async (input) => {
+        input.onDelta('Alpha ');
+        input.onDelta('Beta');
         return {
-          rawAnswer: "Alpha Beta",
-          modelName: "ollama:qwen-test",
-          promptId: "answer.v2",
+          rawAnswer: 'Alpha Beta',
+          modelName: 'ollama:qwen-test',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
     }
   });
 
-  assert.equal(typeof service.askAssistantStream, "function");
+  assert.equal(typeof service.askAssistantStream, 'function');
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => event.type === "status" ? `${event.type}:${event.phase}` : event.type),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(events[3].delta, "Alpha ");
-  assert.equal(events[4].delta, "Beta");
-  assert.equal(events[5].data.answer, "Alpha Beta");
-  assert.equal(finalResult.answer, "Alpha Beta");
-  assert.equal(finalResult.traceId, "trace-1");
+  assert.equal(events[3].delta, 'Alpha ');
+  assert.equal(events[4].delta, 'Beta');
+  assert.equal(events[5].data.answer, 'Alpha Beta');
+  assert.equal(finalResult.answer, 'Alpha Beta');
+  assert.equal(finalResult.traceId, 'trace-1');
   assert.equal(finalResult.answeringMetadata.promptContextCount, 1);
-  assert.equal(finalResult.answeringMetadata.citationAttribution, "none");
+  assert.equal(finalResult.answeringMetadata.citationAttribution, 'none');
   assert.equal(finalResult.answeringMetadata.citationCountBeforeLimit, 0);
   assert.equal(finalResult.answeringMetadata.citationLimitHit, false);
   assert.equal(finalResult.answeringMetadata.missingInformationCount, 0);
-  assert.equal(finalResult.answeringMetadata.missingInformationSource, "none");
-  assert.equal(finalResult.answeringMetadata.answerTextSource, "model");
+  assert.equal(finalResult.answeringMetadata.missingInformationSource, 'none');
+  assert.equal(finalResult.answeringMetadata.answerTextSource, 'model');
   assert.equal(finalResult.answeringMetadata.insufficientContextReason, null);
-  assert.equal(finalResult.answeringMetadata.resolvedLanguage, "en");
-  assert.equal(finalResult.answeringMetadata.generationMode, "generated");
-  assert.equal(finalResult.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
-  assert.equal(finalResult.answerEvidenceSource, "none");
-  assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
-  assert.equal(finalResult.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
-  assert.equal(finalResult.answerTextSource, "model");
-  assert.equal(finalResult.answerTextSourceReadabilityLabel, "model-generated answer text");
-  assert.equal(finalResult.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
-  assert.equal(finalResult.answerStatusSource, "model");
-  assert.equal(finalResult.answerStatusSourceReadabilityLabel, "model-decided answer status");
-  assert.equal(finalResult.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(finalResult.answeringMetadata.resolvedLanguage, 'en');
+  assert.equal(finalResult.answeringMetadata.generationMode, 'generated');
+  assert.equal(
+    finalResult.answerAttributionReadabilitySentence,
+    'Answer attribution is none; source evidence is none.'
+  );
+  assert.equal(finalResult.answerEvidenceSource, 'none');
+  assert.equal(
+    finalResult.answerEvidenceSourceReadabilityLabel,
+    'no evidence source'
+  );
+  assert.equal(
+    finalResult.answerEvidenceSourceReadabilitySentence,
+    'Answer evidence source is no evidence source.'
+  );
+  assert.equal(finalResult.answerTextSource, 'model');
+  assert.equal(
+    finalResult.answerTextSourceReadabilityLabel,
+    'model-generated answer text'
+  );
+  assert.equal(
+    finalResult.answerTextSourceReadabilitySentence,
+    'Answer text source is model-generated answer text.'
+  );
+  assert.equal(finalResult.answerStatusSource, 'model');
+  assert.equal(
+    finalResult.answerStatusSourceReadabilityLabel,
+    'model-decided answer status'
+  );
+  assert.equal(
+    finalResult.answerStatusSourceReadabilitySentence,
+    'Answer status source is model-decided answer status.'
+  );
   assert.equal(
     finalResult.answerProvenanceSentence,
-    "Answer text source is model; status source is model; attribution summary is no attribution via no evidence source."
+    'Answer text source is model; status source is model; attribution summary is no attribution via no evidence source.'
   );
   assert.equal(
     finalResult.answerProvenanceReadabilitySentence,
-    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none."
+    'Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none.'
   );
-  assert.equal(finalResult.missingInformationSource, "none");
+  assert.equal(finalResult.missingInformationSource, 'none');
   assert.equal(
     finalResult.missingInformationProvenanceSentence,
-    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+    'Missing-information source is none; insufficient-context reason is none; missing-information count is 0.'
   );
-  assert.equal(finalResult.missingInformationSourceReadabilityLabel, "no missing-information items");
+  assert.equal(
+    finalResult.missingInformationSourceReadabilityLabel,
+    'no missing-information items'
+  );
   assert.equal(
     finalResult.strategyReadabilityLabel,
-    "vector retrieval via original_disabled; fallback: none; fallback used: no."
+    'vector retrieval via original_disabled; fallback: none; fallback used: no.'
   );
   assert.equal(
     finalResult.retrievalModeProvenanceSentence,
-    "Resolved retrieval mode is vector; fallback was not used."
+    'Resolved retrieval mode is vector; fallback was not used.'
   );
   assert.equal(
     finalResult.rewriteReadabilityLabel,
-    "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+    'rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown.'
   );
-  assert.equal(typeof finalResult.timingSummary.totalMs, "number");
-  assert.equal(typeof finalResult.timingSummary.firstTokenMs, "number");
-  assert.equal(typeof finalResult.timingReadabilitySentence, "string");
-  assert.equal(events[5].data.answerEvidenceSource, "none");
-  assert.equal(events[5].data.answerAttributionReadabilitySentence, "Answer attribution is none; source evidence is none.");
-  assert.equal(events[5].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
-  assert.equal(events[5].data.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
-  assert.equal(events[5].data.answerTextSource, "model");
-  assert.equal(events[5].data.answerTextSourceReadabilityLabel, "model-generated answer text");
-  assert.equal(events[5].data.answerTextSourceReadabilitySentence, "Answer text source is model-generated answer text.");
-  assert.equal(events[5].data.answerStatusSource, "model");
-  assert.equal(events[5].data.answerStatusSourceReadabilityLabel, "model-decided answer status");
-  assert.equal(events[5].data.answerStatusSourceReadabilitySentence, "Answer status source is model-decided answer status.");
+  assert.equal(typeof finalResult.timingSummary.totalMs, 'number');
+  assert.equal(typeof finalResult.timingSummary.firstTokenMs, 'number');
+  assert.equal(typeof finalResult.timingReadabilitySentence, 'string');
+  assert.equal(events[5].data.answerEvidenceSource, 'none');
+  assert.equal(
+    events[5].data.answerAttributionReadabilitySentence,
+    'Answer attribution is none; source evidence is none.'
+  );
+  assert.equal(
+    events[5].data.answerEvidenceSourceReadabilityLabel,
+    'no evidence source'
+  );
+  assert.equal(
+    events[5].data.answerEvidenceSourceReadabilitySentence,
+    'Answer evidence source is no evidence source.'
+  );
+  assert.equal(events[5].data.answerTextSource, 'model');
+  assert.equal(
+    events[5].data.answerTextSourceReadabilityLabel,
+    'model-generated answer text'
+  );
+  assert.equal(
+    events[5].data.answerTextSourceReadabilitySentence,
+    'Answer text source is model-generated answer text.'
+  );
+  assert.equal(events[5].data.answerStatusSource, 'model');
+  assert.equal(
+    events[5].data.answerStatusSourceReadabilityLabel,
+    'model-decided answer status'
+  );
+  assert.equal(
+    events[5].data.answerStatusSourceReadabilitySentence,
+    'Answer status source is model-decided answer status.'
+  );
   assert.equal(
     events[5].data.answerProvenanceSentence,
-    "Answer text source is model; status source is model; attribution summary is no attribution via no evidence source."
+    'Answer text source is model; status source is model; attribution summary is no attribution via no evidence source.'
   );
   assert.equal(
     events[5].data.answerProvenanceReadabilitySentence,
-    "Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none."
+    'Answer text source is model-generated answer text; answer status source is model-decided answer status; Answer attribution is none; source evidence is none.'
   );
-  assert.equal(events[5].data.missingInformationSource, "none");
+  assert.equal(events[5].data.missingInformationSource, 'none');
   assert.equal(
     events[5].data.missingInformationProvenanceSentence,
-    "Missing-information source is none; insufficient-context reason is none; missing-information count is 0."
+    'Missing-information source is none; insufficient-context reason is none; missing-information count is 0.'
   );
-  assert.equal(events[5].data.missingInformationSourceReadabilityLabel, "no missing-information items");
+  assert.equal(
+    events[5].data.missingInformationSourceReadabilityLabel,
+    'no missing-information items'
+  );
   assert.equal(
     events[5].data.strategyReadabilityLabel,
-    "vector retrieval via original_disabled; fallback: none; fallback used: no."
+    'vector retrieval via original_disabled; fallback: none; fallback used: no.'
   );
   assert.equal(
     events[5].data.retrievalModeProvenanceSentence,
-    "Resolved retrieval mode is vector; fallback was not used."
+    'Resolved retrieval mode is vector; fallback was not used.'
   );
   assert.equal(
     events[5].data.rewriteReadabilityLabel,
-    "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown."
+    'rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown.'
   );
-  assert.equal(typeof events[5].data.timingSummary.totalMs, "number");
-  assert.equal(typeof events[5].data.timingReadabilitySentence, "string");
+  assert.equal(typeof events[5].data.timingSummary.totalMs, 'number');
+  assert.equal(typeof events[5].data.timingReadabilitySentence, 'string');
 });
 
-test("AskAssistantService stream uses request current identity when creating a new conversation", async () => {
+test('AskAssistantService stream uses request current identity when creating a new conversation', async () => {
   const createConversationCalls = [];
 
   const service = createAskAssistantService({
     conversations: {
-      createConversation: async input => {
+      createConversation: async (input) => {
         createConversationCalls.push(input);
-        return { id: "conversation-1" };
+        return { id: 'conversation-1' };
       }
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async () => ({})
     },
     llm: {
-      generateAnswerStream: async input => {
-        input.onDelta("Hello from stream");
+      generateAnswerStream: async (input) => {
+        input.onDelta('Hello from stream');
         return {
-          rawAnswer: "Hello from stream",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'Hello from stream',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -239,15 +300,15 @@ test("AskAssistantService stream uses request current identity when creating a n
   });
 
   await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "stream identity?",
+    assistantId: 'assistant-1',
+    question: 'stream identity?',
     authContext: {
       identity: null,
       currentIdentity: {
-        userId: "user-42",
-        tenantId: "tenant-42",
-        sessionId: "session-42",
-        authSource: "session"
+        userId: 'user-42',
+        tenantId: 'tenant-42',
+        sessionId: 'session-42',
+        authSource: 'session'
       }
     },
     onEvent: () => {}
@@ -255,30 +316,30 @@ test("AskAssistantService stream uses request current identity when creating a n
 
   assert.deepEqual(createConversationCalls, [
     {
-      tenantId: "tenant-42",
-      userId: "user-42",
-      assistantId: "assistant-1",
-      title: "stream identity?"
+      tenantId: 'tenant-42',
+      userId: 'user-42',
+      assistantId: 'assistant-1',
+      title: 'stream identity?'
     }
   ]);
 });
 
-test("AskAssistantService stream starts retrieval before user message persistence resolves", async () => {
+test('AskAssistantService stream starts retrieval before user message persistence resolves', async () => {
   let resolveUserMessage;
   let retrievalStartedBeforeUserMessage = false;
   let userMessageResolved = false;
 
   const service = createAskAssistantService({
     messages: {
-      createMessage: async inputValue => {
-        if (inputValue.role !== "user") {
-          return { id: "assistant-message-1", ...inputValue };
+      createMessage: async (inputValue) => {
+        if (inputValue.role !== 'user') {
+          return { id: 'assistant-message-1', ...inputValue };
         }
 
-        return await new Promise(resolve => {
+        return await new Promise((resolve) => {
           resolveUserMessage = () => {
             userMessageResolved = true;
-            resolve({ id: "user-message-1", ...inputValue });
+            resolve({ id: 'user-message-1', ...inputValue });
           };
         });
       }
@@ -290,36 +351,36 @@ test("AskAssistantService stream starts retrieval before user message persistenc
         return {
           retrievedChunks: [
             {
-              chunkId: "chunk-1",
-              documentId: "document-1",
-              documentTitle: "Document 1",
+              chunkId: 'chunk-1',
+              documentId: 'document-1',
+              documentTitle: 'Document 1',
               chunkIndex: 0,
-              content: "marker content",
+              content: 'marker content',
               score: 0.9,
               isPrimary: true,
               pageNo: 1,
-              sectionTitle: "Facts"
+              sectionTitle: 'Facts'
             }
           ],
           contextGroups: [],
           execution: {
-            actualMode: "vector",
+            actualMode: 'vector',
             usedFallback: false
           }
         };
       }
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async () => ({})
     },
     llm: {
-      generateAnswerStream: async input => {
-        input.onDelta("Alpha");
+      generateAnswerStream: async (input) => {
+        input.onDelta('Alpha');
         return {
-          rawAnswer: "Alpha",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'Alpha',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -327,39 +388,39 @@ test("AskAssistantService stream starts retrieval before user message persistenc
   });
 
   const result = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
     onEvent: () => {}
   });
 
   assert.equal(retrievalStartedBeforeUserMessage, true);
-  assert.equal(result.traceId, "trace-1");
+  assert.equal(result.traceId, 'trace-1');
 });
 
-test("AskAssistantService stream scopes existing conversation lookup to current identity", async () => {
+test('AskAssistantService stream scopes existing conversation lookup to current identity', async () => {
   const getConversationCalls = [];
 
   const service = createAskAssistantService({
     conversations: {
       createConversation: async () => {
-        throw new Error("should not create a new conversation in this test");
+        throw new Error('should not create a new conversation in this test');
       },
       getConversation: async (...args) => {
         getConversationCalls.push(args);
-        return { id: "conversation-1" };
+        return { id: 'conversation-1' };
       }
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async () => ({})
     },
     llm: {
-      generateAnswerStream: async input => {
-        input.onDelta("delta");
+      generateAnswerStream: async (input) => {
+        input.onDelta('delta');
         return {
-          rawAnswer: "delta",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'delta',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -367,21 +428,21 @@ test("AskAssistantService stream scopes existing conversation lookup to current 
   });
 
   await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "stream existing conversation",
-    conversationId: "conversation-1",
+    assistantId: 'assistant-1',
+    question: 'stream existing conversation',
+    conversationId: 'conversation-1',
     authContext: {
       identity: {
-        userId: "user-88",
-        tenantId: "tenant-88",
-        sessionId: "session-88",
-        authSource: "session"
+        userId: 'user-88',
+        tenantId: 'tenant-88',
+        sessionId: 'session-88',
+        authSource: 'session'
       },
       currentIdentity: {
-        userId: "user-88",
-        tenantId: "tenant-88",
-        sessionId: "session-88",
-        authSource: "session"
+        userId: 'user-88',
+        tenantId: 'tenant-88',
+        sessionId: 'session-88',
+        authSource: 'session'
       }
     },
     onEvent: () => {}
@@ -389,18 +450,18 @@ test("AskAssistantService stream scopes existing conversation lookup to current 
 
   assert.deepEqual(getConversationCalls, [
     [
-      "conversation-1",
+      'conversation-1',
       {
-        userId: "user-88",
-        tenantId: "tenant-88",
-        sessionId: "session-88",
-        authSource: "session"
+        userId: 'user-88',
+        tenantId: 'tenant-88',
+        sessionId: 'session-88',
+        authSource: 'session'
       }
     ]
   ]);
 });
 
-test("AskAssistantService stream rethrows AbortError without marking the trace as failed", async () => {
+test('AskAssistantService stream rethrows AbortError without marking the trace as failed', async () => {
   const updateTraceCalls = [];
   const controller = new AbortController();
 
@@ -409,26 +470,26 @@ test("AskAssistantService stream rethrows AbortError without marking the trace a
       retrieve: async () => ({
         retrievedChunks: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
             chunkIndex: 0,
-            content: "marker content",
+            content: 'marker content',
             score: 0.9,
             isPrimary: true,
             pageNo: 1,
-            sectionTitle: "Facts"
+            sectionTitle: 'Facts'
           }
         ],
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (...args) => {
         updateTraceCalls.push(args);
         return {};
@@ -441,10 +502,10 @@ test("AskAssistantService stream rethrows AbortError without marking the trace a
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
+      generateAnswerStream: async (input) => {
         controller.abort();
-        const error = new Error("stream aborted");
-        error.name = "AbortError";
+        const error = new Error('stream aborted');
+        error.name = 'AbortError';
         throw error;
       }
     }
@@ -453,18 +514,18 @@ test("AskAssistantService stream rethrows AbortError without marking the trace a
   await assert.rejects(
     () =>
       service.askAssistantStream({
-        assistantId: "assistant-1",
-        question: "stop this stream",
+        assistantId: 'assistant-1',
+        question: 'stop this stream',
         signal: controller.signal,
         onEvent: () => {}
       }),
-    error => error instanceof Error && error.name === "AbortError"
+    (error) => error instanceof Error && error.name === 'AbortError'
   );
 
   assert.deepEqual(updateTraceCalls, []);
 });
 
-test("AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers", async () => {
+test('AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers', async () => {
   const events = [];
   let providerStreamCalls = 0;
   let finalizeStreamedAnswerCalls = 0;
@@ -472,7 +533,7 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        language: "en"
+        language: 'en'
       })
     }),
     retrieval: {
@@ -480,7 +541,7 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
         retrievedChunks: [],
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -489,88 +550,102 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
       buildStreamAnswerContext: ({ chunks }) => chunks,
       buildDeterministicInsufficientContextResult: ({ question }) => ({
         answer: `deterministic fallback for: ${question}`,
-        modelName: "fallback-local",
+        modelName: 'fallback-local',
         citations: [],
         retrievedChunks: [],
         contextGroups: [],
         answeringMetadata: {
-          promptId: "answer.v2",
+          promptId: 'answer.v2',
           usedFallback: true,
           answerPolicy: {
-            responseStyle: "concise",
-            tone: "neutral",
-            outputFormat: "paragraph",
-            language: "en",
-            citationMode: "required",
+            responseStyle: 'concise',
+            tone: 'neutral',
+            outputFormat: 'paragraph',
+            language: 'en',
+            citationMode: 'required',
             maxCitations: 3,
-            noAnswerBehavior: "say_insufficient_context",
+            noAnswerBehavior: 'say_insufficient_context',
             includeMissingInformation: true
           },
-          resolvedLanguage: "en",
-          generationMode: "deterministic_bypass",
-          contextMode: "chunks",
+          resolvedLanguage: 'en',
+          generationMode: 'deterministic_bypass',
+          contextMode: 'chunks',
           inputChunkCount: 0,
           promptContextCount: 0,
           contextGroupCount: 0,
-            citationCount: 0,
-            citationAttribution: "none",
-            citationSelectionSource: "none",
-            missingInformationCount: 1,
-            answerTextSource: "deterministic_policy",
-            insufficientContextReason: "no_retrieval_hits",
-            answerStatusSource: "deterministic_policy",
-            answerStatus: "insufficient_context"
-          },
-        answerStatus: "insufficient_context",
-        missingInformation: ["No relevant supporting sources were retrieved."],
+          citationCount: 0,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 1,
+          answerTextSource: 'deterministic_policy',
+          insufficientContextReason: 'no_retrieval_hits',
+          answerStatusSource: 'deterministic_policy',
+          answerStatus: 'insufficient_context'
+        },
+        answerStatus: 'insufficient_context',
+        missingInformation: ['No relevant supporting sources were retrieved.'],
         qualityEvaluation: {
-          overall: "weak",
-          grounding: "ungrounded",
-          completeness: "insufficient",
-          primaryIssue: "no_retrieval_hits",
-          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
-          summary: "Answer quality is weak because supporting context was insufficient."
+          overall: 'weak',
+          grounding: 'ungrounded',
+          completeness: 'insufficient',
+          primaryIssue: 'no_retrieval_hits',
+          flags: [
+            'no_retrieval_hits',
+            'insufficient_context',
+            'missing_information'
+          ],
+          summary:
+            'Answer quality is weak because supporting context was insufficient.'
         }
       }),
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => {
+      finalizeStreamedAnswer: async (input) => {
         finalizeStreamedAnswerCalls += 1;
         return {
-        answer: input.rawAnswer,
-        modelName: input.modelName,
-        citations: [],
-        retrievedChunks: input.chunks,
-        contextGroups: input.contextGroups,
-        answeringMetadata: {
-          promptId: input.promptId,
-          usedFallback: input.usedFallback,
-          answerPolicy: input.answerPolicy,
-              contextMode: "chunks",
-              inputChunkCount: input.chunks.length,
-              contextGroupCount: input.contextGroups.length,
-              citationCount: 0,
-              answerTextSource: "model",
-              insufficientContextReason: "no_retrieval_hits",
-              answerStatusSource: "model",
-              answerStatus: "insufficient_context"
-            },
-        answerStatus: "insufficient_context",
-        missingInformation: ["No relevant supporting sources were retrieved."],
-        qualityEvaluation: {
-          overall: "weak",
-          grounding: "ungrounded",
-          completeness: "insufficient",
-          primaryIssue: "no_retrieval_hits",
-          flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
-          summary: "Answer quality is weak because supporting context was insufficient."
-        }
+          answer: input.rawAnswer,
+          modelName: input.modelName,
+          citations: [],
+          retrievedChunks: input.chunks,
+          contextGroups: input.contextGroups,
+          answeringMetadata: {
+            promptId: input.promptId,
+            usedFallback: input.usedFallback,
+            answerPolicy: input.answerPolicy,
+            contextMode: 'chunks',
+            inputChunkCount: input.chunks.length,
+            contextGroupCount: input.contextGroups.length,
+            citationCount: 0,
+            answerTextSource: 'model',
+            insufficientContextReason: 'no_retrieval_hits',
+            answerStatusSource: 'model',
+            answerStatus: 'insufficient_context'
+          },
+          answerStatus: 'insufficient_context',
+          missingInformation: [
+            'No relevant supporting sources were retrieved.'
+          ],
+          qualityEvaluation: {
+            overall: 'weak',
+            grounding: 'ungrounded',
+            completeness: 'insufficient',
+            primaryIssue: 'no_retrieval_hits',
+            flags: [
+              'no_retrieval_hits',
+              'insufficient_context',
+              'missing_information'
+            ],
+            summary:
+              'Answer quality is weak because supporting context was insufficient.'
+          }
         };
       }
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async () => ({})
     },
     llm: {
@@ -582,15 +657,15 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
       }),
       generateAnswerStream: async () => {
         providerStreamCalls += 1;
-        throw new Error("provider stream should be bypassed");
+        throw new Error('provider stream should be bypassed');
       }
     }
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "What detail is missing?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'What detail is missing?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
@@ -598,52 +673,105 @@ test("AskAssistantService bypasses provider streaming for no-hit say_insufficien
   assert.equal(providerStreamCalls, 0);
   assert.equal(finalizeStreamedAnswerCalls, 0);
   assert.deepEqual(
-    events.map(event => event.type === "status" ? `${event.type}:${event.phase}` : event.type),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(events[3].delta, "deterministic fallback for: What detail is missing?");
-  assert.equal(events[4].data.answer, "deterministic fallback for: What detail is missing?");
-  assert.equal(events[4].data.answerEvidenceSource, "none");
-  assert.equal(events[4].data.answerEvidenceSourceReadabilityLabel, "no evidence source");
-  assert.equal(events[4].data.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
+  assert.equal(
+    events[3].delta,
+    'deterministic fallback for: What detail is missing?'
+  );
+  assert.equal(
+    events[4].data.answer,
+    'deterministic fallback for: What detail is missing?'
+  );
+  assert.equal(events[4].data.traceId, finalResult.traceId);
+  assert.equal(events[4].data.conversationId, finalResult.conversationId);
+  assert.equal(events[4].data.userMessageId, finalResult.userMessageId);
+  assert.equal(
+    events[4].data.assistantMessageId,
+    finalResult.assistantMessageId
+  );
+  assert.equal(events[4].data.answerStatus, 'insufficient_context');
+  assert.equal(
+    events[4].data.answeringMetadata.generationMode,
+    'deterministic_bypass'
+  );
+  assert.equal(events[4].data.answerEvidenceSource, 'none');
+  assert.equal(
+    events[4].data.answerEvidenceSourceReadabilityLabel,
+    'no evidence source'
+  );
+  assert.equal(
+    events[4].data.answerEvidenceSourceReadabilitySentence,
+    'Answer evidence source is no evidence source.'
+  );
   assert.equal(
     events[4].data.answerProvenanceSentence,
-    "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
+    'Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source.'
   );
   assert.equal(
     events[4].data.answerProvenanceReadabilitySentence,
-    "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
+    'Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none.'
   );
-  assert.equal(finalResult.answer, "deterministic fallback for: What detail is missing?");
+  assert.equal(
+    finalResult.answer,
+    'deterministic fallback for: What detail is missing?'
+  );
   assert.equal(finalResult.answeringMetadata.usedFallback, true);
-  assert.equal(finalResult.answeringMetadata.answerTextSource, "deterministic_policy");
-  assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
-  assert.equal(finalResult.answerEvidenceSource, "none");
-  assert.equal(finalResult.answerEvidenceSourceReadabilityLabel, "no evidence source");
-  assert.equal(finalResult.answerEvidenceSourceReadabilitySentence, "Answer evidence source is no evidence source.");
-  assert.equal(finalResult.answerTextSource, "deterministic_policy");
-  assert.equal(finalResult.answerTextSourceReadabilityLabel, "deterministic policy answer text");
+  assert.equal(
+    finalResult.answeringMetadata.answerTextSource,
+    'deterministic_policy'
+  );
+  assert.equal(
+    finalResult.answeringMetadata.insufficientContextReason,
+    'no_retrieval_hits'
+  );
+  assert.equal(finalResult.answerEvidenceSource, 'none');
+  assert.equal(
+    finalResult.answerEvidenceSourceReadabilityLabel,
+    'no evidence source'
+  );
+  assert.equal(
+    finalResult.answerEvidenceSourceReadabilitySentence,
+    'Answer evidence source is no evidence source.'
+  );
+  assert.equal(finalResult.answerTextSource, 'deterministic_policy');
+  assert.equal(
+    finalResult.answerTextSourceReadabilityLabel,
+    'deterministic policy answer text'
+  );
   assert.equal(
     finalResult.answerTextSourceReadabilitySentence,
-    "Answer text source is deterministic policy answer text."
+    'Answer text source is deterministic policy answer text.'
   );
-  assert.equal(finalResult.answerStatusSource, "deterministic_policy");
-  assert.equal(finalResult.answerStatusSourceReadabilityLabel, "deterministic policy answer status");
+  assert.equal(finalResult.answerStatusSource, 'deterministic_policy');
+  assert.equal(
+    finalResult.answerStatusSourceReadabilityLabel,
+    'deterministic policy answer status'
+  );
   assert.equal(
     finalResult.answerStatusSourceReadabilitySentence,
-    "Answer status source is deterministic policy answer status."
+    'Answer status source is deterministic policy answer status.'
   );
   assert.equal(
     finalResult.answerProvenanceSentence,
-    "Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source."
+    'Answer text source is deterministic_policy; status source is deterministic_policy; attribution summary is no attribution via no evidence source.'
   );
   assert.equal(
     finalResult.answerProvenanceReadabilitySentence,
-    "Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none."
+    'Answer text source is deterministic policy answer text; answer status source is deterministic policy answer status; Answer attribution is none; source evidence is none.'
   );
 });
 
-test("AskAssistantService preserves best_effort stream no-hit answers instead of using deterministic bypass", async () => {
+test('AskAssistantService preserves best_effort stream no-hit answers instead of using deterministic bypass', async () => {
   const events = [];
   let providerStreamCalls = 0;
   let finalizeStreamedAnswerCalls = 0;
@@ -651,11 +779,11 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        tone: "direct",
-        language: "en",
-        citationMode: "optional",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        tone: 'direct',
+        language: 'en',
+        citationMode: 'optional',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -663,7 +791,7 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
         retrievedChunks: [],
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -671,11 +799,13 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => {
+      finalizeStreamedAnswer: async (input) => {
         finalizeStreamedAnswerCalls += 1;
-        assert.equal(input.answerPolicy.noAnswerBehavior, "best_effort");
+        assert.equal(input.answerPolicy.noAnswerBehavior, 'best_effort');
         return {
           answer: input.rawAnswer,
           modelName: input.modelName,
@@ -686,29 +816,36 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
             promptId: input.promptId,
             usedFallback: input.usedFallback,
             answerPolicy: input.answerPolicy,
-            contextMode: "chunks",
+            contextMode: 'chunks',
             inputChunkCount: input.chunks.length,
             contextGroupCount: input.contextGroups.length,
             citationCount: 0,
-            answerTextSource: "model",
-            insufficientContextReason: "no_retrieval_hits",
-            answerStatus: "insufficient_context"
+            answerTextSource: 'model',
+            insufficientContextReason: 'no_retrieval_hits',
+            answerStatus: 'insufficient_context'
           },
-          answerStatus: "insufficient_context",
-          missingInformation: ["No relevant supporting sources were retrieved."],
+          answerStatus: 'insufficient_context',
+          missingInformation: [
+            'No relevant supporting sources were retrieved.'
+          ],
           qualityEvaluation: {
-            overall: "weak",
-            grounding: "ungrounded",
-            completeness: "insufficient",
-            primaryIssue: "no_retrieval_hits",
-            flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
-            summary: "Answer quality is weak because supporting context was insufficient."
+            overall: 'weak',
+            grounding: 'ungrounded',
+            completeness: 'insufficient',
+            primaryIssue: 'no_retrieval_hits',
+            flags: [
+              'no_retrieval_hits',
+              'insufficient_context',
+              'missing_information'
+            ],
+            summary:
+              'Answer quality is weak because supporting context was insufficient.'
           }
         };
       }
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async () => ({})
     },
     llm: {
@@ -718,14 +855,14 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
+      generateAnswerStream: async (input) => {
         providerStreamCalls += 1;
-        await input.onDelta("Best effort ");
-        await input.onDelta("stream answer.");
+        await input.onDelta('Best effort ');
+        await input.onDelta('stream answer.');
         return {
-          rawAnswer: "Best effort stream answer.",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'Best effort stream answer.',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -733,9 +870,9 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "What detail is missing?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'What detail is missing?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
@@ -743,27 +880,42 @@ test("AskAssistantService preserves best_effort stream no-hit answers instead of
   assert.equal(providerStreamCalls, 1);
   assert.equal(finalizeStreamedAnswerCalls, 1);
   assert.deepEqual(
-    events.map(event => event.type === "status" ? `${event.type}:${event.phase}` : event.type),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(events[3].delta, "Best effort ");
-  assert.equal(events[4].delta, "stream answer.");
-  assert.equal(events[5].data.answer, "Best effort stream answer.");
-  assert.equal(finalResult.answer, "Best effort stream answer.");
-  assert.equal(finalResult.answeringMetadata.answerPolicy.noAnswerBehavior, "best_effort");
-  assert.equal(finalResult.answeringMetadata.answerTextSource, "model");
-  assert.equal(finalResult.answeringMetadata.insufficientContextReason, "no_retrieval_hits");
+  assert.equal(events[3].delta, 'Best effort ');
+  assert.equal(events[4].delta, 'stream answer.');
+  assert.equal(events[5].data.answer, 'Best effort stream answer.');
+  assert.equal(finalResult.answer, 'Best effort stream answer.');
+  assert.equal(
+    finalResult.answeringMetadata.answerPolicy.noAnswerBehavior,
+    'best_effort'
+  );
+  assert.equal(finalResult.answeringMetadata.answerTextSource, 'model');
+  assert.equal(
+    finalResult.answeringMetadata.insufficientContextReason,
+    'no_retrieval_hits'
+  );
 });
 
-test("AskAssistantService forwards fallback-local no-hit best_effort metadata into stream finalization", async () => {
+test('AskAssistantService forwards fallback-local no-hit best_effort metadata into stream finalization', async () => {
   const events = [];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        language: "en",
-        citationMode: "optional",
-        noAnswerBehavior: "best_effort"
+        language: 'en',
+        citationMode: 'optional',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -771,7 +923,7 @@ test("AskAssistantService forwards fallback-local no-hit best_effort metadata in
         retrievedChunks: [],
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -779,12 +931,16 @@ test("AskAssistantService forwards fallback-local no-hit best_effort metadata in
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => {
-        assert.equal(input.modelName, "fallback-local");
-        assert.equal(input.answerStatus, "insufficient_context");
-        assert.deepEqual(input.missingInformation, ["No relevant supporting sources were retrieved."]);
+      finalizeStreamedAnswer: async (input) => {
+        assert.equal(input.modelName, 'fallback-local');
+        assert.equal(input.answerStatus, 'insufficient_context');
+        assert.deepEqual(input.missingInformation, [
+          'No relevant supporting sources were retrieved.'
+        ]);
         return {
           answer: input.rawAnswer,
           modelName: input.modelName,
@@ -795,27 +951,32 @@ test("AskAssistantService forwards fallback-local no-hit best_effort metadata in
             promptId: input.promptId,
             usedFallback: input.usedFallback,
             answerPolicy: input.answerPolicy,
-            missingInformationSource: "model",
-            answerTextSource: "model",
-            insufficientContextReason: "no_retrieval_hits",
-            answerStatusSource: "model",
-            answerStatus: "insufficient_context"
+            missingInformationSource: 'model',
+            answerTextSource: 'model',
+            insufficientContextReason: 'no_retrieval_hits',
+            answerStatusSource: 'model',
+            answerStatus: 'insufficient_context'
           },
-          answerStatus: "insufficient_context",
+          answerStatus: 'insufficient_context',
           missingInformation: input.missingInformation,
           qualityEvaluation: {
-            overall: "weak",
-            grounding: "ungrounded",
-            completeness: "insufficient",
-            primaryIssue: "no_retrieval_hits",
-            flags: ["no_retrieval_hits", "insufficient_context", "missing_information"],
-            summary: "Answer quality is weak because supporting context was insufficient."
+            overall: 'weak',
+            grounding: 'ungrounded',
+            completeness: 'insufficient',
+            primaryIssue: 'no_retrieval_hits',
+            flags: [
+              'no_retrieval_hits',
+              'insufficient_context',
+              'missing_information'
+            ],
+            summary:
+              'Answer quality is weak because supporting context was insufficient.'
           }
         };
       }
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async () => ({})
     },
     llm: {
@@ -825,56 +986,70 @@ test("AskAssistantService forwards fallback-local no-hit best_effort metadata in
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("I couldn't find relevant information in the knowledge base.");
+      generateAnswerStream: async (input) => {
+        await input.onDelta(
+          "I couldn't find relevant information in the knowledge base."
+        );
         return {
-          rawAnswer: "I couldn't find relevant information in the knowledge base.",
-          modelName: "fallback-local",
-          promptId: "answer.v2",
+          rawAnswer:
+            "I couldn't find relevant information in the knowledge base.",
+          modelName: 'fallback-local',
+          promptId: 'answer.v2',
           usedFallback: true,
-          answerStatus: "insufficient_context",
-          missingInformation: ["No relevant supporting sources were retrieved."]
+          answerStatus: 'insufficient_context',
+          missingInformation: ['No relevant supporting sources were retrieved.']
         };
       }
     }
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "What detail is missing?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'What detail is missing?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => event.type === "status" ? `${event.type}:${event.phase}` : event.type),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.answeringMetadata.answerStatusSource, "model");
-  assert.equal(finalResult.answeringMetadata.missingInformationSource, "model");
-  assert.equal(finalResult.missingInformationSource, "model");
+  assert.equal(finalResult.answeringMetadata.answerStatusSource, 'model');
+  assert.equal(finalResult.answeringMetadata.missingInformationSource, 'model');
+  assert.equal(finalResult.missingInformationSource, 'model');
   assert.equal(
     finalResult.missingInformationProvenanceSentence,
-    "Missing-information source is model; insufficient-context reason is no_retrieval_hits; missing-information count is 1."
+    'Missing-information source is model; insufficient-context reason is no_retrieval_hits; missing-information count is 1.'
   );
-  assert.equal(finalResult.missingInformationSourceReadabilityLabel, "model-reported missing-information items");
+  assert.equal(
+    finalResult.missingInformationSourceReadabilityLabel,
+    'model-reported missing-information items'
+  );
 });
 
-test("AskAssistantService stream preserves fallback_generation as the primary quality issue in final payload and trace", async () => {
+test('AskAssistantService stream preserves fallback_generation as the primary quality issue in final payload and trace', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.4,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
@@ -885,7 +1060,7 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -893,17 +1068,19 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "marker content"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: 'marker content'
           }
         ],
         retrievedChunks: input.chunks,
@@ -912,27 +1089,27 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "fallback_generation",
-          flags: ["low_retrieval_score", "fallback_generation"],
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'fallback_generation',
+          flags: ['low_retrieval_score', 'fallback_generation'],
           summary:
-            "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
+            'Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -945,13 +1122,13 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("Fallback ");
-        await input.onDelta("stream answer [1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('Fallback ');
+        await input.onDelta('stream answer [1]');
         return {
-          rawAnswer: "Fallback stream answer [1]",
-          modelName: "fallback-local",
-          promptId: "answer.v2",
+          rawAnswer: 'Fallback stream answer [1]',
+          modelName: 'fallback-local',
+          promptId: 'answer.v2',
           usedFallback: true
         };
       }
@@ -959,48 +1136,63 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'fallback_generation'
+  );
   assert.deepEqual(finalResult.qualityEvaluation.flags, [
-    "low_retrieval_score",
-    "fallback_generation"
+    'low_retrieval_score',
+    'fallback_generation'
   ]);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior."
+    'Answer is grounded, but retrieval confidence was low for the supporting context, and it was produced through local fallback behavior.'
   );
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(updateTraceCalls[0].input.qualityEvaluationJson.primaryIssue, "fallback_generation");
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.primaryIssue,
+    'fallback_generation'
+  );
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson.flags, [
-    "low_retrieval_score",
-    "fallback_generation"
+    'low_retrieval_score',
+    'fallback_generation'
   ]);
 });
 
-test("AskAssistantService stream preserves fallback_generation as the primary quality issue when fallback answers also miss information", async () => {
+test('AskAssistantService stream preserves fallback_generation as the primary quality issue when fallback answers also miss information', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
@@ -1011,7 +1203,7 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1019,17 +1211,19 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "marker content"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: 'marker content'
           }
         ],
         retrievedChunks: input.chunks,
@@ -1038,27 +1232,27 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
-        missingInformation: ["Need pricing details."],
+        answerStatus: 'grounded',
+        missingInformation: ['Need pricing details.'],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "partial",
-          primaryIssue: "fallback_generation",
-          flags: ["missing_information", "fallback_generation"],
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'partial',
+          primaryIssue: 'fallback_generation',
+          flags: ['missing_information', 'fallback_generation'],
           summary:
-            "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+            'Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1071,13 +1265,13 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("Fallback ");
-        await input.onDelta("partial answer [1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('Fallback ');
+        await input.onDelta('partial answer [1]');
         return {
-          rawAnswer: "Fallback partial answer [1]",
-          modelName: "fallback-local",
-          promptId: "answer.v2",
+          rawAnswer: 'Fallback partial answer [1]',
+          modelName: 'fallback-local',
+          promptId: 'answer.v2',
           usedFallback: true
         };
       }
@@ -1085,48 +1279,63 @@ test("AskAssistantService stream preserves fallback_generation as the primary qu
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'fallback_generation'
+  );
   assert.deepEqual(finalResult.qualityEvaluation.flags, [
-    "missing_information",
-    "fallback_generation"
+    'missing_information',
+    'fallback_generation'
   ]);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior."
+    'Answer is grounded but incomplete because some information is missing, and it was produced through local fallback behavior.'
   );
   assert.equal(updateTraceCalls.length, 1);
-  assert.equal(updateTraceCalls[0].input.qualityEvaluationJson.primaryIssue, "fallback_generation");
+  assert.equal(
+    updateTraceCalls[0].input.qualityEvaluationJson.primaryIssue,
+    'fallback_generation'
+  );
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson.flags, [
-    "missing_information",
-    "fallback_generation"
+    'missing_information',
+    'fallback_generation'
   ]);
 });
 
-test("AskAssistantService stream preserves heuristic-citation strong summaries without upgrading them to explicit cited-source wording", async () => {
+test('AskAssistantService stream preserves heuristic-citation strong summaries without upgrading them to explicit cited-source wording', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
@@ -1137,7 +1346,7 @@ test("AskAssistantService stream preserves heuristic-citation strong summaries w
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1145,17 +1354,19 @@ test("AskAssistantService stream preserves heuristic-citation strong summaries w
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "marker content"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: 'marker content'
           }
         ],
         retrievedChunks: input.chunks,
@@ -1164,26 +1375,27 @@ test("AskAssistantService stream preserves heuristic-citation strong summaries w
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "strong",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "none",
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
           flags: [],
-          summary: "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
+          summary:
+            'Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1196,13 +1408,13 @@ test("AskAssistantService stream preserves heuristic-citation strong summaries w
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("Answer text ");
-        await input.onDelta("without explicit source markers.");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('Answer text ');
+        await input.onDelta('without explicit source markers.');
         return {
-          rawAnswer: "Answer text without explicit source markers.",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'Answer text without explicit source markers.',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -1210,53 +1422,62 @@ test("AskAssistantService stream preserves heuristic-citation strong summaries w
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "none");
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, 'none');
   assert.deepEqual(finalResult.qualityEvaluation.flags, []);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
+    'Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps.'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps."
+    'Answer is grounded in retrieved sources with backend-inferred citations and no reported gaps.'
   );
 });
 
-test("AskAssistantService stream preserves localized heuristic-citation strong summaries in Chinese", async () => {
+test('AskAssistantService stream preserves localized heuristic-citation strong summaries in Chinese', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -1264,7 +1485,7 @@ test("AskAssistantService stream preserves localized heuristic-citation strong s
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1272,17 +1493,19 @@ test("AskAssistantService stream preserves localized heuristic-citation strong s
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "中文内容"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: '中文内容'
           }
         ],
         retrievedChunks: input.chunks,
@@ -1291,26 +1514,27 @@ test("AskAssistantService stream preserves localized heuristic-citation strong s
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "strong",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "none",
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
           flags: [],
-          summary: "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
+          summary:
+            '回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1323,13 +1547,13 @@ test("AskAssistantService stream preserves localized heuristic-citation strong s
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("没有显式");
-        await input.onDelta("来源标记的回答。");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('没有显式');
+        await input.onDelta('来源标记的回答。');
         return {
-          rawAnswer: "没有显式来源标记的回答。",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: '没有显式来源标记的回答。',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -1337,53 +1561,62 @@ test("AskAssistantService stream preserves localized heuristic-citation strong s
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "none");
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, 'none');
   assert.deepEqual(finalResult.qualityEvaluation.flags, []);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
+    '回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。"
+    '回答已基于检索到的来源，引用由后端推断补齐，且没有发现已知缺口。'
   );
 });
 
-test("AskAssistantService stream preserves localized cited-source strong summaries in Chinese", async () => {
+test('AskAssistantService stream preserves localized cited-source strong summaries in Chinese', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -1391,7 +1624,7 @@ test("AskAssistantService stream preserves localized cited-source strong summari
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1399,17 +1632,19 @@ test("AskAssistantService stream preserves localized cited-source strong summari
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "中文内容"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: '中文内容'
           }
         ],
         retrievedChunks: input.chunks,
@@ -1418,26 +1653,26 @@ test("AskAssistantService stream preserves localized cited-source strong summari
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "strong",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "none",
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
           flags: [],
-          summary: "回答已基于引用的来源，且没有发现已知缺口。"
+          summary: '回答已基于引用的来源，且没有发现已知缺口。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1450,13 +1685,13 @@ test("AskAssistantService stream preserves localized cited-source strong summari
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("回答 ");
-        await input.onDelta("[1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('回答 ');
+        await input.onDelta('[1]');
         return {
-          rawAnswer: "回答 [1]",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: '回答 [1]',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -1464,54 +1699,66 @@ test("AskAssistantService stream preserves localized cited-source strong summari
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "none");
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, 'none');
   assert.deepEqual(finalResult.qualityEvaluation.flags, []);
-  assert.equal(finalResult.qualityEvaluation.summary, "回答已基于引用的来源，且没有发现已知缺口。");
+  assert.equal(
+    finalResult.qualityEvaluation.summary,
+    '回答已基于引用的来源，且没有发现已知缺口。'
+  );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答已基于引用的来源，且没有发现已知缺口。"
+    '回答已基于引用的来源，且没有发现已知缺口。'
   );
 });
 
-test("AskAssistantService stream preserves generic strong summaries without citations", async () => {
+test('AskAssistantService stream preserves generic strong summaries without citations', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "Citation-free grounded answer support",
+      content: 'Citation-free grounded answer support',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: {
-        responseStyle: "balanced",
-        tone: "neutral",
-        outputFormat: "paragraph",
-        language: "same_as_question",
-        citationMode: "optional",
+        responseStyle: 'balanced',
+        tone: 'neutral',
+        outputFormat: 'paragraph',
+        language: 'same_as_question',
+        citationMode: 'optional',
         maxCitations: 3,
-        noAnswerBehavior: "best_effort",
+        noAnswerBehavior: 'best_effort',
         includeMissingInformation: true
       }
     }),
@@ -1520,7 +1767,7 @@ test("AskAssistantService stream preserves generic strong summaries without cita
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1528,9 +1775,11 @@ test("AskAssistantService stream preserves generic strong summaries without cita
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [],
@@ -1540,26 +1789,27 @@ test("AskAssistantService stream preserves generic strong summaries without cita
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 0,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "strong",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "none",
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
           flags: [],
-          summary: "Answer is grounded in retrieved sources with no reported gaps."
+          summary:
+            'Answer is grounded in retrieved sources with no reported gaps.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1572,13 +1822,13 @@ test("AskAssistantService stream preserves generic strong summaries without cita
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("Here is a grounded ");
-        await input.onDelta("answer without explicit citations.");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('Here is a grounded ');
+        await input.onDelta('answer without explicit citations.');
         return {
-          rawAnswer: "Here is a grounded answer without explicit citations.",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'Here is a grounded answer without explicit citations.',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -1586,51 +1836,63 @@ test("AskAssistantService stream preserves generic strong summaries without cita
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "What happened?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'What happened?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "none");
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, 'none');
   assert.deepEqual(finalResult.qualityEvaluation.flags, []);
-  assert.equal(finalResult.qualityEvaluation.summary, "Answer is grounded in retrieved sources with no reported gaps.");
+  assert.equal(
+    finalResult.qualityEvaluation.summary,
+    'Answer is grounded in retrieved sources with no reported gaps.'
+  );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "Answer is grounded in retrieved sources with no reported gaps."
+    'Answer is grounded in retrieved sources with no reported gaps.'
   );
 });
 
-test("AskAssistantService stream preserves localized generic strong summaries without citations in Chinese", async () => {
+test('AskAssistantService stream preserves localized generic strong summaries without citations in Chinese', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "涓枃鍐呭",
+      content: '涓枃鍐呭',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        citationMode: "optional",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        citationMode: 'optional',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -1638,7 +1900,7 @@ test("AskAssistantService stream preserves localized generic strong summaries wi
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1646,9 +1908,11 @@ test("AskAssistantService stream preserves localized generic strong summaries wi
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [],
@@ -1658,26 +1922,27 @@ test("AskAssistantService stream preserves localized generic strong summaries wi
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 0,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "strong",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "none",
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
           flags: [],
-          summary: "鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?"
+          summary:
+            '鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1690,13 +1955,13 @@ test("AskAssistantService stream preserves localized generic strong summaries wi
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("杩欐槸涓€涓?");
-        await input.onDelta("娌℃湁鏄惧紡寮曠敤鐨勫洖绛斻€?");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('杩欐槸涓€涓?');
+        await input.onDelta('娌℃湁鏄惧紡寮曠敤鐨勫洖绛斻€?');
         return {
-          rawAnswer: "杩欐槸涓€涓病鏈夋樉寮忓紩鐢ㄧ殑鍥炵瓟銆?",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: '杩欐槸涓€涓病鏈夋樉寮忓紩鐢ㄧ殑鍥炵瓟銆?',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -1704,50 +1969,62 @@ test("AskAssistantService stream preserves localized generic strong summaries wi
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "鍙戠敓浜嗕粈涔堬紵",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '鍙戠敓浜嗕粈涔堬紵',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "none");
+  assert.equal(finalResult.qualityEvaluation.primaryIssue, 'none');
   assert.deepEqual(finalResult.qualityEvaluation.flags, []);
-  assert.equal(finalResult.qualityEvaluation.summary, "鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?");
+  assert.equal(
+    finalResult.qualityEvaluation.summary,
+    '鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?'
+  );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?"
+    '鍥炵瓟宸插熀浜庢绱㈠埌鐨勬潵婧愶紝涓旀病鏈夊彂鐜板凡鐭ョ己鍙ｃ€?'
   );
 });
 
-test("AskAssistantService stream preserves localized fallback partial summaries in Chinese", async () => {
+test('AskAssistantService stream preserves localized fallback partial summaries in Chinese', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -1755,7 +2032,7 @@ test("AskAssistantService stream preserves localized fallback partial summaries 
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1763,17 +2040,19 @@ test("AskAssistantService stream preserves localized fallback partial summaries 
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "中文内容"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: '中文内容'
           }
         ],
         retrievedChunks: input.chunks,
@@ -1782,26 +2061,27 @@ test("AskAssistantService stream preserves localized fallback partial summaries 
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
-        missingInformation: ["缺少价格信息。"],
+        answerStatus: 'grounded',
+        missingInformation: ['缺少价格信息。'],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "partial",
-          primaryIssue: "fallback_generation",
-          flags: ["missing_information", "fallback_generation"],
-          summary: "回答已基于检索到的内容，但仍不完整：部分信息缺失，且它是通过本地 fallback 生成的。"
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'partial',
+          primaryIssue: 'fallback_generation',
+          flags: ['missing_information', 'fallback_generation'],
+          summary:
+            '回答已基于检索到的内容，但仍不完整：部分信息缺失，且它是通过本地 fallback 生成的。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1814,13 +2094,13 @@ test("AskAssistantService stream preserves localized fallback partial summaries 
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("本地 fallback ");
-        await input.onDelta("部分回答 [1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('本地 fallback ');
+        await input.onDelta('部分回答 [1]');
         return {
-          rawAnswer: "本地 fallback 部分回答 [1]",
-          modelName: "fallback-local",
-          promptId: "answer.v2",
+          rawAnswer: '本地 fallback 部分回答 [1]',
+          modelName: 'fallback-local',
+          promptId: 'answer.v2',
           usedFallback: true
         };
       }
@@ -1828,53 +2108,68 @@ test("AskAssistantService stream preserves localized fallback partial summaries 
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "fallback_generation");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, ["missing_information", "fallback_generation"]);
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'fallback_generation'
+  );
+  assert.deepEqual(finalResult.qualityEvaluation.flags, [
+    'missing_information',
+    'fallback_generation'
+  ]);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答已基于检索到的内容，但仍不完整：部分信息缺失，且它是通过本地 fallback 生成的。"
+    '回答已基于检索到的内容，但仍不完整：部分信息缺失，且它是通过本地 fallback 生成的。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答已基于检索到的内容，但仍不完整：部分信息缺失，且它是通过本地 fallback 生成的。"
+    '回答已基于检索到的内容，但仍不完整：部分信息缺失，且它是通过本地 fallback 生成的。'
   );
 });
 
-test("AskAssistantService stream preserves localized triple-cause fallback summaries in Chinese", async () => {
+test('AskAssistantService stream preserves localized triple-cause fallback summaries in Chinese', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.4,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -1882,7 +2177,7 @@ test("AskAssistantService stream preserves localized triple-cause fallback summa
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -1890,17 +2185,19 @@ test("AskAssistantService stream preserves localized triple-cause fallback summa
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "中文内容"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: '中文内容'
           }
         ],
         retrievedChunks: input.chunks,
@@ -1909,27 +2206,31 @@ test("AskAssistantService stream preserves localized triple-cause fallback summa
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
-        missingInformation: ["缺少价格信息。"],
+        answerStatus: 'grounded',
+        missingInformation: ['缺少价格信息。'],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "partial",
-          primaryIssue: "fallback_generation",
-          flags: ["missing_information", "low_retrieval_score", "fallback_generation"],
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'partial',
+          primaryIssue: 'fallback_generation',
+          flags: [
+            'missing_information',
+            'low_retrieval_score',
+            'fallback_generation'
+          ],
           summary:
-            "回答已基于检索到的内容，但仍不完整：部分信息缺失，检索置信度偏低，且它是通过本地 fallback 生成的。"
+            '回答已基于检索到的内容，但仍不完整：部分信息缺失，检索置信度偏低，且它是通过本地 fallback 生成的。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -1942,13 +2243,13 @@ test("AskAssistantService stream preserves localized triple-cause fallback summa
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("本地 fallback ");
-        await input.onDelta("部分回答 [1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('本地 fallback ');
+        await input.onDelta('部分回答 [1]');
         return {
-          rawAnswer: "本地 fallback 部分回答 [1]",
-          modelName: "fallback-local",
-          promptId: "answer.v2",
+          rawAnswer: '本地 fallback 部分回答 [1]',
+          modelName: 'fallback-local',
+          promptId: 'answer.v2',
           usedFallback: true
         };
       }
@@ -1956,57 +2257,69 @@ test("AskAssistantService stream preserves localized triple-cause fallback summa
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "fallback_generation");
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'fallback_generation'
+  );
   assert.deepEqual(finalResult.qualityEvaluation.flags, [
-    "missing_information",
-    "low_retrieval_score",
-    "fallback_generation"
+    'missing_information',
+    'low_retrieval_score',
+    'fallback_generation'
   ]);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答已基于检索到的内容，但仍不完整：部分信息缺失，检索置信度偏低，且它是通过本地 fallback 生成的。"
+    '回答已基于检索到的内容，但仍不完整：部分信息缺失，检索置信度偏低，且它是通过本地 fallback 生成的。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答已基于检索到的内容，但仍不完整：部分信息缺失，检索置信度偏低，且它是通过本地 fallback 生成的。"
+    '回答已基于检索到的内容，但仍不完整：部分信息缺失，检索置信度偏低，且它是通过本地 fallback 生成的。'
   );
 });
 
-test("AskAssistantService stream preserves localized low-confidence weak insufficient-context summaries in Chinese", async () => {
+test('AskAssistantService stream preserves localized low-confidence weak insufficient-context summaries in Chinese', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.4,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2014,7 +2327,7 @@ test("AskAssistantService stream preserves localized low-confidence weak insuffi
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2022,9 +2335,11 @@ test("AskAssistantService stream preserves localized low-confidence weak insuffi
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [],
@@ -2034,27 +2349,31 @@ test("AskAssistantService stream preserves localized low-confidence weak insuffi
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 0,
-          answerStatus: "insufficient_context"
+          answerStatus: 'insufficient_context'
         },
-        answerStatus: "insufficient_context",
-        missingInformation: ["缺少价格信息。"],
+        answerStatus: 'insufficient_context',
+        missingInformation: ['缺少价格信息。'],
         qualityEvaluation: {
-          overall: "weak",
-          grounding: "ungrounded",
-          completeness: "insufficient",
-          primaryIssue: "insufficient_context",
-          flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+          overall: 'weak',
+          grounding: 'ungrounded',
+          completeness: 'insufficient',
+          primaryIssue: 'insufficient_context',
+          flags: [
+            'insufficient_context',
+            'missing_information',
+            'low_retrieval_score'
+          ],
           summary:
-            "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。"
+            '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -2067,13 +2386,13 @@ test("AskAssistantService stream preserves localized low-confidence weak insuffi
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("不知道");
-        await input.onDelta("。");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('不知道');
+        await input.onDelta('。');
         return {
-          rawAnswer: "不知道。",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: '不知道。',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -2081,57 +2400,69 @@ test("AskAssistantService stream preserves localized low-confidence weak insuffi
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "insufficient_context");
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'insufficient_context'
+  );
   assert.deepEqual(finalResult.qualityEvaluation.flags, [
-    "insufficient_context",
-    "missing_information",
-    "low_retrieval_score"
+    'insufficient_context',
+    'missing_information',
+    'low_retrieval_score'
   ]);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。"
+    '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。"
+    '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答，且检索置信度偏低。'
   );
 });
 
-test("AskAssistantService stream preserves low-confidence weak insufficient-context summaries", async () => {
+test('AskAssistantService stream preserves low-confidence weak insufficient-context summaries', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.4,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "en",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'en',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2139,7 +2470,7 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2147,9 +2478,11 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [],
@@ -2159,27 +2492,31 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 0,
-          answerStatus: "insufficient_context"
+          answerStatus: 'insufficient_context'
         },
-        answerStatus: "insufficient_context",
-        missingInformation: ["Need pricing details."],
+        answerStatus: 'insufficient_context',
+        missingInformation: ['Need pricing details.'],
         qualityEvaluation: {
-          overall: "weak",
-          grounding: "ungrounded",
-          completeness: "insufficient",
-          primaryIssue: "insufficient_context",
-          flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+          overall: 'weak',
+          grounding: 'ungrounded',
+          completeness: 'insufficient',
+          primaryIssue: 'insufficient_context',
+          flags: [
+            'insufficient_context',
+            'missing_information',
+            'low_retrieval_score'
+          ],
           summary:
-            "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
+            'Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -2192,13 +2529,13 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
+      generateAnswerStream: async (input) => {
         await input.onDelta("I don't know");
-        await input.onDelta(".");
+        await input.onDelta('.');
         return {
           rawAnswer: "I don't know.",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -2206,61 +2543,78 @@ test("AskAssistantService stream preserves low-confidence weak insufficient-cont
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
   assert.deepEqual(finalResult.qualityEvaluation, {
-    overall: "weak",
-    grounding: "ungrounded",
-    completeness: "insufficient",
-    primaryIssue: "insufficient_context",
-    flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+    overall: 'weak',
+    grounding: 'ungrounded',
+    completeness: 'insufficient',
+    primaryIssue: 'insufficient_context',
+    flags: [
+      'insufficient_context',
+      'missing_information',
+      'low_retrieval_score'
+    ],
     summary:
-      "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
+      'Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low.'
   });
   assert.equal(updateTraceCalls.length, 1);
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
-    overall: "weak",
-    grounding: "ungrounded",
-    completeness: "insufficient",
-    primaryIssue: "insufficient_context",
-    flags: ["insufficient_context", "missing_information", "low_retrieval_score"],
+    overall: 'weak',
+    grounding: 'ungrounded',
+    completeness: 'insufficient',
+    primaryIssue: 'insufficient_context',
+    flags: [
+      'insufficient_context',
+      'missing_information',
+      'low_retrieval_score'
+    ],
     summary:
-      "Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low."
+      'Answer quality is weak because retrieved context was still insufficient, and retrieval confidence was low.'
   });
 });
 
-test("AskAssistantService stream preserves hit-aware weak insufficient-context summaries", async () => {
+test('AskAssistantService stream preserves hit-aware weak insufficient-context summaries', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.8,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "en",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'en',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2268,7 +2622,7 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2276,9 +2630,11 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [],
@@ -2288,26 +2644,27 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 0,
-          answerStatus: "insufficient_context"
+          answerStatus: 'insufficient_context'
         },
-        answerStatus: "insufficient_context",
-        missingInformation: ["Need pricing details."],
+        answerStatus: 'insufficient_context',
+        missingInformation: ['Need pricing details.'],
         qualityEvaluation: {
-          overall: "weak",
-          grounding: "ungrounded",
-          completeness: "insufficient",
-          primaryIssue: "insufficient_context",
-          flags: ["insufficient_context", "missing_information"],
-          summary: "Answer quality is weak because retrieved context was still insufficient."
+          overall: 'weak',
+          grounding: 'ungrounded',
+          completeness: 'insufficient',
+          primaryIssue: 'insufficient_context',
+          flags: ['insufficient_context', 'missing_information'],
+          summary:
+            'Answer quality is weak because retrieved context was still insufficient.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -2320,13 +2677,13 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
+      generateAnswerStream: async (input) => {
         await input.onDelta("I don't know");
-        await input.onDelta(".");
+        await input.onDelta('.');
         return {
           rawAnswer: "I don't know.",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -2334,59 +2691,70 @@ test("AskAssistantService stream preserves hit-aware weak insufficient-context s
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
   assert.deepEqual(finalResult.qualityEvaluation, {
-    overall: "weak",
-    grounding: "ungrounded",
-    completeness: "insufficient",
-    primaryIssue: "insufficient_context",
-    flags: ["insufficient_context", "missing_information"],
-    summary: "Answer quality is weak because retrieved context was still insufficient."
+    overall: 'weak',
+    grounding: 'ungrounded',
+    completeness: 'insufficient',
+    primaryIssue: 'insufficient_context',
+    flags: ['insufficient_context', 'missing_information'],
+    summary:
+      'Answer quality is weak because retrieved context was still insufficient.'
   });
   assert.equal(updateTraceCalls.length, 1);
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
-    overall: "weak",
-    grounding: "ungrounded",
-    completeness: "insufficient",
-    primaryIssue: "insufficient_context",
-    flags: ["insufficient_context", "missing_information"],
-    summary: "Answer quality is weak because retrieved context was still insufficient."
+    overall: 'weak',
+    grounding: 'ungrounded',
+    completeness: 'insufficient',
+    primaryIssue: 'insufficient_context',
+    flags: ['insufficient_context', 'missing_information'],
+    summary:
+      'Answer quality is weak because retrieved context was still insufficient.'
   });
 });
 
-test("AskAssistantService stream preserves localized hit-aware weak insufficient-context summaries in Chinese", async () => {
+test('AskAssistantService stream preserves localized hit-aware weak insufficient-context summaries in Chinese', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.8,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2394,7 +2762,7 @@ test("AskAssistantService stream preserves localized hit-aware weak insufficient
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2402,9 +2770,11 @@ test("AskAssistantService stream preserves localized hit-aware weak insufficient
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [],
@@ -2414,26 +2784,27 @@ test("AskAssistantService stream preserves localized hit-aware weak insufficient
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 0,
-          answerStatus: "insufficient_context"
+          answerStatus: 'insufficient_context'
         },
-        answerStatus: "insufficient_context",
-        missingInformation: ["缺少价格信息。"],
+        answerStatus: 'insufficient_context',
+        missingInformation: ['缺少价格信息。'],
         qualityEvaluation: {
-          overall: "weak",
-          grounding: "ungrounded",
-          completeness: "insufficient",
-          primaryIssue: "insufficient_context",
-          flags: ["insufficient_context", "missing_information"],
-          summary: "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+          overall: 'weak',
+          grounding: 'ungrounded',
+          completeness: 'insufficient',
+          primaryIssue: 'insufficient_context',
+          flags: ['insufficient_context', 'missing_information'],
+          summary:
+            '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -2446,13 +2817,13 @@ test("AskAssistantService stream preserves localized hit-aware weak insufficient
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("不知道");
-        await input.onDelta("。");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('不知道');
+        await input.onDelta('。');
         return {
-          rawAnswer: "不知道。",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: '不知道。',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -2460,72 +2831,84 @@ test("AskAssistantService stream preserves localized hit-aware weak insufficient
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "insufficient_context");
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'insufficient_context'
+  );
   assert.deepEqual(finalResult.qualityEvaluation.flags, [
-    "insufficient_context",
-    "missing_information"
+    'insufficient_context',
+    'missing_information'
   ]);
   assert.deepEqual(finalResult.qualityEvaluation, {
-    overall: "weak",
-    grounding: "ungrounded",
-    completeness: "insufficient",
-    primaryIssue: "insufficient_context",
-    flags: ["insufficient_context", "missing_information"],
-    summary: "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+    overall: 'weak',
+    grounding: 'ungrounded',
+    completeness: 'insufficient',
+    primaryIssue: 'insufficient_context',
+    flags: ['insufficient_context', 'missing_information'],
+    summary: '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。'
   });
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+    '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
-    overall: "weak",
-    grounding: "ungrounded",
-    completeness: "insufficient",
-    primaryIssue: "insufficient_context",
-    flags: ["insufficient_context", "missing_information"],
-    summary: "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+    overall: 'weak',
+    grounding: 'ungrounded',
+    completeness: 'insufficient',
+    primaryIssue: 'insufficient_context',
+    flags: ['insufficient_context', 'missing_information'],
+    summary: '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。'
   });
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。"
+    '回答质量较弱，因为即使已检索到上下文，仍不足以支持可靠回答。'
   );
 });
 
-test("AskAssistantService stream preserves grounded partial summaries when information is missing", async () => {
+test('AskAssistantService stream preserves grounded partial summaries when information is missing', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.8,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "en",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'en',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2533,7 +2916,7 @@ test("AskAssistantService stream preserves grounded partial summaries when infor
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2541,17 +2924,19 @@ test("AskAssistantService stream preserves grounded partial summaries when infor
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "marker content"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: 'marker content'
           }
         ],
         retrievedChunks: input.chunks,
@@ -2560,26 +2945,27 @@ test("AskAssistantService stream preserves grounded partial summaries when infor
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
-        missingInformation: ["Need pricing details."],
+        answerStatus: 'grounded',
+        missingInformation: ['Need pricing details.'],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "partial",
-          primaryIssue: "missing_information",
-          flags: ["missing_information"],
-          summary: "Answer is grounded but incomplete because some information is missing."
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'partial',
+          primaryIssue: 'missing_information',
+          flags: ['missing_information'],
+          summary:
+            'Answer is grounded but incomplete because some information is missing.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -2592,13 +2978,13 @@ test("AskAssistantService stream preserves grounded partial summaries when infor
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("Partial grounded ");
-        await input.onDelta("answer [1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('Partial grounded ');
+        await input.onDelta('answer [1]');
         return {
-          rawAnswer: "Partial grounded answer [1]",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'Partial grounded answer [1]',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -2606,59 +2992,70 @@ test("AskAssistantService stream preserves grounded partial summaries when infor
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
   assert.deepEqual(finalResult.qualityEvaluation, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "partial",
-    primaryIssue: "missing_information",
-    flags: ["missing_information"],
-    summary: "Answer is grounded but incomplete because some information is missing."
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'partial',
+    primaryIssue: 'missing_information',
+    flags: ['missing_information'],
+    summary:
+      'Answer is grounded but incomplete because some information is missing.'
   });
   assert.equal(updateTraceCalls.length, 1);
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "partial",
-    primaryIssue: "missing_information",
-    flags: ["missing_information"],
-    summary: "Answer is grounded but incomplete because some information is missing."
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'partial',
+    primaryIssue: 'missing_information',
+    flags: ['missing_information'],
+    summary:
+      'Answer is grounded but incomplete because some information is missing.'
   });
 });
 
-test("AskAssistantService stream preserves localized grounded partial summaries when information is missing", async () => {
+test('AskAssistantService stream preserves localized grounded partial summaries when information is missing', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.8,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2666,7 +3063,7 @@ test("AskAssistantService stream preserves localized grounded partial summaries 
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2674,17 +3071,19 @@ test("AskAssistantService stream preserves localized grounded partial summaries 
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "中文内容"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: '中文内容'
           }
         ],
         retrievedChunks: input.chunks,
@@ -2693,26 +3092,26 @@ test("AskAssistantService stream preserves localized grounded partial summaries 
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
-        missingInformation: ["缺少价格信息。"],
+        answerStatus: 'grounded',
+        missingInformation: ['缺少价格信息。'],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "partial",
-          primaryIssue: "missing_information",
-          flags: ["missing_information"],
-          summary: "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'partial',
+          primaryIssue: 'missing_information',
+          flags: ['missing_information'],
+          summary: '回答已基于检索到的内容，但仍不完整：部分信息缺失。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -2725,13 +3124,13 @@ test("AskAssistantService stream preserves localized grounded partial summaries 
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("部分回答 ");
-        await input.onDelta("[1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('部分回答 ');
+        await input.onDelta('[1]');
         return {
-          rawAnswer: "部分回答 [1]",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: '部分回答 [1]',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -2739,69 +3138,83 @@ test("AskAssistantService stream preserves localized grounded partial summaries 
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "missing_information");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, ["missing_information"]);
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'missing_information'
+  );
+  assert.deepEqual(finalResult.qualityEvaluation.flags, [
+    'missing_information'
+  ]);
   assert.deepEqual(finalResult.qualityEvaluation, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "partial",
-    primaryIssue: "missing_information",
-    flags: ["missing_information"],
-    summary: "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'partial',
+    primaryIssue: 'missing_information',
+    flags: ['missing_information'],
+    summary: '回答已基于检索到的内容，但仍不完整：部分信息缺失。'
   });
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+    '回答已基于检索到的内容，但仍不完整：部分信息缺失。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "partial",
-    primaryIssue: "missing_information",
-    flags: ["missing_information"],
-    summary: "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'partial',
+    primaryIssue: 'missing_information',
+    flags: ['missing_information'],
+    summary: '回答已基于检索到的内容，但仍不完整：部分信息缺失。'
   });
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答已基于检索到的内容，但仍不完整：部分信息缺失。"
+    '回答已基于检索到的内容，但仍不完整：部分信息缺失。'
   );
 });
 
-test("AskAssistantService stream preserves low-retrieval grounded summaries", async () => {
+test('AskAssistantService stream preserves low-retrieval grounded summaries', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.4,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "en",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'en',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2809,7 +3222,7 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2817,17 +3230,19 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "marker content"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: 'marker content'
           }
         ],
         retrievedChunks: input.chunks,
@@ -2836,26 +3251,27 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "low_retrieval_score",
-          flags: ["low_retrieval_score"],
-          summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'low_retrieval_score',
+          flags: ['low_retrieval_score'],
+          summary:
+            'Answer is grounded, but retrieval confidence was low for the supporting context.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -2868,13 +3284,13 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("Grounded ");
-        await input.onDelta("answer [1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('Grounded ');
+        await input.onDelta('answer [1]');
         return {
-          rawAnswer: "Grounded answer [1]",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: 'Grounded answer [1]',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -2882,59 +3298,70 @@ test("AskAssistantService stream preserves low-retrieval grounded summaries", as
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
   assert.deepEqual(finalResult.qualityEvaluation, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "complete",
-    primaryIssue: "low_retrieval_score",
-    flags: ["low_retrieval_score"],
-    summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'complete',
+    primaryIssue: 'low_retrieval_score',
+    flags: ['low_retrieval_score'],
+    summary:
+      'Answer is grounded, but retrieval confidence was low for the supporting context.'
   });
   assert.equal(updateTraceCalls.length, 1);
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "complete",
-    primaryIssue: "low_retrieval_score",
-    flags: ["low_retrieval_score"],
-    summary: "Answer is grounded, but retrieval confidence was low for the supporting context."
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'complete',
+    primaryIssue: 'low_retrieval_score',
+    flags: ['low_retrieval_score'],
+    summary:
+      'Answer is grounded, but retrieval confidence was low for the supporting context.'
   });
 });
 
-test("AskAssistantService stream preserves localized low-retrieval grounded summaries", async () => {
+test('AskAssistantService stream preserves localized low-retrieval grounded summaries', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.4,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -2942,7 +3369,7 @@ test("AskAssistantService stream preserves localized low-retrieval grounded summ
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -2950,17 +3377,19 @@ test("AskAssistantService stream preserves localized low-retrieval grounded summ
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "中文内容"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: '中文内容'
           }
         ],
         retrievedChunks: input.chunks,
@@ -2969,26 +3398,26 @@ test("AskAssistantService stream preserves localized low-retrieval grounded summ
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "low_retrieval_score",
-          flags: ["low_retrieval_score"],
-          summary: "回答已基于检索到的内容，但支持上下文的检索置信度偏低。"
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'low_retrieval_score',
+          flags: ['low_retrieval_score'],
+          summary: '回答已基于检索到的内容，但支持上下文的检索置信度偏低。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -3001,13 +3430,13 @@ test("AskAssistantService stream preserves localized low-retrieval grounded summ
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("回答 ");
-        await input.onDelta("[1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('回答 ');
+        await input.onDelta('[1]');
         return {
-          rawAnswer: "回答 [1]",
-          modelName: "test-model",
-          promptId: "answer.v2",
+          rawAnswer: '回答 [1]',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
           usedFallback: false
         };
       }
@@ -3015,53 +3444,67 @@ test("AskAssistantService stream preserves localized low-retrieval grounded summ
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "low_retrieval_score");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, ["low_retrieval_score"]);
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'low_retrieval_score'
+  );
+  assert.deepEqual(finalResult.qualityEvaluation.flags, [
+    'low_retrieval_score'
+  ]);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答已基于检索到的内容，但支持上下文的检索置信度偏低。"
+    '回答已基于检索到的内容，但支持上下文的检索置信度偏低。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答已基于检索到的内容，但支持上下文的检索置信度偏低。"
+    '回答已基于检索到的内容，但支持上下文的检索置信度偏低。'
   );
 });
 
-test("AskAssistantService stream preserves fallback-only grounded summaries", async () => {
+test('AskAssistantService stream preserves fallback-only grounded summaries', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "marker content",
+      content: 'marker content',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "en",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'en',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -3069,7 +3512,7 @@ test("AskAssistantService stream preserves fallback-only grounded summaries", as
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -3077,17 +3520,19 @@ test("AskAssistantService stream preserves fallback-only grounded summaries", as
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "marker content"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: 'marker content'
           }
         ],
         retrievedChunks: input.chunks,
@@ -3096,26 +3541,27 @@ test("AskAssistantService stream preserves fallback-only grounded summaries", as
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "fallback_generation",
-          flags: ["fallback_generation"],
-          summary: "Answer is grounded, but it was produced through local fallback behavior."
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'fallback_generation',
+          flags: ['fallback_generation'],
+          summary:
+            'Answer is grounded, but it was produced through local fallback behavior.'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -3128,13 +3574,13 @@ test("AskAssistantService stream preserves fallback-only grounded summaries", as
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("Grounded fallback ");
-        await input.onDelta("answer [1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('Grounded fallback ');
+        await input.onDelta('answer [1]');
         return {
-          rawAnswer: "Grounded fallback answer [1]",
-          modelName: "fallback-local",
-          promptId: "answer.v2",
+          rawAnswer: 'Grounded fallback answer [1]',
+          modelName: 'fallback-local',
+          promptId: 'answer.v2',
           usedFallback: true
         };
       }
@@ -3142,59 +3588,70 @@ test("AskAssistantService stream preserves fallback-only grounded summaries", as
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "Where is the marker?",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
   assert.deepEqual(finalResult.qualityEvaluation, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "complete",
-    primaryIssue: "fallback_generation",
-    flags: ["fallback_generation"],
-    summary: "Answer is grounded, but it was produced through local fallback behavior."
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'complete',
+    primaryIssue: 'fallback_generation',
+    flags: ['fallback_generation'],
+    summary:
+      'Answer is grounded, but it was produced through local fallback behavior.'
   });
   assert.equal(updateTraceCalls.length, 1);
   assert.deepEqual(updateTraceCalls[0].input.qualityEvaluationJson, {
-    overall: "partial",
-    grounding: "grounded",
-    completeness: "complete",
-    primaryIssue: "fallback_generation",
-    flags: ["fallback_generation"],
-    summary: "Answer is grounded, but it was produced through local fallback behavior."
+    overall: 'partial',
+    grounding: 'grounded',
+    completeness: 'complete',
+    primaryIssue: 'fallback_generation',
+    flags: ['fallback_generation'],
+    summary:
+      'Answer is grounded, but it was produced through local fallback behavior.'
   });
 });
 
-test("AskAssistantService stream preserves localized fallback-only grounded summaries", async () => {
+test('AskAssistantService stream preserves localized fallback-only grounded summaries', async () => {
   const events = [];
   const updateTraceCalls = [];
   const retrievedChunks = [
     {
-      chunkId: "chunk-1",
-      documentId: "document-1",
-      documentTitle: "Document 1",
+      chunkId: 'chunk-1',
+      documentId: 'document-1',
+      documentTitle: 'Document 1',
       chunkIndex: 0,
-      content: "中文内容",
+      content: '中文内容',
       score: 0.9,
       isPrimary: true,
       pageNo: 1,
-      sectionTitle: "Facts"
+      sectionTitle: 'Facts'
     }
   ];
 
   const service = createAskAssistantService({
     assistant: createAssistantRecord({
       answerPolicyJson: createAnswerPolicy({
-        responseStyle: "balanced",
-        language: "same_as_question",
-        noAnswerBehavior: "best_effort"
+        responseStyle: 'balanced',
+        language: 'same_as_question',
+        noAnswerBehavior: 'best_effort'
       })
     }),
     retrieval: {
@@ -3202,7 +3659,7 @@ test("AskAssistantService stream preserves localized fallback-only grounded summ
         retrievedChunks,
         contextGroups: [],
         execution: {
-          actualMode: "vector",
+          actualMode: 'vector',
           usedFallback: false
         }
       })
@@ -3210,17 +3667,19 @@ test("AskAssistantService stream preserves localized fallback-only grounded summ
     answering: {
       buildStreamAnswerContext: ({ chunks }) => chunks,
       generateAnswer: async () => {
-        throw new Error("one-shot generateAnswer should not be used by native streaming");
+        throw new Error(
+          'one-shot generateAnswer should not be used by native streaming'
+        );
       },
-      finalizeStreamedAnswer: async input => ({
+      finalizeStreamedAnswer: async (input) => ({
         answer: input.rawAnswer,
         modelName: input.modelName,
         citations: [
           {
-            chunkId: "chunk-1",
-            documentId: "document-1",
-            documentTitle: "Document 1",
-            snippet: "中文内容"
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            snippet: '中文内容'
           }
         ],
         retrievedChunks: input.chunks,
@@ -3229,26 +3688,26 @@ test("AskAssistantService stream preserves localized fallback-only grounded summ
           promptId: input.promptId,
           usedFallback: input.usedFallback,
           answerPolicy: input.answerPolicy,
-          contextMode: "chunks",
+          contextMode: 'chunks',
           inputChunkCount: input.chunks.length,
           contextGroupCount: input.contextGroups.length,
           citationCount: 1,
-          answerStatus: "grounded"
+          answerStatus: 'grounded'
         },
-        answerStatus: "grounded",
+        answerStatus: 'grounded',
         missingInformation: [],
         qualityEvaluation: {
-          overall: "partial",
-          grounding: "grounded",
-          completeness: "complete",
-          primaryIssue: "fallback_generation",
-          flags: ["fallback_generation"],
-          summary: "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
+          overall: 'partial',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'fallback_generation',
+          flags: ['fallback_generation'],
+          summary: '回答已基于检索到的内容，但它是通过本地 fallback 生成的。'
         }
       })
     },
     traces: {
-      createTrace: async () => ({ id: "trace-1" }),
+      createTrace: async () => ({ id: 'trace-1' }),
       updateTrace: async (id, input) => {
         updateTraceCalls.push({ id, input });
         return { id, ...input };
@@ -3261,13 +3720,13 @@ test("AskAssistantService stream preserves localized fallback-only grounded summ
         usedFallback: null,
         promptId: null
       }),
-      generateAnswerStream: async input => {
-        await input.onDelta("回答 ");
-        await input.onDelta("[1]");
+      generateAnswerStream: async (input) => {
+        await input.onDelta('回答 ');
+        await input.onDelta('[1]');
         return {
-          rawAnswer: "回答 [1]",
-          modelName: "fallback-local",
-          promptId: "answer.v2",
+          rawAnswer: '回答 [1]',
+          modelName: 'fallback-local',
+          promptId: 'answer.v2',
           usedFallback: true
         };
       }
@@ -3275,26 +3734,40 @@ test("AskAssistantService stream preserves localized fallback-only grounded summ
   });
 
   const finalResult = await service.askAssistantStream({
-    assistantId: "assistant-1",
-    question: "标记在哪里？",
-    onEvent: event => {
+    assistantId: 'assistant-1',
+    question: '标记在哪里？',
+    onEvent: (event) => {
       events.push(event);
     }
   });
 
   assert.deepEqual(
-    events.map(event => (event.type === "status" ? `${event.type}:${event.phase}` : event.type)),
-    ["status:started", "status:retrieving", "status:generating", "answer_delta", "answer_delta", "final"]
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
   );
-  assert.equal(finalResult.qualityEvaluation.primaryIssue, "fallback_generation");
-  assert.deepEqual(finalResult.qualityEvaluation.flags, ["fallback_generation"]);
+  assert.equal(
+    finalResult.qualityEvaluation.primaryIssue,
+    'fallback_generation'
+  );
+  assert.deepEqual(finalResult.qualityEvaluation.flags, [
+    'fallback_generation'
+  ]);
   assert.equal(
     finalResult.qualityEvaluation.summary,
-    "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
+    '回答已基于检索到的内容，但它是通过本地 fallback 生成的。'
   );
   assert.equal(updateTraceCalls.length, 1);
   assert.equal(
     updateTraceCalls[0].input.qualityEvaluationJson.summary,
-    "回答已基于检索到的内容，但它是通过本地 fallback 生成的。"
+    '回答已基于检索到的内容，但它是通过本地 fallback 生成的。'
   );
 });
