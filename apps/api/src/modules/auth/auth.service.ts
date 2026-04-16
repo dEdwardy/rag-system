@@ -899,8 +899,39 @@ export class AuthService {
         )[0];
     }
 
+    if (typeof prisma.assistant.findFirst !== 'function') {
+      return null;
+    }
+
+    const defaultNamedFallbackCandidate = await prisma.assistant.findFirst({
+      where: {
+        AND: [
+          where,
+          {
+            name: DEFAULT_ASSISTANT_TEMPLATE.name
+          }
+        ]
+      },
+      orderBy: {
+        id: 'asc'
+      },
+      select: {
+        id: true,
+        kbId: true,
+        retrievalProfileId: true,
+        status: true
+      }
+    });
+
+    if (defaultNamedFallbackCandidate != null) {
+      return defaultNamedFallbackCandidate;
+    }
+
     const fallbackCandidate = await prisma.assistant.findFirst({
       where,
+      orderBy: {
+        id: 'asc'
+      },
       select: {
         id: true,
         kbId: true,

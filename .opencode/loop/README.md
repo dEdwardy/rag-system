@@ -27,3 +27,7 @@ Only load archived items when tracing a specific regression, decision, or interr
 - queue items must use the repository's Vitest-based validation path for tests
 - do not create new queue items that validate with raw `node --test`
 - if an old test file still only runs through the legacy path, treat migrating or replacing that validation path as part of the task before queueing it
+
+### Harness Notes
+
+- harness/known-issues.md: observed reliability gaps and follow-up optimizations from unattended loop runs.

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { loadLatestQueue, queueSummary } from './queue-utils.mjs';
+import { formatStatusLine } from './status-utils.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
@@ -43,6 +44,7 @@ async function readJson(filePath) {
 
 async function safeReadState() {
   try {
+    if (!existsSync(stateFile)) return null;
     return await readJson(stateFile);
   } catch {
     return null;
@@ -51,7 +53,17 @@ async function safeReadState() {
 
 async function latestWaveSummary() {
   const loaded = await loadLatestQueue(loopDir);
-  if (!loaded) return { activeWave: null, fileName: null, pendingCount: 0, inProgressCount: 0, completedCount: 0, blockedCount: 0, totalCount: 0 };
+  if (!loaded) {
+    return {
+      activeWave: null,
+      fileName: null,
+      pendingCount: 0,
+      inProgressCount: 0,
+      completedCount: 0,
+      blockedCount: 0,
+      totalCount: 0,
+    };
+  }
 
   const summary = queueSummary(loaded.queue);
   return {
@@ -60,17 +72,20 @@ async function latestWaveSummary() {
   };
 }
 
-async function writeState(extra) {
+async function writeState(extra, baseState = null) {
   const summary = await latestWaveSummary();
+  const now = new Date().toISOString();
+  const mergedBase = baseState ?? {};
   const state = {
     version: 1,
     repoRoot,
-    pid: process.pid,
-    status: 'running',
-    startedAt: extra.startedAt ?? new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    heartbeatAt: new Date().toISOString(),
     ...summary,
+    ...mergedBase,
+    pid: extra.pid ?? mergedBase.pid ?? process.pid,
+    status: extra.status ?? mergedBase.status ?? 'running',
+    startedAt: extra.startedAt ?? mergedBase.startedAt ?? now,
+    updatedAt: now,
+    heartbeatAt: extra.heartbeatAt ?? mergedBase.heartbeatAt ?? now,
     ...extra,
   };
   await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);
@@ -80,17 +95,7 @@ async function writeState(extra) {
 async function printStatus() {
   const state = await safeReadState();
   const summary = await latestWaveSummary();
-  if (state && pidAlive(state.pid)) {
-    const itemPart = state.currentItemId ? ` item=${state.currentItemId}` : '';
-    const sessionPart = state.activeSessionId ? ` session=${state.activeSessionId}` : '';
-    console.log(`running pid=${state.pid} wave=${state.activeWave ?? summary.activeWave ?? 'none'} pending=${state.pendingCount ?? summary.pendingCount}${itemPart}${sessionPart} log=${path.relative(repoRoot, logFile)}`);
-    return;
-  }
-  if (state && state.pid && !pidAlive(state.pid)) {
-    console.log(`stale state pid=${state.pid} wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount}`);
-    return;
-  }
-  console.log(`stopped wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount}`);
+  console.log(formatStatusLine({ state, summary, repoRoot, logFile, pidAlive, relativePath: path.relative(repoRoot, logFile) }));
 }
 
 async function start() {
@@ -109,7 +114,7 @@ async function start() {
   });
   child.unref();
 
-  await writeState({ pid: child.pid, status: 'starting' });
+  await writeState({ pid: child.pid, status: 'starting' }, state);
   console.log(`started pid=${child.pid}`);
   await printStatus();
 }
@@ -127,7 +132,7 @@ async function stop() {
     // Ignore and fall through to stale cleanup.
   }
 
-  await writeState({ status: 'stopping', stoppedAt: new Date().toISOString() });
+  await writeState({ status: 'stopping', stoppedAt: new Date().toISOString() }, state);
   const exited = await waitForPidExit(state.pid);
   console.log(exited ? `stopped pid=${state.pid}` : `stopping pid=${state.pid} timed_out_wait=true`);
 }

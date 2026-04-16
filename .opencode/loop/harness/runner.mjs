@@ -2,7 +2,7 @@
 import { mkdir, appendFile, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import {
   loadLatestQueue,
   nextRunnableItem,
@@ -10,6 +10,7 @@ import {
   queueSummary,
   writeJson,
 } from './queue-utils.mjs';
+import { nextRunnerIteration } from './runner-loop-policy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
@@ -126,6 +127,56 @@ function summarizeOutput(stdout, stderr) {
   return stdout.trim().split('\n').slice(-8).join('\n') || stderr.trim().split('\n').slice(-8).join('\n') || undefined;
 }
 
+function runGitCommand(args) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd: repoRoot, windowsHide: true }, (error, stdout, stderr) => {
+      resolve({
+        ok: !error,
+        stdout: typeof stdout === 'string' ? stdout.trim() : '',
+        stderr: typeof stderr === 'string' ? stderr.trim() : '',
+      });
+    });
+  });
+}
+
+async function gitSnapshot() {
+  const [head, status] = await Promise.all([
+    runGitCommand(['rev-parse', 'HEAD']),
+    runGitCommand(['status', '--short']),
+  ]);
+
+  return {
+    head: head.ok ? head.stdout || null : null,
+    statusShort: status.ok ? status.stdout : null,
+    worktreeClean: status.ok ? status.stdout === '' : false,
+  };
+}
+
+function commitCreatedDuringRun(beforeSnapshot, afterSnapshot) {
+  return Boolean(beforeSnapshot?.head && afterSnapshot?.head && beforeSnapshot.head !== afterSnapshot.head);
+}
+
+function successfulCommitFallback(result, queueResult, failureMarkers, beforeSnapshot, afterSnapshot) {
+  return result.exitCode === 0
+    && !result.reportedError
+    && !stopping
+    && !queueResult?.status
+    && failureMarkers.length === 0
+    && commitCreatedDuringRun(beforeSnapshot, afterSnapshot)
+    && afterSnapshot?.worktreeClean;
+}
+
+function successfulNoopFallback(result, queueResult, failureMarkers, beforeSnapshot, afterSnapshot, finalizerUsed) {
+  void beforeSnapshot;
+  void afterSnapshot;
+  return result.exitCode === 0
+    && !result.reportedError
+    && !stopping
+    && finalizerUsed
+    && !queueResult?.status
+    && failureMarkers.length === 0;
+}
+
 async function heartbeat() {
   const loaded = await loadLatestQueue(loopDir);
   const summary = loaded ? { ...queueSummary(loaded.queue), fileName: path.basename(loaded.filePath) } : { activeWave: null, fileName: null, pendingCount: 0, inProgressCount: 0, completedCount: 0, blockedCount: 0, totalCount: 0 };
@@ -175,6 +226,17 @@ function buildContinuationPrompt(item, queueFileName) {
   ].join('\n');
 }
 
+function buildFinalizerPrompt(item, queueFileName) {
+  const validation = Array.isArray(item?.verification?.commands) && item.verification.commands.length > 0 ? item.verification.commands[0] : 'none';
+  return [
+    `Finalize queue item ${item.id} from ${queueFileName}.`,
+    'The main execution already finished, but the machine-readable queue result line was missing.',
+    'Do not make additional code changes, do not create another commit, and do not rerun validation unless the prior run clearly failed.',
+    'Inspect the current repository state and the just-finished session state, then return exactly one machine-readable line and nothing after it.',
+    `QUEUE_RESULT status=<completed|needs_replan> item=${item.id} validation=${validation} changed_files=<comma-separated-or-none> commit=<hash-or-none>`,
+  ].join('\n');
+}
+
 function buildSessionTitle(queue, item) {
   const items = Array.isArray(queue?.items) ? queue.items : [];
   const activeItems = items.filter((entry) => entry && entry.status !== 'completed');
@@ -185,9 +247,7 @@ function buildSessionTitle(queue, item) {
   return `[${currentIndex}/${totalCount} | left ${remainingAfterCurrent}] ${item.id}`;
 }
 
-async function runOpencode(queue, item, queueFileName, sessionId) {
-  const prompt = sessionId ? buildContinuationPrompt(item, queueFileName) : buildExecutionPrompt(item, queueFileName);
-  const title = buildSessionTitle(queue, item);
+async function runOpencodePrompt(prompt, title, sessionId, timeoutMs = itemTimeoutMs) {
   const args = sessionId
     ? ['run', '--continue', '--session', sessionId, '--agent', 'build', '--model', 'openai/gpt-5.3-codex', '--format', 'json', '--title', title, prompt]
     : ['run', '--agent', 'build', '--model', 'openai/gpt-5.3-codex', '--format', 'json', '--title', title, prompt];
@@ -204,7 +264,7 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
     let stdout = '';
     let stderr = '';
     let timedOut = false;
-    const timeoutHandle = Number.isFinite(itemTimeoutMs) && itemTimeoutMs > 0
+    const timeoutHandle = Number.isFinite(timeoutMs) && timeoutMs > 0
       ? setTimeout(() => {
           timedOut = true;
           try {
@@ -221,7 +281,7 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
               }
             }
           }, 5000).unref();
-        }, itemTimeoutMs)
+        }, timeoutMs)
       : null;
 
     timeoutHandle?.unref();
@@ -250,6 +310,20 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
   });
 }
 
+async function runOpencode(queue, item, queueFileName, sessionId) {
+  const prompt = sessionId ? buildContinuationPrompt(item, queueFileName) : buildExecutionPrompt(item, queueFileName);
+  return await runOpencodePrompt(prompt, buildSessionTitle(queue, item), sessionId, itemTimeoutMs);
+}
+
+async function runQueueFinalizer(queue, item, queueFileName, sessionId) {
+  return await runOpencodePrompt(
+    buildFinalizerPrompt(item, queueFileName),
+    `${buildSessionTitle(queue, item)} finalize`,
+    sessionId,
+    Math.min(itemTimeoutMs, 180000),
+  );
+}
+
 async function updateQueueItem(loaded, itemId, updates) {
   const queue = loaded.queue;
   const item = queue.items.find((entry) => entry && entry.id === itemId);
@@ -261,7 +335,7 @@ async function updateQueueItem(loaded, itemId, updates) {
 }
 
 async function processOneItem() {
-    const loaded = await loadLatestQueue(loopDir);
+  const loaded = await loadLatestQueue(loopDir);
   if (!loaded) {
     currentRun = { phase: 'idle', currentItemId: null, currentItemTitle: null, currentItemStatus: null };
     await heartbeat();
@@ -307,17 +381,39 @@ async function processOneItem() {
   };
   await heartbeat();
 
-  const result = await runOpencode(queue, item, path.basename(loaded.filePath), reusableSessionId);
+  const beforeSnapshot = await gitSnapshot();
+  let result = await runOpencode(queue, item, path.basename(loaded.filePath), reusableSessionId);
+  let sessionId = result.sessionId ?? reusableSessionId ?? null;
+  let queueResult = extractQueueResult(result.stdout);
+  let finalizerUsed = false;
+
+  if (!queueResult?.status && result.exitCode === 0 && !result.reportedError && !stopping) {
+    const finalizerResult = await runQueueFinalizer(queue, item, path.basename(loaded.filePath), sessionId);
+    result = {
+      exitCode: finalizerResult.exitCode === 0 ? result.exitCode : finalizerResult.exitCode,
+      signal: finalizerResult.signal ?? result.signal,
+      stdout: `${result.stdout}${result.stdout && finalizerResult.stdout ? '\n' : ''}${finalizerResult.stdout}`,
+      stderr: `${result.stderr}${result.stderr && finalizerResult.stderr ? '\n' : ''}${finalizerResult.stderr}`,
+      sessionId: finalizerResult.sessionId ?? sessionId,
+      reportedError: result.reportedError ?? finalizerResult.reportedError,
+      timedOut: result.timedOut || finalizerResult.timedOut,
+    };
+    sessionId = result.sessionId ?? sessionId;
+    queueResult = extractQueueResult(result.stdout);
+    finalizerUsed = true;
+  }
+
+  const afterSnapshot = await gitSnapshot();
   const finishedAt = new Date().toISOString();
-  const queueResult = extractQueueResult(result.stdout);
   const failureMarkers = extractFailureMarkers(`${result.stdout}\n${result.stderr}`);
-  const success = result.exitCode === 0
+  const commitFallback = successfulCommitFallback(result, queueResult, failureMarkers, beforeSnapshot, afterSnapshot);
+  const noopFallback = successfulNoopFallback(result, queueResult, failureMarkers, beforeSnapshot, afterSnapshot, finalizerUsed);
+  const success = commitFallback || noopFallback || (result.exitCode === 0
     && !result.reportedError
     && !stopping
     && queueResult?.status === 'completed'
-    && failureMarkers.length === 0;
+    && failureMarkers.length === 0);
   const status = success ? 'completed' : 'needs_replan';
-  const sessionId = result.sessionId ?? reusableSessionId ?? null;
   const failureReason = success
     ? undefined
     : result.timedOut
@@ -326,8 +422,10 @@ async function processOneItem() {
         ? 'opencode_reported_error'
         : queueResult?.status === 'needs_replan'
           ? 'queue_result_needs_replan'
-          : !queueResult?.status
-            ? 'missing_queue_result'
+        : !queueResult?.status
+            ? commitFallback || noopFallback
+              ? undefined
+              : 'missing_queue_result'
             : failureMarkers[0] ?? `opencode_exit_${result.exitCode}`;
 
   await updateQueueItem(loaded, item.id, cleanObject({
@@ -340,14 +438,14 @@ async function processOneItem() {
     lastRunSummary: summarizeOutput(result.stdout, result.stderr),
     failureReason,
     reportedError: success ? undefined : result.reportedError ?? undefined,
-    queueResultStatus: queueResult?.status,
-    queueResultCommit: queueResult?.commit,
+    queueResultStatus: queueResult?.status ?? (commitFallback || noopFallback ? 'completed' : undefined),
+    queueResultCommit: queueResult?.commit ?? (commitFallback ? afterSnapshot?.head ?? undefined : undefined),
     queueFailureMarkers: !success && failureMarkers.length > 0 ? failureMarkers.join(',') : undefined,
     timedOutAt: result.timedOut ? finishedAt : undefined,
     sessionId,
   }));
 
-  await appendFile(logFile, `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${itemTimeoutMs}` : ''}${queueResult?.status ? ` queue_result=${queueResult.status}` : ''}${failureMarkers.length > 0 ? ` failure_markers=${failureMarkers.join(',')}` : ''}\n`);
+  await appendFile(logFile, `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${itemTimeoutMs}` : ''}${queueResult?.status ? ` queue_result=${queueResult.status}` : ''}${finalizerUsed ? ' finalized_queue_result=true' : ''}${commitFallback ? ' queue_result=completed_via_commit_fallback' : ''}${noopFallback ? ' queue_result=completed_via_noop_fallback' : ''}${failureMarkers.length > 0 ? ` failure_markers=${failureMarkers.join(',')}` : ''}\n`);
 
   currentRun = {
     phase: status,
@@ -363,11 +461,13 @@ async function processOneItem() {
 
   await heartbeat();
 
-  if (!success) {
-    stopping = true;
-  }
+  const loopDecision = nextRunnerIteration({
+    itemProcessed: true,
+    itemStatus: status,
+    stopRequested: stopping,
+  });
 
-  return success;
+  return loopDecision.progressed;
 }
 
 process.on('SIGTERM', () => {
@@ -403,3 +503,8 @@ while (!stopping) {
 }
 
 await heartbeat();
+
+
+
+
+
