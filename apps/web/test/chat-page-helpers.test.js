@@ -47,7 +47,7 @@ test('chat page helpers build citation context with page and section', async () 
     }
   );
 
-  assert.equal(result, 'Spec • page 4 • "Streaming"');
+  assert.equal(result, 'Spec • "Streaming" • page 4');
 });
 
 test('chat page helpers omit empty citation context parts', async () => {
@@ -127,7 +127,7 @@ test('chat page helpers strip markdown heading marker from citation section titl
     }
   );
 
-  assert.equal(result, 'Spec • page 7 • "Streaming Details"');
+  assert.equal(result, 'Spec • "Streaming Details" • page 7');
 });
 
 test('chat page helpers skip duplicate citation section title when it matches source title', async () => {
@@ -167,7 +167,7 @@ test('chat page helpers skip whitespace-only citation source title', async () =>
     }
   );
 
-  assert.equal(result, 'page 7 • "Overview"');
+  assert.equal(result, '"Overview" • page 7');
 });
 
 test('chat page helpers resolve no active knowledge base readiness', async () => {

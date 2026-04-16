@@ -35,16 +35,16 @@ export function buildCitationContext(
     parts.push(documentTitle);
   }
 
-  if (citation.pageNo != null) {
-    parts.push(labels.pageLabel(citation.pageNo));
-  }
-
   if (
     sectionTitle &&
     (!documentTitle ||
       sectionTitle.toLocaleLowerCase() !== documentTitle.toLocaleLowerCase())
   ) {
     parts.push(`"${sectionTitle}"`);
+  }
+
+  if (citation.pageNo != null) {
+    parts.push(labels.pageLabel(citation.pageNo));
   }
 
   return parts.length > 0 ? parts.join(' • ') : null;
