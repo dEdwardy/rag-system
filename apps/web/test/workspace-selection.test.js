@@ -139,6 +139,31 @@ test('workspace selection treats canonical default assistant naming drift as def
   assert.equal(assistant?.id, 'assistant-default-name-drift');
 });
 
+test('workspace selection treats canonical default assistant casing drift as default for the same knowledge base', async () => {
+  const { getPrimaryAssistantForKnowledgeBase } =
+    await loadWorkspaceSelectionHelpers();
+
+  const assistant = getPrimaryAssistantForKnowledgeBase(
+    [
+      {
+        id: 'assistant-secondary',
+        kbId: 'kb-1',
+        name: 'Research Assistant',
+        status: 'active'
+      },
+      {
+        id: 'assistant-default-casing-drift',
+        kbId: 'kb-1',
+        name: 'DEFAULT assistant',
+        status: 'inactive'
+      }
+    ],
+    'kb-1'
+  );
+
+  assert.equal(assistant?.id, 'assistant-default-casing-drift');
+});
+
 test('workspace selection treats canonical default assistant internal-whitespace drift as default for the same knowledge base', async () => {
   const { getPrimaryAssistantForKnowledgeBase } =
     await loadWorkspaceSelectionHelpers();
