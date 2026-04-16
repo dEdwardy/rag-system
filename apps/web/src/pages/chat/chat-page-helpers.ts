@@ -102,6 +102,8 @@ export function buildChatReadinessState(
 
 type StarterQuestionContext = 'chat' | 'documents';
 
+const CHAT_STARTER_QUESTION_PARAM = 'starterQuestion';
+
 const CHINESE_STARTER_QUESTIONS = {
   chat: [
     '这份资料主要讲了什么？',
@@ -135,4 +137,26 @@ export function buildStarterQuestions(
   return locale === 'zh'
     ? [...CHINESE_STARTER_QUESTIONS[context]]
     : [...ENGLISH_STARTER_QUESTIONS[context]];
+}
+
+export function buildChatStarterQuestionHref(question: string) {
+  const normalizedQuestion = question.trim();
+  if (!normalizedQuestion) {
+    return '/';
+  }
+
+  const searchParams = new URLSearchParams();
+  searchParams.set(CHAT_STARTER_QUESTION_PARAM, normalizedQuestion);
+  return `/?${searchParams.toString()}`;
+}
+
+export function parseChatStarterQuestionFromSearch(search: string) {
+  const searchParams = new URLSearchParams(search);
+  const rawQuestion = searchParams.get(CHAT_STARTER_QUESTION_PARAM);
+  if (!rawQuestion) {
+    return null;
+  }
+
+  const normalizedQuestion = rawQuestion.trim();
+  return normalizedQuestion.length > 0 ? normalizedQuestion : null;
 }

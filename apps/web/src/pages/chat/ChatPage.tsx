@@ -10,7 +10,7 @@ import {
   useRef,
   useState
 } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { IconActionButton, IconActionLink } from '../../components/IconAction';
 import { StatePanel } from '../../components/StatePanel';
 import {
@@ -35,6 +35,7 @@ import type {
 } from '../../types/api';
 import {
   buildChatReadinessState,
+  parseChatStarterQuestionFromSearch,
   buildStarterQuestions,
   formatMessageTime
 } from './chat-page-helpers';
@@ -344,6 +345,7 @@ function ChatWorkspacePanelsFallback({ history }: { history: string }) {
 }
 
 export function ChatPage() {
+  const location = useLocation();
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
@@ -447,6 +449,10 @@ export function ChatPage() {
     }),
     [chatHistoryVisibleCount, locale, t]
   );
+  const starterQuestionFromSearch = useMemo(
+    () => parseChatStarterQuestionFromSearch(location.search),
+    [location.search]
+  );
 
   const hasSingleAssistantBinding =
     activeAssistant != null && assistantsForKnowledgeBaseCount === 1;
@@ -472,6 +478,14 @@ export function ChatPage() {
   useEffect(() => {
     setIsTranscriptNearBottom(true);
   }, [resolvedConversationId]);
+
+  useEffect(() => {
+    if (!starterQuestionFromSearch) {
+      return;
+    }
+
+    setComposerValue(starterQuestionFromSearch);
+  }, [starterQuestionFromSearch]);
 
   const displayedMessages: DisplayedMessage[] = useMemo(
     () =>

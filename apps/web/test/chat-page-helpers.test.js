@@ -307,3 +307,26 @@ test('chat page helpers build starter questions for documents context', async ()
   assert.equal(zhResult[0], '这批资料主要讲了什么？');
   assert.equal(enResult[0], 'What are these library items mainly about?');
 });
+
+test('chat page helpers build chat starter question href', async () => {
+  const { buildChatStarterQuestionHref } = await loadChatPageHelpers();
+
+  const result = buildChatStarterQuestionHref(
+    '  What are these items about?  '
+  );
+
+  assert.equal(result, '/?starterQuestion=What+are+these+items+about%3F');
+});
+
+test('chat page helpers parse chat starter question from search', async () => {
+  const { parseChatStarterQuestionFromSearch } = await loadChatPageHelpers();
+
+  assert.equal(
+    parseChatStarterQuestionFromSearch(
+      '?starterQuestion=What+are+these+items+about%3F'
+    ),
+    'What are these items about?'
+  );
+  assert.equal(parseChatStarterQuestionFromSearch('?starterQuestion=+'), null);
+  assert.equal(parseChatStarterQuestionFromSearch(''), null);
+});

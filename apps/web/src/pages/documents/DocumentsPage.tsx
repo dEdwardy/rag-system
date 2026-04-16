@@ -26,7 +26,10 @@ import {
 } from '../../features/api/hooks';
 import { getPrimaryKnowledgeBase } from '../../features/api/workspace-selection';
 import { useI18n } from '../../i18n/I18nProvider';
-import { buildStarterQuestions } from '../chat/chat-page-helpers';
+import {
+  buildChatStarterQuestionHref,
+  buildStarterQuestions
+} from '../chat/chat-page-helpers';
 
 const DOCUMENTS_PAGE_SIZE = 20;
 
@@ -540,8 +543,10 @@ export function DocumentsPage() {
                 {starterQuestions.map((question) => (
                   <Badge
                     color="teal"
+                    component={Link}
                     key={question}
                     radius="sm"
+                    to={buildChatStarterQuestionHref(question)}
                     variant="light"
                   >
                     {question}
