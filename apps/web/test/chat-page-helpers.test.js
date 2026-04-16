@@ -450,6 +450,20 @@ test('chat page helpers show fallback hint when fallback metadata is true', asyn
   assert.equal(result, 'Fallback retrieval path was used for this answer.');
 });
 
+test('chat page helpers explain fallback reason when available', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    usedFallback: true,
+    fallbackReason: 'no_ranked_candidates'
+  });
+
+  assert.equal(
+    result,
+    'Fallback retrieval path was used because ranked retrieval returned no usable candidates.'
+  );
+});
+
 test('chat page helpers show missing-information count hint', async () => {
   const { buildTraceSummaryHint } = await loadChatPageHelpers();
 

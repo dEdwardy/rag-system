@@ -2,6 +2,7 @@ import type {
   Citation,
   KnowledgeBaseDocumentSummary,
   TraceAnswerStatus,
+  TraceFallbackReason,
   TraceInsufficientContextReason
 } from '../../types/api';
 
@@ -186,6 +187,7 @@ type TraceSummaryHintInput = {
   answerStatus?: TraceAnswerStatus | null;
   insufficientContextReason?: TraceInsufficientContextReason | null;
   usedFallback?: boolean | null;
+  fallbackReason?: TraceFallbackReason | null;
   missingInformationCount?: number | null;
   failureReadabilitySentence?: string | null;
   answerStatusSourceReadabilitySentence?: string | null;
@@ -212,6 +214,18 @@ function buildInsufficientContextHint(
   return null;
 }
 
+function buildFallbackHint(reason: TraceFallbackReason | null | undefined) {
+  if (reason === 'vector_error') {
+    return 'Fallback retrieval path was used because vector retrieval failed.';
+  }
+
+  if (reason === 'no_ranked_candidates') {
+    return 'Fallback retrieval path was used because ranked retrieval returned no usable candidates.';
+  }
+
+  return null;
+}
+
 export function buildTraceSummaryHint(summary: TraceSummaryHintInput) {
   const failureHint = normalizeTraceSummaryHintPart(
     summary.failureReadabilitySentence
@@ -233,6 +247,11 @@ export function buildTraceSummaryHint(summary: TraceSummaryHintInput) {
 
   if (summary.insufficientContextReason != null) {
     return 'Marked as insufficient context from retrieved evidence.';
+  }
+
+  const fallbackHint = buildFallbackHint(summary.fallbackReason);
+  if (fallbackHint) {
+    return fallbackHint;
   }
 
   if (summary.usedFallback === true) {

@@ -544,6 +544,10 @@ export function ChatPage() {
         insufficientContextReason:
           finalData.answeringMetadata?.insufficientContextReason,
         usedFallback: finalData.answeringMetadata?.usedFallback,
+        fallbackReason:
+          finalData.retrievalMetadata?.execution.fallbackReason ??
+          finalData.strategySummary?.fallbackReason ??
+          null,
         missingInformationCount:
           finalData.answeringMetadata?.missingInformationCount ??
           finalData.missingInformation?.length ??
