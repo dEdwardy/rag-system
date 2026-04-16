@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-05
+> 更新时间：2026-04-16
 
 ## Current Snapshot
 
@@ -17,6 +17,14 @@
   - 或从新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments
+
+- `default-path first-question citations/trace guard` tightened the first-question path and trace readability without changing the current stage judgment or roadmap scope
+  - `apps/web/src/pages/chat/ChatPage.tsx` keeps first-question starter actions on the existing stream path so the first successful turn follows the same citations/trace inspection flow as normal chat turns
+  - `apps/api/src/modules/traces/traces.service.ts` now normalizes inconsistent legacy `citationCountBeforeLimit` metadata so citation-count labels remain readable when `citationLimitHit=true`
+  - `apps/api/test/traces.service.test.js` now locks this guard with an explicit legacy-inconsistency case
+  - focused validation:
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `git diff --check -- apps/web/src/pages/chat/ChatPage.tsx apps/api/src/modules/traces/traces.service.ts apps/api/test/traces.service.test.js docs/current-progress.md`
 
 - `default assistant backfill/repair hardening` tightened the default-user bootstrap path without opening a new template or team wave
   - `apps/api/src/modules/auth/auth.service.ts` now treats the default assistant path as a repairable baseline: it still creates the primary knowledge base / retrieval profile / assistant when missing, and it now also repairs the existing assistant binding when the primary KB relationship or retrieval profile drifted out of sync
