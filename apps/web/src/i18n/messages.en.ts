@@ -301,6 +301,8 @@ export const messages = {
     readyBannerTitle: 'Library ready for chat',
     readyBannerDescription:
       '{count} library items are ready. You can move on to chat now, or keep expanding this library.',
+    readyBannerStarterHint:
+      'Tip: click a starter question to open chat and ask it automatically.',
     currentKnowledgeBaseLabel: 'Current library target',
     currentKnowledgeBaseHintHasKb:
       'Files and links added here go into the current workspace library.',

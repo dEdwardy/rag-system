@@ -286,6 +286,7 @@ export const messages = {
     readyBannerTitle: '资料库已可用于对话',
     readyBannerDescription:
       '已有 {count} 个资料项就绪。现在可以开始对话，或继续扩充资料库。',
+    readyBannerStarterHint: '提示：点击首问会自动打开对话并直接发送。',
     currentKnowledgeBaseLabel: '当前资料目标',
     currentKnowledgeBaseHintHasKb:
       '在这里添加的文件和链接都会进入当前工作区资料库。',
