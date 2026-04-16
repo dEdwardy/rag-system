@@ -827,7 +827,9 @@ export class TracesService {
       failureMessage,
       failureReadabilitySentence: this.buildFailureReadabilitySentence({
         failedStageReadabilityLabel,
-        failureMessage
+        failureMessage,
+        fallbackReason,
+        rankedCandidateCount
       }),
       candidateLimit,
       vectorCandidateCount,
@@ -1097,20 +1099,28 @@ export class TracesService {
   private buildFailureReadabilitySentence(input: {
     failedStageReadabilityLabel: TraceSummary['failedStageReadabilityLabel'];
     failureMessage: TraceSummary['failureMessage'];
+    fallbackReason: TraceSummary['fallbackReason'];
+    rankedCandidateCount: TraceSummary['rankedCandidateCount'];
   }): TraceSummary['failureReadabilitySentence'] {
+    const noRankedCandidatesHint =
+      input.fallbackReason === 'no_ranked_candidates' ||
+      input.rankedCandidateCount === 0
+        ? ' No ranked candidates were produced.'
+        : '';
+
     if (input.failureMessage == null) {
-      return `${input.failedStageReadabilityLabel}; message unavailable.`;
+      return `${input.failedStageReadabilityLabel}; message unavailable.${noRankedCandidatesHint}`.trim();
     }
 
     const trimmedFailureMessage = input.failureMessage.trim();
     if (trimmedFailureMessage.length === 0) {
-      return `${input.failedStageReadabilityLabel}; message unavailable.`;
+      return `${input.failedStageReadabilityLabel}; message unavailable.${noRankedCandidatesHint}`.trim();
     }
 
     if (/[.!?]$/.test(trimmedFailureMessage)) {
-      return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}`;
+      return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}${noRankedCandidatesHint}`.trim();
     }
 
-    return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}.`;
+    return `${input.failedStageReadabilityLabel}; message: ${trimmedFailureMessage}.${noRankedCandidatesHint}`.trim();
   }
 }

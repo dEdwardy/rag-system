@@ -47,7 +47,7 @@ test('chat page helpers build citation context with page and section', async () 
     }
   );
 
-  assert.equal(result, 'page 4 - Streaming');
+  assert.equal(result, 'Spec • page 4 • Streaming');
 });
 
 test('chat page helpers omit empty citation context parts', async () => {
@@ -67,7 +67,7 @@ test('chat page helpers omit empty citation context parts', async () => {
     }
   );
 
-  assert.equal(result, null);
+  assert.equal(result, 'Spec');
 });
 
 test('chat page helpers trim citation section title readability text', async () => {
@@ -87,7 +87,7 @@ test('chat page helpers trim citation section title readability text', async () 
     }
   );
 
-  assert.equal(result, 'Streaming');
+  assert.equal(result, 'Spec • Streaming');
 });
 
 test('chat page helpers skip whitespace-only citation section title', async () => {
@@ -107,7 +107,67 @@ test('chat page helpers skip whitespace-only citation section title', async () =
     }
   );
 
-  assert.equal(result, 'page 7');
+  assert.equal(result, 'Spec • page 7');
+});
+
+test('chat page helpers strip markdown heading marker from citation section title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4a',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: '### Streaming Details',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • page 7 • Streaming Details');
+});
+
+test('chat page helpers skip duplicate citation section title when it matches source title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4b',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: ' spec ',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • page 7');
+});
+
+test('chat page helpers skip whitespace-only citation source title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-5',
+      documentId: 'document-1',
+      documentTitle: '   ',
+      pageNo: 7,
+      sectionTitle: 'Overview',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'page 7 • Overview');
 });
 
 test('chat page helpers resolve no active knowledge base readiness', async () => {

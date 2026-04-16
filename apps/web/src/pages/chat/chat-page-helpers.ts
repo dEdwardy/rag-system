@@ -17,23 +17,51 @@ export function formatMessageTime(value: string, locale: string) {
 }
 
 export function buildCitationContext(
-  citation: Pick<Citation, 'pageNo' | 'sectionTitle'>,
+  citation: Pick<Citation, 'documentTitle' | 'pageNo' | 'sectionTitle'>,
   labels: {
     pageLabel: (pageNo: number) => string;
   }
 ) {
   const parts: string[] = [];
-  const sectionTitle = citation.sectionTitle?.trim();
+  const documentTitle = normalizeCitationText(citation.documentTitle);
+  const sectionTitle = normalizeCitationSectionTitle(citation.sectionTitle);
+
+  if (documentTitle) {
+    parts.push(documentTitle);
+  }
 
   if (citation.pageNo != null) {
     parts.push(labels.pageLabel(citation.pageNo));
   }
 
-  if (sectionTitle) {
+  if (
+    sectionTitle &&
+    (!documentTitle ||
+      sectionTitle.toLocaleLowerCase() !== documentTitle.toLocaleLowerCase())
+  ) {
     parts.push(sectionTitle);
   }
 
-  return parts.length > 0 ? parts.join(' - ') : null;
+  return parts.length > 0 ? parts.join(' • ') : null;
+}
+
+function normalizeCitationText(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.replace(/\s+/g, ' ');
+}
+
+function normalizeCitationSectionTitle(value: string | null | undefined) {
+  const normalized = normalizeCitationText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const withoutMarkdownHeading = normalized.replace(/^#{1,6}\s+/, '').trim();
+  return withoutMarkdownHeading || null;
 }
 
 export type ChatReadinessState =
