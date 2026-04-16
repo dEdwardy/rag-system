@@ -126,7 +126,7 @@
 - API focused test
   - `pnpm test:api:file -- test/<file>.test.js`
 - web focused test
-  - `node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
+  - `pnpm --filter @rag-system/web exec vitest run test/<file>.test.js`
 
 当前主线路径优先可复用的验证方向：
 

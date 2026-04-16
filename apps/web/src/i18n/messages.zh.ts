@@ -537,8 +537,8 @@ export const messages = {
       retrievalCopy: '调整回答前会检索多少内容。',
       workspaceStatus: '当前配置',
       currentLibraryLabel: '当前资料库目标',
-      currentAssistantBindingLabel: '默认助手绑定',
-      currentAssistantBindingValue: '这个默认助手当前绑定到主资料库。',
+      currentAssistantBindingLabel: '默认助手状态',
+      currentAssistantBindingValue: '这个默认助手会自动跟随当前主资料库。',
       saveCheckpoint: '保存更改',
       saveCheckpointCopy: '保存一次即可同时持久化助手设置和检索配置的修改。'
     },

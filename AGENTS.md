@@ -145,6 +145,7 @@ Default validation policy:
 - behavior changes should validate behavior, not only types
 - cross-package changes should run the relevant package build or equivalent validation
 - avoid expensive full-suite validation when a smaller relevant check is sufficient for the current increment
+- new task prompts, queue items, and harness-generated validation commands must use the Vitest path for test execution; do not introduce new raw `node --test` validation commands in normal task flow
 
 ## Encoding
 

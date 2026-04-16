@@ -58,6 +58,14 @@ const DEFAULT_ASSISTANT_TEMPLATE = {
     'Answer only from the retrieved knowledge base content. If the retrieved sources explicitly contain the answer, answer directly and cite the supporting snippets. Only say the information is insufficient when the retrieved sources still do not support a reliable answer.'
 } as const;
 
+type DefaultAssistantCandidate = {
+  id: string;
+  kbId: string;
+  retrievalProfileId: string;
+  status: 'active' | 'inactive';
+  name?: string;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -685,7 +693,6 @@ export class AuthService {
       typeof prisma.knowledgeBase.create !== 'function' ||
       typeof prisma.retrievalProfile.findFirst !== 'function' ||
       typeof prisma.retrievalProfile.create !== 'function' ||
-      typeof prisma.assistant.findFirst !== 'function' ||
       typeof prisma.assistant.create !== 'function'
     ) {
       return;
@@ -744,35 +751,26 @@ export class AuthService {
         }
       }));
 
-    const existingAssistantForPrimaryKb = await prisma.assistant.findFirst({
-      where: {
-        tenantId: input.tenantId,
-        kbId: knowledgeBase.id
-      },
-      select: {
-        id: true,
-        kbId: true,
-        retrievalProfileId: true,
-        status: true
-      }
-    });
+    const existingAssistantForPrimaryKb =
+      await this.findCanonicalAssistantCandidate(
+        {
+          tenantId: input.tenantId,
+          kbId: knowledgeBase.id
+        },
+        prisma
+      );
 
     const existingAssistant =
       existingAssistantForPrimaryKb ??
-      (await prisma.assistant.findFirst({
-        where: {
+      (await this.findCanonicalAssistantCandidate(
+        {
           tenantId: input.tenantId,
           knowledgeBase: {
             ownerId: input.userId
           }
         },
-        select: {
-          id: true,
-          kbId: true,
-          retrievalProfileId: true,
-          status: true
-        }
-      }));
+        prisma
+      ));
 
     if (existingAssistant == null) {
       await prisma.assistant.create({
@@ -817,6 +815,44 @@ export class AuthService {
         id: true
       }
     });
+  }
+
+  private async findCanonicalAssistantCandidate(
+    where: Prisma.AssistantWhereInput,
+    prisma: AuthWriteClient
+  ): Promise<DefaultAssistantCandidate | null> {
+    if (typeof prisma.assistant.findMany === 'function') {
+      const candidates = await prisma.assistant.findMany({
+        where,
+        select: {
+          id: true,
+          kbId: true,
+          retrievalProfileId: true,
+          status: true,
+          name: true
+        }
+      });
+
+      if (candidates.length === 0) {
+        return null;
+      }
+
+      return candidates
+        .slice()
+        .sort(compareCanonicalDefaultAssistantCandidate)[0];
+    }
+
+    const fallbackCandidate = await prisma.assistant.findFirst({
+      where,
+      select: {
+        id: true,
+        kbId: true,
+        retrievalProfileId: true,
+        status: true
+      }
+    });
+
+    return fallbackCandidate ?? null;
   }
 
   private resolveOauthDefaultTenantId(): string {
@@ -1081,4 +1117,35 @@ export class AuthService {
   private generateOauthState(): string {
     return randomBytes(24).toString('base64url');
   }
+}
+
+function compareCanonicalDefaultAssistantCandidate(
+  left: DefaultAssistantCandidate,
+  right: DefaultAssistantCandidate
+) {
+  const scoreDifference =
+    scoreCanonicalDefaultAssistantCandidate(right) -
+    scoreCanonicalDefaultAssistantCandidate(left);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function scoreCanonicalDefaultAssistantCandidate(
+  assistant: DefaultAssistantCandidate
+) {
+  let score = 0;
+
+  if (assistant.name === DEFAULT_ASSISTANT_TEMPLATE.name) {
+    score += 100;
+  }
+
+  if (assistant.status === 'active') {
+    score += 10;
+  }
+
+  return score;
 }

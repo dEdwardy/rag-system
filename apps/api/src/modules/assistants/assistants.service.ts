@@ -18,6 +18,7 @@ type AssistantAccessScope = {
 };
 
 const DEFAULT_ASSISTANT_NAME = 'Default Assistant';
+const DEFAULT_PRIMARY_KB_NAME = 'Default Knowledge Base';
 
 @Injectable()
 export class AssistantsService {
@@ -41,7 +42,14 @@ export class AssistantsService {
   listAssistants(scope?: AssistantAccessScope | null) {
     return this.prisma.assistant
       .findMany({
-        select: this.assistantListSelect,
+        select: {
+          ...this.assistantListSelect,
+          knowledgeBase: {
+            select: {
+              name: true
+            }
+          }
+        },
         ...(scope
           ? {
               where: {
@@ -58,7 +66,15 @@ export class AssistantsService {
           createdAt: 'desc'
         }
       })
-      .then((assistants) => assistants.slice().sort(compareAssistantPriority));
+      .then((assistants) =>
+        assistants
+          .slice()
+          .sort(compareAssistantPriority)
+          .map(({ knowledgeBase, ...assistant }) => {
+            void knowledgeBase;
+            return assistant;
+          })
+      );
   }
 
   async getAssistant(id: string, scope?: AssistantAccessScope | null) {
@@ -222,11 +238,17 @@ function compareAssistantPriority(
     id: string;
     name: string;
     status: 'active' | 'inactive';
+    knowledgeBase?: {
+      name: string;
+    };
   },
   right: {
     id: string;
     name: string;
     status: 'active' | 'inactive';
+    knowledgeBase?: {
+      name: string;
+    };
   }
 ) {
   const scoreDifference =
@@ -243,8 +265,18 @@ function scoreAssistantPriority(assistant: {
   id: string;
   name: string;
   status: 'active' | 'inactive';
+  knowledgeBase?: {
+    name: string;
+  };
 }) {
   let score = 0;
+
+  if (
+    assistant.name === DEFAULT_ASSISTANT_NAME &&
+    assistant.knowledgeBase?.name === DEFAULT_PRIMARY_KB_NAME
+  ) {
+    score += 1000;
+  }
 
   if (assistant.name === DEFAULT_ASSISTANT_NAME) {
     score += 100;

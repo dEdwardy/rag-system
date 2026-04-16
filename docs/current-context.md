@@ -68,7 +68,7 @@
 
 - focused 文档/脚本检查：`git diff --check -- <files...>`
 - API focused test：`pnpm test:api:file -- test/<file>.test.js`
-- web focused test：`node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
+- new queue tasks should use `vitest run` for test validation; do not add new raw `node --test` commands to future queue items. If a legacy `node:test` file is still in the way, migrate or replace it before queueing the task.
 - 只有在当前增量确实跨范围时，才升级到更重的 `pnpm build` / `pnpm lint` / `pnpm typecheck`
 
 ## Key Docs

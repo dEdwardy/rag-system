@@ -405,7 +405,7 @@
 ## Focused Validation Baseline
 
 - API focused test：`pnpm test:api:file -- test/<file>.test.js`
-- web focused test：`node --test --test-name-pattern "<name>" apps/web/test/<file>.test.js`
+- web focused test：`pnpm --filter @rag-system/web exec vitest run test/<file>.test.js`
 - docs / queue sync：`git diff --check -- <files...>`
 - current source-family maintenance baseline：
   - `pnpm test:api:file -- test/external-source-sync.test.js`
@@ -414,8 +414,8 @@
 - current observability baseline：
   - `pnpm test:api:file -- test/traces.service.test.js`
   - `pnpm test:api:file -- test/ask-success.test.js`
-  - `node --test apps/web/test/trace-summary-contract.test.js`
-  - `node --test --test-name-pattern "document run" apps/web/test/document-run-observability.test.js`
+  - `pnpm --filter @rag-system/web exec vitest run test/trace-summary-contract.test.js`
+  - `pnpm --filter @rag-system/web exec vitest run test/document-run-observability.test.js`
 
 ## Notes
 
