@@ -39,7 +39,7 @@ export function buildCitationContext(
     (!documentTitle ||
       sectionTitle.toLocaleLowerCase() !== documentTitle.toLocaleLowerCase())
   ) {
-    parts.push(sectionTitle);
+    parts.push(`"${sectionTitle}"`);
   }
 
   return parts.length > 0 ? parts.join(' • ') : null;
