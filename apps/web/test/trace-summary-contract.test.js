@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -26,7 +26,6 @@ test('web trace summary type guards current backend summary field set', async ()
 
   const traceSummaryBody = traceSummaryMatch[1];
 
-  // Guard the scan-first diagnostic slice inputs against backend drift.
   assert.match(traceSummaryBody, /primaryIssue:\s*TracePrimaryIssue \| null;/);
   assert.match(traceSummaryBody, /retrievalModeProvenanceSentence:\s*string;/);
   assert.match(traceSummaryBody, /failureReadabilitySentence:\s*string;/);
@@ -62,6 +61,8 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(sharedSource, /timingSummary:\s*TraceTimingSummary;/);
   assert.match(sharedSource, /timingReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /firstTokenMs:\s*number \| null;/);
+  assert.match(sharedSource, /preGenerationMs:\s*number \| null;/);
+  assert.match(sharedSource, /llmFirstTokenMs:\s*number \| null;/);
   assert.match(sharedSource, /answerGenerationMs:\s*number \| null;/);
   assert.match(sharedSource, /llmQueueWaitMs:\s*number \| null;/);
   assert.match(sharedSource, /retrievalQueueWaitMs:\s*number \| null;/);

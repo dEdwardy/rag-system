@@ -160,3 +160,29 @@ export function parseChatStarterQuestionFromSearch(search: string) {
   const normalizedQuestion = rawQuestion.trim();
   return normalizedQuestion.length > 0 ? normalizedQuestion : null;
 }
+
+type TraceSummaryHintInput = {
+  failureReadabilitySentence?: string | null;
+  answerStatusSourceReadabilitySentence?: string | null;
+  missingInformationProvenanceSentence?: string | null;
+  retrievalModeProvenanceSentence?: string | null;
+};
+
+function normalizeTraceSummaryHintPart(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+export function buildTraceSummaryHint(summary: TraceSummaryHintInput) {
+  return (
+    normalizeTraceSummaryHintPart(summary.failureReadabilitySentence) ??
+    normalizeTraceSummaryHintPart(
+      summary.answerStatusSourceReadabilitySentence
+    ) ??
+    normalizeTraceSummaryHintPart(
+      summary.missingInformationProvenanceSentence
+    ) ??
+    normalizeTraceSummaryHintPart(summary.retrievalModeProvenanceSentence) ??
+    null
+  );
+}

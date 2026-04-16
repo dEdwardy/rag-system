@@ -330,3 +330,31 @@ test('chat page helpers parse chat starter question from search', async () => {
   assert.equal(parseChatStarterQuestionFromSearch('?starterQuestion=+'), null);
   assert.equal(parseChatStarterQuestionFromSearch(''), null);
 });
+
+test('chat page helpers build trace summary hint with scan-first priority', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    failureReadabilitySentence: '  Retrieval failed before ranking.  ',
+    answerStatusSourceReadabilitySentence:
+      'Answer status from fallback metadata.',
+    missingInformationProvenanceSentence:
+      'Missing information derived from answer evidence.',
+    retrievalModeProvenanceSentence: 'Retrieval ran in vector mode.'
+  });
+
+  assert.equal(result, 'Retrieval failed before ranking.');
+});
+
+test('chat page helpers return null trace summary hint when all fields are blank', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    failureReadabilitySentence: '  ',
+    answerStatusSourceReadabilitySentence: null,
+    missingInformationProvenanceSentence: undefined,
+    retrievalModeProvenanceSentence: '\n'
+  });
+
+  assert.equal(result, null);
+});

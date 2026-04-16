@@ -34,6 +34,7 @@ import type {
   Message
 } from '../../types/api';
 import {
+  buildTraceSummaryHint,
   buildChatReadinessState,
   parseChatStarterQuestionFromSearch,
   buildStarterQuestions,
@@ -359,6 +360,8 @@ export function ChatPage() {
   );
   const [isTranscriptNearBottom, setIsTranscriptNearBottom] = useState(true);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [traceSummaryHintsByMessageId, setTraceSummaryHintsByMessageId] =
+    useState<Record<string, string>>({});
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -529,6 +532,23 @@ export function ChatPage() {
   );
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
+      const traceSummaryHint = buildTraceSummaryHint({
+        failureReadabilitySentence: finalData.failureReadabilitySentence,
+        answerStatusSourceReadabilitySentence:
+          finalData.answerStatusSourceReadabilitySentence,
+        missingInformationProvenanceSentence:
+          finalData.missingInformationProvenanceSentence,
+        retrievalModeProvenanceSentence:
+          finalData.retrievalModeProvenanceSentence
+      });
+
+      if (traceSummaryHint) {
+        setTraceSummaryHintsByMessageId((current) => ({
+          ...current,
+          [finalData.assistantMessageId]: traceSummaryHint
+        }));
+      }
+
       syncFinalTurnToMessageCache({
         finalData: {
           ...finalData,
@@ -1010,6 +1030,10 @@ export function ChatPage() {
                 const canRegenerateAnswer =
                   Boolean(regenerateQuestion) && !isStreamingTurnActive;
                 const isCopied = copiedMessageId === message.id;
+                const traceSummaryHint =
+                  isAssistant && !isStreamingAssistant
+                    ? (traceSummaryHintsByMessageId[message.id] ?? null)
+                    : null;
 
                 return (
                   <div
@@ -1065,6 +1089,14 @@ export function ChatPage() {
                           {messageTime ??
                             (isStreamingAssistant ? streamStatusLabel : '')}
                         </span>
+                        {traceSummaryHint ? (
+                          <span
+                            className="min-w-0 truncate text-[11px] text-[var(--app-text-muted)]"
+                            title={traceSummaryHint}
+                          >
+                            {traceSummaryHint}
+                          </span>
+                        ) : null}
                         {isAssistant ? (
                           !isStreamingAssistant && traceId ? (
                             <IconActionLink

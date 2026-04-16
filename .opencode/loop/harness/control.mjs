@@ -61,14 +61,14 @@ async function latestWaveSummary() {
       inProgressCount: 0,
       completedCount: 0,
       blockedCount: 0,
-      totalCount: 0,
+      totalCount: 0
     };
   }
 
   const summary = queueSummary(loaded.queue);
   return {
     ...summary,
-    fileName: path.basename(loaded.filePath),
+    fileName: path.basename(loaded.filePath)
   };
 }
 
@@ -79,14 +79,14 @@ async function writeState(extra, baseState = null) {
   const state = {
     version: 1,
     repoRoot,
-    ...summary,
     ...mergedBase,
+    ...summary,
     pid: extra.pid ?? mergedBase.pid ?? process.pid,
     status: extra.status ?? mergedBase.status ?? 'running',
     startedAt: extra.startedAt ?? mergedBase.startedAt ?? now,
     updatedAt: now,
     heartbeatAt: extra.heartbeatAt ?? mergedBase.heartbeatAt ?? now,
-    ...extra,
+    ...extra
   };
   await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);
   return state;
@@ -95,7 +95,16 @@ async function writeState(extra, baseState = null) {
 async function printStatus() {
   const state = await safeReadState();
   const summary = await latestWaveSummary();
-  console.log(formatStatusLine({ state, summary, repoRoot, logFile, pidAlive, relativePath: path.relative(repoRoot, logFile) }));
+  console.log(
+    formatStatusLine({
+      state,
+      summary,
+      repoRoot,
+      logFile,
+      pidAlive,
+      relativePath: path.relative(repoRoot, logFile)
+    })
+  );
 }
 
 async function start() {
@@ -110,11 +119,23 @@ async function start() {
     cwd: repoRoot,
     detached: true,
     stdio: 'ignore',
-    windowsHide: true,
+    windowsHide: true
   });
   child.unref();
 
-  await writeState({ pid: child.pid, status: 'starting' }, state);
+  await writeState(
+    {
+      pid: child.pid,
+      status: 'starting',
+      phase: 'starting',
+      currentItemId: null,
+      currentItemTitle: null,
+      currentItemStatus: null,
+      blockedOn: null,
+      activeSessionId: null
+    },
+    state
+  );
   console.log(`started pid=${child.pid}`);
   await printStatus();
 }
@@ -132,9 +153,16 @@ async function stop() {
     // Ignore and fall through to stale cleanup.
   }
 
-  await writeState({ status: 'stopping', stoppedAt: new Date().toISOString() }, state);
+  await writeState(
+    { status: 'stopping', stoppedAt: new Date().toISOString() },
+    state
+  );
   const exited = await waitForPidExit(state.pid);
-  console.log(exited ? `stopped pid=${state.pid}` : `stopping pid=${state.pid} timed_out_wait=true`);
+  console.log(
+    exited
+      ? `stopped pid=${state.pid}`
+      : `stopping pid=${state.pid} timed_out_wait=true`
+  );
 }
 
 function help() {

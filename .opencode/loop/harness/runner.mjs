@@ -10,7 +10,10 @@ import {
   queueSummary,
   writeJson
 } from './queue-utils.mjs';
-import { nextRunnerIteration } from './runner-loop-policy.mjs';
+import {
+  nextRunnerIteration,
+  shouldStopAfterNoProgress
+} from './runner-loop-policy.mjs';
 import { wasExecutionSuperseded } from './execution-guards.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -747,6 +750,10 @@ while (!stopping) {
   const progressed = await processOneItem();
   if (stopping) break;
   if (!progressed) {
+    if (shouldStopAfterNoProgress(currentRun?.phase ?? null)) {
+      stopping = true;
+      break;
+    }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
