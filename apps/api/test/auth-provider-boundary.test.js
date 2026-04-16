@@ -1970,6 +1970,112 @@ test('AuthService completeOauthProviderCallback binds the canonical default assi
   });
 });
 
+test('AuthService completeOauthProviderCallback keeps the already bound canonical default assistant for the primary knowledge base when duplicate defaults exist', async () => {
+  const calls = {
+    assistantUpdate: null
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({ id: 'link-oauth-repair-existing-binding-1' })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-repair-existing-binding-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findMany: async () => [
+          {
+            id: 'kb-oauth-repair-existing-binding-1',
+            name: 'Default Knowledge Base',
+            status: 'active'
+          }
+        ],
+        findFirst: async () => {
+          throw new Error('knowledge base should use canonical findMany path');
+        },
+        create: async () => {
+          throw new Error('knowledge base should not be created');
+        }
+      },
+      retrievalProfile: {
+        findMany: async () => [
+          {
+            id: 'rp-oauth-repair-existing-binding-1',
+            name: 'Default Retrieval Profile'
+          }
+        ],
+        findFirst: async () => {
+          throw new Error(
+            'retrieval profile should use canonical findMany path'
+          );
+        },
+        create: async () => {
+          throw new Error('retrieval profile should not be created');
+        }
+      },
+      assistant: {
+        findMany: async () => [
+          {
+            id: 'assistant-default-a',
+            kbId: 'kb-oauth-repair-existing-binding-1',
+            retrievalProfileId: 'rp-stale-1',
+            status: 'active',
+            name: 'Default Assistant'
+          },
+          {
+            id: 'assistant-default-z',
+            kbId: 'kb-oauth-repair-existing-binding-1',
+            retrievalProfileId: 'rp-oauth-repair-existing-binding-1',
+            status: 'active',
+            name: 'Default Assistant'
+          }
+        ],
+        create: async () => {
+          throw new Error(
+            'assistant should not be created when canonical default already exists'
+          );
+        },
+        update: async ({ where, data }) => {
+          calls.assistantUpdate = { where, data };
+          return { id: 'assistant-default-a' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-repair-existing-binding-1',
+        email: 'oauth-repair-existing-binding@example.com',
+        profileSnapshot: {
+          id: 6999,
+          login: 'oauth-repair-existing-binding-user',
+          name: 'OAuth Repair Existing Binding User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-repair-existing-binding-1',
+    state: 'state-oauth-repair-existing-binding-1',
+    expectedState: 'state-oauth-repair-existing-binding-1'
+  });
+
+  assert.equal(result.identity.userId, 'user-oauth-repair-existing-binding-1');
+  assert.equal(calls.assistantUpdate, null);
+});
+
 test('AuthController oauthProviderCallback validates state cookie and writes oauth JWT cookies', async () => {
   const cookies = [];
   const callbackCalls = [];

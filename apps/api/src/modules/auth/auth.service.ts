@@ -66,6 +66,10 @@ type DefaultAssistantCandidate = {
   name?: string;
 };
 
+type DefaultAssistantSelectionPreference = {
+  retrievalProfileId?: string;
+};
+
 type DefaultKnowledgeBaseCandidate = {
   id: string;
   status?: 'active' | 'inactive';
@@ -801,7 +805,10 @@ export class AuthService {
           tenantId: input.tenantId,
           kbId: knowledgeBase.id
         },
-        prisma
+        prisma,
+        {
+          retrievalProfileId: retrievalProfile.id
+        }
       );
 
     const existingAssistant =
@@ -813,7 +820,10 @@ export class AuthService {
             ownerId: input.userId
           }
         },
-        prisma
+        prisma,
+        {
+          retrievalProfileId: retrievalProfile.id
+        }
       ));
 
     if (existingAssistant == null) {
@@ -863,7 +873,8 @@ export class AuthService {
 
   private async findCanonicalAssistantCandidate(
     where: Prisma.AssistantWhereInput,
-    prisma: AuthWriteClient
+    prisma: AuthWriteClient,
+    preference?: DefaultAssistantSelectionPreference
   ): Promise<DefaultAssistantCandidate | null> {
     if (typeof prisma.assistant.findMany === 'function') {
       const candidates = await prisma.assistant.findMany({
@@ -883,7 +894,9 @@ export class AuthService {
 
       return candidates
         .slice()
-        .sort(compareCanonicalDefaultAssistantCandidate)[0];
+        .sort((left, right) =>
+          compareCanonicalDefaultAssistantCandidate(left, right, preference)
+        )[0];
     }
 
     const fallbackCandidate = await prisma.assistant.findFirst({
@@ -1165,11 +1178,12 @@ export class AuthService {
 
 function compareCanonicalDefaultAssistantCandidate(
   left: DefaultAssistantCandidate,
-  right: DefaultAssistantCandidate
+  right: DefaultAssistantCandidate,
+  preference?: DefaultAssistantSelectionPreference
 ) {
   const scoreDifference =
-    scoreCanonicalDefaultAssistantCandidate(right) -
-    scoreCanonicalDefaultAssistantCandidate(left);
+    scoreCanonicalDefaultAssistantCandidate(right, preference) -
+    scoreCanonicalDefaultAssistantCandidate(left, preference);
 
   if (scoreDifference !== 0) {
     return scoreDifference;
@@ -1209,7 +1223,8 @@ function compareCanonicalDefaultRetrievalProfileCandidate(
 }
 
 function scoreCanonicalDefaultAssistantCandidate(
-  assistant: DefaultAssistantCandidate
+  assistant: DefaultAssistantCandidate,
+  preference?: DefaultAssistantSelectionPreference
 ) {
   let score = 0;
 
@@ -1219,6 +1234,13 @@ function scoreCanonicalDefaultAssistantCandidate(
 
   if (assistant.status === 'active') {
     score += 10;
+  }
+
+  if (
+    typeof preference?.retrievalProfileId === 'string' &&
+    assistant.retrievalProfileId === preference.retrievalProfileId
+  ) {
+    score += 50;
   }
 
   return score;
