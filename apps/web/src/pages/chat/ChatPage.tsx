@@ -539,6 +539,7 @@ export function ChatPage() {
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
       const traceSummaryHint = buildTraceSummaryHint({
+        failureReadabilitySentence: finalData.failureReadabilitySentence,
         answerStatusSourceReadabilitySentence:
           finalData.answerStatusSourceReadabilitySentence,
         missingInformationProvenanceSentence:
