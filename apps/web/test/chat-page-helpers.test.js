@@ -70,6 +70,46 @@ test('chat page helpers omit empty citation context parts', async () => {
   assert.equal(result, null);
 });
 
+test('chat page helpers trim citation section title readability text', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-3',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: null,
+      sectionTitle: '  Streaming  ',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Streaming');
+});
+
+test('chat page helpers skip whitespace-only citation section title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: '   ',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'page 7');
+});
+
 test('chat page helpers resolve no active knowledge base readiness', async () => {
   const { buildChatReadinessState } = await loadChatPageHelpers();
 

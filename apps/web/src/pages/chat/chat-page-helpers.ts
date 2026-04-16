@@ -23,13 +23,14 @@ export function buildCitationContext(
   }
 ) {
   const parts: string[] = [];
+  const sectionTitle = citation.sectionTitle?.trim();
 
   if (citation.pageNo != null) {
     parts.push(labels.pageLabel(citation.pageNo));
   }
 
-  if (citation.sectionTitle) {
-    parts.push(citation.sectionTitle);
+  if (sectionTitle) {
+    parts.push(sectionTitle);
   }
 
   return parts.length > 0 ? parts.join(' - ') : null;
