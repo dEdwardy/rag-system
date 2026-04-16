@@ -150,6 +150,26 @@ test('chat page helpers skip duplicate citation section title when it matches so
   assert.equal(result, 'Spec • page 7');
 });
 
+test('chat page helpers normalize section titles that already include quotes', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4c',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: '"Streaming"',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • "Streaming" • page 7');
+});
+
 test('chat page helpers skip whitespace-only citation source title', async () => {
   const { buildCitationContext } = await loadChatPageHelpers();
 

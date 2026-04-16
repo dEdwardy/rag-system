@@ -66,7 +66,11 @@ function normalizeCitationSectionTitle(value: string | null | undefined) {
   }
 
   const withoutMarkdownHeading = normalized.replace(/^#{1,6}\s+/, '').trim();
-  return withoutMarkdownHeading || null;
+  const withoutEnclosingQuotes = withoutMarkdownHeading.replace(
+    /^(["'])(.*)\1$/,
+    '$2'
+  );
+  return withoutEnclosingQuotes.trim() || null;
 }
 
 export type ChatReadinessState =
