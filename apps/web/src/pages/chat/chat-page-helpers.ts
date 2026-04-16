@@ -183,6 +183,13 @@ export function parseChatAutoAskFromSearch(search: string) {
   return searchParams.get(CHAT_AUTO_ASK_PARAM) === '1';
 }
 
+export function shouldDelayConversationAutoSelectForStarter(search: string) {
+  return (
+    parseChatAutoAskFromSearch(search) &&
+    parseChatStarterQuestionFromSearch(search) != null
+  );
+}
+
 type TraceSummaryHintInput = {
   answerStatus?: TraceAnswerStatus | null;
   insufficientContextReason?: TraceInsufficientContextReason | null;

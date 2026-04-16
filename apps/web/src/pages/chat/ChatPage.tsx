@@ -38,6 +38,7 @@ import {
   buildChatReadinessState,
   parseChatAutoAskFromSearch,
   parseChatStarterQuestionFromSearch,
+  shouldDelayConversationAutoSelectForStarter,
   buildStarterQuestions,
   formatMessageTime
 } from './chat-page-helpers';
@@ -463,6 +464,10 @@ export function ChatPage() {
     () => parseChatAutoAskFromSearch(location.search),
     [location.search]
   );
+  const shouldDelayConversationAutoSelect = useMemo(
+    () => shouldDelayConversationAutoSelectForStarter(location.search),
+    [location.search]
+  );
 
   const hasSingleAssistantBinding =
     activeAssistant != null && assistantsForKnowledgeBaseCount === 1;
@@ -475,6 +480,10 @@ export function ChatPage() {
   );
 
   useEffect(() => {
+    if (shouldDelayConversationAutoSelect) {
+      return;
+    }
+
     if (
       !didAutoSelectConversation &&
       activeConversationId == null &&
@@ -483,7 +492,12 @@ export function ChatPage() {
       setActiveConversationId(fallbackConversationId);
       setDidAutoSelectConversation(true);
     }
-  }, [activeConversationId, didAutoSelectConversation, fallbackConversationId]);
+  }, [
+    activeConversationId,
+    didAutoSelectConversation,
+    fallbackConversationId,
+    shouldDelayConversationAutoSelect
+  ]);
 
   useEffect(() => {
     setIsTranscriptNearBottom(true);

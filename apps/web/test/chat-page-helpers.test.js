@@ -369,6 +369,31 @@ test('chat page helpers parse chat auto-ask flag from search', async () => {
   assert.equal(parseChatAutoAskFromSearch('?ask=0'), false);
 });
 
+test('chat page helpers delay auto-select when starter auto-ask is present', async () => {
+  const { shouldDelayConversationAutoSelectForStarter } =
+    await loadChatPageHelpers();
+
+  assert.equal(
+    shouldDelayConversationAutoSelectForStarter(
+      '?starterQuestion=What+are+these+items+about%3F&ask=1'
+    ),
+    true
+  );
+});
+
+test('chat page helpers keep auto-select when starter auto-ask is not present', async () => {
+  const { shouldDelayConversationAutoSelectForStarter } =
+    await loadChatPageHelpers();
+
+  assert.equal(
+    shouldDelayConversationAutoSelectForStarter(
+      '?starterQuestion=What+are+these+items+about%3F'
+    ),
+    false
+  );
+  assert.equal(shouldDelayConversationAutoSelectForStarter('?ask=1'), false);
+});
+
 test('chat page helpers build trace summary hint with scan-first priority', async () => {
   const { buildTraceSummaryHint } = await loadChatPageHelpers();
 
