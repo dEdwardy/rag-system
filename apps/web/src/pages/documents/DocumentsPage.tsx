@@ -126,6 +126,19 @@ export function DocumentsPage() {
     }
 
     if (hasProcessingDocuments) {
+      if (readyCount > 0) {
+        return {
+          badgeColor: 'yellow',
+          badgeLabel: t('documents.workspaceStatusProcessing'),
+          nextAction:
+            locale === 'zh'
+              ? '已有资料可提问，先去对话页开始首轮问题。'
+              : 'Some items are still processing, but you can start asking in chat now.',
+          nextActionHref: '/',
+          nextActionLabel: locale === 'zh' ? '前往对话' : 'Go to chat'
+        } as const;
+      }
+
       return {
         badgeColor: 'yellow',
         badgeLabel: t('documents.workspaceStatusProcessing'),
@@ -150,6 +163,8 @@ export function DocumentsPage() {
     firstProcessingDocument,
     hasActiveKnowledgeBase,
     hasProcessingDocuments,
+    locale,
+    readyCount,
     t
   ]);
 

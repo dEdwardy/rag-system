@@ -61,7 +61,7 @@ export function buildChatReadinessState(
     };
   }
 
-  if (summary.processingDocuments > 0) {
+  if (summary.processingDocuments > 0 && summary.readyDocuments === 0) {
     return {
       kind: 'processing_documents',
       count: summary.processingDocuments

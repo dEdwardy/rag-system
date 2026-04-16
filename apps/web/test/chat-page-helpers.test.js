@@ -118,7 +118,7 @@ test('chat page helpers resolve processing readiness', async () => {
   const result = buildChatReadinessState(
     {
       totalDocuments: 3,
-      readyDocuments: 1,
+      readyDocuments: 0,
       processingDocuments: 2,
       failedDocuments: 0,
       totalChunks: 8
@@ -127,6 +127,23 @@ test('chat page helpers resolve processing readiness', async () => {
   );
 
   assert.deepEqual(result, { kind: 'processing_documents', count: 2 });
+});
+
+test('chat page helpers treat library as ready when some documents are already ready', async () => {
+  const { buildChatReadinessState } = await loadChatPageHelpers();
+
+  const result = buildChatReadinessState(
+    {
+      totalDocuments: 3,
+      readyDocuments: 1,
+      processingDocuments: 2,
+      failedDocuments: 0,
+      totalChunks: 8
+    },
+    true
+  );
+
+  assert.deepEqual(result, { kind: 'ready' });
 });
 
 test('chat page helpers resolve ready state', async () => {
