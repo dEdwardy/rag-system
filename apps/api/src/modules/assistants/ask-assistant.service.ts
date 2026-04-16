@@ -293,8 +293,6 @@ export class AskAssistantService {
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
 
-    const { value: userMessage } = await userMessagePromise;
-
     const retrievalResult = await this.retrievalLimiter.execute(() =>
       this.retrieveOrCreateFailedTrace({
         assistantId: assistant.id,
@@ -377,6 +375,8 @@ export class AskAssistantService {
           retrievalMetadata.strategySummary?.rewritePromptId ?? null
       })
     ]);
+
+    const { value: userMessage } = await userMessagePromise;
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
