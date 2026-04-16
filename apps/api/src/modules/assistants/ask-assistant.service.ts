@@ -810,10 +810,19 @@ export class AskAssistantService {
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
 
-    const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
-      Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
-      Promise.resolve(
-        this.buildRetrievalMetadata({
+    const conversationAndUserMessagePromise = Promise.all([
+      conversationPromise,
+      userMessagePromise
+    ]).then(([conversationResult, userMessageResult]) => ({
+      conversation: conversationResult.value,
+      conversationLoadMs: conversationResult.durationMs,
+      userMessage: userMessageResult.value,
+      userMessagePersistMs: userMessageResult.durationMs
+    }));
+    const retrievalArtifactsPromise = conversationAndUserMessagePromise.then(
+      () => ({
+        retrievalScoresJson: this.buildRetrievalScoresJson(retrievedChunks),
+        retrievalMetadata: this.buildRetrievalMetadata({
           strategy: retrievalStrategy,
           filters: retrievalFilters,
           rewrittenQuery: rewritten.rewrittenQuery,
@@ -838,21 +847,18 @@ export class AskAssistantService {
           promptContextChars: null,
           promptContextApproxTokens: null
         }) as AskRetrievalMetadataJson
-      )
-    ]);
-    const conversationAndUserMessagePromise = Promise.all([
-      conversationPromise,
-      userMessagePromise
-    ]).then(([conversationResult, userMessageResult]) => ({
-      conversation: conversationResult.value,
-      conversationLoadMs: conversationResult.durationMs,
-      userMessage: userMessageResult.value,
-      userMessagePersistMs: userMessageResult.durationMs
-    }));
+      })
+    );
 
     const traceCreateStartedAt = Date.now();
-    const tracePromise = conversationAndUserMessagePromise.then(
-      ({ conversation, userMessage }) =>
+    const tracePromise = Promise.all([
+      conversationAndUserMessagePromise,
+      retrievalArtifactsPromise
+    ]).then(
+      ([
+        { conversation, userMessage },
+        { retrievalScoresJson, retrievalMetadata }
+      ]) =>
         this.tracesService.createTrace({
           conversationId: conversation.id,
           assistantId: assistant.id,
@@ -948,6 +954,8 @@ export class AskAssistantService {
         userMessage,
         userMessagePersistMs
       } = await conversationAndUserMessagePromise;
+      const { retrievalScoresJson, retrievalMetadata } =
+        await retrievalArtifactsPromise;
       trace = await tracePromise;
       traceCreateMs = Date.now() - traceCreateStartedAt;
       const promptSnapshot = this.buildPromptSnapshot({
@@ -1213,6 +1221,8 @@ export class AskAssistantService {
         error instanceof Error ? error.message : 'Unknown ask pipeline error.';
       const { conversation, conversationLoadMs, userMessagePersistMs } =
         await conversationAndUserMessagePromise;
+      const { retrievalScoresJson, retrievalMetadata } =
+        await retrievalArtifactsPromise;
       const resolvedTrace = trace ?? (await tracePromise);
       trace = resolvedTrace;
       const promptSnapshot = this.buildPromptSnapshot({
