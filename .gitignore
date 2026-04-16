@@ -31,6 +31,7 @@ ui/version-b-creative.*
 !.opencode/loop/README.md
 !.opencode/loop/cli.mjs
 .opencode/loop/handoffs/
+.opencode/loop/materialized/
 .opencode/loop/loop-run.log
 .opencode/loop/loop.lock/
 !.opencode/loop/harness/
