@@ -774,7 +774,6 @@ test('AskAssistantService starts retrieval before user message persistence resol
     retrieval: {
       retrieve: async () => {
         retrievalStartedBeforeUserMessage = !userMessageResolved;
-        resolveUserMessage();
         return {
           retrievedChunks: [
             {
@@ -803,10 +802,19 @@ test('AskAssistantService starts retrieval before user message persistence resol
     }
   });
 
-  const result = await service.askAssistant({
+  const askPromise = service.askAssistant({
     assistantId: 'assistant-1',
     question: 'Where is the marker?'
   });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (typeof resolveUserMessage === 'function') {
+      break;
+    }
+    await Promise.resolve();
+  }
+  assert.equal(typeof resolveUserMessage, 'function');
+  resolveUserMessage();
+  const result = await askPromise;
 
   assert.equal(retrievalStartedBeforeUserMessage, true);
   assert.equal(result.traceId, 'trace-1');

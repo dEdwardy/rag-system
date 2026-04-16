@@ -298,7 +298,7 @@ export class AskAssistantService {
         assistantId: assistant.id,
         assistantKbId: assistant.kbId,
         conversationPromise: Promise.resolve(conversationResult),
-        userMessagePromise,
+        getUserMessagePromise: () => userMessagePromise,
         userQuery: input.question,
         retrievalQuery,
         retrievalProfile,
@@ -703,20 +703,27 @@ export class AskAssistantService {
       phase: 'started'
     });
 
-    const userMessagePersistStartedAt = Date.now();
-    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> =
-      conversationPromise
-        .then(({ value: conversation }) =>
-          this.messagesService.createMessage({
-            conversationId: conversation.id,
-            role: MessageRole.user,
-            content: input.question
-          })
-        )
-        .then((message) => ({
-          value: message,
-          durationMs: Date.now() - userMessagePersistStartedAt
-        }));
+    let userMessagePromise: Promise<TimedResult<AskPersistedMessage>> | null =
+      null;
+    const getUserMessagePromise = () => {
+      if (userMessagePromise == null) {
+        const userMessagePersistStartedAt = Date.now();
+        userMessagePromise = conversationPromise
+          .then(({ value: conversation }) =>
+            this.messagesService.createMessage({
+              conversationId: conversation.id,
+              role: MessageRole.user,
+              content: input.question
+            })
+          )
+          .then((message) => ({
+            value: message,
+            durationMs: Date.now() - userMessagePersistStartedAt
+          }));
+      }
+
+      return userMessagePromise;
+    };
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -794,7 +801,7 @@ export class AskAssistantService {
           assistantId: assistant.id,
           assistantKbId: assistant.kbId,
           conversationPromise,
-          userMessagePromise,
+          getUserMessagePromise,
           userQuery: input.question,
           retrievalQuery,
           retrievalProfile,
@@ -812,7 +819,7 @@ export class AskAssistantService {
 
     const conversationAndUserMessagePromise = Promise.all([
       conversationPromise,
-      userMessagePromise
+      getUserMessagePromise()
     ]).then(([conversationResult, userMessageResult]) => ({
       conversation: conversationResult.value,
       conversationLoadMs: conversationResult.durationMs,
@@ -2039,7 +2046,7 @@ export class AskAssistantService {
     assistantId: string;
     assistantKbId: string;
     conversationPromise: Promise<TimedResult<AskConversationRef>>;
-    userMessagePromise: Promise<TimedResult<AskPersistedMessage>>;
+    getUserMessagePromise: () => Promise<TimedResult<AskPersistedMessage>>;
     userQuery: string;
     retrievalQuery: string;
     retrievalProfile: {
@@ -2084,7 +2091,7 @@ export class AskAssistantService {
       const [{ value: conversation }, { value: userMessage }] =
         await Promise.all([
           input.conversationPromise,
-          input.userMessagePromise
+          input.getUserMessagePromise()
         ]);
       const failedTrace = await this.tracesService.createTrace({
         conversationId: conversation.id,
