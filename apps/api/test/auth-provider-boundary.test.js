@@ -1822,6 +1822,111 @@ test('AuthService completeOauthProviderCallback repairs the canonical default as
   });
 });
 
+test('AuthService completeOauthProviderCallback repairs the canonical default assistant first when stale naming has internal whitespace drift', async () => {
+  const calls = {
+    assistantUpdate: null
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'link-oauth-repair-canonical-internal-whitespace-1'
+        })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-repair-canonical-internal-whitespace-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findFirst: async () => ({
+          id: 'kb-oauth-repair-canonical-internal-whitespace-1'
+        }),
+        create: async () => {
+          throw new Error('knowledge base should not be created');
+        }
+      },
+      retrievalProfile: {
+        findFirst: async () => ({
+          id: 'rp-oauth-repair-canonical-internal-whitespace-1'
+        }),
+        create: async () => {
+          throw new Error('retrieval profile should not be created');
+        }
+      },
+      assistant: {
+        findMany: async () => [
+          {
+            id: 'assistant-secondary-1',
+            kbId: 'kb-oauth-repair-canonical-internal-whitespace-1',
+            retrievalProfileId: 'rp-secondary-1',
+            status: 'active',
+            name: 'Research Assistant'
+          },
+          {
+            id: 'assistant-default-internal-whitespace-1',
+            kbId: 'kb-oauth-repair-canonical-internal-whitespace-1',
+            retrievalProfileId: 'rp-stale-default-1',
+            status: 'inactive',
+            name: 'Default   Assistant'
+          }
+        ],
+        create: async () => {
+          throw new Error(
+            'assistant should not be created when canonical repair is possible'
+          );
+        },
+        update: async ({ where, data }) => {
+          calls.assistantUpdate = { where, data };
+          return { id: 'assistant-default-internal-whitespace-1' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-repair-canonical-internal-whitespace-1',
+        email: 'oauth-repair-canonical-internal-whitespace@example.com',
+        profileSnapshot: {
+          id: 5099,
+          login: 'oauth-repair-canonical-internal-whitespace-user',
+          name: 'OAuth Repair Canonical Internal Whitespace User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-repair-canonical-internal-whitespace-1',
+    state: 'state-oauth-repair-canonical-internal-whitespace-1',
+    expectedState: 'state-oauth-repair-canonical-internal-whitespace-1'
+  });
+
+  assert.equal(
+    result.identity.userId,
+    'user-oauth-repair-canonical-internal-whitespace-1'
+  );
+  assert.deepEqual(calls.assistantUpdate, {
+    where: {
+      id: 'assistant-default-internal-whitespace-1'
+    },
+    data: {
+      kbId: 'kb-oauth-repair-canonical-internal-whitespace-1',
+      retrievalProfileId: 'rp-oauth-repair-canonical-internal-whitespace-1',
+      status: 'active'
+    }
+  });
+});
+
 test('AuthService completeOauthProviderCallback binds the canonical default assistant to the canonical primary knowledge base and retrieval profile when owner-scoped duplicates exist', async () => {
   const calls = {
     assistantFindManyWhere: null,

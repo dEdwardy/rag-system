@@ -56,6 +56,11 @@ function scoreAssistantPriority(assistant: Assistant) {
 function isDefaultAssistantName(name: string | null | undefined) {
   return (
     typeof name === 'string' &&
-    name.trim().toLowerCase() === DEFAULT_ASSISTANT_NAME.toLowerCase()
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_ASSISTANT_NAME)
   );
+}
+
+function normalizeCanonicalDefaultName(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }

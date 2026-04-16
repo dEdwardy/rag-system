@@ -1277,20 +1277,27 @@ function scoreCanonicalDefaultRetrievalProfileCandidate(
 function isDefaultAssistantName(name: string | null | undefined) {
   return (
     typeof name === 'string' &&
-    name.trim().toLowerCase() === DEFAULT_ASSISTANT_TEMPLATE.name.toLowerCase()
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_ASSISTANT_TEMPLATE.name)
   );
 }
 
 function isDefaultPrimaryKnowledgeBaseName(name: string | null | undefined) {
   return (
     typeof name === 'string' &&
-    name.trim().toLowerCase() === DEFAULT_PRIMARY_KB_NAME.toLowerCase()
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_PRIMARY_KB_NAME)
   );
 }
 
 function isDefaultRetrievalProfileName(name: string | null | undefined) {
   return (
     typeof name === 'string' &&
-    name.trim().toLowerCase() === DEFAULT_RETRIEVAL_PROFILE_NAME.toLowerCase()
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_RETRIEVAL_PROFILE_NAME)
   );
+}
+
+function normalizeCanonicalDefaultName(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
