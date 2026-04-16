@@ -450,6 +450,7 @@ export function ChatPage() {
         locale === 'zh'
           ? '可以直接从这些首问开始'
           : 'Start with one of these first questions',
+      starterPromptHint: t('chat.copy.starterPromptHint'),
       starterQuestions: buildStarterQuestions(locale, 'chat')
     }),
     [chatHistoryVisibleCount, locale, t]
@@ -1010,6 +1011,9 @@ export function ChatPage() {
                         </button>
                       ))}
                     </div>
+                    <div className="text-xs text-[var(--app-text-muted)]">
+                      {chatCopy.starterPromptHint}
+                    </div>
                     <Link
                       className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
                       to="/documents"
@@ -1273,6 +1277,9 @@ export function ChatPage() {
                           {question}
                         </button>
                       ))}
+                    </div>
+                    <div className="text-xs text-[var(--app-text-muted)]">
+                      {chatCopy.starterPromptHint}
                     </div>
                   </div>
                 }

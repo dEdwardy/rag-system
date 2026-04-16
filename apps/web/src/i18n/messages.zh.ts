@@ -184,6 +184,7 @@ export const messages = {
       preparingAnswer: '准备回答中',
       retrievingContext: '检索上下文中',
       generatingAnswer: '生成回答中',
+      starterPromptHint: '点任意首问会立即发送，后续可以在对话里继续细化。',
       noDocuments: '资料库还是空的',
       libraryNeedsAttention: '资料库需要处理',
       libraryUpdating: '资料库更新中',

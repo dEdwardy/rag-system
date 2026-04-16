@@ -193,6 +193,8 @@ export const messages = {
       preparingAnswer: 'Preparing answer',
       retrievingContext: 'Retrieving context',
       generatingAnswer: 'Generating answer',
+      starterPromptHint:
+        'Click one to send it now, then refine the follow-up in chat.',
       noDocuments: 'Library still empty',
       libraryNeedsAttention: 'Library needs review',
       libraryUpdating: 'Library updating',
