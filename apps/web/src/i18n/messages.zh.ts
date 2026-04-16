@@ -256,6 +256,8 @@ export const messages = {
     uploadBatchError: '批量上传失败。',
     processingBanner:
       '部分资料仍在更新中。请等刷新结束后，再把对话视为完全可用。',
+    processingBannerWithReady:
+      '部分资料仍在更新中，但已就绪资料已经可以支持对话。你可以现在先提问，剩余更新完成后再回来查看。',
     loadKbError: '加载工作区资料库失败。',
     loadDocumentsError: '加载资料项失败。',
     loadingTitle: '正在加载资料库',
@@ -273,6 +275,8 @@ export const messages = {
     workspaceNextActionNeedsAttention:
       '先打开失败资料，查看最近一次错误摘要，再决定重试或清理。',
     workspaceNextActionProcessing: '等待当前更新完成，然后回来查看最新状态。',
+    workspaceNextActionProcessingWithReady:
+      '还有资料在处理中，但已就绪资料已经可以支持对话。现在可以先提问，剩余更新完成后再回来查看。',
     workspaceNextActionReady:
       '资料库已经可以支持对话。现在可以去对话页，也可以继续补充更多资料。',
     workspaceNextActionLinkNoActiveKnowledgeBase: '打开工作区设置',

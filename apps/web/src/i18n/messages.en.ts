@@ -270,6 +270,8 @@ export const messages = {
     uploadBatchError: 'Batch upload failed.',
     processingBanner:
       'Some library items are still updating. Wait for the refresh to finish before treating chat as fully ready.',
+    processingBannerWithReady:
+      'Some library items are still updating, but ready items can already support chat. You can start asking now and return here as updates finish.',
     loadKbError: 'Failed to load workspace library.',
     loadDocumentsError: 'Failed to load library items.',
     loadingTitle: 'Loading library',
@@ -288,6 +290,8 @@ export const messages = {
       'Open the failed item first, check the latest error summary, then retry or clean it up if needed.',
     workspaceNextActionProcessing:
       'Wait for the current updates to finish, then review the refreshed item states.',
+    workspaceNextActionProcessingWithReady:
+      'Some items are still processing, but ready items can already support chat. Start asking now and come back for the remaining updates.',
     workspaceNextActionReady:
       'The library is ready for chat. Move on to chat now, or keep adding more source material here.',
     workspaceNextActionLinkNoActiveKnowledgeBase: 'Open workspace settings',
