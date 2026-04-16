@@ -66,6 +66,17 @@ type DefaultAssistantCandidate = {
   name?: string;
 };
 
+type DefaultKnowledgeBaseCandidate = {
+  id: string;
+  status?: 'active' | 'inactive';
+  name?: string;
+};
+
+type DefaultRetrievalProfileCandidate = {
+  id: string;
+  name?: string;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -698,15 +709,32 @@ export class AuthService {
       return;
     }
 
-    const existingKnowledgeBase = await prisma.knowledgeBase.findFirst({
-      where: {
-        tenantId: input.tenantId,
-        ownerId: input.userId
-      },
-      select: {
-        id: true
-      }
-    });
+    const existingKnowledgeBase =
+      typeof prisma.knowledgeBase.findMany === 'function'
+        ? ((
+            await prisma.knowledgeBase.findMany({
+              where: {
+                tenantId: input.tenantId,
+                ownerId: input.userId
+              },
+              select: {
+                id: true,
+                status: true,
+                name: true
+              }
+            })
+          )
+            .slice()
+            .sort(compareCanonicalPrimaryKnowledgeBaseCandidate)[0] ?? null)
+        : await prisma.knowledgeBase.findFirst({
+            where: {
+              tenantId: input.tenantId,
+              ownerId: input.userId
+            },
+            select: {
+              id: true
+            }
+          });
 
     const knowledgeBase =
       existingKnowledgeBase ??
@@ -723,15 +751,31 @@ export class AuthService {
         }
       }));
 
-    const existingRetrievalProfile = await prisma.retrievalProfile.findFirst({
-      where: {
-        tenantId: input.tenantId,
-        ownerId: input.userId
-      },
-      select: {
-        id: true
-      }
-    });
+    const existingRetrievalProfile =
+      typeof prisma.retrievalProfile.findMany === 'function'
+        ? ((
+            await prisma.retrievalProfile.findMany({
+              where: {
+                tenantId: input.tenantId,
+                ownerId: input.userId
+              },
+              select: {
+                id: true,
+                name: true
+              }
+            })
+          )
+            .slice()
+            .sort(compareCanonicalDefaultRetrievalProfileCandidate)[0] ?? null)
+        : await prisma.retrievalProfile.findFirst({
+            where: {
+              tenantId: input.tenantId,
+              ownerId: input.userId
+            },
+            select: {
+              id: true
+            }
+          });
 
     const retrievalProfile =
       existingRetrievalProfile ??
@@ -1134,6 +1178,36 @@ function compareCanonicalDefaultAssistantCandidate(
   return left.id.localeCompare(right.id);
 }
 
+function compareCanonicalPrimaryKnowledgeBaseCandidate(
+  left: DefaultKnowledgeBaseCandidate,
+  right: DefaultKnowledgeBaseCandidate
+) {
+  const scoreDifference =
+    scoreCanonicalPrimaryKnowledgeBaseCandidate(right) -
+    scoreCanonicalPrimaryKnowledgeBaseCandidate(left);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function compareCanonicalDefaultRetrievalProfileCandidate(
+  left: DefaultRetrievalProfileCandidate,
+  right: DefaultRetrievalProfileCandidate
+) {
+  const scoreDifference =
+    scoreCanonicalDefaultRetrievalProfileCandidate(right) -
+    scoreCanonicalDefaultRetrievalProfileCandidate(left);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
 function scoreCanonicalDefaultAssistantCandidate(
   assistant: DefaultAssistantCandidate
 ) {
@@ -1150,9 +1224,51 @@ function scoreCanonicalDefaultAssistantCandidate(
   return score;
 }
 
+function scoreCanonicalPrimaryKnowledgeBaseCandidate(
+  knowledgeBase: DefaultKnowledgeBaseCandidate
+) {
+  let score = 0;
+
+  if (isDefaultPrimaryKnowledgeBaseName(knowledgeBase.name)) {
+    score += 100;
+  }
+
+  if (knowledgeBase.status === 'active') {
+    score += 10;
+  }
+
+  return score;
+}
+
+function scoreCanonicalDefaultRetrievalProfileCandidate(
+  retrievalProfile: DefaultRetrievalProfileCandidate
+) {
+  let score = 0;
+
+  if (isDefaultRetrievalProfileName(retrievalProfile.name)) {
+    score += 100;
+  }
+
+  return score;
+}
+
 function isDefaultAssistantName(name: string | null | undefined) {
   return (
     typeof name === 'string' &&
     name.trim().toLowerCase() === DEFAULT_ASSISTANT_TEMPLATE.name.toLowerCase()
+  );
+}
+
+function isDefaultPrimaryKnowledgeBaseName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    name.trim().toLowerCase() === DEFAULT_PRIMARY_KB_NAME.toLowerCase()
+  );
+}
+
+function isDefaultRetrievalProfileName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    name.trim().toLowerCase() === DEFAULT_RETRIEVAL_PROFILE_NAME.toLowerCase()
   );
 }
