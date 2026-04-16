@@ -26,6 +26,7 @@ import {
 } from '../../features/api/hooks';
 import { getPrimaryKnowledgeBase } from '../../features/api/workspace-selection';
 import { useI18n } from '../../i18n/I18nProvider';
+import { buildStarterQuestions } from '../chat/chat-page-helpers';
 
 const DOCUMENTS_PAGE_SIZE = 20;
 
@@ -206,6 +207,10 @@ export function DocumentsPage() {
       }
     ],
     [documentCount, failedCount, locale, processingCount, readyCount]
+  );
+  const starterQuestions = useMemo(
+    () => buildStarterQuestions(locale, 'documents'),
+    [locale]
   );
 
   const handleUploadFiles = useCallback(
@@ -499,6 +504,18 @@ export function DocumentsPage() {
               <Text c="var(--app-text-muted)" mt={4} size="sm">
                 {t('documents.readyBannerDescription', { count: readyCount })}
               </Text>
+              <Group gap="xs" mt="sm">
+                {starterQuestions.map((question) => (
+                  <Badge
+                    color="teal"
+                    key={question}
+                    radius="sm"
+                    variant="light"
+                  >
+                    {question}
+                  </Badge>
+                ))}
+              </Group>
             </div>
             <div className="workspace-feedback-alert__action">
               <Button

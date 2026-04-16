@@ -433,6 +433,7 @@ export const messages = {
       create: 'Create workspace library',
       openDocuments: 'Open library',
       openAssistant: 'Open answer settings',
+      refreshDefaultPath: 'Refresh default path',
       openChat: 'Open chat'
     },
     create: {
@@ -484,8 +485,8 @@ export const messages = {
         'Review the items with issues before adding more material.',
       waitForProcessing:
         'Wait for the current updates to finish, then check the refreshed states.',
-      bindAssistant:
-        'The library is ready. Connect or review answer settings before asking questions.',
+      prepareDefaultAssistant:
+        'The library is ready. Open answer settings so the default assistant can finish preparing or repairing before chat.',
       workspaceReady:
         'This workspace is ready. The best next step is to move on to chat.'
     },

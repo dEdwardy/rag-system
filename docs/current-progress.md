@@ -63,6 +63,71 @@
     - `pnpm --filter @rag-system/api exec node --test test/retrieval-profiles-auth-scope.test.js`
     - `git diff --check -- apps/api/src/modules/assistants/assistants.service.ts apps/api/test/retrieval-profiles-auth-scope.test.js docs/current-progress.md`
 
+- `knowledge-base next-step assistant wording alignment` removed the last manual-bind wording from the default path
+  - `apps/web/src/pages/knowledge-base/knowledge-base-page-helpers.ts` now treats the no-assistant branch as a default-assistant preparation/repair step instead of asking users to bind an assistant manually
+  - `apps/web/src/i18n/messages.en.ts` and `messages.zh.ts` now tell users to open answer settings so the default assistant can finish preparing or repairing before chat
+  - `apps/web/test/knowledge-base-page-helpers.test.js` now locks that behavior into the focused helper contract
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/knowledge-base-page-helpers.test.js`
+    - `pnpm --filter @rag-system/web exec node --test test/i18n-copy.test.js`
+    - `git diff --check -- apps/web/src/pages/knowledge-base/knowledge-base-page-helpers.ts apps/web/src/i18n/messages.en.ts apps/web/src/i18n/messages.zh.ts apps/web/test/knowledge-base-page-helpers.test.js docs/current-progress.md`
+
+- `knowledge-base default-path refresh fallback` extended the same retry affordance onto the workspace setup page
+  - `apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx` now offers a `Refresh default path` action whenever the current next step is to finish preparing or repairing the default assistant
+  - the refresh action invalidates the current `knowledge-bases`, `assistants`, and `retrieval-profiles` queries so users can retry the default path without leaving the page
+  - `apps/web/src/i18n/messages.en.ts` and `messages.zh.ts` now include the matching workspace-setup action label
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/knowledge-base/KnowledgeBasePage.tsx apps/web/src/i18n/messages.en.ts apps/web/src/i18n/messages.zh.ts docs/current-progress.md`
+
+- `chat composer library shortcut` turned the existing library hint into a real path back to document upload
+  - `apps/web/src/pages/chat/ChatPage.tsx` now links the composer-side library icon directly to `/documents` instead of rendering it as a disabled placeholder button
+  - this keeps users on the default mainline when they realize they still need to add or update source material from inside chat
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/chat/ChatPage.tsx docs/current-progress.md`
+
+- `chat readiness gating` now blocks the empty-chat state behind actual library readiness instead of assuming chat is always ready once the page loads
+  - `apps/web/src/pages/chat/chat-page-helpers.ts` now exposes a small readiness helper for `no active knowledge base / no documents / processing / failed / ready`
+  - `apps/web/src/pages/chat/ChatPage.tsx` now reads the current library document summary and shows the matching state panel before falling through to the default-assistant or empty-conversation branches
+  - this keeps first-use users on the upload / wait / fix path until the current library is actually ready for chat
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/chat-page-helpers.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/chat/chat-page-helpers.ts apps/web/src/pages/chat/ChatPage.tsx apps/web/test/chat-page-helpers.test.js docs/current-progress.md`
+
+- `chat first-question prompts` now turn the remaining empty-chat states into clickable first-use actions
+  - `apps/web/src/pages/chat/ChatPage.tsx` now shows starter question chips in both the `no active conversation` and `no messages` states, and clicking one sends the first question directly through the existing stream path
+  - the `no active conversation` state also keeps a direct path back to `/documents` so users can still jump back to upload when needed
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/chat/ChatPage.tsx docs/current-progress.md`
+
+- `documents ready-state first-question hints` now make the upload-to-chat handoff more explicit
+  - `apps/web/src/pages/documents/DocumentsPage.tsx` now shows starter-question badges inside the ready banner once the current library is fully ready for chat
+  - this keeps the likely first prompts visible right where users finish uploading, before they jump into chat
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/documents/DocumentsPage.tsx docs/current-progress.md`
+
+- `starter-question helper alignment` now keeps the chat and documents entry hints on the same source of truth
+  - `apps/web/src/pages/chat/chat-page-helpers.ts` now owns the shared starter-question list
+  - `apps/web/src/pages/chat/ChatPage.tsx` and `apps/web/src/pages/documents/DocumentsPage.tsx` now both read their starter prompts from that helper instead of keeping separate inline arrays
+  - `apps/web/test/chat-page-helpers.test.js` now covers both the Chinese and English starter-question sets
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/chat-page-helpers.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/chat/chat-page-helpers.ts apps/web/src/pages/chat/ChatPage.tsx apps/web/src/pages/documents/DocumentsPage.tsx apps/web/test/chat-page-helpers.test.js docs/current-progress.md`
+
+- `state-aware starter-question variants` now keep the shared prompts aligned while still letting each page ask the more natural first question
+  - `apps/web/src/pages/chat/chat-page-helpers.ts` now supports `chat` and `documents` starter-question variants on the same UTF-8-safe source of truth
+  - `apps/web/src/pages/chat/ChatPage.tsx` continues to use the chat-oriented first question, while `apps/web/src/pages/documents/DocumentsPage.tsx` uses the upload/ready-state version that speaks about the current batch of library items
+  - `apps/web/test/chat-page-helpers.test.js` now verifies both contexts explicitly
+  - focused validation:
+    - `pnpm --filter @rag-system/web exec node --test test/chat-page-helpers.test.js`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `git diff --check -- apps/web/src/pages/chat/chat-page-helpers.ts apps/web/src/pages/chat/ChatPage.tsx apps/web/src/pages/documents/DocumentsPage.tsx apps/web/test/chat-page-helpers.test.js docs/current-progress.md`
+
 - `frontend large-list containment pass` completed a bounded maintenance wave on the current web admin / workspace surfaces without opening a new frontend architecture track
   - `apps/api/src/modules/documents/documents.controller.ts` / `documents.service.ts` added paged document-list and document-summary endpoints, and `apps/web/src/pages/documents/DocumentsPage.tsx` now renders the library from `summary + paged list` instead of full-document fetches
   - `apps/web/src/pages/usage/UsagePage.tsx`, `apps/web/src/pages/workbench/WorkbenchPage.tsx`, and `apps/web/src/pages/assistant/AssistantPage.tsx` now consume document summary counts directly instead of pulling the full document array only to derive totals
