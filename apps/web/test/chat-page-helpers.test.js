@@ -95,13 +95,30 @@ test('chat page helpers resolve no-documents readiness', async () => {
   assert.deepEqual(result, { kind: 'no_documents' });
 });
 
-test('chat page helpers prioritize failed documents over processing', async () => {
+test('chat page helpers keep library ready when some documents are already ready', async () => {
   const { buildChatReadinessState } = await loadChatPageHelpers();
 
   const result = buildChatReadinessState(
     {
       totalDocuments: 4,
       readyDocuments: 1,
+      processingDocuments: 2,
+      failedDocuments: 1,
+      totalChunks: 12
+    },
+    true
+  );
+
+  assert.deepEqual(result, { kind: 'ready' });
+});
+
+test('chat page helpers show failed readiness when no document is ready yet', async () => {
+  const { buildChatReadinessState } = await loadChatPageHelpers();
+
+  const result = buildChatReadinessState(
+    {
+      totalDocuments: 4,
+      readyDocuments: 0,
       processingDocuments: 2,
       failedDocuments: 1,
       totalChunks: 12

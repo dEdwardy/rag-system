@@ -20,6 +20,13 @@
 
 ## Recent Landed Increments
 
+- `chat readiness failed+ready handoff` removed one unnecessary block on the default upload-to-chat path
+  - `apps/web/src/pages/chat/chat-page-helpers.ts` now treats the library as chat-ready when at least one document is already ready, even if other documents are still failed
+  - this keeps users on the default ask path instead of forcing a detour whenever a non-critical failed item exists alongside usable documents
+  - `apps/web/test/chat-page-helpers.test.js` now locks both branches: `failed+ready => ready` and `failed with zero ready => failed`
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+
 - `default-path first-question citations/trace guard` tightened the first-question path and trace readability without changing the current stage judgment or roadmap scope
   - `apps/web/src/pages/chat/ChatPage.tsx` keeps first-question starter actions on the existing stream path so the first successful turn follows the same citations/trace inspection flow as normal chat turns
   - `apps/api/src/modules/traces/traces.service.ts` now normalizes inconsistent legacy `citationCountBeforeLimit` metadata so citation-count labels remain readable when `citationLimitHit=true`

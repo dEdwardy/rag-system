@@ -54,7 +54,7 @@ export function buildChatReadinessState(
     return { kind: 'no_documents' };
   }
 
-  if (summary.failedDocuments > 0) {
+  if (summary.failedDocuments > 0 && summary.readyDocuments === 0) {
     return {
       kind: 'failed_documents',
       count: summary.failedDocuments
