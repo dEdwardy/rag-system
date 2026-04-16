@@ -751,6 +751,75 @@ test('AskAssistantService uses request auth context identity when creating a new
   ]);
 });
 
+test('AskAssistantService starts retrieval before user message persistence resolves', async () => {
+  let resolveUserMessage;
+  let retrievalStartedBeforeUserMessage = false;
+  let userMessageResolved = false;
+
+  const service = createAskAssistantService({
+    messages: {
+      createMessage: async (inputValue) => {
+        if (inputValue.role !== 'user') {
+          return { id: 'assistant-message-1', ...inputValue };
+        }
+
+        return await new Promise((resolve) => {
+          resolveUserMessage = () => {
+            userMessageResolved = true;
+            resolve({ id: 'user-message-1', ...inputValue });
+          };
+        });
+      }
+    },
+    retrieval: {
+      retrieve: async () => {
+        retrievalStartedBeforeUserMessage = !userMessageResolved;
+        return {
+          retrievedChunks: [
+            {
+              chunkId: 'chunk-1',
+              documentId: 'document-1',
+              documentTitle: 'Document 1',
+              chunkIndex: 0,
+              content: 'marker content',
+              score: 0.9,
+              isPrimary: true,
+              pageNo: 1,
+              sectionTitle: 'Facts'
+            }
+          ],
+          contextGroups: [],
+          execution: {
+            actualMode: 'vector',
+            usedFallback: false
+          }
+        };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  const askPromise = service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?'
+  });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (typeof resolveUserMessage === 'function') {
+      break;
+    }
+    await Promise.resolve();
+  }
+  assert.equal(typeof resolveUserMessage, 'function');
+  resolveUserMessage();
+  const result = await askPromise;
+
+  assert.equal(retrievalStartedBeforeUserMessage, true);
+  assert.equal(result.traceId, 'trace-1');
+});
+
 test('AskAssistantService scopes existing conversation lookup to current identity', async () => {
   const getConversationCalls = [];
 

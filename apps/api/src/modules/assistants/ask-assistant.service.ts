@@ -293,14 +293,12 @@ export class AskAssistantService {
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
 
-    const { value: userMessage } = await userMessagePromise;
-
     const retrievalResult = await this.retrievalLimiter.execute(() =>
       this.retrieveOrCreateFailedTrace({
         assistantId: assistant.id,
         assistantKbId: assistant.kbId,
         conversationPromise: Promise.resolve(conversationResult),
-        userMessagePromise,
+        getUserMessagePromise: () => userMessagePromise,
         userQuery: input.question,
         retrievalQuery,
         retrievalProfile,
@@ -377,6 +375,8 @@ export class AskAssistantService {
           retrievalMetadata.strategySummary?.rewritePromptId ?? null
       })
     ]);
+
+    const { value: userMessage } = await userMessagePromise;
 
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
@@ -703,20 +703,27 @@ export class AskAssistantService {
       phase: 'started'
     });
 
-    const userMessagePersistStartedAt = Date.now();
-    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> =
-      conversationPromise
-        .then(({ value: conversation }) =>
-          this.messagesService.createMessage({
-            conversationId: conversation.id,
-            role: MessageRole.user,
-            content: input.question
-          })
-        )
-        .then((message) => ({
-          value: message,
-          durationMs: Date.now() - userMessagePersistStartedAt
-        }));
+    let userMessagePromise: Promise<TimedResult<AskPersistedMessage>> | null =
+      null;
+    const getUserMessagePromise = () => {
+      if (userMessagePromise == null) {
+        const userMessagePersistStartedAt = Date.now();
+        userMessagePromise = conversationPromise
+          .then(({ value: conversation }) =>
+            this.messagesService.createMessage({
+              conversationId: conversation.id,
+              role: MessageRole.user,
+              content: input.question
+            })
+          )
+          .then((message) => ({
+            value: message,
+            durationMs: Date.now() - userMessagePersistStartedAt
+          }));
+      }
+
+      return userMessagePromise;
+    };
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -794,7 +801,7 @@ export class AskAssistantService {
           assistantId: assistant.id,
           assistantKbId: assistant.kbId,
           conversationPromise,
-          userMessagePromise,
+          getUserMessagePromise,
           userQuery: input.question,
           retrievalQuery,
           retrievalProfile,
@@ -810,10 +817,19 @@ export class AskAssistantService {
     const retrievedChunks = retrievalResult.retrievedChunks;
     const contextGroups = retrievalResult.contextGroups;
 
-    const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
-      Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
-      Promise.resolve(
-        this.buildRetrievalMetadata({
+    const conversationAndUserMessagePromise = Promise.all([
+      conversationPromise,
+      getUserMessagePromise()
+    ]).then(([conversationResult, userMessageResult]) => ({
+      conversation: conversationResult.value,
+      conversationLoadMs: conversationResult.durationMs,
+      userMessage: userMessageResult.value,
+      userMessagePersistMs: userMessageResult.durationMs
+    }));
+    const retrievalArtifactsPromise = conversationAndUserMessagePromise.then(
+      () => ({
+        retrievalScoresJson: this.buildRetrievalScoresJson(retrievedChunks),
+        retrievalMetadata: this.buildRetrievalMetadata({
           strategy: retrievalStrategy,
           filters: retrievalFilters,
           rewrittenQuery: rewritten.rewrittenQuery,
@@ -838,28 +854,34 @@ export class AskAssistantService {
           promptContextChars: null,
           promptContextApproxTokens: null
         }) as AskRetrievalMetadataJson
-      )
-    ]);
-    const [
-      { value: conversation, durationMs: conversationLoadMs },
-      { value: userMessage, durationMs: userMessagePersistMs }
-    ] = await Promise.all([conversationPromise, userMessagePromise]);
+      })
+    );
 
     const traceCreateStartedAt = Date.now();
-    const tracePromise = this.tracesService.createTrace({
-      conversationId: conversation.id,
-      assistantId: assistant.id,
-      userMessageId: userMessage.id,
-      userQuery: input.question,
-      rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-      retrievedChunkIdsJson: retrievedChunks.map(
-        (chunk: AskResultChunk) => chunk.chunkId
-      ),
-      retrievalScoresJson,
-      retrievalMetadataJson: retrievalMetadata,
-      modelName: rewritten.modelName ?? undefined,
-      status: TraceStatus.success
-    });
+    const tracePromise = Promise.all([
+      conversationAndUserMessagePromise,
+      retrievalArtifactsPromise
+    ]).then(
+      ([
+        { conversation, userMessage },
+        { retrievalScoresJson, retrievalMetadata }
+      ]) =>
+        this.tracesService.createTrace({
+          conversationId: conversation.id,
+          assistantId: assistant.id,
+          userMessageId: userMessage.id,
+          userQuery: input.question,
+          rewrittenQuery:
+            retrievalQuery !== input.question ? retrievalQuery : null,
+          retrievedChunkIdsJson: retrievedChunks.map(
+            (chunk: AskResultChunk) => chunk.chunkId
+          ),
+          retrievalScoresJson,
+          retrievalMetadataJson: retrievalMetadata,
+          modelName: rewritten.modelName ?? undefined,
+          status: TraceStatus.success
+        })
+    );
     let trace: { id: string } | null = null;
     let traceCreateMs = 0;
 
@@ -933,6 +955,14 @@ export class AskAssistantService {
               });
             })();
       const answerGenerationMs = Date.now() - generationStartedAt;
+      const {
+        conversation,
+        conversationLoadMs,
+        userMessage,
+        userMessagePersistMs
+      } = await conversationAndUserMessagePromise;
+      const { retrievalScoresJson, retrievalMetadata } =
+        await retrievalArtifactsPromise;
       trace = await tracePromise;
       traceCreateMs = Date.now() - traceCreateStartedAt;
       const promptSnapshot = this.buildPromptSnapshot({
@@ -1196,6 +1226,10 @@ export class AskAssistantService {
 
       const message =
         error instanceof Error ? error.message : 'Unknown ask pipeline error.';
+      const { conversation, conversationLoadMs, userMessagePersistMs } =
+        await conversationAndUserMessagePromise;
+      const { retrievalScoresJson, retrievalMetadata } =
+        await retrievalArtifactsPromise;
       const resolvedTrace = trace ?? (await tracePromise);
       trace = resolvedTrace;
       const promptSnapshot = this.buildPromptSnapshot({
@@ -2012,7 +2046,7 @@ export class AskAssistantService {
     assistantId: string;
     assistantKbId: string;
     conversationPromise: Promise<TimedResult<AskConversationRef>>;
-    userMessagePromise: Promise<TimedResult<AskPersistedMessage>>;
+    getUserMessagePromise: () => Promise<TimedResult<AskPersistedMessage>>;
     userQuery: string;
     retrievalQuery: string;
     retrievalProfile: {
@@ -2057,7 +2091,7 @@ export class AskAssistantService {
       const [{ value: conversation }, { value: userMessage }] =
         await Promise.all([
           input.conversationPromise,
-          input.userMessagePromise
+          input.getUserMessagePromise()
         ]);
       const failedTrace = await this.tracesService.createTrace({
         conversationId: conversation.id,

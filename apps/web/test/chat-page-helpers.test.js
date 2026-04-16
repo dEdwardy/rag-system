@@ -47,7 +47,7 @@ test('chat page helpers build citation context with page and section', async () 
     }
   );
 
-  assert.equal(result, 'page 4 - Streaming');
+  assert.equal(result, 'Spec • page 4 • "Streaming"');
 });
 
 test('chat page helpers omit empty citation context parts', async () => {
@@ -67,7 +67,107 @@ test('chat page helpers omit empty citation context parts', async () => {
     }
   );
 
-  assert.equal(result, null);
+  assert.equal(result, 'Spec');
+});
+
+test('chat page helpers trim citation section title readability text', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-3',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: null,
+      sectionTitle: '  Streaming  ',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • "Streaming"');
+});
+
+test('chat page helpers skip whitespace-only citation section title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: '   ',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • page 7');
+});
+
+test('chat page helpers strip markdown heading marker from citation section title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4a',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: '### Streaming Details',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • page 7 • "Streaming Details"');
+});
+
+test('chat page helpers skip duplicate citation section title when it matches source title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4b',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: ' spec ',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • page 7');
+});
+
+test('chat page helpers skip whitespace-only citation source title', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-5',
+      documentId: 'document-1',
+      documentTitle: '   ',
+      pageNo: 7,
+      sectionTitle: 'Overview',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'page 7 • "Overview"');
 });
 
 test('chat page helpers resolve no active knowledge base readiness', async () => {
@@ -95,13 +195,30 @@ test('chat page helpers resolve no-documents readiness', async () => {
   assert.deepEqual(result, { kind: 'no_documents' });
 });
 
-test('chat page helpers prioritize failed documents over processing', async () => {
+test('chat page helpers keep library ready when some documents are already ready', async () => {
   const { buildChatReadinessState } = await loadChatPageHelpers();
 
   const result = buildChatReadinessState(
     {
       totalDocuments: 4,
       readyDocuments: 1,
+      processingDocuments: 2,
+      failedDocuments: 1,
+      totalChunks: 12
+    },
+    true
+  );
+
+  assert.deepEqual(result, { kind: 'ready' });
+});
+
+test('chat page helpers show failed readiness when no document is ready yet', async () => {
+  const { buildChatReadinessState } = await loadChatPageHelpers();
+
+  const result = buildChatReadinessState(
+    {
+      totalDocuments: 4,
+      readyDocuments: 0,
       processingDocuments: 2,
       failedDocuments: 1,
       totalChunks: 12
@@ -189,4 +306,73 @@ test('chat page helpers build starter questions for documents context', async ()
 
   assert.equal(zhResult[0], '这批资料主要讲了什么？');
   assert.equal(enResult[0], 'What are these library items mainly about?');
+});
+
+test('chat page helpers build chat starter question href', async () => {
+  const { buildChatStarterQuestionHref } = await loadChatPageHelpers();
+
+  const result = buildChatStarterQuestionHref(
+    '  What are these items about?  '
+  );
+
+  assert.equal(result, '/?starterQuestion=What+are+these+items+about%3F');
+});
+
+test('chat page helpers build auto-ask starter question href', async () => {
+  const { buildChatStarterQuestionHref } = await loadChatPageHelpers();
+
+  const result = buildChatStarterQuestionHref('What are these items about?', {
+    autoAsk: true
+  });
+
+  assert.equal(result, '/?starterQuestion=What+are+these+items+about%3F&ask=1');
+});
+
+test('chat page helpers parse chat starter question from search', async () => {
+  const { parseChatStarterQuestionFromSearch } = await loadChatPageHelpers();
+
+  assert.equal(
+    parseChatStarterQuestionFromSearch(
+      '?starterQuestion=What+are+these+items+about%3F'
+    ),
+    'What are these items about?'
+  );
+  assert.equal(parseChatStarterQuestionFromSearch('?starterQuestion=+'), null);
+  assert.equal(parseChatStarterQuestionFromSearch(''), null);
+});
+
+test('chat page helpers parse chat auto-ask flag from search', async () => {
+  const { parseChatAutoAskFromSearch } = await loadChatPageHelpers();
+
+  assert.equal(parseChatAutoAskFromSearch('?starterQuestion=What&ask=1'), true);
+  assert.equal(parseChatAutoAskFromSearch('?starterQuestion=What'), false);
+  assert.equal(parseChatAutoAskFromSearch('?ask=0'), false);
+});
+
+test('chat page helpers build trace summary hint with scan-first priority', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    failureReadabilitySentence: '  Retrieval failed before ranking.  ',
+    answerStatusSourceReadabilitySentence:
+      'Answer status from fallback metadata.',
+    missingInformationProvenanceSentence:
+      'Missing information derived from answer evidence.',
+    retrievalModeProvenanceSentence: 'Retrieval ran in vector mode.'
+  });
+
+  assert.equal(result, 'Retrieval failed before ranking.');
+});
+
+test('chat page helpers return null trace summary hint when all fields are blank', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    failureReadabilitySentence: '  ',
+    answerStatusSourceReadabilitySentence: null,
+    missingInformationProvenanceSentence: undefined,
+    retrievalModeProvenanceSentence: '\n'
+  });
+
+  assert.equal(result, null);
 });

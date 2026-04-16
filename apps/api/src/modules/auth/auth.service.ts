@@ -66,6 +66,21 @@ type DefaultAssistantCandidate = {
   name?: string;
 };
 
+type DefaultAssistantSelectionPreference = {
+  retrievalProfileId?: string;
+};
+
+type DefaultKnowledgeBaseCandidate = {
+  id: string;
+  status?: 'active' | 'inactive';
+  name?: string;
+};
+
+type DefaultRetrievalProfileCandidate = {
+  id: string;
+  name?: string;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -698,15 +713,32 @@ export class AuthService {
       return;
     }
 
-    const existingKnowledgeBase = await prisma.knowledgeBase.findFirst({
-      where: {
-        tenantId: input.tenantId,
-        ownerId: input.userId
-      },
-      select: {
-        id: true
-      }
-    });
+    const existingKnowledgeBase =
+      typeof prisma.knowledgeBase.findMany === 'function'
+        ? ((
+            await prisma.knowledgeBase.findMany({
+              where: {
+                tenantId: input.tenantId,
+                ownerId: input.userId
+              },
+              select: {
+                id: true,
+                status: true,
+                name: true
+              }
+            })
+          )
+            .slice()
+            .sort(compareCanonicalPrimaryKnowledgeBaseCandidate)[0] ?? null)
+        : await prisma.knowledgeBase.findFirst({
+            where: {
+              tenantId: input.tenantId,
+              ownerId: input.userId
+            },
+            select: {
+              id: true
+            }
+          });
 
     const knowledgeBase =
       existingKnowledgeBase ??
@@ -723,15 +755,31 @@ export class AuthService {
         }
       }));
 
-    const existingRetrievalProfile = await prisma.retrievalProfile.findFirst({
-      where: {
-        tenantId: input.tenantId,
-        ownerId: input.userId
-      },
-      select: {
-        id: true
-      }
-    });
+    const existingRetrievalProfile =
+      typeof prisma.retrievalProfile.findMany === 'function'
+        ? ((
+            await prisma.retrievalProfile.findMany({
+              where: {
+                tenantId: input.tenantId,
+                ownerId: input.userId
+              },
+              select: {
+                id: true,
+                name: true
+              }
+            })
+          )
+            .slice()
+            .sort(compareCanonicalDefaultRetrievalProfileCandidate)[0] ?? null)
+        : await prisma.retrievalProfile.findFirst({
+            where: {
+              tenantId: input.tenantId,
+              ownerId: input.userId
+            },
+            select: {
+              id: true
+            }
+          });
 
     const retrievalProfile =
       existingRetrievalProfile ??
@@ -757,7 +805,10 @@ export class AuthService {
           tenantId: input.tenantId,
           kbId: knowledgeBase.id
         },
-        prisma
+        prisma,
+        {
+          retrievalProfileId: retrievalProfile.id
+        }
       );
 
     const existingAssistant =
@@ -769,7 +820,10 @@ export class AuthService {
             ownerId: input.userId
           }
         },
-        prisma
+        prisma,
+        {
+          retrievalProfileId: retrievalProfile.id
+        }
       ));
 
     if (existingAssistant == null) {
@@ -819,7 +873,8 @@ export class AuthService {
 
   private async findCanonicalAssistantCandidate(
     where: Prisma.AssistantWhereInput,
-    prisma: AuthWriteClient
+    prisma: AuthWriteClient,
+    preference?: DefaultAssistantSelectionPreference
   ): Promise<DefaultAssistantCandidate | null> {
     if (typeof prisma.assistant.findMany === 'function') {
       const candidates = await prisma.assistant.findMany({
@@ -839,11 +894,44 @@ export class AuthService {
 
       return candidates
         .slice()
-        .sort(compareCanonicalDefaultAssistantCandidate)[0];
+        .sort((left, right) =>
+          compareCanonicalDefaultAssistantCandidate(left, right, preference)
+        )[0];
+    }
+
+    if (typeof prisma.assistant.findFirst !== 'function') {
+      return null;
+    }
+
+    const defaultNamedFallbackCandidate = await prisma.assistant.findFirst({
+      where: {
+        AND: [
+          where,
+          {
+            name: DEFAULT_ASSISTANT_TEMPLATE.name
+          }
+        ]
+      },
+      orderBy: {
+        id: 'asc'
+      },
+      select: {
+        id: true,
+        kbId: true,
+        retrievalProfileId: true,
+        status: true
+      }
+    });
+
+    if (defaultNamedFallbackCandidate != null) {
+      return defaultNamedFallbackCandidate;
     }
 
     const fallbackCandidate = await prisma.assistant.findFirst({
       where,
+      orderBy: {
+        id: 'asc'
+      },
       select: {
         id: true,
         kbId: true,
@@ -1121,11 +1209,42 @@ export class AuthService {
 
 function compareCanonicalDefaultAssistantCandidate(
   left: DefaultAssistantCandidate,
-  right: DefaultAssistantCandidate
+  right: DefaultAssistantCandidate,
+  preference?: DefaultAssistantSelectionPreference
 ) {
   const scoreDifference =
-    scoreCanonicalDefaultAssistantCandidate(right) -
-    scoreCanonicalDefaultAssistantCandidate(left);
+    scoreCanonicalDefaultAssistantCandidate(right, preference) -
+    scoreCanonicalDefaultAssistantCandidate(left, preference);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function compareCanonicalPrimaryKnowledgeBaseCandidate(
+  left: DefaultKnowledgeBaseCandidate,
+  right: DefaultKnowledgeBaseCandidate
+) {
+  const scoreDifference =
+    scoreCanonicalPrimaryKnowledgeBaseCandidate(right) -
+    scoreCanonicalPrimaryKnowledgeBaseCandidate(left);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function compareCanonicalDefaultRetrievalProfileCandidate(
+  left: DefaultRetrievalProfileCandidate,
+  right: DefaultRetrievalProfileCandidate
+) {
+  const scoreDifference =
+    scoreCanonicalDefaultRetrievalProfileCandidate(right) -
+    scoreCanonicalDefaultRetrievalProfileCandidate(left);
 
   if (scoreDifference !== 0) {
     return scoreDifference;
@@ -1135,11 +1254,12 @@ function compareCanonicalDefaultAssistantCandidate(
 }
 
 function scoreCanonicalDefaultAssistantCandidate(
-  assistant: DefaultAssistantCandidate
+  assistant: DefaultAssistantCandidate,
+  preference?: DefaultAssistantSelectionPreference
 ) {
   let score = 0;
 
-  if (assistant.name === DEFAULT_ASSISTANT_TEMPLATE.name) {
+  if (isDefaultAssistantName(assistant.name)) {
     score += 100;
   }
 
@@ -1147,5 +1267,68 @@ function scoreCanonicalDefaultAssistantCandidate(
     score += 10;
   }
 
+  if (
+    typeof preference?.retrievalProfileId === 'string' &&
+    assistant.retrievalProfileId === preference.retrievalProfileId
+  ) {
+    score += 50;
+  }
+
   return score;
+}
+
+function scoreCanonicalPrimaryKnowledgeBaseCandidate(
+  knowledgeBase: DefaultKnowledgeBaseCandidate
+) {
+  let score = 0;
+
+  if (isDefaultPrimaryKnowledgeBaseName(knowledgeBase.name)) {
+    score += 100;
+  }
+
+  if (knowledgeBase.status === 'active') {
+    score += 10;
+  }
+
+  return score;
+}
+
+function scoreCanonicalDefaultRetrievalProfileCandidate(
+  retrievalProfile: DefaultRetrievalProfileCandidate
+) {
+  let score = 0;
+
+  if (isDefaultRetrievalProfileName(retrievalProfile.name)) {
+    score += 100;
+  }
+
+  return score;
+}
+
+function isDefaultAssistantName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_ASSISTANT_TEMPLATE.name)
+  );
+}
+
+function isDefaultPrimaryKnowledgeBaseName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_PRIMARY_KB_NAME)
+  );
+}
+
+function isDefaultRetrievalProfileName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_RETRIEVAL_PROFILE_NAME)
+  );
+}
+
+function normalizeCanonicalDefaultName(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }

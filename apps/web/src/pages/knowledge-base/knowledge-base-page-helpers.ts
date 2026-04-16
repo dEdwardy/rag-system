@@ -78,12 +78,14 @@ export type KnowledgeBaseWorkspaceNextAction = {
     | 'add_documents'
     | 'review_failed_documents'
     | 'wait_for_processing'
+    | 'chat_while_processing'
     | 'prepare_default_assistant'
     | 'workspace_ready';
   labelKey:
     | 'knowledgeBase.nextAction.addDocuments'
     | 'knowledgeBase.nextAction.reviewFailedDocuments'
     | 'knowledgeBase.nextAction.waitForProcessing'
+    | 'knowledgeBase.nextAction.chatWhileProcessing'
     | 'knowledgeBase.nextAction.prepareDefaultAssistant'
     | 'knowledgeBase.nextAction.workspaceReady';
   actionHref: '/documents' | '/assistant' | '/';
@@ -117,11 +119,19 @@ export function buildKnowledgeBaseWorkspaceNextAction({
     };
   }
 
-  if (summary.processingCount > 0) {
+  if (summary.processingCount > 0 && summary.readyCount === 0) {
     return {
       action: 'wait_for_processing',
       labelKey: 'knowledgeBase.nextAction.waitForProcessing',
       actionHref: '/documents'
+    };
+  }
+
+  if (summary.processingCount > 0) {
+    return {
+      action: 'chat_while_processing',
+      labelKey: 'knowledgeBase.nextAction.chatWhileProcessing',
+      actionHref: '/'
     };
   }
 

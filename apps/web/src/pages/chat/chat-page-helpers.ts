@@ -17,22 +17,51 @@ export function formatMessageTime(value: string, locale: string) {
 }
 
 export function buildCitationContext(
-  citation: Pick<Citation, 'pageNo' | 'sectionTitle'>,
+  citation: Pick<Citation, 'documentTitle' | 'pageNo' | 'sectionTitle'>,
   labels: {
     pageLabel: (pageNo: number) => string;
   }
 ) {
   const parts: string[] = [];
+  const documentTitle = normalizeCitationText(citation.documentTitle);
+  const sectionTitle = normalizeCitationSectionTitle(citation.sectionTitle);
+
+  if (documentTitle) {
+    parts.push(documentTitle);
+  }
 
   if (citation.pageNo != null) {
     parts.push(labels.pageLabel(citation.pageNo));
   }
 
-  if (citation.sectionTitle) {
-    parts.push(citation.sectionTitle);
+  if (
+    sectionTitle &&
+    (!documentTitle ||
+      sectionTitle.toLocaleLowerCase() !== documentTitle.toLocaleLowerCase())
+  ) {
+    parts.push(`"${sectionTitle}"`);
   }
 
-  return parts.length > 0 ? parts.join(' - ') : null;
+  return parts.length > 0 ? parts.join(' • ') : null;
+}
+
+function normalizeCitationText(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.replace(/\s+/g, ' ');
+}
+
+function normalizeCitationSectionTitle(value: string | null | undefined) {
+  const normalized = normalizeCitationText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const withoutMarkdownHeading = normalized.replace(/^#{1,6}\s+/, '').trim();
+  return withoutMarkdownHeading || null;
 }
 
 export type ChatReadinessState =
@@ -54,7 +83,7 @@ export function buildChatReadinessState(
     return { kind: 'no_documents' };
   }
 
-  if (summary.failedDocuments > 0) {
+  if (summary.failedDocuments > 0 && summary.readyDocuments === 0) {
     return {
       kind: 'failed_documents',
       count: summary.failedDocuments
@@ -72,6 +101,9 @@ export function buildChatReadinessState(
 }
 
 type StarterQuestionContext = 'chat' | 'documents';
+
+const CHAT_STARTER_QUESTION_PARAM = 'starterQuestion';
+const CHAT_AUTO_ASK_PARAM = 'ask';
 
 const CHINESE_STARTER_QUESTIONS = {
   chat: [
@@ -106,4 +138,63 @@ export function buildStarterQuestions(
   return locale === 'zh'
     ? [...CHINESE_STARTER_QUESTIONS[context]]
     : [...ENGLISH_STARTER_QUESTIONS[context]];
+}
+
+export function buildChatStarterQuestionHref(
+  question: string,
+  options?: { autoAsk?: boolean }
+) {
+  const normalizedQuestion = question.trim();
+  if (!normalizedQuestion) {
+    return '/';
+  }
+
+  const searchParams = new URLSearchParams();
+  searchParams.set(CHAT_STARTER_QUESTION_PARAM, normalizedQuestion);
+  if (options?.autoAsk) {
+    searchParams.set(CHAT_AUTO_ASK_PARAM, '1');
+  }
+  return `/?${searchParams.toString()}`;
+}
+
+export function parseChatStarterQuestionFromSearch(search: string) {
+  const searchParams = new URLSearchParams(search);
+  const rawQuestion = searchParams.get(CHAT_STARTER_QUESTION_PARAM);
+  if (!rawQuestion) {
+    return null;
+  }
+
+  const normalizedQuestion = rawQuestion.trim();
+  return normalizedQuestion.length > 0 ? normalizedQuestion : null;
+}
+
+export function parseChatAutoAskFromSearch(search: string) {
+  const searchParams = new URLSearchParams(search);
+  return searchParams.get(CHAT_AUTO_ASK_PARAM) === '1';
+}
+
+type TraceSummaryHintInput = {
+  failureReadabilitySentence?: string | null;
+  answerStatusSourceReadabilitySentence?: string | null;
+  missingInformationProvenanceSentence?: string | null;
+  retrievalModeProvenanceSentence?: string | null;
+};
+
+function normalizeTraceSummaryHintPart(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+export function buildTraceSummaryHint(summary: TraceSummaryHintInput) {
+  return (
+    normalizeTraceSummaryHintPart(summary.failureReadabilitySentence) ??
+    normalizeTraceSummaryHintPart(
+      summary.answerStatusSourceReadabilitySentence
+    ) ??
+    normalizeTraceSummaryHintPart(
+      summary.missingInformationProvenanceSentence
+    ) ??
+    normalizeTraceSummaryHintPart(summary.retrievalModeProvenanceSentence) ??
+    null
+  );
 }

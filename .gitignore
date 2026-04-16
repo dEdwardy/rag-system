@@ -31,10 +31,12 @@ ui/version-b-creative.*
 !.opencode/loop/README.md
 !.opencode/loop/cli.mjs
 .opencode/loop/handoffs/
+.opencode/loop/materialized/
 .opencode/loop/loop-run.log
 .opencode/loop/loop.lock/
 !.opencode/loop/harness/
 !.opencode/loop/harness/*.mjs
+!.opencode/loop/harness/*.md
 !.opencode/loop/harness/systemd/
 !.opencode/loop/harness/systemd/*.service
 !.opencode/loop/harness/systemd/*.timer
@@ -49,7 +51,7 @@ __pycache__/
 ragas_results/
 p5-test.json
 package-lock.json
-.opencode/
+
 apps/web/.agents/
 apps/web/.claude/
 docker/infra/images/

@@ -842,6 +842,7 @@ export type AskResponse = {
   answerStatusSource?: TraceAnswerStatusSource | null;
   answerStatusSourceReadabilityLabel?: TraceSummary['answerStatusSourceReadabilityLabel'];
   answerStatusSourceReadabilitySentence?: TraceSummary['answerStatusSourceReadabilitySentence'];
+  failureReadabilitySentence?: TraceSummary['failureReadabilitySentence'];
   answerProvenanceSentence?: TraceSummary['answerProvenanceSentence'];
   answerProvenanceReadabilitySentence?: TraceSummary['answerProvenanceReadabilitySentence'];
   missingInformationSource?: TraceSummary['missingInformationSource'];

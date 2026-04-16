@@ -26,7 +26,10 @@ import {
 } from '../../features/api/hooks';
 import { getPrimaryKnowledgeBase } from '../../features/api/workspace-selection';
 import { useI18n } from '../../i18n/I18nProvider';
-import { buildStarterQuestions } from '../chat/chat-page-helpers';
+import {
+  buildChatStarterQuestionHref,
+  buildStarterQuestions
+} from '../chat/chat-page-helpers';
 
 const DOCUMENTS_PAGE_SIZE = 20;
 
@@ -130,12 +133,9 @@ export function DocumentsPage() {
         return {
           badgeColor: 'yellow',
           badgeLabel: t('documents.workspaceStatusProcessing'),
-          nextAction:
-            locale === 'zh'
-              ? '已有资料可提问，先去对话页开始首轮问题。'
-              : 'Some items are still processing, but you can start asking in chat now.',
+          nextAction: t('documents.workspaceNextActionProcessingWithReady'),
           nextActionHref: '/',
-          nextActionLabel: locale === 'zh' ? '前往对话' : 'Go to chat'
+          nextActionLabel: t('documents.workspaceNextActionLinkReady')
         } as const;
       }
 
@@ -163,7 +163,6 @@ export function DocumentsPage() {
     firstProcessingDocument,
     hasActiveKnowledgeBase,
     hasProcessingDocuments,
-    locale,
     readyCount,
     t
   ]);
@@ -499,7 +498,28 @@ export function DocumentsPage() {
       ) : null}
       {hasProcessingDocuments ? (
         <Alert color="yellow" radius="xl" variant="light">
-          {t('documents.processingBanner')}
+          <Stack gap="xs">
+            <Text size="sm">
+              {readyCount > 0
+                ? t('documents.processingBannerWithReady')
+                : t('documents.processingBanner')}
+            </Text>
+            {readyCount > 0 ? (
+              <Group>
+                <Button
+                  className="workspace-button"
+                  color="yellow"
+                  component={Link}
+                  radius="xl"
+                  size="xs"
+                  to="/"
+                  variant="white"
+                >
+                  {t('documents.workspaceNextActionLinkReady')}
+                </Button>
+              </Group>
+            ) : null}
+          </Stack>
         </Alert>
       ) : null}
       {hasActiveKnowledgeBase &&
@@ -523,8 +543,12 @@ export function DocumentsPage() {
                 {starterQuestions.map((question) => (
                   <Badge
                     color="teal"
+                    component={Link}
                     key={question}
                     radius="sm"
+                    to={buildChatStarterQuestionHref(question, {
+                      autoAsk: true
+                    })}
                     variant="light"
                   >
                     {question}

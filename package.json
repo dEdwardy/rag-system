@@ -43,7 +43,8 @@
     "test:web:legacy": "pnpm --filter @rag-system/web test:legacy",
     "test:web:smoke": "pnpm --filter @rag-system/web test:smoke:legacy",
     "test:web:smoke:legacy": "pnpm --filter @rag-system/web test:smoke:legacy",
-    "test:web-smoke": "pnpm run test:web:smoke"
+    "test:web-smoke": "pnpm run test:web:smoke",
+    "test:harness": "node --test .opencode/loop/harness/*.test.mjs"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": [

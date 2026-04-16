@@ -10,7 +10,7 @@ import {
   useRef,
   useState
 } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { IconActionButton, IconActionLink } from '../../components/IconAction';
 import { StatePanel } from '../../components/StatePanel';
 import {
@@ -34,7 +34,10 @@ import type {
   Message
 } from '../../types/api';
 import {
+  buildTraceSummaryHint,
   buildChatReadinessState,
+  parseChatAutoAskFromSearch,
+  parseChatStarterQuestionFromSearch,
   buildStarterQuestions,
   formatMessageTime
 } from './chat-page-helpers';
@@ -344,6 +347,7 @@ function ChatWorkspacePanelsFallback({ history }: { history: string }) {
 }
 
 export function ChatPage() {
+  const location = useLocation();
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
@@ -357,8 +361,11 @@ export function ChatPage() {
   );
   const [isTranscriptNearBottom, setIsTranscriptNearBottom] = useState(true);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [traceSummaryHintsByMessageId, setTraceSummaryHintsByMessageId] =
+    useState<Record<string, string>>({});
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
+  const autoSubmittedStarterSearchRef = useRef<string | null>(null);
 
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
@@ -424,7 +431,7 @@ export function ChatPage() {
       deleteConversationError: t('chat.copy.deleteConversationError'),
       recentHistoryHint:
         locale === 'zh'
-          ? `这里先显示最近 ${chatHistoryVisibleCount} 个会话，按需继续加载，避免主聊天页一次性吃下完整历史。`
+          ? `这里先显示最近 ${chatHistoryVisibleCount} 个会话，按需继续加载，避免主聊天页一次性加载完整历史。`
           : `The sidebar starts with the latest ${chatHistoryVisibleCount} conversations and loads more on demand to keep chat responsive.`,
       loadMoreHistory:
         locale === 'zh' ? '加载更多会话' : 'Load more conversations',
@@ -446,6 +453,14 @@ export function ChatPage() {
       starterQuestions: buildStarterQuestions(locale, 'chat')
     }),
     [chatHistoryVisibleCount, locale, t]
+  );
+  const starterQuestionFromSearch = useMemo(
+    () => parseChatStarterQuestionFromSearch(location.search),
+    [location.search]
+  );
+  const shouldAutoAskStarterFromSearch = useMemo(
+    () => parseChatAutoAskFromSearch(location.search),
+    [location.search]
   );
 
   const hasSingleAssistantBinding =
@@ -472,6 +487,14 @@ export function ChatPage() {
   useEffect(() => {
     setIsTranscriptNearBottom(true);
   }, [resolvedConversationId]);
+
+  useEffect(() => {
+    if (!starterQuestionFromSearch) {
+      return;
+    }
+
+    setComposerValue(starterQuestionFromSearch);
+  }, [starterQuestionFromSearch]);
 
   const displayedMessages: DisplayedMessage[] = useMemo(
     () =>
@@ -515,6 +538,22 @@ export function ChatPage() {
   );
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
+      const traceSummaryHint = buildTraceSummaryHint({
+        failureReadabilitySentence: finalData.failureReadabilitySentence,
+        answerStatusSourceReadabilitySentence:
+          finalData.answerStatusSourceReadabilitySentence,
+        missingInformationProvenanceSentence:
+          finalData.missingInformationProvenanceSentence,
+        retrievalModeProvenanceSentence:
+          finalData.retrievalModeProvenanceSentence
+      });
+      if (traceSummaryHint) {
+        setTraceSummaryHintsByMessageId((current) => ({
+          ...current,
+          [finalData.assistantMessageId]: traceSummaryHint
+        }));
+      }
+
       syncFinalTurnToMessageCache({
         finalData: {
           ...finalData,
@@ -740,6 +779,31 @@ export function ChatPage() {
       streamAbortControllerRef.current = null;
     }
   };
+
+  useEffect(() => {
+    if (!starterQuestionFromSearch || !shouldAutoAskStarterFromSearch) {
+      return;
+    }
+
+    if (autoSubmittedStarterSearchRef.current === location.search) {
+      return;
+    }
+
+    if (!canSubmitQuestion || activeConversationId != null || isNewChat) {
+      return;
+    }
+
+    autoSubmittedStarterSearchRef.current = location.search;
+    void submitQuestion({ question: starterQuestionFromSearch });
+  }, [
+    activeConversationId,
+    canSubmitQuestion,
+    isNewChat,
+    location.search,
+    shouldAutoAskStarterFromSearch,
+    starterQuestionFromSearch,
+    submitQuestion
+  ]);
 
   const refreshDefaultAssistantPath = useCallback(async () => {
     await Promise.all([
@@ -996,6 +1060,10 @@ export function ChatPage() {
                 const canRegenerateAnswer =
                   Boolean(regenerateQuestion) && !isStreamingTurnActive;
                 const isCopied = copiedMessageId === message.id;
+                const traceSummaryHint =
+                  isAssistant && !isStreamingAssistant
+                    ? (traceSummaryHintsByMessageId[message.id] ?? null)
+                    : null;
 
                 return (
                   <div
@@ -1051,6 +1119,14 @@ export function ChatPage() {
                           {messageTime ??
                             (isStreamingAssistant ? streamStatusLabel : '')}
                         </span>
+                        {traceSummaryHint ? (
+                          <span
+                            className="min-w-0 truncate text-[11px] text-[var(--app-text-muted)]"
+                            title={traceSummaryHint}
+                          >
+                            {traceSummaryHint}
+                          </span>
+                        ) : null}
                         {isAssistant ? (
                           !isStreamingAssistant && traceId ? (
                             <IconActionLink
