@@ -376,6 +376,34 @@ test('chat page helpers show insufficient-context hint before provenance copy', 
   assert.equal(result, 'Marked as insufficient context in this answer.');
 });
 
+test('chat page helpers explain insufficient-context no-hit reason', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    answerStatus: 'insufficient_context',
+    insufficientContextReason: 'no_retrieval_hits'
+  });
+
+  assert.equal(
+    result,
+    'Marked as insufficient context: retrieval found no relevant source hits.'
+  );
+});
+
+test('chat page helpers explain insufficient-context weak-evidence reason', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    answerStatus: 'insufficient_context',
+    insufficientContextReason: 'retrieved_context_insufficient'
+  });
+
+  assert.equal(
+    result,
+    'Marked as insufficient context: retrieved source evidence was too weak for a reliable answer.'
+  );
+});
+
 test('chat page helpers show fallback hint when fallback metadata is true', async () => {
   const { buildTraceSummaryHint } = await loadChatPageHelpers();
 

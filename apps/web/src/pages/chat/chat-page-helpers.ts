@@ -194,12 +194,33 @@ function normalizeTraceSummaryHintPart(value: string | null | undefined) {
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
+function buildInsufficientContextHint(
+  reason: TraceInsufficientContextReason | null | undefined
+) {
+  if (reason === 'no_retrieval_hits') {
+    return 'Marked as insufficient context: retrieval found no relevant source hits.';
+  }
+
+  if (reason === 'retrieved_context_insufficient') {
+    return 'Marked as insufficient context: retrieved source evidence was too weak for a reliable answer.';
+  }
+
+  return null;
+}
+
 export function buildTraceSummaryHint(summary: TraceSummaryHintInput) {
   const failureHint = normalizeTraceSummaryHintPart(
     summary.failureReadabilitySentence
   );
   if (failureHint) {
     return failureHint;
+  }
+
+  const insufficientContextHint = buildInsufficientContextHint(
+    summary.insufficientContextReason
+  );
+  if (insufficientContextHint) {
+    return insufficientContextHint;
   }
 
   if (summary.answerStatus === 'insufficient_context') {
