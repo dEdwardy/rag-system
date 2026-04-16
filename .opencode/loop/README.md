@@ -21,3 +21,9 @@
 - `loop-run.log`
 
 Only load archived items when tracing a specific regression, decision, or interrupted run.
+
+### Validation Rule
+
+- queue items must use the repository's Vitest-based validation path for tests
+- do not create new queue items that validate with raw `node --test`
+- if an old test file still only runs through the legacy path, treat migrating or replacing that validation path as part of the task before queueing it

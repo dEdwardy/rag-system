@@ -182,6 +182,7 @@ For unattended `opencode-loop` runs, use the repo-local Node harness first:
 - treat structured JSON `error` events from `opencode run --format json` as queue failures even when the process exit code is `0`, so false-success runs do not silently advance the wave
 - after each completed loop increment, commit the change before moving to the next item so work does not pile up in the checkout
 - do not push or open a PR after every commit; wait for a coherent wave to close, then push from `dev` when validation is green and the branch is unlikely to conflict
+- queue-item test validation must use the repository's Vitest path; do not generate new loop items that rely on raw `node --test` in normal task flow
 
 ## Parallel Worktrees
 

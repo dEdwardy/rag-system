@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "cursor": 0,
+  "createdAt": "2026-04-16T08:42:59.5923911Z",
+  "updatedAt": "2026-04-16T10:18:38.962Z",
+  "materializedFrom": "docs/current-context.md + docs/next_steps_rag_project_plan.md + docs/current-progress.md",
+  "materializedWaveId": "default-path-canonical-maintenance-wave",
+  "items": [
+    {
+      "id": "default-assistant-canonical-selection-and-repair",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "migrate api default-path focused tests to vitest and align repair assertions",
+      "goal": "Keep the canonical Default Assistant repair path covered by focused Vitest coverage that matches the current API behavior.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Read docs/current-context.md and docs/next_steps_rag_project_plan.md first, then inspect the current API-side canonical default-assistant repair path and its focused tests. Make the smallest additive change that migrates the relevant focused API tests onto the Vitest path and aligns the canonical default-assistant repair assertions with current behavior. Keep the single-primary-KB contract, avoid new template or multi-KB behavior, and prefer test-path repair over broader API changes unless a real logic gap is proven. Relevant scope: apps/api/src/modules/auth/auth.service.ts, apps/api/src/modules/assistants/assistants.service.ts, apps/api/test/auth-provider-boundary.test.js, apps/api/test/retrieval-profiles-auth-scope.test.js, apps/api/package.json. Run exactly one focused validation command: `pnpm --filter @rag-system/api test:file -- test/auth-provider-boundary.test.js test/retrieval-profiles-auth-scope.test.js --testNamePattern=\"default assistant|canonical default assistant|primary knowledge base|stale owner assistant\"`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "The canonical Default Assistant remains the preferred binding for the current primary knowledge base.",
+          "Repair behavior stays idempotent and does not reopen manual-bind or multi-KB flows."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm --filter @rag-system/api test:file -- test/auth-provider-boundary.test.js test/retrieval-profiles-auth-scope.test.js --testNamePattern=\"default assistant|canonical default assistant|primary knowledge base|stale owner assistant\""
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "medium",
+      "dependsOn": [],
+      "suspendWhen": [
+        "The active product path no longer depends on a canonical Default Assistant bound to one primary knowledge base"
+      ],
+      "backlogWaveId": "default-path-canonical-maintenance-wave",
+      "backlogParentId": "default-path-canonical-maintenance",
+      "plannerFamily": "default-path",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-16T10:16:46.598Z",
+      "updatedAt": "2026-04-16T10:16:46.598Z",
+      "startedBy": "opencode-main-control",
+      "finishedAt": "2026-04-16T10:16:46.598Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "validated via pnpm --filter @rag-system/api test:file -- test/auth-provider-boundary.test.js test/retrieval-profiles-auth-scope.test.js --testNamePattern=\"default assistant|canonical default assistant|primary knowledge base|stale owner assistant\"",
+      "failureReason": null,
+      "completedAt": "2026-04-16T10:16:46.598Z",
+      "sessionId": null,
+      "resultSignal": null,
+      "reportedError": null,
+      "queueResultStatus": "completed",
+      "queueResultCommit": null,
+      "queueFailureMarkers": null,
+      "timedOutAt": null
+    },
+    {
+      "id": "default-path-state-feedback-and-next-action",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "establish web vitest path for default-path copy and helper tests",
+      "goal": "Keep the default-path state feedback and next-action copy covered by a runnable Vitest path in apps/web.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Read docs/current-context.md and docs/next_steps_rag_project_plan.md first, then inspect the current default-path state feedback and next-action wording plus the web test runner setup. Make the smallest additive change that gives apps/web a working Vitest path for the focused default-path copy/helper tests and keeps the knowledge-base, assistant, and chat surfaces aligned around the same prepare/repair contract. Keep the current single-primary-library path, avoid manual-bind wording, and do not change backend contracts. Relevant scope: apps/web/package.json, apps/web/src/pages/knowledge-base/knowledge-base-page-helpers.ts, apps/web/src/pages/assistant/AssistantPage.tsx, apps/web/src/pages/chat/ChatPage.tsx, apps/web/src/i18n/messages.en.ts, apps/web/src/i18n/messages.zh.ts, apps/web/test/i18n-copy.test.js, apps/web/test/knowledge-base-page-helpers.test.js, apps/web/test/chat-page-helpers.test.js. Run exactly one focused validation command: `pnpm --filter @rag-system/web test:vitest:file -- test/i18n-copy.test.js test/knowledge-base-page-helpers.test.js test/chat-page-helpers.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "The prepare/repair default-assistant copy stays consistent across the main web surfaces.",
+          "No manual-bind language or new backend contract is introduced."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm --filter @rag-system/web test:vitest:file -- test/i18n-copy.test.js test/knowledge-base-page-helpers.test.js test/chat-page-helpers.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [],
+      "suspendWhen": [
+        "The default-path prepare/repair copy is already consistent across the main web surfaces"
+      ],
+      "backlogWaveId": "default-path-canonical-maintenance-wave",
+      "backlogParentId": "default-path-canonical-maintenance",
+      "plannerFamily": "default-path",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-16T10:16:46.598Z",
+      "updatedAt": "2026-04-16T10:16:46.598Z",
+      "startedBy": "opencode-main-control",
+      "completedAt": "2026-04-16T10:16:46.598Z",
+      "finishedAt": "2026-04-16T10:16:46.598Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "validated via pnpm --filter @rag-system/web test:vitest:file -- test/i18n-copy.test.js test/knowledge-base-page-helpers.test.js test/chat-page-helpers.test.js",
+      "sessionId": null,
+      "failureReason": null,
+      "resultSignal": null,
+      "reportedError": null,
+      "queueResultStatus": "completed",
+      "queueResultCommit": null,
+      "queueFailureMarkers": null,
+      "timedOutAt": null
+    },
+    {
+      "id": "default-path-focused-regression-protection",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "rerun focused default-path regression after vitest path repairs",
+      "goal": "Keep the default path backed by focused regression checks and doc sync after the API and web Vitest paths are repaired.",
+      "agent": "rag-build",
+      "status": "completed",
+      "promptText": "Read docs/current-context.md, docs/current-progress.md, docs/next_steps_rag_project_plan.md, and docs/project-status-overview.md first, then inspect the current default-path regressions and test coverage after the API and web Vitest path repairs. Make the smallest additive change that closes any remaining focused regression gap for the canonical default path, and update the docs only if they materially drift from the code reality. Keep the scope narrow, avoid broad refactors, and preserve the single-primary-KB/default-assistant contract. Relevant scope: docs/current-context.md, docs/current-progress.md, docs/next_steps_rag_project_plan.md, docs/project-status-overview.md, apps/api/test/auth-provider-boundary.test.js, apps/api/test/retrieval-profiles-auth-scope.test.js, apps/web/test/workspace-selection.test.js, apps/web/test/knowledge-base-page-helpers.test.js, apps/web/test/i18n-copy.test.js, apps/web/package.json, apps/api/package.json. Run exactly one focused validation command: `git diff --check -- docs/current-context.md docs/current-progress.md docs/next_steps_rag_project_plan.md docs/project-status-overview.md && pnpm --filter @rag-system/api test:file -- test/auth-provider-boundary.test.js test/retrieval-profiles-auth-scope.test.js --testNamePattern=\"default assistant|canonical default assistant|primary knowledge base|stale owner assistant\" && pnpm --filter @rag-system/web test:vitest:file -- test/workspace-selection.test.js test/knowledge-base-page-helpers.test.js test/i18n-copy.test.js`. Report the exact changed files and exact validation result.",
+      "acceptance": {
+        "checklist": [
+          "Focused regression coverage for the default path stays current.",
+          "Any doc updates remain aligned with the actual code behavior and do not reopen older roadmap directions."
+        ]
+      },
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "git diff --check -- docs/current-context.md docs/current-progress.md docs/next_steps_rag_project_plan.md docs/project-status-overview.md && pnpm --filter @rag-system/api test:file -- test/auth-provider-boundary.test.js test/retrieval-profiles-auth-scope.test.js --testNamePattern=\"default assistant|canonical default assistant|primary knowledge base|stale owner assistant\" && pnpm --filter @rag-system/web test:vitest:file -- test/workspace-selection.test.js test/knowledge-base-page-helpers.test.js test/i18n-copy.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 1,
+      "riskLevel": "low",
+      "dependsOn": [
+        "default-assistant-canonical-selection-and-repair",
+        "default-path-state-feedback-and-next-action"
+      ],
+      "suspendWhen": [
+        "The default path already has the intended regression protection and docs alignment"
+      ],
+      "backlogWaveId": "default-path-canonical-maintenance-wave",
+      "backlogParentId": "default-path-canonical-maintenance",
+      "plannerFamily": "default-path",
+      "plannerSource": "manual-queue-materializer",
+      "startedAt": "2026-04-16T10:18:38.962Z",
+      "updatedAt": "2026-04-16T10:18:38.962Z",
+      "startedBy": "opencode-main-control",
+      "completedAt": "2026-04-16T10:18:38.962Z",
+      "finishedAt": "2026-04-16T10:18:38.962Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "validated via git diff --check plus focused API/web default-path regression commands",
+      "sessionId": null,
+      "failureReason": null,
+      "resultSignal": null,
+      "reportedError": null,
+      "queueResultStatus": "completed",
+      "queueResultCommit": null,
+      "queueFailureMarkers": null,
+      "timedOutAt": null
+    }
+  ]
+}

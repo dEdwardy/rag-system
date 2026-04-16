@@ -143,7 +143,7 @@ export const messages = {
       currentAssistantHintHasAssistant:
         'This assistant is the active answer setup for the current workspace library.',
       currentAssistantHintNoAssistant:
-        'The default assistant is still being repaired for the current workspace library. Wait a moment, then try again.',
+        'The default assistant is still being prepared or repaired for the current workspace library. Wait a moment, then try again.',
       currentWorkspace: 'Current workspace',
       newConversationDraft: 'New conversation draft',
       noActiveKnowledgeBase: 'Workspace library unavailable',
@@ -159,14 +159,14 @@ export const messages = {
       askStatusHintHasAssistant:
         'This status now follows the current library readiness before sending questions.',
       askStatusHintNoAssistant:
-        'Answer settings are still being repaired for the current workspace library before new questions can be sent.',
+        'Answer settings are still being prepared or repaired for the current workspace library before new questions can be sent.',
       citationsCount:
         '{conversationCount} conversations, {citationCount} current citations.',
       inputSection: 'Ask composer',
       inputHelpCanAsk:
         'Press Enter to send. Sources stay visible on the right, with diagnostics available when needed.',
       inputHelpDisabled:
-        'The default assistant is being repaired for this library, so the composer is temporarily unavailable.',
+        'The default assistant is being prepared or repaired for this library, so the composer is temporarily unavailable.',
       askInputPlaceholder: 'Ask a question and press Enter...',
       enterHint: 'Press Enter to send, Shift + Enter for a new line',
       fileUploadComingSoon: 'File upload coming soon',
@@ -433,6 +433,7 @@ export const messages = {
       create: 'Create workspace library',
       openDocuments: 'Open library',
       openAssistant: 'Open answer settings',
+      refreshDefaultPath: 'Refresh default path',
       openChat: 'Open chat'
     },
     create: {
@@ -484,8 +485,8 @@ export const messages = {
         'Review the items with issues before adding more material.',
       waitForProcessing:
         'Wait for the current updates to finish, then check the refreshed states.',
-      bindAssistant:
-        'The library is ready. Connect or review answer settings before asking questions.',
+      prepareDefaultAssistant:
+        'The library is ready. Open answer settings so the default assistant can finish preparing or repairing before chat.',
       workspaceReady:
         'This workspace is ready. The best next step is to move on to chat.'
     },
@@ -580,9 +581,9 @@ export const messages = {
         'Adjust how much content gets searched before the assistant answers.',
       workspaceStatus: 'Current setup',
       currentLibraryLabel: 'Current library target',
-      currentAssistantBindingLabel: 'Default assistant binding',
+      currentAssistantBindingLabel: 'Default assistant status',
       currentAssistantBindingValue:
-        'This default assistant is bound to the current primary library.',
+        'This default assistant follows the current primary library automatically.',
       saveCheckpoint: 'Save changes',
       saveCheckpointCopy:
         'Save once to persist both assistant settings and search-profile changes together.'

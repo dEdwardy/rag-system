@@ -18,6 +18,7 @@ import {
   useAssistants,
   useDeleteConversation,
   useConversationMessages,
+  useKnowledgeBaseDocumentSummary,
   useKnowledgeBases,
   usePagedConversations,
   useUpdateConversation
@@ -32,7 +33,11 @@ import type {
   AskStreamFinalData,
   Message
 } from '../../types/api';
-import { formatMessageTime } from './chat-page-helpers';
+import {
+  buildChatReadinessState,
+  buildStarterQuestions,
+  formatMessageTime
+} from './chat-page-helpers';
 import {
   applyChatStreamEvent,
   createPendingChatTurn,
@@ -367,6 +372,16 @@ export function ChatPage() {
     ? null
     : (activeConversationId ?? fallbackConversationId);
   const activeKnowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
+  const knowledgeBaseSummaryQuery = useKnowledgeBaseDocumentSummary(
+    activeKnowledgeBase?.id ?? '',
+    activeKnowledgeBase != null
+  );
+  const assistantsForKnowledgeBaseCount =
+    activeKnowledgeBase == null
+      ? 0
+      : (assistantsQuery.data ?? []).filter(
+          (candidate) => candidate.kbId === activeKnowledgeBase.id
+        ).length;
   const activeAssistant = getPrimaryAssistantForKnowledgeBase(
     assistantsQuery.data,
     activeKnowledgeBase?.id ?? null
@@ -423,14 +438,21 @@ export function ChatPage() {
       preparingAnswer: t('chat.copy.preparingAnswer'),
       retrievingContext: t('chat.copy.retrievingContext'),
       generatingAnswer: t('chat.copy.generatingAnswer'),
-      answerSettingsNeeded: t('chat.copy.answerSettingsNeeded')
+      answerSettingsNeeded: t('chat.copy.answerSettingsNeeded'),
+      starterPromptHeading:
+        locale === 'zh'
+          ? '可以直接从这些首问开始'
+          : 'Start with one of these first questions',
+      starterQuestions: buildStarterQuestions(locale, 'chat')
     }),
     [chatHistoryVisibleCount, locale, t]
   );
 
-  const canAsk = activeAssistant != null;
+  const hasSingleAssistantBinding =
+    activeAssistant != null && assistantsForKnowledgeBaseCount === 1;
+  const canAsk = hasSingleAssistantBinding;
   const isStreamingTurnActive = activeStreamTurn != null;
-  const canSubmitQuestion = activeAssistant != null && !isStreamingTurnActive;
+  const canSubmitQuestion = hasSingleAssistantBinding && !isStreamingTurnActive;
   const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(
     activeStreamTurn,
     resolvedConversationId
@@ -483,6 +505,14 @@ export function ChatPage() {
     conversationsForWorkspace.find(
       (conversation) => conversation.id === resolvedConversationId
     ) ?? null;
+  const chatReadinessState = useMemo(
+    () =>
+      buildChatReadinessState(
+        knowledgeBaseSummaryQuery.data ?? null,
+        activeKnowledgeBase != null
+      ),
+    [activeKnowledgeBase, knowledgeBaseSummaryQuery.data]
+  );
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
       syncFinalTurnToMessageCache({
@@ -794,7 +824,67 @@ export function ChatPage() {
           ref={transcriptRef}
         >
           <div className="flex flex-col gap-6">
-            {activeAssistant == null ? (
+            {chatReadinessState.kind === 'no_active_knowledge_base' ? (
+              <StatePanel
+                action={
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
+                    to="/knowledge-base"
+                  >
+                    {t('chat.states.noActiveKnowledgeBaseAction')}
+                  </Link>
+                }
+                description={t('chat.states.noActiveKnowledgeBaseDescription')}
+                title={t('chat.states.noActiveKnowledgeBaseTitle')}
+              />
+            ) : chatReadinessState.kind === 'no_documents' ? (
+              <StatePanel
+                action={
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
+                    to="/documents"
+                  >
+                    {t('chat.states.noDocumentsAction')}
+                  </Link>
+                }
+                description={t('chat.states.noDocumentsDescription', {
+                  knowledgeBaseName:
+                    activeKnowledgeBase?.name ??
+                    t('chat.copy.noKnowledgeBaseName')
+                })}
+                title={t('chat.states.noDocumentsTitle')}
+              />
+            ) : chatReadinessState.kind === 'failed_documents' ? (
+              <StatePanel
+                action={
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
+                    to="/documents"
+                  >
+                    {t('chat.states.failedDocumentsAction')}
+                  </Link>
+                }
+                description={t('chat.states.failedDocumentsDescription', {
+                  count: chatReadinessState.count
+                })}
+                title={t('chat.states.failedDocumentsTitle')}
+              />
+            ) : chatReadinessState.kind === 'processing_documents' ? (
+              <StatePanel
+                action={
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
+                    to="/documents"
+                  >
+                    {t('chat.states.processingDocumentsAction')}
+                  </Link>
+                }
+                description={t('chat.states.processingDocumentsDescription', {
+                  count: chatReadinessState.count
+                })}
+                title={t('chat.states.processingDocumentsTitle')}
+              />
+            ) : !hasSingleAssistantBinding ? (
               <StatePanel
                 action={
                   <div className="flex flex-wrap justify-center gap-3">
@@ -829,6 +919,33 @@ export function ChatPage() {
               />
             ) : resolvedConversationId == null && activeStreamTurn == null ? (
               <StatePanel
+                action={
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="text-xs font-medium text-[var(--app-text-muted)]">
+                      {chatCopy.starterPromptHeading}
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {chatCopy.starterQuestions.map((question) => (
+                        <button
+                          className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
+                          key={question}
+                          onClick={() => {
+                            void submitQuestion({ question });
+                          }}
+                          type="button"
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                    <Link
+                      className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
+                      to="/documents"
+                    >
+                      {chatCopy.uploadFromLibrary}
+                    </Link>
+                  </div>
+                }
                 description={t('chat.states.noActiveConversationDescription')}
                 title={t('chat.states.noActiveConversationTitle')}
               />
@@ -1054,6 +1171,27 @@ export function ChatPage() {
               })
             ) : (
               <StatePanel
+                action={
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="text-xs font-medium text-[var(--app-text-muted)]">
+                      {chatCopy.starterPromptHeading}
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {chatCopy.starterQuestions.map((question) => (
+                        <button
+                          className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
+                          key={question}
+                          onClick={() => {
+                            void submitQuestion({ question });
+                          }}
+                          type="button"
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                }
                 description={t('chat.states.noMessagesDescription')}
                 title={t('chat.states.noMessagesTitle')}
               />
@@ -1103,12 +1241,11 @@ export function ChatPage() {
                   value={composerValue}
                 />
                 <div className="flex items-center gap-2 pr-1">
-                  <button
+                  <Link
                     aria-label={chatCopy.uploadFromLibrary}
-                    className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] opacity-65"
-                    disabled
+                    className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[var(--app-text-muted)] opacity-65 transition hover:bg-[var(--app-bg)] hover:opacity-100"
                     title={chatCopy.uploadFromLibrary}
-                    type="button"
+                    to="/documents"
                   >
                     <svg
                       aria-hidden="true"
@@ -1124,7 +1261,7 @@ export function ChatPage() {
                         strokeWidth="2"
                       />
                     </svg>
-                  </button>
+                  </Link>
                   <button
                     aria-label={
                       isStreamingTurnActive

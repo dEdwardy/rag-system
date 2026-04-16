@@ -23,6 +23,16 @@ let stopping = false;
 let currentChild = null;
 let currentRun = null;
 let startedAt = new Date().toISOString();
+function buildChildEnv() {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('OPENCODE')) {
+      delete env[key];
+    }
+  }
+  return env;
+}
+
 const heartbeatTimer = setInterval(() => {
   heartbeat().catch((error) => {
     appendFile(logFile, `${new Date().toISOString()} heartbeat_error=${error.message}\n`).catch(() => {});
@@ -75,6 +85,45 @@ function extractReportedError(stdout) {
     }
   }
   return null;
+}
+
+function extractQueueResult(stdout) {
+  const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    if (!line.startsWith('QUEUE_RESULT ')) continue;
+    const result = {};
+    for (const match of line.matchAll(/(status|item|validation|changed_files|commit)=([^\s]+)/g)) {
+      result[match[1]] = match[2];
+    }
+    return result;
+  }
+  return null;
+}
+
+function extractFailureMarkers(output) {
+  const markers = [];
+  const checks = [
+    [/\bQUEUE_RESULT status=needs_replan\b/, 'queue_result_needs_replan'],
+    [/\bFailed Tests?\b/, 'failed_tests_summary'],
+    [/\bFailed Suites?\b/, 'failed_suites_summary'],
+    [/\bNo test suite found\b/, 'no_test_suite_found'],
+    [/\bERR_PNPM_[A-Z0-9_]+\b/, 'pnpm_command_failure'],
+    [/Command "vitest" not found/, 'vitest_command_missing'],
+    [/\n\s*[✖×]\s/, 'explicit_test_failure_marker'],
+    [/\n\s*FAIL\s+/m, 'fail_banner'],
+    [/\bAssertionError\b/, 'assertion_error'],
+  ];
+
+  for (const [pattern, code] of checks) {
+    if (pattern.test(output)) markers.push(code);
+  }
+
+  return [...new Set(markers)];
+}
+
+function summarizeOutput(stdout, stderr) {
+  return stdout.trim().split('\n').slice(-8).join('\n') || stderr.trim().split('\n').slice(-8).join('\n') || undefined;
 }
 
 async function heartbeat() {
@@ -146,7 +195,7 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
   return await new Promise((resolve) => {
     const child = spawn('opencode', args, {
       cwd: repoRoot,
-      env: process.env,
+      env: buildChildEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
@@ -260,9 +309,26 @@ async function processOneItem() {
 
   const result = await runOpencode(queue, item, path.basename(loaded.filePath), reusableSessionId);
   const finishedAt = new Date().toISOString();
-  const success = result.exitCode === 0 && !result.reportedError && !stopping;
+  const queueResult = extractQueueResult(result.stdout);
+  const failureMarkers = extractFailureMarkers(`${result.stdout}\n${result.stderr}`);
+  const success = result.exitCode === 0
+    && !result.reportedError
+    && !stopping
+    && queueResult?.status === 'completed'
+    && failureMarkers.length === 0;
   const status = success ? 'completed' : 'needs_replan';
   const sessionId = result.sessionId ?? reusableSessionId ?? null;
+  const failureReason = success
+    ? undefined
+    : result.timedOut
+      ? `opencode_timeout_${itemTimeoutMs}`
+      : result.reportedError
+        ? 'opencode_reported_error'
+        : queueResult?.status === 'needs_replan'
+          ? 'queue_result_needs_replan'
+          : !queueResult?.status
+            ? 'missing_queue_result'
+            : failureMarkers[0] ?? `opencode_exit_${result.exitCode}`;
 
   await updateQueueItem(loaded, item.id, cleanObject({
     status,
@@ -271,14 +337,17 @@ async function processOneItem() {
     finishedAt,
     resultExitCode: result.exitCode,
     resultSignal: result.signal ?? undefined,
-    lastRunSummary: result.stdout.trim().split('\n').slice(-8).join('\n') || result.stderr.trim().split('\n').slice(-8).join('\n') || undefined,
-    failureReason: success ? undefined : result.timedOut ? `opencode_timeout_${itemTimeoutMs}` : result.reportedError ? 'opencode_reported_error' : `opencode_exit_${result.exitCode}`,
+    lastRunSummary: summarizeOutput(result.stdout, result.stderr),
+    failureReason,
     reportedError: success ? undefined : result.reportedError ?? undefined,
+    queueResultStatus: queueResult?.status,
+    queueResultCommit: queueResult?.commit,
+    queueFailureMarkers: !success && failureMarkers.length > 0 ? failureMarkers.join(',') : undefined,
     timedOutAt: result.timedOut ? finishedAt : undefined,
     sessionId,
   }));
 
-  await appendFile(logFile, `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${itemTimeoutMs}` : ''}\n`);
+  await appendFile(logFile, `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${itemTimeoutMs}` : ''}${queueResult?.status ? ` queue_result=${queueResult.status}` : ''}${failureMarkers.length > 0 ? ` failure_markers=${failureMarkers.join(',')}` : ''}\n`);
 
   currentRun = {
     phase: status,

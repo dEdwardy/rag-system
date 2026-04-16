@@ -1,18 +1,18 @@
-const assert = require("node:assert/strict");
+const assert = require('node:assert/strict');
 
-const { TracesService } = require("../src/modules/traces/traces.service.ts");
+const { TracesService } = require('../src/modules/traces/traces.service.ts');
 
-test("TracesService scopes direct trace reads by current identity when scope is provided", async () => {
+test('TracesService scopes direct trace reads by current identity when scope is provided', async () => {
   const findFirstCalls = [];
   const findUniqueCalls = [];
 
   const scopedTrace = {
-    id: "trace-owned",
-    conversationId: "conversation-owned",
-    assistantId: "assistant-owned",
+    id: 'trace-owned',
+    conversationId: 'conversation-owned',
+    assistantId: 'assistant-owned',
     userMessageId: null,
     assistantMessageId: null,
-    userQuery: "owned trace",
+    userQuery: 'owned trace',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -22,18 +22,18 @@ test("TracesService scopes direct trace reads by current identity when scope is 
     qualityEvaluationJson: null,
     modelName: null,
     latencyMs: null,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-29T00:00:00.000Z")
+    createdAt: new Date('2026-03-29T00:00:00.000Z')
   };
 
   const prisma = {
     answerTrace: {
-      findFirst: async args => {
+      findFirst: async (args) => {
         findFirstCalls.push(args);
-        return args.where.id === "trace-owned" ? scopedTrace : null;
+        return args.where.id === 'trace-owned' ? scopedTrace : null;
       },
-      findUnique: async args => {
+      findUnique: async (args) => {
         findUniqueCalls.push(args);
         return scopedTrace;
       }
@@ -42,16 +42,16 @@ test("TracesService scopes direct trace reads by current identity when scope is 
 
   const service = new TracesService(prisma);
 
-  const detail = await service.getTrace("trace-owned", {
-    tenantId: "tenant-42",
-    userId: "user-42"
+  const detail = await service.getTrace('trace-owned', {
+    tenantId: 'tenant-42',
+    userId: 'user-42'
   });
-  assert.equal(detail.id, "trace-owned");
+  assert.equal(detail.id, 'trace-owned');
 
   await assert.rejects(
-    service.getTrace("trace-not-owned", {
-      tenantId: "tenant-42",
-      userId: "user-42"
+    service.getTrace('trace-not-owned', {
+      tenantId: 'tenant-42',
+      userId: 'user-42'
     }),
     /Trace trace-not-owned not found\./
   );
@@ -78,10 +78,10 @@ test("TracesService scopes direct trace reads by current identity when scope is 
         createdAt: true
       },
       where: {
-        id: "trace-owned",
+        id: 'trace-owned',
         conversation: {
-          tenantId: "tenant-42",
-          userId: "user-42"
+          tenantId: 'tenant-42',
+          userId: 'user-42'
         }
       }
     },
@@ -106,10 +106,10 @@ test("TracesService scopes direct trace reads by current identity when scope is 
         createdAt: true
       },
       where: {
-        id: "trace-not-owned",
+        id: 'trace-not-owned',
         conversation: {
-          tenantId: "tenant-42",
-          userId: "user-42"
+          tenantId: 'tenant-42',
+          userId: 'user-42'
         }
       }
     }
@@ -117,15 +117,15 @@ test("TracesService scopes direct trace reads by current identity when scope is 
   assert.equal(findUniqueCalls.length, 0);
 });
 
-test("TracesService scopes conversation-linked trace lists by current identity when scope is provided", async () => {
+test('TracesService scopes conversation-linked trace lists by current identity when scope is provided', async () => {
   const findManyCalls = [];
   const persistedTrace = {
-    id: "trace-conversation-owned",
-    conversationId: "conversation-owned",
-    assistantId: "assistant-owned",
+    id: 'trace-conversation-owned',
+    conversationId: 'conversation-owned',
+    assistantId: 'assistant-owned',
     userMessageId: null,
     assistantMessageId: null,
-    userQuery: "owned conversation trace",
+    userQuery: 'owned conversation trace',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -135,14 +135,14 @@ test("TracesService scopes conversation-linked trace lists by current identity w
     qualityEvaluationJson: null,
     modelName: null,
     latencyMs: null,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-29T00:00:00.000Z")
+    createdAt: new Date('2026-03-29T00:00:00.000Z')
   };
 
   const prisma = {
     answerTrace: {
-      findMany: async args => {
+      findMany: async (args) => {
         findManyCalls.push(args);
         return [persistedTrace];
       }
@@ -151,21 +151,21 @@ test("TracesService scopes conversation-linked trace lists by current identity w
 
   const service = new TracesService(prisma);
   await service.listConversationTraces(
-    "conversation-owned",
+    'conversation-owned',
     { limit: 5 },
     {
-      tenantId: "tenant-42",
-      userId: "user-42"
+      tenantId: 'tenant-42',
+      userId: 'user-42'
     }
   );
 
   assert.deepEqual(findManyCalls, [
     {
       where: {
-        conversationId: "conversation-owned",
+        conversationId: 'conversation-owned',
         conversation: {
-          tenantId: "tenant-42",
-          userId: "user-42"
+          tenantId: 'tenant-42',
+          userId: 'user-42'
         }
       },
       take: 5,
@@ -189,26 +189,26 @@ test("TracesService scopes conversation-linked trace lists by current identity w
         createdAt: true
       },
       orderBy: {
-        createdAt: "desc"
+        createdAt: 'desc'
       }
     }
   ]);
 });
 
-test("TracesService batches latest conversation traces in a single scoped query", async () => {
+test('TracesService batches latest conversation traces in a single scoped query', async () => {
   const findManyCalls = [];
   const prisma = {
     answerTrace: {
-      findMany: async args => {
+      findMany: async (args) => {
         findManyCalls.push(args);
         return [
           {
-            id: "trace-newer-a",
-            conversationId: "conversation-a",
-            assistantId: "assistant-a",
+            id: 'trace-newer-a',
+            conversationId: 'conversation-a',
+            assistantId: 'assistant-a',
             userMessageId: null,
             assistantMessageId: null,
-            userQuery: "newer A",
+            userQuery: 'newer A',
             rewrittenQuery: null,
             retrievedChunkIdsJson: [],
             retrievalMetadataJson: null,
@@ -217,17 +217,17 @@ test("TracesService batches latest conversation traces in a single scoped query"
             qualityEvaluationJson: null,
             modelName: null,
             latencyMs: null,
-            status: "success",
+            status: 'success',
             errorMessage: null,
-            createdAt: new Date("2026-03-29T02:00:00.000Z")
+            createdAt: new Date('2026-03-29T02:00:00.000Z')
           },
           {
-            id: "trace-older-a",
-            conversationId: "conversation-a",
-            assistantId: "assistant-a",
+            id: 'trace-older-a',
+            conversationId: 'conversation-a',
+            assistantId: 'assistant-a',
             userMessageId: null,
             assistantMessageId: null,
-            userQuery: "older A",
+            userQuery: 'older A',
             rewrittenQuery: null,
             retrievedChunkIdsJson: [],
             retrievalMetadataJson: null,
@@ -236,17 +236,17 @@ test("TracesService batches latest conversation traces in a single scoped query"
             qualityEvaluationJson: null,
             modelName: null,
             latencyMs: null,
-            status: "success",
+            status: 'success',
             errorMessage: null,
-            createdAt: new Date("2026-03-29T01:00:00.000Z")
+            createdAt: new Date('2026-03-29T01:00:00.000Z')
           },
           {
-            id: "trace-only-b",
-            conversationId: "conversation-b",
-            assistantId: "assistant-b",
+            id: 'trace-only-b',
+            conversationId: 'conversation-b',
+            assistantId: 'assistant-b',
             userMessageId: null,
             assistantMessageId: null,
-            userQuery: "only B",
+            userQuery: 'only B',
             rewrittenQuery: null,
             retrievedChunkIdsJson: [],
             retrievalMetadataJson: null,
@@ -255,9 +255,9 @@ test("TracesService batches latest conversation traces in a single scoped query"
             qualityEvaluationJson: null,
             modelName: null,
             latencyMs: null,
-            status: "success",
+            status: 'success',
             errorMessage: null,
-            createdAt: new Date("2026-03-29T03:00:00.000Z")
+            createdAt: new Date('2026-03-29T03:00:00.000Z')
           }
         ];
       }
@@ -265,20 +265,23 @@ test("TracesService batches latest conversation traces in a single scoped query"
   };
 
   const service = new TracesService(prisma);
-  const listed = await service.listLatestConversationTraces(["conversation-a", "conversation-b"], {
-    tenantId: "tenant-42",
-    userId: "user-42"
-  });
+  const listed = await service.listLatestConversationTraces(
+    ['conversation-a', 'conversation-b'],
+    {
+      tenantId: 'tenant-42',
+      userId: 'user-42'
+    }
+  );
 
   assert.deepEqual(findManyCalls, [
     {
       where: {
         conversationId: {
-          in: ["conversation-a", "conversation-b"]
+          in: ['conversation-a', 'conversation-b']
         },
         conversation: {
-          tenantId: "tenant-42",
-          userId: "user-42"
+          tenantId: 'tenant-42',
+          userId: 'user-42'
         }
       },
       select: {
@@ -300,32 +303,32 @@ test("TracesService batches latest conversation traces in a single scoped query"
         errorMessage: true,
         createdAt: true
       },
-      orderBy: [{ conversationId: "asc" }, { createdAt: "desc" }]
+      orderBy: [{ conversationId: 'asc' }, { createdAt: 'desc' }]
     }
   ]);
   assert.deepEqual(
-    listed.map(item => [item.conversationId, item.trace.id]),
+    listed.map((item) => [item.conversationId, item.trace.id]),
     [
-      ["conversation-a", "trace-newer-a"],
-      ["conversation-b", "trace-only-b"]
+      ['conversation-a', 'trace-newer-a'],
+      ['conversation-b', 'trace-only-b']
     ]
   );
 });
 
-test("TracesService exposes failedStage and failureMessage in traceSummary for failed traces", async () => {
+test('TracesService exposes failedStage and failureMessage in traceSummary for failed traces', async () => {
   const persistedTrace = {
-    id: "trace-1",
-    conversationId: "conversation-1",
-    assistantId: "assistant-1",
-    userMessageId: "user-message-1",
+    id: 'trace-1',
+    conversationId: 'conversation-1',
+    assistantId: 'assistant-1',
+    userMessageId: 'user-message-1',
     assistantMessageId: null,
-    userQuery: "why did this fail?",
+    userQuery: 'why did this fail?',
     rewrittenQuery: null,
-    retrievedChunkIdsJson: ["chunk-1"],
+    retrievedChunkIdsJson: ['chunk-1'],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "vector",
+        actualMode: 'vector',
         candidateLimit: 8,
         vectorCandidateCount: 1,
         lexicalCandidateCount: 0,
@@ -337,25 +340,25 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
         retrievedChunkCount: 1
       },
       failure: {
-        stage: "answering",
-        message: "synthetic answer failure"
+        stage: 'answering',
+        message: 'synthetic answer failure'
       }
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-rewrite-local",
+    modelName: 'fallback-rewrite-local',
     latencyMs: 42,
-    status: "failed",
-    errorMessage: "synthetic answer failure",
-    createdAt: new Date("2026-03-24T00:00:00.000Z")
+    status: 'failed',
+    errorMessage: 'synthetic answer failure',
+    createdAt: new Date('2026-03-24T00:00:00.000Z')
   };
 
   const queryArgs = [];
   const prisma = {
     answerTrace: {
       findUnique: async () => persistedTrace,
-      findMany: async args => {
+      findMany: async (args) => {
         queryArgs.push(args);
         return [persistedTrace];
       }
@@ -364,21 +367,24 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
 
   const service = new TracesService(prisma);
 
-  const trace = await service.getTrace("trace-1");
+  const trace = await service.getTrace('trace-1');
   assert.deepEqual(trace.traceSummary, {
     promptId: null,
     answerStatus: null,
     qualityOverall: null,
     primaryIssue: null,
-    retrievalMode: "vector",
-    retrievalQuerySource: "original_disabled",
-    strategyReadabilityLabel: "vector retrieval via original_disabled; fallback: none; fallback used: unknown.",
-    retrievalModeProvenanceSentence: "Resolved retrieval mode is vector; fallback usage is unknown.",
-    rewriteReadabilityLabel: "rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown.",
+    retrievalMode: 'vector',
+    retrievalQuerySource: 'original_disabled',
+    strategyReadabilityLabel:
+      'vector retrieval via original_disabled; fallback: none; fallback used: unknown.',
+    retrievalModeProvenanceSentence:
+      'Resolved retrieval mode is vector; fallback usage is unknown.',
+    rewriteReadabilityLabel:
+      'rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown.',
     strategySummary: {
-      retrievalMode: "vector",
-      strategyMode: "vector",
-      retrievalQuerySource: "original_disabled",
+      retrievalMode: 'vector',
+      strategyMode: 'vector',
+      retrievalQuerySource: 'original_disabled',
       rewriteEnabled: false,
       rewriteApplied: false,
       rewriteSkippedReason: null,
@@ -402,7 +408,8 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
       llmQueueWaitMs: null,
       retrievalQueueWaitMs: null
     },
-    timingReadabilitySentence: "total n/a; first token n/a; conversation n/a; persist user n/a; rewrite n/a; retrieval n/a; trace create n/a; generation n/a; persist assistant n/a; trace finalize n/a; llm queue n/a; retrieval queue n/a.",
+    timingReadabilitySentence:
+      'total n/a; first token n/a; conversation n/a; persist user n/a; rewrite n/a; retrieval n/a; trace create n/a; generation n/a; persist assistant n/a; trace finalize n/a; llm queue n/a; retrieval queue n/a.',
     generationMode: null,
     contextMode: null,
     rewriteApplied: false,
@@ -417,42 +424,55 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
       sourceLabel: null,
       readabilityLabel: null,
       readabilityHint: null,
-      readabilityResolvedLabel: "unknown attribution via unknown evidence source",
-      readabilitySentence: "Answer attribution is unknown; source evidence is unknown."
+      readabilityResolvedLabel:
+        'unknown attribution via unknown evidence source',
+      readabilitySentence:
+        'Answer attribution is unknown; source evidence is unknown.'
     },
-    answerAttributionReadabilitySentence: "Answer attribution is unknown; source evidence is unknown.",
+    answerAttributionReadabilitySentence:
+      'Answer attribution is unknown; source evidence is unknown.',
     answerAttribution: null,
     answerAttributionSource: null,
     answerEvidenceSource: null,
-    answerEvidenceSourceReadabilityLabel: "unknown evidence source",
-    answerEvidenceSourceReadabilitySentence: "Answer evidence source is unknown evidence source.",
+    answerEvidenceSourceReadabilityLabel: 'unknown evidence source',
+    answerEvidenceSourceReadabilitySentence:
+      'Answer evidence source is unknown evidence source.',
     citationAttribution: null,
     citationSelectionSource: null,
     missingInformationCount: 0,
-    missingInformationCountReadabilityLabel: "no missing-information items",
+    missingInformationCountReadabilityLabel: 'no missing-information items',
     missingInformationSource: null,
-    missingInformationSourceReadabilityLabel: "unknown missing-information source",
+    missingInformationSourceReadabilityLabel:
+      'unknown missing-information source',
     insufficientContextReason: null,
-    missingInformationProvenanceSentence: "Missing-information source is unknown; insufficient-context reason is none; missing-information count is 0.",
+    missingInformationProvenanceSentence:
+      'Missing-information source is unknown; insufficient-context reason is none; missing-information count is 0.',
     answerTextSource: null,
-    answerTextSourceReadabilityLabel: "unknown answer text source",
-    answerTextSourceReadabilitySentence: "Answer text source is unknown answer text source.",
+    answerTextSourceReadabilityLabel: 'unknown answer text source',
+    answerTextSourceReadabilitySentence:
+      'Answer text source is unknown answer text source.',
     answerStatusSource: null,
-    answerStatusSourceReadabilityLabel: "unknown answer status source",
-    answerStatusSourceReadabilitySentence: "Answer status source is unknown answer status source.",
-    answerProvenanceReadabilitySentence: "Answer text source is unknown answer text source; answer status source is unknown answer status source; Answer attribution is unknown; source evidence is unknown.",
-    answerProvenanceSentence: "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source.",
-    failedStage: "answering",
-    failedStageReadabilityLabel: "answering stage failed",
-    failureMessage: "synthetic answer failure",
-    failureReadabilitySentence: "answering stage failed; message: synthetic answer failure.",
+    answerStatusSourceReadabilityLabel: 'unknown answer status source',
+    answerStatusSourceReadabilitySentence:
+      'Answer status source is unknown answer status source.',
+    answerProvenanceReadabilitySentence:
+      'Answer text source is unknown answer text source; answer status source is unknown answer status source; Answer attribution is unknown; source evidence is unknown.',
+    answerProvenanceSentence:
+      'Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source.',
+    failedStage: 'answering',
+    failedStageReadabilityLabel: 'answering stage failed',
+    failureMessage: 'synthetic answer failure',
+    failureReadabilitySentence:
+      'answering stage failed; message: synthetic answer failure.',
     candidateLimit: 8,
     vectorCandidateCount: 1,
     lexicalCandidateCount: 0,
     mergedCandidateCount: 1,
     rankedCandidateCount: 1,
-    candidateCountReadabilityLabel: "vector 1, lexical 0, merged 1, ranked 1 (candidate limit 8)",
-    candidateCountReadabilitySentence: "Candidate flow produced 1 ranked candidates from 1 merged candidates (1 vector, 0 lexical) with candidate limit 8.",
+    candidateCountReadabilityLabel:
+      'vector 1, lexical 0, merged 1, ranked 1 (candidate limit 8)',
+    candidateCountReadabilitySentence:
+      'Candidate flow produced 1 ranked candidates from 1 merged candidates (1 vector, 0 lexical) with candidate limit 8.',
     vectorCandidateLimitHit: false,
     lexicalCandidateLimitHit: false,
     rankingTopKHit: true,
@@ -467,19 +487,22 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
     primaryChunkScoreAvg: null,
     primaryChunkScoreMin: null,
     contextGroupAvgLength: null,
-    contextReadabilitySentence: "Prompt context used 1 items via unknown mode (1 input chunks, 0 context groups, 1 retrieved chunks, 0 chars, ~0 tokens; primary scores n/a; context group length n/a).",
+    contextReadabilitySentence:
+      'Prompt context used 1 items via unknown mode (1 input chunks, 0 context groups, 1 retrieved chunks, 0 chars, ~0 tokens; primary scores n/a; context group length n/a).',
     citationCount: 0,
-    citationCountReadabilityLabel: "no citations",
-    citationCountReadabilitySentence: "Citation count summary: no citations.",
+    citationCountReadabilityLabel: 'no citations',
+    citationCountReadabilitySentence: 'Citation count summary: no citations.',
     citationCountBeforeLimit: 0,
     citationLimitHit: false,
     usedFallback: false
   });
 
-  const listed = await service.listConversationTraces("conversation-1", { limit: 20 });
+  const listed = await service.listConversationTraces('conversation-1', {
+    limit: 20
+  });
   assert.deepEqual(queryArgs, [
     {
-      where: { conversationId: "conversation-1" },
+      where: { conversationId: 'conversation-1' },
       take: 20,
       select: {
         id: true,
@@ -501,50 +524,56 @@ test("TracesService exposes failedStage and failureMessage in traceSummary for f
         createdAt: true
       },
       orderBy: {
-        createdAt: "desc"
+        createdAt: 'desc'
       }
     }
   ]);
-  assert.equal(listed[0].traceSummary.failedStage, "answering");
-  assert.equal(listed[0].traceSummary.failedStageReadabilityLabel, "answering stage failed");
-  assert.equal(listed[0].traceSummary.failureMessage, "synthetic answer failure");
+  assert.equal(listed[0].traceSummary.failedStage, 'answering');
+  assert.equal(
+    listed[0].traceSummary.failedStageReadabilityLabel,
+    'answering stage failed'
+  );
+  assert.equal(
+    listed[0].traceSummary.failureMessage,
+    'synthetic answer failure'
+  );
   assert.equal(
     listed[0].traceSummary.failureReadabilitySentence,
-    "answering stage failed; message: synthetic answer failure."
+    'answering stage failed; message: synthetic answer failure.'
   );
-  assert.equal("retrievalMetadataJson" in listed[0], false);
-  assert.equal("answeringMetadataJson" in listed[0], false);
-  assert.equal("qualityEvaluationJson" in listed[0], false);
-  assert.equal("retrievedChunkIdsJson" in listed[0], false);
+  assert.equal('retrievalMetadataJson' in listed[0], false);
+  assert.equal('answeringMetadataJson' in listed[0], false);
+  assert.equal('qualityEvaluationJson' in listed[0], false);
+  assert.equal('retrievedChunkIdsJson' in listed[0], false);
   assert.deepEqual(listed[0].citationsJson, []);
 });
 
-test("TracesService lists traces with identity scope and keyword search", async () => {
+test('TracesService lists traces with identity scope and keyword search', async () => {
   const findManyCalls = [];
   const persistedTrace = {
-    id: "trace-search-1",
-    conversationId: "conversation-search-1",
-    assistantId: "assistant-search-1",
+    id: 'trace-search-1',
+    conversationId: 'conversation-search-1',
+    assistantId: 'assistant-search-1',
     userMessageId: null,
     assistantMessageId: null,
-    userQuery: "How do I rotate API credentials?",
-    rewrittenQuery: "api credential rotation policy",
+    userQuery: 'How do I rotate API credentials?',
+    rewrittenQuery: 'api credential rotation policy',
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: null,
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 12,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-29T01:00:00.000Z")
+    createdAt: new Date('2026-03-29T01:00:00.000Z')
   };
 
   const prisma = {
     answerTrace: {
-      findMany: async args => {
+      findMany: async (args) => {
         findManyCalls.push(args);
         return [persistedTrace];
       }
@@ -554,42 +583,45 @@ test("TracesService lists traces with identity scope and keyword search", async 
   const service = new TracesService(prisma);
   const listed = await service.listTraces(
     {
-      query: "credential",
+      query: 'credential',
       limit: 10
     },
     {
-      tenantId: "tenant-42",
-      userId: "user-42"
+      tenantId: 'tenant-42',
+      userId: 'user-42'
     }
   );
 
   assert.equal(listed.length, 1);
-  assert.equal(listed[0].id, "trace-search-1");
-  assert.equal(listed[0].traceSummary.strategyReadabilityLabel, "unknown mode retrieval via rewritten; fallback: none; fallback used: unknown.");
+  assert.equal(listed[0].id, 'trace-search-1');
+  assert.equal(
+    listed[0].traceSummary.strategyReadabilityLabel,
+    'unknown mode retrieval via rewritten; fallback: none; fallback used: unknown.'
+  );
   assert.deepEqual(findManyCalls, [
     {
       where: {
         conversation: {
-          tenantId: "tenant-42",
-          userId: "user-42"
+          tenantId: 'tenant-42',
+          userId: 'user-42'
         },
         OR: [
           {
             id: {
-              contains: "credential",
-              mode: "insensitive"
+              contains: 'credential',
+              mode: 'insensitive'
             }
           },
           {
             userQuery: {
-              contains: "credential",
-              mode: "insensitive"
+              contains: 'credential',
+              mode: 'insensitive'
             }
           },
           {
             rewrittenQuery: {
-              contains: "credential",
-              mode: "insensitive"
+              contains: 'credential',
+              mode: 'insensitive'
             }
           }
         ]
@@ -615,26 +647,26 @@ test("TracesService lists traces with identity scope and keyword search", async 
         createdAt: true
       },
       orderBy: {
-        createdAt: "desc"
+        createdAt: 'desc'
       }
     }
   ]);
 });
 
-test("TracesService drops invalid diagnostics failedStage values from traceSummary", async () => {
+test('TracesService drops invalid diagnostics failedStage values from traceSummary', async () => {
   const persistedTrace = {
-    id: "trace-invalid-failed-stage",
-    conversationId: "conversation-invalid-failed-stage",
-    assistantId: "assistant-invalid-failed-stage",
-    userMessageId: "user-message-invalid-failed-stage",
+    id: 'trace-invalid-failed-stage',
+    conversationId: 'conversation-invalid-failed-stage',
+    assistantId: 'assistant-invalid-failed-stage',
+    userMessageId: 'user-message-invalid-failed-stage',
     assistantMessageId: null,
-    userQuery: "why did this fail?",
+    userQuery: 'why did this fail?',
     rewrittenQuery: null,
-    retrievedChunkIdsJson: ["chunk-1"],
+    retrievedChunkIdsJson: ['chunk-1'],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "vector",
+        actualMode: 'vector',
         candidateLimit: 8,
         vectorCandidateCount: 1,
         lexicalCandidateCount: 0,
@@ -646,21 +678,21 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
         retrievedChunkCount: 1
       },
       failure: {
-        stage: "source_fetch",
-        message: "synthetic failure"
+        stage: 'source_fetch',
+        message: 'synthetic failure'
       }
     },
     citationsJson: [],
     answeringMetadataJson: {
-      answerTextSource: "provider_fallback",
-      answerStatusSource: "legacy_inference"
+      answerTextSource: 'provider_fallback',
+      answerStatusSource: 'legacy_inference'
     },
     qualityEvaluationJson: null,
-    modelName: "fallback-rewrite-local",
+    modelName: 'fallback-rewrite-local',
     latencyMs: 42,
-    status: "failed",
-    errorMessage: "synthetic failure",
-    createdAt: new Date("2026-03-27T00:00:00.000Z")
+    status: 'failed',
+    errorMessage: 'synthetic failure',
+    createdAt: new Date('2026-03-27T00:00:00.000Z')
   };
 
   const prisma = {
@@ -672,70 +704,91 @@ test("TracesService drops invalid diagnostics failedStage values from traceSumma
 
   const service = new TracesService(prisma);
 
-  const detail = await service.getTrace("trace-invalid-failed-stage");
+  const detail = await service.getTrace('trace-invalid-failed-stage');
   assert.equal(detail.traceSummary.failedStage, null);
-  assert.equal(detail.traceSummary.failedStageReadabilityLabel, "unknown failed stage (source_fetch)");
+  assert.equal(
+    detail.traceSummary.failedStageReadabilityLabel,
+    'unknown failed stage (source_fetch)'
+  );
   assert.equal(detail.traceSummary.answerTextSource, null);
   assert.equal(detail.traceSummary.answerStatusSource, null);
-  assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
+  assert.equal(
+    detail.traceSummary.answerTextSourceReadabilityLabel,
+    'unknown answer text source (provider_fallback)'
+  );
   assert.equal(
     detail.traceSummary.answerTextSourceReadabilitySentence,
-    "Answer text source is unknown answer text source (provider_fallback)."
+    'Answer text source is unknown answer text source (provider_fallback).'
   );
-  assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
-  assert.equal(detail.traceSummary.failureMessage, "synthetic failure");
+  assert.equal(
+    detail.traceSummary.answerStatusSourceReadabilityLabel,
+    'unknown answer status source (legacy_inference)'
+  );
+  assert.equal(detail.traceSummary.failureMessage, 'synthetic failure');
   assert.equal(
     detail.traceSummary.failureReadabilitySentence,
-    "unknown failed stage (source_fetch); message: synthetic failure."
+    'unknown failed stage (source_fetch); message: synthetic failure.'
   );
 
-  const listed = await service.listConversationTraces("conversation-invalid-failed-stage", { limit: 1 });
+  const listed = await service.listConversationTraces(
+    'conversation-invalid-failed-stage',
+    { limit: 1 }
+  );
   assert.equal(listed[0].traceSummary.failedStage, null);
-  assert.equal(listed[0].traceSummary.failedStageReadabilityLabel, "unknown failed stage (source_fetch)");
+  assert.equal(
+    listed[0].traceSummary.failedStageReadabilityLabel,
+    'unknown failed stage (source_fetch)'
+  );
   assert.equal(listed[0].traceSummary.answerTextSource, null);
   assert.equal(listed[0].traceSummary.answerStatusSource, null);
-  assert.equal(listed[0].traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source (provider_fallback)");
+  assert.equal(
+    listed[0].traceSummary.answerTextSourceReadabilityLabel,
+    'unknown answer text source (provider_fallback)'
+  );
   assert.equal(
     listed[0].traceSummary.answerTextSourceReadabilitySentence,
-    "Answer text source is unknown answer text source (provider_fallback)."
+    'Answer text source is unknown answer text source (provider_fallback).'
   );
-  assert.equal(listed[0].traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source (legacy_inference)");
-  assert.equal(listed[0].traceSummary.failureMessage, "synthetic failure");
+  assert.equal(
+    listed[0].traceSummary.answerStatusSourceReadabilityLabel,
+    'unknown answer status source (legacy_inference)'
+  );
+  assert.equal(listed[0].traceSummary.failureMessage, 'synthetic failure');
   assert.equal(
     listed[0].traceSummary.failureReadabilitySentence,
-    "unknown failed stage (source_fetch); message: synthetic failure."
+    'unknown failed stage (source_fetch); message: synthetic failure.'
   );
 });
 
-test("TracesService falls back promptContextCount from legacy context mode metadata", async () => {
+test('TracesService falls back promptContextCount from legacy context mode metadata', async () => {
   const persistedTrace = {
-    id: "trace-legacy-context-groups",
-    conversationId: "conversation-legacy-context-groups",
-    assistantId: "assistant-legacy-context-groups",
-    userMessageId: "user-message-legacy-context-groups",
-    assistantMessageId: "assistant-message-legacy-context-groups",
-    userQuery: "summarize grouped context",
+    id: 'trace-legacy-context-groups',
+    conversationId: 'conversation-legacy-context-groups',
+    assistantId: 'assistant-legacy-context-groups',
+    userMessageId: 'user-message-legacy-context-groups',
+    assistantMessageId: 'assistant-message-legacy-context-groups',
+    userQuery: 'summarize grouped context',
     rewrittenQuery: null,
-    retrievedChunkIdsJson: ["chunk-1", "chunk-2", "chunk-3"],
+    retrievedChunkIdsJson: ['chunk-1', 'chunk-2', 'chunk-3'],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "hybrid",
+        actualMode: 'hybrid',
         retrievedChunkCount: 3
       }
     },
     citationsJson: [],
     answeringMetadataJson: {
-      contextMode: "context_groups",
+      contextMode: 'context_groups',
       inputChunkCount: 3,
       contextGroupCount: 2
     },
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 8,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-26T00:00:00.000Z")
+    createdAt: new Date('2026-03-26T00:00:00.000Z')
   };
 
   const prisma = {
@@ -746,32 +799,32 @@ test("TracesService falls back promptContextCount from legacy context mode metad
   };
 
   const service = new TracesService(prisma);
-  const trace = await service.getTrace("trace-legacy-context-groups");
+  const trace = await service.getTrace('trace-legacy-context-groups');
 
   assert.equal(trace.traceSummary.inputChunkCount, 3);
   assert.equal(trace.traceSummary.contextGroupCount, 2);
   assert.equal(trace.traceSummary.promptContextCount, 2);
 });
 
-test("TracesService exposes additive execution provenance in traceSummary for successful traces", async () => {
+test('TracesService exposes additive execution provenance in traceSummary for successful traces', async () => {
   const persistedTrace = {
-    id: "trace-2",
-    conversationId: "conversation-2",
-    assistantId: "assistant-2",
-    userMessageId: "user-message-2",
-    assistantMessageId: "assistant-message-2",
-    userQuery: "summarize the source",
-    rewrittenQuery: "summarize the source rewritten",
-    retrievedChunkIdsJson: ["chunk-1", "chunk-2"],
+    id: 'trace-2',
+    conversationId: 'conversation-2',
+    assistantId: 'assistant-2',
+    userMessageId: 'user-message-2',
+    assistantMessageId: 'assistant-message-2',
+    userQuery: 'summarize the source',
+    rewrittenQuery: 'summarize the source rewritten',
+    retrievedChunkIdsJson: ['chunk-1', 'chunk-2'],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       queryRewrite: {
-        finalQuerySource: "rewritten"
+        finalQuerySource: 'rewritten'
       },
       execution: {
-        actualMode: "hybrid",
+        actualMode: 'hybrid',
         usedFallback: true,
-        fallbackReason: "no_ranked_candidates",
+        fallbackReason: 'no_ranked_candidates',
         candidateLimit: 12,
         vectorCandidateCount: 4,
         lexicalCandidateCount: 2,
@@ -785,20 +838,20 @@ test("TracesService exposes additive execution provenance in traceSummary for su
         retrievedChunkCount: 2
       }
     },
-    citationsJson: [{ chunkId: "chunk-1" }],
+    citationsJson: [{ chunkId: 'chunk-1' }],
     answeringMetadataJson: {
-      promptId: "answer.v2",
-      resolvedLanguage: "zh",
-      generationMode: "generated",
-      contextMode: "context_groups",
-      citationAttribution: "heuristic",
-      citationSelectionSource: "heuristic",
+      promptId: 'answer.v2',
+      resolvedLanguage: 'zh',
+      generationMode: 'generated',
+      contextMode: 'context_groups',
+      citationAttribution: 'heuristic',
+      citationSelectionSource: 'heuristic',
       missingInformationCount: 1,
-      missingInformationSource: "model",
-      insufficientContextReason: "retrieved_context_insufficient",
-      answerTextSource: "deterministic_policy",
-      answerStatusSource: "inferred_from_retrieval",
-      answerStatus: "insufficient_context",
+      missingInformationSource: 'model',
+      insufficientContextReason: 'retrieved_context_insufficient',
+      answerTextSource: 'deterministic_policy',
+      answerStatusSource: 'inferred_from_retrieval',
+      answerStatus: 'insufficient_context',
       inputChunkCount: 2,
       promptContextCount: 1,
       contextGroupCount: 1,
@@ -807,14 +860,14 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       usedFallback: true
     },
     qualityEvaluationJson: {
-      overall: "partial",
-      primaryIssue: "fallback_generation"
+      overall: 'partial',
+      primaryIssue: 'fallback_generation'
     },
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 17,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-25T00:00:00.000Z")
+    createdAt: new Date('2026-03-25T00:00:00.000Z')
   };
 
   const prisma = {
@@ -825,29 +878,32 @@ test("TracesService exposes additive execution provenance in traceSummary for su
   };
 
   const service = new TracesService(prisma);
-  const trace = await service.getTrace("trace-2");
+  const trace = await service.getTrace('trace-2');
 
   assert.deepEqual(trace.traceSummary, {
-    promptId: "answer.v2",
-    answerStatus: "insufficient_context",
-    qualityOverall: "partial",
-    primaryIssue: "fallback_generation",
-    retrievalMode: "hybrid",
-    retrievalQuerySource: "rewritten",
-    strategyReadabilityLabel: "hybrid retrieval via rewritten; fallback: no_ranked_candidates; fallback used: yes.",
-    retrievalModeProvenanceSentence: "Resolved retrieval mode is hybrid; fallback was used due to no_ranked_candidates.",
-    rewriteReadabilityLabel: "rewrite enabled; rewrite applied: yes; rewrite fallback: unknown; rewrite prompt: unknown.",
+    promptId: 'answer.v2',
+    answerStatus: 'insufficient_context',
+    qualityOverall: 'partial',
+    primaryIssue: 'fallback_generation',
+    retrievalMode: 'hybrid',
+    retrievalQuerySource: 'rewritten',
+    strategyReadabilityLabel:
+      'hybrid retrieval via rewritten; fallback: no_ranked_candidates; fallback used: yes.',
+    retrievalModeProvenanceSentence:
+      'Resolved retrieval mode is hybrid; fallback was used due to no_ranked_candidates.',
+    rewriteReadabilityLabel:
+      'rewrite enabled; rewrite applied: yes; rewrite fallback: unknown; rewrite prompt: unknown.',
     strategySummary: {
-      retrievalMode: "hybrid",
-      strategyMode: "hybrid",
-      retrievalQuerySource: "rewritten",
+      retrievalMode: 'hybrid',
+      strategyMode: 'hybrid',
+      retrievalQuerySource: 'rewritten',
       rewriteEnabled: true,
       rewriteApplied: true,
       rewriteSkippedReason: null,
       rewriteUsedFallback: null,
       rewritePromptId: null,
       rewriteModelName: null,
-      fallbackReason: "no_ranked_candidates",
+      fallbackReason: 'no_ranked_candidates',
       usedFallback: true
     },
     timingSummary: {
@@ -864,57 +920,70 @@ test("TracesService exposes additive execution provenance in traceSummary for su
       llmQueueWaitMs: null,
       retrievalQueueWaitMs: null
     },
-    timingReadabilitySentence: "total n/a; first token n/a; conversation n/a; persist user n/a; rewrite n/a; retrieval n/a; trace create n/a; generation n/a; persist assistant n/a; trace finalize n/a; llm queue n/a; retrieval queue n/a.",
-    generationMode: "generated",
-    contextMode: "context_groups",
+    timingReadabilitySentence:
+      'total n/a; first token n/a; conversation n/a; persist user n/a; rewrite n/a; retrieval n/a; trace create n/a; generation n/a; persist assistant n/a; trace finalize n/a; llm queue n/a; retrieval queue n/a.',
+    generationMode: 'generated',
+    contextMode: 'context_groups',
     rewriteApplied: true,
     rewriteSkippedReason: null,
-    fallbackReason: "no_ranked_candidates",
-    resolvedLanguage: "zh",
+    fallbackReason: 'no_ranked_candidates',
+    resolvedLanguage: 'zh',
     answerAttributionSummary: {
-      attribution: "heuristic",
-      source: "heuristic",
-      readability: "heuristic:heuristic",
-      attributionLabel: "heuristic attribution",
-      sourceLabel: "heuristic evidence source",
-      readabilityLabel: "heuristic attribution via heuristic evidence source",
-      readabilityHint: "heuristic attribution via heuristic evidence source",
-      readabilityResolvedLabel: "heuristic attribution via heuristic evidence source",
-      readabilitySentence: "Answer attribution is heuristic; source evidence is heuristic."
+      attribution: 'heuristic',
+      source: 'heuristic',
+      readability: 'heuristic:heuristic',
+      attributionLabel: 'heuristic attribution',
+      sourceLabel: 'heuristic evidence source',
+      readabilityLabel: 'heuristic attribution via heuristic evidence source',
+      readabilityHint: 'heuristic attribution via heuristic evidence source',
+      readabilityResolvedLabel:
+        'heuristic attribution via heuristic evidence source',
+      readabilitySentence:
+        'Answer attribution is heuristic; source evidence is heuristic.'
     },
-    answerAttributionReadabilitySentence: "Answer attribution is heuristic; source evidence is heuristic.",
-    answerAttribution: "heuristic",
-    answerAttributionSource: "heuristic",
-    answerEvidenceSource: "heuristic",
-    answerEvidenceSourceReadabilityLabel: "heuristic evidence source",
-    answerEvidenceSourceReadabilitySentence: "Answer evidence source is heuristic evidence source.",
-    citationAttribution: "heuristic",
-    citationSelectionSource: "heuristic",
+    answerAttributionReadabilitySentence:
+      'Answer attribution is heuristic; source evidence is heuristic.',
+    answerAttribution: 'heuristic',
+    answerAttributionSource: 'heuristic',
+    answerEvidenceSource: 'heuristic',
+    answerEvidenceSourceReadabilityLabel: 'heuristic evidence source',
+    answerEvidenceSourceReadabilitySentence:
+      'Answer evidence source is heuristic evidence source.',
+    citationAttribution: 'heuristic',
+    citationSelectionSource: 'heuristic',
     missingInformationCount: 1,
-    missingInformationCountReadabilityLabel: "1 missing-information item",
-    missingInformationSource: "model",
-    missingInformationSourceReadabilityLabel: "model-reported missing-information items",
-    insufficientContextReason: "retrieved_context_insufficient",
-    missingInformationProvenanceSentence: "Missing-information source is model; insufficient-context reason is retrieved_context_insufficient; missing-information count is 1.",
-    answerTextSource: "deterministic_policy",
-    answerTextSourceReadabilityLabel: "deterministic policy answer text",
-    answerTextSourceReadabilitySentence: "Answer text source is deterministic policy answer text.",
-    answerStatusSource: "inferred_from_retrieval",
-    answerStatusSourceReadabilityLabel: "retrieval-inferred answer status",
-    answerStatusSourceReadabilitySentence: "Answer status source is retrieval-inferred answer status.",
-    answerProvenanceReadabilitySentence: "Answer text source is deterministic policy answer text; answer status source is retrieval-inferred answer status; Answer attribution is heuristic; source evidence is heuristic.",
-    answerProvenanceSentence: "Answer text source is deterministic_policy; status source is inferred_from_retrieval; attribution summary is heuristic attribution via heuristic evidence source.",
+    missingInformationCountReadabilityLabel: '1 missing-information item',
+    missingInformationSource: 'model',
+    missingInformationSourceReadabilityLabel:
+      'model-reported missing-information items',
+    insufficientContextReason: 'retrieved_context_insufficient',
+    missingInformationProvenanceSentence:
+      'Missing-information source is model; insufficient-context reason is retrieved_context_insufficient; missing-information count is 1.',
+    answerTextSource: 'deterministic_policy',
+    answerTextSourceReadabilityLabel: 'deterministic policy answer text',
+    answerTextSourceReadabilitySentence:
+      'Answer text source is deterministic policy answer text.',
+    answerStatusSource: 'inferred_from_retrieval',
+    answerStatusSourceReadabilityLabel: 'retrieval-inferred answer status',
+    answerStatusSourceReadabilitySentence:
+      'Answer status source is retrieval-inferred answer status.',
+    answerProvenanceReadabilitySentence:
+      'Answer text source is deterministic policy answer text; answer status source is retrieval-inferred answer status; Answer attribution is heuristic; source evidence is heuristic.',
+    answerProvenanceSentence:
+      'Answer text source is deterministic_policy; status source is inferred_from_retrieval; attribution summary is heuristic attribution via heuristic evidence source.',
     failedStage: null,
-    failedStageReadabilityLabel: "unknown failed stage",
+    failedStageReadabilityLabel: 'unknown failed stage',
     failureMessage: null,
-    failureReadabilitySentence: "unknown failed stage; message unavailable.",
+    failureReadabilitySentence: 'unknown failed stage; message unavailable.',
     candidateLimit: 12,
     vectorCandidateCount: 4,
     lexicalCandidateCount: 2,
     mergedCandidateCount: 5,
     rankedCandidateCount: 0,
-    candidateCountReadabilityLabel: "vector 4, lexical 2, merged 5, ranked 0 (candidate limit 12)",
-    candidateCountReadabilitySentence: "Candidate flow produced 0 ranked candidates from 5 merged candidates (4 vector, 2 lexical) with candidate limit 12.",
+    candidateCountReadabilityLabel:
+      'vector 4, lexical 2, merged 5, ranked 0 (candidate limit 12)',
+    candidateCountReadabilitySentence:
+      'Candidate flow produced 0 ranked candidates from 5 merged candidates (4 vector, 2 lexical) with candidate limit 12.',
     vectorCandidateLimitHit: false,
     lexicalCandidateLimitHit: false,
     rankingTopKHit: false,
@@ -929,51 +998,57 @@ test("TracesService exposes additive execution provenance in traceSummary for su
     primaryChunkScoreAvg: null,
     primaryChunkScoreMin: null,
     contextGroupAvgLength: null,
-    contextReadabilitySentence: "Prompt context used 1 items via context_groups mode (2 input chunks, 1 context groups, 2 retrieved chunks, 0 chars, ~0 tokens; primary scores n/a; context group length n/a).",
+    contextReadabilitySentence:
+      'Prompt context used 1 items via context_groups mode (2 input chunks, 1 context groups, 2 retrieved chunks, 0 chars, ~0 tokens; primary scores n/a; context group length n/a).',
     citationCount: 1,
-    citationCountReadabilityLabel: "1 citation shown (3 before limit)",
-    citationCountReadabilitySentence: "Citation count summary: 1 citation shown (3 before limit).",
+    citationCountReadabilityLabel: '1 citation shown (3 before limit)',
+    citationCountReadabilitySentence:
+      'Citation count summary: 1 citation shown (3 before limit).',
     citationCountBeforeLimit: 3,
     citationLimitHit: true,
     usedFallback: true
   });
 
-  const listed = await service.listConversationTraces("conversation-2", { limit: 5 });
+  const listed = await service.listConversationTraces('conversation-2', {
+    limit: 5
+  });
   assert.equal(listed.length, 1);
   assert.deepEqual(listed[0].traceSummary, trace.traceSummary);
-  assert.equal("retrievalMetadataJson" in listed[0], false);
-  assert.equal("answeringMetadataJson" in listed[0], false);
-  assert.equal("qualityEvaluationJson" in listed[0], false);
-  assert.equal("retrievedChunkIdsJson" in listed[0], false);
-  assert.deepEqual(listed[0].citationsJson, [{ chunkId: "chunk-1" }]);
+  assert.equal('retrievalMetadataJson' in listed[0], false);
+  assert.equal('answeringMetadataJson' in listed[0], false);
+  assert.equal('qualityEvaluationJson' in listed[0], false);
+  assert.equal('retrievedChunkIdsJson' in listed[0], false);
+  assert.deepEqual(listed[0].citationsJson, [{ chunkId: 'chunk-1' }]);
 });
 
-test("TracesService exposes attribution readability hint when source metadata is missing", async () => {
+test('TracesService keeps citation summary readable when legacy citation-limit metadata is inconsistent', async () => {
   const persistedTrace = {
-    id: "trace-attribution-hint-fallback",
-    conversationId: "conversation-attribution-hint-fallback",
-    assistantId: "assistant-attribution-hint-fallback",
-    userMessageId: "user-message-attribution-hint-fallback",
-    assistantMessageId: "assistant-message-attribution-hint-fallback",
-    userQuery: "summarize attribution",
+    id: 'trace-citation-limit-inconsistent',
+    conversationId: 'conversation-citation-limit-inconsistent',
+    assistantId: 'assistant-citation-limit-inconsistent',
+    userMessageId: 'user-message-citation-limit-inconsistent',
+    assistantMessageId: 'assistant-message-citation-limit-inconsistent',
+    userQuery: 'where is the policy marker',
     rewrittenQuery: null,
-    retrievedChunkIdsJson: [],
+    retrievedChunkIdsJson: ['chunk-1'],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "vector"
+        actualMode: 'vector',
+        retrievedChunkCount: 1
       }
     },
-    citationsJson: [],
+    citationsJson: [{ chunkId: 'chunk-1' }],
     answeringMetadataJson: {
-      citationAttribution: "explicit"
+      citationCountBeforeLimit: 0,
+      citationLimitHit: true
     },
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
-    latencyMs: 5,
-    status: "success",
+    modelName: 'fallback-local',
+    latencyMs: 6,
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -984,47 +1059,100 @@ test("TracesService exposes attribution readability hint when source metadata is
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-attribution-hint-fallback");
+  const detail = await service.getTrace('trace-citation-limit-inconsistent');
+
+  assert.equal(detail.traceSummary.citationCount, 1);
+  assert.equal(detail.traceSummary.citationCountBeforeLimit, 1);
+  assert.equal(detail.traceSummary.citationLimitHit, true);
+  assert.equal(
+    detail.traceSummary.citationCountReadabilityLabel,
+    '1 citation (limit hit)'
+  );
+  assert.equal(
+    detail.traceSummary.citationCountReadabilitySentence,
+    'Citation count summary: 1 citation (limit hit).'
+  );
+});
+
+test('TracesService exposes attribution readability hint when source metadata is missing', async () => {
+  const persistedTrace = {
+    id: 'trace-attribution-hint-fallback',
+    conversationId: 'conversation-attribution-hint-fallback',
+    assistantId: 'assistant-attribution-hint-fallback',
+    userMessageId: 'user-message-attribution-hint-fallback',
+    assistantMessageId: 'assistant-message-attribution-hint-fallback',
+    userQuery: 'summarize attribution',
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      execution: {
+        actualMode: 'vector'
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      citationAttribution: 'explicit'
+    },
+    qualityEvaluationJson: null,
+    modelName: 'fallback-local',
+    latencyMs: 5,
+    status: 'success',
+    errorMessage: null,
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace('trace-attribution-hint-fallback');
 
   assert.deepEqual(detail.traceSummary.answerAttributionSummary, {
-    attribution: "explicit",
+    attribution: 'explicit',
     source: null,
     readability: null,
-    attributionLabel: "explicit attribution",
+    attributionLabel: 'explicit attribution',
     sourceLabel: null,
     readabilityLabel: null,
-    readabilityHint: "explicit attribution via unknown evidence source",
-    readabilityResolvedLabel: "explicit attribution via unknown evidence source",
-    readabilitySentence: "Answer attribution is explicit; source evidence is unknown."
+    readabilityHint: 'explicit attribution via unknown evidence source',
+    readabilityResolvedLabel:
+      'explicit attribution via unknown evidence source',
+    readabilitySentence:
+      'Answer attribution is explicit; source evidence is unknown.'
   });
 });
 
-test("TracesService falls back strategy summary fields when execution/query-rewrite metadata is missing", async () => {
+test('TracesService falls back strategy summary fields when execution/query-rewrite metadata is missing', async () => {
   const persistedTrace = {
-    id: "trace-strategy-summary-fallback",
-    conversationId: "conversation-strategy-summary-fallback",
-    assistantId: "assistant-strategy-summary-fallback",
-    userMessageId: "user-message-strategy-summary-fallback",
+    id: 'trace-strategy-summary-fallback',
+    conversationId: 'conversation-strategy-summary-fallback',
+    assistantId: 'assistant-strategy-summary-fallback',
+    userMessageId: 'user-message-strategy-summary-fallback',
     assistantMessageId: null,
-    userQuery: "summarize strategy",
+    userQuery: 'summarize strategy',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       strategySummary: {
-        retrievalMode: "lexical",
-        strategyMode: "vector",
-        retrievalQuerySource: "original_disabled",
+        retrievalMode: 'lexical',
+        strategyMode: 'vector',
+        retrievalQuerySource: 'original_disabled',
         rewriteEnabled: true,
         rewriteApplied: true,
         rewriteUsedFallback: true,
-        rewritePromptId: "rewrite-query.v1",
-        rewriteModelName: "rewrite-model",
-        fallbackReason: "vector_error",
+        rewritePromptId: 'rewrite-query.v1',
+        rewriteModelName: 'rewrite-model',
+        fallbackReason: 'vector_error',
         usedFallback: true
       },
       queryRewrite: {
-        modelName: "rewrite-model",
+        modelName: 'rewrite-model',
         usedFallback: true
       },
       execution: {
@@ -1034,11 +1162,11 @@ test("TracesService falls back strategy summary fields when execution/query-rewr
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 6,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1049,40 +1177,40 @@ test("TracesService falls back strategy summary fields when execution/query-rewr
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-strategy-summary-fallback");
+  const detail = await service.getTrace('trace-strategy-summary-fallback');
 
-  assert.equal(detail.traceSummary.retrievalMode, "lexical");
-  assert.equal(detail.traceSummary.retrievalQuerySource, "original_disabled");
+  assert.equal(detail.traceSummary.retrievalMode, 'lexical');
+  assert.equal(detail.traceSummary.retrievalQuerySource, 'original_disabled');
   assert.equal(detail.traceSummary.rewriteApplied, true);
-  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.fallbackReason, 'vector_error');
   assert.equal(
     detail.traceSummary.rewriteReadabilityLabel,
-    "rewrite enabled; rewrite applied: yes; rewrite fallback: yes; rewrite prompt: rewrite-query.v1."
+    'rewrite enabled; rewrite applied: yes; rewrite fallback: yes; rewrite prompt: rewrite-query.v1.'
   );
 
   assert.deepEqual(detail.traceSummary.strategySummary, {
-    retrievalMode: "lexical",
-    strategyMode: "vector",
-    retrievalQuerySource: "original_disabled",
+    retrievalMode: 'lexical',
+    strategyMode: 'vector',
+    retrievalQuerySource: 'original_disabled',
     rewriteEnabled: true,
     rewriteApplied: true,
     rewriteSkippedReason: null,
     rewriteUsedFallback: true,
-    rewritePromptId: "rewrite-query.v1",
-    rewriteModelName: "rewrite-model",
-    fallbackReason: "vector_error",
+    rewritePromptId: 'rewrite-query.v1',
+    rewriteModelName: 'rewrite-model',
+    fallbackReason: 'vector_error',
     usedFallback: true
   });
 });
 
-test("TracesService falls back rewriteApplied from queryRewrite metadata when rewrittenQuery is absent", async () => {
+test('TracesService falls back rewriteApplied from queryRewrite metadata when rewrittenQuery is absent', async () => {
   const persistedTrace = {
-    id: "trace-query-rewrite-applied-fallback",
-    conversationId: "conversation-query-rewrite-applied-fallback",
-    assistantId: "assistant-query-rewrite-applied-fallback",
-    userMessageId: "user-message-query-rewrite-applied-fallback",
+    id: 'trace-query-rewrite-applied-fallback',
+    conversationId: 'conversation-query-rewrite-applied-fallback',
+    assistantId: 'assistant-query-rewrite-applied-fallback',
+    userMessageId: 'user-message-query-rewrite-applied-fallback',
     assistantMessageId: null,
-    userQuery: "summarize this",
+    userQuery: 'summarize this',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -1090,20 +1218,20 @@ test("TracesService falls back rewriteApplied from queryRewrite metadata when re
       queryRewrite: {
         enabled: true,
         applied: true,
-        finalQuerySource: "rewritten"
+        finalQuerySource: 'rewritten'
       },
       execution: {
-        actualMode: "hybrid"
+        actualMode: 'hybrid'
       }
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1114,40 +1242,40 @@ test("TracesService falls back rewriteApplied from queryRewrite metadata when re
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-query-rewrite-applied-fallback");
+  const detail = await service.getTrace('trace-query-rewrite-applied-fallback');
 
   assert.equal(detail.traceSummary.rewriteApplied, true);
   assert.equal(detail.traceSummary.strategySummary.rewriteApplied, true);
 });
 
-test("TracesService backfills rewriteApplied from queryRewrite.finalQuerySource when applied is missing", async () => {
+test('TracesService backfills rewriteApplied from queryRewrite.finalQuerySource when applied is missing', async () => {
   const persistedTrace = {
-    id: "trace-rewrite-applied-from-query-source",
-    conversationId: "conversation-rewrite-applied-from-query-source",
-    assistantId: "assistant-rewrite-applied-from-query-source",
-    userMessageId: "user-message-rewrite-applied-from-query-source",
+    id: 'trace-rewrite-applied-from-query-source',
+    conversationId: 'conversation-rewrite-applied-from-query-source',
+    assistantId: 'assistant-rewrite-applied-from-query-source',
+    userMessageId: 'user-message-rewrite-applied-from-query-source',
     assistantMessageId: null,
-    userQuery: "summarize this",
+    userQuery: 'summarize this',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       queryRewrite: {
         enabled: true,
-        finalQuerySource: "rewritten"
+        finalQuerySource: 'rewritten'
       },
       execution: {
-        actualMode: "hybrid"
+        actualMode: 'hybrid'
       }
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1158,22 +1286,24 @@ test("TracesService backfills rewriteApplied from queryRewrite.finalQuerySource 
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-rewrite-applied-from-query-source");
+  const detail = await service.getTrace(
+    'trace-rewrite-applied-from-query-source'
+  );
 
-  assert.equal(detail.traceSummary.retrievalQuerySource, "rewritten");
+  assert.equal(detail.traceSummary.retrievalQuerySource, 'rewritten');
   assert.equal(detail.traceSummary.rewriteApplied, true);
   assert.equal(detail.traceSummary.strategySummary.rewriteApplied, true);
 });
 
-test("TracesService backfills retrievalQuerySource from rewrittenQuery when legacy queryRewrite source is missing", async () => {
+test('TracesService backfills retrievalQuerySource from rewrittenQuery when legacy queryRewrite source is missing', async () => {
   const persistedTrace = {
-    id: "trace-query-source-rewritten-backfill",
-    conversationId: "conversation-query-source-rewritten-backfill",
-    assistantId: "assistant-query-source-rewritten-backfill",
-    userMessageId: "user-message-query-source-rewritten-backfill",
+    id: 'trace-query-source-rewritten-backfill',
+    conversationId: 'conversation-query-source-rewritten-backfill',
+    assistantId: 'assistant-query-source-rewritten-backfill',
+    userMessageId: 'user-message-query-source-rewritten-backfill',
     assistantMessageId: null,
-    userQuery: "summarize this",
-    rewrittenQuery: "summarize this rewritten",
+    userQuery: 'summarize this',
+    rewrittenQuery: 'summarize this rewritten',
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
@@ -1182,17 +1312,17 @@ test("TracesService backfills retrievalQuerySource from rewrittenQuery when lega
         applied: true
       },
       execution: {
-        actualMode: "hybrid"
+        actualMode: 'hybrid'
       }
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1203,20 +1333,25 @@ test("TracesService backfills retrievalQuerySource from rewrittenQuery when lega
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-query-source-rewritten-backfill");
+  const detail = await service.getTrace(
+    'trace-query-source-rewritten-backfill'
+  );
 
-  assert.equal(detail.traceSummary.retrievalQuerySource, "rewritten");
-  assert.equal(detail.traceSummary.strategySummary.retrievalQuerySource, "rewritten");
+  assert.equal(detail.traceSummary.retrievalQuerySource, 'rewritten');
+  assert.equal(
+    detail.traceSummary.strategySummary.retrievalQuerySource,
+    'rewritten'
+  );
 });
 
-test("TracesService backfills rewriteEnabled when legacy queryRewrite only persisted applied=true", async () => {
+test('TracesService backfills rewriteEnabled when legacy queryRewrite only persisted applied=true', async () => {
   const persistedTrace = {
-    id: "trace-rewrite-enabled-backfill",
-    conversationId: "conversation-rewrite-enabled-backfill",
-    assistantId: "assistant-rewrite-enabled-backfill",
-    userMessageId: "user-message-rewrite-enabled-backfill",
+    id: 'trace-rewrite-enabled-backfill',
+    conversationId: 'conversation-rewrite-enabled-backfill',
+    assistantId: 'assistant-rewrite-enabled-backfill',
+    userMessageId: 'user-message-rewrite-enabled-backfill',
     assistantMessageId: null,
-    userQuery: "summarize this",
+    userQuery: 'summarize this',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -1225,17 +1360,17 @@ test("TracesService backfills rewriteEnabled when legacy queryRewrite only persi
         applied: true
       },
       execution: {
-        actualMode: "hybrid"
+        actualMode: 'hybrid'
       }
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1246,45 +1381,45 @@ test("TracesService backfills rewriteEnabled when legacy queryRewrite only persi
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-rewrite-enabled-backfill");
+  const detail = await service.getTrace('trace-rewrite-enabled-backfill');
 
   assert.equal(detail.traceSummary.rewriteApplied, true);
   assert.equal(detail.traceSummary.strategySummary.rewriteApplied, true);
   assert.equal(detail.traceSummary.strategySummary.rewriteEnabled, true);
 });
 
-test("TracesService backfills strategySummary.usedFallback from fallbackReason when legacy usedFallback is missing", async () => {
+test('TracesService backfills strategySummary.usedFallback from fallbackReason when legacy usedFallback is missing', async () => {
   const persistedTrace = {
-    id: "trace-strategy-used-fallback-backfill",
-    conversationId: "conversation-strategy-used-fallback-backfill",
-    assistantId: "assistant-strategy-used-fallback-backfill",
-    userMessageId: "user-message-strategy-used-fallback-backfill",
+    id: 'trace-strategy-used-fallback-backfill',
+    conversationId: 'conversation-strategy-used-fallback-backfill',
+    assistantId: 'assistant-strategy-used-fallback-backfill',
+    userMessageId: 'user-message-strategy-used-fallback-backfill',
     assistantMessageId: null,
-    userQuery: "summarize retrieval fallback",
+    userQuery: 'summarize retrieval fallback',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       strategySummary: {
-        retrievalMode: "lexical",
-        strategyMode: "vector",
-        retrievalQuerySource: "original_unchanged",
+        retrievalMode: 'lexical',
+        strategyMode: 'vector',
+        retrievalQuerySource: 'original_unchanged',
         rewriteEnabled: true,
         rewriteApplied: false,
         rewriteUsedFallback: null,
         rewritePromptId: null,
         rewriteModelName: null,
-        fallbackReason: "vector_error"
+        fallbackReason: 'vector_error'
       }
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1295,35 +1430,40 @@ test("TracesService backfills strategySummary.usedFallback from fallbackReason w
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-strategy-used-fallback-backfill");
+  const detail = await service.getTrace(
+    'trace-strategy-used-fallback-backfill'
+  );
 
-  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
-  assert.equal(detail.traceSummary.strategySummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.fallbackReason, 'vector_error');
+  assert.equal(
+    detail.traceSummary.strategySummary.fallbackReason,
+    'vector_error'
+  );
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
 });
 
-test("TracesService backfills fallbackReason from legacy retrievalMetadata fallbackReason", async () => {
+test('TracesService backfills fallbackReason from legacy retrievalMetadata fallbackReason', async () => {
   const persistedTrace = {
-    id: "trace-legacy-fallback-reason",
-    conversationId: "conversation-legacy-fallback-reason",
-    assistantId: "assistant-legacy-fallback-reason",
-    userMessageId: "user-message-legacy-fallback-reason",
+    id: 'trace-legacy-fallback-reason',
+    conversationId: 'conversation-legacy-fallback-reason',
+    assistantId: 'assistant-legacy-fallback-reason',
+    userMessageId: 'user-message-legacy-fallback-reason',
     assistantMessageId: null,
-    userQuery: "summarize fallback reason",
+    userQuery: 'summarize fallback reason',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
-      fallbackReason: "vector_error"
+      fallbackReason: 'vector_error'
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1334,21 +1474,24 @@ test("TracesService backfills fallbackReason from legacy retrievalMetadata fallb
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-legacy-fallback-reason");
+  const detail = await service.getTrace('trace-legacy-fallback-reason');
 
-  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
-  assert.equal(detail.traceSummary.strategySummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.fallbackReason, 'vector_error');
+  assert.equal(
+    detail.traceSummary.strategySummary.fallbackReason,
+    'vector_error'
+  );
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
 });
 
-test("TracesService backfills strategySummary.usedFallback from legacy top-level retrievalMetadata.usedFallback", async () => {
+test('TracesService backfills strategySummary.usedFallback from legacy top-level retrievalMetadata.usedFallback', async () => {
   const persistedTrace = {
-    id: "trace-legacy-used-fallback",
-    conversationId: "conversation-legacy-used-fallback",
-    assistantId: "assistant-legacy-used-fallback",
-    userMessageId: "user-message-legacy-used-fallback",
+    id: 'trace-legacy-used-fallback',
+    conversationId: 'conversation-legacy-used-fallback',
+    assistantId: 'assistant-legacy-used-fallback',
+    userMessageId: 'user-message-legacy-used-fallback',
     assistantMessageId: null,
-    userQuery: "summarize fallback usage",
+    userQuery: 'summarize fallback usage',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -1358,11 +1501,11 @@ test("TracesService backfills strategySummary.usedFallback from legacy top-level
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1373,43 +1516,43 @@ test("TracesService backfills strategySummary.usedFallback from legacy top-level
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-legacy-used-fallback");
+  const detail = await service.getTrace('trace-legacy-used-fallback');
 
   assert.equal(detail.traceSummary.fallbackReason, null);
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
   assert.equal(
     detail.traceSummary.retrievalModeProvenanceSentence,
-    "Resolved retrieval mode is unknown; fallback was used (reason unspecified)."
+    'Resolved retrieval mode is unknown; fallback was used (reason unspecified).'
   );
   assert.equal(
     detail.traceSummary.strategyReadabilityLabel,
-    "unknown mode retrieval via original_disabled; fallback: unspecified; fallback used: yes."
+    'unknown mode retrieval via original_disabled; fallback: unspecified; fallback used: yes.'
   );
 });
 
-test("TracesService backfills strategy summary from legacy top-level fallback clues only", async () => {
+test('TracesService backfills strategy summary from legacy top-level fallback clues only', async () => {
   const persistedTrace = {
-    id: "trace-legacy-top-level-fallback-clues-only",
-    conversationId: "conversation-legacy-top-level-fallback-clues-only",
-    assistantId: "assistant-legacy-top-level-fallback-clues-only",
-    userMessageId: "user-message-legacy-top-level-fallback-clues-only",
+    id: 'trace-legacy-top-level-fallback-clues-only',
+    conversationId: 'conversation-legacy-top-level-fallback-clues-only',
+    assistantId: 'assistant-legacy-top-level-fallback-clues-only',
+    userMessageId: 'user-message-legacy-top-level-fallback-clues-only',
     assistantMessageId: null,
-    userQuery: "summarize legacy fallback clues",
+    userQuery: 'summarize legacy fallback clues',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
-      fallbackReason: "vector_error",
+      fallbackReason: 'vector_error',
       usedFallback: true
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1420,41 +1563,46 @@ test("TracesService backfills strategy summary from legacy top-level fallback cl
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-legacy-top-level-fallback-clues-only");
+  const detail = await service.getTrace(
+    'trace-legacy-top-level-fallback-clues-only'
+  );
 
-  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
-  assert.equal(detail.traceSummary.strategySummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.fallbackReason, 'vector_error');
+  assert.equal(
+    detail.traceSummary.strategySummary.fallbackReason,
+    'vector_error'
+  );
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
   assert.equal(
     detail.traceSummary.strategyReadabilityLabel,
-    "unknown mode retrieval via original_disabled; fallback: vector_error; fallback used: yes."
+    'unknown mode retrieval via original_disabled; fallback: vector_error; fallback used: yes.'
   );
 });
 
-test("TracesService keeps legacy fallback traces readable when optional provenance fields are missing", async () => {
+test('TracesService keeps legacy fallback traces readable when optional provenance fields are missing', async () => {
   const persistedTrace = {
-    id: "trace-legacy-fallback-missing-readable-fields",
-    conversationId: "conversation-legacy-fallback-missing-readable-fields",
-    assistantId: "assistant-legacy-fallback-missing-readable-fields",
-    userMessageId: "user-message-legacy-fallback-missing-readable-fields",
+    id: 'trace-legacy-fallback-missing-readable-fields',
+    conversationId: 'conversation-legacy-fallback-missing-readable-fields',
+    assistantId: 'assistant-legacy-fallback-missing-readable-fields',
+    userMessageId: 'user-message-legacy-fallback-missing-readable-fields',
     assistantMessageId: null,
-    userQuery: "summarize readable fallback",
+    userQuery: 'summarize readable fallback',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
-      fallbackReason: "vector_error"
+      fallbackReason: 'vector_error'
     },
     citationsJson: [],
     answeringMetadataJson: {
       missingInformationCount: 1
     },
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1465,52 +1613,65 @@ test("TracesService keeps legacy fallback traces readable when optional provenan
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-legacy-fallback-missing-readable-fields");
+  const detail = await service.getTrace(
+    'trace-legacy-fallback-missing-readable-fields'
+  );
 
-  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.fallbackReason, 'vector_error');
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
   assert.equal(
     detail.traceSummary.answerProvenanceSentence,
-    "Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source."
+    'Answer text source is unknown; status source is unknown; attribution summary is unknown attribution via unknown evidence source.'
   );
   assert.equal(
     detail.traceSummary.missingInformationProvenanceSentence,
-    "Missing-information source is unknown; insufficient-context reason is none; missing-information count is 1."
+    'Missing-information source is unknown; insufficient-context reason is none; missing-information count is 1.'
   );
-  assert.equal(detail.traceSummary.answerTextSourceReadabilityLabel, "unknown answer text source");
-  assert.equal(detail.traceSummary.answerTextSourceReadabilitySentence, "Answer text source is unknown answer text source.");
-  assert.equal(detail.traceSummary.answerStatusSourceReadabilityLabel, "unknown answer status source");
+  assert.equal(
+    detail.traceSummary.answerTextSourceReadabilityLabel,
+    'unknown answer text source'
+  );
+  assert.equal(
+    detail.traceSummary.answerTextSourceReadabilitySentence,
+    'Answer text source is unknown answer text source.'
+  );
+  assert.equal(
+    detail.traceSummary.answerStatusSourceReadabilityLabel,
+    'unknown answer status source'
+  );
   assert.equal(
     detail.traceSummary.answerProvenanceReadabilitySentence,
-    "Answer text source is unknown answer text source; answer status source is unknown answer status source; Answer attribution is unknown; source evidence is unknown."
+    'Answer text source is unknown answer text source; answer status source is unknown answer status source; Answer attribution is unknown; source evidence is unknown.'
   );
 });
 
-test("TracesService backfills strategySummary.usedFallback from legacy execution fallbackReason when usedFallback is missing", async () => {
+test('TracesService backfills strategySummary.usedFallback from legacy execution fallbackReason when usedFallback is missing', async () => {
   const persistedTrace = {
-    id: "trace-execution-fallback-reason-used-fallback-backfill",
-    conversationId: "conversation-execution-fallback-reason-used-fallback-backfill",
-    assistantId: "assistant-execution-fallback-reason-used-fallback-backfill",
-    userMessageId: "user-message-execution-fallback-reason-used-fallback-backfill",
+    id: 'trace-execution-fallback-reason-used-fallback-backfill',
+    conversationId:
+      'conversation-execution-fallback-reason-used-fallback-backfill',
+    assistantId: 'assistant-execution-fallback-reason-used-fallback-backfill',
+    userMessageId:
+      'user-message-execution-fallback-reason-used-fallback-backfill',
     assistantMessageId: null,
-    userQuery: "summarize fallback usage from execution fallback reason",
+    userQuery: 'summarize fallback usage from execution fallback reason',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "lexical",
-        fallbackReason: "vector_error"
+        actualMode: 'lexical',
+        fallbackReason: 'vector_error'
       }
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1521,32 +1682,37 @@ test("TracesService backfills strategySummary.usedFallback from legacy execution
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-execution-fallback-reason-used-fallback-backfill");
+  const detail = await service.getTrace(
+    'trace-execution-fallback-reason-used-fallback-backfill'
+  );
 
-  assert.equal(detail.traceSummary.fallbackReason, "vector_error");
-  assert.equal(detail.traceSummary.strategySummary.fallbackReason, "vector_error");
+  assert.equal(detail.traceSummary.fallbackReason, 'vector_error');
+  assert.equal(
+    detail.traceSummary.strategySummary.fallbackReason,
+    'vector_error'
+  );
   assert.equal(detail.traceSummary.strategySummary.usedFallback, true);
   assert.equal(
     detail.traceSummary.strategyReadabilityLabel,
-    "lexical retrieval via original_disabled; fallback: vector_error; fallback used: yes."
+    'lexical retrieval via original_disabled; fallback: vector_error; fallback used: yes.'
   );
 });
 
-test("TracesService backfills strategyMode from legacy retrievalMode when strategyMode is missing", async () => {
+test('TracesService backfills strategyMode from legacy retrievalMode when strategyMode is missing', async () => {
   const persistedTrace = {
-    id: "trace-strategy-mode-backfill",
-    conversationId: "conversation-strategy-mode-backfill",
-    assistantId: "assistant-strategy-mode-backfill",
-    userMessageId: "user-message-strategy-mode-backfill",
+    id: 'trace-strategy-mode-backfill',
+    conversationId: 'conversation-strategy-mode-backfill',
+    assistantId: 'assistant-strategy-mode-backfill',
+    userMessageId: 'user-message-strategy-mode-backfill',
     assistantMessageId: null,
-    userQuery: "summarize strategy mode",
+    userQuery: 'summarize strategy mode',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       strategySummary: {
-        retrievalMode: "hybrid",
-        retrievalQuerySource: "original_unchanged",
+        retrievalMode: 'hybrid',
+        retrievalQuerySource: 'original_unchanged',
         rewriteEnabled: true,
         rewriteApplied: false,
         rewriteUsedFallback: null,
@@ -1559,11 +1725,11 @@ test("TracesService backfills strategyMode from legacy retrievalMode when strate
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1574,34 +1740,34 @@ test("TracesService backfills strategyMode from legacy retrievalMode when strate
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-strategy-mode-backfill");
+  const detail = await service.getTrace('trace-strategy-mode-backfill');
 
-  assert.equal(detail.traceSummary.retrievalMode, "hybrid");
-  assert.equal(detail.traceSummary.strategySummary.strategyMode, "hybrid");
+  assert.equal(detail.traceSummary.retrievalMode, 'hybrid');
+  assert.equal(detail.traceSummary.strategySummary.strategyMode, 'hybrid');
 });
 
-test("TracesService backfills retrievalMode from legacy top-level retrievalMetadata.retrievalMode", async () => {
+test('TracesService backfills retrievalMode from legacy top-level retrievalMetadata.retrievalMode', async () => {
   const persistedTrace = {
-    id: "trace-retrieval-mode-top-level-backfill",
-    conversationId: "conversation-retrieval-mode-top-level-backfill",
-    assistantId: "assistant-retrieval-mode-top-level-backfill",
-    userMessageId: "user-message-retrieval-mode-top-level-backfill",
+    id: 'trace-retrieval-mode-top-level-backfill',
+    conversationId: 'conversation-retrieval-mode-top-level-backfill',
+    assistantId: 'assistant-retrieval-mode-top-level-backfill',
+    userMessageId: 'user-message-retrieval-mode-top-level-backfill',
     assistantMessageId: null,
-    userQuery: "summarize retrieval mode",
+    userQuery: 'summarize retrieval mode',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
-      retrievalMode: "lexical"
+      retrievalMode: 'lexical'
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1612,35 +1778,37 @@ test("TracesService backfills retrievalMode from legacy top-level retrievalMetad
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-retrieval-mode-top-level-backfill");
+  const detail = await service.getTrace(
+    'trace-retrieval-mode-top-level-backfill'
+  );
 
-  assert.equal(detail.traceSummary.retrievalMode, "lexical");
-  assert.equal(detail.traceSummary.strategySummary.retrievalMode, "lexical");
-  assert.equal(detail.traceSummary.strategySummary.strategyMode, "lexical");
+  assert.equal(detail.traceSummary.retrievalMode, 'lexical');
+  assert.equal(detail.traceSummary.strategySummary.retrievalMode, 'lexical');
+  assert.equal(detail.traceSummary.strategySummary.strategyMode, 'lexical');
 });
 
-test("TracesService backfills retrievalQuerySource from legacy top-level retrievalMetadata.retrievalQuerySource", async () => {
+test('TracesService backfills retrievalQuerySource from legacy top-level retrievalMetadata.retrievalQuerySource', async () => {
   const persistedTrace = {
-    id: "trace-retrieval-query-source-top-level-backfill",
-    conversationId: "conversation-retrieval-query-source-top-level-backfill",
-    assistantId: "assistant-retrieval-query-source-top-level-backfill",
-    userMessageId: "user-message-retrieval-query-source-top-level-backfill",
+    id: 'trace-retrieval-query-source-top-level-backfill',
+    conversationId: 'conversation-retrieval-query-source-top-level-backfill',
+    assistantId: 'assistant-retrieval-query-source-top-level-backfill',
+    userMessageId: 'user-message-retrieval-query-source-top-level-backfill',
     assistantMessageId: null,
-    userQuery: "summarize retrieval query source",
+    userQuery: 'summarize retrieval query source',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
-      retrievalQuerySource: "rewritten"
+      retrievalQuerySource: 'rewritten'
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1651,31 +1819,36 @@ test("TracesService backfills retrievalQuerySource from legacy top-level retriev
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-retrieval-query-source-top-level-backfill");
+  const detail = await service.getTrace(
+    'trace-retrieval-query-source-top-level-backfill'
+  );
 
-  assert.equal(detail.traceSummary.retrievalQuerySource, "rewritten");
-  assert.equal(detail.traceSummary.strategySummary.retrievalQuerySource, "rewritten");
+  assert.equal(detail.traceSummary.retrievalQuerySource, 'rewritten');
+  assert.equal(
+    detail.traceSummary.strategySummary.retrievalQuerySource,
+    'rewritten'
+  );
   assert.equal(detail.traceSummary.rewriteApplied, true);
   assert.equal(detail.traceSummary.strategySummary.rewriteApplied, true);
   assert.equal(detail.traceSummary.strategySummary.rewriteEnabled, true);
 });
 
-test("TracesService backfills rewriteApplied from strategySummary.retrievalQuerySource when legacy rewriteApplied is missing", async () => {
+test('TracesService backfills rewriteApplied from strategySummary.retrievalQuerySource when legacy rewriteApplied is missing', async () => {
   const persistedTrace = {
-    id: "trace-rewrite-applied-from-strategy-query-source",
-    conversationId: "conversation-rewrite-applied-from-strategy-query-source",
-    assistantId: "assistant-rewrite-applied-from-strategy-query-source",
-    userMessageId: "user-message-rewrite-applied-from-strategy-query-source",
+    id: 'trace-rewrite-applied-from-strategy-query-source',
+    conversationId: 'conversation-rewrite-applied-from-strategy-query-source',
+    assistantId: 'assistant-rewrite-applied-from-strategy-query-source',
+    userMessageId: 'user-message-rewrite-applied-from-strategy-query-source',
     assistantMessageId: null,
-    userQuery: "summarize retrieval query source",
+    userQuery: 'summarize retrieval query source',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       strategySummary: {
-        retrievalMode: "hybrid",
-        strategyMode: "hybrid",
-        retrievalQuerySource: "rewritten",
+        retrievalMode: 'hybrid',
+        strategyMode: 'hybrid',
+        retrievalQuerySource: 'rewritten',
         rewriteEnabled: true,
         rewriteUsedFallback: null,
         rewritePromptId: null,
@@ -1687,11 +1860,11 @@ test("TracesService backfills rewriteApplied from strategySummary.retrievalQuery
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1702,21 +1875,23 @@ test("TracesService backfills rewriteApplied from strategySummary.retrievalQuery
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-rewrite-applied-from-strategy-query-source");
+  const detail = await service.getTrace(
+    'trace-rewrite-applied-from-strategy-query-source'
+  );
 
-  assert.equal(detail.traceSummary.retrievalQuerySource, "rewritten");
+  assert.equal(detail.traceSummary.retrievalQuerySource, 'rewritten');
   assert.equal(detail.traceSummary.rewriteApplied, true);
   assert.equal(detail.traceSummary.strategySummary.rewriteApplied, true);
 });
 
-test("TracesService backfills rewriteUsedFallback from legacy top-level retrievalMetadata.rewriteUsedFallback", async () => {
+test('TracesService backfills rewriteUsedFallback from legacy top-level retrievalMetadata.rewriteUsedFallback', async () => {
   const persistedTrace = {
-    id: "trace-rewrite-used-fallback-top-level-backfill",
-    conversationId: "conversation-rewrite-used-fallback-top-level-backfill",
-    assistantId: "assistant-rewrite-used-fallback-top-level-backfill",
-    userMessageId: "user-message-rewrite-used-fallback-top-level-backfill",
+    id: 'trace-rewrite-used-fallback-top-level-backfill',
+    conversationId: 'conversation-rewrite-used-fallback-top-level-backfill',
+    assistantId: 'assistant-rewrite-used-fallback-top-level-backfill',
+    userMessageId: 'user-message-rewrite-used-fallback-top-level-backfill',
     assistantMessageId: null,
-    userQuery: "summarize rewrite fallback provenance",
+    userQuery: 'summarize rewrite fallback provenance',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -1726,11 +1901,11 @@ test("TracesService backfills rewriteUsedFallback from legacy top-level retrieva
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1741,34 +1916,36 @@ test("TracesService backfills rewriteUsedFallback from legacy top-level retrieva
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-rewrite-used-fallback-top-level-backfill");
+  const detail = await service.getTrace(
+    'trace-rewrite-used-fallback-top-level-backfill'
+  );
 
   assert.equal(detail.traceSummary.strategySummary.rewriteUsedFallback, true);
 });
 
-test("TracesService backfills rewrite prompt/model provenance from legacy top-level retrievalMetadata fields", async () => {
+test('TracesService backfills rewrite prompt/model provenance from legacy top-level retrievalMetadata fields', async () => {
   const persistedTrace = {
-    id: "trace-rewrite-provenance-top-level-backfill",
-    conversationId: "conversation-rewrite-provenance-top-level-backfill",
-    assistantId: "assistant-rewrite-provenance-top-level-backfill",
-    userMessageId: "user-message-rewrite-provenance-top-level-backfill",
+    id: 'trace-rewrite-provenance-top-level-backfill',
+    conversationId: 'conversation-rewrite-provenance-top-level-backfill',
+    assistantId: 'assistant-rewrite-provenance-top-level-backfill',
+    userMessageId: 'user-message-rewrite-provenance-top-level-backfill',
     assistantMessageId: null,
-    userQuery: "summarize rewrite provenance",
+    userQuery: 'summarize rewrite provenance',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
-      rewritePromptId: "rewrite-query.v1",
-      rewriteModelName: "fallback-rewrite-local"
+      rewritePromptId: 'rewrite-query.v1',
+      rewriteModelName: 'fallback-rewrite-local'
     },
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1779,20 +1956,28 @@ test("TracesService backfills rewrite prompt/model provenance from legacy top-le
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-rewrite-provenance-top-level-backfill");
+  const detail = await service.getTrace(
+    'trace-rewrite-provenance-top-level-backfill'
+  );
 
-  assert.equal(detail.traceSummary.strategySummary.rewritePromptId, "rewrite-query.v1");
-  assert.equal(detail.traceSummary.strategySummary.rewriteModelName, "fallback-rewrite-local");
+  assert.equal(
+    detail.traceSummary.strategySummary.rewritePromptId,
+    'rewrite-query.v1'
+  );
+  assert.equal(
+    detail.traceSummary.strategySummary.rewriteModelName,
+    'fallback-rewrite-local'
+  );
 });
 
-test("TracesService backfills rewriteEnabled from legacy top-level retrievalMetadata.rewriteEnabled", async () => {
+test('TracesService backfills rewriteEnabled from legacy top-level retrievalMetadata.rewriteEnabled', async () => {
   const persistedTrace = {
-    id: "trace-rewrite-enabled-top-level-backfill",
-    conversationId: "conversation-rewrite-enabled-top-level-backfill",
-    assistantId: "assistant-rewrite-enabled-top-level-backfill",
-    userMessageId: "user-message-rewrite-enabled-top-level-backfill",
+    id: 'trace-rewrite-enabled-top-level-backfill',
+    conversationId: 'conversation-rewrite-enabled-top-level-backfill',
+    assistantId: 'assistant-rewrite-enabled-top-level-backfill',
+    userMessageId: 'user-message-rewrite-enabled-top-level-backfill',
     assistantMessageId: null,
-    userQuery: "summarize rewrite enablement",
+    userQuery: 'summarize rewrite enablement',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -1802,11 +1987,11 @@ test("TracesService backfills rewriteEnabled from legacy top-level retrievalMeta
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1817,19 +2002,21 @@ test("TracesService backfills rewriteEnabled from legacy top-level retrievalMeta
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-rewrite-enabled-top-level-backfill");
+  const detail = await service.getTrace(
+    'trace-rewrite-enabled-top-level-backfill'
+  );
 
   assert.equal(detail.traceSummary.strategySummary.rewriteEnabled, true);
 });
 
-test("TracesService backfills retrievalQuerySource from rewrite enabled metadata when legacy finalQuerySource is missing", async () => {
+test('TracesService backfills retrievalQuerySource from rewrite enabled metadata when legacy finalQuerySource is missing', async () => {
   const persistedTrace = {
-    id: "trace-query-source-from-rewrite-enabled",
-    conversationId: "conversation-query-source-from-rewrite-enabled",
-    assistantId: "assistant-query-source-from-rewrite-enabled",
-    userMessageId: "user-message-query-source-from-rewrite-enabled",
+    id: 'trace-query-source-from-rewrite-enabled',
+    conversationId: 'conversation-query-source-from-rewrite-enabled',
+    assistantId: 'assistant-query-source-from-rewrite-enabled',
+    userMessageId: 'user-message-query-source-from-rewrite-enabled',
     assistantMessageId: null,
-    userQuery: "summarize this",
+    userQuery: 'summarize this',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
@@ -1842,11 +2029,11 @@ test("TracesService backfills retrievalQuerySource from rewrite enabled metadata
     citationsJson: [],
     answeringMetadataJson: null,
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1857,40 +2044,45 @@ test("TracesService backfills retrievalQuerySource from rewrite enabled metadata
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-query-source-from-rewrite-enabled");
+  const detail = await service.getTrace(
+    'trace-query-source-from-rewrite-enabled'
+  );
 
-  assert.equal(detail.traceSummary.retrievalQuerySource, "original_unchanged");
-  assert.equal(detail.traceSummary.strategySummary.retrievalQuerySource, "original_unchanged");
+  assert.equal(detail.traceSummary.retrievalQuerySource, 'original_unchanged');
+  assert.equal(
+    detail.traceSummary.strategySummary.retrievalQuerySource,
+    'original_unchanged'
+  );
   assert.equal(detail.traceSummary.rewriteApplied, false);
   assert.equal(detail.traceSummary.strategySummary.rewriteEnabled, true);
 });
 
-test("TracesService keeps answerProvenanceSentence legacy fallback wording when attribution source metadata is missing", async () => {
+test('TracesService keeps answerProvenanceSentence legacy fallback wording when attribution source metadata is missing', async () => {
   const persistedTrace = {
-    id: "trace-answer-provenance-legacy-fallback",
-    conversationId: "conversation-answer-provenance-legacy-fallback",
-    assistantId: "assistant-answer-provenance-legacy-fallback",
-    userMessageId: "user-message-answer-provenance-legacy-fallback",
+    id: 'trace-answer-provenance-legacy-fallback',
+    conversationId: 'conversation-answer-provenance-legacy-fallback',
+    assistantId: 'assistant-answer-provenance-legacy-fallback',
+    userMessageId: 'user-message-answer-provenance-legacy-fallback',
     assistantMessageId: null,
-    userQuery: "summarize answer provenance",
+    userQuery: 'summarize answer provenance',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "vector"
+        actualMode: 'vector'
       }
     },
     citationsJson: [],
     answeringMetadataJson: {
-      citationAttribution: "explicit"
+      citationAttribution: 'explicit'
     },
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1901,41 +2093,45 @@ test("TracesService keeps answerProvenanceSentence legacy fallback wording when 
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-answer-provenance-legacy-fallback");
+  const detail = await service.getTrace(
+    'trace-answer-provenance-legacy-fallback'
+  );
 
   assert.equal(
     detail.traceSummary.answerProvenanceSentence,
-    "Answer text source is unknown; status source is unknown; attribution summary is explicit attribution via unknown evidence source."
+    'Answer text source is unknown; status source is unknown; attribution summary is explicit attribution via unknown evidence source.'
   );
 });
 
-test("TracesService keeps missingInformationProvenanceSentence legacy fallback wording when source metadata is missing", async () => {
+test('TracesService keeps missingInformationProvenanceSentence legacy fallback wording when source metadata is missing', async () => {
   const persistedTrace = {
-    id: "trace-missing-information-provenance-legacy-fallback",
-    conversationId: "conversation-missing-information-provenance-legacy-fallback",
-    assistantId: "assistant-missing-information-provenance-legacy-fallback",
-    userMessageId: "user-message-missing-information-provenance-legacy-fallback",
+    id: 'trace-missing-information-provenance-legacy-fallback',
+    conversationId:
+      'conversation-missing-information-provenance-legacy-fallback',
+    assistantId: 'assistant-missing-information-provenance-legacy-fallback',
+    userMessageId:
+      'user-message-missing-information-provenance-legacy-fallback',
     assistantMessageId: null,
-    userQuery: "summarize missing-information provenance",
+    userQuery: 'summarize missing-information provenance',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "vector"
+        actualMode: 'vector'
       }
     },
     citationsJson: [],
     answeringMetadataJson: {
-      insufficientContextReason: "retrieved_context_insufficient",
+      insufficientContextReason: 'retrieved_context_insufficient',
       missingInformationCount: 2
     },
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1946,41 +2142,46 @@ test("TracesService keeps missingInformationProvenanceSentence legacy fallback w
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-missing-information-provenance-legacy-fallback");
+  const detail = await service.getTrace(
+    'trace-missing-information-provenance-legacy-fallback'
+  );
 
   assert.equal(
     detail.traceSummary.missingInformationProvenanceSentence,
-    "Missing-information source is unknown; insufficient-context reason is retrieved_context_insufficient; missing-information count is 2."
+    'Missing-information source is unknown; insufficient-context reason is retrieved_context_insufficient; missing-information count is 2.'
   );
-  assert.equal(detail.traceSummary.missingInformationSourceReadabilityLabel, "unknown missing-information source");
+  assert.equal(
+    detail.traceSummary.missingInformationSourceReadabilityLabel,
+    'unknown missing-information source'
+  );
 });
 
-test("TracesService keeps raw missingInformationSource value in readability label for unknown legacy source", async () => {
+test('TracesService keeps raw missingInformationSource value in readability label for unknown legacy source', async () => {
   const persistedTrace = {
-    id: "trace-missing-information-source-raw-value",
-    conversationId: "conversation-missing-information-source-raw-value",
-    assistantId: "assistant-missing-information-source-raw-value",
-    userMessageId: "user-message-missing-information-source-raw-value",
+    id: 'trace-missing-information-source-raw-value',
+    conversationId: 'conversation-missing-information-source-raw-value',
+    assistantId: 'assistant-missing-information-source-raw-value',
+    userMessageId: 'user-message-missing-information-source-raw-value',
     assistantMessageId: null,
-    userQuery: "show missing-information source readability",
+    userQuery: 'show missing-information source readability',
     rewrittenQuery: null,
     retrievedChunkIdsJson: [],
     retrievalScoresJson: [],
     retrievalMetadataJson: {
       execution: {
-        actualMode: "vector"
+        actualMode: 'vector'
       }
     },
     citationsJson: [],
     answeringMetadataJson: {
-      missingInformationSource: "legacy_unknown_source"
+      missingInformationSource: 'legacy_unknown_source'
     },
     qualityEvaluationJson: null,
-    modelName: "fallback-local",
+    modelName: 'fallback-local',
     latencyMs: 5,
-    status: "success",
+    status: 'success',
     errorMessage: null,
-    createdAt: new Date("2026-03-28T00:00:00.000Z")
+    createdAt: new Date('2026-03-28T00:00:00.000Z')
   };
 
   const prisma = {
@@ -1991,10 +2192,12 @@ test("TracesService keeps raw missingInformationSource value in readability labe
   };
 
   const service = new TracesService(prisma);
-  const detail = await service.getTrace("trace-missing-information-source-raw-value");
+  const detail = await service.getTrace(
+    'trace-missing-information-source-raw-value'
+  );
 
   assert.equal(
     detail.traceSummary.missingInformationSourceReadabilityLabel,
-    "unknown missing-information source (legacy_unknown_source)"
+    'unknown missing-information source (legacy_unknown_source)'
   );
 });

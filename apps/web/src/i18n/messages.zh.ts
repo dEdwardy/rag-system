@@ -404,6 +404,7 @@ export const messages = {
       create: '创建工作区资料库',
       openDocuments: '打开资料库',
       openAssistant: '打开回答设置',
+      refreshDefaultPath: '刷新默认路径',
       openChat: '打开对话'
     },
     create: {
@@ -449,8 +450,8 @@ export const messages = {
       addDocuments: '先添加资料，再考虑其他操作。',
       reviewFailedDocuments: '先处理失败资料，再继续添加内容。',
       waitForProcessing: '等当前更新完成，再回来查看最新状态。',
-      bindAssistant:
-        '资料已经就绪。接下来建议先连接或检查回答设置，再开始提问。',
+      prepareDefaultAssistant:
+        '资料已经就绪。接下来建议打开回答设置，让默认助手完成准备或修复，再开始提问。',
       workspaceReady: '这个工作区已经就绪。下一步最合适的是直接进入对话。'
     },
     feedback: {
@@ -536,8 +537,8 @@ export const messages = {
       retrievalCopy: '调整回答前会检索多少内容。',
       workspaceStatus: '当前配置',
       currentLibraryLabel: '当前资料库目标',
-      currentAssistantBindingLabel: '默认助手绑定',
-      currentAssistantBindingValue: '这个默认助手当前绑定到主资料库。',
+      currentAssistantBindingLabel: '默认助手状态',
+      currentAssistantBindingValue: '这个默认助手会自动跟随当前主资料库。',
       saveCheckpoint: '保存更改',
       saveCheckpointCopy: '保存一次即可同时持久化助手设置和检索配置的修改。'
     },

@@ -1,36 +1,51 @@
-import { Alert, Badge, Box, Button, Grid, Group, Modal, Paper, Stack, Text, TextInput, Textarea, Title } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { OauthWorkspaceWelcome } from "../../components/auth/OauthWorkspaceWelcome";
-import { StatePanel } from "../../components/StatePanel";
+import {
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Grid,
+  Group,
+  Modal,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+  Textarea,
+  Title
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { useQueryClient } from '@tanstack/react-query';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { OauthWorkspaceWelcome } from '../../components/auth/OauthWorkspaceWelcome';
+import { StatePanel } from '../../components/StatePanel';
 import {
   useAssistants,
   useCreateKnowledgeBase,
   useDocuments,
-   useKnowledgeBaseDocumentRunSummary,
-   useKnowledgeBases,
-} from "../../features/api/hooks";
-import { getPrimaryKnowledgeBase } from "../../features/api/workspace-selection";
-import { useI18n } from "../../i18n/I18nProvider";
+  useKnowledgeBaseDocumentRunSummary,
+  useKnowledgeBases
+} from '../../features/api/hooks';
+import { getPrimaryKnowledgeBase } from '../../features/api/workspace-selection';
+import { useI18n } from '../../i18n/I18nProvider';
 import {
   buildKnowledgeBaseWorkspaceNextAction,
   buildKnowledgeBaseWorkspaceSummary
-} from "./knowledge-base-page-helpers";
+} from './knowledge-base-page-helpers';
 
 const KnowledgeBaseActivityPanel = lazy(async () => {
-  const module = await import("./KnowledgeBaseActivityPanel");
+  const module = await import('./KnowledgeBaseActivityPanel');
   return { default: module.KnowledgeBaseActivityPanel };
 });
 
-function KnowledgeBaseActivityFallback({ locale }: { locale: "zh" | "en" }) {
+function KnowledgeBaseActivityFallback({ locale }: { locale: 'zh' | 'en' }) {
   return (
     <StatePanel
-      title={locale === "zh" ? "加载更新详情" : "Loading activity details"}
+      title={locale === 'zh' ? '加载更新详情' : 'Loading activity details'}
       description={
-        locale === "zh"
-          ? "正在准备最近资料更新与异常线索面板。"
-          : "Preparing the recent library activity and issue context panel."
+        locale === 'zh'
+          ? '正在准备最近资料更新与异常线索面板。'
+          : 'Preparing the recent library activity and issue context panel.'
       }
       tone="loading"
     />
@@ -38,23 +53,43 @@ function KnowledgeBaseActivityFallback({ locale }: { locale: "zh" | "en" }) {
 }
 
 export function KnowledgeBasePage() {
+  const queryClient = useQueryClient();
   const knowledgeBasesQuery = useKnowledgeBases();
   const assistantsQuery = useAssistants();
   const createKnowledgeBaseMutation = useCreateKnowledgeBase();
   const knowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
   const hasKnowledgeBase = knowledgeBase != null;
-  const documentsQuery = useDocuments(knowledgeBase?.id ?? "", hasKnowledgeBase);
-  const [isCreateKnowledgeBaseOpen, setIsCreateKnowledgeBaseOpen] = useState(false);
-  const [createKnowledgeBaseName, setCreateKnowledgeBaseName] = useState("");
-  const [createKnowledgeBaseDescription, setCreateKnowledgeBaseDescription] = useState("");
-  const [recentlyCreatedKnowledgeBaseName, setRecentlyCreatedKnowledgeBaseName] = useState<string | null>(null);
-  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(knowledgeBase?.id ?? null, {
-    sinceHours: 72,
-  });
-  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
-  const assistants = useMemo(() => assistantsQuery.data ?? [], [assistantsQuery.data]);
+  const documentsQuery = useDocuments(
+    knowledgeBase?.id ?? '',
+    hasKnowledgeBase
+  );
+  const [isCreateKnowledgeBaseOpen, setIsCreateKnowledgeBaseOpen] =
+    useState(false);
+  const [createKnowledgeBaseName, setCreateKnowledgeBaseName] = useState('');
+  const [createKnowledgeBaseDescription, setCreateKnowledgeBaseDescription] =
+    useState('');
+  const [
+    recentlyCreatedKnowledgeBaseName,
+    setRecentlyCreatedKnowledgeBaseName
+  ] = useState<string | null>(null);
+  const runSummaryQuery = useKnowledgeBaseDocumentRunSummary(
+    knowledgeBase?.id ?? null,
+    {
+      sinceHours: 72
+    }
+  );
+  const documents = useMemo(
+    () => documentsQuery.data ?? [],
+    [documentsQuery.data]
+  );
+  const assistants = useMemo(
+    () => assistantsQuery.data ?? [],
+    [assistantsQuery.data]
+  );
   const assistantCount = useMemo(
-    () => assistants.filter(assistant => assistant.kbId === knowledgeBase?.id).length,
+    () =>
+      assistants.filter((assistant) => assistant.kbId === knowledgeBase?.id)
+        .length,
     [assistants, knowledgeBase?.id]
   );
   const { formatDateTime, t, locale } = useI18n();
@@ -75,60 +110,68 @@ export function KnowledgeBasePage() {
     [assistantCount, documents]
   );
   const nextActionButtonLabel =
-    nextAction.actionHref === "/documents"
-      ? t("knowledgeBase.actions.openDocuments")
-      : nextAction.actionHref === "/assistant"
-        ? t("knowledgeBase.actions.openAssistant")
-        : t("knowledgeBase.actions.openChat");
+    nextAction.actionHref === '/documents'
+      ? t('knowledgeBase.actions.openDocuments')
+      : nextAction.actionHref === '/assistant'
+        ? t('knowledgeBase.actions.openAssistant')
+        : t('knowledgeBase.actions.openChat');
   const nextActionTone =
-    nextAction.action === "review_failed_documents"
-      ? "red"
-      : nextAction.action === "wait_for_processing"
-        ? "yellow"
-        : nextAction.action === "workspace_ready"
-          ? "teal"
-          : "indigo";
+    nextAction.action === 'review_failed_documents'
+      ? 'red'
+      : nextAction.action === 'wait_for_processing'
+        ? 'yellow'
+        : nextAction.action === 'workspace_ready'
+          ? 'teal'
+          : 'indigo';
 
   const metricCards = useMemo(
     () => [
       {
-        key: "documents",
-        label: t("common.fields.documents"),
+        key: 'documents',
+        label: t('common.fields.documents'),
         value: documents.length,
-        testId: "knowledge-base-document-count"
+        testId: 'knowledge-base-document-count'
       },
       {
-        key: "chunks",
-        label: t("common.fields.chunks"),
+        key: 'chunks',
+        label: t('common.fields.chunks'),
         value: summary.chunkCount,
-        testId: "knowledge-base-chunk-count"
+        testId: 'knowledge-base-chunk-count'
       },
       {
-        key: "ready",
-        label: t("knowledgeBase.metrics.readyDocuments"),
+        key: 'ready',
+        label: t('knowledgeBase.metrics.readyDocuments'),
         value: summary.readyCount,
-        testId: "knowledge-base-ready-count"
+        testId: 'knowledge-base-ready-count'
       },
       {
-        key: "processing",
-        label: t("knowledgeBase.metrics.processingDocuments"),
+        key: 'processing',
+        label: t('knowledgeBase.metrics.processingDocuments'),
         value: summary.processingCount,
-        testId: "knowledge-base-processing-count"
+        testId: 'knowledge-base-processing-count'
       },
       {
-        key: "failed",
-        label: t("knowledgeBase.metrics.failedDocuments"),
+        key: 'failed',
+        label: t('knowledgeBase.metrics.failedDocuments'),
         value: summary.failedCount,
-        testId: "knowledge-base-failed-count"
+        testId: 'knowledge-base-failed-count'
       },
       {
-        key: "assistants",
-        label: t("knowledgeBase.metrics.boundAssistants"),
+        key: 'assistants',
+        label: t('knowledgeBase.metrics.boundAssistants'),
         value: assistantCount,
-        testId: "knowledge-base-assistant-count"
+        testId: 'knowledge-base-assistant-count'
       }
     ],
-    [assistantCount, documents.length, summary.chunkCount, summary.failedCount, summary.processingCount, summary.readyCount, t]
+    [
+      assistantCount,
+      documents.length,
+      summary.chunkCount,
+      summary.failedCount,
+      summary.processingCount,
+      summary.readyCount,
+      t
+    ]
   );
 
   const runSummaryData = runSummaryQuery.data;
@@ -140,17 +183,17 @@ export function KnowledgeBasePage() {
       height: 10,
       borderRadius: 999,
       background:
-        summary.toneColor === "red"
-          ? "#ef4444"
-          : summary.toneColor === "yellow"
-            ? "#f59e0b"
-            : summary.toneColor === "indigo"
-              ? "var(--app-accent)"
-              : "rgba(255,255,255,0.35)",
+        summary.toneColor === 'red'
+          ? '#ef4444'
+          : summary.toneColor === 'yellow'
+            ? '#f59e0b'
+            : summary.toneColor === 'indigo'
+              ? 'var(--app-accent)'
+              : 'rgba(255,255,255,0.35)',
       boxShadow:
-        summary.toneColor === "gray"
-          ? "none"
-          : `0 0 0 6px ${summary.toneColor === "indigo" ? "rgba(99, 102, 241, 0.12)" : "rgba(255,255,255,0.06)"}`
+        summary.toneColor === 'gray'
+          ? 'none'
+          : `0 0 0 6px ${summary.toneColor === 'indigo' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255,255,255,0.06)'}`
     }),
     [summary.toneColor]
   );
@@ -159,8 +202,8 @@ export function KnowledgeBasePage() {
     const normalizedName = createKnowledgeBaseName.trim();
     if (!normalizedName) {
       notifications.show({
-        color: "red",
-        message: t("knowledgeBase.create.nameRequired")
+        color: 'red',
+        message: t('knowledgeBase.create.nameRequired')
       });
       return;
     }
@@ -171,20 +214,36 @@ export function KnowledgeBasePage() {
         description: createKnowledgeBaseDescription.trim() || undefined
       });
       notifications.show({
-        color: "teal",
-        message: t("knowledgeBase.create.success", { name: normalizedName })
+        color: 'teal',
+        message: t('knowledgeBase.create.success', { name: normalizedName })
       });
       setRecentlyCreatedKnowledgeBaseName(normalizedName);
-      setCreateKnowledgeBaseName("");
-      setCreateKnowledgeBaseDescription("");
+      setCreateKnowledgeBaseName('');
+      setCreateKnowledgeBaseDescription('');
       setIsCreateKnowledgeBaseOpen(false);
     } catch (error) {
       notifications.show({
-        color: "red",
-        message: error instanceof Error ? error.message : t("knowledgeBase.create.error")
+        color: 'red',
+        message:
+          error instanceof Error
+            ? error.message
+            : t('knowledgeBase.create.error')
       });
     }
-  }, [createKnowledgeBaseDescription, createKnowledgeBaseMutation, createKnowledgeBaseName, t]);
+  }, [
+    createKnowledgeBaseDescription,
+    createKnowledgeBaseMutation,
+    createKnowledgeBaseName,
+    t
+  ]);
+
+  const handleRefreshDefaultPath = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
+      queryClient.invalidateQueries({ queryKey: ['assistants'] }),
+      queryClient.invalidateQueries({ queryKey: ['retrieval-profiles'] })
+    ]);
+  }, [queryClient]);
 
   return (
     <Stack data-testid="knowledge-base-page" gap="md">
@@ -193,33 +252,42 @@ export function KnowledgeBasePage() {
         opened={isCreateKnowledgeBaseOpen}
         onClose={() => setIsCreateKnowledgeBaseOpen(false)}
         radius="xl"
-        title={t("knowledgeBase.create.modalTitle")}
+        title={t('knowledgeBase.create.modalTitle')}
       >
         <Stack gap="md">
           <Text c="var(--app-text-muted)" size="sm">
-            {t("knowledgeBase.create.modalDescription")}
+            {t('knowledgeBase.create.modalDescription')}
           </Text>
           <TextInput
             autoFocus
-            classNames={{ input: "workspace-input" }}
+            classNames={{ input: 'workspace-input' }}
             data-testid="knowledge-base-create-name"
-            label={t("knowledgeBase.create.nameLabel")}
-            onChange={event => setCreateKnowledgeBaseName(event.currentTarget.value)}
-            placeholder={t("knowledgeBase.create.namePlaceholder")}
+            label={t('knowledgeBase.create.nameLabel')}
+            onChange={(event) =>
+              setCreateKnowledgeBaseName(event.currentTarget.value)
+            }
+            placeholder={t('knowledgeBase.create.namePlaceholder')}
             value={createKnowledgeBaseName}
           />
           <Textarea
             autosize
-            classNames={{ input: "workspace-input" }}
-            label={t("knowledgeBase.create.descriptionLabel")}
+            classNames={{ input: 'workspace-input' }}
+            label={t('knowledgeBase.create.descriptionLabel')}
             minRows={3}
-            onChange={event => setCreateKnowledgeBaseDescription(event.currentTarget.value)}
-            placeholder={t("knowledgeBase.create.descriptionPlaceholder")}
+            onChange={(event) =>
+              setCreateKnowledgeBaseDescription(event.currentTarget.value)
+            }
+            placeholder={t('knowledgeBase.create.descriptionPlaceholder')}
             value={createKnowledgeBaseDescription}
           />
           <Group justify="flex-end">
-            <Button color="gray" onClick={() => setIsCreateKnowledgeBaseOpen(false)} radius="xl" variant="light">
-              {t("knowledgeBase.create.cancel")}
+            <Button
+              color="gray"
+              onClick={() => setIsCreateKnowledgeBaseOpen(false)}
+              radius="xl"
+              variant="light"
+            >
+              {t('knowledgeBase.create.cancel')}
             </Button>
             <Button
               className="workspace-button"
@@ -228,7 +296,7 @@ export function KnowledgeBasePage() {
               onClick={() => void handleCreateKnowledgeBase()}
               radius="xl"
             >
-              {t("knowledgeBase.create.submit")}
+              {t('knowledgeBase.create.submit')}
             </Button>
           </Group>
         </Stack>
@@ -239,16 +307,21 @@ export function KnowledgeBasePage() {
           <Group gap="md" wrap="nowrap">
             <Box className="workspace-hero-icon">KB</Box>
             <div className="workspace-hero-copy">
-              <Text className="workspace-hero-kicker">{locale === "zh" ? "工作区设置" : "Workspace setup"}</Text>
+              <Text className="workspace-hero-kicker">
+                {locale === 'zh' ? '工作区设置' : 'Workspace setup'}
+              </Text>
               <Title
                 c="var(--app-text)"
                 order={3}
-                style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+                style={{
+                  fontFamily: 'var(--app-font-display)',
+                  letterSpacing: '-0.03em'
+                }}
               >
-                {t("knowledgeBase.title")}
+                {t('knowledgeBase.title')}
               </Title>
               <Text c="var(--app-text-muted)" mt={4} size="sm">
-                {t("knowledgeBase.subtitle")}
+                {t('knowledgeBase.subtitle')}
               </Text>
             </div>
           </Group>
@@ -266,11 +339,18 @@ export function KnowledgeBasePage() {
                   onClick={() => setIsCreateKnowledgeBaseOpen(true)}
                   radius="xl"
                 >
-                  {t("knowledgeBase.actions.create")}
+                  {t('knowledgeBase.actions.create')}
                 </Button>
               ) : null}
-              <Button className="workspace-button" color="indigo" component={Link} radius="xl" to="/documents" variant="light">
-                {t("knowledgeBase.actions.openDocuments")}
+              <Button
+                className="workspace-button"
+                color="indigo"
+                component={Link}
+                radius="xl"
+                to="/documents"
+                variant="light"
+              >
+                {t('knowledgeBase.actions.openDocuments')}
               </Button>
               <Button
                 className="workspace-button"
@@ -281,33 +361,33 @@ export function KnowledgeBasePage() {
                 to="/assistant"
                 variant="light"
               >
-                {t("knowledgeBase.actions.openAssistant")}
+                {t('knowledgeBase.actions.openAssistant')}
               </Button>
             </Group>
-              <Text className="workspace-hero-sidecopy" ta="right">
-                {locale === "zh"
-                  ? "先确认当前资料归属、可用状态和助手连接，再决定是否继续补资料或调整助手。"
-                  : "Review the current library target, readiness, and assistant connection before adding more material or tuning behavior."}
-              </Text>
+            <Text className="workspace-hero-sidecopy" ta="right">
+              {locale === 'zh'
+                ? '先确认当前资料归属、可用状态和助手连接，再决定是否继续补资料或调整助手。'
+                : 'Review the current library target, readiness, and assistant connection before adding more material or tuning behavior.'}
+            </Text>
           </Stack>
         </div>
       </Paper>
 
       {knowledgeBasesQuery.isLoading ? (
         <StatePanel
-          title={t("knowledgeBase.states.loadingTitle")}
-          description={t("knowledgeBase.states.loadingDescription")}
+          title={t('knowledgeBase.states.loadingTitle')}
+          description={t('knowledgeBase.states.loadingDescription')}
           tone="loading"
         />
       ) : null}
 
       {knowledgeBasesQuery.isError ? (
         <StatePanel
-          title={t("knowledgeBase.states.loadErrorTitle")}
+          title={t('knowledgeBase.states.loadErrorTitle')}
           description={
             knowledgeBasesQuery.error instanceof Error
               ? knowledgeBasesQuery.error.message
-              : t("knowledgeBase.states.loadErrorDescription")
+              : t('knowledgeBase.states.loadErrorDescription')
           }
           tone="error"
         />
@@ -315,11 +395,11 @@ export function KnowledgeBasePage() {
 
       {assistantsQuery.isError ? (
         <StatePanel
-          title={t("knowledgeBase.states.assistantsErrorTitle")}
+          title={t('knowledgeBase.states.assistantsErrorTitle')}
           description={
             assistantsQuery.error instanceof Error
               ? assistantsQuery.error.message
-              : t("knowledgeBase.states.assistantsErrorDescription")
+              : t('knowledgeBase.states.assistantsErrorDescription')
           }
           tone="error"
         />
@@ -327,20 +407,22 @@ export function KnowledgeBasePage() {
 
       {documentsQuery.isError ? (
         <StatePanel
-          title={t("knowledgeBase.states.documentsErrorTitle")}
+          title={t('knowledgeBase.states.documentsErrorTitle')}
           description={
             documentsQuery.error instanceof Error
               ? documentsQuery.error.message
-              : t("knowledgeBase.states.documentsErrorDescription")
+              : t('knowledgeBase.states.documentsErrorDescription')
           }
           tone="error"
         />
       ) : null}
 
-      {!knowledgeBasesQuery.isLoading && !knowledgeBasesQuery.isError && !knowledgeBase ? (
+      {!knowledgeBasesQuery.isLoading &&
+      !knowledgeBasesQuery.isError &&
+      !knowledgeBase ? (
         <StatePanel
-          title={t("knowledgeBase.states.emptyTitle")}
-          description={t("knowledgeBase.states.emptyDescription")}
+          title={t('knowledgeBase.states.emptyTitle')}
+          description={t('knowledgeBase.states.emptyDescription')}
           action={
             <Button
               className="workspace-button"
@@ -350,7 +432,7 @@ export function KnowledgeBasePage() {
               radius="xl"
               variant="light"
             >
-              {t("knowledgeBase.states.emptyAction")}
+              {t('knowledgeBase.states.emptyAction')}
             </Button>
           }
         />
@@ -358,20 +440,36 @@ export function KnowledgeBasePage() {
 
       {knowledgeBase ? (
         <>
-          {recentlyCreatedKnowledgeBaseName === knowledgeBase.name && documents.length === 0 ? (
-            <Alert color="teal" data-testid="knowledge-base-create-success-guide" radius="xl" variant="light">
+          {recentlyCreatedKnowledgeBaseName === knowledgeBase.name &&
+          documents.length === 0 ? (
+            <Alert
+              color="teal"
+              data-testid="knowledge-base-create-success-guide"
+              radius="xl"
+              variant="light"
+            >
               <Group align="flex-start" justify="space-between" wrap="wrap">
                 <div>
                   <Text c="var(--app-text)" fw={700} size="sm">
-                    {t("knowledgeBase.create.nextStepTitle", { name: knowledgeBase.name })}
+                    {t('knowledgeBase.create.nextStepTitle', {
+                      name: knowledgeBase.name
+                    })}
                   </Text>
                   <Text c="var(--app-text-muted)" mt={4} size="sm">
-                    {t("knowledgeBase.create.nextStepDescription")}
+                    {t('knowledgeBase.create.nextStepDescription')}
                   </Text>
                 </div>
                 <Group gap="xs">
-                  <Button className="workspace-button" color="teal" component={Link} radius="xl" size="xs" to="/documents" variant="light">
-                    {t("knowledgeBase.create.nextStepPrimaryAction")}
+                  <Button
+                    className="workspace-button"
+                    color="teal"
+                    component={Link}
+                    radius="xl"
+                    size="xs"
+                    to="/documents"
+                    variant="light"
+                  >
+                    {t('knowledgeBase.create.nextStepPrimaryAction')}
                   </Button>
                   <Button
                     className="workspace-button"
@@ -381,7 +479,7 @@ export function KnowledgeBasePage() {
                     size="xs"
                     variant="subtle"
                   >
-                    {t("knowledgeBase.create.nextStepDismiss")}
+                    {t('knowledgeBase.create.nextStepDismiss')}
                   </Button>
                 </Group>
               </Group>
@@ -389,11 +487,15 @@ export function KnowledgeBasePage() {
           ) : null}
 
           {documents.length > 0 ? (
-            <Paper className={`workspace-feedback-banner workspace-feedback-banner-${nextActionTone}`} p="md" radius="xl">
+            <Paper
+              className={`workspace-feedback-banner workspace-feedback-banner-${nextActionTone}`}
+              p="md"
+              radius="xl"
+            >
               <div className="workspace-feedback-alert__content">
                 <div className="workspace-feedback-alert__copy">
                   <Text c="var(--app-text)" fw={700} size="sm">
-                    {t("knowledgeBase.feedback.title")}
+                    {t('knowledgeBase.feedback.title')}
                   </Text>
                   <Text c="var(--app-text-muted)" mt={4} size="sm">
                     {t(nextAction.labelKey)}
@@ -410,6 +512,24 @@ export function KnowledgeBasePage() {
                 >
                   {nextActionButtonLabel}
                 </Button>
+                {nextAction.action === 'prepare_default_assistant' ? (
+                  <Button
+                    className="workspace-button workspace-feedback-alert__action"
+                    color="gray"
+                    loading={
+                      knowledgeBasesQuery.isFetching ||
+                      assistantsQuery.isFetching
+                    }
+                    onClick={() => {
+                      void handleRefreshDefaultPath();
+                    }}
+                    radius="xl"
+                    size="xs"
+                    variant="light"
+                  >
+                    {t('knowledgeBase.actions.refreshDefaultPath')}
+                  </Button>
+                ) : null}
               </div>
             </Paper>
           ) : null}
@@ -421,12 +541,27 @@ export function KnowledgeBasePage() {
           />
 
           <div className="workspace-metric-grid">
-            {metricCards.map(metric => (
-              <Paper className="workspace-metric-card workspace-metric-card-compact" key={metric.key} p="lg" radius="xl">
-                <Text c="var(--app-text-secondary)" fw={700} size="xs" tt="uppercase">
+            {metricCards.map((metric) => (
+              <Paper
+                className="workspace-metric-card workspace-metric-card-compact"
+                key={metric.key}
+                p="lg"
+                radius="xl"
+              >
+                <Text
+                  c="var(--app-text-secondary)"
+                  fw={700}
+                  size="xs"
+                  tt="uppercase"
+                >
                   {metric.label}
                 </Text>
-                <Title c="var(--app-text)" data-testid={metric.testId} mt={8} order={2}>
+                <Title
+                  c="var(--app-text)"
+                  data-testid={metric.testId}
+                  mt={8}
+                  order={2}
+                >
                   {metric.value}
                 </Title>
               </Paper>
@@ -435,41 +570,69 @@ export function KnowledgeBasePage() {
 
           <div className="workspace-page-grid">
             <div className="workspace-page-side-stack">
-              <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+              <Paper
+                className="workspace-panel-hover workspace-panel-strong"
+                p="lg"
+                radius="xl"
+              >
                 <Stack gap="md">
-                  <Group align="flex-start" justify="space-between" wrap="nowrap">
+                  <Group
+                    align="flex-start"
+                    justify="space-between"
+                    wrap="nowrap"
+                  >
                     <div>
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "当前资料空间" : "Current library space"}
+                        {locale === 'zh'
+                          ? '当前资料空间'
+                          : 'Current library space'}
                       </Text>
-                      <Title c="var(--app-text)" order={2} style={{ fontFamily: "var(--app-font-display)" }}>
+                      <Title
+                        c="var(--app-text)"
+                        order={2}
+                        style={{ fontFamily: 'var(--app-font-display)' }}
+                      >
                         {knowledgeBase.name}
                       </Title>
-                      <Text c="var(--app-text-muted)" data-testid="knowledge-base-id" size="sm">
+                      <Text
+                        c="var(--app-text-muted)"
+                        data-testid="knowledge-base-id"
+                        size="sm"
+                      >
                         {knowledgeBase.id}
                       </Text>
                     </div>
-                    <Badge color={summary.toneColor} radius="sm" variant="light">
+                    <Badge
+                      color={summary.toneColor}
+                      radius="sm"
+                      variant="light"
+                    >
                       {t(summary.toneLabelKey)}
                     </Badge>
                   </Group>
 
                   <div>
-                    <Text className="workspace-section-heading">{t("common.fields.description")}</Text>
+                    <Text className="workspace-section-heading">
+                      {t('common.fields.description')}
+                    </Text>
                     <Text c="var(--app-text)" mt={6}>
-                      {knowledgeBase.description ?? t("common.noDescription")}
+                      {knowledgeBase.description ?? t('common.noDescription')}
                     </Text>
                   </div>
 
                   <Grid gutter="md">
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <Text className="workspace-section-heading">{t("common.fields.status")}</Text>
+                      <Text className="workspace-section-heading">
+                        {t('common.fields.status')}
+                      </Text>
                       <Text c="var(--app-text)" fw={600} mt={6}>
                         {t(`common.status.${knowledgeBase.status}`)}
                       </Text>
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <Text className="workspace-section-heading">{t("common.fields.updated")}</Text>
+                      <Text className="workspace-section-heading">
+                        {t('common.fields.updated')}
+                      </Text>
                       <Text c="var(--app-text)" fw={600} mt={6}>
                         {formatDateTime(knowledgeBase.updatedAt)}
                       </Text>
@@ -480,16 +643,20 @@ export function KnowledgeBasePage() {
             </div>
 
             <div className="workspace-page-main-stack">
-              <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+              <Paper
+                className="workspace-panel-hover workspace-panel-muted"
+                p="lg"
+                radius="xl"
+              >
                 <Stack gap="md">
                   <div>
                     <Text className="workspace-section-heading">
-                        {locale === "zh" ? "当前设置概览" : "Setup snapshot"}
+                      {locale === 'zh' ? '当前设置概览' : 'Setup snapshot'}
                     </Text>
                     <Text className="workspace-section-copy">
-                      {locale === "zh"
-                        ? "把当前可用资料、正在更新的条目和助手连接状态压缩成一眼能扫完的概览。"
-                        : "Keep the ready items, in-progress updates, and assistant connection in one quick summary."}
+                      {locale === 'zh'
+                        ? '把当前可用资料、正在更新的条目和助手连接状态压缩成一眼能扫完的概览。'
+                        : 'Keep the ready items, in-progress updates, and assistant connection in one quick summary.'}
                     </Text>
                   </div>
 
@@ -498,42 +665,50 @@ export function KnowledgeBasePage() {
                       <Box style={summaryDotStyle} />
                       <Text c="var(--app-text-secondary)" size="sm">
                         {summary.processingCount > 0
-                          ? t("knowledgeBase.summary.processingDescription", { count: summary.processingCount })
+                          ? t('knowledgeBase.summary.processingDescription', {
+                              count: summary.processingCount
+                            })
                           : summary.failedCount > 0
-                            ? t("knowledgeBase.summary.failedDescription", { count: summary.failedCount })
+                            ? t('knowledgeBase.summary.failedDescription', {
+                                count: summary.failedCount
+                              })
                             : summary.readyCount > 0
-                              ? t("knowledgeBase.summary.readyDescription", { count: summary.readyCount })
-                              : t("knowledgeBase.summary.emptyDescription")}
+                              ? t('knowledgeBase.summary.readyDescription', {
+                                  count: summary.readyCount
+                                })
+                              : t('knowledgeBase.summary.emptyDescription')}
                       </Text>
                     </Group>
                   </Paper>
 
                   <Paper className="workspace-subpanel" p="md" radius="xl">
                     <Stack gap={6}>
-                      <Text className="workspace-section-heading">{t("knowledgeBase.summary.title")}</Text>
+                      <Text className="workspace-section-heading">
+                        {t('knowledgeBase.summary.title')}
+                      </Text>
                       <Text c="var(--app-text)" fw={600} size="sm">
-                        {t("knowledgeBase.summary.caption", {
+                        {t('knowledgeBase.summary.caption', {
                           documents: documents.length,
                           chunks: summary.chunkCount,
                           assistants: assistantCount
                         })}
                       </Text>
                       <Text c="var(--app-text-muted)" size="sm">
-                        {summary.tone === "processing"
-                          ? locale === "zh"
-                            ? "当前仍有资料在导入或更新中。"
-                            : "Some library items are still being added or refreshed."
-                          : summary.tone === "failed"
-                            ? locale === "zh"
-                              ? "部分资料还需要处理，之后回答会更稳定。"
-                              : "Some library items still need attention before answers become more reliable."
-                            : summary.tone === "ready"
-                              ? locale === "zh"
-                                ? "当前资料已经可以稳定用于提问和助手回答。"
-                                : "The current library is ready for chat and assistant responses."
-                              : locale === "zh"
-                                ? "先添加资料，再逐步建立这个工作区的知识范围。"
-                                : "Add library items first to shape what this workspace can answer."}
+                        {summary.tone === 'processing'
+                          ? locale === 'zh'
+                            ? '当前仍有资料在导入或更新中。'
+                            : 'Some library items are still being added or refreshed.'
+                          : summary.tone === 'failed'
+                            ? locale === 'zh'
+                              ? '部分资料还需要处理，之后回答会更稳定。'
+                              : 'Some library items still need attention before answers become more reliable.'
+                            : summary.tone === 'ready'
+                              ? locale === 'zh'
+                                ? '当前资料已经可以稳定用于提问和助手回答。'
+                                : 'The current library is ready for chat and assistant responses.'
+                              : locale === 'zh'
+                                ? '先添加资料，再逐步建立这个工作区的知识范围。'
+                                : 'Add library items first to shape what this workspace can answer.'}
                       </Text>
                     </Stack>
                   </Paper>
@@ -541,7 +716,9 @@ export function KnowledgeBasePage() {
                   <Paper className="workspace-subpanel" p="md" radius="xl">
                     <Stack gap={8}>
                       <Text className="workspace-section-heading">
-                        {locale === "zh" ? "推荐下一步" : "Recommended next step"}
+                        {locale === 'zh'
+                          ? '推荐下一步'
+                          : 'Recommended next step'}
                       </Text>
                       <Text c="var(--app-text)" fw={600} size="sm">
                         {t(nextAction.labelKey)}
@@ -558,7 +735,26 @@ export function KnowledgeBasePage() {
                         >
                           {nextActionButtonLabel}
                         </Button>
-                        {nextAction.action === "review_failed_documents" && latestFailure ? (
+                        {nextAction.action === 'prepare_default_assistant' ? (
+                          <Button
+                            className="workspace-button"
+                            color="gray"
+                            loading={
+                              knowledgeBasesQuery.isFetching ||
+                              assistantsQuery.isFetching
+                            }
+                            onClick={() => {
+                              void handleRefreshDefaultPath();
+                            }}
+                            radius="xl"
+                            size="xs"
+                            variant="light"
+                          >
+                            {t('knowledgeBase.actions.refreshDefaultPath')}
+                          </Button>
+                        ) : null}
+                        {nextAction.action === 'review_failed_documents' &&
+                        latestFailure ? (
                           <Button
                             className="workspace-button"
                             color="gray"
@@ -568,7 +764,9 @@ export function KnowledgeBasePage() {
                             to={`/documents/${latestFailure.documentId}`}
                             variant="light"
                           >
-                            {locale === "zh" ? "查看最新异常资料" : "Open latest item with issues"}
+                            {locale === 'zh'
+                              ? '查看最新异常资料'
+                              : 'Open latest item with issues'}
                           </Button>
                         ) : null}
                       </Group>
@@ -577,7 +775,9 @@ export function KnowledgeBasePage() {
                 </Stack>
               </Paper>
 
-              <Suspense fallback={<KnowledgeBaseActivityFallback locale={locale} />}>
+              <Suspense
+                fallback={<KnowledgeBaseActivityFallback locale={locale} />}
+              >
                 <KnowledgeBaseActivityPanel
                   formatDateTime={formatDateTime}
                   knowledgeBaseId={knowledgeBase.id}

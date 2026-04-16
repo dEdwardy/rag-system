@@ -2,7 +2,7 @@
 
 A local-first RAG system monorepo with an API service, a web app, and shared package code.
 
-The current repository already includes a working MVP flow for document upload, ingestion, chunking, embedding, retrieval, answering, citations, and trace persistence.
+The current repository already includes a working MVP flow for document upload, ingestion, chunking, embedding, retrieval, answering, citations, trace persistence, and the default assistant / default-path bootstrap and repair flow.
 
 ## Project Structure
 
@@ -243,6 +243,7 @@ The current codebase supports:
 
 ## Notes
 
-- The project is still in active development.
+- The project is still in active development, but the default user path is now in bounded maintenance / hardening mode rather than a new build-out wave.
 - The most accurate local run and validation notes are in [docs/current-dev-setup.md](docs/current-dev-setup.md).
 - The broader implementation snapshot is in [docs/current-progress.md](docs/current-progress.md).
+- The current stage and mainline judgment are tracked in [docs/current-context.md](docs/current-context.md) and [docs/next_steps_rag_project_plan.md](docs/next_steps_rag_project_plan.md).

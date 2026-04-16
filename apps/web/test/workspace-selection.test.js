@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -87,6 +87,31 @@ test('workspace selection still prefers the canonical default assistant for the 
   );
 
   assert.equal(assistant?.id, 'assistant-1');
+});
+
+test('workspace selection deterministically keeps one canonical default assistant first when duplicate defaults exist for the same knowledge base', async () => {
+  const { getPrimaryAssistantForKnowledgeBase } =
+    await loadWorkspaceSelectionHelpers();
+
+  const assistant = getPrimaryAssistantForKnowledgeBase(
+    [
+      {
+        id: 'assistant-default-z',
+        kbId: 'kb-1',
+        name: 'Default Assistant',
+        status: 'active'
+      },
+      {
+        id: 'assistant-default-a',
+        kbId: 'kb-1',
+        name: 'Default Assistant',
+        status: 'active'
+      }
+    ],
+    'kb-1'
+  );
+
+  assert.equal(assistant?.id, 'assistant-default-a');
 });
 
 test('workspace selection does not silently fall back to an assistant from another knowledge base', async () => {

@@ -1505,6 +1505,220 @@ test('AuthService completeOauthProviderCallback repairs the default assistant wh
   });
 });
 
+test('AuthService completeOauthProviderCallback repairs a stale owner assistant when no assistant is bound to the primary knowledge base', async () => {
+  const calls = {
+    assistantLookups: [],
+    assistantUpdate: null
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({ id: 'link-oauth-repair-owner-fallback-1' })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-repair-owner-fallback-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findFirst: async () => ({ id: 'kb-oauth-repair-owner-fallback-1' }),
+        create: async () => {
+          throw new Error(
+            'knowledge base should not be created when one already exists'
+          );
+        }
+      },
+      retrievalProfile: {
+        findFirst: async () => ({ id: 'rp-oauth-repair-owner-fallback-1' }),
+        create: async () => {
+          throw new Error(
+            'retrieval profile should not be created when one already exists'
+          );
+        }
+      },
+      assistant: {
+        findFirst: async ({ where }) => {
+          calls.assistantLookups.push(where);
+          if (where.kbId === 'kb-oauth-repair-owner-fallback-1') {
+            return null;
+          }
+
+          return {
+            id: 'assistant-oauth-repair-owner-fallback-1',
+            kbId: 'kb-stale-owner-1',
+            retrievalProfileId: 'rp-stale-owner-1',
+            status: 'inactive'
+          };
+        },
+        create: async () => {
+          throw new Error(
+            'assistant should not be created when an owner assistant can be repaired'
+          );
+        },
+        update: async ({ where, data }) => {
+          calls.assistantUpdate = { where, data };
+          return { id: 'assistant-oauth-repair-owner-fallback-1' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-repair-owner-fallback-1',
+        email: 'oauth-repair-owner-fallback@example.com',
+        profileSnapshot: {
+          id: 2999,
+          login: 'oauth-repair-owner-fallback-user',
+          name: 'OAuth Repair Owner Fallback User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-repair-owner-fallback-1',
+    state: 'state-oauth-repair-owner-fallback-1',
+    expectedState: 'state-oauth-repair-owner-fallback-1'
+  });
+
+  assert.equal(result.identity.userId, 'user-oauth-repair-owner-fallback-1');
+  assert.deepEqual(calls.assistantLookups, [
+    {
+      tenantId: 'default-tenant',
+      kbId: 'kb-oauth-repair-owner-fallback-1'
+    },
+    {
+      tenantId: 'default-tenant',
+      knowledgeBase: {
+        ownerId: 'user-oauth-repair-owner-fallback-1'
+      }
+    }
+  ]);
+  assert.deepEqual(calls.assistantUpdate, {
+    where: {
+      id: 'assistant-oauth-repair-owner-fallback-1'
+    },
+    data: {
+      kbId: 'kb-oauth-repair-owner-fallback-1',
+      retrievalProfileId: 'rp-oauth-repair-owner-fallback-1',
+      status: 'active'
+    }
+  });
+});
+
+test('AuthService completeOauthProviderCallback repairs the canonical default assistant first when duplicates exist on the primary knowledge base', async () => {
+  const calls = {
+    assistantFindManyWhere: null,
+    assistantUpdate: null
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({ id: 'link-oauth-repair-canonical-1' })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-repair-canonical-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findFirst: async () => ({ id: 'kb-oauth-repair-canonical-1' }),
+        create: async () => {
+          throw new Error('knowledge base should not be created');
+        }
+      },
+      retrievalProfile: {
+        findFirst: async () => ({ id: 'rp-oauth-repair-canonical-1' }),
+        create: async () => {
+          throw new Error('retrieval profile should not be created');
+        }
+      },
+      assistant: {
+        findMany: async ({ where }) => {
+          calls.assistantFindManyWhere = where;
+          return [
+            {
+              id: 'assistant-secondary-1',
+              kbId: 'kb-oauth-repair-canonical-1',
+              retrievalProfileId: 'rp-secondary-1',
+              status: 'active',
+              name: 'Research Assistant'
+            },
+            {
+              id: 'assistant-default-1',
+              kbId: 'kb-oauth-repair-canonical-1',
+              retrievalProfileId: 'rp-stale-default-1',
+              status: 'inactive',
+              name: 'Default Assistant'
+            }
+          ];
+        },
+        create: async () => {
+          throw new Error(
+            'assistant should not be created when repair is possible'
+          );
+        },
+        update: async ({ where, data }) => {
+          calls.assistantUpdate = { where, data };
+          return { id: 'assistant-default-1' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-repair-canonical-1',
+        email: 'oauth-repair-canonical@example.com',
+        profileSnapshot: {
+          id: 3999,
+          login: 'oauth-repair-canonical-user',
+          name: 'OAuth Repair Canonical User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-repair-canonical-1',
+    state: 'state-oauth-repair-canonical-1',
+    expectedState: 'state-oauth-repair-canonical-1'
+  });
+
+  assert.equal(result.identity.userId, 'user-oauth-repair-canonical-1');
+  assert.deepEqual(calls.assistantFindManyWhere, {
+    tenantId: 'default-tenant',
+    kbId: 'kb-oauth-repair-canonical-1'
+  });
+  assert.deepEqual(calls.assistantUpdate, {
+    where: {
+      id: 'assistant-default-1'
+    },
+    data: {
+      kbId: 'kb-oauth-repair-canonical-1',
+      retrievalProfileId: 'rp-oauth-repair-canonical-1',
+      status: 'active'
+    }
+  });
+});
+
 test('AuthController oauthProviderCallback validates state cookie and writes oauth JWT cookies', async () => {
   const cookies = [];
   const callbackCalls = [];

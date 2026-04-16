@@ -26,6 +26,7 @@ import {
 } from '../../features/api/hooks';
 import { getPrimaryKnowledgeBase } from '../../features/api/workspace-selection';
 import { useI18n } from '../../i18n/I18nProvider';
+import { buildStarterQuestions } from '../chat/chat-page-helpers';
 
 const DOCUMENTS_PAGE_SIZE = 20;
 
@@ -125,6 +126,19 @@ export function DocumentsPage() {
     }
 
     if (hasProcessingDocuments) {
+      if (readyCount > 0) {
+        return {
+          badgeColor: 'yellow',
+          badgeLabel: t('documents.workspaceStatusProcessing'),
+          nextAction:
+            locale === 'zh'
+              ? '已有资料可提问，先去对话页开始首轮问题。'
+              : 'Some items are still processing, but you can start asking in chat now.',
+          nextActionHref: '/',
+          nextActionLabel: locale === 'zh' ? '前往对话' : 'Go to chat'
+        } as const;
+      }
+
       return {
         badgeColor: 'yellow',
         badgeLabel: t('documents.workspaceStatusProcessing'),
@@ -149,6 +163,8 @@ export function DocumentsPage() {
     firstProcessingDocument,
     hasActiveKnowledgeBase,
     hasProcessingDocuments,
+    locale,
+    readyCount,
     t
   ]);
 
@@ -206,6 +222,10 @@ export function DocumentsPage() {
       }
     ],
     [documentCount, failedCount, locale, processingCount, readyCount]
+  );
+  const starterQuestions = useMemo(
+    () => buildStarterQuestions(locale, 'documents'),
+    [locale]
   );
 
   const handleUploadFiles = useCallback(
@@ -499,6 +519,18 @@ export function DocumentsPage() {
               <Text c="var(--app-text-muted)" mt={4} size="sm">
                 {t('documents.readyBannerDescription', { count: readyCount })}
               </Text>
+              <Group gap="xs" mt="sm">
+                {starterQuestions.map((question) => (
+                  <Badge
+                    color="teal"
+                    key={question}
+                    radius="sm"
+                    variant="light"
+                  >
+                    {question}
+                  </Badge>
+                ))}
+              </Group>
             </div>
             <div className="workspace-feedback-alert__action">
               <Button

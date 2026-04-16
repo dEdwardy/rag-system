@@ -1,5 +1,8 @@
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { test } from 'vitest';
+
+const require = createRequire(import.meta.url);
 
 const {
   AssistantsService
@@ -306,4 +309,164 @@ test('AssistantsService prefers the canonical default assistant in list results 
 
   assert.equal(assistants[0]?.id, 'assistant-default');
   assert.equal(assistants[1]?.id, 'assistant-secondary');
+});
+
+test('AssistantsService deterministically keeps one canonical default assistant first when duplicates exist for the same knowledge base', async () => {
+  const scope = {
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
+  };
+
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      prisma: {
+        assistant: {
+          findMany: async () => [
+            {
+              id: 'assistant-default-z',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-1',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'duplicate default',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active'
+            },
+            {
+              id: 'assistant-default-a',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-1',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'canonical default',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active'
+            }
+          ]
+        }
+      }
+    }
+  );
+
+  const assistants = await AssistantsService.prototype.listAssistants.call(
+    fakeService,
+    scope
+  );
+
+  assert.equal(assistants[0]?.id, 'assistant-default-a');
+  assert.equal(assistants[1]?.id, 'assistant-default-z');
+});
+
+test('AssistantsService prefers the default assistant bound to the primary knowledge base when multiple default assistants exist', async () => {
+  const scope = {
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
+  };
+
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      prisma: {
+        assistant: {
+          findMany: async () => [
+            {
+              id: 'assistant-default-secondary-kb',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-secondary',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'secondary kb default',
+              retrievalProfileId: 'profile-2',
+              answerPolicyJson: null,
+              status: 'active',
+              knowledgeBase: {
+                name: 'Secondary Knowledge Base'
+              }
+            },
+            {
+              id: 'assistant-default-primary-kb',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-primary',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'primary kb default',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active',
+              knowledgeBase: {
+                name: 'Default Knowledge Base'
+              }
+            }
+          ]
+        }
+      }
+    }
+  );
+
+  const assistants = await AssistantsService.prototype.listAssistants.call(
+    fakeService,
+    scope
+  );
+
+  assert.equal(assistants[0]?.id, 'assistant-default-primary-kb');
+  assert.equal(assistants[1]?.id, 'assistant-default-secondary-kb');
+  assert.equal(assistants[0]?.knowledgeBase, undefined);
+});
+
+test('AssistantsService prefers an active canonical default assistant over an inactive duplicate on the same primary knowledge base', async () => {
+  const scope = {
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
+  };
+
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      prisma: {
+        assistant: {
+          findMany: async () => [
+            {
+              id: 'assistant-default-a',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-primary',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'inactive duplicate',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'inactive',
+              knowledgeBase: {
+                name: 'Default Knowledge Base'
+              }
+            },
+            {
+              id: 'assistant-default-z',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-primary',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'active canonical default',
+              retrievalProfileId: 'profile-1',
+              answerPolicyJson: null,
+              status: 'active',
+              knowledgeBase: {
+                name: 'Default Knowledge Base'
+              }
+            }
+          ]
+        }
+      }
+    }
+  );
+
+  const assistants = await AssistantsService.prototype.listAssistants.call(
+    fakeService,
+    scope
+  );
+
+  assert.equal(assistants[0]?.id, 'assistant-default-z');
+  assert.equal(assistants[1]?.id, 'assistant-default-a');
 });
