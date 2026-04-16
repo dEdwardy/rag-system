@@ -698,10 +698,12 @@ export class AskAssistantService {
       durationMs: Date.now() - conversationStartedAt
     }));
 
-    await input.onEvent({
-      type: 'status',
-      phase: 'started'
-    });
+    const startedStatusEventPromise = Promise.resolve(
+      input.onEvent({
+        type: 'status',
+        phase: 'started'
+      })
+    );
 
     let userMessagePromise: Promise<TimedResult<AskPersistedMessage>> | null =
       null;
@@ -790,6 +792,7 @@ export class AskAssistantService {
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
 
+    await startedStatusEventPromise;
     await input.onEvent({
       type: 'status',
       phase: 'retrieving'
