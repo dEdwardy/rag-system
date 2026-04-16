@@ -1,4 +1,9 @@
-import type { Citation, KnowledgeBaseDocumentSummary } from '../../types/api';
+import type {
+  Citation,
+  KnowledgeBaseDocumentSummary,
+  TraceAnswerStatus,
+  TraceInsufficientContextReason
+} from '../../types/api';
 
 export function formatConversationUpdatedAt(value: string, locale: string) {
   return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
@@ -174,6 +179,10 @@ export function parseChatAutoAskFromSearch(search: string) {
 }
 
 type TraceSummaryHintInput = {
+  answerStatus?: TraceAnswerStatus | null;
+  insufficientContextReason?: TraceInsufficientContextReason | null;
+  usedFallback?: boolean | null;
+  missingInformationCount?: number | null;
   failureReadabilitySentence?: string | null;
   answerStatusSourceReadabilitySentence?: string | null;
   missingInformationProvenanceSentence?: string | null;
@@ -186,8 +195,30 @@ function normalizeTraceSummaryHintPart(value: string | null | undefined) {
 }
 
 export function buildTraceSummaryHint(summary: TraceSummaryHintInput) {
+  const failureHint = normalizeTraceSummaryHintPart(
+    summary.failureReadabilitySentence
+  );
+  if (failureHint) {
+    return failureHint;
+  }
+
+  if (summary.answerStatus === 'insufficient_context') {
+    return 'Marked as insufficient context in this answer.';
+  }
+
+  if (summary.insufficientContextReason != null) {
+    return 'Marked as insufficient context from retrieved evidence.';
+  }
+
+  if (summary.usedFallback === true) {
+    return 'Fallback retrieval path was used for this answer.';
+  }
+
+  if ((summary.missingInformationCount ?? 0) > 0) {
+    return `Answer reports ${summary.missingInformationCount} missing information item${summary.missingInformationCount === 1 ? '' : 's'}.`;
+  }
+
   return (
-    normalizeTraceSummaryHintPart(summary.failureReadabilitySentence) ??
     normalizeTraceSummaryHintPart(
       summary.answerStatusSourceReadabilitySentence
     ) ??

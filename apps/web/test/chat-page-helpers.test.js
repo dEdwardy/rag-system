@@ -364,6 +364,41 @@ test('chat page helpers build trace summary hint with scan-first priority', asyn
   assert.equal(result, 'Retrieval failed before ranking.');
 });
 
+test('chat page helpers show insufficient-context hint before provenance copy', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    answerStatus: 'insufficient_context',
+    answerStatusSourceReadabilitySentence:
+      'Answer status from fallback metadata.'
+  });
+
+  assert.equal(result, 'Marked as insufficient context in this answer.');
+});
+
+test('chat page helpers show fallback hint when fallback metadata is true', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    usedFallback: true,
+    retrievalModeProvenanceSentence: 'Retrieval ran in vector mode.'
+  });
+
+  assert.equal(result, 'Fallback retrieval path was used for this answer.');
+});
+
+test('chat page helpers show missing-information count hint', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    missingInformationCount: 2,
+    missingInformationProvenanceSentence:
+      'Missing information derived from answer evidence.'
+  });
+
+  assert.equal(result, 'Answer reports 2 missing information items.');
+});
+
 test('chat page helpers return null trace summary hint when all fields are blank', async () => {
   const { buildTraceSummaryHint } = await loadChatPageHelpers();
 
