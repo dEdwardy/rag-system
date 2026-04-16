@@ -429,7 +429,7 @@ export function ChatPage() {
       deleteConversationError: t('chat.copy.deleteConversationError'),
       recentHistoryHint:
         locale === 'zh'
-          ? `这里先显示最近 ${chatHistoryVisibleCount} 个会话，按需继续加载，避免主聊天页一次性吃下完整历史。`
+          ? `这里先显示最近 ${chatHistoryVisibleCount} 个会话，按需继续加载，避免主聊天页一次性加载完整历史。`
           : `The sidebar starts with the latest ${chatHistoryVisibleCount} conversations and loads more on demand to keep chat responsive.`,
       loadMoreHistory:
         locale === 'zh' ? '加载更多会话' : 'Load more conversations',
@@ -533,7 +533,6 @@ export function ChatPage() {
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
       const traceSummaryHint = buildTraceSummaryHint({
-        failureReadabilitySentence: finalData.failureReadabilitySentence,
         answerStatusSourceReadabilitySentence:
           finalData.answerStatusSourceReadabilitySentence,
         missingInformationProvenanceSentence:
@@ -541,7 +540,6 @@ export function ChatPage() {
         retrievalModeProvenanceSentence:
           finalData.retrievalModeProvenanceSentence
       });
-
       if (traceSummaryHint) {
         setTraceSummaryHintsByMessageId((current) => ({
           ...current,
