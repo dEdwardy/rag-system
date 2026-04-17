@@ -121,7 +121,7 @@ export function UsagePage() {
       rightSinceHours: 24
     }
   );
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
 
   const documentsSummary = documentsSummaryQuery.data;
   const assistants = assistantsQuery.data ?? [];
@@ -752,13 +752,11 @@ ${locale === 'zh' ? '请检查网络连接或稍后再试。' : 'Please check yo
           ))}
           <div className="flex justify-center mt-4">
             <div className="animate-pulse text-sm text-[var(--app-text-muted)]">
-              {locale === 'zh'
-                ? '加载运行数据中...'
-                : 'Loading operations data...'}
+              {t('appShell.copy.loadingOperationsData')}
             </div>
           </div>
           <span className="sr-only">
-            {locale === 'zh' ? '加载运行数据中' : 'Loading operations'}
+            {t('appShell.copy.loadingOperations')}
           </span>
         </div>
       ) : null}

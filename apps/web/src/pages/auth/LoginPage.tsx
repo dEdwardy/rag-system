@@ -42,6 +42,8 @@ export function LoginPage() {
   const googleConfigured =
     authProvidersQuery.data?.oauth.google.configured ?? true;
   const oidcConfigured = authProvidersQuery.data?.oauth.oidc.configured ?? true;
+  const authProvidersLoading =
+    authProvidersQuery.isPending || authProvidersQuery.isFetching;
 
   useEffect(() => {
     if (!defaultCredentials) {
@@ -242,39 +244,45 @@ export function LoginPage() {
         <div className="mt-5 space-y-2">
           <button
             className="w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!githubConfigured}
+            disabled={authProvidersLoading || !githubConfigured}
             onClick={() => {
               startOauthTransition('github', githubOauthStartUrl);
             }}
             type="button"
           >
-            {githubConfigured
-              ? t('auth.login.continueWithGitHub')
-              : t('auth.login.githubSetupRequired')}
+            {authProvidersLoading
+              ? t('auth.login.loadingProviders')
+              : githubConfigured
+                ? t('auth.login.continueWithGitHub')
+                : t('auth.login.githubSetupRequired')}
           </button>
           <button
             className="w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!googleConfigured}
+            disabled={authProvidersLoading || !googleConfigured}
             onClick={() => {
               startOauthTransition('google', googleOauthStartUrl);
             }}
             type="button"
           >
-            {googleConfigured
-              ? t('auth.login.continueWithGoogle')
-              : t('auth.login.googleSetupRequired')}
+            {authProvidersLoading
+              ? t('auth.login.loadingProviders')
+              : googleConfigured
+                ? t('auth.login.continueWithGoogle')
+                : t('auth.login.googleSetupRequired')}
           </button>
           <button
             className="w-full rounded-xl border border-[var(--app-border)] px-4 py-2.5 text-sm text-[var(--app-text)] transition-[border-color,background-color,color] duration-150 hover:border-[var(--app-border-strong)] hover:bg-[var(--app-surface)] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!oidcConfigured}
+            disabled={authProvidersLoading || !oidcConfigured}
             onClick={() => {
               startOauthTransition('oidc', oidcOauthStartUrl);
             }}
             type="button"
           >
-            {oidcConfigured
-              ? t('auth.login.continueWithOidc')
-              : t('auth.login.oidcSetupRequired')}
+            {authProvidersLoading
+              ? t('auth.login.loadingProviders')
+              : oidcConfigured
+                ? t('auth.login.continueWithOidc')
+                : t('auth.login.oidcSetupRequired')}
           </button>
         </div>
 

@@ -318,7 +318,15 @@ function ActionSlotPlaceholder() {
   );
 }
 
-function ChatWorkspacePanelsFallback({ history }: { history: string }) {
+function ChatWorkspacePanelsFallback({
+  history,
+  loadingTitle,
+  loadingDescription
+}: {
+  history: string;
+  loadingTitle: string;
+  loadingDescription: string;
+}) {
   return (
     <>
       <div className="border-t border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-5 py-4 xl:hidden">
@@ -327,8 +335,8 @@ function ChatWorkspacePanelsFallback({ history }: { history: string }) {
             {history}
           </div>
           <StatePanel
-            description="Loading chat workspace panels."
-            title="Loading workspace panels"
+            description={loadingDescription}
+            title={loadingTitle}
             tone="loading"
           />
         </div>
@@ -337,8 +345,8 @@ function ChatWorkspacePanelsFallback({ history }: { history: string }) {
       <aside className="hidden min-h-0 flex-col bg-[var(--app-bg-elevated)] xl:flex">
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <StatePanel
-            description="Loading conversation history and citations."
-            title="Loading workspace panels"
+            description={loadingDescription}
+            title={loadingTitle}
             tone="loading"
           />
         </div>
@@ -1446,7 +1454,13 @@ export function ChatPage() {
       </section>
 
       <Suspense
-        fallback={<ChatWorkspacePanelsFallback history={chatCopy.history} />}
+        fallback={
+          <ChatWorkspacePanelsFallback
+            history={chatCopy.history}
+            loadingDescription={t('appShell.copy.loadingChatPanels')}
+            loadingTitle={t('appShell.copy.loadingWorkspace')}
+          />
+        }
       >
         <ChatWorkspacePanels
           activeConversationId={resolvedConversationId}

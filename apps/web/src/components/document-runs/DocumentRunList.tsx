@@ -1,106 +1,90 @@
-import { Badge, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
-import { Link } from "react-router-dom";
-import { memo } from "react";
-import { StatePanel } from "../StatePanel";
-import { useI18n } from "../../i18n/I18nProvider";
-import type { DocumentRunRecord, KnowledgeBaseDocumentRunRecord } from "../../types/api";
+import { Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Link } from 'react-router-dom';
+import { memo } from 'react';
+import { StatePanel } from '../StatePanel';
+import { useI18n } from '../../i18n/I18nProvider';
+import type {
+  DocumentRunRecord,
+  KnowledgeBaseDocumentRunRecord
+} from '../../types/api';
 import {
   buildRunSummaryText,
   buildRunDiagnosticsHighlights,
   describeRunMeta
-} from "./document-run-observability";
+} from './document-run-observability';
 
 type RunRecord = DocumentRunRecord | KnowledgeBaseDocumentRunRecord;
 type TranslateFn = (key: string) => string;
 
-function getStatusColor(status: RunRecord["status"]) {
+function getStatusColor(status: RunRecord['status']) {
   switch (status) {
-    case "ready":
-      return "indigo";
-    case "failed":
-      return "red";
-    case "skipped":
-      return "gray";
+    case 'ready':
+      return 'indigo';
+    case 'failed':
+      return 'red';
+    case 'skipped':
+      return 'gray';
     default:
-      return "yellow";
+      return 'yellow';
   }
 }
 
-function getStatusLabel(status: RunRecord["status"], locale: string, t: (key: string) => string) {
-  if (status === "skipped") {
-    return locale === "zh" ? "已跳过" : "skipped";
+function getStatusLabel(status: RunRecord['status'], t: TranslateFn) {
+  if (status === 'skipped') {
+    return t('documentRuns.skippedStatus');
   }
 
   return t(`common.status.${status}`);
 }
 
-function getDiagnosticsSummaryLabel(key: string, locale: string) {
-  if (locale === "zh") {
-    switch (key) {
-      case "code":
-        return "代码";
-      case "retryable":
-        return "可重试";
-      case "partial":
-        return "部分成功";
-      case "failedPages":
-        return "失败页面";
-      case "failedChildSitemaps":
-        return "失败子站点图";
-      case "failedEntries":
-        return "失败条目";
-      case "attemptedPages":
-        return "尝试页面";
-      case "attemptedEntries":
-        return "尝试条目";
-      default:
-        return key;
-    }
-  }
+function getDiagnosticsSummaryLabel(key: string, t: TranslateFn) {
+  const labels: Record<string, string> = {
+    code: t('documentRuns.diagnosticsSummary.code'),
+    retryable: t('documentRuns.diagnosticsSummary.retryable'),
+    partial: t('documentRuns.diagnosticsSummary.partial'),
+    failedPages: t('documentRuns.diagnosticsSummary.failedPages'),
+    failedChildSitemaps: t(
+      'documentRuns.diagnosticsSummary.failedChildSitemaps'
+    ),
+    failedEntries: t('documentRuns.diagnosticsSummary.failedEntries'),
+    attemptedPages: t('documentRuns.diagnosticsSummary.attemptedPages'),
+    attemptedEntries: t('documentRuns.diagnosticsSummary.attemptedEntries')
+  };
 
-  switch (key) {
-    case "code":
-      return "Code";
-    case "retryable":
-      return "Retryable";
-    case "partial":
-      return "Partial";
-    case "failedPages":
-      return "Failed pages";
-    case "failedChildSitemaps":
-      return "Failed child sitemaps";
-    case "failedEntries":
-      return "Failed entries";
-    case "attemptedPages":
-      return "Attempted pages";
-    case "attemptedEntries":
-      return "Attempted entries";
-    default:
-      return key;
-  }
+  return labels[key] ?? key;
 }
 
 function getRunDocument(run: RunRecord) {
-  return "document" in run ? run.document : null;
+  return 'document' in run ? run.document : null;
 }
 
-function getRunFinishedLabel(run: RunRecord, locale: string, formatDateTime: (value: string) => string) {
+function getRunFinishedLabel(
+  run: RunRecord,
+  formatDateTime: (value: string) => string,
+  t: TranslateFn
+) {
   const meta = describeRunMeta(run);
 
   if (meta.finishedAt) {
-    return `${locale === "zh" ? "完成" : "Finished"} ${formatDateTime(meta.finishedAt)}`;
+    return `${t('documentRuns.finishedPrefix')} ${formatDateTime(meta.finishedAt)}`;
   }
 
-  return `${locale === "zh" ? "开始" : "Started"} ${formatDateTime(meta.startedAt)}`;
+  return `${t('documentRuns.startedPrefix')} ${formatDateTime(meta.startedAt)}`;
 }
 
-const RunStatusBadges = memo(function RunStatusBadges({ run, locale, t }: { run: RunRecord; locale: string; t: TranslateFn }) {
+const RunStatusBadges = memo(function RunStatusBadges({
+  run,
+  t
+}: {
+  run: RunRecord;
+  t: TranslateFn;
+}) {
   const meta = describeRunMeta(run);
 
   return (
     <Group gap="xs">
       <Badge color={getStatusColor(run.status)} variant="light">
-        {getStatusLabel(run.status, locale, t)}
+        {getStatusLabel(run.status, t)}
       </Badge>
       <Badge color="gray" variant="light">
         {meta.triggerLabel}
@@ -117,7 +101,11 @@ const RunStatusBadges = memo(function RunStatusBadges({ run, locale, t }: { run:
   );
 });
 
-const RunDocumentSummary = memo(function RunDocumentSummary({ run }: { run: RunRecord }) {
+const RunDocumentSummary = memo(function RunDocumentSummary({
+  run
+}: {
+  run: RunRecord;
+}) {
   const document = getRunDocument(run);
 
   if (!document) {
@@ -136,24 +124,42 @@ const RunDocumentSummary = memo(function RunDocumentSummary({ run }: { run: RunR
   );
 });
 
-const RunMetaSummary = memo(function RunMetaSummary({ run, locale, formatDateTime }: { run: RunRecord; locale: string; formatDateTime: (value: string) => string }) {
+const RunMetaSummary = memo(function RunMetaSummary({
+  run,
+  formatDateTime,
+  t
+}: {
+  run: RunRecord;
+  formatDateTime: (value: string) => string;
+  t: TranslateFn;
+}) {
   const meta = describeRunMeta(run);
 
   return (
     <div className="workspace-meta-list">
       <div className="workspace-meta-row">
-        <span className="workspace-meta-label">{locale === "zh" ? "开始时间" : "Started"}</span>
-        <span className="workspace-meta-value">{formatDateTime(meta.startedAt)}</span>
+        <span className="workspace-meta-label">
+          {t('documentRuns.startedAt')}
+        </span>
+        <span className="workspace-meta-value">
+          {formatDateTime(meta.startedAt)}
+        </span>
       </div>
       <div className="workspace-meta-row">
-        <span className="workspace-meta-label">{locale === "zh" ? "结束时间" : "Finished"}</span>
+        <span className="workspace-meta-label">
+          {t('documentRuns.finishedAt')}
+        </span>
         <span className="workspace-meta-value">
-          {meta.finishedAt ? formatDateTime(meta.finishedAt) : locale === "zh" ? "进行中" : "In progress"}
+          {meta.finishedAt
+            ? formatDateTime(meta.finishedAt)
+            : t('documentRuns.inProgress')}
         </span>
       </div>
       {meta.failedStageLabel ? (
         <div className="workspace-meta-row">
-          <span className="workspace-meta-label">{locale === "zh" ? "失败阶段" : "Failed stage"}</span>
+          <span className="workspace-meta-label">
+            {t('documentRuns.failedStage')}
+          </span>
           <span className="workspace-meta-value">{meta.failedStageLabel}</span>
         </div>
       ) : null}
@@ -161,7 +167,11 @@ const RunMetaSummary = memo(function RunMetaSummary({ run, locale, formatDateTim
   );
 });
 
-const RunFailureSummary = memo(function RunFailureSummary({ run }: { run: RunRecord }) {
+const RunFailureSummary = memo(function RunFailureSummary({
+  run
+}: {
+  run: RunRecord;
+}) {
   const meta = describeRunMeta(run);
 
   if (!meta.failureMessage) {
@@ -175,7 +185,13 @@ const RunFailureSummary = memo(function RunFailureSummary({ run }: { run: RunRec
   );
 });
 
-const RunSummaryText = memo(function RunSummaryText({ run, locale }: { run: RunRecord; locale: string }) {
+const RunSummaryText = memo(function RunSummaryText({
+  run,
+  locale
+}: {
+  run: RunRecord;
+  locale: string;
+}) {
   return (
     <Text c="var(--app-text-secondary)" size="sm">
       {buildRunSummaryText(run, locale)}
@@ -183,8 +199,16 @@ const RunSummaryText = memo(function RunSummaryText({ run, locale }: { run: RunR
   );
 });
 
-const RunDiagnosticsHighlights = memo(function RunDiagnosticsHighlights({ run, locale }: { run: RunRecord; locale: string }) {
-  const diagnosticsHighlights = buildRunDiagnosticsHighlights(run.diagnosticsJson);
+const RunDiagnosticsHighlights = memo(function RunDiagnosticsHighlights({
+  run,
+  t
+}: {
+  run: RunRecord;
+  t: TranslateFn;
+}) {
+  const diagnosticsHighlights = buildRunDiagnosticsHighlights(
+    run.diagnosticsJson
+  );
 
   if (diagnosticsHighlights.length === 0) {
     return null;
@@ -192,9 +216,9 @@ const RunDiagnosticsHighlights = memo(function RunDiagnosticsHighlights({ run, l
 
   return (
     <Group gap="xs">
-      {diagnosticsHighlights.map(item => (
+      {diagnosticsHighlights.map((item) => (
         <Badge color="gray" key={item.key} variant="light">
-          {getDiagnosticsSummaryLabel(item.key, locale)}: {item.value}
+          {getDiagnosticsSummaryLabel(item.key, t)}: {item.value}
         </Badge>
       ))}
     </Group>
@@ -203,12 +227,10 @@ const RunDiagnosticsHighlights = memo(function RunDiagnosticsHighlights({ run, l
 
 const RunActions = memo(function RunActions({
   run,
-  locale,
   onReindexRun,
   t
 }: {
   run: RunRecord;
-  locale: string;
   onReindexRun?: (run: RunRecord) => Promise<void> | void;
   t: TranslateFn;
 }) {
@@ -229,9 +251,9 @@ const RunActions = memo(function RunActions({
         to={`/documents/${run.documentId}`}
         variant="light"
       >
-        {locale === "zh" ? "查看文档" : "Open document"}
+        {t('documentRuns.openDocument')}
       </Button>
-      {onReindexRun && (run.status === "failed" || run.status === "skipped") ? (
+      {onReindexRun && (run.status === 'failed' || run.status === 'skipped') ? (
         <Button
           className="workspace-button"
           color="indigo"
@@ -240,14 +262,20 @@ const RunActions = memo(function RunActions({
           size="xs"
           variant="light"
         >
-          {t("common.actions.reindex")}
+          {t('common.actions.reindex')}
         </Button>
       ) : null}
     </Group>
   );
 });
 
-const RunDiagnosticsDetails = memo(function RunDiagnosticsDetails({ run, locale }: { run: RunRecord; locale: string }) {
+const RunDiagnosticsDetails = memo(function RunDiagnosticsDetails({
+  run,
+  t
+}: {
+  run: RunRecord;
+  t: TranslateFn;
+}) {
   if (!run.diagnosticsJson) {
     return null;
   }
@@ -255,9 +283,12 @@ const RunDiagnosticsDetails = memo(function RunDiagnosticsDetails({ run, locale 
   return (
     <details>
       <summary className="workspace-collapsible-summary">
-        {locale === "zh" ? "最小诊断详情" : "Minimal diagnostics"}
+        {t('documentRuns.minimalDiagnostics')}
       </summary>
-      <pre className="workspace-code-block workspace-code-block-scroll" style={{ marginTop: "0.9rem" }}>
+      <pre
+        className="workspace-code-block workspace-code-block-scroll"
+        style={{ marginTop: '0.9rem' }}
+      >
         {JSON.stringify(run.diagnosticsJson, null, 2)}
       </pre>
     </details>
@@ -282,21 +313,21 @@ const DocumentRunCard = memo(function DocumentRunCard({
       <Stack gap="sm">
         <Group align="flex-start" justify="space-between" wrap="nowrap">
           <Stack gap={6} style={{ minWidth: 0, flex: 1 }}>
-            <RunStatusBadges locale={locale} run={run} t={t} />
+            <RunStatusBadges run={run} t={t} />
             <RunDocumentSummary run={run} />
           </Stack>
 
           <Text c="var(--app-text-muted)" size="xs" ta="right">
-            {getRunFinishedLabel(run, locale, formatDateTime)}
+            {getRunFinishedLabel(run, formatDateTime, t)}
           </Text>
         </Group>
 
-        <RunMetaSummary formatDateTime={formatDateTime} locale={locale} run={run} />
+        <RunMetaSummary formatDateTime={formatDateTime} run={run} t={t} />
         <RunSummaryText locale={locale} run={run} />
         <RunFailureSummary run={run} />
-        <RunDiagnosticsHighlights locale={locale} run={run} />
-        <RunActions locale={locale} onReindexRun={onReindexRun} run={run} t={t} />
-        <RunDiagnosticsDetails locale={locale} run={run} />
+        <RunDiagnosticsHighlights run={run} t={t} />
+        <RunActions onReindexRun={onReindexRun} run={run} t={t} />
+        <RunDiagnosticsDetails run={run} t={t} />
       </Stack>
     </Paper>
   );
@@ -315,7 +346,11 @@ export const DocumentRunList = memo(function DocumentRunList(props: Props) {
   const { formatDateTime, locale, t } = useI18n();
 
   return (
-    <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+    <Paper
+      className="workspace-panel-hover workspace-panel-strong"
+      p="lg"
+      radius="xl"
+    >
       <Stack gap="md">
         <div>
           <Text className="workspace-section-heading">{props.title}</Text>
@@ -323,10 +358,13 @@ export const DocumentRunList = memo(function DocumentRunList(props: Props) {
         </div>
 
         {props.runs.length === 0 ? (
-          <StatePanel title={props.emptyTitle} description={props.emptyDescription} />
+          <StatePanel
+            title={props.emptyTitle}
+            description={props.emptyDescription}
+          />
         ) : (
           <Stack gap="sm">
-            {props.runs.map(run => (
+            {props.runs.map((run) => (
               <DocumentRunCard
                 formatDateTime={formatDateTime}
                 key={run.id}

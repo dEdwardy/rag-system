@@ -8,12 +8,14 @@ import {
   readLoginRedirectNotice,
   storeLoginRedirectNotice
 } from '../lib/login-redirect-notice';
+import { useI18n } from '../i18n/I18nProvider';
 import { AppShell } from './AppShell';
 
 export function AuthenticatedAppShell() {
   const hasInviteAccess = isInviteGateAccepted();
   const authMeQuery = useAuthMe(hasInviteAccess);
   const sessionExpired = isUnauthorized(authMeQuery.error);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!sessionExpired) {
@@ -38,10 +40,10 @@ export function AuthenticatedAppShell() {
           <div className="mx-auto h-10 w-10 rounded-full border-2 border-[var(--app-border)] border-t-[var(--app-accent)] animate-spin" />
           <div>
             <p className="text-sm font-medium text-[var(--app-text)]">
-              Loading workspace
+              {t('appShell.copy.loadingWorkspace')}
             </p>
             <p className="mt-1 text-xs text-[var(--app-text-muted)]">
-              Checking your session and preparing the app shell.
+              {t('appShell.copy.preparingWorkspaceShell')}
             </p>
           </div>
         </div>
