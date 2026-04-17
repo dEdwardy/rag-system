@@ -2,6 +2,7 @@ import { Badge, Button, Select, Table, Text } from '@mantine/core';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { StatePanel } from '../../components/StatePanel';
+import { useI18n } from '../../i18n/I18nProvider';
 import type { EvalQuestionSetRunItem } from '../../types/api';
 
 type ReviewConclusion = 'retrieval' | 'citation' | 'answer' | 'skip';
@@ -106,6 +107,7 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
     updateReviewConclusion,
     buildTraceReviewLink
   } = props;
+  const { t } = useI18n();
   const [page, setPage] = useState(1);
   const totalPages = Math.max(
     1,
@@ -126,10 +128,10 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
     pageStart + pagedItems.length,
     sortedAndFilteredItems.length
   );
-  const paginationSummary =
-    locale === 'zh'
-      ? `显示第 ${visibleStart}-${visibleEnd} 条，共 ${sortedAndFilteredItems.length} 条结果`
-      : `Showing ${visibleStart}-${visibleEnd} of ${sortedAndFilteredItems.length} results`;
+  const paginationSummary = t('reportResultsTable.paginationSummary')
+    .replace('{visibleStart}', String(visibleStart))
+    .replace('{visibleEnd}', String(visibleEnd))
+    .replace('{total}', String(sortedAndFilteredItems.length));
 
   useEffect(() => {
     setPage(1);
@@ -150,16 +152,8 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
   if (!hasRunItems) {
     return (
       <StatePanel
-        description={
-          locale === 'zh'
-            ? '这次质量检查没有返回可展示题目。请先检查 question-set 输入，再执行一次检查。'
-            : 'This quality check did not return any displayable items. Verify the question-set input and run it again.'
-        }
-        title={
-          locale === 'zh'
-            ? '这次检查还没有题目结果'
-            : 'This check has no item results yet'
-        }
+        description={t('reportResultsTable.emptyDescription')}
+        title={t('reportResultsTable.emptyTitle')}
         tone="empty"
       />
     );
@@ -170,9 +164,7 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
       <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
           <Text className="workspace-table-hint flex-shrink-0">
-            {locale === 'zh'
-              ? '按题逐行查看状态、质量和主问题；Trace 列保留直接跳转。'
-              : 'Review each row by status, quality, and primary issue; the trace column keeps a direct jump.'}
+            {t('reportResultsTable.tableHint')}
           </Text>
           <div className="flex flex-wrap items-center gap-3 flex-grow sm:flex-grow-0">
             <Select
@@ -180,9 +172,9 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
                 value: option,
                 label: option
               }))}
-              label={locale === 'zh' ? '状态筛选' : 'Status filter'}
+              label={t('reportResultsTable.statusFilter')}
               onChange={(value) => setFilterStatus(value ?? '')}
-              placeholder={locale === 'zh' ? '全部状态' : 'All statuses'}
+              placeholder={t('reportResultsTable.allStatuses')}
               size="xs"
               value={filterStatus || null}
             />
@@ -191,9 +183,9 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
                 value: option,
                 label: option
               }))}
-              label={locale === 'zh' ? '质量筛选' : 'Quality filter'}
+              label={t('reportResultsTable.qualityFilter')}
               onChange={(value) => setFilterQuality(value ?? '')}
-              placeholder={locale === 'zh' ? '全部质量' : 'All quality'}
+              placeholder={t('reportResultsTable.allQuality')}
               size="xs"
               value={filterQuality || null}
             />
@@ -201,22 +193,20 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
               data={[
                 {
                   value: 'pending',
-                  label: locale === 'zh' ? '待复盘' : 'Pending review'
+                  label: t('reportResultsTable.pendingReview')
                 },
                 {
                   value: 'reviewed',
-                  label: locale === 'zh' ? '已复盘' : 'Reviewed'
+                  label: t('reportResultsTable.reviewed')
                 }
               ]}
-              label={locale === 'zh' ? '复盘状态' : 'Review state'}
+              label={t('reportResultsTable.reviewState')}
               onChange={(value) =>
                 setFilterReviewState(
                   (value as 'pending' | 'reviewed' | null) ?? ''
                 )
               }
-              placeholder={
-                locale === 'zh' ? '全部复盘状态' : 'All review states'
-              }
+              placeholder={t('reportResultsTable.allReviewStates')}
               size="xs"
               value={filterReviewState || null}
             />
@@ -224,26 +214,26 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
               data={[
                 {
                   value: 'retrieval',
-                  label: locale === 'zh' ? '检索问题' : 'Retrieval issue'
+                  label: t('reportResultsTable.retrievalIssue')
                 },
                 {
                   value: 'citation',
-                  label: locale === 'zh' ? '引用问题' : 'Citation issue'
+                  label: t('reportResultsTable.citationIssue')
                 },
                 {
                   value: 'answer',
-                  label: locale === 'zh' ? '回答问题' : 'Answer issue'
+                  label: t('reportResultsTable.answerIssue')
                 },
                 {
                   value: 'skip',
-                  label: locale === 'zh' ? '暂不处理' : 'Skip for now'
+                  label: t('reportResultsTable.skipForNow')
                 }
               ]}
-              label={locale === 'zh' ? '处理结论' : 'Conclusion'}
+              label={t('reportResultsTable.conclusion')}
               onChange={(value) =>
                 setFilterConclusion((value as ReviewConclusion | null) ?? '')
               }
-              placeholder={locale === 'zh' ? '全部结论' : 'All conclusions'}
+              placeholder={t('reportResultsTable.allConclusions')}
               size="xs"
               value={filterConclusion || null}
             />
@@ -254,9 +244,10 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
           radius="sm"
           variant="light"
         >
-          {locale === 'zh'
-            ? `${sortedAndFilteredItems.length} 条结果`
-            : `${sortedAndFilteredItems.length} results`}
+          {t('reportResultsTable.resultsCount').replace(
+            '{count}',
+            String(sortedAndFilteredItems.length)
+          )}
         </Badge>
       </div>
       {sortedAndFilteredItems.length > REPORT_RESULTS_PAGE_SIZE ? (
@@ -272,12 +263,12 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
               size="xs"
               variant="light"
             >
-              {locale === 'zh' ? '上一页' : 'Previous'}
+              {t('reportResultsTable.previous')}
             </Button>
             <Badge color="indigo" radius="sm" variant="light">
-              {locale === 'zh'
-                ? `第 ${resolvedPage}/${totalPages} 页`
-                : `Page ${resolvedPage}/${totalPages}`}
+              {t('reportResultsTable.page')
+                .replace('{current}', String(resolvedPage))
+                .replace('{total}', String(totalPages))}
             </Badge>
             <Button
               className="workspace-button"
@@ -290,7 +281,7 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
               size="xs"
               variant="light"
             >
-              {locale === 'zh' ? '下一页' : 'Next'}
+              {t('reportResultsTable.next')}
             </Button>
           </div>
         </div>
@@ -332,43 +323,41 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
               <Table.Th onClick={() => requestSort('status')}>
-                {locale === 'zh' ? '状态' : 'Status'}{' '}
+                {t('reportResultsTable.status')}{' '}
                 {sortConfig?.key === 'status' &&
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
               <Table.Th onClick={() => requestSort('question')}>
-                {locale === 'zh' ? '问题' : 'Question'}{' '}
+                {t('reportResultsTable.question')}{' '}
                 {sortConfig?.key === 'question' &&
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
               <Table.Th onClick={() => requestSort('answerStatus')}>
-                {locale === 'zh' ? '答案状态' : 'Answer status'}{' '}
+                {t('reportResultsTable.answerStatus')}{' '}
                 {sortConfig?.key === 'answerStatus' &&
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
               <Table.Th onClick={() => requestSort('qualityOverall')}>
-                {locale === 'zh' ? '质量' : 'Quality'}{' '}
+                {t('reportResultsTable.quality')}{' '}
                 {sortConfig?.key === 'qualityOverall' &&
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
               <Table.Th onClick={() => requestSort('qualityPrimaryIssue')}>
-                {locale === 'zh' ? '主问题' : 'Primary issue'}{' '}
+                {t('reportResultsTable.primaryIssue')}{' '}
                 {sortConfig?.key === 'qualityPrimaryIssue' &&
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
               <Table.Th onClick={() => requestSort('citationCount')}>
-                {locale === 'zh' ? '引用数' : 'Citations'}{' '}
+                {t('reportResultsTable.citations')}{' '}
                 {sortConfig?.key === 'citationCount' &&
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
               <Table.Th onClick={() => requestSort('usedFallback')}>
-                {locale === 'zh' ? 'Fallback' : 'Fallback'}{' '}
+                {t('reportResultsTable.fallback')}{' '}
                 {sortConfig?.key === 'usedFallback' &&
                   (sortConfig.direction === 'ascending' ? '↑' : '↓')}
               </Table.Th>
-              <Table.Th>
-                {locale === 'zh' ? '诊断 / 问题' : 'Diagnostics / issue'}
-              </Table.Th>
+              <Table.Th>{t('reportResultsTable.diagnosticsIssue')}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -570,21 +559,19 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
                         data={[
                           {
                             value: 'retrieval',
-                            label:
-                              locale === 'zh' ? '检索问题' : 'Retrieval issue'
+                            label: t('reportResultsTable.retrievalIssue')
                           },
                           {
                             value: 'citation',
-                            label:
-                              locale === 'zh' ? '引用问题' : 'Citation issue'
+                            label: t('reportResultsTable.citationIssue')
                           },
                           {
                             value: 'answer',
-                            label: locale === 'zh' ? '回答问题' : 'Answer issue'
+                            label: t('reportResultsTable.answerIssue')
                           },
                           {
                             value: 'skip',
-                            label: locale === 'zh' ? '暂不处理' : 'Skip for now'
+                            label: t('reportResultsTable.skipForNow')
                           }
                         ]}
                         onChange={(value) =>
@@ -594,9 +581,9 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
                             (value as ReviewConclusion | null) ?? null
                           )
                         }
-                        placeholder={
-                          locale === 'zh' ? '写处理结论' : 'Set conclusion'
-                        }
+                        placeholder={t(
+                          'reportResultsTable.conclusionPlaceholder'
+                        )}
                         radius="xl"
                         size="xs"
                         value={reviewConclusion}
@@ -619,7 +606,7 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
                           })}
                           variant="light"
                         >
-                          {locale === 'zh' ? '打开诊断' : 'Open diagnostics'}
+                          {t('reportResultsTable.openDiagnostics')}
                         </Button>
                       ) : (
                         <Text c="var(--app-text-muted)" size="xs">
