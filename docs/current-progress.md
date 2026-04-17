@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-16
+> 更新时间：2026-04-17
 
 ## Current Snapshot
 
@@ -19,6 +19,16 @@
   - 或从新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments
+
+- `default-path maintenance next wave follow-up` kept the same bounded stage judgment and tightened the current single-primary-KB default path with one more small pass across API latency, default-assistant drift coverage, and documents-to-chat clarity
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now overlaps retrieval work with early stream status delivery so first-token pre-generation orchestration cost is thinner without changing retrieval semantics
+  - `apps/web/src/i18n/messages.en.ts`, `apps/web/src/i18n/messages.zh.ts`, `apps/web/src/pages/chat/ChatPage.tsx`, and `apps/web/src/pages/chat/chat-page-helpers.ts` now keep upload-ready next actions and starter auto-ask behavior clearer on the first-turn path
+  - `apps/api/test/auth-provider-boundary.test.js`, `apps/api/test/retrieval-profiles-auth-scope.test.js`, `apps/web/test/trace-summary-contract.test.js`, `apps/web/test/ask-answering-metadata-contract.test.js`, and `apps/web/test/chat-page-helpers.test.js` now cover one more round of default-assistant drift and weak-answer/trace/citation explanation regressions
+  - focused validation:
+    - `pnpm --filter @rag-system/api test:fast:assistants`
+    - `pnpm --filter @rag-system/api exec vitest run test/auth-provider-boundary.test.js test/retrieval-profiles-auth-scope.test.js`
+    - `pnpm --filter @rag-system/web test:vitest:file -- test/i18n-copy.test.js test/chat-page-helpers.test.js test/workspace-selection.test.js`
+    - `pnpm --filter @rag-system/web test:vitest:file -- test/trace-summary-contract.test.js test/ask-answering-metadata-contract.test.js test/chat-page-helpers.test.js`
 
 - `chat readiness failed+ready handoff` removed one unnecessary block on the default upload-to-chat path
   - `apps/web/src/pages/chat/chat-page-helpers.ts` now treats the library as chat-ready when at least one document is already ready, even if other documents are still failed
