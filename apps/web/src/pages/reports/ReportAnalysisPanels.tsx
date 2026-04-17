@@ -84,7 +84,7 @@ function ReportChartFallback({
 }) {
   return (
     <div
-      className={`${heightClassName} flex items-center justify-center rounded-[24px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)]`}
+      className={`${heightClassName} flex items-center justify-center rounded-[18px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.015)]`}
     >
       <Text c="var(--app-text-muted)" size="sm">
         {locale === 'zh' ? '正在加载图表...' : 'Loading charts...'}
@@ -182,9 +182,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
     <>
       {runEvalData.summary && (
         <Paper
-          className="workspace-panel-hover workspace-panel-muted"
+          className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
           p="lg"
-          radius="xl"
+          radius="lg"
         >
           <Stack gap="sm">
             <div className="workspace-section-heading">
@@ -206,9 +206,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
       )}
 
       <Paper
-        className="workspace-panel-hover workspace-panel-muted"
+        className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
         p="lg"
-        radius="xl"
+        radius="lg"
       >
         <Stack gap="sm">
           <div className="workspace-section-heading">
@@ -219,7 +219,7 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
               <div>
                 {qualitySummaryRows.map((row) => (
                   <div
-                    className="workspace-meta-row workspace-table-number"
+                    className="workspace-meta-row workspace-table-number rounded-[14px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.015)] px-3 py-2"
                     key={row.quality}
                   >
                     <span className="workspace-meta-label">{row.quality}</span>
@@ -249,9 +249,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
 
       {answerStatusDistribution.length > 0 && (
         <Paper
-          className="workspace-panel-hover workspace-panel-muted"
+          className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
           p="lg"
-          radius="xl"
+          radius="lg"
         >
           <Stack gap="sm">
             <div className="workspace-section-heading">
@@ -274,9 +274,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
 
       {errorTypeDistribution.length > 0 && (
         <Paper
-          className="workspace-panel-hover workspace-panel-muted"
+          className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
           p="lg"
-          radius="xl"
+          radius="lg"
         >
           <Stack gap="sm">
             <div className="workspace-section-heading">
@@ -299,14 +299,14 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
 
       {qualityGate && (
         <Paper
-          className="workspace-panel-hover workspace-panel-muted"
+          className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
           p="lg"
-          radius="xl"
+          radius="lg"
         >
           <Stack gap="sm">
             <div className="workspace-section-heading">{copy.qualityGate}</div>
             {qualityGatePresentation ? (
-              <Paper className="workspace-subpanel" p="md" radius="xl">
+              <Paper className="workspace-subpanel" p="md" radius="lg">
                 <Stack gap="xs">
                   <Badge
                     color={qualityGatePresentation.color}
@@ -400,9 +400,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
       )}
 
       <Paper
-        className="workspace-panel-hover workspace-panel-muted"
+        className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
         p="lg"
-        radius="xl"
+        radius="lg"
       >
         <Stack gap="sm">
           <div className="workspace-section-heading">{copy.runDiffSummary}</div>
@@ -451,9 +451,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
       </Paper>
 
       <Paper
-        className="workspace-panel-hover workspace-panel-muted"
+        className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
         p="lg"
-        radius="xl"
+        radius="lg"
       >
         <Stack gap="sm">
           <div className="workspace-section-heading">
@@ -507,7 +507,7 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
                             onClick={() =>
                               focusRunItem(item.index, item.question)
                             }
-                            radius="xl"
+                            radius="lg"
                             size="xs"
                             variant="subtle"
                           >
@@ -520,7 +520,7 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
                               className="workspace-button"
                               color="indigo"
                               component={Link}
-                              radius="xl"
+                              radius="lg"
                               size="xs"
                               to={buildTraceReviewLink({
                                 traceId:
@@ -566,9 +566,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
       </Paper>
 
       <Paper
-        className="workspace-panel-hover workspace-panel-muted"
+        className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
         p="lg"
-        radius="xl"
+        radius="lg"
       >
         <Stack gap="sm">
           <div className="workspace-section-heading">{copy.runContext}</div>
@@ -620,9 +620,9 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
       </Paper>
 
       <Paper
-        className="workspace-panel-hover workspace-panel-muted"
+        className="workspace-panel-hover workspace-panel-muted border border-[var(--app-border)] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
         p="lg"
-        radius="xl"
+        radius="lg"
       >
         <Stack gap="sm">
           <div className="workspace-section-heading">{copy.reportExport}</div>
@@ -637,7 +637,7 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
               color="indigo"
               loading={exporting === 'markdown'}
               onClick={() => void downloadReport('markdown')}
-              radius="xl"
+              radius="lg"
               size="xs"
               variant="light"
             >
@@ -648,7 +648,7 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
               color="indigo"
               loading={exporting === 'json'}
               onClick={() => void downloadReport('json')}
-              radius="xl"
+              radius="lg"
               size="xs"
               variant="light"
             >
@@ -659,7 +659,7 @@ export function ReportAnalysisPanels(props: ReportAnalysisPanelsProps) {
               color="indigo"
               loading={exporting === 'html'}
               onClick={() => void downloadReport('html')}
-              radius="xl"
+              radius="lg"
               size="xs"
               variant="light"
             >

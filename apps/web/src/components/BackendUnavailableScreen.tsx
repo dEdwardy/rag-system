@@ -36,14 +36,14 @@ export function BackendUnavailableScreen() {
   ];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.14),transparent_38%),var(--app-bg)] px-4 py-8 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--app-bg)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center justify-center">
-        <section className="w-full overflow-hidden rounded-[32px] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(18,23,39,0.96)_0%,rgba(11,15,26,0.98)_100%)] shadow-[0_24px_80px_rgba(0,0,0,0.38)]">
+        <section className="w-full overflow-hidden rounded-[24px] border border-[var(--app-border)] bg-[rgba(15,23,42,0.82)] shadow-[0_18px_48px_rgba(0,0,0,0.18)] backdrop-blur-sm">
           <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="border-b border-[var(--app-border)] px-6 py-8 sm:px-8 lg:border-b-0 lg:border-r lg:px-10 lg:py-10">
               <div className="flex max-w-2xl flex-col gap-6">
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex rounded-full border border-[rgba(99,102,241,0.28)] bg-[rgba(99,102,241,0.14)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#c7d2fe]">
+                  <span className="inline-flex rounded-full border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-text-muted)]">
                     {copy.startupCheck}
                   </span>
                   <span className="text-xs font-medium text-[var(--app-text-muted)]">
@@ -63,10 +63,10 @@ export function BackendUnavailableScreen() {
                 <div className="grid gap-3 sm:grid-cols-3">
                   {checklist.map((item, index) => (
                     <div
-                      className="rounded-[22px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.03)] px-4 py-4"
+                      className="rounded-[18px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] px-4 py-4"
                       key={item}
                     >
-                      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(99,102,241,0.16)] text-sm font-semibold text-[#c7d2fe]">
+                      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(255,255,255,0.04)] text-sm font-semibold text-[var(--app-text)]">
                         {index + 1}
                       </div>
                       <p className="text-sm leading-6 text-[var(--app-text-secondary)]">
@@ -98,7 +98,7 @@ export function BackendUnavailableScreen() {
 
             <div className="px-6 py-8 sm:px-8 lg:px-8 lg:py-10">
               <div className="flex h-full flex-col justify-between gap-6">
-                <div className="rounded-[24px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.03)] p-5">
+                <div className="rounded-[18px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--app-text-muted)]">
                     {copy.currentState}
                   </p>
@@ -116,7 +116,7 @@ export function BackendUnavailableScreen() {
                   </p>
                 </div>
 
-                <div className="rounded-[24px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] p-5">
+                <div className="rounded-[18px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--app-text-muted)]">
                     {copy.healthEndpoint}
                   </p>

@@ -73,23 +73,23 @@ export function OauthWorkspaceWelcome({
   });
 
   return (
-    <section className="overflow-hidden rounded-[24px] border border-[rgba(99,102,241,0.22)] bg-[linear-gradient(135deg,rgba(99,102,241,0.16)_0%,rgba(15,23,42,0.92)_55%,rgba(14,165,233,0.12)_100%)] p-5 shadow-[0_18px_48px_rgba(15,23,42,0.28)]">
+    <section className="overflow-hidden rounded-[20px] border border-[var(--app-border)] bg-[rgba(15,23,42,0.7)] p-5 shadow-[0_12px_32px_rgba(15,23,42,0.16)] backdrop-blur-sm">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(191,219,254,0.2)] bg-[rgba(15,23,42,0.32)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#c7d2fe]">
-            <span className="h-2 w-2 rounded-full bg-[#38bdf8] shadow-[0_0_0_6px_rgba(56,189,248,0.12)]" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--app-text-muted)]">
+            <span className="h-2 w-2 rounded-full bg-[var(--app-accent)]" />
             {copy.kicker}
           </div>
-          <h3 className="mt-4 text-[22px] font-semibold tracking-[-0.03em] text-white">
+          <h3 className="mt-4 text-[22px] font-semibold tracking-[-0.03em] text-[var(--app-text)]">
             {copy.title}
           </h3>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[rgba(226,232,240,0.84)]">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--app-text-secondary)]">
             {copy.description}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {copy.pills.map((pill) => (
               <span
-                className="rounded-full border border-[rgba(148,163,184,0.18)] bg-[rgba(15,23,42,0.34)] px-3 py-1 text-[11px] font-medium text-[rgba(226,232,240,0.82)]"
+                className="rounded-full border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-[11px] font-medium text-[var(--app-text-secondary)]"
                 key={pill}
               >
                 {pill}
@@ -104,8 +104,8 @@ export function OauthWorkspaceWelcome({
               className={[
                 'inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-medium transition duration-300',
                 action.tone === 'primary'
-                  ? 'bg-white text-slate-950 shadow-[0_12px_28px_rgba(255,255,255,0.12)] hover:-translate-y-0.5'
-                  : 'border border-[rgba(191,219,254,0.2)] bg-[rgba(15,23,42,0.28)] text-white hover:-translate-y-0.5 hover:bg-[rgba(30,41,59,0.52)]'
+                  ? 'bg-[var(--app-accent)] text-white hover:bg-[var(--app-accent-strong)]'
+                  : 'border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] text-[var(--app-text)] hover:bg-[rgba(255,255,255,0.04)]'
               ].join(' ')}
               key={`${action.to}-${action.label}`}
               to={action.to}
@@ -121,21 +121,21 @@ export function OauthWorkspaceWelcome({
           {copy.steps.map((step, index) => {
             const stepTone =
               step.state === 'done'
-                ? 'border-[rgba(74,222,128,0.28)] bg-[rgba(22,101,52,0.18)] text-[#dcfce7]'
+                ? 'border-[rgba(74,222,128,0.22)] bg-[rgba(22,101,52,0.12)] text-[var(--app-text)]'
                 : step.state === 'current'
-                  ? 'border-[rgba(129,140,248,0.32)] bg-[rgba(79,70,229,0.18)] text-white'
-                  : 'border-[rgba(148,163,184,0.18)] bg-[rgba(15,23,42,0.28)] text-[rgba(226,232,240,0.86)]';
+                  ? 'border-[rgba(99,102,241,0.22)] bg-[rgba(99,102,241,0.1)] text-[var(--app-text)]'
+                  : 'border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] text-[var(--app-text-secondary)]';
 
             return (
               <div
                 className={[
-                  'rounded-[18px] border px-4 py-4 shadow-[0_10px_28px_rgba(15,23,42,0.16)]',
+                  'rounded-[16px] border px-4 py-4 shadow-[0_8px_20px_rgba(15,23,42,0.08)]',
                   stepTone
                 ].join(' ')}
                 key={`${index}-${step.label}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border border-current/20 bg-black/10 text-[11px] font-semibold">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border border-current/20 bg-[rgba(255,255,255,0.02)] text-[11px] font-semibold">
                     {index + 1}
                   </div>
                   <div className="text-sm font-semibold">{step.label}</div>
