@@ -1388,7 +1388,9 @@ test('AuthService completeOauthProviderCallback provisions a default workspace f
   assert.equal(calls.retrievalProfileCreate.ownerId, 'user-oauth-new-1');
   assert.deepEqual(calls.assistantLookup, {
     tenantId: 'default-tenant',
-    kbId: 'kb-oauth-new-1'
+    knowledgeBase: {
+      ownerId: 'user-oauth-new-1'
+    }
   });
   assert.equal(calls.assistantCreate.kbId, 'kb-oauth-new-1');
   assert.equal(calls.knowledgeBaseCreate.name, 'Default Knowledge Base');

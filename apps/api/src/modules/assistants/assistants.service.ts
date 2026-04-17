@@ -19,6 +19,7 @@ type AssistantAccessScope = {
 
 const DEFAULT_ASSISTANT_NAME = 'Default Assistant';
 const DEFAULT_PRIMARY_KB_NAME = 'Default Knowledge Base';
+const DEFAULT_RETRIEVAL_PROFILE_NAME = 'Default Retrieval Profile';
 
 @Injectable()
 export class AssistantsService {
@@ -48,6 +49,11 @@ export class AssistantsService {
             select: {
               name: true
             }
+          },
+          retrievalProfile: {
+            select: {
+              name: true
+            }
           }
         },
         ...(scope
@@ -70,8 +76,9 @@ export class AssistantsService {
         assistants
           .slice()
           .sort(compareAssistantPriority)
-          .map(({ knowledgeBase, ...assistant }) => {
+          .map(({ knowledgeBase, retrievalProfile, ...assistant }) => {
             void knowledgeBase;
+            void retrievalProfile;
             return assistant;
           })
       );
@@ -241,12 +248,18 @@ function compareAssistantPriority(
     knowledgeBase?: {
       name: string;
     };
+    retrievalProfile?: {
+      name: string;
+    };
   },
   right: {
     id: string;
     name: string;
     status: 'active' | 'inactive';
     knowledgeBase?: {
+      name: string;
+    };
+    retrievalProfile?: {
       name: string;
     };
   }
@@ -268,6 +281,9 @@ function scoreAssistantPriority(assistant: {
   knowledgeBase?: {
     name: string;
   };
+  retrievalProfile?: {
+    name: string;
+  };
 }) {
   let score = 0;
 
@@ -286,6 +302,10 @@ function scoreAssistantPriority(assistant: {
     score += 10;
   }
 
+  if (isDefaultRetrievalProfileName(assistant.retrievalProfile?.name)) {
+    score += 20;
+  }
+
   return score;
 }
 
@@ -302,6 +322,14 @@ function isDefaultPrimaryKbName(name: string | null | undefined) {
     typeof name === 'string' &&
     normalizeCanonicalDefaultName(name) ===
       normalizeCanonicalDefaultName(DEFAULT_PRIMARY_KB_NAME)
+  );
+}
+
+function isDefaultRetrievalProfileName(name: string | null | undefined) {
+  return (
+    typeof name === 'string' &&
+    normalizeCanonicalDefaultName(name) ===
+      normalizeCanonicalDefaultName(DEFAULT_RETRIEVAL_PROFILE_NAME)
   );
 }
 

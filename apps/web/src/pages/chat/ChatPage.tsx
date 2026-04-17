@@ -38,6 +38,7 @@ import {
   buildChatReadinessState,
   parseChatAutoAskFromSearch,
   parseChatStarterQuestionFromSearch,
+  shouldDelayConversationAutoSelectForStarter,
   buildStarterQuestions,
   formatMessageTime
 } from './chat-page-helpers';
@@ -317,7 +318,15 @@ function ActionSlotPlaceholder() {
   );
 }
 
-function ChatWorkspacePanelsFallback({ history }: { history: string }) {
+function ChatWorkspacePanelsFallback({
+  history,
+  loadingTitle,
+  loadingDescription
+}: {
+  history: string;
+  loadingTitle: string;
+  loadingDescription: string;
+}) {
   return (
     <>
       <div className="border-t border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-5 py-4 xl:hidden">
@@ -326,8 +335,8 @@ function ChatWorkspacePanelsFallback({ history }: { history: string }) {
             {history}
           </div>
           <StatePanel
-            description="Loading chat workspace panels."
-            title="Loading workspace panels"
+            description={loadingDescription}
+            title={loadingTitle}
             tone="loading"
           />
         </div>
@@ -336,8 +345,8 @@ function ChatWorkspacePanelsFallback({ history }: { history: string }) {
       <aside className="hidden min-h-0 flex-col bg-[var(--app-bg-elevated)] xl:flex">
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <StatePanel
-            description="Loading conversation history and citations."
-            title="Loading workspace panels"
+            description={loadingDescription}
+            title={loadingTitle}
             tone="loading"
           />
         </div>
@@ -450,6 +459,7 @@ export function ChatPage() {
         locale === 'zh'
           ? '可以直接从这些首问开始'
           : 'Start with one of these first questions',
+      starterPromptHint: t('chat.copy.starterPromptHint'),
       starterQuestions: buildStarterQuestions(locale, 'chat')
     }),
     [chatHistoryVisibleCount, locale, t]
@@ -460,6 +470,10 @@ export function ChatPage() {
   );
   const shouldAutoAskStarterFromSearch = useMemo(
     () => parseChatAutoAskFromSearch(location.search),
+    [location.search]
+  );
+  const shouldDelayConversationAutoSelect = useMemo(
+    () => shouldDelayConversationAutoSelectForStarter(location.search),
     [location.search]
   );
 
@@ -474,6 +488,10 @@ export function ChatPage() {
   );
 
   useEffect(() => {
+    if (shouldDelayConversationAutoSelect) {
+      return;
+    }
+
     if (
       !didAutoSelectConversation &&
       activeConversationId == null &&
@@ -482,7 +500,12 @@ export function ChatPage() {
       setActiveConversationId(fallbackConversationId);
       setDidAutoSelectConversation(true);
     }
-  }, [activeConversationId, didAutoSelectConversation, fallbackConversationId]);
+  }, [
+    activeConversationId,
+    didAutoSelectConversation,
+    fallbackConversationId,
+    shouldDelayConversationAutoSelect
+  ]);
 
   useEffect(() => {
     setIsTranscriptNearBottom(true);
@@ -539,6 +562,18 @@ export function ChatPage() {
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
       const traceSummaryHint = buildTraceSummaryHint({
+        answerStatus: finalData.answerStatus,
+        insufficientContextReason:
+          finalData.answeringMetadata?.insufficientContextReason,
+        usedFallback: finalData.answeringMetadata?.usedFallback,
+        fallbackReason:
+          finalData.retrievalMetadata?.execution.fallbackReason ??
+          finalData.strategySummary?.fallbackReason ??
+          null,
+        missingInformationCount:
+          finalData.answeringMetadata?.missingInformationCount ??
+          finalData.missingInformation?.length ??
+          null,
         failureReadabilitySentence: finalData.failureReadabilitySentence,
         answerStatusSourceReadabilitySentence:
           finalData.answerStatusSourceReadabilitySentence,
@@ -1002,6 +1037,9 @@ export function ChatPage() {
                         </button>
                       ))}
                     </div>
+                    <div className="text-xs text-[var(--app-text-muted)]">
+                      {chatCopy.starterPromptHint}
+                    </div>
                     <Link
                       className="inline-flex items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5"
                       to="/documents"
@@ -1266,6 +1304,9 @@ export function ChatPage() {
                         </button>
                       ))}
                     </div>
+                    <div className="text-xs text-[var(--app-text-muted)]">
+                      {chatCopy.starterPromptHint}
+                    </div>
                   </div>
                 }
                 description={t('chat.states.noMessagesDescription')}
@@ -1413,7 +1454,13 @@ export function ChatPage() {
       </section>
 
       <Suspense
-        fallback={<ChatWorkspacePanelsFallback history={chatCopy.history} />}
+        fallback={
+          <ChatWorkspacePanelsFallback
+            history={chatCopy.history}
+            loadingDescription={t('appShell.copy.loadingChatPanels')}
+            loadingTitle={t('appShell.copy.loadingWorkspace')}
+          />
+        }
       >
         <ChatWorkspacePanels
           activeConversationId={resolvedConversationId}

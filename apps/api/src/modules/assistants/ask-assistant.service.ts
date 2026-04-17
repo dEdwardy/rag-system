@@ -698,10 +698,18 @@ export class AskAssistantService {
       durationMs: Date.now() - conversationStartedAt
     }));
 
-    await input.onEvent({
-      type: 'status',
-      phase: 'started'
-    });
+    const startedStatusEventPromise = Promise.resolve(
+      input.onEvent({
+        type: 'status',
+        phase: 'started'
+      })
+    );
+    const retrievingStatusEventPromise = startedStatusEventPromise.then(() =>
+      input.onEvent({
+        type: 'status',
+        phase: 'retrieving'
+      })
+    );
 
     let userMessagePromise: Promise<TimedResult<AskPersistedMessage>> | null =
       null;
@@ -724,6 +732,7 @@ export class AskAssistantService {
 
       return userMessagePromise;
     };
+    const eagerUserMessagePromise = getUserMessagePromise();
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -790,11 +799,6 @@ export class AskAssistantService {
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
 
-    await input.onEvent({
-      type: 'status',
-      phase: 'retrieving'
-    });
-
     const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(
       () =>
         this.retrieveOrCreateFailedTrace({
@@ -819,7 +823,7 @@ export class AskAssistantService {
 
     const conversationAndUserMessagePromise = Promise.all([
       conversationPromise,
-      getUserMessagePromise()
+      eagerUserMessagePromise
     ]).then(([conversationResult, userMessageResult]) => ({
       conversation: conversationResult.value,
       conversationLoadMs: conversationResult.durationMs,
@@ -886,6 +890,7 @@ export class AskAssistantService {
     let traceCreateMs = 0;
 
     try {
+      await retrievingStatusEventPromise;
       await input.onEvent({
         type: 'status',
         phase: 'generating'

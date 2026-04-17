@@ -555,6 +555,9 @@ export function DocumentsPage() {
                   </Badge>
                 ))}
               </Group>
+              <Text c="var(--app-text-muted)" mt={6} size="xs">
+                {t('documents.readyBannerStarterHint')}
+              </Text>
             </div>
             <div className="workspace-feedback-alert__action">
               <Button

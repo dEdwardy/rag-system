@@ -583,3 +583,65 @@ test('AssistantsService treats canonical default assistant and primary knowledge
   );
   assert.equal(assistants[1]?.id, 'assistant-secondary');
 });
+
+test('AssistantsService prefers the default assistant bound to the canonical default retrieval profile when duplicate defaults share the primary knowledge base', async () => {
+  const scope = {
+    tenantId: 'tenant-auth',
+    userId: 'user-auth'
+  };
+
+  const fakeService = Object.assign(
+    Object.create(AssistantsService.prototype),
+    {
+      prisma: {
+        assistant: {
+          findMany: async () => [
+            {
+              id: 'assistant-default-a',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-primary',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'stale retrieval binding',
+              retrievalProfileId: 'profile-secondary',
+              answerPolicyJson: null,
+              status: 'active',
+              knowledgeBase: {
+                name: 'Default Knowledge Base'
+              },
+              retrievalProfile: {
+                name: 'Secondary Retrieval Profile'
+              }
+            },
+            {
+              id: 'assistant-default-z',
+              tenantId: 'tenant-auth',
+              kbId: 'kb-primary',
+              name: 'Default Assistant',
+              description: null,
+              systemPrompt: 'canonical retrieval binding',
+              retrievalProfileId: 'profile-default',
+              answerPolicyJson: null,
+              status: 'active',
+              knowledgeBase: {
+                name: 'Default Knowledge Base'
+              },
+              retrievalProfile: {
+                name: ' default retrieval profile '
+              }
+            }
+          ]
+        }
+      }
+    }
+  );
+
+  const assistants = await AssistantsService.prototype.listAssistants.call(
+    fakeService,
+    scope
+  );
+
+  assert.equal(assistants[0]?.id, 'assistant-default-z');
+  assert.equal(assistants[1]?.id, 'assistant-default-a');
+  assert.equal(assistants[0]?.retrievalProfile, undefined);
+});

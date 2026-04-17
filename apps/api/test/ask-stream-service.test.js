@@ -500,17 +500,184 @@ test('AskAssistantService stream starts retrieval before user message persistenc
     question: 'Where is the marker?',
     onEvent: () => {}
   });
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
     if (typeof resolveUserMessage === 'function') {
       break;
     }
     await Promise.resolve();
   }
+
+  assert.equal(retrievalStartedBeforeUserMessage, true);
   assert.equal(typeof resolveUserMessage, 'function');
   resolveUserMessage();
   const result = await askPromise;
 
-  assert.equal(retrievalStartedBeforeUserMessage, true);
+  assert.equal(result.traceId, 'trace-1');
+});
+
+test('AskAssistantService stream starts user message persistence before retrieval resolves', async () => {
+  let resolveRetrieval;
+  let retrievalResolved = false;
+  let userMessagePersistStarted = false;
+  let userMessageStartedBeforeRetrievalResolved = false;
+
+  const service = createAskAssistantService({
+    messages: {
+      createMessage: async (inputValue) => {
+        if (inputValue.role === 'user') {
+          userMessagePersistStarted = true;
+          userMessageStartedBeforeRetrievalResolved = !retrievalResolved;
+          return { id: 'user-message-1', ...inputValue };
+        }
+
+        return { id: 'assistant-message-1', ...inputValue };
+      }
+    },
+    retrieval: {
+      retrieve: async () =>
+        await new Promise((resolve) => {
+          resolveRetrieval = () => {
+            retrievalResolved = true;
+            resolve({
+              retrievedChunks: [
+                {
+                  chunkId: 'chunk-1',
+                  documentId: 'document-1',
+                  documentTitle: 'Document 1',
+                  chunkIndex: 0,
+                  content: 'marker content',
+                  score: 0.9,
+                  isPrimary: true,
+                  pageNo: 1,
+                  sectionTitle: 'Facts'
+                }
+              ],
+              contextGroups: [],
+              execution: {
+                actualMode: 'vector',
+                usedFallback: false
+              }
+            });
+          };
+        })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        input.onDelta('Alpha');
+        return {
+          rawAnswer: 'Alpha',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: () => {}
+  });
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (typeof resolveRetrieval === 'function' && userMessagePersistStarted) {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(typeof resolveRetrieval, 'function');
+  assert.equal(userMessagePersistStarted, true);
+  assert.equal(userMessageStartedBeforeRetrievalResolved, true);
+  resolveRetrieval();
+  const result = await askPromise;
+
+  assert.equal(result.traceId, 'trace-1');
+});
+
+test('AskAssistantService stream does not block retrieval on retrieving-status delivery', async () => {
+  let resolveRetrievingStatus;
+  let retrievalStarted = false;
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => {
+        retrievalStarted = true;
+        return {
+          retrievedChunks: [
+            {
+              chunkId: 'chunk-1',
+              documentId: 'document-1',
+              documentTitle: 'Document 1',
+              chunkIndex: 0,
+              content: 'marker content',
+              score: 0.9,
+              isPrimary: true,
+              pageNo: 1,
+              sectionTitle: 'Facts'
+            }
+          ],
+          contextGroups: [],
+          execution: {
+            actualMode: 'vector',
+            usedFallback: false
+          }
+        };
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        input.onDelta('Alpha');
+        return {
+          rawAnswer: 'Alpha',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
+      if (event.type === 'status' && event.phase === 'retrieving') {
+        return new Promise((resolve) => {
+          resolveRetrievingStatus = resolve;
+        });
+      }
+    }
+  });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (retrievalStarted) {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (typeof resolveRetrievingStatus === 'function') {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(retrievalStarted, true);
+  assert.equal(typeof resolveRetrievingStatus, 'function');
+  resolveRetrievingStatus();
+  const result = await askPromise;
+
   assert.equal(result.traceId, 'trace-1');
 });
 
@@ -640,6 +807,128 @@ test('AskAssistantService stream rethrows AbortError without marking the trace a
   );
 
   assert.deepEqual(updateTraceCalls, []);
+});
+
+test('AskAssistantService stream keeps retry answers consistent after an interrupted attempt', async () => {
+  const firstAttemptEvents = [];
+  const retryEvents = [];
+  const traceUpdates = [];
+  let streamCallCount = 0;
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async () => {
+        throw new Error('should reuse the provided conversation in this test');
+      },
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            chunkIndex: 0,
+            content: 'marker content',
+            score: 0.9,
+            isPrimary: true,
+            pageNo: 1,
+            sectionTitle: 'Facts'
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: `trace-${streamCallCount + 1}` }),
+      updateTrace: async (id, input) => {
+        traceUpdates.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    llm: {
+      rewriteQuery: async () => ({
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null
+      }),
+      generateAnswerStream: async (input) => {
+        streamCallCount += 1;
+
+        if (streamCallCount === 1) {
+          await input.onDelta('partial ');
+          const error = new Error('stream interrupted by user stop');
+          error.name = 'AbortError';
+          throw error;
+        }
+
+        await input.onDelta('Stable retry ');
+        await input.onDelta('answer [1]');
+        return {
+          rawAnswer: 'Stable retry answer [1]',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      service.askAssistantStream({
+        assistantId: 'assistant-1',
+        conversationId: 'conversation-1',
+        question: 'Where is the marker?',
+        onEvent: (event) => {
+          firstAttemptEvents.push(event);
+        }
+      }),
+    (error) => error instanceof Error && error.name === 'AbortError'
+  );
+
+  const retryResult = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
+      retryEvents.push(event);
+    }
+  });
+
+  assert.equal(streamCallCount, 2);
+  assert.deepEqual(
+    firstAttemptEvents.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    ['status:started', 'status:retrieving', 'status:generating', 'answer_delta']
+  );
+  assert.deepEqual(
+    retryEvents.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'answer_delta',
+      'final'
+    ]
+  );
+  assert.equal(traceUpdates.length, 1);
+  assert.equal(traceUpdates[0].input.status, 'success');
+  assert.equal(retryResult.answer, 'Stable retry answer [1]');
+  assert.equal(retryResult.answerStatus, 'grounded');
+  assert.equal(retryResult.answeringMetadata.answerStatus, 'grounded');
+  assert.equal(retryResult.answeringMetadata.answerTextSource, 'model');
+  assert.equal(retryEvents[5].data.answer, 'Stable retry answer [1]');
 });
 
 test('AskAssistantService bypasses provider streaming for no-hit say_insufficient_context answers', async () => {

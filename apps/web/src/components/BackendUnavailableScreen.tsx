@@ -1,27 +1,39 @@
-import { useI18n } from "../i18n/I18nProvider";
-import { resolveApiUrl } from "../lib/api";
+import { useI18n } from '../i18n/I18nProvider';
+import { messages as zhMessages } from '../i18n/messages.zh';
+import { resolveApiUrl } from '../lib/api';
 
 export function BackendUnavailableScreen() {
   const { locale } = useI18n();
-  const healthUrl = resolveApiUrl("/health");
-  const isZh = locale === "zh";
-
-  const title = isZh ? "工作区暂时无法连接后端" : "Workspace cannot reach the backend";
-  const description = isZh
-    ? "前端已经启动，但当前 API 服务还没有准备好。先启动后端，再回到这里继续文件上传、回答设置和对话。"
-    : "The web app is up, but the API service is not ready yet. Start the backend first, then come back to continue file upload, answer setup, and chat.";
-
-  const checklist = isZh
-    ? [
-        "确认本地 API 服务已经启动。",
-        "访问健康检查地址，确认返回 200。",
-        "后端恢复后重新检测当前页面。"
-      ]
-    : [
-        "Start the local API service.",
-        "Open the health endpoint and confirm it returns 200.",
-        "Come back and re-check this workspace once the backend is ready."
-      ];
+  const healthUrl = resolveApiUrl('/health');
+  const englishCopy = {
+    title: 'Workspace cannot reach the backend',
+    description:
+      'The web app is up, but the API service is not ready yet. Start the backend first, then come back to continue file upload, answer setup, and chat.',
+    checklist: {
+      first: 'Start the local API service.',
+      second: 'Open the health endpoint and confirm it returns 200.',
+      third: 'Come back and re-check this workspace once the backend is ready.'
+    },
+    startupCheck: 'Startup check',
+    currentState: 'Current state',
+    apiUnreachable: 'API is currently unreachable',
+    apiUnreachableDescription:
+      'This usually means the local backend is not running yet, or it is still booting.',
+    healthEndpoint: 'Health endpoint',
+    checkAgain: 'Check again',
+    openHealthEndpoint: 'Open health endpoint',
+    recoveryNote:
+      'Once this endpoint returns 200, refresh the page and the workspace should recover normally.',
+    buildNote:
+      'This does not mean the frontend build is broken. The workspace just cannot fetch API data yet.'
+  } as const;
+  const copy =
+    locale === 'zh' ? zhMessages.auth.backendUnavailable : englishCopy;
+  const checklist = [
+    copy.checklist.first,
+    copy.checklist.second,
+    copy.checklist.third
+  ];
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.14),transparent_38%),var(--app-bg)] px-4 py-8 sm:px-6 lg:px-8">
@@ -32,19 +44,19 @@ export function BackendUnavailableScreen() {
               <div className="flex max-w-2xl flex-col gap-6">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex rounded-full border border-[rgba(99,102,241,0.28)] bg-[rgba(99,102,241,0.14)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#c7d2fe]">
-                    {isZh ? "启动检查" : "Startup check"}
+                    {copy.startupCheck}
                   </span>
                   <span className="text-xs font-medium text-[var(--app-text-muted)]">
-                    {isZh ? "RAG System workspace" : "RAG System workspace"}
+                    RAG System workspace
                   </span>
                 </div>
 
                 <div className="space-y-3">
                   <h1 className="max-w-xl text-3xl font-semibold tracking-[-0.04em] text-[var(--app-text)] sm:text-4xl">
-                    {title}
+                    {copy.title}
                   </h1>
                   <p className="max-w-2xl text-sm leading-7 text-[var(--app-text-secondary)] sm:text-[15px]">
-                    {description}
+                    {copy.description}
                   </p>
                 </div>
 
@@ -57,7 +69,9 @@ export function BackendUnavailableScreen() {
                       <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(99,102,241,0.16)] text-sm font-semibold text-[#c7d2fe]">
                         {index + 1}
                       </div>
-                      <p className="text-sm leading-6 text-[var(--app-text-secondary)]">{item}</p>
+                      <p className="text-sm leading-6 text-[var(--app-text-secondary)]">
+                        {item}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -68,7 +82,7 @@ export function BackendUnavailableScreen() {
                     onClick={() => window.location.reload()}
                     type="button"
                   >
-                    {isZh ? "重新检测后端" : "Check again"}
+                    {copy.checkAgain}
                   </button>
                   <a
                     className="inline-flex items-center justify-center rounded-full border border-[var(--app-border-strong)] px-5 py-2.5 text-sm font-medium text-[var(--app-text-secondary)] transition duration-300 hover:border-[var(--app-accent)] hover:text-[var(--app-text)]"
@@ -76,7 +90,7 @@ export function BackendUnavailableScreen() {
                     rel="noreferrer"
                     target="_blank"
                   >
-                    {isZh ? "打开健康检查" : "Open health endpoint"}
+                    {copy.openHealthEndpoint}
                   </a>
                 </div>
               </div>
@@ -86,7 +100,7 @@ export function BackendUnavailableScreen() {
               <div className="flex h-full flex-col justify-between gap-6">
                 <div className="rounded-[24px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.03)] p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--app-text-muted)]">
-                    {isZh ? "当前状态" : "Current state"}
+                    {copy.currentState}
                   </p>
                   <div className="mt-4 flex items-center gap-3">
                     <span className="relative inline-flex h-3 w-3">
@@ -94,34 +108,30 @@ export function BackendUnavailableScreen() {
                       <span className="relative inline-flex h-3 w-3 rounded-full bg-rose-300" />
                     </span>
                     <p className="text-sm font-medium text-[var(--app-text)]">
-                      {isZh ? "API 当前不可达" : "API is currently unreachable"}
+                      {copy.apiUnreachable}
                     </p>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-[var(--app-text-secondary)]">
-                    {isZh
-                      ? "这通常表示本地后端还没启动，或者启动后还没完成初始化。"
-                      : "This usually means the local backend is not running yet, or it is still booting."}
+                    {copy.apiUnreachableDescription}
                   </p>
                 </div>
 
                 <div className="rounded-[24px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.02)] p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--app-text-muted)]">
-                    {isZh ? "健康检查地址" : "Health endpoint"}
+                    {copy.healthEndpoint}
                   </p>
                   <div className="mt-3 rounded-[18px] border border-[var(--app-border)] bg-[rgba(7,10,19,0.72)] px-4 py-3">
-                    <code className="block break-all text-sm text-[#dbe4ff]">{healthUrl}</code>
+                    <code className="block break-all text-sm text-[#dbe4ff]">
+                      {healthUrl}
+                    </code>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-[var(--app-text-secondary)]">
-                    {isZh
-                      ? "如果这个地址能返回 200，说明后端已恢复，刷新页面即可回到正常工作区。"
-                      : "Once this endpoint returns 200, refresh the page and the workspace should recover normally."}
+                    {copy.recoveryNote}
                   </p>
                 </div>
 
                 <p className="text-xs leading-6 text-[var(--app-text-muted)]">
-                  {isZh
-                    ? "这个状态不会影响前端构建本身，只是当前工作区还拿不到 API 数据。"
-                    : "This does not mean the frontend build is broken. The workspace just cannot fetch API data yet."}
+                  {copy.buildNote}
                 </p>
               </div>
             </div>

@@ -22,6 +22,8 @@ export const messages = {
       hideAdvancedTools: '隐藏工作台工具',
       currentKnowledgeBase: '当前工作区资料库',
       loadingKnowledgeBase: '正在加载工作区资料库',
+      loadingOperationsData: '正在加载运行数据...',
+      loadingOperations: '正在加载运行数据',
       search: '搜索',
       notifications: '通知',
       switchToChinese: '切换到中文',
@@ -184,6 +186,7 @@ export const messages = {
       preparingAnswer: '准备回答中',
       retrievingContext: '检索上下文中',
       generatingAnswer: '生成回答中',
+      starterPromptHint: '点任意首问会立即发送，后续可以在对话里继续细化。',
       noDocuments: '资料库还是空的',
       libraryNeedsAttention: '资料库需要处理',
       libraryUpdating: '资料库更新中',
@@ -201,12 +204,14 @@ export const messages = {
       noConversationsTitle: '还没有会话',
       noConversationsDescription: '向助手提问后，这里会出现第一个会话。',
       noActiveConversationTitle: '当前没有激活会话',
-      noActiveConversationDescription: '请选择一个会话，或直接发起新提问开始。',
+      noActiveConversationDescription:
+        '当前至少有一条资料已就绪。现在直接点击首问并发送，或先选择历史会话继续。',
       loadingMessagesTitle: '正在加载消息',
       loadingMessagesDescription: '加载消息与对应的诊断引用。',
       messagesErrorTitle: '加载消息失败。',
       noMessagesTitle: '暂无消息',
-      noMessagesDescription: '这个会话还没有持久化消息。',
+      noMessagesDescription:
+        '这个会话还没有持久化消息。现在发送一个首问，即可生成第一轮回答。',
       noActiveKnowledgeBaseTitle: '当前工作区还没有可用资料库',
       noActiveKnowledgeBaseDescription:
         '请先创建或恢复工作区资料库。只有当前工作区存在活动资料库后，对话才会开放。',
@@ -286,6 +291,7 @@ export const messages = {
     readyBannerTitle: '资料库已可用于对话',
     readyBannerDescription:
       '已有 {count} 个资料项就绪。现在可以开始对话，或继续扩充资料库。',
+    readyBannerStarterHint: '提示：点击首问会自动打开对话并直接发送。',
     currentKnowledgeBaseLabel: '当前资料目标',
     currentKnowledgeBaseHintHasKb:
       '在这里添加的文件和链接都会进入当前工作区资料库。',
@@ -624,9 +630,107 @@ export const messages = {
       continueWithGitHub: '使用 GitHub 继续',
       continueWithGoogle: '使用 Google 继续',
       continueWithOidc: '使用 OIDC 继续',
+      loadingProviders: '正在加载登录选项',
       githubSetupRequired: '需要先配置 GitHub',
       googleSetupRequired: '需要先配置 Google',
       oidcSetupRequired: '需要先配置 OIDC'
+    },
+    oauthWorkspaceWelcome: {
+      knowledge: {
+        kicker: '{provider} 工作区设置',
+        titleWithDocuments: '当前资料空间已经有可用资料了。',
+        titleWithoutDocuments: '先把当前资料空间建立起来。',
+        descriptionWithDocumentsWithAssistant:
+          '当前资料空间已经有文档，也至少连接了一套回答设置。现在更适合回看工作区状态，或者直接进入提问。',
+        descriptionWithDocumentsWithoutAssistant:
+          '当前资料空间已经有文档，但在把 Chat 当成完全可用之前，仍然应该先确认回答设置。',
+        descriptionWithoutDocumentsWithAssistant:
+          '当前工作区已经有资料空间和助手，但如果还没有文档，检索结果仍然会偏空。',
+        descriptionWithoutDocumentsWithoutAssistant:
+          '当前工作区还缺第一批资料，而且在继续提问前，也可能还需要先补齐回答设置。',
+        answerSetupReady: '回答设置已就绪',
+        answerSetupPending: '回答设置尚未就绪',
+        documentsAvailable: '可用文档 {count} 份',
+        actionUploadDocuments: '去上传文档',
+        actionOpenAnswerSettings: '打开回答设置',
+        actionReviewAnswerSettings: '查看回答设置'
+      },
+      assistant: {
+        kicker: '{provider} 回答设置',
+        titleWithAssistant: '先确认当前回答设置，再决定是否继续调参。',
+        titleWithoutAssistant: '当前工作区还没有给这个资料空间准备回答设置。',
+        descriptionWithoutAssistant:
+          '这个产品里的回答设置始终跟随当前资料空间。先确认资料状态，再为同一个工作区上下文补齐或恢复回答设置。',
+        descriptionWithoutDocuments:
+          '回答设置已经存在，但资料空间还是空的。先上传文档，再回来微调 prompt 和检索参数。',
+        descriptionDefault:
+          '回答设置已经存在，资料空间里也有资料。只有在确实想改善回答风格或检索质量时，再继续调这些参数。',
+        answerSetupReady: '回答设置已就绪',
+        answerSetupPending: '回答设置尚未就绪',
+        documentsAvailable: '可用文档 {count} 份',
+        conversations: '历史对话 {count} 条',
+        actionUploadDocuments: '先上传文档',
+        actionOpenChat: '去聊天',
+        actionOpenWorkspaceSettings: '打开工作区设置'
+      },
+      chat: {
+        kicker: '{provider} 对话工作区',
+        titleNoDocuments: 'Chat 还缺当前资料空间里的可检索资料。',
+        titleNoAnswerSettings: '在开始聊天前，还差最后一步。',
+        titleReady: '当前工作区已经可以继续在 Chat 中使用。',
+        descriptionNoDocuments:
+          '在把 Chat 当成就绪前，先往当前资料空间里上传几份文档，这样检索才能落到你自己的工作区资料上，而不是空语料。',
+        descriptionNoAnswerSettings:
+          '当前资料空间已经有资料，但在稳定提问前，仍然需要先为这个工作区补齐回答设置。',
+        descriptionNoConversations:
+          '当前工作区已经有资料可用了。准备好后，直接开始第一轮对话即可验证整条链路。',
+        descriptionReady:
+          '当前工作区已经处于可用状态。你可以继续提问，或者回到工作区设置和助手页做进一步调整。',
+        currentWorkspaceChat: '当前工作区 Chat',
+        documentsAvailable: '可用文档 {count} 份',
+        conversations: '历史对话 {count} 条',
+        actionUploadFiles: '去上传文档',
+        actionOpenAnswerSettings: '打开回答设置',
+        actionStartChatting: '开始聊天',
+        actionOpenWorkspaceSettings: '打开工作区设置',
+        stepAddLibraryItems: '添加资料',
+        stepAddLibraryItemsDone: '已完成。当前资料空间已经有可检索资料。',
+        stepAddLibraryItemsPending:
+          '先上传第一批文件或链接，让 Chat 有真实资料可用。',
+        stepReviewAnswerSettings: '确认回答设置',
+        stepReviewAnswerSettingsDone:
+          '已完成。当前工作区已经有可用的回答设置。',
+        stepReviewAnswerSettingsWithDocs:
+          '这就是下一步。先为同一个工作区补齐回答设置，再开始提问。',
+        stepReviewAnswerSettingsPending:
+          '等第一批资料就绪后，再回来完成这一步。',
+        stepStartChatting: '开始聊天',
+        stepStartChattingDone:
+          '现在已经可以开始提问，用第一轮对话验证整条链路。',
+        stepStartChattingPending: '前两步完成后，再回到这里开始第一轮对话。'
+      }
+    },
+    backendUnavailable: {
+      title: '工作区暂时无法连接后端',
+      description:
+        '前端已经启动，但当前 API 服务还没有准备好。先启动后端，再回到这里继续文件上传、回答设置和对话。',
+      checklist: {
+        first: '确认本地 API 服务已经启动。',
+        second: '访问健康检查地址，确认返回 200。',
+        third: '后端恢复后重新检测当前页面。'
+      },
+      startupCheck: '启动检查',
+      currentState: '当前状态',
+      apiUnreachable: 'API 当前不可达',
+      apiUnreachableDescription:
+        '这通常表示本地后端还没启动，或者启动后还没完成初始化。',
+      healthEndpoint: '健康检查地址',
+      checkAgain: '重新检测后端',
+      openHealthEndpoint: '打开健康检查',
+      recoveryNote:
+        '如果这个地址能返回 200，说明后端已恢复，刷新页面即可回到正常工作区。',
+      buildNote:
+        '这个状态不会影响前端构建本身，只是当前工作区还拿不到 API 数据。'
     }
   },
   trace: {
@@ -639,6 +743,7 @@ export const messages = {
       heroSidecopy:
         '先扫一眼用户问题、结果和耗时，再决定是否展开更细的诊断内容。',
       loadingConversations: '正在加载会话',
+      loadingLatestTrace: '正在加载最新诊断 trace...',
       conversationsError: '加载会话失败',
       latestResult: '最近结果',
       loadTracesError: '加载 trace 失败',
@@ -653,6 +758,9 @@ export const messages = {
       latestResultSuccess: '回答流程已完成',
       latestResultNeedsInspection: '需要诊断',
       traceId: '诊断 trace id',
+      firstToken: '首个 token',
+      answerGeneration: '回答生成',
+      retrieval: '检索',
       viewTraceDetails: '查看诊断',
       backToChat: '返回对话'
     },
@@ -677,5 +785,32 @@ export const messages = {
     citations: '引用',
     noRetrievedChunks: '这个 trace 没有记录检索到的切片。',
     noCitations: '这个 trace 没有记录引用。'
+  },
+  documentRuns: {
+    skippedStatus: '已跳过',
+    startedPrefix: '开始',
+    finishedPrefix: '完成',
+    inProgress: '进行中',
+    startedAt: '开始',
+    finishedAt: '结束',
+    failedStage: '失败阶段',
+    openDocument: '查看文档',
+    minimalDiagnostics: '最小诊断详情',
+    diagnosticsSummary: {
+      code: '代码',
+      retryable: '可重试',
+      partial: '部分成功',
+      failedPages: '失败页面',
+      failedChildSitemaps: '失败子站点图',
+      failedEntries: '失败条目',
+      attemptedPages: '尝试页面',
+      attemptedEntries: '尝试条目'
+    }
+  },
+  report: {
+    loadingQuestionSets: '正在加载题集...',
+    loadingBaselines: '正在加载 baseline...',
+    loadingResultsTable: '正在加载结果表',
+    loadingAnalysisPanels: '正在加载分析面板'
   }
 } as const;

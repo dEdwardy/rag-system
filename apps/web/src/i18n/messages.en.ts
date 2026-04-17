@@ -22,6 +22,13 @@ export const messages = {
       hideAdvancedTools: 'Hide workbench tools',
       currentKnowledgeBase: 'Current workspace library',
       loadingKnowledgeBase: 'Loading workspace library',
+      loadingWorkspace: 'Loading workspace',
+      preparingWorkspaceShell:
+        'Checking your session and preparing the app shell.',
+      preparingRouterAndShell: 'Preparing the application router and shell.',
+      loadingChatPanels: 'Loading conversation history and citations.',
+      loadingOperationsData: 'Loading operations data...',
+      loadingOperations: 'Loading operations',
       search: 'Search',
       notifications: 'Notifications',
       switchToChinese: 'Switch to Chinese',
@@ -193,6 +200,8 @@ export const messages = {
       preparingAnswer: 'Preparing answer',
       retrievingContext: 'Retrieving context',
       generatingAnswer: 'Generating answer',
+      starterPromptHint:
+        'Click one to send it now, then refine the follow-up in chat.',
       noDocuments: 'Library still empty',
       libraryNeedsAttention: 'Library needs review',
       libraryUpdating: 'Library updating',
@@ -212,12 +221,13 @@ export const messages = {
         'Ask the assistant to create the first conversation.',
       noActiveConversationTitle: 'No active conversation',
       noActiveConversationDescription:
-        'Select a conversation or ask a new question to begin.',
+        'At least one library item is ready. Pick a starter question and send it now, or select a past conversation to continue.',
       loadingMessagesTitle: 'Loading messages',
       loadingMessagesDescription: 'Loading messages and trace references.',
       messagesErrorTitle: 'Failed to load messages.',
       noMessagesTitle: 'No messages',
-      noMessagesDescription: 'This conversation has no persisted messages yet.',
+      noMessagesDescription:
+        'This conversation has no persisted messages yet. Send one starter question now to create the first answer turn.',
       noActiveKnowledgeBaseTitle: 'No active workspace library',
       noActiveKnowledgeBaseDescription:
         'Create or restore a workspace library first. Chat only becomes available after the current workspace has an active library.',
@@ -301,6 +311,8 @@ export const messages = {
     readyBannerTitle: 'Library ready for chat',
     readyBannerDescription:
       '{count} library items are ready. You can move on to chat now, or keep expanding this library.',
+    readyBannerStarterHint:
+      'Tip: click a starter question to open chat and ask it automatically.',
     currentKnowledgeBaseLabel: 'Current library target',
     currentKnowledgeBaseHintHasKb:
       'Files and links added here go into the current workspace library.',
@@ -675,9 +687,93 @@ export const messages = {
       continueWithGitHub: 'Continue with GitHub',
       continueWithGoogle: 'Continue with Google',
       continueWithOidc: 'Continue with OIDC',
+      loadingProviders: 'Loading sign-in options',
       githubSetupRequired: 'GitHub setup required',
       googleSetupRequired: 'Google setup required',
       oidcSetupRequired: 'OIDC setup required'
+    },
+    oauthWorkspaceWelcome: {
+      knowledge: {
+        kicker: '{provider} workspace setup',
+        titleWithDocuments:
+          'Your workspace library has real source material now.',
+        titleWithoutDocuments:
+          'Start by setting up the current workspace library.',
+        descriptionWithDocumentsWithAssistant:
+          'The current workspace library already has documents and at least one connected answer setup. Review the workspace or move on to asking questions.',
+        descriptionWithDocumentsWithoutAssistant:
+          'The current workspace library already has documents, but you should still review answer settings before treating chat as fully ready.',
+        descriptionWithoutDocumentsWithAssistant:
+          'A workspace library and assistant exist for this workspace, but retrieval will stay thin until you add source files.',
+        descriptionWithoutDocumentsWithoutAssistant:
+          'This workspace still needs the first source files, and you may also need to finish answer settings before asking questions.',
+        answerSetupReady: 'Answer setup connected',
+        answerSetupPending: 'Answer setup not ready',
+        documentsAvailable: '{count} documents available',
+        actionUploadDocuments: 'Upload documents',
+        actionOpenAnswerSettings: 'Open answer settings',
+        actionReviewAnswerSettings: 'Review answer settings'
+      },
+      assistant: {
+        kicker: '{provider} answer settings',
+        titleWithAssistant:
+          'Review the current answer settings before tuning further.',
+        titleWithoutAssistant:
+          'This workspace still needs answer settings for the current library.',
+        descriptionWithoutAssistant:
+          'Answer settings in this product follow the current workspace library. Review the library and document state first, then restore or connect the same workspace answer setup.',
+        descriptionWithoutDocuments:
+          'Answer settings already exist, but the workspace library is still empty. Upload documents first, then come back to tune prompting and retrieval behavior.',
+        descriptionDefault:
+          'Answer settings already exist and the workspace library has material. Tune settings here only when you need to improve answer behavior or retrieval quality.',
+        answerSetupReady: 'Answer settings connected',
+        answerSetupPending: 'Answer settings not ready',
+        documentsAvailable: '{count} documents available',
+        conversations: '{count} chats so far',
+        actionUploadDocuments: 'Upload documents',
+        actionOpenChat: 'Open chat',
+        actionOpenWorkspaceSettings: 'Open workspace settings'
+      },
+      chat: {
+        kicker: '{provider} chat workspace',
+        titleNoDocuments:
+          'Chat still needs source material from the current library.',
+        titleNoAnswerSettings:
+          'One more step is still missing before chat is ready.',
+        titleReady: 'The current workspace is ready to continue in chat.',
+        descriptionNoDocuments:
+          'Before treating chat as ready, upload files into the current workspace library so retrieval uses your own workspace material instead of an empty corpus.',
+        descriptionNoAnswerSettings:
+          'The workspace library already has material, but chat still needs answer settings for this same workspace before you can ask reliably.',
+        descriptionNoConversations:
+          'The current workspace has material available. Start the first conversation when you are ready to verify chat end to end.',
+        descriptionReady:
+          'This workspace is already active. Continue the conversation or refine workspace settings and answer settings if answers still look off.',
+        currentWorkspaceChat: 'Current workspace chat',
+        documentsAvailable: '{count} documents available',
+        conversations: '{count} conversations',
+        actionUploadFiles: 'Upload files',
+        actionOpenAnswerSettings: 'Open answer settings',
+        actionStartChatting: 'Start chatting',
+        actionOpenWorkspaceSettings: 'Open workspace settings',
+        stepAddLibraryItems: 'Add library items',
+        stepAddLibraryItemsDone:
+          'Done. This workspace library already has source material.',
+        stepAddLibraryItemsPending:
+          'Upload the first files so chat has real workspace material to use.',
+        stepReviewAnswerSettings: 'Review answer settings',
+        stepReviewAnswerSettingsDone:
+          'Done. Answer settings are already connected to this workspace.',
+        stepReviewAnswerSettingsWithDocs:
+          'This is the next step. Connect answer settings for the same workspace before chatting.',
+        stepReviewAnswerSettingsPending:
+          'This comes right after the first library items are ready.',
+        stepStartChatting: 'Start chatting',
+        stepStartChattingDone:
+          'Everything is ready. Use chat to verify the full answer flow.',
+        stepStartChattingPending:
+          'Once the first two steps are done, come back here and start the first conversation.'
+      }
     }
   },
   trace: {
@@ -692,6 +788,7 @@ export const messages = {
       heroSidecopy:
         'Scan the user question, outcome, and timing first, then open detailed diagnostics only when needed.',
       loadingConversations: 'Loading conversations',
+      loadingLatestTrace: 'Loading latest diagnostic trace...',
       conversationsError: 'Failed to load conversations',
       latestResult: 'Latest result',
       loadTracesError: 'Failed to load traces',
@@ -709,6 +806,9 @@ export const messages = {
       latestResultSuccess: 'Answer pipeline completed',
       latestResultNeedsInspection: 'Needs diagnostics',
       traceId: 'Diagnostic trace id',
+      firstToken: 'First token',
+      answerGeneration: 'Answer generation',
+      retrieval: 'Retrieval',
       slowestStage: 'Slowest stage',
       viewTraceDetails: 'View diagnostics',
       backToChat: 'Back to chat'
@@ -736,5 +836,32 @@ export const messages = {
     citations: 'Citations',
     noRetrievedChunks: 'No retrieved chunks captured for this trace.',
     noCitations: 'No citations recorded for this trace.'
+  },
+  documentRuns: {
+    skippedStatus: 'Skipped',
+    startedPrefix: 'Started',
+    finishedPrefix: 'Finished',
+    inProgress: 'In progress',
+    startedAt: 'Started',
+    finishedAt: 'Finished',
+    failedStage: 'Failed stage',
+    openDocument: 'Open document',
+    minimalDiagnostics: 'Minimal diagnostics',
+    diagnosticsSummary: {
+      code: 'Code',
+      retryable: 'Retryable',
+      partial: 'Partial',
+      failedPages: 'Failed pages',
+      failedChildSitemaps: 'Failed child sitemaps',
+      failedEntries: 'Failed entries',
+      attemptedPages: 'Attempted pages',
+      attemptedEntries: 'Attempted entries'
+    }
+  },
+  report: {
+    loadingQuestionSets: 'Loading question sets...',
+    loadingBaselines: 'Loading baselines...',
+    loadingResultsTable: 'Loading results table',
+    loadingAnalysisPanels: 'Loading analysis panels'
   }
 } as const;

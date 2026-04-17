@@ -32,11 +32,13 @@ function looksLikeUntranslatedKey(value: string | null | undefined) {
 }
 
 function GroupLoader() {
+  const { t } = useI18n();
+
   return (
     <Stack aria-live="polite" gap={6} role="status">
       <Loader color="indigo" size="sm" />
       <Text c="var(--app-text-muted)" size="xs">
-        Loading latest diagnostic trace...
+        {t('trace.copy.loadingLatestTrace')}
       </Text>
     </Stack>
   );
@@ -74,9 +76,12 @@ function TraceConversationCard({
   const bottleneck =
     timing != null
       ? [
-          { label: 'First token', value: timing.firstTokenMs },
-          { label: 'Answer generation', value: timing.answerGenerationMs },
-          { label: 'Retrieval', value: timing.retrievalMs }
+          { label: t('trace.copy.firstToken'), value: timing.firstTokenMs },
+          {
+            label: t('trace.copy.answerGeneration'),
+            value: timing.answerGenerationMs
+          },
+          { label: t('trace.copy.retrieval'), value: timing.retrievalMs }
         ]
           .filter(
             (item): item is { label: string; value: number } =>

@@ -47,7 +47,7 @@ test('chat page helpers build citation context with page and section', async () 
     }
   );
 
-  assert.equal(result, 'Spec • page 4 • "Streaming"');
+  assert.equal(result, 'Spec • "Streaming" • page 4');
 });
 
 test('chat page helpers omit empty citation context parts', async () => {
@@ -127,7 +127,7 @@ test('chat page helpers strip markdown heading marker from citation section titl
     }
   );
 
-  assert.equal(result, 'Spec • page 7 • "Streaming Details"');
+  assert.equal(result, 'Spec • "Streaming Details" • page 7');
 });
 
 test('chat page helpers skip duplicate citation section title when it matches source title', async () => {
@@ -150,6 +150,26 @@ test('chat page helpers skip duplicate citation section title when it matches so
   assert.equal(result, 'Spec • page 7');
 });
 
+test('chat page helpers normalize section titles that already include quotes', async () => {
+  const { buildCitationContext } = await loadChatPageHelpers();
+
+  const result = buildCitationContext(
+    {
+      chunkId: 'chunk-4c',
+      documentId: 'document-1',
+      documentTitle: 'Spec',
+      pageNo: 7,
+      sectionTitle: '"Streaming"',
+      snippet: '...'
+    },
+    {
+      pageLabel: (pageNo) => `page ${pageNo}`
+    }
+  );
+
+  assert.equal(result, 'Spec • "Streaming" • page 7');
+});
+
 test('chat page helpers skip whitespace-only citation source title', async () => {
   const { buildCitationContext } = await loadChatPageHelpers();
 
@@ -167,7 +187,7 @@ test('chat page helpers skip whitespace-only citation source title', async () =>
     }
   );
 
-  assert.equal(result, 'page 7 • "Overview"');
+  assert.equal(result, '"Overview" • page 7');
 });
 
 test('chat page helpers resolve no active knowledge base readiness', async () => {
@@ -349,6 +369,31 @@ test('chat page helpers parse chat auto-ask flag from search', async () => {
   assert.equal(parseChatAutoAskFromSearch('?ask=0'), false);
 });
 
+test('chat page helpers delay auto-select when starter auto-ask is present', async () => {
+  const { shouldDelayConversationAutoSelectForStarter } =
+    await loadChatPageHelpers();
+
+  assert.equal(
+    shouldDelayConversationAutoSelectForStarter(
+      '?starterQuestion=What+are+these+items+about%3F&ask=1'
+    ),
+    true
+  );
+});
+
+test('chat page helpers keep auto-select when starter auto-ask is not present', async () => {
+  const { shouldDelayConversationAutoSelectForStarter } =
+    await loadChatPageHelpers();
+
+  assert.equal(
+    shouldDelayConversationAutoSelectForStarter(
+      '?starterQuestion=What+are+these+items+about%3F'
+    ),
+    false
+  );
+  assert.equal(shouldDelayConversationAutoSelectForStarter('?ask=1'), false);
+});
+
 test('chat page helpers build trace summary hint with scan-first priority', async () => {
   const { buildTraceSummaryHint } = await loadChatPageHelpers();
 
@@ -362,6 +407,109 @@ test('chat page helpers build trace summary hint with scan-first priority', asyn
   });
 
   assert.equal(result, 'Retrieval failed before ranking.');
+});
+
+test('chat page helpers show insufficient-context hint before provenance copy', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    answerStatus: 'insufficient_context',
+    answerStatusSourceReadabilitySentence:
+      'Answer status from fallback metadata.'
+  });
+
+  assert.equal(result, 'Marked as insufficient context in this answer.');
+});
+
+test('chat page helpers explain insufficient-context no-hit reason', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    answerStatus: 'insufficient_context',
+    insufficientContextReason: 'no_retrieval_hits'
+  });
+
+  assert.equal(
+    result,
+    'Marked as insufficient context: retrieval found no relevant source hits.'
+  );
+});
+
+test('chat page helpers explain insufficient-context weak-evidence reason', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    answerStatus: 'insufficient_context',
+    insufficientContextReason: 'retrieved_context_insufficient'
+  });
+
+  assert.equal(
+    result,
+    'Marked as insufficient context: retrieved source evidence was too weak for a reliable answer.'
+  );
+});
+
+test('chat page helpers explain insufficient-context reason even without explicit answer status', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    insufficientContextReason: 'retrieved_context_insufficient',
+    answerStatusSourceReadabilitySentence:
+      'Answer status from fallback metadata.'
+  });
+
+  assert.equal(
+    result,
+    'Marked as insufficient context: retrieved source evidence was too weak for a reliable answer.'
+  );
+});
+
+test('chat page helpers show fallback hint when fallback metadata is true', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    usedFallback: true,
+    retrievalModeProvenanceSentence: 'Retrieval ran in vector mode.'
+  });
+
+  assert.equal(result, 'Fallback retrieval path was used for this answer.');
+});
+
+test('chat page helpers explain fallback reason when available', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    usedFallback: true,
+    fallbackReason: 'no_ranked_candidates'
+  });
+
+  assert.equal(
+    result,
+    'Fallback retrieval path was used because ranked retrieval returned no usable candidates.'
+  );
+});
+
+test('chat page helpers show missing-information count hint', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    missingInformationCount: 2,
+    missingInformationProvenanceSentence:
+      'Missing information derived from answer evidence.'
+  });
+
+  assert.equal(result, 'Answer reports 2 missing information items.');
+});
+
+test('chat page helpers show singular missing-information count hint', async () => {
+  const { buildTraceSummaryHint } = await loadChatPageHelpers();
+
+  const result = buildTraceSummaryHint({
+    missingInformationCount: 1,
+    retrievalModeProvenanceSentence: 'Retrieval ran in vector mode.'
+  });
+
+  assert.equal(result, 'Answer reports 1 missing information item.');
 });
 
 test('chat page helpers return null trace summary hint when all fields are blank', async () => {

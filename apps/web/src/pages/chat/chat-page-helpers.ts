@@ -1,4 +1,10 @@
-import type { Citation, KnowledgeBaseDocumentSummary } from '../../types/api';
+import type {
+  Citation,
+  KnowledgeBaseDocumentSummary,
+  TraceAnswerStatus,
+  TraceFallbackReason,
+  TraceInsufficientContextReason
+} from '../../types/api';
 
 export function formatConversationUpdatedAt(value: string, locale: string) {
   return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
@@ -30,16 +36,16 @@ export function buildCitationContext(
     parts.push(documentTitle);
   }
 
-  if (citation.pageNo != null) {
-    parts.push(labels.pageLabel(citation.pageNo));
-  }
-
   if (
     sectionTitle &&
     (!documentTitle ||
       sectionTitle.toLocaleLowerCase() !== documentTitle.toLocaleLowerCase())
   ) {
     parts.push(`"${sectionTitle}"`);
+  }
+
+  if (citation.pageNo != null) {
+    parts.push(labels.pageLabel(citation.pageNo));
   }
 
   return parts.length > 0 ? parts.join(' • ') : null;
@@ -61,7 +67,11 @@ function normalizeCitationSectionTitle(value: string | null | undefined) {
   }
 
   const withoutMarkdownHeading = normalized.replace(/^#{1,6}\s+/, '').trim();
-  return withoutMarkdownHeading || null;
+  const withoutEnclosingQuotes = withoutMarkdownHeading.replace(
+    /^(["'])(.*)\1$/,
+    '$2'
+  );
+  return withoutEnclosingQuotes.trim() || null;
 }
 
 export type ChatReadinessState =
@@ -173,7 +183,19 @@ export function parseChatAutoAskFromSearch(search: string) {
   return searchParams.get(CHAT_AUTO_ASK_PARAM) === '1';
 }
 
+export function shouldDelayConversationAutoSelectForStarter(search: string) {
+  return (
+    parseChatAutoAskFromSearch(search) &&
+    parseChatStarterQuestionFromSearch(search) != null
+  );
+}
+
 type TraceSummaryHintInput = {
+  answerStatus?: TraceAnswerStatus | null;
+  insufficientContextReason?: TraceInsufficientContextReason | null;
+  usedFallback?: boolean | null;
+  fallbackReason?: TraceFallbackReason | null;
+  missingInformationCount?: number | null;
   failureReadabilitySentence?: string | null;
   answerStatusSourceReadabilitySentence?: string | null;
   missingInformationProvenanceSentence?: string | null;
@@ -185,9 +207,69 @@ function normalizeTraceSummaryHintPart(value: string | null | undefined) {
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
+function buildInsufficientContextHint(
+  reason: TraceInsufficientContextReason | null | undefined
+) {
+  if (reason === 'no_retrieval_hits') {
+    return 'Marked as insufficient context: retrieval found no relevant source hits.';
+  }
+
+  if (reason === 'retrieved_context_insufficient') {
+    return 'Marked as insufficient context: retrieved source evidence was too weak for a reliable answer.';
+  }
+
+  return null;
+}
+
+function buildFallbackHint(reason: TraceFallbackReason | null | undefined) {
+  if (reason === 'vector_error') {
+    return 'Fallback retrieval path was used because vector retrieval failed.';
+  }
+
+  if (reason === 'no_ranked_candidates') {
+    return 'Fallback retrieval path was used because ranked retrieval returned no usable candidates.';
+  }
+
+  return null;
+}
+
 export function buildTraceSummaryHint(summary: TraceSummaryHintInput) {
+  const failureHint = normalizeTraceSummaryHintPart(
+    summary.failureReadabilitySentence
+  );
+  if (failureHint) {
+    return failureHint;
+  }
+
+  const insufficientContextHint = buildInsufficientContextHint(
+    summary.insufficientContextReason
+  );
+  if (insufficientContextHint) {
+    return insufficientContextHint;
+  }
+
+  if (summary.answerStatus === 'insufficient_context') {
+    return 'Marked as insufficient context in this answer.';
+  }
+
+  if (summary.insufficientContextReason != null) {
+    return 'Marked as insufficient context from retrieved evidence.';
+  }
+
+  const fallbackHint = buildFallbackHint(summary.fallbackReason);
+  if (fallbackHint) {
+    return fallbackHint;
+  }
+
+  if (summary.usedFallback === true) {
+    return 'Fallback retrieval path was used for this answer.';
+  }
+
+  if ((summary.missingInformationCount ?? 0) > 0) {
+    return `Answer reports ${summary.missingInformationCount} missing information item${summary.missingInformationCount === 1 ? '' : 's'}.`;
+  }
+
   return (
-    normalizeTraceSummaryHintPart(summary.failureReadabilitySentence) ??
     normalizeTraceSummaryHintPart(
       summary.answerStatusSourceReadabilitySentence
     ) ??
