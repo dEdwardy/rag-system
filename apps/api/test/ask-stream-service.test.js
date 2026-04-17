@@ -515,6 +515,91 @@ test('AskAssistantService stream starts retrieval before user message persistenc
   assert.equal(result.traceId, 'trace-1');
 });
 
+test('AskAssistantService stream starts user message persistence before retrieval resolves', async () => {
+  let resolveRetrieval;
+  let retrievalResolved = false;
+  let userMessagePersistStarted = false;
+  let userMessageStartedBeforeRetrievalResolved = false;
+
+  const service = createAskAssistantService({
+    messages: {
+      createMessage: async (inputValue) => {
+        if (inputValue.role === 'user') {
+          userMessagePersistStarted = true;
+          userMessageStartedBeforeRetrievalResolved = !retrievalResolved;
+          return { id: 'user-message-1', ...inputValue };
+        }
+
+        return { id: 'assistant-message-1', ...inputValue };
+      }
+    },
+    retrieval: {
+      retrieve: async () =>
+        await new Promise((resolve) => {
+          resolveRetrieval = () => {
+            retrievalResolved = true;
+            resolve({
+              retrievedChunks: [
+                {
+                  chunkId: 'chunk-1',
+                  documentId: 'document-1',
+                  documentTitle: 'Document 1',
+                  chunkIndex: 0,
+                  content: 'marker content',
+                  score: 0.9,
+                  isPrimary: true,
+                  pageNo: 1,
+                  sectionTitle: 'Facts'
+                }
+              ],
+              contextGroups: [],
+              execution: {
+                actualMode: 'vector',
+                usedFallback: false
+              }
+            });
+          };
+        })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        input.onDelta('Alpha');
+        return {
+          rawAnswer: 'Alpha',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: () => {}
+  });
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (typeof resolveRetrieval === 'function' && userMessagePersistStarted) {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(typeof resolveRetrieval, 'function');
+  assert.equal(userMessagePersistStarted, true);
+  assert.equal(userMessageStartedBeforeRetrievalResolved, true);
+  resolveRetrieval();
+  const result = await askPromise;
+
+  assert.equal(result.traceId, 'trace-1');
+});
+
 test('AskAssistantService stream does not block retrieval on retrieving-status delivery', async () => {
   let resolveRetrievingStatus;
   let retrievalStarted = false;

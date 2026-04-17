@@ -732,6 +732,7 @@ export class AskAssistantService {
 
       return userMessagePromise;
     };
+    const eagerUserMessagePromise = getUserMessagePromise();
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -822,7 +823,7 @@ export class AskAssistantService {
 
     const conversationAndUserMessagePromise = Promise.all([
       conversationPromise,
-      getUserMessagePromise()
+      eagerUserMessagePromise
     ]).then(([conversationResult, userMessageResult]) => ({
       conversation: conversationResult.value,
       conversationLoadMs: conversationResult.durationMs,
