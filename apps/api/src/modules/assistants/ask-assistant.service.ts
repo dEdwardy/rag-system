@@ -704,12 +704,15 @@ export class AskAssistantService {
         phase: 'started'
       })
     );
-    const retrievingStatusEventPromise = startedStatusEventPromise.then(() =>
-      input.onEvent({
-        type: 'status',
-        phase: 'retrieving'
-      })
-    );
+    const retrievingStatusEventOutcomePromise = startedStatusEventPromise
+      .then(() =>
+        input.onEvent({
+          type: 'status',
+          phase: 'retrieving'
+        })
+      )
+      .then(() => ({ error: null as unknown }))
+      .catch((error) => ({ error }));
 
     let userMessagePromise: Promise<TimedResult<AskPersistedMessage>> | null =
       null;
@@ -890,7 +893,6 @@ export class AskAssistantService {
     let traceCreateMs = 0;
 
     try {
-      await retrievingStatusEventPromise;
       await input.onEvent({
         type: 'status',
         phase: 'generating'
@@ -1016,6 +1018,11 @@ export class AskAssistantService {
         })
       ]);
       const assistantMessagePersistStartedAt = Date.now();
+      const retrievingStatusEventOutcome =
+        await retrievingStatusEventOutcomePromise;
+      if (retrievingStatusEventOutcome.error != null) {
+        throw retrievingStatusEventOutcome.error;
+      }
 
       const assistantMessage = await this.messagesService.createMessage({
         conversationId: conversation.id,
