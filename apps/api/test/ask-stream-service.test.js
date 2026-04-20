@@ -753,6 +753,78 @@ test('AskAssistantService stream does not block generation on retrieving-status 
   assert.equal(result.traceId, 'trace-1');
 });
 
+test('AskAssistantService stream does not block LLM start on generating-status delivery', async () => {
+  let resolveGeneratingStatus;
+  let llmGenerationStarted = false;
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Document 1',
+            chunkIndex: 0,
+            content: 'marker content',
+            score: 0.9,
+            isPrimary: true,
+            pageNo: 1,
+            sectionTitle: 'Facts'
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        llmGenerationStarted = true;
+        input.onDelta('Alpha');
+        return {
+          rawAnswer: 'Alpha',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    onEvent: (event) => {
+      if (event.type === 'status' && event.phase === 'generating') {
+        return new Promise((resolve) => {
+          resolveGeneratingStatus = resolve;
+        });
+      }
+    }
+  });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (llmGenerationStarted) {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(llmGenerationStarted, true);
+  assert.equal(typeof resolveGeneratingStatus, 'function');
+  resolveGeneratingStatus();
+
+  const result = await askPromise;
+  assert.equal(result.traceId, 'trace-1');
+});
+
 test('AskAssistantService stream scopes existing conversation lookup to current identity', async () => {
   const getConversationCalls = [];
 

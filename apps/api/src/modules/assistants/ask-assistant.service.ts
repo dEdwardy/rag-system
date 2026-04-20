@@ -893,10 +893,12 @@ export class AskAssistantService {
     let traceCreateMs = 0;
 
     try {
-      await input.onEvent({
-        type: 'status',
-        phase: 'generating'
-      });
+      const generatingStatusEventPromise = Promise.resolve(
+        input.onEvent({
+          type: 'status',
+          phase: 'generating'
+        })
+      );
 
       let firstTokenMs: number | null = null;
       const generationStartedAt = Date.now();
@@ -912,6 +914,7 @@ export class AskAssistantService {
                     answerPolicy: normalizedAnswerPolicy
                   }
                 );
+              await generatingStatusEventPromise;
               firstTokenMs = Date.now() - startedAt;
               await input.onEvent({
                 type: 'answer_delta',
@@ -933,6 +936,7 @@ export class AskAssistantService {
                     }),
                     signal: input.signal,
                     onDelta: async (delta) => {
+                      await generatingStatusEventPromise;
                       if (firstTokenMs == null) {
                         firstTokenMs = Date.now() - startedAt;
                       }
@@ -961,6 +965,7 @@ export class AskAssistantService {
                 citationEvidence: streamResult.citationEvidence
               });
             })();
+      await generatingStatusEventPromise;
       const answerGenerationMs = Date.now() - generationStartedAt;
       const {
         conversation,
