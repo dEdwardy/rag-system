@@ -811,9 +811,8 @@ export class AuthService {
         }
       );
 
-    const existingAssistant =
-      existingAssistantForPrimaryKb ??
-      (await this.findCanonicalAssistantCandidate(
+    const existingAssistantForOwner =
+      await this.findCanonicalAssistantCandidate(
         {
           tenantId: input.tenantId,
           knowledgeBase: {
@@ -824,7 +823,12 @@ export class AuthService {
         {
           retrievalProfileId: retrievalProfile.id
         }
-      ));
+      );
+
+    const existingAssistant = selectCanonicalDefaultAssistantForRepair({
+      assistantForPrimaryKnowledgeBase: existingAssistantForPrimaryKb,
+      assistantForOwner: existingAssistantForOwner
+    });
 
     if (existingAssistant == null) {
       await prisma.assistant.create({
@@ -1221,6 +1225,23 @@ function compareCanonicalDefaultAssistantCandidate(
   }
 
   return left.id.localeCompare(right.id);
+}
+
+function selectCanonicalDefaultAssistantForRepair(input: {
+  assistantForPrimaryKnowledgeBase: DefaultAssistantCandidate | null;
+  assistantForOwner: DefaultAssistantCandidate | null;
+}) {
+  if (isDefaultAssistantName(input.assistantForPrimaryKnowledgeBase?.name)) {
+    return input.assistantForPrimaryKnowledgeBase;
+  }
+
+  if (isDefaultAssistantName(input.assistantForOwner?.name)) {
+    return input.assistantForOwner;
+  }
+
+  return (
+    input.assistantForPrimaryKnowledgeBase ?? input.assistantForOwner ?? null
+  );
 }
 
 function compareCanonicalPrimaryKnowledgeBaseCandidate(
