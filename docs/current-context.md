@@ -2,7 +2,7 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
-> 更新时间：2026-04-16
+> 更新时间：2026-04-20
 
 ## Current Mainline
 
@@ -84,5 +84,6 @@
 
 - 最新 trace 说明当前瓶颈已经从回答质量/模型输出，转到了 request orchestration。
 - `LLM first token` 已经不是主瓶颈，真正需要优先压缩的是 `first token pre-generation` 这段同步链路。
-- 下一步优先级：会话加载瘦身、用户消息写库后移或并发、retrieval 子阶段拆分、复杂题才启用重 rerank。
+- `default-path first-token orchestration thin pass` 已落地：问答链路现在会把 retrieval 和 early stream status 发送并行化，先做一轮 pre-generation 瘦身且不改 retrieval 语义。
+- 下一步优先级：继续做会话加载瘦身、用户消息写库后移或并发、retrieval 子阶段拆分、复杂题才启用重 rerank。
 - 后续优化继续保持回答质量不变，只削减模型前的编排开销。
