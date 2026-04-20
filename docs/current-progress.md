@@ -20,6 +20,14 @@
 
 ## Recent Landed Increments
 
+- `default knowledge base canonical selection alignment` tightened the current single-primary-KB path so both API reads and web workspace selection prefer the canonical active `Default Knowledge Base` instead of blindly accepting the first returned item
+  - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts` now reorders scoped knowledge-base list reads so the canonical active default KB stays ahead of same-owner duplicates and drifted naming variants
+  - `apps/web/src/features/api/workspace-selection.ts` now applies the same canonical default-KB priority before choosing the current primary workspace on the client
+  - `apps/api/test/knowledge-bases-auth-write-path.test.js` and `apps/web/test/workspace-selection.test.js` now cover the canonical default-KB priority rule and the duplicate-looking default drift case
+  - focused validation:
+    - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js`
+    - `pnpm --filter @rag-system/web exec vitest run test/workspace-selection.test.js`
+
 - `default-path maintenance next wave follow-up` kept the same bounded stage judgment and tightened the current single-primary-KB default path with one more small pass across API latency, default-assistant drift coverage, and documents-to-chat clarity
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now overlaps retrieval work with early stream status delivery so first-token pre-generation orchestration cost is thinner without changing retrieval semantics
   - `apps/web/src/i18n/messages.en.ts`, `apps/web/src/i18n/messages.zh.ts`, `apps/web/src/pages/chat/ChatPage.tsx`, and `apps/web/src/pages/chat/chat-page-helpers.ts` now keep upload-ready next actions and starter auto-ask behavior clearer on the first-turn path
@@ -471,6 +479,16 @@
 - The trace detail sidebar now highlights the slowest timing stage so the main bottleneck is visible at a glance without manual inspection.
 - The trace list page now shows a compact slowest-stage preview on each conversation card so slow runs can be spotted without opening the detail page.
 - Summary/list answer prompts now use a tighter compact context mode once the retrieved chunk set gets larger, trimming prompt size to reduce first-token latency.
+
+## Recent Default KB Selection Hardening
+
+- Fixed a main-path regression where duplicate owner-scoped default knowledge bases could cause the newest empty default KB to win primary selection.
+  - `apps/api` knowledge-base listing now prioritizes the canonical active `Default Knowledge Base` ahead of newer non-canonical or inactive duplicates.
+  - `apps/web` workspace selection now applies the same canonical primary-KB priority instead of blindly using the first returned knowledge base.
+- Focused validation:
+  - `pnpm test:api:file -- test/knowledge-bases-auth-write-path.test.js`
+  - `pnpm --filter @rag-system/web exec vitest run test/workspace-selection.test.js`
+  - `pnpm --filter @rag-system/web typecheck`
 
 ## Recent Retrieval / Answering Alignment
 
