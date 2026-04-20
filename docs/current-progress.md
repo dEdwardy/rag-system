@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-17
+> 更新时间：2026-04-20
 
 ## Current Snapshot
 
@@ -19,6 +19,23 @@
   - 或从新的明确产品波次里选一个最小增量
 
 ## Recent Landed Increments
+
+- `default-path first-token thin pass final follow-up` tightened the same ask-stream orchestration slice without changing retrieval semantics or stage judgment
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now emits the `generating` status event eagerly and only awaits it at first answer emission boundaries, removing one avoidable pre-token wait on the default path
+  - `apps/api/test/ask-stream-service.test.js` now locks this with a focused regression so `generating` status dispatch remains non-blocking for first-token timing
+  - focused validation:
+    - `pnpm test:api:file -- test/ask-stream-service.test.js`
+
+- `default-assistant repair fallback canonicalization` closed a remaining bootstrap/repair drift edge on the same single-primary-KB path
+  - `apps/api/src/modules/auth/auth.service.ts` fallback selection now prefers the canonical default-assistant identity before generic first-record fallback when read capabilities are constrained
+  - `apps/api/test/auth-provider-boundary.test.js` now covers this repair-fallback ordering so duplicate/legacy assistant drift does not silently pick a non-canonical binding first
+  - focused validation:
+    - `pnpm --filter @rag-system/api exec vitest run test/auth-provider-boundary.test.js`
+
+- `default-assistant repair next-action copy` clarified the same bounded path guidance for users waiting on bootstrap/repair completion
+  - `apps/web/src/i18n/messages.en.ts` and `apps/web/src/i18n/messages.zh.ts` now keep the assistant-repair next action wording aligned with the current default-path behavior
+  - focused validation:
+    - `pnpm --filter @rag-system/web test:vitest:file -- test/i18n-copy.test.js`
 
 - `default knowledge base canonical selection alignment` tightened the current single-primary-KB path so both API reads and web workspace selection prefer the canonical active `Default Knowledge Base` instead of blindly accepting the first returned item
   - `apps/api/src/modules/knowledge-bases/knowledge-bases.service.ts` now reorders scoped knowledge-base list reads so the canonical active default KB stays ahead of same-owner duplicates and drifted naming variants

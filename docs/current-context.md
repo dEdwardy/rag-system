@@ -85,5 +85,6 @@
 - 最新 trace 说明当前瓶颈已经从回答质量/模型输出，转到了 request orchestration。
 - `LLM first token` 已经不是主瓶颈，真正需要优先压缩的是 `first token pre-generation` 这段同步链路。
 - `default-path first-token orchestration thin pass` 已落地：问答链路现在会把 retrieval 和 early stream status 发送并行化，先做一轮 pre-generation 瘦身且不改 retrieval 语义。
+- `default-path first-token thin pass final follow-up` 也已落地：`generating` status 发送改为 eager non-blocking 边界，继续削减首字节前等待且不改 retrieval/answering 语义。
 - 下一步优先级：继续做会话加载瘦身、用户消息写库后移或并发、retrieval 子阶段拆分、复杂题才启用重 rerank。
 - 后续优化继续保持回答质量不变，只削减模型前的编排开销。
