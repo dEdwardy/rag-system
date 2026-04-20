@@ -218,7 +218,7 @@ export const messages = {
       noActiveKnowledgeBaseAction: '打开工作区设置',
       noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
       noAssistantForKnowledgeBaseDescription:
-        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请稍后刷新当前页面。',
+        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请先点击“刷新默认路径”，再进入回答设置。',
       noAssistantForKnowledgeBaseAction: '打开回答设置',
       noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
       noDocumentsTitle: '先补充资料，再开始对话',
@@ -607,7 +607,7 @@ export const messages = {
     noKnowledgeBaseAction: '打开工作区设置',
     noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
     noAssistantForKnowledgeBaseDescription:
-      '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请稍后刷新当前页面。',
+      '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请先点击“刷新默认路径”，再进入回答设置。',
     noAssistantForKnowledgeBaseAction: '打开回答设置',
     noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
     noAssistantDocumentsPrimaryAction: '先添加资料',

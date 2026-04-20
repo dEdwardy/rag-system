@@ -235,7 +235,7 @@ export const messages = {
       noAssistantForKnowledgeBaseTitle:
         'Default assistant is still being prepared',
       noAssistantForKnowledgeBaseDescription:
-        'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. Refresh this page in a moment if it does not appear automatically.',
+        'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. If it does not appear automatically, use "Refresh default path" before opening answer settings.',
       noAssistantForKnowledgeBaseAction: 'Open answer settings',
       noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
       noDocumentsTitle: 'Add library items before chatting',
@@ -663,7 +663,7 @@ export const messages = {
     noAssistantForKnowledgeBaseTitle:
       'Default assistant is still being prepared',
     noAssistantForKnowledgeBaseDescription:
-      'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. Refresh this page in a moment if it does not appear automatically.',
+      'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. If it does not appear automatically, use "Refresh default path" before opening answer settings.',
     noAssistantForKnowledgeBaseAction: 'Open answer settings',
     noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
     noAssistantDocumentsPrimaryAction: 'Add library items first',
