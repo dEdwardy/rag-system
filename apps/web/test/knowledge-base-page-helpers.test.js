@@ -157,3 +157,22 @@ test('knowledge base next action allows chat when ready items exist while other 
     actionHref: '/'
   });
 });
+
+test('knowledge base next action keeps default-assistant preparation first when ready items exist but assistant is still missing', async () => {
+  const { buildKnowledgeBaseWorkspaceNextAction } =
+    await loadKnowledgeBaseHelpers();
+
+  const nextAction = buildKnowledgeBaseWorkspaceNextAction({
+    documents: [
+      { status: 'ready', chunkCount: 6 },
+      { status: 'processing', chunkCount: 0 }
+    ],
+    assistantCount: 0
+  });
+
+  assert.deepEqual(nextAction, {
+    action: 'prepare_default_assistant',
+    labelKey: 'knowledgeBase.nextAction.prepareDefaultAssistant',
+    actionHref: '/assistant'
+  });
+});

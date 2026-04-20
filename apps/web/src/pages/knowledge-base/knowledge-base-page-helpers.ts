@@ -127,6 +127,14 @@ export function buildKnowledgeBaseWorkspaceNextAction({
     };
   }
 
+  if (summary.processingCount > 0 && assistantCount !== 1) {
+    return {
+      action: 'prepare_default_assistant',
+      labelKey: 'knowledgeBase.nextAction.prepareDefaultAssistant',
+      actionHref: '/assistant'
+    };
+  }
+
   if (summary.processingCount > 0) {
     return {
       action: 'chat_while_processing',

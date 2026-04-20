@@ -463,7 +463,7 @@ export const messages = {
       chatWhileProcessing:
         '还有资料在更新中，但已就绪资料已经可以支持对话。现在可以先提问，更新完成后再回资料库确认状态。',
       prepareDefaultAssistant:
-        '资料已经就绪。接下来建议打开回答设置，让默认助手完成准备或修复，再开始提问。',
+        '当前至少已有资料可用。接下来建议打开回答设置，让默认助手完成准备或修复，再开始提问。',
       workspaceReady: '这个工作区已经就绪。下一步最合适的是直接进入对话。'
     },
     feedback: {

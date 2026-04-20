@@ -504,7 +504,7 @@ export const messages = {
       chatWhileProcessing:
         'Some library items are still updating, but ready items can already support chat. Start asking now and return to library status as updates finish.',
       prepareDefaultAssistant:
-        'The library is ready. Open answer settings so the default assistant can finish preparing or repairing before chat.',
+        'At least one library item is ready. Open answer settings so the default assistant can finish preparing or repairing before chat.',
       workspaceReady:
         'This workspace is ready. The best next step is to move on to chat.'
     },
