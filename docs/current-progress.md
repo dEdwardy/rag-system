@@ -648,6 +648,10 @@
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now uses the same shared route label contract as the list and report surfaces
   - the route label contract is now a single small UI mapping, which makes future platform handoff easier because the visible route names stay centralized
 
+- `trace list execution mode visibility` now makes the step contract easier to read at a glance
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows `manual / workflow` beside the execution step count when a trace carries an execution plan
+  - this keeps the list view aligned with the new contract without changing the backend shape or the existing route summary wording
+
 - `trace execution plan contract` now exposes a small execution-plan shape that can carry future multi-step agent flows without changing current behavior
   - `packages/shared/src/trace-contracts.ts` now keeps `TraceExecutionPlan` as the shared contract for future step-by-step summaries
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` and `apps/web/src/pages/traces/TraceListPage.tsx` now render the plan only when it is present, so current traces stay unchanged

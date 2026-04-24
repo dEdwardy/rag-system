@@ -57,6 +57,7 @@ function TraceConversationCard({
   const { formatDateTime, locale, t } = useI18n();
   const traceSummary = latestTrace.traceSummary;
   const routeDecision = traceSummary.routeDecisionSummary;
+  const executionPlan = traceSummary.executionPlan;
   const executionSteps = traceSummary.executionPlan?.steps ?? null;
   const timing = traceSummary.timingSummary;
   const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
@@ -210,9 +211,20 @@ function TraceConversationCard({
               <span className="workspace-meta-label">
                 {locale === 'zh' ? '执行步骤' : 'Execution steps'}
               </span>
-              <span className="workspace-meta-value">
-                {executionSteps.length}
-              </span>
+              <Group className="workspace-meta-value" gap="xs" wrap="wrap">
+                <Badge
+                  color={
+                    executionPlan?.executionMode === 'workflow'
+                      ? 'blue'
+                      : 'gray'
+                  }
+                  radius="sm"
+                  variant="light"
+                >
+                  {executionPlan?.executionMode ?? 'manual'}
+                </Badge>
+                <Text span>{executionSteps.length}</Text>
+              </Group>
             </div>
           ) : null}
           {routeDecision?.routeType === 'external_source' ? (
