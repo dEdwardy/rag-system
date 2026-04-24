@@ -57,6 +57,10 @@ const reportCenterHelpersPath = resolve(
   __dirname,
   '../src/pages/reports/report-center-page-helpers.ts'
 );
+const agentSurfaceEntryPath = resolve(
+  __dirname,
+  '../src/pages/reports/AgentSurfaceEntry.tsx'
+);
 const workspaceSelectionPath = resolve(
   __dirname,
   '../src/features/api/workspace-selection.ts'
@@ -152,6 +156,7 @@ test('usage, trace, and report-center helpers keep current scan-first contracts'
   );
   const reportSource = readFileSync(reportCenterPath, 'utf8');
   const reportHelpersSource = readFileSync(reportCenterHelpersPath, 'utf8');
+  const agentSurfaceEntrySource = readFileSync(agentSurfaceEntryPath, 'utf8');
   const englishMessagesSource = readFileSync(englishMessagesPath, 'utf8');
   const chineseMessagesSource = readFileSync(chineseMessagesPath, 'utf8');
 
@@ -173,6 +178,7 @@ test('usage, trace, and report-center helpers keep current scan-first contracts'
   );
 
   assert.match(traceListSource, /workspace-trace-list/);
+  assert.match(traceListSource, /TraceRouteFilterPanel/);
   assert.ok(
     traceSource.indexOf('Single diagnostic path (scan-first)') <
       traceSource.indexOf('Execution summary'),
@@ -182,12 +188,16 @@ test('usage, trace, and report-center helpers keep current scan-first contracts'
 
   assert.match(reportSource, /useSearchParams/);
   assert.match(reportSource, /buildEvalRunCarryThroughPreview/);
+  assert.match(reportSource, /AgentSurfaceEntry/);
   assert.match(reportSource, /report-center-pre-run-path/);
   assert.match(reportHelpersSource, /export function normalizeEvalRunParams/);
   assert.match(
     reportHelpersSource,
     /export function buildEvalRunCarryThroughPreview/
   );
+  assert.match(agentSurfaceEntrySource, /route/i);
+  assert.match(agentSurfaceEntrySource, /mode/i);
+  assert.match(agentSurfaceEntrySource, /tools/i);
 
   assert.match(englishMessagesSource, /documents:\s*'Library'/);
   assert.match(englishMessagesSource, /currentCitations:\s*'Sources'/);

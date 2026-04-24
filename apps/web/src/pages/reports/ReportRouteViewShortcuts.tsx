@@ -8,14 +8,20 @@ import {
   routeShortcutLabels
 } from './route-view-helpers';
 
-export function ReportRouteViewShortcuts() {
+export function ReportRouteViewShortcuts({
+  showLabel = true
+}: {
+  showLabel?: boolean;
+}) {
   const { locale } = useI18n();
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Text className="workspace-table-hint flex-shrink-0" size="xs">
-        {locale === 'zh' ? '路由视角' : 'Route view'}
-      </Text>
+      {showLabel ? (
+        <Text className="workspace-table-hint flex-shrink-0" size="xs">
+          {locale === 'zh' ? '路由视角' : 'Route view'}
+        </Text>
+      ) : null}
       <Button
         className="workspace-button"
         color="gray"

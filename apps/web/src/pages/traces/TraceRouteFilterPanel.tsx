@@ -1,6 +1,7 @@
 import { Badge, Button, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/I18nProvider';
+import { AgentSurfaceEntry } from '../reports/AgentSurfaceEntry';
 import { ReportRouteViewShortcuts } from '../reports/ReportRouteViewShortcuts';
 import {
   buildRouteDecisionLabel,
@@ -26,6 +27,11 @@ export function TraceRouteFilterPanel({
 
   return (
     <Stack gap={6}>
+      <AgentSurfaceEntry
+        primaryHref="/traces"
+        primaryLabel={locale === 'zh' ? '进入 trace 详情' : 'Inspect traces'}
+        tone="inline"
+      />
       <ReportRouteViewShortcuts />
       {routeTypeFilter || routeReasonFilter ? (
         <div className="flex flex-wrap gap-2">

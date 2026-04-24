@@ -42,6 +42,7 @@ import {
   buildStarterQuestions,
   formatMessageTime
 } from './chat-page-helpers';
+import { AgentSurfaceEntry } from '../reports/AgentSurfaceEntry';
 import {
   applyChatStreamEvent,
   createPendingChatTurn,
@@ -887,12 +888,13 @@ export function ChatPage() {
 
           <div className="flex items-center gap-2">
             {activeTraceId ? (
-              <Link
-                className="hidden rounded-full border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--app-text-secondary)] transition hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)] md:inline-flex"
-                to={`/traces/${activeTraceId}`}
-              >
-                {chatCopy.viewTrace}
-              </Link>
+              <div className="hidden md:flex">
+                <AgentSurfaceEntry
+                  primaryHref={`/traces/${activeTraceId}`}
+                  primaryLabel={chatCopy.viewTrace}
+                  tone="inline"
+                />
+              </div>
             ) : null}
             <IconActionButton
               disabledHint={chatCopy.moreActionsHint}

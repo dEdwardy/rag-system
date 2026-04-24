@@ -41,6 +41,7 @@ import {
   getRegressionReasonLabel,
   getReportCenterResultNextAction
 } from './report-center-page-helpers';
+import { AgentSurfaceEntry } from './AgentSurfaceEntry';
 import { ReportRouteViewShortcuts } from './ReportRouteViewShortcuts';
 
 const ReportResultsTable = lazy(async () => {
@@ -3683,19 +3684,13 @@ export function ReportCenterPage() {
             </p>
           </div>
 
-          <Paper className="workspace-subpanel" p="md" radius="xl">
-            <Stack gap="xs">
-              <div className="workspace-section-heading">
-                {locale === 'zh' ? '路由视角' : 'Route view'}
-              </div>
-              <Text c="var(--app-text-muted)" size="sm">
-                {locale === 'zh'
-                  ? '如果你要核对问题是进了知识库、策略回复还是外部来源，这里直接跳到对应的 trace 列表视图。'
-                  : 'Jump to the trace list view when you want to inspect whether a question went to knowledge base, policy reply, or external source.'}
-              </Text>
-              <ReportRouteViewShortcuts />
-            </Stack>
-          </Paper>
+          <AgentSurfaceEntry
+            primaryHref="/traces"
+            primaryLabel={
+              locale === 'zh' ? '打开 trace 列表' : 'Open trace list'
+            }
+            showRouteShortcuts
+          />
 
           <Suspense fallback={<ReportAnalysisPanelsFallback locale={locale} />}>
             <ReportAnalysisPanels
