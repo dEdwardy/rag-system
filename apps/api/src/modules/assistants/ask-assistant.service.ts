@@ -362,28 +362,30 @@ export class AskAssistantService {
 
     const specialRouteResult = await this.dispatchSpecialRouteAsk({
       routeDecision,
-      policy: () =>
-        this.handlePolicyRouteAsk({
-          assistant,
-          authContext,
-          conversation,
-          userMessagePromise,
-          startedAt,
-          question: input.question,
-          normalizedAnswerPolicy,
-          routeDecision
-        }),
-      external: () =>
-        this.handleExternalSourceRouteAsk({
-          assistant,
-          authContext,
-          conversation,
-          userMessagePromise,
-          startedAt,
-          question: input.question,
-          normalizedAnswerPolicy,
-          routeDecision
-        })
+      executors: {
+        policy_reply: () =>
+          this.handlePolicyRouteAsk({
+            assistant,
+            authContext,
+            conversation,
+            userMessagePromise,
+            startedAt,
+            question: input.question,
+            normalizedAnswerPolicy,
+            routeDecision
+          }),
+        external_source: () =>
+          this.handleExternalSourceRouteAsk({
+            assistant,
+            authContext,
+            conversation,
+            userMessagePromise,
+            startedAt,
+            question: input.question,
+            normalizedAnswerPolicy,
+            routeDecision
+          })
+      }
     });
 
     if (specialRouteResult != null) {
@@ -926,30 +928,32 @@ export class AskAssistantService {
 
     const specialRouteStreamResult = await this.dispatchSpecialRouteAsk({
       routeDecision,
-      policy: () =>
-        this.handlePolicyRouteAskStream({
-          assistant,
-          authContext,
-          conversationPromise,
-          eagerUserMessagePromise,
-          startedAt,
-          question: input.question,
-          normalizedAnswerPolicy,
-          routeDecision,
-          onEvent: input.onEvent
-        }),
-      external: () =>
-        this.handleExternalSourceRouteAskStream({
-          assistant,
-          authContext,
-          conversationPromise,
-          eagerUserMessagePromise,
-          startedAt,
-          question: input.question,
-          normalizedAnswerPolicy,
-          routeDecision,
-          onEvent: input.onEvent
-        })
+      executors: {
+        policy_reply: () =>
+          this.handlePolicyRouteAskStream({
+            assistant,
+            authContext,
+            conversationPromise,
+            eagerUserMessagePromise,
+            startedAt,
+            question: input.question,
+            normalizedAnswerPolicy,
+            routeDecision,
+            onEvent: input.onEvent
+          }),
+        external_source: () =>
+          this.handleExternalSourceRouteAskStream({
+            assistant,
+            authContext,
+            conversationPromise,
+            eagerUserMessagePromise,
+            startedAt,
+            question: input.question,
+            normalizedAnswerPolicy,
+            routeDecision,
+            onEvent: input.onEvent
+          })
+      }
     });
 
     if (specialRouteStreamResult != null) {
@@ -3242,18 +3246,12 @@ export class AskAssistantService {
 
   private async dispatchSpecialRouteAsk(input: {
     routeDecision: AskRouteDecision;
-    policy: () => Promise<unknown>;
-    external: () => Promise<unknown>;
+    executors: Partial<
+      Record<AskRouteDecision['routeType'], () => Promise<unknown>>
+    >;
   }): Promise<unknown | null> {
-    if (input.routeDecision.routeType === 'policy_reply') {
-      return input.policy();
-    }
-
-    if (input.routeDecision.routeType === 'external_source') {
-      return input.external();
-    }
-
-    return null;
+    const executor = input.executors[input.routeDecision.routeType];
+    return executor != null ? executor() : null;
   }
 
   private async findReusableConversationAnswer(input: {

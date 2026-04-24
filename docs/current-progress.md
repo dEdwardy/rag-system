@@ -103,6 +103,10 @@
   - `apps/web/src/pages/traces/TraceListPage.tsx` now shows a compact execution-tools badge when a trace used routed tools, without expanding the full step list in the card body
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now shows the same summary-level execution-tool label above the detailed step rows so list and detail views stay aligned
 
+- `special route executor registry` tightened the ask-path dispatch boundary so the special routes are selected from a small registry instead of chained conditionals
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now dispatches `policy_reply` and `external_source` through a tiny executor map
+  - the change keeps the minimal agentization path more extensible without changing the underlying behavior or adding a broader runtime layer
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
