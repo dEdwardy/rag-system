@@ -87,6 +87,21 @@ type AskRouteDecision = {
   routeReason: TraceRouteReason;
 };
 
+type AskRouteToolAdapter = () => Promise<unknown>;
+
+type AskRouteToolAdapters = Partial<
+  Record<AskRouteDecision['routeType'], AskRouteToolAdapter>
+>;
+
+type AskExternalSourceFetchAdapterInput = {
+  resolvedSource: ResolvedExternalSourceCandidate;
+  routeDecision: AskRouteDecision;
+};
+
+type AskExternalSourceFetchAdapter = (
+  input: AskExternalSourceFetchAdapterInput
+) => Promise<AskFetchedExternalSource>;
+
 type ResolvedExternalSourceRoute = {
   url: string;
   sourceKind: 'web' | 'feed' | 'sitemap';
@@ -372,30 +387,16 @@ export class AskAssistantService {
 
     const specialRouteResult = this.dispatchSpecialRouteAsk({
       routeDecision,
-      executors: {
-        policy_reply: () =>
-          this.handlePolicyRouteAsk({
-            assistant,
-            authContext,
-            conversation,
-            userMessagePromise,
-            startedAt,
-            question: input.question,
-            normalizedAnswerPolicy,
-            routeDecision
-          }),
-        external_source: () =>
-          this.handleExternalSourceRouteAsk({
-            assistant,
-            authContext,
-            conversation,
-            userMessagePromise,
-            startedAt,
-            question: input.question,
-            normalizedAnswerPolicy,
-            routeDecision
-          })
-      }
+      executors: this.buildAskRouteToolAdapters({
+        assistant,
+        authContext,
+        conversation,
+        userMessagePromise,
+        startedAt,
+        question: input.question,
+        normalizedAnswerPolicy,
+        routeDecision
+      })
     });
 
     if (specialRouteResult != null) {
@@ -938,32 +939,17 @@ export class AskAssistantService {
 
     const specialRouteStreamResult = this.dispatchSpecialRouteAsk({
       routeDecision,
-      executors: {
-        policy_reply: () =>
-          this.handlePolicyRouteAskStream({
-            assistant,
-            authContext,
-            conversationPromise,
-            eagerUserMessagePromise,
-            startedAt,
-            question: input.question,
-            normalizedAnswerPolicy,
-            routeDecision,
-            onEvent: input.onEvent
-          }),
-        external_source: () =>
-          this.handleExternalSourceRouteAskStream({
-            assistant,
-            authContext,
-            conversationPromise,
-            eagerUserMessagePromise,
-            startedAt,
-            question: input.question,
-            normalizedAnswerPolicy,
-            routeDecision,
-            onEvent: input.onEvent
-          })
-      }
+      executors: this.buildAskStreamRouteToolAdapters({
+        assistant,
+        authContext,
+        conversationPromise,
+        eagerUserMessagePromise,
+        startedAt,
+        question: input.question,
+        normalizedAnswerPolicy,
+        routeDecision,
+        onEvent: input.onEvent
+      })
     });
 
     if (specialRouteStreamResult != null) {
@@ -2177,52 +2163,68 @@ export class AskAssistantService {
     );
   }
 
+  private buildExternalSourceFetchToolAdapters(): Record<
+    ResolvedExternalSourceRoute['sourceKind'],
+    AskExternalSourceFetchAdapter
+  > {
+    return {
+      sitemap: async ({ resolvedSource, routeDecision }) => {
+        const result = await this.sitemapSourceService.fetchSitemap({
+          url: resolvedSource.url,
+          maxPages: 3
+        });
+        return {
+          routeDecision,
+          sourceUrl: resolvedSource.url,
+          sourceKind: resolvedSource.sourceKind,
+          label: resolvedSource.label,
+          title: null,
+          content: result.content,
+          diagnostics: result.diagnostics
+        };
+      },
+      feed: async ({ resolvedSource, routeDecision }) => {
+        const result = await this.feedSourceService.fetchFeed({
+          url: resolvedSource.url,
+          maxItems: 5
+        });
+        return {
+          routeDecision,
+          sourceUrl: resolvedSource.url,
+          sourceKind: resolvedSource.sourceKind,
+          label: resolvedSource.label,
+          title: result.title,
+          content: result.content,
+          diagnostics: result.diagnostics
+        };
+      },
+      web: async ({ resolvedSource, routeDecision }) => {
+        const result = await this.webPageService.fetchWebPage(
+          resolvedSource.url
+        );
+        return {
+          routeDecision,
+          sourceUrl: resolvedSource.url,
+          sourceKind: resolvedSource.sourceKind,
+          label: resolvedSource.label,
+          title: result.title,
+          content: result.content,
+          diagnostics: result.diagnostics
+        };
+      }
+    };
+  }
+
   private async fetchResolvedExternalSource(
     resolvedSource: ResolvedExternalSourceCandidate,
     routeDecision: AskRouteDecision
   ) {
-    if (resolvedSource.sourceKind === 'sitemap') {
-      const result = await this.sitemapSourceService.fetchSitemap({
-        url: resolvedSource.url,
-        maxPages: 3
-      });
-      return {
-        routeDecision,
-        sourceUrl: resolvedSource.url,
-        sourceKind: resolvedSource.sourceKind,
-        label: resolvedSource.label,
-        title: null,
-        content: result.content,
-        diagnostics: result.diagnostics
-      };
-    }
-
-    if (resolvedSource.sourceKind === 'feed') {
-      const result = await this.feedSourceService.fetchFeed({
-        url: resolvedSource.url,
-        maxItems: 5
-      });
-      return {
-        routeDecision,
-        sourceUrl: resolvedSource.url,
-        sourceKind: resolvedSource.sourceKind,
-        label: resolvedSource.label,
-        title: result.title,
-        content: result.content,
-        diagnostics: result.diagnostics
-      };
-    }
-
-    const result = await this.webPageService.fetchWebPage(resolvedSource.url);
-    return {
-      routeDecision,
-      sourceUrl: resolvedSource.url,
-      sourceKind: resolvedSource.sourceKind,
-      label: resolvedSource.label,
-      title: result.title,
-      content: result.content,
-      diagnostics: result.diagnostics
-    };
+    const adapters = this.buildExternalSourceFetchToolAdapters();
+    const adapter = adapters[resolvedSource.sourceKind];
+    return adapter({
+      resolvedSource,
+      routeDecision
+    });
   }
 
   private async fetchExternalSourcePayloadOrCreateFailedTrace(input: {
@@ -3308,12 +3310,90 @@ export class AskAssistantService {
 
   private dispatchSpecialRouteAsk(input: {
     routeDecision: AskRouteDecision;
-    executors: Partial<
-      Record<AskRouteDecision['routeType'], () => Promise<unknown>>
-    >;
+    executors: AskRouteToolAdapters;
   }): Promise<unknown> | null {
     const executor = input.executors[input.routeDecision.routeType];
     return executor != null ? executor() : null;
+  }
+
+  private buildAskRouteToolAdapters(input: {
+    assistant: AssistantRecord;
+    authContext: ReturnType<typeof resolveRequestAuthContext>;
+    conversation: AskConversationRef;
+    userMessagePromise: Promise<TimedResult<AskPersistedMessage>>;
+    startedAt: number;
+    question: string;
+    normalizedAnswerPolicy: AnswerPolicy;
+    routeDecision: AskRouteDecision;
+  }): AskRouteToolAdapters {
+    return {
+      policy_reply: () =>
+        this.handlePolicyRouteAsk({
+          assistant: input.assistant,
+          authContext: input.authContext,
+          conversation: input.conversation,
+          userMessagePromise: input.userMessagePromise,
+          startedAt: input.startedAt,
+          question: input.question,
+          normalizedAnswerPolicy: input.normalizedAnswerPolicy,
+          routeDecision: input.routeDecision
+        }),
+      external_source: () =>
+        this.handleExternalSourceRouteAsk({
+          assistant: input.assistant,
+          authContext: input.authContext,
+          conversation: input.conversation,
+          userMessagePromise: input.userMessagePromise,
+          startedAt: input.startedAt,
+          question: input.question,
+          normalizedAnswerPolicy: input.normalizedAnswerPolicy,
+          routeDecision: input.routeDecision
+        })
+    };
+  }
+
+  private buildAskStreamRouteToolAdapters(input: {
+    assistant: AssistantRecord;
+    authContext: ReturnType<typeof resolveRequestAuthContext>;
+    conversationPromise: Promise<TimedResult<AskConversationRef>>;
+    eagerUserMessagePromise: Promise<TimedResult<AskPersistedMessage>>;
+    startedAt: number;
+    question: string;
+    normalizedAnswerPolicy: AnswerPolicy;
+    routeDecision: AskRouteDecision;
+    onEvent: (
+      event:
+        | { type: 'status'; phase: 'started' | 'retrieving' | 'generating' }
+        | { type: 'answer_delta'; delta: string }
+        | { type: 'final'; data: Record<string, unknown> }
+    ) => void | Promise<void>;
+  }): AskRouteToolAdapters {
+    return {
+      policy_reply: () =>
+        this.handlePolicyRouteAskStream({
+          assistant: input.assistant,
+          authContext: input.authContext,
+          conversationPromise: input.conversationPromise,
+          eagerUserMessagePromise: input.eagerUserMessagePromise,
+          startedAt: input.startedAt,
+          question: input.question,
+          normalizedAnswerPolicy: input.normalizedAnswerPolicy,
+          routeDecision: input.routeDecision,
+          onEvent: input.onEvent
+        }),
+      external_source: () =>
+        this.handleExternalSourceRouteAskStream({
+          assistant: input.assistant,
+          authContext: input.authContext,
+          conversationPromise: input.conversationPromise,
+          eagerUserMessagePromise: input.eagerUserMessagePromise,
+          startedAt: input.startedAt,
+          question: input.question,
+          normalizedAnswerPolicy: input.normalizedAnswerPolicy,
+          routeDecision: input.routeDecision,
+          onEvent: input.onEvent
+        })
+    };
   }
 
   private async findReusableConversationAnswer(input: {
