@@ -159,8 +159,9 @@
   - `pnpm test:api:file -- test/<file>.test.js`
 - web focused test
   - `pnpm --filter @rag-system/web exec vitest run test/<file>.test.js`
-- queue item validation command should stay one-item/one-command and focused; avoid broad chained suites in queue prompts
-- queue tasks should stay on Vitest-based test commands and should not introduce new raw `node --test` validations
+- queue item validation command should stay one-item/one-command and focused; avoid broad chained suites, mixed checks, and fallback command chains in queue prompts
+- queue tasks should stay on Vitest-based test commands and should not introduce new raw `node --test` validations or legacy aliases that still resolve to `node:test`
+- if recovery is needed, rewrite the queue item back down to one focused Vitest command instead of broadening the validation surface on retry
 
 当前主线路径优先可复用的验证方向：
 
