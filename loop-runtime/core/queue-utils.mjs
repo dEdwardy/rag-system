@@ -47,6 +47,31 @@ export function queueItems(queue) {
   return Array.isArray(queue?.items) ? queue.items : [];
 }
 
+export function shouldTreatItemAsCompleted(item) {
+  if (!item) return false;
+  if (item.status === 'completed') return true;
+  return (
+    item.status === 'needs_replan' && item.queueResultStatus === 'completed'
+  );
+}
+
+export function reconcileQueue(queue) {
+  const items = queueItems(queue);
+  let changed = false;
+  for (const item of items) {
+    if (
+      item?.status === 'needs_replan' &&
+      item.queueResultStatus === 'completed'
+    ) {
+      item.status = 'completed';
+      item.completedAt =
+        item.completedAt ?? item.finishedAt ?? item.updatedAt ?? null;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 export function queueItemById(queue, id) {
   return queueItems(queue).find((item) => item && item.id === id) ?? null;
 }
@@ -54,7 +79,7 @@ export function queueItemById(queue, id) {
 export function completedItemIds(queue) {
   return new Set(
     queueItems(queue)
-      .filter((item) => item && item.status === 'completed')
+      .filter((item) => shouldTreatItemAsCompleted(item))
       .map((item) => item.id)
   );
 }

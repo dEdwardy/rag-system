@@ -9,6 +9,7 @@ import {
   firstBlockedPendingItem,
   queueSummary,
   queueItems,
+  reconcileQueue,
   writeJson
 } from './queue-utils.mjs';
 import {
@@ -534,6 +535,10 @@ async function processOneItem() {
   }
 
   const queue = loaded.queue;
+  if (reconcileQueue(queue)) {
+    queue.updatedAt = new Date().toISOString();
+    await writeJson(loaded.filePath, queue);
+  }
   const item = nextRunnableItem(queue);
   const state = await readState();
   const livePendingCount = queueItems(queue).filter(

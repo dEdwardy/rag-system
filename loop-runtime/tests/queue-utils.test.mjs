@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dependenciesSatisfied,
-  nextRunnableItem
+  nextRunnableItem,
+  reconcileQueue
 } from '../core/queue-utils.mjs';
 
 test('nextRunnableItem skips failed item and continues with later runnable work', () => {
@@ -29,4 +30,23 @@ test('dependenciesSatisfied requires upstream completion even after needs_replan
 
   assert.equal(dependenciesSatisfied(queue, queue.items[1]), false);
   assert.equal(nextRunnableItem(queue), null);
+});
+
+test('reconcileQueue promotes stale completed queue results', () => {
+  const queue = {
+    materializedWaveId: 'wave-a',
+    items: [
+      {
+        id: 'a',
+        status: 'needs_replan',
+        queueResultStatus: 'completed',
+        finishedAt: '2026-04-25T00:00:00.000Z'
+      },
+      { id: 'b', status: 'pending', dependsOn: ['a'] }
+    ]
+  };
+
+  assert.equal(reconcileQueue(queue), true);
+  assert.equal(queue.items[0].status, 'completed');
+  assert.equal(nextRunnableItem(queue)?.id, 'b');
 });
