@@ -34,7 +34,9 @@ import { ConversationsService } from '../conversations/conversations.service';
 import { MessagesService } from '../messages/messages.service';
 import {
   RetrievalService,
-  type RetrievalResult
+  selectPreferredRetrievalResult,
+  type RetrievalResult,
+  type RetrievalResultSelectionReason
 } from '../retrieval/retrieval.service';
 import {
   buildRewriteReadabilityLabel,
@@ -160,6 +162,17 @@ type AskRewriteResult = {
   usedFallback: boolean | null;
   promptId: string | null;
   skippedReason: RetrievalStrategySummary['rewriteSkippedReason'];
+};
+
+type AskKnowledgeBaseMultiStepSummary = {
+  retrievalPasses: 1 | 2;
+  selectedPass: 'primary' | 'secondary';
+  selectionReason: RetrievalResultSelectionReason;
+};
+
+type AskKnowledgeBaseSecondRetrievalResult = {
+  selectedResult: RetrievalResult;
+  metadata: AskKnowledgeBaseMultiStepSummary;
 };
 
 type AskConversationRef = {
@@ -423,9 +436,22 @@ export class AskAssistantService {
         documentVersions: input.documentVersions
       })
     );
+    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
+      routeDecision,
+      retrievalResult,
+      retrievalQuery,
+      question: input.question,
+      retrievalProfile,
+      retrievalStrategy,
+      retrievalFilters,
+      assistantKbId: assistant.kbId,
+      documentVersions: input.documentVersions
+    });
+    const resolvedRetrievalResult =
+      multiStepSummary?.selectedResult ?? retrievalResult;
 
-    const retrievedChunks = retrievalResult.retrievedChunks;
-    const contextGroups = retrievalResult.contextGroups;
+    const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
+    const contextGroups = resolvedRetrievalResult.contextGroups;
 
     const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
       Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
@@ -450,9 +476,10 @@ export class AskAssistantService {
           chunkWindow: retrievalProfile.chunkWindow,
           retrievedChunks,
           contextGroups,
-          embedding: retrievalResult.embedding,
+          embedding: resolvedRetrievalResult.embedding,
           routeDecision,
-          execution: retrievalResult.execution,
+          execution: resolvedRetrievalResult.execution,
+          knowledgeBaseMultiStep: multiStepSummary?.metadata,
           promptContextChars: null,
           promptContextApproxTokens: null
         }) as AskRetrievalMetadataJson
@@ -977,11 +1004,23 @@ export class AskAssistantService {
         })
     );
     const retrievalResult = retrievalResultMeasured.result;
+    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
+      routeDecision,
+      retrievalResult,
+      retrievalQuery,
+      question: input.question,
+      retrievalProfile,
+      retrievalStrategy,
+      retrievalFilters,
+      assistantKbId: assistant.kbId
+    });
+    const resolvedRetrievalResult =
+      multiStepSummary?.selectedResult ?? retrievalResult;
     const retrievalMs = retrievalResultMeasured.runMs;
     const retrievalQueueWaitMs = retrievalResultMeasured.waitMs;
 
-    const retrievedChunks = retrievalResult.retrievedChunks;
-    const contextGroups = retrievalResult.contextGroups;
+    const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
+    const contextGroups = resolvedRetrievalResult.contextGroups;
 
     const conversationAndUserMessagePromise = Promise.all([
       conversationPromise,
@@ -1015,9 +1054,10 @@ export class AskAssistantService {
           chunkWindow: retrievalProfile.chunkWindow,
           retrievedChunks,
           contextGroups,
-          embedding: retrievalResult.embedding,
+          embedding: resolvedRetrievalResult.embedding,
           routeDecision,
-          execution: retrievalResult.execution,
+          execution: resolvedRetrievalResult.execution,
+          knowledgeBaseMultiStep: multiStepSummary?.metadata,
           promptContextChars: null,
           promptContextApproxTokens: null
         }) as AskRetrievalMetadataJson
@@ -3760,6 +3800,103 @@ export class AskAssistantService {
     return `${normalized.slice(0, 217)}...`;
   }
 
+  private shouldRunKnowledgeBaseSecondRetrieval(input: {
+    routeDecision: AskRouteDecision;
+    retrievalQuery: string;
+    question: string;
+    retrievalResult: RetrievalResult;
+  }) {
+    if (input.routeDecision.routeType !== 'knowledge_base') {
+      return false;
+    }
+
+    if (
+      input.retrievalQuery.trim().toLowerCase() ===
+      input.question.trim().toLowerCase()
+    ) {
+      return false;
+    }
+
+    const topPrimaryScore =
+      input.retrievalResult.retrievedChunks[0]?.score ?? 0;
+    return (
+      input.retrievalResult.retrievedChunks.length === 0 ||
+      topPrimaryScore < 0.75
+    );
+  }
+
+  private async maybeRunKnowledgeBaseSecondRetrieval(input: {
+    routeDecision: AskRouteDecision;
+    retrievalResult: RetrievalResult;
+    retrievalQuery: string;
+    question: string;
+    retrievalProfile: {
+      topK: number;
+      scoreThreshold: number;
+      chunkWindow: number;
+      enableHybrid: boolean;
+      enableRerank: boolean;
+    };
+    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>;
+    retrievalFilters?: RetrievalProfileFilters;
+    assistantKbId: string;
+    documentVersions?: Record<string, number>;
+  }): Promise<AskKnowledgeBaseSecondRetrievalResult | null> {
+    if (
+      !this.shouldRunKnowledgeBaseSecondRetrieval({
+        routeDecision: input.routeDecision,
+        retrievalQuery: input.retrievalQuery,
+        question: input.question,
+        retrievalResult: input.retrievalResult
+      })
+    ) {
+      return null;
+    }
+
+    try {
+      const secondaryRetrievalResult = await this.retrievalService.retrieve({
+        kbId: input.assistantKbId,
+        query: input.question,
+        topK: input.retrievalProfile.topK,
+        scoreThreshold: input.retrievalProfile.scoreThreshold,
+        chunkWindow: input.retrievalProfile.chunkWindow,
+        enableHybrid: input.retrievalProfile.enableHybrid,
+        enableRerank: input.retrievalProfile.enableRerank,
+        filters: input.retrievalFilters,
+        strategy: input.retrievalStrategy,
+        documentVersions: input.documentVersions
+      });
+      const selected = selectPreferredRetrievalResult({
+        primary: input.retrievalResult,
+        secondary: secondaryRetrievalResult
+      });
+      return {
+        selectedResult: selected.result,
+        metadata: {
+          retrievalPasses: 2,
+          selectedPass: selected.selected,
+          selectionReason: selected.reason
+        }
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unknown second retrieval pipeline error.';
+      this.logger.warn(
+        `Second retrieval pass failed, fallback to primary retrieval. ${message}`
+      );
+      return {
+        selectedResult: input.retrievalResult,
+        metadata: {
+          retrievalPasses: 2,
+          selectedPass: 'primary',
+          selectionReason: 'primary_stronger'
+        }
+      };
+    }
+  }
+
   private buildRetrievalMetadata(input: {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
@@ -3776,6 +3913,7 @@ export class AskAssistantService {
     retrievedChunks: AskResultChunk[];
     contextGroups: Array<{ primaryChunkIds: string[] }>;
     embedding: VectorStoreEmbeddingDiagnostics | null;
+    knowledgeBaseMultiStep?: AskKnowledgeBaseMultiStepSummary;
     promptContextChars: number | null;
     promptContextApproxTokens: number | null;
     execution: {
@@ -3862,8 +4000,10 @@ export class AskAssistantService {
       executionPlan: buildTraceExecutionPlan({
         routeType: input.routeDecision.routeType,
         routeReason: input.routeDecision.routeReason,
-        sourceCount: input.retrievedChunks.length
+        sourceCount: input.retrievedChunks.length,
+        knowledgeBaseMultiStep: input.knowledgeBaseMultiStep
       }),
+      knowledgeBaseMultiStep: input.knowledgeBaseMultiStep ?? null,
       promptContextChars: input.promptContextChars,
       promptContextApproxTokens: input.promptContextApproxTokens,
       primaryChunkScoreAvg,

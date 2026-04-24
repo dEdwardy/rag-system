@@ -375,6 +375,7 @@ test('AskAssistantService completes the happy path with retrieval, messages, and
         contains: ['fact']
       }
     },
+    knowledgeBaseMultiStep: null,
     queryRewrite: {
       enabled: true,
       applied: true,
@@ -746,6 +747,195 @@ Rules:
     flags: [],
     summary: 'Answer is grounded in cited sources with no reported gaps.'
   });
+});
+
+test('AskAssistantService runs bounded second retrieval pass for rewritten KB asks', async () => {
+  const retrievalCalls = [];
+  const createTraceCalls = [];
+  const updateTraceCalls = [];
+
+  const primaryChunks = [
+    {
+      chunkId: 'chunk-primary-1',
+      documentId: 'document-1',
+      documentTitle: 'Doc One',
+      chunkIndex: 0,
+      content: 'primary retrieval content',
+      score: 0.4,
+      isPrimary: true,
+      pageNo: 1,
+      sectionTitle: 'Primary'
+    }
+  ];
+  const secondaryChunks = [
+    {
+      chunkId: 'chunk-secondary-1',
+      documentId: 'document-2',
+      documentTitle: 'Doc Two',
+      chunkIndex: 0,
+      content: 'secondary retrieval content',
+      score: 0.93,
+      isPrimary: true,
+      pageNo: 2,
+      sectionTitle: 'Secondary'
+    }
+  ];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      retrievalProfile: {
+        enableHybrid: true,
+        enableRerank: false,
+        strategyJson: {
+          queryRewrite: {
+            enabled: true
+          }
+        }
+      }
+    }),
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        if (input.query.endsWith('rewritten')) {
+          return {
+            retrievedChunks: primaryChunks,
+            contextGroups: [],
+            embedding: null,
+            execution: {
+              actualMode: 'hybrid',
+              usedFallback: false,
+              fallbackReason: null,
+              rerankApplied: false,
+              chunkWindowApplied: false,
+              vectorSearchAttempted: true,
+              lexicalSearchAttempted: true,
+              vectorCandidateLimitHit: false,
+              lexicalCandidateLimitHit: false,
+              rankingTopKHit: false,
+              candidateLimit: 8,
+              vectorCandidateCount: 2,
+              lexicalCandidateCount: 1,
+              mergedCandidateCount: 2,
+              rankedCandidateCount: 1
+            }
+          };
+        }
+
+        return {
+          retrievedChunks: secondaryChunks,
+          contextGroups: [],
+          embedding: null,
+          execution: {
+            actualMode: 'hybrid',
+            usedFallback: false,
+            fallbackReason: null,
+            rerankApplied: false,
+            chunkWindowApplied: false,
+            vectorSearchAttempted: true,
+            lexicalSearchAttempted: true,
+            vectorCandidateLimitHit: false,
+            lexicalCandidateLimitHit: false,
+            rankingTopKHit: false,
+            candidateLimit: 8,
+            vectorCandidateCount: 2,
+            lexicalCandidateCount: 1,
+            mergedCandidateCount: 2,
+            rankedCandidateCount: 1
+          }
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => ({
+        answer: `answer from ${input.chunks[0]?.chunkId}`,
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: input.contextGroups,
+        answeringMetadata: {
+          promptId: 'answer.v3',
+          usedFallback: false,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: input.chunks.length,
+          promptContextCount: input.chunks.length,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'fallback-local',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'Answer is grounded in cited sources with no reported gaps.'
+        }
+      })
+    },
+    traces: {
+      createTrace: async (input) => {
+        createTraceCalls.push(input);
+        return { id: 'trace-1' };
+      },
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    },
+    llm: {
+      rewriteQuery: async ({ question }) => ({
+        rewrittenQuery: `${question} rewritten`,
+        modelName: 'rewrite-model',
+        usedFallback: false,
+        promptId: 'rewrite-query.v1'
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'where is the marker?'
+  });
+
+  assert.equal(retrievalCalls.length, 2);
+  assert.equal(retrievalCalls[0].query, 'where is the marker? rewritten');
+  assert.equal(retrievalCalls[1].query, 'where is the marker?');
+  assert.equal(result.answer, 'answer from chunk-secondary-1');
+  assert.equal(createTraceCalls.length, 1);
+  assert.equal(updateTraceCalls.length, 1);
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.knowledgeBaseMultiStep,
+    {
+      retrievalPasses: 2,
+      selectedPass: 'secondary',
+      selectionReason: 'secondary_stronger'
+    }
+  );
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.executionPlan.steps.map(
+      (step) => step.id
+    ),
+    [
+      'route_decision',
+      'retrieval_primary',
+      'retrieval_secondary',
+      'answer_generation'
+    ]
+  );
 });
 
 test('AskAssistantService uses request auth context identity when creating a new conversation', async () => {
@@ -1152,6 +1342,7 @@ test('AskAssistantService can disable query rewrite and forwards resolved retrie
     primaryChunkScoreMin: null,
     contextGroupAvgLength: null,
     filters: null,
+    knowledgeBaseMultiStep: null,
     queryRewrite: {
       enabled: false,
       applied: false,

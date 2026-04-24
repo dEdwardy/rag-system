@@ -100,6 +100,22 @@ export type TraceExecutionStepStatus =
   | 'completed'
   | 'failed';
 
+export type TraceExecutionMode = 'manual' | 'workflow';
+
+const TRACE_EXECUTION_MODE_VALUES = new Set<TraceExecutionMode>([
+  'manual',
+  'workflow'
+]);
+
+export function readTraceExecutionMode(
+  value: unknown
+): TraceExecutionMode | null {
+  return typeof value === 'string' &&
+    TRACE_EXECUTION_MODE_VALUES.has(value as TraceExecutionMode)
+    ? (value as TraceExecutionMode)
+    : null;
+}
+
 export type TraceExecutionStep = {
   key: string;
   id: string;
@@ -111,8 +127,17 @@ export type TraceExecutionStep = {
   durationMs: number | null;
 };
 
+export type TraceKnowledgeBaseMultiStepSummary = {
+  retrievalPasses: 1 | 2;
+  selectedPass: 'primary' | 'secondary';
+  selectionReason:
+    | 'primary_stronger'
+    | 'secondary_stronger'
+    | 'tie_keep_primary';
+};
+
 export type TraceExecutionPlan = {
-  executionMode: 'manual' | 'workflow';
+  executionMode: TraceExecutionMode;
   steps: TraceExecutionStep[];
 };
 
@@ -200,6 +225,7 @@ export function buildTraceExecutionPlan(input: {
   routeType: TraceRouteType;
   routeReason: TraceRouteReason;
   sourceCount?: number;
+  knowledgeBaseMultiStep?: TraceKnowledgeBaseMultiStepSummary;
 }): TraceExecutionPlan {
   const buildStep = (input: {
     key: string;
@@ -276,25 +302,54 @@ export function buildTraceExecutionPlan(input: {
 
   return {
     executionMode: 'manual',
-    steps: [
-      routeStep,
-      buildStep({
-        key: 'retrieval',
-        id: 'retrieval',
-        kind: 'retrieval',
-        toolName: resolveTraceExecutionToolName('knowledge_base'),
-        label: 'Retrieval',
-        detail: null
-      }),
-      buildStep({
-        key: 'answer_generation',
-        id: 'answer_generation',
-        kind: 'answer_generation',
-        toolName: null,
-        label: 'Answer generation',
-        detail: null
-      })
-    ]
+    steps:
+      input.knowledgeBaseMultiStep?.retrievalPasses === 2
+        ? [
+            routeStep,
+            buildStep({
+              key: 'retrieval_primary',
+              id: 'retrieval_primary',
+              kind: 'retrieval',
+              toolName: resolveTraceExecutionToolName('knowledge_base'),
+              label: 'Retrieval (rewritten query)',
+              detail: 'primary pass'
+            }),
+            buildStep({
+              key: 'retrieval_secondary',
+              id: 'retrieval_secondary',
+              kind: 'retrieval',
+              toolName: resolveTraceExecutionToolName('knowledge_base'),
+              label: 'Retrieval (original query)',
+              detail: `${input.knowledgeBaseMultiStep.selectedPass} selected (${input.knowledgeBaseMultiStep.selectionReason})`
+            }),
+            buildStep({
+              key: 'answer_generation',
+              id: 'answer_generation',
+              kind: 'answer_generation',
+              toolName: null,
+              label: 'Answer generation',
+              detail: null
+            })
+          ]
+        : [
+            routeStep,
+            buildStep({
+              key: 'retrieval',
+              id: 'retrieval',
+              kind: 'retrieval',
+              toolName: resolveTraceExecutionToolName('knowledge_base'),
+              label: 'Retrieval',
+              detail: null
+            }),
+            buildStep({
+              key: 'answer_generation',
+              id: 'answer_generation',
+              kind: 'answer_generation',
+              toolName: null,
+              label: 'Answer generation',
+              detail: null
+            })
+          ]
   };
 }
 
@@ -305,13 +360,15 @@ export function collectTraceExecutionToolNames(
     return [];
   }
 
-  return Array.from(
-    new Set(
-      plan.steps.flatMap((step) =>
-        step.toolName == null ? [] : [step.toolName]
-      )
-    )
-  );
+  const toolNames = new Set<TraceExecutionToolName>();
+  for (const step of plan.steps) {
+    const toolName = readTraceExecutionToolName(step.toolName);
+    if (toolName != null) {
+      toolNames.add(toolName);
+    }
+  }
+
+  return Array.from(toolNames);
 }
 
 export function buildTraceExecutionToolNamesLabel(
@@ -347,7 +404,7 @@ export type TraceSummary = {
   routeType: TraceRouteType | null;
   routeReason: TraceRouteReason | null;
   executionPlan: TraceExecutionPlan | null;
-  executionMode: TraceExecutionPlan['executionMode'] | null;
+  executionMode: TraceExecutionMode | null;
   executionModeReadabilityLabel: string;
   executionModeReadabilitySentence: string;
   executionToolNames: TraceExecutionToolName[];
