@@ -3866,6 +3866,16 @@ export class AskAssistantService {
         strategy: input.retrievalStrategy,
         documentVersions: input.documentVersions
       });
+      if (secondaryRetrievalResult == null) {
+        return {
+          selectedResult: input.retrievalResult,
+          metadata: {
+            retrievalPasses: 2,
+            selectedPass: 'primary',
+            selectionReason: 'primary_stronger'
+          }
+        };
+      }
       const selected = selectPreferredRetrievalResult({
         primary: input.retrievalResult,
         secondary: secondaryRetrievalResult

@@ -510,7 +510,9 @@ export class TracesService {
     const executionPlan = this.readTraceExecutionPlan(
       retrievalMetadata?.executionPlan
     );
-    const executionMode = readTraceExecutionMode(executionPlan?.executionMode);
+    const executionMode = this.readTraceSummaryExecutionMode(
+      executionPlan?.executionMode
+    );
     const executionToolNames = collectTraceExecutionToolNames(executionPlan);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
@@ -1043,6 +1045,18 @@ export class TracesService {
       : null;
   }
 
+  private readTraceSummaryExecutionMode(
+    value: unknown
+  ): TraceSummary['executionMode'] {
+    return readTraceExecutionMode(value);
+  }
+
+  private readTraceSummaryExecutionToolName(
+    value: unknown
+  ): TraceSummary['executionToolNames'][number] | null {
+    return readTraceExecutionToolName(value);
+  }
+
   private readTraceExecutionPlan(
     value: unknown
   ): TraceSummary['executionPlan'] {
@@ -1085,7 +1099,9 @@ export class TracesService {
               key,
               id,
               kind,
-              toolName: readTraceExecutionToolName(stepObject.toolName),
+              toolName: this.readTraceSummaryExecutionToolName(
+                stepObject.toolName
+              ),
               status,
               label,
               detail: this.readString(stepObject.detail),
@@ -1106,7 +1122,7 @@ export class TracesService {
     }
 
     const executionMode =
-      readTraceExecutionMode(plan.executionMode) ?? 'manual';
+      this.readTraceSummaryExecutionMode(plan.executionMode) ?? 'manual';
 
     return {
       executionMode,
