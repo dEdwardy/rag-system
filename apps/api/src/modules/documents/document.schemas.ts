@@ -193,6 +193,17 @@ export type ListConversationTracesInput = z.infer<
 
 export const listTracesSchema = z.object({
   query: z.string().trim().min(1).max(200).optional(),
+  routeType: z
+    .enum(['knowledge_base', 'policy_reply', 'external_source'])
+    .optional(),
+  routeReason: z
+    .enum([
+      'default_kb_ask',
+      'policy_question',
+      'explicit_source_url',
+      'explicit_source_urls'
+    ])
+    .optional(),
   limit: boundedListLimitSchema
 });
 

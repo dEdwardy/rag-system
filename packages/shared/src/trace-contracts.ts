@@ -1,38 +1,55 @@
-export type TraceAnswerStatus = "grounded" | "insufficient_context";
+export type TraceAnswerStatus = 'grounded' | 'insufficient_context';
 
-export type TraceQualityOverall = "strong" | "partial" | "weak";
+export type TraceQualityOverall = 'strong' | 'partial' | 'weak';
 
 export type TracePrimaryIssue =
-  | "none"
-  | "no_retrieval_hits"
-  | "insufficient_context"
-  | "missing_information"
-  | "low_retrieval_score"
-  | "fallback_generation"
-  | "other";
+  | 'none'
+  | 'no_retrieval_hits'
+  | 'insufficient_context'
+  | 'missing_information'
+  | 'low_retrieval_score'
+  | 'fallback_generation'
+  | 'other';
 
-export type TraceRetrievalMode = "vector" | "hybrid" | "lexical";
+export type TraceRetrievalMode = 'vector' | 'hybrid' | 'lexical';
+export type TraceRouteType =
+  | 'knowledge_base'
+  | 'policy_reply'
+  | 'external_source';
+export type TraceRouteReason =
+  | 'default_kb_ask'
+  | 'policy_question'
+  | 'explicit_source_url'
+  | 'explicit_source_urls';
 
-export type TraceRetrievalQuerySource = "rewritten" | "original_disabled" | "original_unchanged";
+export type TraceRetrievalQuerySource =
+  | 'rewritten'
+  | 'original_disabled'
+  | 'original_unchanged';
 export type TraceRewriteSkippedReason =
-  | "disabled_by_default"
-  | "query_too_short"
-  | "not_summary_or_complex_question"
-  | "latency_budget_exceeded";
+  | 'disabled_by_default'
+  | 'query_too_short'
+  | 'not_summary_or_complex_question'
+  | 'latency_budget_exceeded';
 
-export type TraceGenerationMode = "generated" | "deterministic_bypass";
+export type TraceGenerationMode = 'generated' | 'deterministic_bypass';
 
-export type TraceContextMode = "chunks" | "context_groups";
+export type TraceContextMode = 'chunks' | 'context_groups';
 
-export type TraceFallbackReason = "vector_error" | "no_ranked_candidates";
+export type TraceFallbackReason = 'vector_error' | 'no_ranked_candidates';
 
-export type TraceResolvedLanguage = "zh" | "en";
+export type TraceResolvedLanguage = 'zh' | 'en';
 
-export type TraceCitationAttribution = "explicit" | "heuristic" | "none";
+export type TraceCitationAttribution = 'explicit' | 'heuristic' | 'none';
 
-export type TraceCitationSelectionSource = "structured" | "inline_markers" | "heuristic" | "none";
+export type TraceCitationSelectionSource =
+  | 'structured'
+  | 'inline_markers'
+  | 'heuristic'
+  | 'none';
 
-export type TraceAnswerAttributionReadability = `${TraceCitationAttribution}:${TraceCitationSelectionSource}`;
+export type TraceAnswerAttributionReadability =
+  `${TraceCitationAttribution}:${TraceCitationSelectionSource}`;
 
 export type TraceAnswerAttributionSummary = {
   attribution: TraceCitationAttribution | null;
@@ -47,15 +64,24 @@ export type TraceAnswerAttributionSummary = {
   readabilitySentence: string | null;
 };
 
-export type TraceInsufficientContextReason = "no_retrieval_hits" | "retrieved_context_insufficient";
+export type TraceInsufficientContextReason =
+  | 'no_retrieval_hits'
+  | 'retrieved_context_insufficient';
 
-export type TraceAnswerTextSource = "model" | "deterministic_policy";
+export type TraceAnswerTextSource = 'model' | 'deterministic_policy';
 
-export type TraceAnswerStatusSource = "model" | "inferred_from_retrieval" | "deterministic_policy";
+export type TraceAnswerStatusSource =
+  | 'model'
+  | 'inferred_from_retrieval'
+  | 'deterministic_policy';
 
-export type TraceMissingInformationSource = "none" | "model" | "deterministic_default" | "suppressed_by_policy";
+export type TraceMissingInformationSource =
+  | 'none'
+  | 'model'
+  | 'deterministic_default'
+  | 'suppressed_by_policy';
 
-export type TraceFailedStage = "retrieval" | "answering";
+export type TraceFailedStage = 'retrieval' | 'answering';
 
 export type RetrievalStrategySummary = {
   retrievalMode: TraceRetrievalMode | null;
@@ -69,6 +95,11 @@ export type RetrievalStrategySummary = {
   rewriteModelName: string | null;
   fallbackReason: TraceFallbackReason | null;
   usedFallback: boolean | null;
+};
+
+export type TraceRouteDecisionSummary = {
+  routeType: TraceRouteType;
+  routeReason: TraceRouteReason;
 };
 
 export type TraceTimingSummary = {
@@ -89,6 +120,8 @@ export type TraceTimingSummary = {
 };
 
 export type TraceSummary = {
+  routeType: TraceRouteType | null;
+  routeReason: TraceRouteReason | null;
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
   qualityOverall: TraceQualityOverall | null;
@@ -99,6 +132,7 @@ export type TraceSummary = {
   retrievalModeProvenanceSentence: string;
   rewriteReadabilityLabel: string;
   strategySummary: RetrievalStrategySummary;
+  routeDecisionSummary: TraceRouteDecisionSummary | null;
   timingSummary: TraceTimingSummary;
   timingReadabilitySentence: string;
   generationMode: TraceGenerationMode | null;

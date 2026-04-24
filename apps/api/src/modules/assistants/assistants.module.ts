@@ -1,20 +1,26 @@
-import { Module } from "@nestjs/common";
-import { LlmModule } from "../../infra/llm/llm.module";
-import { DatabaseModule } from "../../infra/database/database.module";
-import { AnsweringModule } from "../answering/answering.module";
-import { ConversationsModule } from "../conversations/conversations.module";
-import { MessagesModule } from "../messages/messages.module";
-import { RetrievalModule } from "../retrieval/retrieval.module";
-import { RetrievalProfilesModule } from "../retrieval-profiles/retrieval-profiles.module";
-import { TracesModule } from "../traces/traces.module";
-import { AssistantsController } from "./assistants.controller";
-import { AskAssistantService } from "./ask-assistant.service";
-import { AssistantsService } from "./assistants.service";
+import { Module } from '@nestjs/common';
+import { LlmModule } from '../../infra/llm/llm.module';
+import { DatabaseModule } from '../../infra/database/database.module';
+import { FeedSourceModule } from '../../infra/feed-source/feed-source.module';
+import { SitemapSourceModule } from '../../infra/sitemap-source/sitemap-source.module';
+import { WebPageModule } from '../../infra/web-page/web-page.module';
+import { AnsweringModule } from '../answering/answering.module';
+import { ConversationsModule } from '../conversations/conversations.module';
+import { MessagesModule } from '../messages/messages.module';
+import { RetrievalModule } from '../retrieval/retrieval.module';
+import { RetrievalProfilesModule } from '../retrieval-profiles/retrieval-profiles.module';
+import { TracesModule } from '../traces/traces.module';
+import { AssistantsController } from './assistants.controller';
+import { AskAssistantService } from './ask-assistant.service';
+import { AssistantsService } from './assistants.service';
 
 @Module({
   imports: [
     DatabaseModule,
     LlmModule,
+    WebPageModule,
+    FeedSourceModule,
+    SitemapSourceModule,
     ConversationsModule,
     MessagesModule,
     RetrievalModule,

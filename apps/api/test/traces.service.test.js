@@ -385,6 +385,8 @@ test('TracesService exposes failedStage and failureMessage in traceSummary for f
       'Resolved retrieval mode is vector; fallback usage is unknown.',
     rewriteReadabilityLabel:
       'rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown.',
+    routeType: null,
+    routeReason: null,
     strategySummary: {
       retrievalMode: 'vector',
       strategyMode: 'vector',
@@ -398,6 +400,7 @@ test('TracesService exposes failedStage and failureMessage in traceSummary for f
       fallbackReason: null,
       usedFallback: null
     },
+    routeDecisionSummary: null,
     timingSummary: {
       totalMs: null,
       firstTokenMs: null,
@@ -901,6 +904,8 @@ test('TracesService exposes additive execution provenance in traceSummary for su
       'Resolved retrieval mode is hybrid; fallback was used due to no_ranked_candidates.',
     rewriteReadabilityLabel:
       'rewrite enabled; rewrite applied: yes; rewrite fallback: unknown; rewrite prompt: unknown.',
+    routeType: null,
+    routeReason: null,
     strategySummary: {
       retrievalMode: 'hybrid',
       strategyMode: 'hybrid',
@@ -914,6 +919,7 @@ test('TracesService exposes additive execution provenance in traceSummary for su
       fallbackReason: 'no_ranked_candidates',
       usedFallback: true
     },
+    routeDecisionSummary: null,
     timingSummary: {
       totalMs: null,
       firstTokenMs: null,
@@ -2211,4 +2217,53 @@ test('TracesService keeps raw missingInformationSource value in readability labe
     detail.traceSummary.missingInformationSourceReadabilityLabel,
     'unknown missing-information source (legacy_unknown_source)'
   );
+});
+
+test('TracesService exposes route decision metadata in traceSummary', async () => {
+  const persistedTrace = {
+    id: 'trace-route-decision',
+    conversationId: 'conversation-route-decision',
+    assistantId: 'assistant-route-decision',
+    userMessageId: 'user-message-route-decision',
+    assistantMessageId: 'assistant-message-route-decision',
+    userQuery: 'What is your citation policy?',
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      routeDecision: {
+        routeType: 'policy_reply',
+        routeReason: 'policy_question'
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      answerTextSource: 'deterministic_policy',
+      answerStatusSource: 'deterministic_policy',
+      answerStatus: 'grounded'
+    },
+    qualityEvaluationJson: null,
+    modelName: 'policy-route-local',
+    latencyMs: 3,
+    status: 'success',
+    errorMessage: null,
+    createdAt: new Date('2026-04-24T00:00:00.000Z')
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace('trace-route-decision');
+
+  assert.equal(detail.traceSummary.routeType, 'policy_reply');
+  assert.equal(detail.traceSummary.routeReason, 'policy_question');
+  assert.deepEqual(detail.traceSummary.routeDecisionSummary, {
+    routeType: 'policy_reply',
+    routeReason: 'policy_question'
+  });
 });

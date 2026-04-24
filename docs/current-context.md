@@ -2,7 +2,7 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
-> 更新时间：2026-04-20
+> 更新时间：2026-04-24
 
 ## Current Mainline
 
@@ -20,7 +20,7 @@
   - 用户会被引导先上传资料，再开始提问
   - 资料 ready 后可直接进入提问与设置路径
   - 回答保留 citations，问题可通过 trace 排查
-- 因此，当前最合适的推进方式不是继续扩新产品外壳，而是做 bounded maintenance，并把默认路径上的细小一致性继续收紧。
+- 因此，当前最合适的推进方式不是继续扩新产品外壳，而是做 bounded maintenance，并在现有 RAG 底座上补一个最小 agent 化增量。
 
 ## Current Product Shape
 
@@ -29,6 +29,7 @@
 - Trace / Report / Assistant settings 已经形成可用的治理闭环，适合继续做小步提质，不适合再开一轮大平台化改造。
 - 文档上传、解析、切块、检索、回答、引用、trace 持久化都已具备，后续重点不再是“把链路搭出来”，而是“把已有链路做稳、做清楚、做快一点”。
 - 当前默认助手基线已经落地：新用户会自动获得默认助手实例；用户看到的是默认助手，而不是内部模板概念。
+- 当前系统仍然主要是单路径 RAG 应用，而不是完整 agent 系统；后续增量应优先补轻量决策/路由层，而不是直接扩复杂 planner 或 multi-agent。
 
 ## Retrieval / Quality Baseline
 
@@ -43,7 +44,9 @@
 
 ## Current Priorities
 
+- `high cohesion / low coupling`：当前阶段把高内聚、低耦合作为硬约束；route classifier、source fetch、answer orchestration、trace persistence 不继续堆进同一块实现。
 - `bounded maintenance`：在已完成的默认主路径上继续收紧边界一致性，而不是开启新产品波次。
+- `minimal agentization increment`：在 ask 入口前补一个最小决策层，让系统能先判断问题类型，再决定走哪条现有处理路径。
 - `single primary KB clarity`：保持单主知识库语义清晰，上传后状态和 next action 更直接。
 - `canonical default assistant selection`：维持默认助手的确定性优先级和 repair 行为，避免同库重复数据造成歧义。
 - `focused validation`：优先补与默认主路径直接相关的 focused tests 和回归保护。
@@ -51,18 +54,43 @@
 
 ## Execution Order
 
-1. 继续收紧默认助手 / 主知识库 / retrieval profile 的 canonical 选择与 repair 语义。
-2. 继续收口默认路径的状态反馈和 next action 文案。
-3. 补主路径需要的 focused validation。
-4. 保持 docs、阶段判断和代码现实对齐。
+1. 先定义并落地一个最小 agent 化增量：在 ask 入口前增加轻量分类/路由决策。
+2. 将路由决策接到现有处理链路上，优先复用现有 KB ask、external-source family 或 deterministic reply。
+3. 把 route decision 写入 trace / metadata，并补对应 focused validation。
+4. 继续收紧默认助手 / 主知识库 / retrieval profile 的 canonical 选择与 repair 语义。
+5. 继续收口默认路径的状态反馈和 next action 文案。
+6. 保持 docs、阶段判断和代码现实对齐。
 
 ## Do Not Do
 
 - 不把团队接入、workspace / tenant 产品化、SaaS 化当成当前主线。
 - 不展开多知识库交互、多模板系统、模板 marketplace、复杂权限矩阵。
+- 不一上来做 planner、multi-agent、长任务自治循环、复杂 memory 分层。
 - 不把 README / demo / setup / source-distribution 包装继续当作当前优先项。
 - 不做 broad refactor、架构重写、schema / persistence 大改。
 - 不为了少量质量提升就全局拉大 retrieval 默认参数。
+
+## Minimal Agentization Task
+
+- 实现约束：
+  - route decision 保持独立收口
+  - external-source adapter 保持独立收口
+  - route-specific execution 保持独立收口
+  - 新增逻辑优先降低耦合，不把更多分支继续堆进单一大方法
+- 目标：在现有 RAG 主链路上补一个最小 agent 化能力，让系统从“固定单路径问答”升级到“先决策、再执行”的 AI 应用。
+- 推荐首个增量：
+  - `knowledge-base ask`：问题命中知识库问答路径时，继续走现有 retrieval + answering
+  - `external-source route`：问题更适合走现有 external-source family 时，切到现有 `web page` / `feed` / `sitemap` 能力或其受限变体
+  - `deterministic policy reply`：系统策略类、能力边界类问题直接走确定性回复，避免无意义检索
+- 最小完成标准：
+  - ask 入口前存在一个轻量 route decision
+  - route decision 会显式影响后续处理链路
+  - trace / metadata 能看到本次 route decision
+  - 至少补一条 focused test 锁定该行为
+- 约束：
+  - 优先规则路由或轻量分类，不引入复杂 planner
+  - 优先复用现有模块，不新开平行架构
+  - 保持默认用户主路径不被打散
 
 ## Validation Baseline
 

@@ -56,6 +56,17 @@ Implications:
 - Prefer the smallest change that closes the next meaningful gap.
 - When requirements are unclear, narrow to the next concrete increment instead of expanding scope.
 
+## Design Rule
+
+Treat high cohesion and low coupling as a repository-level default, not a nice-to-have.
+
+- prefer modules and functions with one clear responsibility
+- keep routing, orchestration, source fetching, persistence, and formatting concerns separated
+- do not keep expanding a single service method when the logic can be extracted into a small local helper
+- prefer reusing existing contracts and modules over creating cross-cutting shortcuts between subsystems
+- when adding a new increment, first ask whether the change increases local cohesion and reduces outward coupling
+- if a change must temporarily increase coupling, keep it explicit, narrow, and scheduled for follow-up reduction
+
 ## Scope Control
 
 By default:

@@ -272,6 +272,157 @@ test('AskAssistantService exposes a dedicated stream orchestration path with pro
   assert.equal(typeof events[5].data.timingReadabilitySentence, 'string');
 });
 
+test('AskAssistantService stream uses deterministic policy route for policy questions', async () => {
+  const events = [];
+  const retrievalCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        throw new Error('policy route should not call retrieval');
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-policy-stream-1' }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Explain your assistant policy for unsupported answers.',
+    onEvent: (event) => {
+      events.push(event);
+    }
+  });
+
+  assert.equal(retrievalCalls.length, 0);
+  assert.equal(result.routeType, 'policy_reply');
+  assert.equal(result.routeReason, 'policy_question');
+  assert.deepEqual(
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'final'
+    ]
+  );
+  assert.equal(events[3].delta, result.answer);
+  assert.equal(events[4].data.routeType, 'policy_reply');
+  assert.equal(
+    events[4].data.retrievalMetadata.routeDecision.routeReason,
+    'policy_question'
+  );
+});
+
+test('AskAssistantService stream uses external-source route for explicit URLs', async () => {
+  const events = [];
+  const retrievalCalls = [];
+  const webFetchCalls = [];
+
+  const service = createAskAssistantService({
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        throw new Error('external source route should not call retrieval');
+      }
+    },
+    webPage: {
+      fetchWebPage: async (url) => {
+        webFetchCalls.push(url);
+        return {
+          title: 'Example source',
+          content:
+            'External source content says the marker is on the landing page.',
+          diagnostics: null
+        };
+      }
+    },
+    answering: {
+      generateAnswer: async (input) => ({
+        answer: 'The marker is on the landing page.',
+        citations: [],
+        retrievedChunks: input.chunks,
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: 'answer.v3',
+          usedFallback: false,
+          answerPolicy: input.answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: 1,
+          promptContextCount: 1,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'test-model',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'Answer is grounded in cited sources with no reported gaps.'
+        }
+      })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-external-stream-1' }),
+      updateTrace: async () => ({})
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'Summarize https://example.com/article for me.',
+    onEvent: (event) => {
+      events.push(event);
+    }
+  });
+
+  assert.equal(retrievalCalls.length, 0);
+  assert.deepEqual(webFetchCalls, ['https://example.com/article']);
+  assert.equal(result.routeType, 'external_source');
+  assert.equal(result.routeReason, 'explicit_source_url');
+  assert.deepEqual(
+    events.map((event) =>
+      event.type === 'status' ? `${event.type}:${event.phase}` : event.type
+    ),
+    [
+      'status:started',
+      'status:retrieving',
+      'status:generating',
+      'answer_delta',
+      'final'
+    ]
+  );
+  assert.equal(events[3].delta, 'The marker is on the landing page.');
+  assert.equal(events[4].data.routeType, 'external_source');
+  assert.equal(events[4].data.retrievalMetadata.externalSource.kind, 'web');
+  assert.equal(
+    events[4].data.retrievalMetadata.routeDecision.routeReason,
+    'explicit_source_url'
+  );
+});
+
 test('AskAssistantService stream still emits a consistent final payload when provider returns without deltas', async () => {
   const events = [];
 

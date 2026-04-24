@@ -38,6 +38,19 @@ const TRACE_ANSWER_STATUS_SOURCE_VALUES = new Set<
   NonNullable<TraceSummary['answerStatusSource']>
 >(['model', 'inferred_from_retrieval', 'deterministic_policy']);
 
+const TRACE_ROUTE_TYPE_VALUES = new Set<NonNullable<TraceSummary['routeType']>>(
+  ['knowledge_base', 'policy_reply', 'external_source']
+);
+
+const TRACE_ROUTE_REASON_VALUES = new Set<
+  NonNullable<TraceSummary['routeReason']>
+>([
+  'default_kb_ask',
+  'policy_question',
+  'explicit_source_url',
+  'explicit_source_urls'
+]);
+
 @Injectable()
 export class TracesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -123,10 +136,35 @@ export class TracesService {
     scope?: { tenantId: string; userId: string } | null
   ) {
     const normalizedQuery = input.query?.trim() ?? null;
+    const normalizedRouteType = input.routeType ?? null;
+    const normalizedRouteReason = input.routeReason ?? null;
+    const routeFilters = [
+      ...(normalizedRouteType != null
+        ? [
+            {
+              retrievalMetadataJson: {
+                path: ['routeDecision', 'routeType'],
+                equals: normalizedRouteType
+              }
+            }
+          ]
+        : []),
+      ...(normalizedRouteReason != null
+        ? [
+            {
+              retrievalMetadataJson: {
+                path: ['routeDecision', 'routeReason'],
+                equals: normalizedRouteReason
+              }
+            }
+          ]
+        : [])
+    ];
 
     return this.prisma.answerTrace
       .findMany({
         where: {
+          ...(routeFilters.length > 0 ? { AND: routeFilters } : {}),
           ...(scope != null
             ? {
                 conversation: {
@@ -460,6 +498,7 @@ export class TracesService {
     const retrievalExecution = this.readObject(retrievalMetadata?.execution);
     const timingMetadata = this.readObject(retrievalMetadata?.timing);
     const retrievalFailure = this.readObject(retrievalMetadata?.failure);
+    const routeDecision = this.readObject(retrievalMetadata?.routeDecision);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
     const inputChunkCount =
@@ -483,6 +522,8 @@ export class TracesService {
       this.readStringAs<NonNullable<TraceSummary['retrievalMode']>>(
         retrievalMetadata?.retrievalMode
       );
+    const routeType = this.readTraceRouteType(routeDecision?.routeType);
+    const routeReason = this.readTraceRouteReason(routeDecision?.routeReason);
     const strategyRetrievalQuerySource = this.readStringAs<
       NonNullable<TraceSummary['retrievalQuerySource']>
     >(strategySummary?.retrievalQuerySource);
@@ -748,6 +789,8 @@ export class TracesService {
     });
 
     return {
+      routeType,
+      routeReason,
       promptId: this.readString(answeringMetadata?.promptId),
       answerStatus: this.readStringAs<
         NonNullable<TraceSummary['answerStatus']>
@@ -786,6 +829,13 @@ export class TracesService {
         fallbackReason,
         usedFallback: strategyUsedFallback
       },
+      routeDecisionSummary:
+        routeType != null && routeReason != null
+          ? {
+              routeType,
+              routeReason
+            }
+          : null,
       timingSummary,
       timingReadabilitySentence:
         this.buildTimingReadabilitySentence(timingSummary),
@@ -941,6 +991,28 @@ export class TracesService {
         value as NonNullable<TraceSummary['answerStatusSource']>
       )
       ? (value as NonNullable<TraceSummary['answerStatusSource']>)
+      : null;
+  }
+
+  private readTraceRouteType(
+    value: unknown
+  ): NonNullable<TraceSummary['routeType']> | null {
+    return typeof value === 'string' &&
+      TRACE_ROUTE_TYPE_VALUES.has(
+        value as NonNullable<TraceSummary['routeType']>
+      )
+      ? (value as NonNullable<TraceSummary['routeType']>)
+      : null;
+  }
+
+  private readTraceRouteReason(
+    value: unknown
+  ): NonNullable<TraceSummary['routeReason']> | null {
+    return typeof value === 'string' &&
+      TRACE_ROUTE_REASON_VALUES.has(
+        value as NonNullable<TraceSummary['routeReason']>
+      )
+      ? (value as NonNullable<TraceSummary['routeReason']>)
       : null;
   }
 

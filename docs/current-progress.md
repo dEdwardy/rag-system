@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-20
+> 更新时间：2026-04-24
 
 ## Current Snapshot
 
@@ -16,7 +16,78 @@
 - 当前更合适的下一步是：
   - 在已完成区域内继续做 bounded maintenance
   - 继续收紧 canonical default assistant 行为和默认路径文案
-  - 或从新的明确产品波次里选一个最小增量
+  - 并在现有 RAG 主链路上补一个最小 agent 化增量
+
+## Current Chosen Next Increment
+
+- 当前明确选择的下一步不是再开新平台波次，而是补一个最小 agent 化能力。
+- 目标是让 ask 入口从固定单路径处理，升级为“先判断问题类型，再走对应处理链路”。
+- 当前新增了固定实现约束：高内聚、低耦合。后续最小 agent 化实现会把 route decision、source fetch、route-specific orchestration、trace 回写拆开，不继续把分支堆进一个大方法。
+- 当前约束已经明确：
+  - 优先做轻量 route decision / classifier
+  - 优先复用现有 KB ask、external-source family、deterministic reply 能力
+  - 优先把 route decision 写进 trace / metadata
+  - 不扩成 planner、multi-agent、复杂 memory 或自治任务系统
+
+## Recent Landed Increments
+
+- `markdown-link external source recognition` widened the explicit-source branch to handle a more realistic copy/paste pattern
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now extracts URLs from markdown links before falling back to bare URL matching
+  - `apps/api/test/ask-success.test.js` now covers the markdown-link form so a pasted `[title](url)` still routes through external-source instead of default KB ask
+
+- `external-source route precedence regression` now protects the explicit-source branch and the source-family split with focused tests
+  - `apps/api/test/ask-success.test.js` adds a regression that checks sitemap URLs still route to `sitemap` and feed URLs route to `feed`
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now treats sitemap matching more narrowly, so generic `.xml` URLs do not automatically fall into the sitemap branch
+
+- `multi-source external routing` now lets explicit source questions fan out to multiple source URLs instead of collapsing them into one synthetic chunk
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now recognizes multiple markdown links / URLs, fetches them in parallel, and forwards one chunk per fetched source into answering
+  - `apps/api/test/ask-success.test.js` now covers the multi-source path so a single question with two explicit links produces two fetched sources and a two-chunk answer path
+  - `apps/api/src/modules/traces/traces.service.ts` and `packages/shared/src/trace-contracts.ts` already carry the `explicit_source_urls` route reason so multi-source routing stays observable in trace metadata
+  - the external-source path remains intentionally conservative: it only fans out when explicit source URLs are present, so the minimal agentization split stays high cohesion / low coupling
+
+- `structured source labels` now make explicit source inputs more readable without changing the conservative route boundary
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now preserves markdown link text as a source label when present, so route metadata can surface human-readable source names instead of only raw URLs
+  - bare URLs still work as before, so existing copy/paste flows remain compatible
+
+- `trace detail external-source panel` now surfaces the labeled explicit sources directly in the UI
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders an `External sources` section from `retrievalMetadataJson.externalSources`
+  - multi-source and labeled single-source traces are easier to inspect without opening the raw payload block
+
+- `trace list route summary` now exposes the routing decision at the conversation-card level
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows `routeType / routeReason` from `traceSummary.routeDecisionSummary`
+  - external-source traces also show a compact source-chunk count, which makes route behavior visible before entering detail view
+  - the same list view now accepts `routeType` and `routeReason` query params, and the API trace list endpoint honors the same route filters without changing the existing keyword search behavior
+  - the trace list hero now includes explicit route filter buttons, so the route decision can be narrowed without manually editing the URL
+  - `apps/web/src/pages/reports/ReportCenterPage.tsx` now adds a small route-view shortcut block that jumps directly to the filtered trace list for knowledge-base, policy-reply, or external-source routes
+  - `apps/web/src/pages/reports/ReportResultsTable.tsx` now includes the same route-view shortcuts in the results toolbar so route inspection stays close to the per-row review flow
+  - the repeated route shortcut buttons are now centralized in `apps/web/src/pages/reports/ReportRouteViewShortcuts.tsx` so both report surfaces stay coupled to the same small navigation widget instead of duplicating the link set
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now reuses the same route shortcut widget, so the trace list and report surfaces stay aligned on a single small navigation entry point
+  - `apps/web/src/pages/traces/TraceRouteFilterPanel.tsx` now bundles the trace-page route filter hint with the shared navigation widget, keeping the trace list hero focused while preserving the same route controls
+  - the trace filter panel now includes a clear-filters action so route-specific trace views can fall back to the full list without manual URL edits
+  - the trace filter panel now also surfaces the active route type / reason as badges, making the current trace-view context readable at a glance
+
+- `route metadata base extraction` further reduced duplication inside the minimal agentization path by centralizing the shared non-KB metadata scaffold
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `buildRouteMetadataBase(...)` helper for the common `queryRewrite / strategySummary / execution` scaffold
+  - `buildPolicyRouteMetadata(...)` and `buildExternalSourceRouteMetadata(...)` now stay focused on their route-specific payloads instead of re-declaring the same base shape
+
+- `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
+  - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
+
+- `route-result payload extraction` further reduced coupling inside the minimal agentization path by centralizing policy/external route result assembly
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `buildRouteResultPayload(...)` helper to assemble route result output for the non-KB paths instead of repeating the payload shape in each handler
+  - the route handlers still stay separate, so the split remains high cohesion / low coupling rather than collapsing into another oversized orchestration block
+
+- `minimal agentization route split` 已落地第一版 ask 路由分流，并按高内聚、低耦合约束收口
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` 现在会先做 route decision，再在 `knowledge_base / policy_reply / external_source` 三条路径之间分流
+  - `policy_reply` 继续保留为系统策略类问题的确定性回复路径
+  - `external_source` 第一版只覆盖“问题中包含显式 URL”的保守场景，并复用现有 `web page / feed / sitemap` source family 能力，而不是引入自治抓取
+  - route decision 已写入 trace metadata，并进入 trace summary 契约
+  - focused validation:
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `pnpm test:api:file -- test/ask-stream-service.test.js`
+    - `pnpm test:api:file -- test/traces.service.test.js`
+    - `pnpm check:encoding`
 
 ## Recent Landed Increments
 
@@ -527,3 +598,44 @@
 - Follow-up posture remains bounded:
   - answer quality is now good enough to leave main-wave status and move into maintenance
   - the next best retrieval investments are replayable smoke checks and light adaptive retrieval, not globally larger defaults or broad chunking rewrites
+
+## Route View Helper Extraction
+
+- `route view shortcut helper extraction` now centralizes the shared route labels and trace-list links for the report and trace surfaces
+  - `apps/web/src/pages/reports/route-view-helpers.ts` now owns the shared route target type, button labels, and `/traces?routeType=...` link builder
+  - `apps/web/src/pages/reports/ReportRouteViewShortcuts.tsx` now consumes the shared helper instead of re-declaring its own route mapping
+  - `apps/web/src/pages/traces/TraceRouteFilterPanel.tsx` now reuses the same shared labels for the active route badges, so the trace filter panel and report shortcuts stay coupled to one small navigation contract
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `trace route filter helper extraction` now centralizes the trace-list route matching and active-filter summary
+  - `apps/web/src/pages/traces/trace-route-helpers.ts` now owns the route-matching predicate plus the active-filter summary formatter
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now delegates its route filtering to the shared helper instead of re-declaring the same predicate inline
+  - `apps/web/src/pages/traces/TraceRouteFilterPanel.tsx` now uses the same helper for the current filter summary, keeping the trace route UI coherent around one small contract
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `external-source readable label fallback` now gives bare URLs a stable display title inside the external-source route
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives a readable fallback label from the URL host/path when the source has no explicit title
+  - external-source combined content, diagnostics, and per-source chunks now carry that readable label instead of only raw URLs
+  - `apps/api/test/ask-success.test.js` now covers the bare-URL path so a source without a fetched title still gets a deterministic document title in the route flow
+  - focused validation:
+    - `pnpm test:api:file -- test/ask-success.test.js`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `report route navigation improvement` now adds a direct return path from the shared route shortcuts back to the full trace list
+  - `apps/web/src/pages/reports/route-view-helpers.ts` now includes `buildAllTracesLink()` alongside the route-specific helpers
+  - `apps/web/src/pages/reports/ReportRouteViewShortcuts.tsx` now shows an explicit `All traces` / `全部 trace` button before the three route-specific shortcuts, so report users can jump back to the unfiltered trace list without leaving the shared navigation block
+  - focused validation:
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `trace detail route decision readability` now shows the route decision as a visible badge plus reason in the diagnostic sidebar
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders route type as a badge and route reason as a separate explanation block inside the diagnostic metadata card
+  - this makes the agent-like decision path easier to scan at a glance without opening the raw payload
