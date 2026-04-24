@@ -19,6 +19,10 @@ function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
         route: '路由',
         mode: '模式',
         tools: '工具',
+        routeExamples: '知识库 / 策略回复 / 外部来源',
+        modeExamples: 'manual / workflow',
+        toolExamples:
+          'knowledge base search / external source fetch / policy reply',
         defaultPrimaryLabel: '打开 trace'
       }
     : {
@@ -28,6 +32,10 @@ function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
         route: 'Route',
         mode: 'Mode',
         tools: 'Tools',
+        routeExamples: 'knowledge base / policy reply / external source',
+        modeExamples: 'manual / workflow',
+        toolExamples:
+          'knowledge base search / external source fetch / policy reply',
         defaultPrimaryLabel: 'Open trace'
       };
 }
@@ -51,12 +59,21 @@ export function AgentSurfaceEntry({
         <Badge color="indigo" radius="sm" variant="light">
           {copy.route}
         </Badge>
+        <Text className="workspace-table-hint" size="xs">
+          {copy.routeExamples}
+        </Text>
         <Badge color="gray" radius="sm" variant="light">
           {copy.mode}
         </Badge>
+        <Text className="workspace-table-hint" size="xs">
+          {copy.modeExamples}
+        </Text>
         <Badge color="cyan" radius="sm" variant="light">
           {copy.tools}
         </Badge>
+        <Text className="workspace-table-hint" size="xs">
+          {copy.toolExamples}
+        </Text>
         <Button
           className="workspace-button"
           color="gray"
@@ -83,12 +100,21 @@ export function AgentSurfaceEntry({
           <Badge color="indigo" radius="sm" variant="light">
             {copy.route}
           </Badge>
+          <Text c="var(--app-text-muted)" size="xs">
+            {copy.routeExamples}
+          </Text>
           <Badge color="gray" radius="sm" variant="light">
             {copy.mode}
           </Badge>
+          <Text c="var(--app-text-muted)" size="xs">
+            {copy.modeExamples}
+          </Text>
           <Badge color="cyan" radius="sm" variant="light">
             {copy.tools}
           </Badge>
+          <Text c="var(--app-text-muted)" size="xs">
+            {copy.toolExamples}
+          </Text>
         </Group>
         <div className="flex flex-wrap items-center gap-3">
           <Button

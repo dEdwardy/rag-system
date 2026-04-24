@@ -385,6 +385,11 @@ export function TraceDetailSidebarPanels({
                         ? `原因：${buildRouteReasonLabel(routeDecision.routeReason)}`
                         : `Reason: ${buildRouteReasonLabel(routeDecision.routeReason)}`}
                     </Text>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === 'zh'
+                        ? '演示时优先看这一行，再对照下面的执行模式和工具名。'
+                        : 'For demos, start with this route line and then compare it with the execution mode and tool names below.'}
+                    </Text>
                   </Stack>
                 </div>
               ) : null}

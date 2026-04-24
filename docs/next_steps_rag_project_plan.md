@@ -121,11 +121,11 @@
 ## 3. 建议执行顺序
 
 1. 当前队列已完成最小 route decision、tool/trace contract、bounded multi-step flow，以及默认助手 repair / 默认路径 copy / 默认 ask-path orchestration 的窄范围收口
-2. 先完成当前剩余的 trace detail/readability follow-up，使 route、execution mode、tool names 的展示与现有契约保持一致
+2. 当前最小 agent demo surface 已完成第一轮补位；后续只继续维护 trace / report / chat 上 route、execution mode、tool names 的展示与现有契约一致
 3. 保持 ask route / trace / fallback 的 focused tests 和既有契约稳定，不把这轮补位扩成新平台层
 4. 默认助手 / 主知识库 / retrieval profile 的 canonical 选择继续做 bounded maintenance
 5. 默认路径空态、异常态和 next action 文案继续与 repair/upload-first 行为对齐
-6. 在以上都稳定后，再补最小 agent demo surface，并继续保持文档和代码现实同步
+6. 在以上都稳定后，再考虑下一条最小 agent 能力增量，并继续保持文档和代码现实同步
 
 ## 4. 当前明确不做
 

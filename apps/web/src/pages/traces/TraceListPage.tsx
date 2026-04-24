@@ -27,7 +27,11 @@ import {
 } from '../reports/route-view-helpers';
 import { TraceRouteFilterPanel } from './TraceRouteFilterPanel';
 import { matchesTraceRouteFilter } from './trace-route-helpers';
-import { buildTraceExecutionToolNamesLabel } from '@rag-system/shared';
+import {
+  buildTraceExecutionModeReadabilityLabel,
+  buildTraceExecutionToolLabel,
+  buildTraceExecutionToolNamesLabel
+} from '@rag-system/shared';
 
 const TRACE_PAGE_SIZE = 12;
 
@@ -72,6 +76,12 @@ function TraceConversationCard({
         routeDecision.routeReason
       )
     : null;
+  const executionModeLabel =
+    traceSummary.executionModeReadabilityLabel ||
+    buildTraceExecutionModeReadabilityLabel(executionMode);
+  const executionToolDetailLabel = executionToolNames
+    .map((toolName) => buildTraceExecutionToolLabel(toolName) ?? toolName)
+    .join(' + ');
   const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
   const rewriteNotAppliedLabel = locale === 'zh' ? '未改写' : 'No rewrite';
   const rewriteLabel = !looksLikeUntranslatedKey(
@@ -236,7 +246,7 @@ function TraceConversationCard({
                   radius="sm"
                   variant="light"
                 >
-                  {executionMode ?? 'manual'}
+                  {executionModeLabel}
                 </Badge>
                 <Text span>{executionSteps.length}</Text>
               </Group>
@@ -251,6 +261,14 @@ function TraceConversationCard({
                 <Badge color="cyan" radius="sm" variant="light">
                   {buildTraceExecutionToolNamesLabel(executionToolNames)}
                 </Badge>
+                <Text
+                  c="var(--app-text-muted)"
+                  component="span"
+                  ml={8}
+                  size="xs"
+                >
+                  {executionToolDetailLabel}
+                </Text>
               </span>
             </div>
           ) : null}

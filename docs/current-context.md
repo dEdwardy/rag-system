@@ -47,6 +47,7 @@
 - `high cohesion / low coupling`：当前阶段把高内聚、低耦合作为硬约束；route classifier、source fetch、answer orchestration、trace persistence 不继续堆进同一块实现。
 - `bounded maintenance`：在已完成的默认主路径上继续收紧边界一致性，而不是开启新产品波次。
 - `minimal agentization increment`：在 ask 入口前补一个最小决策层，让系统能先判断问题类型，再决定走哪条现有处理路径。
+- `agent-facing demo readability`：Trace / Report / Chat 现已补上最小 agent 视角入口，能直接看清 route、execution mode 和 tool names，但仍保持为 UI 补位而不是平台层。
 - `single primary KB clarity`：保持单主知识库语义清晰，上传后状态和 next action 更直接。
 - `canonical default assistant selection`：维持默认助手的确定性优先级和 repair 行为，避免同库重复数据造成歧义。
 - `focused validation`：优先补与默认主路径直接相关的 focused tests 和回归保护。
@@ -54,11 +55,11 @@
 
 ## Execution Order
 
-1. 当前队列里的最小 agent 化主干已落地；优先处理剩余的 trace/detail 可读性补位与 docs 同步。
-2. 在不改主路径契约的前提下，完成 trace surfaces 上对 route / execution mode / tool names 的收口。
+1. 当前队列里的最小 agent 化主干和最小 demo surface 已落地；优先保持 trace/detail/readability 与 docs 同步。
+2. 在不改主路径契约的前提下，继续维护 trace surfaces 上 route / execution mode / tool names 的可读性。
 3. 保持默认助手 / 主知识库 / retrieval profile 的 canonical 选择与 repair 语义稳定。
 4. 保持默认路径的状态反馈、next action 文案和当前 repair/upload-first 行为一致。
-5. 在前述收口稳定后，再补最小 agent demo surface，而不是扩成 planner 或 multi-agent。
+5. 后续若再补 agent 能力，优先沿现有 UI 入口继续小步增加，而不是扩成 planner 或 multi-agent。
 6. 持续保持 docs、阶段判断和活动队列现实对齐。
 
 ## Do Not Do

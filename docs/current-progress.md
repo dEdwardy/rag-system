@@ -93,6 +93,13 @@
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now shows the total step count alongside the `manual / workflow` execution-mode badge
   - this keeps the agentic execution shape readable at a glance before drilling into each step row
 
+- `agent-facing surface and docs follow-up` added the smallest shared demo readout across chat, reports, and traces
+  - `apps/web/src/pages/reports/AgentSurfaceEntry.tsx` now spells out the concrete route examples, execution modes, and tool-name examples instead of only showing generic badges
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now uses the canonical execution-mode readability label and shows human-readable tool names next to the compact tool badge on each trace card
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now adds a short demo-oriented hint that explicitly ties route, mode, and tools together in the detail sidebar
+  - focused validation:
+    - `pnpm --filter @rag-system/web run test:vitest:file test/trace-summary-contract.test.js`
+
 - `execution mode summary contract` promoted the execution mode into the shared trace summary so every consumer can read one canonical field
   - `packages/shared/src/trace-contracts.ts` now includes `executionMode` and its readability fields on `TraceSummary`
   - `apps/api/src/modules/traces/traces.service.ts` now derives the execution mode from the execution plan once and exposes it through the summary contract
