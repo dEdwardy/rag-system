@@ -221,6 +221,18 @@ function buildExecutionStepTone(status: string) {
   return 'gray';
 }
 
+function buildExecutionModeTone(mode: string | null | undefined) {
+  if (mode === 'workflow') {
+    return 'blue';
+  }
+
+  if (mode === 'manual') {
+    return 'gray';
+  }
+
+  return 'gray';
+}
+
 export function TraceDetailSidebarPanels({
   formatDateTime,
   hasRewrite,
@@ -232,6 +244,7 @@ export function TraceDetailSidebarPanels({
   const timingItems = buildTimingItems(trace, locale);
   const timingBottleneck = buildTimingBottleneck(trace, locale);
   const routeDecision = trace.traceSummary?.routeDecisionSummary ?? null;
+  const executionPlan = trace.traceSummary?.executionPlan ?? null;
   const executionSteps = trace.traceSummary?.executionPlan?.steps ?? null;
 
   return (
@@ -325,19 +338,20 @@ export function TraceDetailSidebarPanels({
                         {locale === 'zh' ? '执行步骤' : 'Execution steps'}
                       </Text>
                       <Badge
-                        color={
-                          trace.traceSummary?.executionPlan?.executionMode ===
-                          'workflow'
-                            ? 'blue'
-                            : 'gray'
-                        }
+                        color={buildExecutionModeTone(
+                          executionPlan?.executionMode
+                        )}
                         radius="sm"
                         variant="light"
                       >
-                        {trace.traceSummary?.executionPlan?.executionMode ??
-                          'manual'}
+                        {executionPlan?.executionMode ?? 'manual'}
                       </Badge>
                     </Group>
+                    <Text c="var(--app-text-muted)" size="xs">
+                      {locale === 'zh'
+                        ? `总览：${executionPlan?.steps.length ?? 0} 个步骤`
+                        : `Overview: ${executionPlan?.steps.length ?? 0} step(s)`}
+                    </Text>
                     <Stack gap={6}>
                       {executionSteps.map((step) => (
                         <Group
