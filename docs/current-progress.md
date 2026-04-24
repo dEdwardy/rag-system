@@ -643,3 +643,7 @@
 - `trace list route decision readability` now mirrors the same readable route labels on the conversation cards
   - `apps/web/src/pages/traces/TraceListPage.tsx` now renders the route type as a shared label badge and keeps the route reason visible beside it
   - the list view and the detail view now agree on the same route label contract, which reduces scan-time mismatch between summary and detail
+
+- `trace detail route label reuse` now consumes the shared route label map instead of keeping a separate route-name helper
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now uses the same shared route label contract as the list and report surfaces
+  - the route label contract is now a single small UI mapping, which makes future platform handoff easier because the visible route names stay centralized

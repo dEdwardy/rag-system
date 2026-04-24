@@ -7,6 +7,7 @@ import {
   buildDocumentChunkLink,
   buildRawPayload
 } from './trace-detail-page-helpers';
+import { routeShortcutLabels } from '../reports/route-view-helpers';
 
 type TraceDetailSectionIds = {
   retrievedChunks: string;
@@ -47,22 +48,6 @@ function formatJson(value: unknown) {
 
 function formatTimingValue(value: number | null | undefined) {
   return value == null ? '-' : `${value} ms`;
-}
-
-function getRouteDecisionLabel(routeType: string) {
-  if (routeType === 'knowledge_base') {
-    return 'Knowledge base';
-  }
-
-  if (routeType === 'policy_reply') {
-    return 'Policy reply';
-  }
-
-  if (routeType === 'external_source') {
-    return 'External source';
-  }
-
-  return routeType;
 }
 
 function normalizeExternalSources(value: unknown) {
@@ -299,7 +284,8 @@ export function TraceDetailSidebarPanels({
                         {locale === 'zh' ? '路由决策' : 'Route decision'}
                       </Text>
                       <Badge color="indigo" radius="sm" variant="light">
-                        {getRouteDecisionLabel(routeDecision.routeType)}
+                        {routeShortcutLabels[routeDecision.routeType] ??
+                          routeDecision.routeType}
                       </Badge>
                     </Group>
                     <Text c="var(--app-text-muted)" size="sm">
