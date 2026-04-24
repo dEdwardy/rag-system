@@ -16,14 +16,9 @@ export async function findLatestQueueFile(loopDir) {
     if (!entry.isFile() || !entry.name.endsWith('.queue.json')) continue;
     const filePath = path.join(materializedDir, entry.name);
     try {
-      const raw = await readFile(filePath, 'utf8');
-      const queue = JSON.parse(raw);
-      const ts = queue?.createdAt
-        ? new Date(queue.createdAt).getTime()
-        : (await stat(filePath)).mtimeMs;
-      if (Number.isFinite(ts)) {
-        waveFiles.push({ filePath, ts });
-      }
+      // Keep latest-queue selection tied to file activity rather than queue birth time.
+      const fileStat = await stat(filePath);
+      waveFiles.push({ filePath, ts: fileStat.mtimeMs });
     } catch {
       // skip corrupted or unreadable files
     }
@@ -68,16 +63,8 @@ export function dependenciesSatisfied(queue, item) {
   const deps = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
   if (deps.length === 0) return true;
 
-  const items = queueItems(queue);
   const completedIds = completedItemIds(queue);
-  for (const depId of deps) {
-    if (completedIds.has(depId)) continue;
-    const dep = items.find((d) => d?.id === depId);
-    // Missing or permanently failed deps don't block downstream execution
-    if (!dep || dep.status === 'needs_replan') continue;
-    return false;
-  }
-  return true;
+  return deps.every((dep) => completedIds.has(dep));
 }
 
 export function nextRunnableItem(queue) {

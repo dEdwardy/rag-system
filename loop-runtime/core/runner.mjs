@@ -303,11 +303,8 @@ function successfulNoopFallback(
   ) {
     return false;
   }
-  // Require git evidence: a new commit or a clean worktree to avoid marking a true noop as success
-  return (
-    commitCreatedDuringRun(beforeSnapshot, afterSnapshot) ||
-    (afterSnapshot?.worktreeClean ?? false)
-  );
+  // Finalizer-based noop recovery must still prove a commit happened during the run.
+  return commitCreatedDuringRun(beforeSnapshot, afterSnapshot);
 }
 
 async function heartbeat() {
@@ -362,7 +359,7 @@ async function heartbeat() {
   await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);
 }
 
-function buildExecutionPrompt(queue, item, queueFileName) {
+function buildExecutionPrompt(item, queueFileName) {
   const validation =
     Array.isArray(item?.verification?.commands) &&
     item.verification.commands.length > 0
@@ -372,24 +369,10 @@ function buildExecutionPrompt(queue, item, queueFileName) {
     Array.isArray(item?.dependsOn) && item.dependsOn.length > 0
       ? item.dependsOn.join(', ')
       : 'none';
-  const failedDeps = (Array.isArray(item?.dependsOn) ? item.dependsOn : [])
-    .map((id) => queueItems(queue).find((i) => i?.id === id))
-    .filter((dep) => dep?.status === 'needs_replan')
-    .map((dep) => `${dep.id} (${dep.failureReason ?? 'unknown'})`)
-    .join(', ');
 
-  const lines = [
+  return [
     `You are executing queue item ${item.id} from ${queueFileName}.`,
-    `Upstream dependencies that must already be satisfied: ${deps}.`
-  ];
-
-  if (failedDeps) {
-    lines.push(
-      `Warning: the following upstream dependencies failed and were skipped — work around them if possible: ${failedDeps}.`
-    );
-  }
-
-  lines.push(
+    `Upstream dependencies that must already be satisfied: ${deps}.`,
     '',
     item.promptText,
     '',
@@ -400,9 +383,7 @@ function buildExecutionPrompt(queue, item, queueFileName) {
     '- If validation fails or you cannot complete the item, stop and report the blocker clearly.',
     '- End with exactly one machine-readable line in this format:',
     `QUEUE_RESULT status=<completed|needs_replan> item=${item.id} validation=${validation} changed_files=<comma-separated-or-none> commit=<hash-or-none>`
-  );
-
-  return lines.join('\n');
+  ].join('\n');
 }
 
 function buildContinuationPrompt(item, queueFileName) {
@@ -452,7 +433,7 @@ function buildSessionTitle(queue, item) {
 async function runOpencode(queue, item, queueFileName, sessionId) {
   const prompt = sessionId
     ? buildContinuationPrompt(item, queueFileName)
-    : buildExecutionPrompt(queue, item, queueFileName);
+    : buildExecutionPrompt(item, queueFileName);
   const result = await runExecutionPrompt({
     backend: executionBackend,
     prompt,
