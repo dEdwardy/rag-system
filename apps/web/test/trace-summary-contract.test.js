@@ -49,6 +49,10 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     traceSummaryBody,
+    /executionToolNamesReadabilitySentence:\s*string;/
+  );
+  assert.match(
+    traceSummaryBody,
     /missingInformationProvenanceSentence:\s*string;/
   );
 
@@ -94,6 +98,10 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(
     sharedSource,
     /export const TRACE_EXECUTION_TOOL_NAMES = \[[\s\S]*?'knowledge_base_search',[\s\S]*?'external_source_fetch',[\s\S]*?'policy_reply'[\s\S]*?\] as const satisfies TraceExecutionToolName\[\];/
+  );
+  assert.match(
+    sharedSource,
+    /return TRACE_EXECUTION_TOOL_NAMES\.filter\(\(toolName\) =>[\s\S]*?toolNames\.has\(toolName\)[\s\S]*?\);/
   );
   assert.match(sharedSource, /timingSummary:\s*TraceTimingSummary;/);
   assert.match(sharedSource, /timingReadabilitySentence:\s*string;/);
@@ -181,6 +189,10 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(
     sharedSource,
     /answerStatusSourceReadabilitySentence:\s*string;/
+  );
+  assert.match(
+    sharedSource,
+    /executionToolNamesReadabilitySentence:\s*string;/
   );
   assert.match(
     sharedSource,

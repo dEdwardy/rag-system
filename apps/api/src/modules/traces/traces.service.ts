@@ -707,6 +707,10 @@ export class TracesService {
         : `Execution mode is ${executionModeReadabilityLabel}.`;
     const executionToolNamesReadabilityLabel =
       buildTraceExecutionToolNamesLabel(executionToolNames);
+    const executionToolNamesReadabilitySentence =
+      executionToolNames.length === 0
+        ? 'Execution tool names are unavailable.'
+        : `Execution tool names are ${executionToolNamesReadabilityLabel}.`;
     const {
       answerTextSourceReadabilityLabel,
       answerTextSourceReadabilitySentence,
@@ -865,6 +869,7 @@ export class TracesService {
       executionModeReadabilitySentence,
       executionToolNames,
       executionToolNamesReadabilityLabel,
+      executionToolNamesReadabilitySentence,
       timingSummary,
       timingReadabilitySentence:
         this.buildTimingReadabilitySentence(timingSummary),

@@ -324,7 +324,10 @@ export function buildTraceExecutionPlan(input: {
   }
 
   return {
-    executionMode: 'manual',
+    executionMode:
+      input.knowledgeBaseMultiStep?.retrievalPasses === 2
+        ? 'workflow'
+        : 'manual',
     steps:
       input.knowledgeBaseMultiStep?.retrievalPasses === 2
         ? [
@@ -391,7 +394,9 @@ export function collectTraceExecutionToolNames(
     }
   }
 
-  return Array.from(toolNames);
+  return TRACE_EXECUTION_TOOL_NAMES.filter((toolName) =>
+    toolNames.has(toolName)
+  );
 }
 
 export function buildTraceExecutionToolNamesLabel(
@@ -432,6 +437,7 @@ export type TraceSummary = {
   executionModeReadabilitySentence: string;
   executionToolNames: TraceExecutionToolName[];
   executionToolNamesReadabilityLabel: string;
+  executionToolNamesReadabilitySentence: string;
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
   qualityOverall: TraceQualityOverall | null;

@@ -936,6 +936,10 @@ test('AskAssistantService runs bounded second retrieval pass for rewritten KB as
       'answer_generation'
     ]
   );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.executionPlan.executionMode,
+    'workflow'
+  );
 });
 
 test('AskAssistantService uses request auth context identity when creating a new conversation', async () => {
