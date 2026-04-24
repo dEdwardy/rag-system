@@ -2023,12 +2023,7 @@ export class AskAssistantService {
     content: string;
   }): AskResultChunk {
     const sourceLabel =
-      input.sourceTitle ??
-      (input.sourceKind === 'web'
-        ? 'External web page'
-        : input.sourceKind === 'feed'
-          ? 'External feed'
-          : 'External sitemap');
+      input.sourceTitle ?? this.buildExternalSourceKindLabel(input.sourceKind);
 
     return {
       chunkId: `external:${input.sourceKind}:${input.sourceUrl}`,
@@ -2056,12 +2051,23 @@ export class AskAssistantService {
       const readableTail = tail || (sourceKind === 'web' ? 'page' : sourceKind);
       return `${host}/${readableTail}`;
     } catch {
-      return sourceKind === 'web'
-        ? 'external web page'
-        : sourceKind === 'feed'
-          ? 'external feed'
-          : 'external sitemap';
+      return this.buildExternalSourceKindLabel(sourceKind, true);
     }
+  }
+
+  private buildExternalSourceKindLabel(
+    sourceKind: ResolvedExternalSourceRoute['sourceKind'],
+    lowercase = false
+  ) {
+    if (sourceKind === 'web') {
+      return lowercase ? 'external web page' : 'External web page';
+    }
+
+    if (sourceKind === 'feed') {
+      return lowercase ? 'external feed' : 'External feed';
+    }
+
+    return lowercase ? 'external sitemap' : 'External sitemap';
   }
 
   private buildExternalSourceTitle(input: {

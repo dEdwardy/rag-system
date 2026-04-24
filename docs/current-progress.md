@@ -111,6 +111,10 @@
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one small helper to normalize external-source step titles and trace labels
   - this keeps the multi-source path easier to read while preserving the same route and trace behavior
 
+- `external source kind label helper` consolidated the remaining web/feed/sitemap fallback labels into one place
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses a tiny `buildExternalSourceKindLabel(...)` helper for source-kind fallback names
+  - the external-source chunk/title path stays functionally the same but is less repetitive and easier to extend
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
