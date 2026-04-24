@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
-import type { TraceSummary } from '@rag-system/shared';
+import type { TraceExecutionPlan, TraceSummary } from '@rag-system/shared';
 import { PrismaService } from '../../infra/database/prisma.service';
 import {
   buildAnswerEvidenceSourceReadabilityLabel,
@@ -499,6 +499,9 @@ export class TracesService {
     const timingMetadata = this.readObject(retrievalMetadata?.timing);
     const retrievalFailure = this.readObject(retrievalMetadata?.failure);
     const routeDecision = this.readObject(retrievalMetadata?.routeDecision);
+    const executionPlan = this.readTraceExecutionPlan(
+      retrievalMetadata?.executionPlan
+    );
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
     const inputChunkCount =
@@ -836,6 +839,7 @@ export class TracesService {
               routeReason
             }
           : null,
+      executionPlan,
       timingSummary,
       timingReadabilitySentence:
         this.buildTimingReadabilitySentence(timingSummary),
@@ -1014,6 +1018,78 @@ export class TracesService {
       )
       ? (value as NonNullable<TraceSummary['routeReason']>)
       : null;
+  }
+
+  private readTraceExecutionPlan(
+    value: unknown
+  ): TraceSummary['executionPlan'] {
+    const plan = this.readObject(value);
+    if (plan == null) {
+      return null;
+    }
+
+    const steps = Array.isArray(plan.steps)
+      ? plan.steps
+          .map((step) => {
+            const stepObject = this.readObject(step);
+            if (stepObject == null) {
+              return null;
+            }
+
+            const id = this.readString(stepObject.id);
+            const key = this.readString(stepObject.key);
+            const kind = this.readString(stepObject.kind);
+            const status = this.readString(stepObject.status);
+            const label = this.readString(stepObject.label);
+            if (
+              id == null ||
+              key == null ||
+              label == null ||
+              (kind !== 'route_decision' &&
+                kind !== 'retrieval' &&
+                kind !== 'source_fetch' &&
+                kind !== 'answer_generation' &&
+                kind !== 'deterministic_reply') ||
+              (status !== 'pending' &&
+                status !== 'running' &&
+                status !== 'completed' &&
+                status !== 'failed')
+            ) {
+              return null;
+            }
+
+            return {
+              key,
+              id,
+              kind,
+              status,
+              label,
+              detail: this.readString(stepObject.detail),
+              durationMs: this.readNumber(stepObject.durationMs)
+            };
+          })
+          .filter(
+            (
+              step
+            ): step is NonNullable<
+              TraceSummary['executionPlan']
+            >['steps'][number] => step != null
+          )
+      : [];
+
+    if (steps.length === 0) {
+      return null;
+    }
+
+    const executionMode =
+      plan.executionMode === 'manual' || plan.executionMode === 'workflow'
+        ? plan.executionMode
+        : 'manual';
+
+    return {
+      executionMode,
+      steps
+    };
   }
 
   private buildTimingReadabilitySentence(

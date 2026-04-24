@@ -41,6 +41,7 @@ import {
   buildRetrievalModeProvenanceSentence,
   buildStrategyReadabilityLabel
 } from '../retrieval/strategy-readability';
+import { buildTraceExecutionPlan } from '@rag-system/shared';
 import {
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -1851,6 +1852,10 @@ export class AskAssistantService {
   }): AskRetrievalMetadataJson {
     return {
       routeDecision: input.routeDecision,
+      executionPlan: buildTraceExecutionPlan({
+        routeType: input.routeDecision.routeType,
+        routeReason: input.routeDecision.routeReason
+      }),
       ...this.buildRouteMetadataBase({
         question: input.question,
         retrievedChunkCount: 0,
@@ -1883,6 +1888,14 @@ export class AskAssistantService {
         title: input.sourceTitle,
         diagnostics: input.diagnostics ?? null
       },
+      executionPlan: buildTraceExecutionPlan({
+        routeType: input.routeDecision.routeType,
+        routeReason: input.routeDecision.routeReason,
+        sourceCount:
+          input.externalSources != null && input.externalSources.length > 0
+            ? input.externalSources.length
+            : 1
+      }),
       ...(input.externalSources != null
         ? {
             externalSources: input.externalSources
@@ -3521,6 +3534,11 @@ export class AskAssistantService {
       strategy: input.strategy,
       filters: input.filters ?? null,
       routeDecision: input.routeDecision,
+      executionPlan: buildTraceExecutionPlan({
+        routeType: input.routeDecision.routeType,
+        routeReason: input.routeDecision.routeReason,
+        sourceCount: input.retrievedChunks.length
+      }),
       promptContextChars: input.promptContextChars,
       promptContextApproxTokens: input.promptContextApproxTokens,
       primaryChunkScoreAvg,

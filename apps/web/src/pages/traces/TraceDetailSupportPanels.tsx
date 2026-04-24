@@ -205,6 +205,22 @@ function buildTimingItems(trace: TraceRecord, locale: SupportedLocale) {
   ];
 }
 
+function buildExecutionStepTone(status: string) {
+  if (status === 'completed') {
+    return 'green';
+  }
+
+  if (status === 'failed') {
+    return 'red';
+  }
+
+  if (status === 'running') {
+    return 'blue';
+  }
+
+  return 'gray';
+}
+
 export function TraceDetailSidebarPanels({
   formatDateTime,
   hasRewrite,
@@ -216,6 +232,7 @@ export function TraceDetailSidebarPanels({
   const timingItems = buildTimingItems(trace, locale);
   const timingBottleneck = buildTimingBottleneck(trace, locale);
   const routeDecision = trace.traceSummary?.routeDecisionSummary ?? null;
+  const executionSteps = trace.traceSummary?.executionPlan?.steps ?? null;
 
   return (
     <div className="workspace-page-side-stack">
@@ -293,6 +310,47 @@ export function TraceDetailSidebarPanels({
                         ? `Reason: ${routeDecision.routeReason}`
                         : `Reason: ${routeDecision.routeReason}`}
                     </Text>
+                  </Stack>
+                </div>
+              ) : null}
+              {executionSteps && executionSteps.length > 0 ? (
+                <div className="workspace-content-block">
+                  <Stack gap={8}>
+                    <Text className="workspace-section-copy" fw={600} size="sm">
+                      {locale === 'zh' ? '执行步骤' : 'Execution steps'}
+                    </Text>
+                    <Stack gap={6}>
+                      {executionSteps.map((step) => (
+                        <Group
+                          key={step.key}
+                          align="flex-start"
+                          gap="xs"
+                          wrap="nowrap"
+                        >
+                          <Badge
+                            color={buildExecutionStepTone(step.status)}
+                            radius="sm"
+                            variant="light"
+                          >
+                            {step.status}
+                          </Badge>
+                          <Stack gap={2}>
+                            <Text c="var(--app-text)" size="sm" fw={600}>
+                              {step.label}
+                            </Text>
+                            <Text c="var(--app-text-muted)" size="xs">
+                              {step.detail ??
+                                (locale === 'zh'
+                                  ? '无补充说明'
+                                  : 'No extra detail')}
+                              {step.durationMs != null
+                                ? ` · ${step.durationMs} ms`
+                                : ''}
+                            </Text>
+                          </Stack>
+                        </Group>
+                      ))}
+                    </Stack>
                   </Stack>
                 </div>
               ) : null}

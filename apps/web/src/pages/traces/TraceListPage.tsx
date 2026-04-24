@@ -57,6 +57,7 @@ function TraceConversationCard({
   const { formatDateTime, locale, t } = useI18n();
   const traceSummary = latestTrace.traceSummary;
   const routeDecision = traceSummary.routeDecisionSummary;
+  const executionSteps = traceSummary.executionPlan?.steps ?? null;
   const timing = traceSummary.timingSummary;
   const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
   const rewriteNotAppliedLabel = locale === 'zh' ? '未改写' : 'No rewrite';
@@ -204,6 +205,16 @@ function TraceConversationCard({
               </span>
             )}
           </div>
+          {executionSteps && executionSteps.length > 0 ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? '执行步骤' : 'Execution steps'}
+              </span>
+              <span className="workspace-meta-value">
+                {executionSteps.length}
+              </span>
+            </div>
+          ) : null}
           {routeDecision?.routeType === 'external_source' ? (
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">

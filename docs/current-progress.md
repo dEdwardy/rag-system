@@ -647,3 +647,27 @@
 - `trace detail route label reuse` now consumes the shared route label map instead of keeping a separate route-name helper
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now uses the same shared route label contract as the list and report surfaces
   - the route label contract is now a single small UI mapping, which makes future platform handoff easier because the visible route names stay centralized
+
+- `trace execution plan contract` now exposes a small execution-plan shape that can carry future multi-step agent flows without changing current behavior
+  - `packages/shared/src/trace-contracts.ts` now keeps `TraceExecutionPlan` as the shared contract for future step-by-step summaries
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` and `apps/web/src/pages/traces/TraceListPage.tsx` now render the plan only when it is present, so current traces stay unchanged
+  - `apps/api/src/modules/traces/traces.service.ts` now keeps the summary contract aligned by explicitly carrying `executionPlan` in the returned `TraceSummary`
+
+- `step contract abstraction` now records a small execution plan alongside the existing route decision metadata
+  - `packages/shared/src/trace-contracts.ts` now exports `TraceExecutionPlan` and `TraceExecutionStep` plus a tiny `buildTraceExecutionPlan(...)` helper
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now writes the execution plan into retrieval metadata for knowledge-base, policy, and external-source paths
+  - `apps/api/src/modules/traces/traces.service.ts` now reads the execution plan back into `TraceSummary`, so the trace contract has a stable place for future multi-step / workflow handoff
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`
+
+- `trace step plan preview` now shows the execution plan in the trace list and detail surfaces
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows the number of execution steps on each conversation card
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders the execution steps with status badges and labels
+  - the route/step contract now stays visible from summary to detail, which makes the current manual flow easier to compare with a future workflow engine
+  - focused validation:
+    - `pnpm --filter @rag-system/api typecheck`
+    - `pnpm --filter @rag-system/web typecheck`
+    - `pnpm check:encoding`
+    - `git diff --check`

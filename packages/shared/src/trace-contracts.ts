@@ -22,6 +22,34 @@ export type TraceRouteReason =
   | 'explicit_source_url'
   | 'explicit_source_urls';
 
+export type TraceExecutionStepKind =
+  | 'route_decision'
+  | 'retrieval'
+  | 'source_fetch'
+  | 'answer_generation'
+  | 'deterministic_reply';
+
+export type TraceExecutionStepStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed';
+
+export type TraceExecutionStep = {
+  key: string;
+  id: string;
+  kind: TraceExecutionStepKind;
+  status: TraceExecutionStepStatus;
+  label: string;
+  detail: string | null;
+  durationMs: number | null;
+};
+
+export type TraceExecutionPlan = {
+  executionMode: 'manual' | 'workflow';
+  steps: TraceExecutionStep[];
+};
+
 export type TraceRetrievalQuerySource =
   | 'rewritten'
   | 'original_disabled'
@@ -102,6 +130,93 @@ export type TraceRouteDecisionSummary = {
   routeReason: TraceRouteReason;
 };
 
+export function buildTraceExecutionPlan(input: {
+  routeType: TraceRouteType;
+  routeReason: TraceRouteReason;
+  sourceCount?: number;
+}): TraceExecutionPlan {
+  const routeStep: TraceExecutionStep = {
+    key: 'route_decision',
+    id: 'route_decision',
+    kind: 'route_decision',
+    status: 'completed',
+    label: 'Route decision',
+    detail: `${input.routeType}:${input.routeReason}`,
+    durationMs: null
+  };
+
+  if (input.routeType === 'policy_reply') {
+    return {
+      executionMode: 'manual',
+      steps: [
+        routeStep,
+        {
+          key: 'deterministic_reply',
+          id: 'deterministic_reply',
+          kind: 'deterministic_reply',
+          status: 'completed',
+          label: 'Deterministic reply',
+          detail: null,
+          durationMs: null
+        }
+      ]
+    };
+  }
+
+  if (input.routeType === 'external_source') {
+    return {
+      executionMode: 'manual',
+      steps: [
+        routeStep,
+        {
+          key: 'source_fetch',
+          id: 'source_fetch',
+          kind: 'source_fetch',
+          status: 'completed',
+          label: 'Source fetch',
+          detail:
+            input.sourceCount != null ? `${input.sourceCount} source(s)` : null,
+          durationMs: null
+        },
+        {
+          key: 'answer_generation',
+          id: 'answer_generation',
+          kind: 'answer_generation',
+          status: 'completed',
+          label: 'Answer generation',
+          detail: null,
+          durationMs: null
+        }
+      ]
+    };
+  }
+
+  return {
+    executionMode: 'manual',
+    steps: [
+      routeStep,
+      {
+        key: 'retrieval',
+        id: 'retrieval',
+        kind: 'retrieval',
+        status: 'completed',
+        label: 'Retrieval',
+        detail: null,
+        durationMs: null
+      },
+      {
+        key: 'answer_generation',
+        id: 'answer_generation',
+        kind: 'answer_generation',
+        status: 'completed',
+        label: 'Answer generation',
+        detail: null,
+        durationMs: null
+      }
+    ]
+  };
+}
+
 export type TraceTimingSummary = {
   totalMs: number | null;
   firstTokenMs: number | null;
@@ -122,6 +237,7 @@ export type TraceTimingSummary = {
 export type TraceSummary = {
   routeType: TraceRouteType | null;
   routeReason: TraceRouteReason | null;
+  executionPlan: TraceExecutionPlan | null;
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
   qualityOverall: TraceQualityOverall | null;
