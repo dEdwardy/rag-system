@@ -360,30 +360,39 @@ export class AskAssistantService {
           durationMs: 0
         }));
 
-    if (routeDecision.routeType === 'policy_reply') {
-      return this.handlePolicyRouteAsk({
-        assistant,
-        authContext,
-        conversation,
-        userMessagePromise,
-        startedAt,
-        question: input.question,
-        normalizedAnswerPolicy,
-        routeDecision
-      });
-    }
+    const specialRouteResult = await this.dispatchSpecialRouteAsk({
+      routeDecision,
+      policy: () =>
+        this.handlePolicyRouteAsk({
+          assistant,
+          authContext,
+          conversation,
+          userMessagePromise,
+          startedAt,
+          question: input.question,
+          normalizedAnswerPolicy,
+          routeDecision
+        }),
+      external: () =>
+        this.handleExternalSourceRouteAsk({
+          assistant,
+          authContext,
+          conversation,
+          userMessagePromise,
+          startedAt,
+          question: input.question,
+          normalizedAnswerPolicy,
+          routeDecision
+        })
+    });
 
-    if (routeDecision.routeType === 'external_source') {
-      return this.handleExternalSourceRouteAsk({
-        assistant,
-        authContext,
-        conversation,
-        userMessagePromise,
-        startedAt,
-        question: input.question,
-        normalizedAnswerPolicy,
-        routeDecision
-      });
+    if (specialRouteResult != null) {
+      return specialRouteResult as Awaited<
+        ReturnType<
+          | AskAssistantService['handlePolicyRouteAsk']
+          | AskAssistantService['handleExternalSourceRouteAsk']
+        >
+      >;
     }
 
     const retrievalResult = await this.retrievalLimiter.execute(() =>
@@ -915,32 +924,41 @@ export class AskAssistantService {
     };
     const eagerUserMessagePromise = getUserMessagePromise();
 
-    if (routeDecision.routeType === 'policy_reply') {
-      return this.handlePolicyRouteAskStream({
-        assistant,
-        authContext,
-        conversationPromise,
-        eagerUserMessagePromise,
-        startedAt,
-        question: input.question,
-        normalizedAnswerPolicy,
-        routeDecision,
-        onEvent: input.onEvent
-      });
-    }
+    const specialRouteStreamResult = await this.dispatchSpecialRouteAsk({
+      routeDecision,
+      policy: () =>
+        this.handlePolicyRouteAskStream({
+          assistant,
+          authContext,
+          conversationPromise,
+          eagerUserMessagePromise,
+          startedAt,
+          question: input.question,
+          normalizedAnswerPolicy,
+          routeDecision,
+          onEvent: input.onEvent
+        }),
+      external: () =>
+        this.handleExternalSourceRouteAskStream({
+          assistant,
+          authContext,
+          conversationPromise,
+          eagerUserMessagePromise,
+          startedAt,
+          question: input.question,
+          normalizedAnswerPolicy,
+          routeDecision,
+          onEvent: input.onEvent
+        })
+    });
 
-    if (routeDecision.routeType === 'external_source') {
-      return this.handleExternalSourceRouteAskStream({
-        assistant,
-        authContext,
-        conversationPromise,
-        eagerUserMessagePromise,
-        startedAt,
-        question: input.question,
-        normalizedAnswerPolicy,
-        routeDecision,
-        onEvent: input.onEvent
-      });
+    if (specialRouteStreamResult != null) {
+      return specialRouteStreamResult as Awaited<
+        ReturnType<
+          | AskAssistantService['handlePolicyRouteAskStream']
+          | AskAssistantService['handleExternalSourceRouteAskStream']
+        >
+      >;
     }
 
     const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(
@@ -3220,6 +3238,22 @@ export class AskAssistantService {
 
   private normalizeReuseQuestion(input: string) {
     return input.replace(/\s+/g, ' ').trim();
+  }
+
+  private async dispatchSpecialRouteAsk(input: {
+    routeDecision: AskRouteDecision;
+    policy: () => Promise<unknown>;
+    external: () => Promise<unknown>;
+  }): Promise<unknown | null> {
+    if (input.routeDecision.routeType === 'policy_reply') {
+      return input.policy();
+    }
+
+    if (input.routeDecision.routeType === 'external_source') {
+      return input.external();
+    }
+
+    return null;
   }
 
   private async findReusableConversationAnswer(input: {
