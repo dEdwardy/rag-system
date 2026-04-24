@@ -10,32 +10,41 @@ import {
   Stack,
   Text,
   Title
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { lazy, Suspense, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { DocumentRunList } from "../../components/document-runs/DocumentRunList";
-import { buildRunSummaryText } from "../../components/document-runs/document-run-observability";
-import { StatePanel } from "../../components/StatePanel";
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { lazy, Suspense, useMemo, useState } from 'react';
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from 'react-router-dom';
+import { DocumentRunList } from '../../components/document-runs/DocumentRunList';
+import { buildRunSummaryText } from '../../components/document-runs/document-run-observability';
+import { StatePanel } from '../../components/StatePanel';
 import {
   useDeleteDocument,
   useDocument,
   useDocumentRuns,
   useReindexDocument
-} from "../../features/api/hooks";
-import { useI18n } from "../../i18n/I18nProvider";
-import type { DocumentRunRecord } from "../../types/api";
+} from '../../features/api/hooks';
+import { useI18n } from '../../i18n/I18nProvider';
+import type { DocumentRunRecord } from '../../types/api';
 
 const DocumentDetailChunksPanel = lazy(async () => {
-  const module = await import("./DocumentDetailChunksPanel");
+  const module = await import('./DocumentDetailChunksPanel');
   return { default: module.DocumentDetailChunksPanel };
 });
 
-function DocumentDetailChunksFallback({ locale }: { locale: "zh" | "en" }) {
+function DocumentDetailChunksFallback({ locale }: { locale: 'zh' | 'en' }) {
   return (
     <StatePanel
-      description={locale === "zh" ? "正在准备资料切片检查区。" : "Preparing the document chunk review panel."}
-      title={locale === "zh" ? "加载资料切片" : "Loading document chunks"}
+      description={
+        locale === 'zh'
+          ? '正在准备资料切片检查区。'
+          : 'Preparing the document chunk review panel.'
+      }
+      title={locale === 'zh' ? '加载资料切片' : 'Loading document chunks'}
       tone="loading"
     />
   );
@@ -47,20 +56,35 @@ function getLatestRun(runs: DocumentRunRecord[]) {
       return run;
     }
 
-    return new Date(run.startedAt).getTime() > new Date(latest.startedAt).getTime() ? run : latest;
+    return new Date(run.startedAt).getTime() >
+      new Date(latest.startedAt).getTime()
+      ? run
+      : latest;
   }, null);
+}
+
+function getDocumentStatusTone(status: string) {
+  if (status === 'ready') {
+    return 'indigo';
+  }
+
+  if (status === 'failed') {
+    return 'red';
+  }
+
+  return 'yellow';
 }
 
 export function DocumentDetailPage() {
   const { documentId = null } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const focusedChunkId = searchParams.get("chunkId");
-  const sourceTraceId = searchParams.get("fromTrace");
-  const focusedRank = searchParams.get("rank");
-  const focusedScore = searchParams.get("score");
-  const focusedIsPrimary = searchParams.get("isPrimary");
-  const focusedIsCited = searchParams.get("isCited") === "1";
+  const focusedChunkId = searchParams.get('chunkId');
+  const sourceTraceId = searchParams.get('fromTrace');
+  const focusedRank = searchParams.get('rank');
+  const focusedScore = searchParams.get('score');
+  const focusedIsPrimary = searchParams.get('isPrimary');
+  const focusedIsCited = searchParams.get('isCited') === '1';
   const documentQuery = useDocument(documentId);
   const runsQuery = useDocumentRuns(documentId);
   const reindexMutation = useReindexDocument();
@@ -68,15 +92,20 @@ export function DocumentDetailPage() {
   const document = documentQuery.data;
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const { formatDateTime, locale, t } = useI18n();
-  const traceReturnHref = sourceTraceId ? `/traces/${sourceTraceId}#trace-detail-retrieved-chunks` : null;
-  const latestRun = useMemo(() => getLatestRun(runsQuery.data ?? []), [runsQuery.data]);
+  const traceReturnHref = sourceTraceId
+    ? `/traces/${sourceTraceId}#trace-detail-retrieved-chunks`
+    : null;
+  const latestRun = useMemo(
+    () => getLatestRun(runsQuery.data ?? []),
+    [runsQuery.data]
+  );
   const latestRunSummary = useMemo(() => {
     if (runsQuery.isLoading) {
-      return t("documents.detail.primaryStatusRunSummaryLoading");
+      return t('documents.detail.primaryStatusRunSummaryLoading');
     }
 
     if (!latestRun) {
-      return t("documents.detail.primaryStatusRunSummaryMissing");
+      return t('documents.detail.primaryStatusRunSummaryMissing');
     }
 
     return buildRunSummaryText(latestRun, locale);
@@ -86,30 +115,36 @@ export function DocumentDetailPage() {
       return null;
     }
 
-    if (document.status === "failed") {
-      return t("documents.detail.primaryStatusSummaryFailed", { runSummary: latestRunSummary });
+    if (document.status === 'failed') {
+      return t('documents.detail.primaryStatusSummaryFailed', {
+        runSummary: latestRunSummary
+      });
     }
 
-    if (document.status === "pending" || document.status === "processing") {
-      return t("documents.detail.primaryStatusSummaryProcessing", { runSummary: latestRunSummary });
+    if (document.status === 'pending' || document.status === 'processing') {
+      return t('documents.detail.primaryStatusSummaryProcessing', {
+        runSummary: latestRunSummary
+      });
     }
 
-    return t("documents.detail.primaryStatusSummaryReady", { runSummary: latestRunSummary });
+    return t('documents.detail.primaryStatusSummaryReady', {
+      runSummary: latestRunSummary
+    });
   }, [document, latestRunSummary, t]);
   const primaryStatusNextAction = useMemo(() => {
     if (!document) {
       return null;
     }
 
-    if (document.status === "failed") {
-      return t("documents.detail.primaryStatusNextActionFailed");
+    if (document.status === 'failed') {
+      return t('documents.detail.primaryStatusNextActionFailed');
     }
 
-    if (document.status === "pending" || document.status === "processing") {
-      return t("documents.detail.primaryStatusNextActionProcessing");
+    if (document.status === 'pending' || document.status === 'processing') {
+      return t('documents.detail.primaryStatusNextActionProcessing');
     }
 
-    return t("documents.detail.primaryStatusNextActionReady");
+    return t('documents.detail.primaryStatusNextActionReady');
   }, [document, t]);
 
   return (
@@ -125,13 +160,15 @@ export function DocumentDetailPage() {
           }
         }}
         opened={isDeleteConfirmOpen}
-        title={t("documents.detail.deleteDialogTitle")}
+        title={t('documents.detail.deleteDialogTitle')}
       >
         <Stack gap="md">
           <Text c="var(--app-text-secondary)" size="sm">
             {document
-              ? t("documents.detail.deleteDialogDescriptionWithTitle", { title: document.title })
-              : t("documents.detail.deleteDialogDescriptionFallback")}
+              ? t('documents.detail.deleteDialogDescriptionWithTitle', {
+                  title: document.title
+                })
+              : t('documents.detail.deleteDialogDescriptionFallback')}
           </Text>
 
           <Group justify="flex-end">
@@ -143,7 +180,7 @@ export function DocumentDetailPage() {
               type="button"
               variant="default"
             >
-              {t("documents.detail.deleteCancel")}
+              {t('documents.detail.deleteCancel')}
             </Button>
             <Button
               color="red"
@@ -160,21 +197,26 @@ export function DocumentDetailPage() {
                   });
                   setIsDeleteConfirmOpen(false);
                   notifications.show({
-                    color: "indigo",
-                    message: t("documents.detail.deleteSuccess", { title: document.title })
+                    color: 'indigo',
+                    message: t('documents.detail.deleteSuccess', {
+                      title: document.title
+                    })
                   });
-                  navigate("/documents");
+                  navigate('/documents');
                 } catch (error) {
                   notifications.show({
-                    color: "red",
-                    message: error instanceof Error ? error.message : t("documents.detail.deleteError")
+                    color: 'red',
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : t('documents.detail.deleteError')
                   });
                 }
               }}
               radius="xl"
               type="button"
             >
-              {t("common.actions.delete")}
+              {t('common.actions.delete')}
             </Button>
           </Group>
         </Stack>
@@ -183,29 +225,44 @@ export function DocumentDetailPage() {
       <Paper className="workspace-hero" p="lg" radius="xl">
         <Stack gap={10}>
           {traceReturnHref ? (
-            <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to={traceReturnHref}>
-              {t("documents.detail.backToTrace")}
+            <Text
+              c="var(--app-text-muted)"
+              className="workspace-link"
+              component={Link}
+              size="sm"
+              to={traceReturnHref}
+            >
+              {t('documents.detail.backToTrace')}
             </Text>
           ) : null}
-          <Text c="var(--app-text-muted)" className="workspace-link" component={Link} size="sm" to="/documents">
-            {t("common.actions.backToDocuments")}
+          <Text
+            c="var(--app-text-muted)"
+            className="workspace-link"
+            component={Link}
+            size="sm"
+            to="/documents"
+          >
+            {t('common.actions.backToDocuments')}
           </Text>
           <div className="workspace-hero-split">
             <Group gap="md" wrap="nowrap">
               <Box className="workspace-hero-icon">DOC</Box>
               <div className="workspace-hero-copy">
                 <Text className="workspace-hero-kicker">
-                  {t("documents.detail.kicker")}
+                  {t('documents.detail.kicker')}
                 </Text>
                 <Title
                   order={3}
                   c="var(--app-text)"
-                  style={{ fontFamily: "var(--app-font-display)", letterSpacing: "-0.03em" }}
+                  style={{
+                    fontFamily: 'var(--app-font-display)',
+                    letterSpacing: '-0.03em'
+                  }}
                 >
-                  {document?.title ?? t("documents.detail.title")}
+                  {document?.title ?? t('documents.detail.title')}
                 </Title>
                 <Text c="var(--app-text-muted)" mt={4} size="sm">
-                  {document?.sourceName ?? t("documents.detail.subtitle")}
+                  {document?.sourceName ?? t('documents.detail.subtitle')}
                 </Text>
               </div>
             </Group>
@@ -214,7 +271,7 @@ export function DocumentDetailPage() {
               <Stack align="flex-end" gap={10}>
                 <Group gap="xs">
                   <Badge
-                    color={document.status === "ready" ? "indigo" : document.status === "failed" ? "red" : "yellow"}
+                    color={getDocumentStatusTone(document.status)}
                     variant="light"
                   >
                     {t(`common.status.${document.status}`)}
@@ -224,7 +281,7 @@ export function DocumentDetailPage() {
                   </Badge>
                 </Group>
                 <Text className="workspace-hero-sidecopy" ta="right">
-                  {t("documents.detail.detailHeroCopy")}
+                  {t('documents.detail.detailHeroCopy')}
                 </Text>
               </Stack>
             ) : null}
@@ -234,14 +291,16 @@ export function DocumentDetailPage() {
 
       {documentQuery.isLoading ? (
         <StatePanel
-          description={t("documents.detail.subtitle")}
-          title={t("documents.detail.title")}
+          description={t('documents.detail.subtitle')}
+          title={t('documents.detail.title')}
           tone="loading"
         />
       ) : null}
       {documentQuery.isError ? (
         <Alert color="red" radius="xl" variant="light">
-          {documentQuery.error instanceof Error ? documentQuery.error.message : t("documents.detail.loadError")}
+          {documentQuery.error instanceof Error
+            ? documentQuery.error.message
+            : t('documents.detail.loadError')}
         </Alert>
       ) : null}
 
@@ -250,14 +309,18 @@ export function DocumentDetailPage() {
           <div className="workspace-page-side-stack">
             <div className="workspace-sticky-panel">
               <Stack gap="md">
-                <Paper className="workspace-panel-hover workspace-panel-strong" p="lg" radius="xl">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-strong"
+                  p="lg"
+                  radius="xl"
+                >
                   <Stack gap="md">
                     <Group justify="space-between" wrap="nowrap">
                       <Text className="workspace-section-heading">
-                        {t("documents.detail.primaryStatus")}
+                        {t('documents.detail.primaryStatus')}
                       </Text>
                       <Badge
-                        color={document.status === "ready" ? "indigo" : document.status === "failed" ? "red" : "yellow"}
+                        color={getDocumentStatusTone(document.status)}
                         variant="light"
                       >
                         {t(`common.status.${document.status}`)}
@@ -276,13 +339,18 @@ export function DocumentDetailPage() {
                               knowledgeBaseId: document.kbId
                             });
                             notifications.show({
-                              color: "indigo",
-                              message: t("documents.reindexRequested", { title: document.title })
+                              color: 'indigo',
+                              message: t('documents.reindexRequested', {
+                                title: document.title
+                              })
                             });
                           } catch (error) {
                             notifications.show({
-                              color: "red",
-                              message: error instanceof Error ? error.message : t("documents.reindexError")
+                              color: 'red',
+                              message:
+                                error instanceof Error
+                                  ? error.message
+                                  : t('documents.reindexError')
                             });
                           }
                         }}
@@ -290,7 +358,7 @@ export function DocumentDetailPage() {
                         size="xs"
                         variant="light"
                       >
-                        {t("common.actions.reindex")}
+                        {t('common.actions.reindex')}
                       </Button>
                       <Button
                         className="workspace-button"
@@ -302,7 +370,7 @@ export function DocumentDetailPage() {
                         size="xs"
                         variant="light"
                       >
-                        {t("common.actions.delete")}
+                        {t('common.actions.delete')}
                       </Button>
                     </Group>
 
@@ -314,48 +382,82 @@ export function DocumentDetailPage() {
 
                     <div className="workspace-meta-list">
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("documents.detail.nextAction")}</span>
-                        <span className="workspace-meta-value">{primaryStatusNextAction}</span>
-                      </div>
-                      <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.stage")}</span>
+                        <span className="workspace-meta-label">
+                          {t('documents.detail.nextAction')}
+                        </span>
                         <span className="workspace-meta-value">
-                          {t(`common.processingStage.${document.processingStage}`)}
+                          {primaryStatusNextAction}
                         </span>
                       </div>
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.chunks")}</span>
-                        <span className="workspace-meta-value">{document.chunkCount}</span>
+                        <span className="workspace-meta-label">
+                          {t('common.fields.stage')}
+                        </span>
+                        <span className="workspace-meta-value">
+                          {t(
+                            `common.processingStage.${document.processingStage}`
+                          )}
+                        </span>
                       </div>
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.version")}</span>
-                        <span className="workspace-meta-value">{document.version}</span>
+                        <span className="workspace-meta-label">
+                          {t('common.fields.chunks')}
+                        </span>
+                        <span className="workspace-meta-value">
+                          {document.chunkCount}
+                        </span>
                       </div>
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.mime")}</span>
-                        <span className="workspace-meta-value">{document.mimeType}</span>
+                        <span className="workspace-meta-label">
+                          {t('common.fields.version')}
+                        </span>
+                        <span className="workspace-meta-value">
+                          {document.version}
+                        </span>
                       </div>
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.created")}</span>
-                        <span className="workspace-meta-value">{formatDateTime(document.createdAt)}</span>
+                        <span className="workspace-meta-label">
+                          {t('common.fields.mime')}
+                        </span>
+                        <span className="workspace-meta-value">
+                          {document.mimeType}
+                        </span>
                       </div>
                       <div className="workspace-meta-row">
-                        <span className="workspace-meta-label">{t("common.fields.updated")}</span>
-                        <span className="workspace-meta-value">{formatDateTime(document.updatedAt)}</span>
+                        <span className="workspace-meta-label">
+                          {t('common.fields.created')}
+                        </span>
+                        <span className="workspace-meta-value">
+                          {formatDateTime(document.createdAt)}
+                        </span>
+                      </div>
+                      <div className="workspace-meta-row">
+                        <span className="workspace-meta-label">
+                          {t('common.fields.updated')}
+                        </span>
+                        <span className="workspace-meta-value">
+                          {formatDateTime(document.updatedAt)}
+                        </span>
                       </div>
                     </div>
                   </Stack>
                 </Paper>
 
-                <Paper className="workspace-panel-hover workspace-panel-muted" p="lg" radius="xl">
+                <Paper
+                  className="workspace-panel-hover workspace-panel-muted"
+                  p="lg"
+                  radius="xl"
+                >
                   <Stack gap="sm">
                     <Text className="workspace-section-heading">
-                      {t("documents.detail.storageAndDiagnostics")}
+                      {t('documents.detail.storageAndDiagnostics')}
                     </Text>
                     <Text className="workspace-section-copy">
-                      {t("documents.detail.storageAndDiagnosticsCopy")}
+                      {t('documents.detail.storageAndDiagnosticsCopy')}
                     </Text>
-                    <pre className="workspace-code-block workspace-code-block-scroll">{document.storageKey}</pre>
+                    <pre className="workspace-code-block workspace-code-block-scroll">
+                      {document.storageKey}
+                    </pre>
                     {document.errorMessage ? (
                       <Alert color="red" mt="sm" radius="xl" variant="light">
                         {document.errorMessage}
@@ -368,37 +470,41 @@ export function DocumentDetailPage() {
                   <Alert color="red" radius="xl" variant="light">
                     {runsQuery.error instanceof Error
                       ? runsQuery.error.message
-                      : t("documents.detail.runsLoadError")}
+                      : t('documents.detail.runsLoadError')}
                   </Alert>
                 ) : (
                   <DocumentRunList
-                    title={t("documents.detail.runsTitle")}
-                    description={t("documents.detail.runsDescription")}
+                    title={t('documents.detail.runsTitle')}
+                    description={t('documents.detail.runsDescription')}
                     runs={runsQuery.data ?? []}
-                    emptyTitle={t("documents.detail.runsEmptyTitle")}
-                    emptyDescription={t("documents.detail.runsEmptyDescription")}
+                    emptyTitle={t('documents.detail.runsEmptyTitle')}
+                    emptyDescription={t(
+                      'documents.detail.runsEmptyDescription'
+                    )}
                   />
                 )}
               </Stack>
             </div>
           </div>
 
-            <div className="workspace-page-main-stack">
-              <Suspense fallback={<DocumentDetailChunksFallback locale={locale} />}>
-                <DocumentDetailChunksPanel
-                  documentId={document.id}
-                  focusedChunkId={focusedChunkId}
-                  focusedIsCited={focusedIsCited}
-                  focusedIsPrimary={focusedIsPrimary}
-                  focusedRank={focusedRank}
-                  focusedScore={focusedScore}
-                  sourceTraceId={sourceTraceId}
-                  traceReturnHref={traceReturnHref}
-                />
-              </Suspense>
-            </div>
+          <div className="workspace-page-main-stack">
+            <Suspense
+              fallback={<DocumentDetailChunksFallback locale={locale} />}
+            >
+              <DocumentDetailChunksPanel
+                documentId={document.id}
+                focusedChunkId={focusedChunkId}
+                focusedIsCited={focusedIsCited}
+                focusedIsPrimary={focusedIsPrimary}
+                focusedRank={focusedRank}
+                focusedScore={focusedScore}
+                sourceTraceId={sourceTraceId}
+                traceReturnHref={traceReturnHref}
+              />
+            </Suspense>
           </div>
-        ) : null}
+        </div>
+      ) : null}
     </Stack>
   );
 }
