@@ -35,7 +35,7 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     traceSummaryBody,
-    /executionMode:\s*TraceExecutionPlan\['executionMode'\] \| null;/
+    /executionMode:\s*TraceExecutionMode \| null;/
   );
   assert.match(traceSummaryBody, /executionModeReadabilityLabel:\s*string;/);
   assert.match(traceSummaryBody, /executionModeReadabilitySentence:\s*string;/);
@@ -72,6 +72,29 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(sharedSource, /strategyMode:\s*TraceRetrievalMode \| null;/);
   assert.match(sharedSource, /strategySummary:\s*RetrievalStrategySummary;/);
   assert.match(sharedSource, /export type TraceTimingSummary = \{/);
+  assert.match(
+    sharedSource,
+    /export type TraceExecutionMode = 'manual' \| 'workflow';/
+  );
+  assert.match(sharedSource, /export const TRACE_EXECUTION_MODE_LABELS = \{/);
+  assert.match(sharedSource, /manual:\s*'manual',/);
+  assert.match(sharedSource, /workflow:\s*'workflow'/);
+  assert.match(
+    sharedSource,
+    /export const TRACE_EXECUTION_MODES = Object\.keys\(/
+  );
+  assert.match(
+    sharedSource,
+    /export function readTraceExecutionMode\([\s\S]*?\): TraceExecutionMode \| null/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceExecutionModeReadabilityLabel\([\s\S]*?\)\s*\{/
+  );
+  assert.match(
+    sharedSource,
+    /export const TRACE_EXECUTION_TOOL_NAMES = Object\.values\(/
+  );
   assert.match(sharedSource, /timingSummary:\s*TraceTimingSummary;/);
   assert.match(sharedSource, /timingReadabilitySentence:\s*string;/);
   assert.match(sharedSource, /firstTokenMs:\s*number \| null;/);

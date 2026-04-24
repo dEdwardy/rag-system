@@ -69,8 +69,12 @@ export const TRACE_EXECUTION_TOOL_LABELS = {
     TRACE_EXECUTION_TOOL_REGISTRY.policy_reply.label
 } satisfies Record<TraceExecutionToolName, string>;
 
+export const TRACE_EXECUTION_TOOL_NAMES = Object.values(
+  TRACE_EXECUTION_TOOL_REGISTRY
+).map((entry) => entry.toolName) as TraceExecutionToolName[];
+
 const TRACE_EXECUTION_TOOL_NAME_VALUES = new Set<TraceExecutionToolName>(
-  Object.values(TRACE_EXECUTION_TOOL_REGISTRY).map((entry) => entry.toolName)
+  TRACE_EXECUTION_TOOL_NAMES
 );
 
 export function resolveTraceExecutionToolName(
@@ -102,10 +106,18 @@ export type TraceExecutionStepStatus =
 
 export type TraceExecutionMode = 'manual' | 'workflow';
 
-const TRACE_EXECUTION_MODE_VALUES = new Set<TraceExecutionMode>([
-  'manual',
-  'workflow'
-]);
+export const TRACE_EXECUTION_MODE_LABELS = {
+  manual: 'manual',
+  workflow: 'workflow'
+} satisfies Record<TraceExecutionMode, string>;
+
+export const TRACE_EXECUTION_MODES = Object.keys(
+  TRACE_EXECUTION_MODE_LABELS
+) as TraceExecutionMode[];
+
+const TRACE_EXECUTION_MODE_VALUES = new Set<TraceExecutionMode>(
+  TRACE_EXECUTION_MODES
+);
 
 export function readTraceExecutionMode(
   value: unknown
@@ -114,6 +126,14 @@ export function readTraceExecutionMode(
     TRACE_EXECUTION_MODE_VALUES.has(value as TraceExecutionMode)
     ? (value as TraceExecutionMode)
     : null;
+}
+
+export function buildTraceExecutionModeReadabilityLabel(
+  executionMode: TraceExecutionMode | null
+) {
+  return executionMode == null
+    ? 'no execution mode'
+    : TRACE_EXECUTION_MODE_LABELS[executionMode];
 }
 
 export type TraceExecutionStep = {

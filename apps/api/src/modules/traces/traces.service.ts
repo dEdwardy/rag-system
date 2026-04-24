@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
 import {
+  buildTraceExecutionModeReadabilityLabel,
   buildTraceExecutionToolNamesLabel,
   collectTraceExecutionToolNames,
+  readTraceExecutionMode,
   readTraceExecutionToolName,
   type TraceExecutionPlan,
   type TraceSummary
@@ -508,11 +510,7 @@ export class TracesService {
     const executionPlan = this.readTraceExecutionPlan(
       retrievalMetadata?.executionPlan
     );
-    const executionMode =
-      executionPlan?.executionMode === 'manual' ||
-      executionPlan?.executionMode === 'workflow'
-        ? executionPlan.executionMode
-        : null;
+    const executionMode = readTraceExecutionMode(executionPlan?.executionMode);
     const executionToolNames = collectTraceExecutionToolNames(executionPlan);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
@@ -700,11 +698,7 @@ export class TracesService {
       answerAttributionSummary.readabilitySentence ??
       'Answer attribution is unknown; source evidence is unknown.';
     const executionModeReadabilityLabel =
-      executionMode == null
-        ? 'no execution mode'
-        : executionMode === 'workflow'
-          ? 'workflow'
-          : 'manual';
+      buildTraceExecutionModeReadabilityLabel(executionMode);
     const executionModeReadabilitySentence =
       executionMode == null
         ? 'Execution mode is unavailable.'
@@ -1112,9 +1106,7 @@ export class TracesService {
     }
 
     const executionMode =
-      plan.executionMode === 'manual' || plan.executionMode === 'workflow'
-        ? plan.executionMode
-        : 'manual';
+      readTraceExecutionMode(plan.executionMode) ?? 'manual';
 
     return {
       executionMode,
