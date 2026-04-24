@@ -123,6 +123,10 @@
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now routes sitemap/feed/web fetching through `fetchResolvedExternalSource(...)`
   - this keeps the explicit-source fan-out path thinner and makes the source-kind branching easier to scan and extend
 
+- `external source view helper` centralized the repeated source-to-view mapping used by chunks and trace metadata
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives the external-source chunk view and trace metadata view from one small helper
+  - the external-source fan-out path stays functionally the same while keeping the repeated title/diagnostics wiring in one place
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling

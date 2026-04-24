@@ -2088,6 +2088,26 @@ export class AskAssistantService {
     );
   }
 
+  private buildResolvedExternalSourceView(
+    sources: Array<AskResolvedExternalSourcePayload>,
+    mode: 'chunks' | 'metadata'
+  ) {
+    return sources.map((source, index) => ({
+      url: source.url,
+      sourceKind: source.sourceKind,
+      title:
+        index === 0
+          ? source.title
+          : this.buildExternalSourceStepTitle({
+              sourceKind: source.sourceKind,
+              title: source.title
+            }),
+      content: mode === 'chunks' ? source.content : undefined,
+      diagnostics:
+        mode === 'metadata' && index === 0 ? source.diagnostics : null
+    }));
+  }
+
   private buildExternalSourceChunks(
     sources: AskExternalSourceChunkSource[]
   ): AskResultChunk[] {
@@ -2602,18 +2622,14 @@ export class AskAssistantService {
         routeDecision: input.routeDecision
       });
     const retrievedChunks = this.buildExternalSourceChunks(
-      fetchedSource.sources.map((source, index) => ({
-        url: source.url,
-        sourceKind: source.sourceKind,
-        title:
-          index === 0
-            ? fetchedSource.title
-            : this.buildExternalSourceStepTitle({
-                sourceKind: source.sourceKind,
-                title: source.title
-              }),
-        content: source.content
-      }))
+      this.buildResolvedExternalSourceView(fetchedSource.sources, 'chunks').map(
+        (source) => ({
+          url: source.url,
+          sourceKind: source.sourceKind,
+          title: source.title ?? fetchedSource.title,
+          content: source.content ?? ''
+        })
+      )
     );
     const retrievalMetadata = this.buildExternalSourceRouteMetadata({
       question: input.question,
@@ -2622,16 +2638,13 @@ export class AskAssistantService {
       sourceTitle: fetchedSource.title,
       diagnostics: fetchedSource.diagnostics,
       routeDecision: input.routeDecision,
-      externalSources: fetchedSource.sources.map((source, index) => ({
+      externalSources: this.buildResolvedExternalSourceView(
+        fetchedSource.sources,
+        'metadata'
+      ).map((source, index) => ({
         url: source.url,
         kind: source.sourceKind,
-        title:
-          index === 0
-            ? fetchedSource.title
-            : this.buildExternalSourceStepTitle({
-                sourceKind: source.sourceKind,
-                title: source.title
-              }),
+        title: source.title ?? fetchedSource.title,
         diagnostics: index === 0 ? fetchedSource.diagnostics : null
       }))
     });
