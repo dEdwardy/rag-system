@@ -119,10 +119,17 @@ async function start() {
     return;
   }
 
+  const childEnv = { ...process.env };
+  for (const key of Object.keys(childEnv)) {
+    if (key.startsWith('OPENCODE')) {
+      delete childEnv[key];
+    }
+  }
+
   const child = spawn(process.execPath, [runnerFile], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...childEnv,
       LOOP_EXECUTOR_BACKEND: effectiveExecutor
     },
     detached: true,

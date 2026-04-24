@@ -29,6 +29,10 @@ test('split locale catalogs keep current English workspace navigation and assist
     source,
     /being prepared or repaired for the current workspace library/
   );
+  assert.match(
+    source,
+    /If this library is still empty, add the first library items first\./
+  );
   assert.match(source, /starterPromptHint:\s*'Click one to send it now/);
   assert.doesNotMatch(source, /default-kb|Default KB/);
 });
@@ -42,6 +46,7 @@ test('split locale catalogs keep current Chinese workspace labels without replac
   assert.match(source, /assistant:\s*'[\u4e00-\u9fff]+/);
   assert.match(source, /noDescription:\s*'[\u4e00-\u9fff]+/);
   assert.match(source, /当前资料库的默认助手仍在补建或修复中/);
+  assert.match(source, /如果这个资料库还是空的，请先添加第一批资料。/);
   assert.match(source, /点任意首问会立即发送，后续可以在对话里继续细化。/);
   assert.doesNotMatch(source, /\uFFFD/);
   assert.doesNotMatch(source, /default-kb|Default KB/);

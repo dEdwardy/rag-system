@@ -504,7 +504,7 @@ export const messages = {
       chatWhileProcessing:
         'Some library items are still updating, but ready items can already support chat. Start asking now and return to library status as updates finish.',
       prepareDefaultAssistant:
-        'At least one library item is ready. Open answer settings so the default assistant can finish preparing or repairing before chat.',
+        'At least one library item is ready. The system should finish preparing or repairing the default assistant automatically; if it does not appear, refresh the default path first, then review answer settings before chat.',
       workspaceReady:
         'This workspace is ready. The best next step is to move on to chat.'
     },
@@ -663,7 +663,7 @@ export const messages = {
     noAssistantForKnowledgeBaseTitle:
       'Default assistant is still being prepared',
     noAssistantForKnowledgeBaseDescription:
-      'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. If it does not appear automatically, use "Refresh default path" before opening answer settings.',
+      'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. If this library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" before opening answer settings.',
     noAssistantForKnowledgeBaseAction: 'Open answer settings',
     noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
     noAssistantDocumentsPrimaryAction: 'Add library items first',

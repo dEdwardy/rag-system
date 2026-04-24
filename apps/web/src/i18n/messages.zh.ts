@@ -463,7 +463,7 @@ export const messages = {
       chatWhileProcessing:
         '还有资料在更新中，但已就绪资料已经可以支持对话。现在可以先提问，更新完成后再回资料库确认状态。',
       prepareDefaultAssistant:
-        '当前至少已有资料可用。接下来建议打开回答设置，让默认助手完成准备或修复，再开始提问。',
+        '当前至少已有资料可用。系统应自动完成默认助手的补建或修复；如果没有出现，先刷新默认路径，再进入回答设置确认后开始提问。',
       workspaceReady: '这个工作区已经就绪。下一步最合适的是直接进入对话。'
     },
     feedback: {
@@ -607,7 +607,7 @@ export const messages = {
     noKnowledgeBaseAction: '打开工作区设置',
     noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
     noAssistantForKnowledgeBaseDescription:
-      '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请先点击“刷新默认路径”，再进入回答设置。',
+      '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果这个资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再进入回答设置。',
     noAssistantForKnowledgeBaseAction: '打开回答设置',
     noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
     noAssistantDocumentsPrimaryAction: '先添加资料',

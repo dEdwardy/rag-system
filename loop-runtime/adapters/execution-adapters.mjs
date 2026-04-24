@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '..', '..');
+const repoOpencodeConfig = path.join(repoRoot, 'opencode.jsonc');
 
 const codexThreadCache = new Map();
 
@@ -66,7 +72,7 @@ async function runOpenCodePrompt({
         '--agent',
         'build',
         '--model',
-        'openai/gpt-5.3-codex',
+        'my/gpt-5.4',
         '--format',
         'json',
         '--title',
@@ -78,7 +84,7 @@ async function runOpenCodePrompt({
         '--agent',
         'build',
         '--model',
-        'openai/gpt-5.3-codex',
+        'my/gpt-5.4',
         '--format',
         'json',
         '--title',
@@ -92,7 +98,10 @@ async function runOpenCodePrompt({
     cwd,
     env,
     timeoutMs,
-    injectEnv: opencodeEnv
+    injectEnv: {
+      OPENCODE_CONFIG: repoOpencodeConfig,
+      ...opencodeEnv
+    }
   });
 }
 

@@ -156,8 +156,12 @@ export function AssistantPage() {
                     ? '默认助手已经就绪。先确认回答策略，只有在默认路径表现不对时再继续调优。'
                     : 'Start with the assistant identity and answer policy, then move into retrieval tuning only when needed.'
                   : locale === 'zh'
-                    ? '当前资料库的默认助手仍在补建或修复中；它出现后再继续做必要的设置调整。'
-                    : 'The default assistant for the active library is still being prepared or repaired. Tune settings after it appears.'}
+                    ? documentCount > 0
+                      ? '当前资料库的默认助手仍在补建或修复中；它出现后再继续做必要的设置调整。'
+                      : '当前资料库的默认助手仍在补建或修复中；先添加第一批资料，再等它自动出现。'
+                    : documentCount > 0
+                      ? 'The default assistant for the active library is still being prepared or repaired. Tune settings after it appears.'
+                      : 'The default assistant for the active library is still being prepared or repaired. Add the first library items, then wait for it to appear automatically.'}
               </Text>
             </div>
           </Group>
