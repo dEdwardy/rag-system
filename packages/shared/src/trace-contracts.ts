@@ -139,6 +139,14 @@ export function buildTraceExecutionModeReadabilityLabel(
     : TRACE_EXECUTION_MODE_LABELS[executionMode];
 }
 
+export function buildTraceExecutionModeReadabilitySentence(
+  executionMode: TraceExecutionMode | null
+) {
+  return executionMode == null
+    ? 'Execution mode is unavailable.'
+    : `Execution mode is ${buildTraceExecutionModeReadabilityLabel(executionMode)}.`;
+}
+
 export type TraceExecutionStep = {
   key: string;
   id: string;
@@ -409,6 +417,14 @@ export function buildTraceExecutionToolNamesLabel(
   return toolNames
     .map((toolName) => TRACE_EXECUTION_TOOL_LABELS[toolName])
     .join(' + ');
+}
+
+export function buildTraceExecutionToolNamesReadabilitySentence(
+  toolNames: TraceExecutionToolName[]
+) {
+  return toolNames.length === 0
+    ? 'Execution tool names are unavailable.'
+    : `Execution tool names are ${buildTraceExecutionToolNamesLabel(toolNames)}.`;
 }
 
 export type TraceTimingSummary = {

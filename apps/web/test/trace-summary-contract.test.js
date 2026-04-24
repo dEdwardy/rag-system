@@ -15,6 +15,10 @@ test('web trace summary type guards current backend summary field set', async ()
     resolve(__dirname, '../../../packages/shared/src/trace-contracts.ts'),
     'utf8'
   );
+  const tracesServiceSource = await readFile(
+    resolve(__dirname, '../../api/src/modules/traces/traces.service.ts'),
+    'utf8'
+  );
   const traceSummaryMatch = sharedSource.match(
     /export type TraceSummary = \{([\s\S]*?)\n\};/
   );
@@ -97,11 +101,35 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     sharedSource,
+    /export function buildTraceExecutionModeReadabilitySentence\([\s\S]*?\)\s*\{/
+  );
+  assert.match(
+    sharedSource,
     /export const TRACE_EXECUTION_TOOL_NAMES = \[[\s\S]*?'knowledge_base_search',[\s\S]*?'external_source_fetch',[\s\S]*?'policy_reply'[\s\S]*?\] as const satisfies TraceExecutionToolName\[\];/
   );
   assert.match(
     sharedSource,
     /return TRACE_EXECUTION_TOOL_NAMES\.filter\(\(toolName\) =>[\s\S]*?toolNames\.has\(toolName\)[\s\S]*?\);/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceExecutionToolNamesReadabilitySentence\([\s\S]*?\)\s*\{/
+  );
+  assert.match(
+    tracesServiceSource,
+    /buildTraceExecutionModeReadabilitySentence,/
+  );
+  assert.match(
+    tracesServiceSource,
+    /buildTraceExecutionToolNamesReadabilitySentence,/
+  );
+  assert.match(
+    tracesServiceSource,
+    /const executionModeReadabilitySentence =\s*buildTraceExecutionModeReadabilitySentence\(executionMode\);/
+  );
+  assert.match(
+    tracesServiceSource,
+    /const executionToolNamesReadabilitySentence =\s*buildTraceExecutionToolNamesReadabilitySentence\(executionToolNames\);/
   );
   assert.match(sharedSource, /timingSummary:\s*TraceTimingSummary;/);
   assert.match(sharedSource, /timingReadabilitySentence:\s*string;/);

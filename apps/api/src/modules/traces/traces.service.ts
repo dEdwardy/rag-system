@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
 import {
   buildTraceExecutionModeReadabilityLabel,
+  buildTraceExecutionModeReadabilitySentence,
   buildTraceExecutionToolNamesLabel,
+  buildTraceExecutionToolNamesReadabilitySentence,
   collectTraceExecutionToolNames,
   readTraceExecutionMode,
   readTraceExecutionToolName,
@@ -702,15 +704,11 @@ export class TracesService {
     const executionModeReadabilityLabel =
       buildTraceExecutionModeReadabilityLabel(executionMode);
     const executionModeReadabilitySentence =
-      executionMode == null
-        ? 'Execution mode is unavailable.'
-        : `Execution mode is ${executionModeReadabilityLabel}.`;
+      buildTraceExecutionModeReadabilitySentence(executionMode);
     const executionToolNamesReadabilityLabel =
       buildTraceExecutionToolNamesLabel(executionToolNames);
     const executionToolNamesReadabilitySentence =
-      executionToolNames.length === 0
-        ? 'Execution tool names are unavailable.'
-        : `Execution tool names are ${executionToolNamesReadabilityLabel}.`;
+      buildTraceExecutionToolNamesReadabilitySentence(executionToolNames);
     const {
       answerTextSourceReadabilityLabel,
       answerTextSourceReadabilitySentence,

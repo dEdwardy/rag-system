@@ -12,7 +12,10 @@ import {
   buildDocumentChunkLink,
   buildRawPayload
 } from './trace-detail-page-helpers';
-import { routeShortcutLabels } from '../reports/route-view-helpers';
+import {
+  buildRouteReasonLabel,
+  routeShortcutLabels
+} from '../reports/route-view-helpers';
 
 type TraceDetailSectionIds = {
   retrievedChunks: string;
@@ -238,6 +241,52 @@ function buildExecutionModeTone(mode: string | null | undefined) {
   return 'gray';
 }
 
+function buildExecutionStatusLabel(status: string, locale: SupportedLocale) {
+  if (locale === 'zh') {
+    if (status === 'completed') {
+      return '已完成';
+    }
+
+    if (status === 'failed') {
+      return '失败';
+    }
+
+    if (status === 'running') {
+      return '进行中';
+    }
+
+    if (status === 'pending') {
+      return '待执行';
+    }
+  }
+
+  if (status === 'completed') {
+    return 'Completed';
+  }
+
+  if (status === 'failed') {
+    return 'Failed';
+  }
+
+  if (status === 'running') {
+    return 'Running';
+  }
+
+  if (status === 'pending') {
+    return 'Pending';
+  }
+
+  return status;
+}
+
+function buildExecutionStepIndexLabel(index: number, locale: SupportedLocale) {
+  return locale === 'zh' ? `步骤 ${index}` : `Step ${index}`;
+}
+
+function buildExecutionStepCountLabel(count: number, locale: SupportedLocale) {
+  return locale === 'zh' ? `${count} 个步骤` : `${count} steps`;
+}
+
 export function TraceDetailSidebarPanels({
   formatDateTime,
   hasRewrite,
@@ -333,8 +382,8 @@ export function TraceDetailSidebarPanels({
                     </Group>
                     <Text c="var(--app-text-muted)" size="sm">
                       {locale === 'zh'
-                        ? `Reason: ${routeDecision.routeReason}`
-                        : `Reason: ${routeDecision.routeReason}`}
+                        ? `原因：${buildRouteReasonLabel(routeDecision.routeReason)}`
+                        : `Reason: ${buildRouteReasonLabel(routeDecision.routeReason)}`}
                     </Text>
                   </Stack>
                 </div>
@@ -350,6 +399,12 @@ export function TraceDetailSidebarPanels({
                       >
                         {locale === 'zh' ? '执行步骤' : 'Execution steps'}
                       </Text>
+                      <Badge color="gray" radius="sm" variant="outline">
+                        {buildExecutionStepCountLabel(
+                          executionSteps.length,
+                          locale
+                        )}
+                      </Badge>
                       <Badge
                         color={buildExecutionModeTone(executionMode)}
                         radius="sm"
@@ -373,7 +428,7 @@ export function TraceDetailSidebarPanels({
                       </Badge>
                     ) : null}
                     <Stack gap={6}>
-                      {executionSteps.map((step) => (
+                      {executionSteps.map((step, index) => (
                         <Group
                           key={step.key}
                           align="flex-start"
@@ -385,12 +440,24 @@ export function TraceDetailSidebarPanels({
                             radius="sm"
                             variant="light"
                           >
-                            {step.status}
+                            {buildExecutionStatusLabel(step.status, locale)}
                           </Badge>
                           <Stack gap={2}>
-                            <Text c="var(--app-text)" size="sm" fw={600}>
-                              {step.label}
-                            </Text>
+                            <Group gap={6} wrap="wrap">
+                              <Text
+                                c="var(--app-text-muted)"
+                                size="xs"
+                                fw={700}
+                              >
+                                {buildExecutionStepIndexLabel(
+                                  index + 1,
+                                  locale
+                                )}
+                              </Text>
+                              <Text c="var(--app-text)" size="sm" fw={600}>
+                                {step.label}
+                              </Text>
+                            </Group>
                             {step.toolName ? (
                               <Badge color="cyan" radius="sm" variant="light">
                                 {locale === 'zh' ? '工具：' : 'Tool: '}
