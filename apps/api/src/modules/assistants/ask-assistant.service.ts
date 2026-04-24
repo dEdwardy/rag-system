@@ -26,6 +26,7 @@ import { buildMissingInformationProvenanceSentence } from '../answering/missing-
 import { buildMissingInformationSourceReadabilityLabel } from '../answering/missing-information-source-readability';
 import {
   resolveRequestAuthContext,
+  type AuthIdentity,
   type RequestAuthContext
 } from '../auth/auth-identity.contract';
 import { AnsweringService } from '../answering/answering.service';
@@ -460,7 +461,7 @@ export class AskAssistantService {
       retrievedChunkIdsJson: retrievedChunks.map(
         (chunk: AskResultChunk) => chunk.chunkId
       ),
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       retrievalMetadataJson: retrievalMetadata,
       modelName: rewritten.modelName ?? undefined,
       status: TraceStatus.success
@@ -1904,7 +1905,7 @@ export class AskAssistantService {
     question: string;
     retrievedChunkCount: number;
     primaryChunkCount: number;
-    strategyMode: string | null;
+    strategyMode: RetrievalStrategySummary['strategyMode'];
     retrievalMode: RetrievalStrategySummary['retrievalMode'] | null;
   }): Pick<
     AskRetrievalMetadataJson,
@@ -2136,6 +2137,7 @@ export class AskAssistantService {
           raw: source.sourceUrl,
           url: source.sourceUrl,
           sourceKind: source.sourceKind,
+          label: source.label ?? null,
           title: this.buildExternalSourceTitle({
             url: source.sourceUrl,
             sourceKind: source.sourceKind,
@@ -2162,7 +2164,7 @@ export class AskAssistantService {
           routeDecision: input.routeDecision
         }),
         {
-          stage: 'retrieval',
+          stage: 'answering',
           message
         }
       );
@@ -2434,7 +2436,7 @@ export class AskAssistantService {
     conversationId: string;
     userMessageId: string;
     traceId: string;
-    identity: { id: string; kind: string } | null;
+    identity: AuthIdentity | null;
     answer: string;
     createdAtMs: number;
     retrievalMetadataJson: AskRetrievalMetadataJson;
@@ -2443,7 +2445,7 @@ export class AskAssistantService {
     modelName: string | null;
     citationsJson: unknown;
     retrievedChunkIdsJson: string[];
-    retrievalScoresJson: unknown[];
+    retrievalScoresJson: Prisma.InputJsonValue;
     latencyMs?: number;
   }) {
     const assistantMessage = await this.messagesService.createMessage({
@@ -2461,14 +2463,17 @@ export class AskAssistantService {
     }
     await this.tracesService.updateTrace(input.traceId, {
       assistantMessageId: assistantMessage.id,
-      citationsJson: input.citationsJson,
-      retrievalMetadataJson: input.retrievalMetadataJson,
-      answeringMetadataJson: input.answeringMetadataJson,
-      qualityEvaluationJson: input.qualityEvaluationJson,
+      citationsJson: input.citationsJson as Prisma.InputJsonValue,
+      retrievalMetadataJson:
+        input.retrievalMetadataJson as Prisma.InputJsonValue,
+      answeringMetadataJson:
+        input.answeringMetadataJson as Prisma.InputJsonValue,
+      qualityEvaluationJson:
+        input.qualityEvaluationJson as Prisma.InputJsonValue,
       latencyMs: input.latencyMs ?? Date.now() - input.createdAtMs,
-      modelName: input.modelName,
+      modelName: input.modelName ?? undefined,
       retrievedChunkIdsJson: input.retrievedChunkIdsJson,
-      retrievalScoresJson: input.retrievalScoresJson,
+      retrievalScoresJson: input.retrievalScoresJson as Prisma.InputJsonValue,
       status: TraceStatus.success
     });
     return assistantMessage;
@@ -2529,7 +2534,9 @@ export class AskAssistantService {
         diagnostics: index === 0 ? fetchedSource.diagnostics : null
       }))
     });
-    const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
+    const retrievalScoresJson = this.buildRetrievalScoresJson(
+      retrievedChunks
+    ) as unknown[];
     const { value: userMessage } = await input.userMessagePromise;
     const trace = await this.tracesService.createTrace({
       conversationId: input.conversation.id,
@@ -2537,7 +2544,7 @@ export class AskAssistantService {
       userMessageId: userMessage.id,
       userQuery: input.question,
       retrievedChunkIdsJson: retrievedChunks.map((chunk) => chunk.chunkId),
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       retrievalMetadataJson: retrievalMetadata,
       status: TraceStatus.success
     });
@@ -2556,7 +2563,11 @@ export class AskAssistantService {
       question: input.question,
       systemPrompt: input.assistant.systemPrompt,
       answerPolicy: input.normalizedAnswerPolicy,
-      chunks: retrievedChunks,
+      chunks: retrievedChunks.map((chunk) => ({
+        ...chunk,
+        pageNo: chunk.pageNo ?? null,
+        sectionTitle: chunk.sectionTitle ?? null
+      })),
       contextGroups: []
     });
     const answeringMetadataWithPrompt = this.withPromptSnapshot(
@@ -2576,7 +2587,7 @@ export class AskAssistantService {
       modelName: resolvedAnswerResult.modelName,
       citationsJson: resolvedAnswerResult.citations,
       retrievedChunkIdsJson: retrievedChunks.map((chunk) => chunk.chunkId),
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       latencyMs: Date.now() - input.startedAt
     });
 
@@ -2667,14 +2678,16 @@ export class AskAssistantService {
         diagnostics: index === 0 ? fetchedSource.diagnostics : null
       }))
     });
-    const retrievalScoresJson = this.buildRetrievalScoresJson(retrievedChunks);
+    const retrievalScoresJson = this.buildRetrievalScoresJson(
+      retrievedChunks
+    ) as unknown[];
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
       assistantId: input.assistant.id,
       userMessageId: userMessage.id,
       userQuery: input.question,
       retrievedChunkIdsJson: retrievedChunks.map((chunk) => chunk.chunkId),
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       retrievalMetadataJson: retrievalMetadata,
       status: TraceStatus.success
     });
@@ -2690,7 +2703,11 @@ export class AskAssistantService {
       question: input.question,
       systemPrompt: input.assistant.systemPrompt,
       answerPolicy: input.normalizedAnswerPolicy,
-      chunks: retrievedChunks,
+      chunks: retrievedChunks.map((chunk) => ({
+        ...chunk,
+        pageNo: chunk.pageNo ?? null,
+        sectionTitle: chunk.sectionTitle ?? null
+      })),
       contextGroups: []
     });
     await input.onEvent({
@@ -2737,7 +2754,7 @@ export class AskAssistantService {
       modelName: resolvedAnswerResult.modelName,
       citationsJson: resolvedAnswerResult.citations,
       retrievedChunkIdsJson: retrievedChunks.map((chunk) => chunk.chunkId),
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       latencyMs: Date.now() - input.startedAt
     });
 
@@ -2778,7 +2795,7 @@ export class AskAssistantService {
       question: input.question,
       routeDecision: input.routeDecision
     });
-    const retrievalScoresJson = [];
+    const retrievalScoresJson: unknown[] = [];
     const { value: userMessage } = await input.userMessagePromise;
     const trace = await this.tracesService.createTrace({
       conversationId: input.conversation.id,
@@ -2786,7 +2803,7 @@ export class AskAssistantService {
       userMessageId: userMessage.id,
       userQuery: input.question,
       retrievedChunkIdsJson: [],
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       retrievalMetadataJson: retrievalMetadata,
       modelName: 'policy-route-local',
       status: TraceStatus.success
@@ -2808,7 +2825,7 @@ export class AskAssistantService {
       modelName: resolvedAnswerResult.modelName,
       citationsJson: [],
       retrievedChunkIdsJson: [],
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       latencyMs: Date.now() - input.startedAt
     });
 
@@ -2956,14 +2973,14 @@ export class AskAssistantService {
       question: input.question,
       routeDecision: input.routeDecision
     });
-    const retrievalScoresJson = [];
+    const retrievalScoresJson: unknown[] = [];
     const trace = await this.tracesService.createTrace({
       conversationId: conversation.id,
       assistantId: input.assistant.id,
       userMessageId: userMessage.id,
       userQuery: input.question,
       retrievedChunkIdsJson: [],
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       retrievalMetadataJson: retrievalMetadata,
       modelName: 'policy-route-local',
       status: TraceStatus.success
@@ -3009,7 +3026,7 @@ export class AskAssistantService {
       modelName: resolvedAnswerResult.modelName,
       citationsJson: [],
       retrievedChunkIdsJson: [],
-      retrievalScoresJson,
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
       latencyMs: Date.now() - input.startedAt
     });
     const strategyReadabilityLabel = buildStrategyReadabilityLabel({
