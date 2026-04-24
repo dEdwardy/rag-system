@@ -2,7 +2,7 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
-> 更新时间：2026-04-24
+> 更新时间：2026-04-25
 
 ## Current Mainline
 
@@ -96,6 +96,7 @@
 
 - focused 文档/脚本检查：`git diff --check -- <files...>`
 - API focused test：`pnpm test:api:file -- test/<file>.test.js`
+- queue item validation should use exactly one small focused command; avoid chaining broad suites in queue prompts
 - new queue tasks should use `vitest run` for test validation; do not add new raw `node --test` commands to future queue items. If a legacy `node:test` file is still in the way, migrate or replace it before queueing the task.
 - 只有在当前增量确实跨范围时，才升级到更重的 `pnpm build` / `pnpm lint` / `pnpm typecheck`
 

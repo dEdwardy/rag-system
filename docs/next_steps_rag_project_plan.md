@@ -2,7 +2,7 @@
 
 > 文档角色：`current-primary`
 > 当前使用方式：作为现阶段任务方向、优先级判断和阶段边界的主文档；`docs/current-progress.md` 负责记录近期完成情况和验证基线。
-> 更新时间：2026-04-24
+> 更新时间：2026-04-25
 
 ## 1. 当前判断
 
@@ -159,6 +159,8 @@
   - `pnpm test:api:file -- test/<file>.test.js`
 - web focused test
   - `pnpm --filter @rag-system/web exec vitest run test/<file>.test.js`
+- queue item validation command should stay one-item/one-command and focused; avoid broad chained suites in queue prompts
+- queue tasks should stay on Vitest-based test commands and should not introduce new raw `node --test` validations
 
 当前主线路径优先可复用的验证方向：
 

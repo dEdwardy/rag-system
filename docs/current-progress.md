@@ -2,7 +2,7 @@
 
 > 文档角色：`current-status`
 > 当前使用方式：保留最近仍有参考价值的进展摘要、当前活跃边界和 focused validation 基线；更旧的细节型流水记录不再作为默认上下文入口，按需从 git history 回看。
-> 更新时间：2026-04-24
+> 更新时间：2026-04-25
 
 ## Current Snapshot
 
@@ -10,6 +10,8 @@
 - loop queue consumption is now pointed at the actual runner directory: `loop-runtime/materialized/` instead of the older `.opencode/loop/materialized/` snapshot area. The active agentic follow-up wave is visible to `pnpm loop:status` and the loop runner has begun consuming it again.
 - loop runtime now has a split layout: `loop-runtime/core/` for the main loop, `loop-runtime/adapters/` for backend execution, and `loop-runtime/tests/` for validation. The Codex backend adapter is wired as SDK-first with a CLI fallback path for environments that do not yet have `@openai/codex-sdk` installed.
 - loop runtime now also writes a compact timeout recovery artifact under `loop-runtime/runtime/recovery/` and accepts per-item timeout overrides from queue item metadata without changing the default execution path.
+- loop recovery/validation guidance is now tightened around one-item/one-command focused checks, with queue test validation kept on Vitest-based commands and raw `node --test` treated as legacy-only follow-up work.
+- root `package.json` now keeps `test:harness` as a legacy alias (`test:harness:legacy`) so queue and loop docs can consistently steer new validation toward focused Vitest commands.
 - a future follow-up direction is now documented for the loop runtime: use an LLM to expand coarse requests into detailed plans, optionally split them into sequential and parallel queue items, and feed failures back into a replanning step after the current rag-system mainline is done.
 
 - 当前默认方式仍是：单线推进、小步增量、每轮收口。

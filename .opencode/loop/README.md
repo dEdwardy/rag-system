@@ -25,8 +25,14 @@ Only load archived items when tracing a specific regression, decision, or interr
 ### Validation Rule
 
 - queue items must use the repository's Vitest-based validation path for tests
+- queue items should run one small focused validation command only; do not chain broad suites in a single item
 - do not create new queue items that validate with raw `node --test`
 - if an old test file still only runs through the legacy path, treat migrating or replacing that validation path as part of the task before queueing it
+
+### Recovery Rule
+
+- when an item fails because validation is broad or legacy, recover by rewriting the item to one focused command and a Vitest-based test command
+- keep recovery follow-ups small and bounded: one fix wave, one focused validation command, then requeue
 
 ### Harness Notes
 
