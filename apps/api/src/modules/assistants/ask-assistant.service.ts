@@ -2034,8 +2034,7 @@ export class AskAssistantService {
       score: 1,
       isPrimary: true,
       pageNo: null,
-      sectionTitle:
-        input.sourceKind === 'web' ? 'Fetched content' : 'External source'
+      sectionTitle: this.buildExternalSourceSectionTitle(input.sourceKind)
     };
   }
 
@@ -2068,6 +2067,12 @@ export class AskAssistantService {
     }
 
     return lowercase ? 'external sitemap' : 'External sitemap';
+  }
+
+  private buildExternalSourceSectionTitle(
+    sourceKind: ResolvedExternalSourceRoute['sourceKind']
+  ) {
+    return sourceKind === 'web' ? 'Fetched content' : 'External source';
   }
 
   private buildExternalSourceTitle(input: {

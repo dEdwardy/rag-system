@@ -115,6 +115,10 @@
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses a tiny `buildExternalSourceKindLabel(...)` helper for source-kind fallback names
   - the external-source chunk/title path stays functionally the same but is less repetitive and easier to extend
 
+- `external source section title helper` removed the last inline section-title branch from the external-source chunk builder
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives the chunk section title through a dedicated helper instead of a ternary inside the chunk literal
+  - this keeps the external-source chunk builder focused on wiring rather than label selection
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
