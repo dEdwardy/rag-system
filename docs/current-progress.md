@@ -6,6 +6,7 @@
 
 ## Current Snapshot
 
+- loop control now accepts `--executor opencode|codex` on `loop:start`, and the repository scripts include `loop:start:codex` / `loop:start:opencode` shortcuts so backend selection is explicit instead of relying on ad hoc environment variables.
 - loop queue consumption is now pointed at the actual runner directory: `loop-runtime/materialized/` instead of the older `.opencode/loop/materialized/` snapshot area. The active agentic follow-up wave is visible to `pnpm loop:status` and the loop runner has begun consuming it again.
 - loop runtime now has a split layout: `loop-runtime/core/` for the main loop, `loop-runtime/adapters/` for backend execution, and `loop-runtime/tests/` for validation. The Codex backend adapter is wired as SDK-first with a CLI fallback path for environments that do not yet have `@openai/codex-sdk` installed.
 - loop runtime now also writes a compact timeout recovery artifact under `loop-runtime/runtime/recovery/` and accepts per-item timeout overrides from queue item metadata without changing the default execution path.

@@ -6,6 +6,8 @@
     "prepare": "husky",
     "opencode:loop": "node loop-runtime/core/control.mjs",
     "loop:start": "node loop-runtime/core/control.mjs start",
+    "loop:start:codex": "node loop-runtime/core/control.mjs start --executor codex",
+    "loop:start:opencode": "node loop-runtime/core/control.mjs start --executor opencode",
     "loop:stop": "node loop-runtime/core/control.mjs stop",
     "loop:status": "node loop-runtime/core/control.mjs status",
     "check:encoding": "node scripts/check-encoding.mjs",

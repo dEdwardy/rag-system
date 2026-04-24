@@ -9,12 +9,16 @@ import { formatStatusLine } from './status-utils.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(loopDir, '..', '..');
+const repoRoot = path.resolve(loopDir, '..');
 const runtimeDir = path.join(loopDir, 'runtime');
 const stateFile = path.join(runtimeDir, 'loop-state.json');
 const logFile = path.join(loopDir, 'loop-run.log');
 const runnerFile = path.join(__dirname, 'runner.mjs');
-const command = process.argv[2] ?? 'help';
+const [command, ...rawArgs] = process.argv.slice(2);
+const parsedArgs = parseArgs(rawArgs);
+const requestedExecutor = parsedArgs.executor?.trim();
+const effectiveExecutor =
+  requestedExecutor || process.env.LOOP_EXECUTOR_BACKEND || 'opencode';
 
 await mkdir(runtimeDir, { recursive: true });
 
@@ -117,6 +121,10 @@ async function start() {
 
   const child = spawn(process.execPath, [runnerFile], {
     cwd: repoRoot,
+    env: {
+      ...process.env,
+      LOOP_EXECUTOR_BACKEND: effectiveExecutor
+    },
     detached: true,
     stdio: 'ignore',
     windowsHide: true
@@ -126,7 +134,7 @@ async function start() {
   await writeState(
     {
       pid: child.pid,
-      executionBackend: process.env.LOOP_EXECUTOR_BACKEND ?? 'opencode',
+      executionBackend: effectiveExecutor,
       status: 'starting',
       phase: 'starting',
       currentItemId: null,
@@ -174,7 +182,25 @@ async function stop() {
 }
 
 function help() {
-  console.log('usage: pnpm loop:start|stop|status');
+  console.log(
+    'usage: pnpm loop:start [--executor opencode|codex] | stop | status'
+  );
+}
+
+function parseArgs(args) {
+  const result = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index];
+    if (token === '--executor') {
+      result.executor = args[index + 1] ?? '';
+      index += 1;
+      continue;
+    }
+    if (token.startsWith('--executor=')) {
+      result.executor = token.slice('--executor='.length);
+    }
+  }
+  return result;
 }
 
 if (command === 'start') {

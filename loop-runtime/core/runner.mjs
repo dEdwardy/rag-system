@@ -22,7 +22,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(loopDir, '..', '..');
+const repoRoot = path.resolve(loopDir, '..');
 const runtimeDir = path.join(loopDir, 'runtime');
 const recoveryDir = path.join(runtimeDir, 'recovery');
 const stateFile = path.join(runtimeDir, 'loop-state.json');
@@ -438,7 +438,8 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
       CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
       CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? '',
       CODEX_LOOP_MODE: process.env.CODEX_LOOP_MODE ?? 'sdk',
-      CODEX_SDK_OPTIONS: process.env.CODEX_SDK_OPTIONS ?? '',
+      CODEX_SDK_OPTIONS:
+        process.env.CODEX_SDK_OPTIONS ?? '{"model":"gpt-5.4-mini"}',
       CODEX_SDK_TIMEOUT_MS: process.env.CODEX_SDK_TIMEOUT_MS ?? ''
     }
   }).catch((error) => ({
@@ -472,7 +473,8 @@ async function runQueueFinalizer(queue, item, queueFileName, sessionId) {
       CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
       CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? '',
       CODEX_LOOP_MODE: process.env.CODEX_LOOP_MODE ?? 'sdk',
-      CODEX_SDK_OPTIONS: process.env.CODEX_SDK_OPTIONS ?? '',
+      CODEX_SDK_OPTIONS:
+        process.env.CODEX_SDK_OPTIONS ?? '{"model":"gpt-5.4-mini"}',
       CODEX_SDK_TIMEOUT_MS: process.env.CODEX_SDK_TIMEOUT_MS ?? ''
     }
   }).catch((error) => ({

@@ -135,15 +135,17 @@ async function runCodexSdkPrompt({ prompt, title, sessionId, codexEnv }) {
   try {
     ({ Codex } = await import('@openai/codex-sdk'));
   } catch (error) {
-    if ((codexEnv.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase() === 'sdk') {
-      throw new Error(
-        `LOOP_EXECUTOR_BACKEND=codex requires @openai/codex-sdk to be installed: ${error.message}`
-      );
+    if ((codexEnv.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase() !== 'cli') {
+      return null;
     }
     return null;
   }
 
-  const agent = new Codex(parseJsonEnv(codexEnv.CODEX_SDK_OPTIONS, {}));
+  const agent = new Codex(
+    parseJsonEnv(codexEnv.CODEX_SDK_OPTIONS, {
+      model: 'gpt-5.4-mini'
+    })
+  );
   const thread = sessionId
     ? (codexThreadCache.get(sessionId) ?? agent.resumeThread(sessionId))
     : agent.startThread();
@@ -177,19 +179,29 @@ async function runCodexCliPrompt({
   timeoutMs,
   codexEnv
 }) {
-  const command = (codexEnv.CODEX_LOOP_COMMAND ?? '').trim();
-  if (!command) {
-    throw new Error(
-      'LOOP_EXECUTOR_BACKEND=codex in CLI mode requires CODEX_LOOP_COMMAND to be set.'
-    );
-  }
+  const command =
+    codexEnv.CODEX_LOOP_COMMAND?.trim() ||
+    (process.platform === 'win32' ? 'cmd.exe' : 'codex');
   const baseArgs = (codexEnv.CODEX_LOOP_ARGS ?? '').trim()
     ? splitShellWords(codexEnv.CODEX_LOOP_ARGS)
     : [];
-  const args = [...baseArgs, '--title', title, '--prompt', prompt];
+  const args =
+    process.platform === 'win32'
+      ? [
+          '/c',
+          'codex.cmd',
+          'exec',
+          ...baseArgs,
+          '--json',
+          '--full-auto',
+          '--cd',
+          cwd,
+          prompt
+        ]
+      : ['exec', ...baseArgs, '--json', '--full-auto', '--cd', cwd, prompt];
 
   if (sessionId) {
-    args.push('--session', sessionId);
+    args.splice(1, 0, 'resume', sessionId);
   }
 
   return await spawnPrompt({

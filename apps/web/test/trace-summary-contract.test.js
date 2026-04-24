@@ -38,6 +38,7 @@ test('web trace summary type guards current backend summary field set', async ()
     /executionMode:\s*TraceExecutionPlan\['executionMode'\] \| null;/
   );
   assert.match(traceSummaryBody, /executionModeReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /executionModeReadabilitySentence:\s*string;/);
   assert.match(
     traceSummaryBody,
     /executionToolNames:\s*TraceExecutionToolName\[\];/
