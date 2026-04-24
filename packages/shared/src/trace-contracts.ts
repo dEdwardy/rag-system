@@ -34,11 +34,59 @@ export type TraceExecutionToolName =
   | 'external_source_fetch'
   | 'policy_reply';
 
+export type TraceExecutionToolCapability =
+  | 'knowledge_base'
+  | 'external_source'
+  | 'policy_reply';
+
+export const TRACE_EXECUTION_TOOL_REGISTRY = {
+  knowledge_base: {
+    toolName: 'knowledge_base_search',
+    label: 'Knowledge base search'
+  },
+  external_source: {
+    toolName: 'external_source_fetch',
+    label: 'External source fetch'
+  },
+  policy_reply: {
+    toolName: 'policy_reply',
+    label: 'Policy reply'
+  }
+} satisfies Record<
+  TraceExecutionToolCapability,
+  {
+    toolName: TraceExecutionToolName;
+    label: string;
+  }
+>;
+
 export const TRACE_EXECUTION_TOOL_LABELS = {
-  knowledge_base_search: 'Knowledge base search',
-  external_source_fetch: 'External source fetch',
-  policy_reply: 'Policy reply'
+  [TRACE_EXECUTION_TOOL_REGISTRY.knowledge_base.toolName]:
+    TRACE_EXECUTION_TOOL_REGISTRY.knowledge_base.label,
+  [TRACE_EXECUTION_TOOL_REGISTRY.external_source.toolName]:
+    TRACE_EXECUTION_TOOL_REGISTRY.external_source.label,
+  [TRACE_EXECUTION_TOOL_REGISTRY.policy_reply.toolName]:
+    TRACE_EXECUTION_TOOL_REGISTRY.policy_reply.label
 } satisfies Record<TraceExecutionToolName, string>;
+
+const TRACE_EXECUTION_TOOL_NAME_VALUES = new Set<TraceExecutionToolName>(
+  Object.values(TRACE_EXECUTION_TOOL_REGISTRY).map((entry) => entry.toolName)
+);
+
+export function resolveTraceExecutionToolName(
+  capability: TraceExecutionToolCapability
+): TraceExecutionToolName {
+  return TRACE_EXECUTION_TOOL_REGISTRY[capability].toolName;
+}
+
+export function readTraceExecutionToolName(
+  value: unknown
+): TraceExecutionToolName | null {
+  return typeof value === 'string' &&
+    TRACE_EXECUTION_TOOL_NAME_VALUES.has(value as TraceExecutionToolName)
+    ? (value as TraceExecutionToolName)
+    : null;
+}
 
 export function buildTraceExecutionToolLabel(
   toolName: TraceExecutionToolName | null
@@ -189,7 +237,7 @@ export function buildTraceExecutionPlan(input: {
           key: 'deterministic_reply',
           id: 'deterministic_reply',
           kind: 'deterministic_reply',
-          toolName: 'policy_reply',
+          toolName: resolveTraceExecutionToolName('policy_reply'),
           label: 'Deterministic reply',
           detail: null
         })
@@ -209,7 +257,7 @@ export function buildTraceExecutionPlan(input: {
           key: 'source_fetch',
           id: 'source_fetch',
           kind: 'source_fetch',
-          toolName: 'external_source_fetch',
+          toolName: resolveTraceExecutionToolName('external_source'),
           label: 'Source fetch',
           detail:
             input.sourceCount != null ? `${input.sourceCount} source(s)` : null
@@ -234,7 +282,7 @@ export function buildTraceExecutionPlan(input: {
         key: 'retrieval',
         id: 'retrieval',
         kind: 'retrieval',
-        toolName: 'knowledge_base_search',
+        toolName: resolveTraceExecutionToolName('knowledge_base'),
         label: 'Retrieval',
         detail: null
       }),

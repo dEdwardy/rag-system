@@ -3,8 +3,8 @@ import { Prisma, TraceStatus } from '@prisma/client';
 import {
   buildTraceExecutionToolNamesLabel,
   collectTraceExecutionToolNames,
+  readTraceExecutionToolName,
   type TraceExecutionPlan,
-  type TraceExecutionToolName,
   type TraceSummary
 } from '@rag-system/shared';
 import { PrismaService } from '../../infra/database/prisma.service';
@@ -1091,10 +1091,7 @@ export class TracesService {
               key,
               id,
               kind,
-              toolName:
-                this.readStringAs<TraceExecutionToolName>(
-                  stepObject.toolName
-                ) ?? null,
+              toolName: readTraceExecutionToolName(stepObject.toolName),
               status,
               label,
               detail: this.readString(stepObject.detail),
