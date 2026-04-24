@@ -1,4 +1,4 @@
-import {
+﻿import {
   Alert,
   Anchor,
   Badge,
@@ -20,6 +20,8 @@ import {
 } from '../../features/api/hooks';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { TraceRecord } from '../../types/api';
+import { TraceRouteFilterPanel } from './TraceRouteFilterPanel';
+import { matchesTraceRouteFilter } from './trace-route-helpers';
 
 const TRACE_PAGE_SIZE = 12;
 
@@ -53,6 +55,7 @@ function TraceConversationCard({
 }) {
   const { formatDateTime, locale, t } = useI18n();
   const traceSummary = latestTrace.traceSummary;
+  const routeDecision = traceSummary.routeDecisionSummary;
   const timing = traceSummary.timingSummary;
   const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
   const rewriteNotAppliedLabel = locale === 'zh' ? '未改写' : 'No rewrite';
@@ -179,13 +182,36 @@ function TraceConversationCard({
             </span>
             <span className="workspace-meta-value">{candidateLabel}</span>
           </div>
+          <div className="workspace-meta-row">
+            <span className="workspace-meta-label">
+              {locale === 'zh' ? '璺敱鍐崇瓥' : 'Route decision'}
+            </span>
+            <span className="workspace-meta-value">
+              {routeDecision
+                ? `${routeDecision.routeType} 路 ${routeDecision.routeReason}`
+                : locale === 'zh'
+                  ? '鏆傛棤璺敱淇℃伅'
+                  : 'No route metadata'}
+            </span>
+          </div>
+          {routeDecision?.routeType === 'external_source' ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? '澶栭儴鏉ユ簮' : 'External sources'}
+              </span>
+              <span className="workspace-meta-value">
+                {traceSummary.retrievedChunkCount}{' '}
+                {locale === 'zh' ? '涓潵婧愬潡' : 'source chunks'}
+              </span>
+            </div>
+          ) : null}
           {bottleneck && bottleneck.value >= 0 ? (
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">
                 {locale === 'zh' ? '最慢阶段' : 'Slowest stage'}
               </span>
               <span className="workspace-meta-value">
-                {bottleneck.label} · {bottleneck.value} ms
+                {bottleneck.label} 路 {bottleneck.value} ms
               </span>
             </div>
           ) : null}
@@ -213,9 +239,10 @@ function TraceConversationCard({
 export function TraceListPage() {
   const { t, locale } = useI18n();
   const location = useLocation();
-  const requestedPage = Number(
-    new URLSearchParams(location.search).get('page') ?? '1'
-  );
+  const searchParams = new URLSearchParams(location.search);
+  const requestedPage = Number(searchParams.get('page') ?? '1');
+  const routeTypeFilter = searchParams.get('routeType');
+  const routeReasonFilter = searchParams.get('routeReason');
   const safeRequestedPage =
     Number.isFinite(requestedPage) && requestedPage > 0
       ? Math.floor(requestedPage)
@@ -253,6 +280,13 @@ export function TraceListPage() {
         latestTracesQuery.latestTraceByConversationId[conversation.id] ?? null;
       return latestTrace ? [{ conversation, latestTrace }] : [];
     }) ?? [];
+  const filteredTraceCards = traceCards.filter(({ latestTrace }) => {
+    return matchesTraceRouteFilter(
+      latestTrace,
+      routeTypeFilter,
+      routeReasonFilter
+    );
+  });
   const visibleStart = conversationCount === 0 ? 0 : pageStart + 1;
   const visibleEnd = Math.min(
     pageStart + pagedConversations.length,
@@ -263,12 +297,20 @@ export function TraceListPage() {
       ? `显示第 ${visibleStart}-${visibleEnd} 条，共 ${conversationCount} 个会话`
       : `Showing ${visibleStart}-${visibleEnd} of ${conversationCount} conversations`;
 
+  const buildSearchHref = (nextSearchParams: URLSearchParams) => {
+    const search = nextSearchParams.toString();
+    return search.length === 0 ? '/traces' : `/traces?${search}`;
+  };
+
   const buildPageHref = (page: number) => {
+    const nextSearchParams = new URLSearchParams(location.search);
     if (page <= 1) {
-      return '/traces';
+      nextSearchParams.delete('page');
+    } else {
+      nextSearchParams.set('page', String(page));
     }
 
-    return `/traces?page=${page}`;
+    return buildSearchHref(nextSearchParams);
   };
 
   return (
@@ -298,6 +340,10 @@ export function TraceListPage() {
             <Text c="var(--app-text-muted)" mt={4} size="sm">
               {t('trace.copy.traceDescription')}
             </Text>
+            <TraceRouteFilterPanel
+              routeReasonFilter={routeReasonFilter}
+              routeTypeFilter={routeTypeFilter}
+            />
           </div>
           <Stack align="flex-end" gap={10}>
             <Badge color="indigo" radius="sm" variant="light">
@@ -371,7 +417,7 @@ export function TraceListPage() {
               cols={{ base: 1, lg: pagedConversations.length > 1 ? 2 : 1 }}
               spacing="md"
             >
-              {traceCards.map(({ conversation, latestTrace }) => (
+              {filteredTraceCards.map(({ conversation, latestTrace }) => (
                 <TraceConversationCard
                   conversationTitle={conversation.title}
                   latestTrace={latestTrace}

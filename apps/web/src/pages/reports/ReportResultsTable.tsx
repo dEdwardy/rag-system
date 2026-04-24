@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { StatePanel } from '../../components/StatePanel';
 import { useI18n } from '../../i18n/I18nProvider';
+import { ReportRouteViewShortcuts } from './ReportRouteViewShortcuts';
 import type { EvalQuestionSetRunItem } from '../../types/api';
 
 type ReviewConclusion = 'retrieval' | 'citation' | 'answer' | 'skip';
@@ -162,10 +163,17 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
   return (
     <div className="workspace-table-shell overflow-x-auto">
       <div className="workspace-table-toolbar border-b border-[var(--app-border)] px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
-          <Text className="workspace-table-hint flex-shrink-0">
-            {t('reportResultsTable.tableHint')}
-          </Text>
+        <div className="flex flex-wrap items-start gap-4 w-full sm:w-auto">
+          <div className="flex min-w-0 flex-col gap-1">
+            <Text className="workspace-table-hint flex-shrink-0">
+              {t('reportResultsTable.tableHint')}
+            </Text>
+            <Text className="workspace-table-hint" size="xs">
+              {locale === 'zh'
+                ? '如果你要看 route，先去摘要区或 trace 列表页。'
+                : 'Use the route-view shortcuts in the summary block or trace list when you need routing details.'}
+            </Text>
+          </div>
           <div className="flex flex-wrap items-center gap-3 flex-grow sm:flex-grow-0">
             <Select
               data={statusOptions.map((option) => ({
@@ -238,6 +246,7 @@ export function ReportResultsTable(props: ReportResultsTableProps) {
               value={filterConclusion || null}
             />
           </div>
+          <ReportRouteViewShortcuts />
         </div>
         <Badge
           color={hasRunError ? 'red' : 'indigo'}
