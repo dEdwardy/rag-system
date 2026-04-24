@@ -93,6 +93,10 @@
   - `apps/api/src/modules/traces/traces.service.ts` now preserves the step-level tool name when reading trace metadata
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders the tool name badge for each execution step when present, making the execution layer easier to compare with future workflow executors
 
+- `execution tool label registry` centralized the visible tool labels so trace consumers do not have to invent their own text
+  - `packages/shared/src/trace-contracts.ts` now exports `TRACE_EXECUTION_TOOL_LABELS` and `buildTraceExecutionToolLabel(...)` as the shared registry
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now resolves the label from the shared registry before falling back to the raw tool name
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling

@@ -34,6 +34,18 @@ export type TraceExecutionToolName =
   | 'external_source_fetch'
   | 'policy_reply';
 
+export const TRACE_EXECUTION_TOOL_LABELS = {
+  knowledge_base_search: 'Knowledge base search',
+  external_source_fetch: 'External source fetch',
+  policy_reply: 'Policy reply'
+} satisfies Record<TraceExecutionToolName, string>;
+
+export function buildTraceExecutionToolLabel(
+  toolName: TraceExecutionToolName | null
+) {
+  return toolName == null ? null : TRACE_EXECUTION_TOOL_LABELS[toolName];
+}
+
 export type TraceExecutionStepStatus =
   | 'pending'
   | 'running'
@@ -141,32 +153,46 @@ export function buildTraceExecutionPlan(input: {
   routeReason: TraceRouteReason;
   sourceCount?: number;
 }): TraceExecutionPlan {
-  const routeStep: TraceExecutionStep = {
+  const buildStep = (input: {
+    key: string;
+    id: string;
+    kind: TraceExecutionStepKind;
+    toolName: TraceExecutionToolName | null;
+    label: string;
+    detail: string | null;
+  }): TraceExecutionStep => ({
+    key: input.key,
+    id: input.id,
+    kind: input.kind,
+    toolName: input.toolName,
+    status: 'completed',
+    label: input.label,
+    detail: input.detail,
+    durationMs: null
+  });
+
+  const routeStep = buildStep({
     key: 'route_decision',
     id: 'route_decision',
     kind: 'route_decision',
     toolName: null,
-    status: 'completed',
     label: 'Route decision',
-    detail: `${input.routeType}:${input.routeReason}`,
-    durationMs: null
-  };
+    detail: `${input.routeType}:${input.routeReason}`
+  });
 
   if (input.routeType === 'policy_reply') {
     return {
       executionMode: 'manual',
       steps: [
         routeStep,
-        {
+        buildStep({
           key: 'deterministic_reply',
           id: 'deterministic_reply',
           kind: 'deterministic_reply',
           toolName: 'policy_reply',
-          status: 'completed',
           label: 'Deterministic reply',
-          detail: null,
-          durationMs: null
-        }
+          detail: null
+        })
       ]
     };
   }
@@ -179,27 +205,23 @@ export function buildTraceExecutionPlan(input: {
           : 'manual',
       steps: [
         routeStep,
-        {
+        buildStep({
           key: 'source_fetch',
           id: 'source_fetch',
           kind: 'source_fetch',
           toolName: 'external_source_fetch',
-          status: 'completed',
           label: 'Source fetch',
           detail:
-            input.sourceCount != null ? `${input.sourceCount} source(s)` : null,
-          durationMs: null
-        },
-        {
+            input.sourceCount != null ? `${input.sourceCount} source(s)` : null
+        }),
+        buildStep({
           key: 'answer_generation',
           id: 'answer_generation',
           kind: 'answer_generation',
           toolName: null,
-          status: 'completed',
           label: 'Answer generation',
-          detail: null,
-          durationMs: null
-        }
+          detail: null
+        })
       ]
     };
   }
@@ -208,26 +230,22 @@ export function buildTraceExecutionPlan(input: {
     executionMode: 'manual',
     steps: [
       routeStep,
-      {
+      buildStep({
         key: 'retrieval',
         id: 'retrieval',
         kind: 'retrieval',
         toolName: 'knowledge_base_search',
-        status: 'completed',
         label: 'Retrieval',
-        detail: null,
-        durationMs: null
-      },
-      {
+        detail: null
+      }),
+      buildStep({
         key: 'answer_generation',
         id: 'answer_generation',
         kind: 'answer_generation',
         toolName: null,
-        status: 'completed',
         label: 'Answer generation',
-        detail: null,
-        durationMs: null
-      }
+        detail: null
+      })
     ]
   };
 }

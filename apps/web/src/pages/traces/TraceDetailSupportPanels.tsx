@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { StatePanel } from '../../components/StatePanel';
 import type { SupportedLocale } from '../../i18n/messages';
 import type { Citation, TraceRecord } from '../../types/api';
+import { buildTraceExecutionToolLabel } from '@rag-system/shared';
 import {
   buildDocumentChunkLink,
   buildRawPayload
@@ -372,7 +373,8 @@ export function TraceDetailSidebarPanels({
                             </Text>
                             {step.toolName ? (
                               <Badge color="cyan" radius="sm" variant="light">
-                                {step.toolName}
+                                {buildTraceExecutionToolLabel(step.toolName) ??
+                                  step.toolName}
                               </Badge>
                             ) : null}
                             <Text c="var(--app-text-muted)" size="xs">
