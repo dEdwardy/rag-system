@@ -13,6 +13,7 @@ apps/api/storage/
 api-server.log
 api-server.err.log
 .codex/
+.claude/
 .worktrees/
 .sisyphus/boulder.json
 .sisyphus/notepads/
