@@ -34,6 +34,12 @@ export type TraceExecutionToolName =
   | 'external_source_fetch'
   | 'policy_reply';
 
+export const TRACE_EXECUTION_TOOL_NAMES = [
+  'knowledge_base_search',
+  'external_source_fetch',
+  'policy_reply'
+] as const satisfies TraceExecutionToolName[];
+
 export type TraceExecutionToolCapability =
   | 'knowledge_base'
   | 'external_source'
@@ -69,10 +75,6 @@ export const TRACE_EXECUTION_TOOL_LABELS = {
     TRACE_EXECUTION_TOOL_REGISTRY.policy_reply.label
 } satisfies Record<TraceExecutionToolName, string>;
 
-export const TRACE_EXECUTION_TOOL_NAMES = Object.values(
-  TRACE_EXECUTION_TOOL_REGISTRY
-).map((entry) => entry.toolName) as TraceExecutionToolName[];
-
 const TRACE_EXECUTION_TOOL_NAME_VALUES = new Set<TraceExecutionToolName>(
   TRACE_EXECUTION_TOOL_NAMES
 );
@@ -106,14 +108,15 @@ export type TraceExecutionStepStatus =
 
 export type TraceExecutionMode = 'manual' | 'workflow';
 
+export const TRACE_EXECUTION_MODES = [
+  'manual',
+  'workflow'
+] as const satisfies TraceExecutionMode[];
+
 export const TRACE_EXECUTION_MODE_LABELS = {
   manual: 'manual',
   workflow: 'workflow'
 } satisfies Record<TraceExecutionMode, string>;
-
-export const TRACE_EXECUTION_MODES = Object.keys(
-  TRACE_EXECUTION_MODE_LABELS
-) as TraceExecutionMode[];
 
 const TRACE_EXECUTION_MODE_VALUES = new Set<TraceExecutionMode>(
   TRACE_EXECUTION_MODES

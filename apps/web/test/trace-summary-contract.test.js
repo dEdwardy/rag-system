@@ -81,7 +81,7 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(sharedSource, /workflow:\s*'workflow'/);
   assert.match(
     sharedSource,
-    /export const TRACE_EXECUTION_MODES = Object\.keys\(/
+    /export const TRACE_EXECUTION_MODES = \[\s*'manual',\s*'workflow'\s*\] as const satisfies TraceExecutionMode\[\];/
   );
   assert.match(
     sharedSource,
@@ -93,7 +93,7 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     sharedSource,
-    /export const TRACE_EXECUTION_TOOL_NAMES = Object\.values\(/
+    /export const TRACE_EXECUTION_TOOL_NAMES = \[[\s\S]*?'knowledge_base_search',[\s\S]*?'external_source_fetch',[\s\S]*?'policy_reply'[\s\S]*?\] as const satisfies TraceExecutionToolName\[\];/
   );
   assert.match(sharedSource, /timingSummary:\s*TraceTimingSummary;/);
   assert.match(sharedSource, /timingReadabilitySentence:\s*string;/);

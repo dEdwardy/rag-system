@@ -218,7 +218,7 @@ export const messages = {
       noActiveKnowledgeBaseAction: '打开工作区设置',
       noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
       noAssistantForKnowledgeBaseDescription:
-        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果它没有自动出现，请先点击“刷新默认路径”，再进入回答设置。',
+        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果这个资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再进入回答设置。',
       noAssistantForKnowledgeBaseAction: '打开回答设置',
       noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
       noDocumentsTitle: '先补充资料，再开始对话',
