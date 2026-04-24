@@ -12,6 +12,7 @@
 - loop runtime now also writes a compact timeout recovery artifact under `loop-runtime/runtime/recovery/` and accepts per-item timeout overrides from queue item metadata without changing the default execution path.
 - loop recovery/validation guidance is now tightened around one-item/one-command focused checks, with queue test validation kept on focused Vitest commands and legacy `node:test` entry points explicitly excluded from new queue items.
 - root `package.json` now keeps `test:harness` marked as a legacy alias (`test:harness:legacy`) so queue and loop docs can explicitly treat it as migration-only, not as a valid validation path for future agentic queue work.
+- queue docs now also make the recovery rule more explicit: retries should shrink back to one small explicit Vitest command, and any remaining legacy `node:test` gap should be handled as a Vitest-migration task before new queue work depends on it.
 - a future follow-up direction is now documented for the loop runtime: use an LLM to expand coarse requests into detailed plans, optionally split them into sequential and parallel queue items, and feed failures back into a replanning step after the current rag-system mainline is done.
 
 - 当前默认方式仍是：单线推进、小步增量、每轮收口。

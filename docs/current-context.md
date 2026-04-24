@@ -100,6 +100,8 @@
 - queue item validation should use exactly one small focused command; avoid chaining broad suites, mixed checks, or fallback command sequences in queue prompts
 - new queue tasks should use `vitest run` for test validation; do not add new raw `node --test` commands or legacy aliases such as `pnpm test:harness` to future queue items. If a legacy `node:test` file is still in the way, migrate or replace it before queueing the task.
 - recovery follow-ups should stay one-item/one-command as well: rewrite the item to a focused Vitest command instead of stacking extra validation onto the retry
+- queue items should name the smallest explicit Vitest target that proves the change, preferably a file path or tight same-slice set, rather than broad package aliases whose scope is easy to grow accidentally
+- when a retry would otherwise need a second command to compensate for missing Vitest coverage, treat Vitest migration as the actual task and requeue only after the focused command exists
 - 只有在当前增量确实跨范围时，才升级到更重的 `pnpm build` / `pnpm lint` / `pnpm typecheck`
 
 ## Key Docs
