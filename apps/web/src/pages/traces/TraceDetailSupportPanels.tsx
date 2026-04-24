@@ -247,6 +247,7 @@ export function TraceDetailSidebarPanels({
   const routeDecision = trace.traceSummary?.routeDecisionSummary ?? null;
   const executionPlan = trace.traceSummary?.executionPlan ?? null;
   const executionMode = trace.traceSummary?.executionMode ?? null;
+  const executionToolNames = trace.traceSummary?.executionToolNames ?? [];
   const executionSteps = trace.traceSummary?.executionPlan?.steps ?? null;
 
   return (
@@ -352,6 +353,11 @@ export function TraceDetailSidebarPanels({
                         ? `总览：${executionPlan?.steps.length ?? 0} 个步骤`
                         : `Overview: ${executionPlan?.steps.length ?? 0} step(s)`}
                     </Text>
+                    {executionToolNames.length > 0 ? (
+                      <Badge color="cyan" radius="sm" variant="light">
+                        {trace.traceSummary?.executionToolNamesReadabilityLabel}
+                      </Badge>
+                    ) : null}
                     <Stack gap={6}>
                       {executionSteps.map((step) => (
                         <Group

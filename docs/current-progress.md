@@ -101,6 +101,7 @@
   - `packages/shared/src/trace-contracts.ts` now exposes `executionToolNames` on `TraceSummary` and a small helper to collect the names from the execution plan
   - `apps/api/src/modules/traces/traces.service.ts` now populates the summary-level tool list from the execution plan once
   - `apps/web/src/pages/traces/TraceListPage.tsx` now shows a compact execution-tools badge when a trace used routed tools, without expanding the full step list in the card body
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now shows the same summary-level execution-tool label above the detailed step rows so list and detail views stay aligned
 
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
