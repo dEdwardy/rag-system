@@ -107,6 +107,10 @@
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now dispatches `policy_reply` and `external_source` through a tiny executor map
   - the change keeps the minimal agentization path more extensible without changing the underlying behavior or adding a broader runtime layer
 
+- `external source title helper` removed one more nested ternary from the external-source execution path
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one small helper to normalize external-source step titles and trace labels
+  - this keeps the multi-source path easier to read while preserving the same route and trace behavior
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling

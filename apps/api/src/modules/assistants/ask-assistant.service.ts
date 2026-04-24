@@ -2501,6 +2501,25 @@ export class AskAssistantService {
     };
   }
 
+  private buildExternalSourceStepTitle(input: {
+    sourceKind: ResolvedExternalSourceRoute['sourceKind'];
+    title: string | null;
+  }) {
+    if (input.title != null && input.title.trim().length > 0) {
+      return input.title;
+    }
+
+    if (input.sourceKind === 'web') {
+      return 'External web page';
+    }
+
+    if (input.sourceKind === 'feed') {
+      return 'External feed';
+    }
+
+    return 'External sitemap';
+  }
+
   private async persistRouteAnswerResult(input: {
     conversationId: string;
     userMessageId: string;
@@ -2573,12 +2592,10 @@ export class AskAssistantService {
         title:
           index === 0
             ? fetchedSource.title
-            : (source.title ??
-              (source.sourceKind === 'web'
-                ? 'External web page'
-                : source.sourceKind === 'feed'
-                  ? 'External feed'
-                  : 'External sitemap')),
+            : this.buildExternalSourceStepTitle({
+                sourceKind: source.sourceKind,
+                title: source.title
+              }),
         content: source.content
       }))
     );
@@ -2595,11 +2612,10 @@ export class AskAssistantService {
         title:
           index === 0
             ? fetchedSource.title
-            : source.sourceKind === 'web'
-              ? 'External web page'
-              : source.sourceKind === 'feed'
-                ? 'External feed'
-                : 'External sitemap',
+            : this.buildExternalSourceStepTitle({
+                sourceKind: source.sourceKind,
+                title: source.title
+              }),
         diagnostics: index === 0 ? fetchedSource.diagnostics : null
       }))
     });
@@ -2717,12 +2733,10 @@ export class AskAssistantService {
         title:
           index === 0
             ? fetchedSource.title
-            : (source.title ??
-              (source.sourceKind === 'web'
-                ? 'External web page'
-                : source.sourceKind === 'feed'
-                  ? 'External feed'
-                  : 'External sitemap')),
+            : this.buildExternalSourceStepTitle({
+                sourceKind: source.sourceKind,
+                title: source.title
+              }),
         content: source.content
       }))
     );
@@ -2739,11 +2753,10 @@ export class AskAssistantService {
         title:
           index === 0
             ? fetchedSource.title
-            : source.sourceKind === 'web'
-              ? 'External web page'
-              : source.sourceKind === 'feed'
-                ? 'External feed'
-                : 'External sitemap',
+            : this.buildExternalSourceStepTitle({
+                sourceKind: source.sourceKind,
+                title: source.title
+              }),
         diagnostics: index === 0 ? fetchedSource.diagnostics : null
       }))
     });
