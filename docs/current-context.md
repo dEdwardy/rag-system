@@ -54,12 +54,12 @@
 
 ## Execution Order
 
-1. 先定义并落地一个最小 agent 化增量：在 ask 入口前增加轻量分类/路由决策。
-2. 将路由决策接到现有处理链路上，优先复用现有 KB ask、external-source family 或 deterministic reply。
-3. 把 route decision 写入 trace / metadata，并补对应 focused validation。
-4. 继续收紧默认助手 / 主知识库 / retrieval profile 的 canonical 选择与 repair 语义。
-5. 继续收口默认路径的状态反馈和 next action 文案。
-6. 保持 docs、阶段判断和代码现实对齐。
+1. 当前队列里的最小 agent 化主干已落地；优先处理剩余的 trace/detail 可读性补位与 docs 同步。
+2. 在不改主路径契约的前提下，完成 trace surfaces 上对 route / execution mode / tool names 的收口。
+3. 保持默认助手 / 主知识库 / retrieval profile 的 canonical 选择与 repair 语义稳定。
+4. 保持默认路径的状态反馈、next action 文案和当前 repair/upload-first 行为一致。
+5. 在前述收口稳定后，再补最小 agent demo surface，而不是扩成 planner 或 multi-agent。
+6. 持续保持 docs、阶段判断和活动队列现实对齐。
 
 ## Do Not Do
 

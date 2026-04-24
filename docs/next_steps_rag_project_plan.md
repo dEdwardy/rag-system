@@ -120,12 +120,12 @@
 
 ## 3. 建议执行顺序
 
-1. 先定义并落地最小 route decision 及其 metadata/trace 契约
-2. 按高内聚、低耦合拆开 route classifier / route executor / source adapter 后，再接通首个可交付版本的 2 到 3 条处理路径
-3. 补 ask route / trace / fallback 的 focused tests
-4. 默认助手 / 主知识库 / retrieval profile 的 canonical 选择继续收紧
-5. 默认路径空态、异常态和 next action 文案继续对齐
-6. 保持文档和代码现实同步
+1. 当前队列已完成最小 route decision、tool/trace contract、bounded multi-step flow，以及默认助手 repair / 默认路径 copy / 默认 ask-path orchestration 的窄范围收口
+2. 先完成当前剩余的 trace detail/readability follow-up，使 route、execution mode、tool names 的展示与现有契约保持一致
+3. 保持 ask route / trace / fallback 的 focused tests 和既有契约稳定，不把这轮补位扩成新平台层
+4. 默认助手 / 主知识库 / retrieval profile 的 canonical 选择继续做 bounded maintenance
+5. 默认路径空态、异常态和 next action 文案继续与 repair/upload-first 行为对齐
+6. 在以上都稳定后，再补最小 agent demo surface，并继续保持文档和代码现实同步
 
 ## 4. 当前明确不做
 

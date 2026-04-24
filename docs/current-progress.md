@@ -37,6 +37,7 @@
   - 优先复用现有 KB ask、external-source family、deterministic reply 能力
   - 优先把 route decision 写进 trace / metadata
   - 不扩成 planner、multi-agent、复杂 memory 或自治任务系统
+- 活动队列现实也已进一步收口：最小 agent 化主干、默认助手 repair、默认路径 copy、默认 ask-path orchestration thin pass 已完成；当前排在前面的剩余事项是 `agentic-trace-detail-ui` 的补位、本文档同步，以及之后的最小 agent demo surface。
 
 ## Recent Landed Increments
 
