@@ -40,6 +40,9 @@ ui/version-b-creative.*
 !loop-runtime/systemd/
 !loop-runtime/systemd/*.service
 !loop-runtime/systemd/*.timer
+loop-runtime/loop-run.log
+loop-runtime/materialized/
+loop-runtime/runtime/
 .opencode/loop/archive/
 .opencode/loop/runtime/
 .opencode/loop/prompts/
