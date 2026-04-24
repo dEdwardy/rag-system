@@ -95,6 +95,8 @@ type AskRouteToolAdapters = Partial<
   Record<AskRouteDecision['routeType'], AskRouteToolAdapter>
 >;
 
+type AskKnowledgeBaseRouteAdapter = () => Promise<unknown>;
+
 type AskExternalSourceFetchAdapterInput = {
   resolvedSource: ResolvedExternalSourceCandidate;
   routeDecision: AskRouteDecision;
@@ -400,7 +402,7 @@ export class AskAssistantService {
           durationMs: 0
         }));
 
-    const specialRouteResult = this.dispatchSpecialRouteAsk({
+    return this.dispatchRouteAsk({
       routeDecision,
       executors: this.buildAskRouteToolAdapters({
         assistant,
@@ -411,390 +413,25 @@ export class AskAssistantService {
         question: input.question,
         normalizedAnswerPolicy,
         routeDecision
-      })
-    });
-
-    if (specialRouteResult != null) {
-      return (await specialRouteResult) as Awaited<
-        ReturnType<
-          | AskAssistantService['handlePolicyRouteAsk']
-          | AskAssistantService['handleExternalSourceRouteAsk']
-        >
-      >;
-    }
-
-    const retrievalResult = await this.retrievalLimiter.execute(() =>
-      this.retrieveOrCreateFailedTrace({
-        assistantId: assistant.id,
-        assistantKbId: assistant.kbId,
-        conversationPromise: Promise.resolve(conversationResult),
-        getUserMessagePromise: () => userMessagePromise,
-        userQuery: input.question,
-        retrievalQuery,
-        retrievalProfile,
-        retrievalStrategy,
-        retrievalFilters,
-        rewritten,
-        documentVersions: input.documentVersions
-      })
-    );
-    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
-      routeDecision,
-      retrievalResult,
-      retrievalQuery,
-      question: input.question,
-      retrievalProfile,
-      retrievalStrategy,
-      retrievalFilters,
-      assistantKbId: assistant.kbId,
-      documentVersions: input.documentVersions
-    });
-    const resolvedRetrievalResult =
-      multiStepSummary?.selectedResult ?? retrievalResult;
-
-    const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
-    const contextGroups = resolvedRetrievalResult.contextGroups;
-
-    const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
-      Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
-      Promise.resolve(
-        this.buildRetrievalMetadata({
-          strategy: retrievalStrategy,
-          filters: retrievalFilters,
-          rewrittenQuery: rewritten.rewrittenQuery,
-          rewriteSkippedReason: rewritten.skippedReason,
-          rewriteModelName: retrievalStrategy.queryRewrite.enabled
-            ? rewritten.modelName
-            : null,
-          rewritePromptId: retrievalStrategy.queryRewrite.enabled
-            ? rewritten.promptId
-            : null,
-          rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled
-            ? rewritten.usedFallback
-            : null,
-          originalQuestion: input.question,
-          topK: retrievalProfile.topK,
-          scoreThreshold: retrievalProfile.scoreThreshold,
-          chunkWindow: retrievalProfile.chunkWindow,
-          retrievedChunks,
-          contextGroups,
-          embedding: resolvedRetrievalResult.embedding,
-          routeDecision,
-          execution: resolvedRetrievalResult.execution,
-          knowledgeBaseMultiStep: multiStepSummary?.metadata,
-          promptContextChars: null,
-          promptContextApproxTokens: null
-        }) as AskRetrievalMetadataJson
-      )
-    ]);
-
-    const [
-      strategyReadabilityLabel,
-      retrievalModeProvenanceSentence,
-      rewriteReadabilityLabel
-    ] = await Promise.all([
-      buildStrategyReadabilityLabel({
-        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-        retrievalQuerySource:
-          retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
-        fallbackReason:
-          retrievalMetadata.strategySummary?.fallbackReason ?? null,
-        strategyUsedFallback:
-          retrievalMetadata.strategySummary?.usedFallback ?? null
       }),
-      buildRetrievalModeProvenanceSentence({
-        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-        strategyUsedFallback:
-          retrievalMetadata.strategySummary?.usedFallback ?? null,
-        fallbackReason:
-          retrievalMetadata.strategySummary?.fallbackReason ?? null
-      }),
-      buildRewriteReadabilityLabel({
-        rewriteEnabled:
-          retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
-        rewriteApplied:
-          retrievalMetadata.strategySummary?.rewriteApplied ?? false,
-        rewriteUsedFallback:
-          retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
-        rewritePromptId:
-          retrievalMetadata.strategySummary?.rewritePromptId ?? null
-      })
-    ]);
-
-    const { value: userMessage } = await userMessagePromise;
-
-    const trace = await this.tracesService.createTrace({
-      conversationId: conversation.id,
-      assistantId: assistant.id,
-      userMessageId: userMessage.id,
-      userQuery: input.question,
-      rewrittenQuery: retrievalQuery !== input.question ? retrievalQuery : null,
-      retrievedChunkIdsJson: retrievedChunks.map(
-        (chunk: AskResultChunk) => chunk.chunkId
-      ),
-      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
-      retrievalMetadataJson: retrievalMetadata,
-      modelName: rewritten.modelName ?? undefined,
-      status: TraceStatus.success
-    });
-    const promptSnapshot = this.buildPromptSnapshot({
-      question: input.question,
-      systemPrompt: assistant.systemPrompt,
-      answerPolicy: normalizedAnswerPolicy,
-      chunks: retrievedChunks,
-      contextGroups
-    });
-    const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
-      retrievalMetadata,
-      promptSnapshot
-    );
-
-    try {
-      const shouldBypassAnswerGeneration =
-        normalizedAnswerPolicy.noAnswerBehavior ===
-          'say_insufficient_context' &&
-        this.shouldDeterministicallyAbstain({
+      knowledgeBaseAsk: () =>
+        this.handleKnowledgeBaseRouteAsk({
+          assistant,
+          authContext,
+          conversation,
+          userMessagePromise,
+          startedAt,
           question: input.question,
-          retrievedChunks,
-          scoreThreshold: retrievalProfile.scoreThreshold
-        });
-      const resolvedAnswerResult = shouldBypassAnswerGeneration
-        ? this.answeringService.buildDeterministicInsufficientContextResult({
-            question: input.question,
-            answerPolicy: normalizedAnswerPolicy,
-            hasRetrievedContext: retrievedChunks.length > 0,
-            insufficientContextReason:
-              retrievedChunks.length > 0
-                ? 'retrieved_context_insufficient'
-                : 'no_retrieval_hits',
-            topScore: retrievedChunks[0]?.score ?? null
-          })
-        : await this.answeringService.generateAnswer({
-            question: input.question,
-            systemPrompt: assistant.systemPrompt,
-            answerPolicy: normalizedAnswerPolicy,
-            chunks: retrievedChunks,
-            contextGroups
-          });
-
-      const assistantMessage = await this.messagesService.createMessage({
-        conversationId: conversation.id,
-        role: MessageRole.assistant,
-        content: resolvedAnswerResult.answer,
-        traceId: trace.id
-      });
-
-      await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(
-        conversation.id,
-        authContext.identity
-      );
-      await this.tracesService.updateTrace(trace.id, {
-        assistantMessageId: assistantMessage.id,
-        citationsJson: resolvedAnswerResult.citations,
-        retrievalMetadataJson: retrievalMetadataWithPrompt,
-        answeringMetadataJson: this.withPromptSnapshot(
-          resolvedAnswerResult.answeringMetadata,
-          promptSnapshot
-        ),
-        qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
-        latencyMs: Date.now() - startedAt,
-        modelName: resolvedAnswerResult.modelName,
-        rewrittenQuery:
-          retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map(
-          (chunk: AskResultChunk) => chunk.chunkId
-        ),
-        retrievalScoresJson,
-        status: TraceStatus.success
-      });
-
-      const answerAttributionSummary = this.resolveAnswerAttributionSummary(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const answerAttributionSource = this.resolveAnswerAttributionSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const answerEvidenceSourceReadabilityLabel =
-        buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
-      const answerEvidenceSourceReadabilitySentence =
-        this.buildAnswerEvidenceSourceReadabilitySentence(
-          answerEvidenceSourceReadabilityLabel
-        );
-      const answerTextSource = this.resolveAnswerTextSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const rawAnswerTextSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
-          resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
-              .answerTextSource
-          : null
-      );
-      const answerStatusSource = this.resolveAnswerStatusSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const rawAnswerStatusSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
-          resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
-              .answerStatusSource
-          : null
-      );
-      const answerSourceReadability = buildAnswerSourceReadability({
-        answerTextSource,
-        rawAnswerTextSource,
-        answerStatusSource,
-        rawAnswerStatusSource
-      });
-      const {
-        answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence,
-        answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence
-      } = answerSourceReadability;
-      const answerAttributionReadabilitySentence =
-        answerAttributionSummary.readabilitySentence ??
-        'Answer attribution is unknown; source evidence is unknown.';
-      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } =
-        buildAnswerProvenanceFields({
-          answerTextSource,
-          answerStatusSource,
-          answerAttributionReadabilityResolvedLabel:
-            answerAttributionSummary.readabilityResolvedLabel,
-          answerTextSourceReadabilityLabel,
-          answerStatusSourceReadabilityLabel,
-          answerAttributionReadabilitySentence
-        });
-      const missingInformationSource = this.resolveMissingInformationSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const missingInformationProvenanceSentence =
-        buildMissingInformationProvenanceSentence({
-          missingInformationSource,
-          insufficientContextReason: this.resolveInsufficientContextReason(
-            resolvedAnswerResult.answeringMetadata
-          ),
-          missingInformationCount: this.resolveMissingInformationCount({
-            answeringMetadata: resolvedAnswerResult.answeringMetadata,
-            missingInformation: resolvedAnswerResult.missingInformation
-          })
-        });
-      this.logAskTiming({
-        route: 'ask',
-        status: 'success',
-        assistantId: assistant.id,
-        conversationId: conversation.id,
-        traceId: trace.id,
-        retrievalMode:
-          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
-        timing: null,
-        retrievalExecution:
-          typeof retrievalMetadataWithPrompt.execution === 'object' &&
-          retrievalMetadataWithPrompt.execution !== null
-            ? retrievalMetadataWithPrompt.execution
-            : null,
-        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
-          retrievalMetadataWithPrompt
-        )
-      });
-
-      return {
-        routeType: routeDecision.routeType,
-        routeReason: routeDecision.routeReason,
-        routeDecisionSummary: routeDecision,
-        conversationId: conversation.id,
-        userMessageId: userMessage.id,
-        assistantMessageId: assistantMessage.id,
-        traceId: trace.id,
-        answer: resolvedAnswerResult.answer,
-        citations: resolvedAnswerResult.citations,
-        retrievedChunks: resolvedAnswerResult.retrievedChunks,
-        contextGroups: resolvedAnswerResult.contextGroups,
-        strategySummary: retrievalMetadataWithPrompt.strategySummary,
-        strategyReadabilityLabel,
-        rewriteReadabilityLabel,
-        retrievalModeProvenanceSentence,
-        retrievalMetadata: retrievalMetadataWithPrompt,
-        answerAttributionSummary,
-        answerAttributionReadabilitySentence,
-        answerAttribution: this.resolveAnswerAttribution(
-          resolvedAnswerResult.answeringMetadata
-        ),
-        answerAttributionSource,
-        answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel,
-        answerEvidenceSourceReadabilitySentence,
-        answerTextSource,
-        answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence,
-        answerStatusSource,
-        answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence,
-        answerProvenanceSentence,
-        answerProvenanceReadabilitySentence,
-        missingInformationSource,
-        missingInformationProvenanceSentence,
-        missingInformationSourceReadabilityLabel:
-          buildMissingInformationSourceReadabilityLabel({
-            missingInformationSource
-          }),
-        answeringMetadata: this.withPromptSnapshot(
-          resolvedAnswerResult.answeringMetadata,
-          promptSnapshot
-        ),
-        modelName: resolvedAnswerResult.modelName,
-        answerStatus: resolvedAnswerResult.answerStatus,
-        missingInformation: resolvedAnswerResult.missingInformation,
-        qualityEvaluation: resolvedAnswerResult.qualityEvaluation
-      };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown ask pipeline error.';
-      this.logAskTiming({
-        route: 'ask',
-        status: this.isAbortError(error) ? 'aborted' : 'failed',
-        assistantId: assistant.id,
-        conversationId: conversation.id,
-        traceId: trace.id,
-        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
-        timing: null,
-        retrievalExecution:
-          typeof retrievalMetadata.execution === 'object' &&
-          retrievalMetadata.execution !== null
-            ? retrievalMetadata.execution
-            : null,
-        retrievalDiagnostics:
-          this.buildRetrievalLogDiagnostics(retrievalMetadata),
-        errorMessage: message
-      });
-      await this.tracesService.updateTrace(trace.id, {
-        latencyMs: Date.now() - startedAt,
-        modelName: rewritten.modelName ?? undefined,
-        rewrittenQuery:
-          retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map(
-          (chunk: AskResultChunk) => chunk.chunkId
-        ),
-        retrievalScoresJson,
-        retrievalMetadataJson: this.withFailureMetadata(
-          this.withPromptContextMetrics(retrievalMetadata, promptSnapshot),
-          {
-            stage: 'answering',
-            message
-          }
-        ),
-        status: TraceStatus.failed,
-        errorMessage: message
-      });
-      throw new AskAssistantError({
-        traceId: trace.id,
-        details: {
-          stage: 'answering',
-          cause: message
-        }
-      });
-    }
+          retrievalQuery,
+          retrievalProfile,
+          retrievalStrategy,
+          retrievalFilters,
+          rewritten,
+          normalizedAnswerPolicy,
+          routeDecision,
+          documentVersions: input.documentVersions
+        })
+    });
   }
 
   async askAssistantStream(input: {
@@ -968,7 +605,7 @@ export class AskAssistantService {
     };
     const eagerUserMessagePromise = getUserMessagePromise();
 
-    const specialRouteStreamResult = this.dispatchSpecialRouteAsk({
+    return this.dispatchRouteAsk({
       routeDecision,
       executors: this.buildAskStreamRouteToolAdapters({
         assistant,
@@ -980,558 +617,30 @@ export class AskAssistantService {
         normalizedAnswerPolicy,
         routeDecision,
         onEvent: input.onEvent
-      })
-    });
-
-    if (specialRouteStreamResult != null) {
-      return (await specialRouteStreamResult) as Awaited<
-        ReturnType<
-          | AskAssistantService['handlePolicyRouteAskStream']
-          | AskAssistantService['handleExternalSourceRouteAskStream']
-        >
-      >;
-    }
-
-    const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(
-      () =>
-        this.retrieveOrCreateFailedTrace({
-          assistantId: assistant.id,
-          assistantKbId: assistant.kbId,
+      }),
+      knowledgeBaseAsk: () =>
+        this.handleKnowledgeBaseRouteAskStream({
+          assistant,
+          authContext,
           conversationPromise,
+          retrievingStatusEventOutcomePromise,
           getUserMessagePromise,
-          userQuery: input.question,
+          eagerUserMessagePromise,
+          startedAt,
+          question: input.question,
           retrievalQuery,
           retrievalProfile,
           retrievalStrategy,
           retrievalFilters,
-          rewritten
-        })
-    );
-    const retrievalResult = retrievalResultMeasured.result;
-    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
-      routeDecision,
-      retrievalResult,
-      retrievalQuery,
-      question: input.question,
-      retrievalProfile,
-      retrievalStrategy,
-      retrievalFilters,
-      assistantKbId: assistant.kbId
-    });
-    const resolvedRetrievalResult =
-      multiStepSummary?.selectedResult ?? retrievalResult;
-    const retrievalMs = retrievalResultMeasured.runMs;
-    const retrievalQueueWaitMs = retrievalResultMeasured.waitMs;
-
-    const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
-    const contextGroups = resolvedRetrievalResult.contextGroups;
-
-    const conversationAndUserMessagePromise = Promise.all([
-      conversationPromise,
-      eagerUserMessagePromise
-    ]).then(([conversationResult, userMessageResult]) => ({
-      conversation: conversationResult.value,
-      conversationLoadMs: conversationResult.durationMs,
-      userMessage: userMessageResult.value,
-      userMessagePersistMs: userMessageResult.durationMs
-    }));
-    const retrievalArtifactsPromise = conversationAndUserMessagePromise.then(
-      () => ({
-        retrievalScoresJson: this.buildRetrievalScoresJson(retrievedChunks),
-        retrievalMetadata: this.buildRetrievalMetadata({
-          strategy: retrievalStrategy,
-          filters: retrievalFilters,
-          rewrittenQuery: rewritten.rewrittenQuery,
-          rewriteSkippedReason: rewritten.skippedReason,
-          rewriteModelName: retrievalStrategy.queryRewrite.enabled
-            ? rewritten.modelName
-            : null,
-          rewritePromptId: retrievalStrategy.queryRewrite.enabled
-            ? rewritten.promptId
-            : null,
-          rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled
-            ? rewritten.usedFallback
-            : null,
-          originalQuestion: input.question,
-          topK: retrievalProfile.topK,
-          scoreThreshold: retrievalProfile.scoreThreshold,
-          chunkWindow: retrievalProfile.chunkWindow,
-          retrievedChunks,
-          contextGroups,
-          embedding: resolvedRetrievalResult.embedding,
+          rewritten,
+          rewriteMs,
+          llmQueueWaitMs,
+          normalizedAnswerPolicy,
           routeDecision,
-          execution: resolvedRetrievalResult.execution,
-          knowledgeBaseMultiStep: multiStepSummary?.metadata,
-          promptContextChars: null,
-          promptContextApproxTokens: null
-        }) as AskRetrievalMetadataJson
-      })
-    );
-
-    const traceCreateStartedAt = Date.now();
-    const tracePromise = Promise.all([
-      conversationAndUserMessagePromise,
-      retrievalArtifactsPromise
-    ]).then(
-      ([
-        { conversation, userMessage },
-        { retrievalScoresJson, retrievalMetadata }
-      ]) =>
-        this.tracesService.createTrace({
-          conversationId: conversation.id,
-          assistantId: assistant.id,
-          userMessageId: userMessage.id,
-          userQuery: input.question,
-          rewrittenQuery:
-            retrievalQuery !== input.question ? retrievalQuery : null,
-          retrievedChunkIdsJson: retrievedChunks.map(
-            (chunk: AskResultChunk) => chunk.chunkId
-          ),
-          retrievalScoresJson,
-          retrievalMetadataJson: retrievalMetadata,
-          modelName: rewritten.modelName ?? undefined,
-          status: TraceStatus.success
+          onEvent: input.onEvent,
+          signal: input.signal
         })
-    );
-    let trace: { id: string } | null = null;
-    let traceCreateMs = 0;
-
-    try {
-      const generatingStatusEventPromise = Promise.resolve(
-        input.onEvent({
-          type: 'status',
-          phase: 'generating'
-        })
-      );
-
-      let firstTokenMs: number | null = null;
-      const generationStartedAt = Date.now();
-      const preGenerationMs = generationStartedAt - startedAt;
-      const resolvedAnswerResult =
-        retrievedChunks.length === 0 &&
-        normalizedAnswerPolicy.noAnswerBehavior === 'say_insufficient_context'
-          ? await (async () => {
-              const deterministicResult =
-                this.answeringService.buildDeterministicInsufficientContextResult(
-                  {
-                    question: input.question,
-                    answerPolicy: normalizedAnswerPolicy
-                  }
-                );
-              await generatingStatusEventPromise;
-              firstTokenMs = Date.now() - startedAt;
-              await input.onEvent({
-                type: 'answer_delta',
-                delta: deterministicResult.answer
-              });
-
-              return deterministicResult;
-            })()
-          : await (async () => {
-              const streamResultMeasured =
-                await this.llmLimiter.executeMeasured(() =>
-                  this.llmService.generateAnswerStream({
-                    question: input.question,
-                    systemPrompt: assistant.systemPrompt,
-                    answerPolicy: normalizedAnswerPolicy,
-                    chunks: this.answeringService.buildStreamAnswerContext({
-                      chunks: retrievedChunks,
-                      contextGroups
-                    }),
-                    signal: input.signal,
-                    onDelta: async (delta) => {
-                      await generatingStatusEventPromise;
-                      if (firstTokenMs == null) {
-                        firstTokenMs = Date.now() - startedAt;
-                      }
-                      await input.onEvent({
-                        type: 'answer_delta',
-                        delta
-                      });
-                    }
-                  })
-                );
-              llmQueueWaitMs += streamResultMeasured.waitMs;
-              const streamResult = streamResultMeasured.result;
-
-              return this.answeringService.finalizeStreamedAnswer({
-                question: input.question,
-                answerPolicy: normalizedAnswerPolicy,
-                chunks: retrievedChunks,
-                contextGroups,
-                rawAnswer: streamResult.rawAnswer,
-                modelName: streamResult.modelName,
-                promptId: streamResult.promptId,
-                usedFallback: streamResult.usedFallback,
-                answerStatus: streamResult.answerStatus,
-                missingInformation: streamResult.missingInformation,
-                citedChunkNumbers: streamResult.citedChunkNumbers,
-                citationEvidence: streamResult.citationEvidence
-              });
-            })();
-      await generatingStatusEventPromise;
-      const answerGenerationMs = Date.now() - generationStartedAt;
-      const {
-        conversation,
-        conversationLoadMs,
-        userMessage,
-        userMessagePersistMs
-      } = await conversationAndUserMessagePromise;
-      const { retrievalScoresJson, retrievalMetadata } =
-        await retrievalArtifactsPromise;
-      trace = await tracePromise;
-      traceCreateMs = Date.now() - traceCreateStartedAt;
-      const promptSnapshot = this.buildPromptSnapshot({
-        question: input.question,
-        systemPrompt: assistant.systemPrompt,
-        answerPolicy: normalizedAnswerPolicy,
-        chunks: retrievedChunks,
-        contextGroups
-      });
-      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
-        retrievalMetadata,
-        promptSnapshot
-      );
-      const [
-        strategyReadabilityLabel,
-        retrievalModeProvenanceSentence,
-        rewriteReadabilityLabel
-      ] = await Promise.all([
-        buildStrategyReadabilityLabel({
-          retrievalMode:
-            retrievalMetadata.strategySummary?.retrievalMode ?? null,
-          retrievalQuerySource:
-            retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
-          fallbackReason:
-            retrievalMetadata.strategySummary?.fallbackReason ?? null,
-          strategyUsedFallback:
-            retrievalMetadata.strategySummary?.usedFallback ?? null
-        }),
-        buildRetrievalModeProvenanceSentence({
-          retrievalMode:
-            retrievalMetadata.strategySummary?.retrievalMode ?? null,
-          strategyUsedFallback:
-            retrievalMetadata.strategySummary?.usedFallback ?? null,
-          fallbackReason:
-            retrievalMetadata.strategySummary?.fallbackReason ?? null
-        }),
-        buildRewriteReadabilityLabel({
-          rewriteEnabled:
-            retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
-          rewriteApplied:
-            retrievalMetadata.strategySummary?.rewriteApplied ?? false,
-          rewriteUsedFallback:
-            retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
-          rewritePromptId:
-            retrievalMetadata.strategySummary?.rewritePromptId ?? null
-        })
-      ]);
-      const assistantMessagePersistStartedAt = Date.now();
-      const retrievingStatusEventOutcome =
-        await retrievingStatusEventOutcomePromise;
-      if (retrievingStatusEventOutcome.error != null) {
-        throw retrievingStatusEventOutcome.error;
-      }
-
-      const assistantMessage = await this.messagesService.createMessage({
-        conversationId: conversation.id,
-        role: MessageRole.assistant,
-        content: resolvedAnswerResult.answer,
-        traceId: trace.id
-      });
-      const assistantMessagePersistMs =
-        Date.now() - assistantMessagePersistStartedAt;
-
-      await this.messagesService.attachTrace(userMessage.id, trace.id);
-      await this.conversationsService.touchConversation(
-        conversation.id,
-        authContext.identity
-      );
-      const traceFinalizeStartedAt = Date.now();
-      const persistedTimingSummary = this.buildTimingSummary({
-        totalMs: Date.now() - startedAt,
-        firstTokenMs,
-        preGenerationMs,
-        llmFirstTokenMs:
-          firstTokenMs != null
-            ? Math.max(0, firstTokenMs - preGenerationMs)
-            : null,
-        conversationLoadMs,
-        userMessagePersistMs,
-        rewriteMs,
-        retrievalMs,
-        traceCreateMs,
-        answerGenerationMs,
-        assistantMessagePersistMs,
-        traceFinalizeMs: null,
-        llmQueueWaitMs,
-        retrievalQueueWaitMs
-      });
-      await this.tracesService.updateTrace(trace.id, {
-        assistantMessageId: assistantMessage.id,
-        citationsJson: resolvedAnswerResult.citations,
-        retrievalMetadataJson: {
-          ...(retrievalMetadataWithPrompt as Record<string, unknown>),
-          timing: persistedTimingSummary
-        } as AskRetrievalMetadataJson,
-        answeringMetadataJson: this.withPromptSnapshot(
-          resolvedAnswerResult.answeringMetadata,
-          promptSnapshot
-        ),
-        qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
-        latencyMs: Date.now() - startedAt,
-        modelName: resolvedAnswerResult.modelName,
-        rewrittenQuery:
-          retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map(
-          (chunk: AskResultChunk) => chunk.chunkId
-        ),
-        retrievalScoresJson,
-        status: TraceStatus.success
-      });
-      const timingSummary = this.buildTimingSummary({
-        ...persistedTimingSummary,
-        traceFinalizeMs: Date.now() - traceFinalizeStartedAt
-      });
-      const timingReadabilitySentence =
-        this.buildTimingReadabilitySentence(timingSummary);
-      this.logAskTiming({
-        route: 'ask_stream',
-        status: 'success',
-        assistantId: assistant.id,
-        conversationId: conversation.id,
-        traceId: trace.id,
-        retrievalMode:
-          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
-        timing: timingSummary,
-        retrievalExecution:
-          typeof retrievalMetadataWithPrompt.execution === 'object' &&
-          retrievalMetadataWithPrompt.execution !== null
-            ? retrievalMetadataWithPrompt.execution
-            : null,
-        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
-          retrievalMetadataWithPrompt
-        )
-      });
-
-      const answerAttributionSummary = this.resolveAnswerAttributionSummary(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const answerAttributionSource = this.resolveAnswerAttributionSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const answerEvidenceSourceReadabilityLabel =
-        buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
-      const answerEvidenceSourceReadabilitySentence =
-        this.buildAnswerEvidenceSourceReadabilitySentence(
-          answerEvidenceSourceReadabilityLabel
-        );
-      const answerTextSource = this.resolveAnswerTextSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const rawAnswerTextSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
-          resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
-              .answerTextSource
-          : null
-      );
-      const answerStatusSource = this.resolveAnswerStatusSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const rawAnswerStatusSource = this.readString(
-        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
-          resolvedAnswerResult.answeringMetadata !== null
-          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
-              .answerStatusSource
-          : null
-      );
-      const answerSourceReadability = buildAnswerSourceReadability({
-        answerTextSource,
-        rawAnswerTextSource,
-        answerStatusSource,
-        rawAnswerStatusSource
-      });
-      const {
-        answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence,
-        answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence
-      } = answerSourceReadability;
-      const answerAttributionReadabilitySentence =
-        answerAttributionSummary.readabilitySentence ??
-        'Answer attribution is unknown; source evidence is unknown.';
-      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } =
-        buildAnswerProvenanceFields({
-          answerTextSource,
-          answerStatusSource,
-          answerAttributionReadabilityResolvedLabel:
-            answerAttributionSummary.readabilityResolvedLabel,
-          answerTextSourceReadabilityLabel,
-          answerStatusSourceReadabilityLabel,
-          answerAttributionReadabilitySentence
-        });
-      const missingInformationSource = this.resolveMissingInformationSource(
-        resolvedAnswerResult.answeringMetadata
-      );
-      const missingInformationProvenanceSentence =
-        buildMissingInformationProvenanceSentence({
-          missingInformationSource,
-          insufficientContextReason: this.resolveInsufficientContextReason(
-            resolvedAnswerResult.answeringMetadata
-          ),
-          missingInformationCount: this.resolveMissingInformationCount({
-            answeringMetadata: resolvedAnswerResult.answeringMetadata,
-            missingInformation: resolvedAnswerResult.missingInformation
-          })
-        });
-      const finalResult = {
-        routeType: routeDecision.routeType,
-        routeReason: routeDecision.routeReason,
-        routeDecisionSummary: routeDecision,
-        conversationId: conversation.id,
-        userMessageId: userMessage.id,
-        assistantMessageId: assistantMessage.id,
-        traceId: trace.id,
-        answer: resolvedAnswerResult.answer,
-        citations: resolvedAnswerResult.citations,
-        retrievedChunks: resolvedAnswerResult.retrievedChunks,
-        contextGroups: resolvedAnswerResult.contextGroups,
-        strategySummary: retrievalMetadataWithPrompt.strategySummary,
-        strategyReadabilityLabel,
-        rewriteReadabilityLabel,
-        retrievalModeProvenanceSentence,
-        retrievalMetadata: retrievalMetadataWithPrompt,
-        timingSummary,
-        timingReadabilitySentence,
-        answerAttributionSummary,
-        answerAttributionReadabilitySentence,
-        answerAttribution: this.resolveAnswerAttribution(
-          resolvedAnswerResult.answeringMetadata
-        ),
-        answerAttributionSource,
-        answerEvidenceSource: answerAttributionSource,
-        answerEvidenceSourceReadabilityLabel,
-        answerEvidenceSourceReadabilitySentence,
-        answerTextSource,
-        answerTextSourceReadabilityLabel,
-        answerTextSourceReadabilitySentence,
-        answerStatusSource,
-        answerStatusSourceReadabilityLabel,
-        answerStatusSourceReadabilitySentence,
-        answerProvenanceSentence,
-        answerProvenanceReadabilitySentence,
-        missingInformationSource,
-        missingInformationProvenanceSentence,
-        missingInformationSourceReadabilityLabel:
-          buildMissingInformationSourceReadabilityLabel({
-            missingInformationSource
-          }),
-        answeringMetadata: this.withPromptSnapshot(
-          resolvedAnswerResult.answeringMetadata,
-          promptSnapshot
-        ),
-        modelName: resolvedAnswerResult.modelName,
-        answerStatus: resolvedAnswerResult.answerStatus,
-        missingInformation: resolvedAnswerResult.missingInformation,
-        qualityEvaluation: resolvedAnswerResult.qualityEvaluation
-      };
-
-      await input.onEvent({
-        type: 'final',
-        data: finalResult
-      });
-
-      return finalResult;
-    } catch (error) {
-      if (this.isAbortError(error)) {
-        throw error;
-      }
-
-      const message =
-        error instanceof Error ? error.message : 'Unknown ask pipeline error.';
-      const { conversation, conversationLoadMs, userMessagePersistMs } =
-        await conversationAndUserMessagePromise;
-      const { retrievalScoresJson, retrievalMetadata } =
-        await retrievalArtifactsPromise;
-      const resolvedTrace = trace ?? (await tracePromise);
-      trace = resolvedTrace;
-      const promptSnapshot = this.buildPromptSnapshot({
-        question: input.question,
-        systemPrompt: assistant.systemPrompt,
-        answerPolicy: normalizedAnswerPolicy,
-        chunks: retrievedChunks,
-        contextGroups
-      });
-      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
-        retrievalMetadata,
-        promptSnapshot
-      );
-      const failureTimingSummary = this.buildTimingSummary({
-        totalMs: Date.now() - startedAt,
-        firstTokenMs: null,
-        preGenerationMs: null,
-        llmFirstTokenMs: null,
-        conversationLoadMs,
-        userMessagePersistMs,
-        rewriteMs,
-        retrievalMs,
-        traceCreateMs,
-        answerGenerationMs: null,
-        assistantMessagePersistMs: null,
-        traceFinalizeMs: null,
-        llmQueueWaitMs,
-        retrievalQueueWaitMs
-      });
-      this.logAskTiming({
-        route: 'ask_stream',
-        status: 'failed',
-        assistantId: assistant.id,
-        conversationId: conversation.id,
-        traceId: resolvedTrace.id,
-        retrievalMode:
-          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
-        timing: failureTimingSummary,
-        retrievalExecution:
-          typeof retrievalMetadataWithPrompt.execution === 'object' &&
-          retrievalMetadataWithPrompt.execution !== null
-            ? retrievalMetadataWithPrompt.execution
-            : null,
-        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
-          retrievalMetadataWithPrompt
-        ),
-        errorMessage: message
-      });
-      await this.tracesService.updateTrace(resolvedTrace.id, {
-        latencyMs: Date.now() - startedAt,
-        modelName: rewritten.modelName ?? undefined,
-        rewrittenQuery:
-          retrievalQuery !== input.question ? retrievalQuery : null,
-        retrievedChunkIdsJson: retrievedChunks.map(
-          (chunk: AskResultChunk) => chunk.chunkId
-        ),
-        retrievalScoresJson,
-        retrievalMetadataJson: this.withFailureMetadata(
-          {
-            ...(retrievalMetadataWithPrompt as Record<string, unknown>),
-            timing: failureTimingSummary
-          } as AskRetrievalMetadataJson,
-          {
-            stage: 'answering',
-            message
-          }
-        ),
-        status: TraceStatus.failed,
-        errorMessage: message
-      });
-      throw new AskAssistantError({
-        traceId: resolvedTrace.id,
-        details: {
-          stage: 'answering',
-          cause: message
-        }
-      });
-    }
+    });
   }
 
   private buildTimingSummary(input: AskTimingSummary): AskTimingSummary {
@@ -3360,6 +2469,19 @@ export class AskAssistantService {
     return executor != null ? executor() : null;
   }
 
+  private dispatchRouteAsk(input: {
+    routeDecision: AskRouteDecision;
+    executors: AskRouteToolAdapters;
+    knowledgeBaseAsk: AskKnowledgeBaseRouteAdapter;
+  }) {
+    return (
+      this.dispatchSpecialRouteAsk({
+        routeDecision: input.routeDecision,
+        executors: input.executors
+      }) ?? input.knowledgeBaseAsk()
+    );
+  }
+
   private buildAskRouteToolAdapters(input: {
     assistant: AssistantRecord;
     authContext: ReturnType<typeof resolveRequestAuthContext>;
@@ -3438,6 +2560,977 @@ export class AskAssistantService {
           onEvent: input.onEvent
         })
     };
+  }
+
+  private async handleKnowledgeBaseRouteAsk(input: {
+    assistant: AssistantRecord;
+    authContext: ReturnType<typeof resolveRequestAuthContext>;
+    conversation: AskConversationRef;
+    userMessagePromise: Promise<TimedResult<AskPersistedMessage>>;
+    startedAt: number;
+    question: string;
+    retrievalQuery: string;
+    retrievalProfile: AssistantRecord['retrievalProfile'] & {
+      strategyJson?: unknown;
+    };
+    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>;
+    retrievalFilters: RetrievalProfileFilters | undefined;
+    rewritten: AskRewriteResult;
+    normalizedAnswerPolicy: AnswerPolicy;
+    routeDecision: AskRouteDecision;
+    documentVersions?: Record<string, number>;
+  }) {
+    const retrievalResult = await this.retrievalLimiter.execute(() =>
+      this.retrieveOrCreateFailedTrace({
+        assistantId: input.assistant.id,
+        assistantKbId: input.assistant.kbId,
+        conversationPromise: Promise.resolve({
+          value: input.conversation,
+          durationMs: 0
+        }),
+        getUserMessagePromise: () => input.userMessagePromise,
+        userQuery: input.question,
+        retrievalQuery: input.retrievalQuery,
+        retrievalProfile: input.retrievalProfile,
+        retrievalStrategy: input.retrievalStrategy,
+        retrievalFilters: input.retrievalFilters,
+        rewritten: input.rewritten,
+        documentVersions: input.documentVersions
+      })
+    );
+    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
+      routeDecision: input.routeDecision,
+      retrievalResult,
+      retrievalQuery: input.retrievalQuery,
+      question: input.question,
+      retrievalProfile: input.retrievalProfile,
+      retrievalStrategy: input.retrievalStrategy,
+      retrievalFilters: input.retrievalFilters,
+      assistantKbId: input.assistant.kbId,
+      documentVersions: input.documentVersions
+    });
+    const resolvedRetrievalResult =
+      multiStepSummary?.selectedResult ?? retrievalResult;
+
+    const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
+    const contextGroups = resolvedRetrievalResult.contextGroups;
+
+    const [retrievalScoresJson, retrievalMetadata] = await Promise.all([
+      Promise.resolve(this.buildRetrievalScoresJson(retrievedChunks)),
+      Promise.resolve(
+        this.buildRetrievalMetadata({
+          strategy: input.retrievalStrategy,
+          filters: input.retrievalFilters,
+          rewrittenQuery: input.rewritten.rewrittenQuery,
+          rewriteSkippedReason: input.rewritten.skippedReason,
+          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.modelName
+            : null,
+          rewritePromptId: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.promptId
+            : null,
+          rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.usedFallback
+            : null,
+          originalQuestion: input.question,
+          topK: input.retrievalProfile.topK,
+          scoreThreshold: input.retrievalProfile.scoreThreshold,
+          chunkWindow: input.retrievalProfile.chunkWindow,
+          retrievedChunks,
+          contextGroups,
+          embedding: resolvedRetrievalResult.embedding,
+          routeDecision: input.routeDecision,
+          execution: resolvedRetrievalResult.execution,
+          knowledgeBaseMultiStep: multiStepSummary?.metadata,
+          promptContextChars: null,
+          promptContextApproxTokens: null
+        }) as AskRetrievalMetadataJson
+      )
+    ]);
+
+    const [
+      strategyReadabilityLabel,
+      retrievalModeProvenanceSentence,
+      rewriteReadabilityLabel
+    ] = await Promise.all([
+      buildStrategyReadabilityLabel({
+        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+        retrievalQuerySource:
+          retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+        fallbackReason:
+          retrievalMetadata.strategySummary?.fallbackReason ?? null,
+        strategyUsedFallback:
+          retrievalMetadata.strategySummary?.usedFallback ?? null
+      }),
+      buildRetrievalModeProvenanceSentence({
+        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+        strategyUsedFallback:
+          retrievalMetadata.strategySummary?.usedFallback ?? null,
+        fallbackReason:
+          retrievalMetadata.strategySummary?.fallbackReason ?? null
+      }),
+      buildRewriteReadabilityLabel({
+        rewriteEnabled:
+          retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+        rewriteApplied:
+          retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+        rewriteUsedFallback:
+          retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+        rewritePromptId:
+          retrievalMetadata.strategySummary?.rewritePromptId ?? null
+      })
+    ]);
+
+    const { value: userMessage } = await input.userMessagePromise;
+
+    const trace = await this.tracesService.createTrace({
+      conversationId: input.conversation.id,
+      assistantId: input.assistant.id,
+      userMessageId: userMessage.id,
+      userQuery: input.question,
+      rewrittenQuery:
+        input.retrievalQuery !== input.question ? input.retrievalQuery : null,
+      retrievedChunkIdsJson: retrievedChunks.map(
+        (chunk: AskResultChunk) => chunk.chunkId
+      ),
+      retrievalScoresJson: retrievalScoresJson as Prisma.InputJsonValue,
+      retrievalMetadataJson: retrievalMetadata,
+      modelName: input.rewritten.modelName ?? undefined,
+      status: TraceStatus.success
+    });
+    const promptSnapshot = this.buildPromptSnapshot({
+      question: input.question,
+      systemPrompt: input.assistant.systemPrompt,
+      answerPolicy: input.normalizedAnswerPolicy,
+      chunks: retrievedChunks,
+      contextGroups
+    });
+    const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
+      retrievalMetadata,
+      promptSnapshot
+    );
+
+    try {
+      const shouldBypassAnswerGeneration =
+        input.normalizedAnswerPolicy.noAnswerBehavior ===
+          'say_insufficient_context' &&
+        this.shouldDeterministicallyAbstain({
+          question: input.question,
+          retrievedChunks,
+          scoreThreshold: input.retrievalProfile.scoreThreshold
+        });
+      const resolvedAnswerResult = shouldBypassAnswerGeneration
+        ? this.answeringService.buildDeterministicInsufficientContextResult({
+            question: input.question,
+            answerPolicy: input.normalizedAnswerPolicy,
+            hasRetrievedContext: retrievedChunks.length > 0,
+            insufficientContextReason:
+              retrievedChunks.length > 0
+                ? 'retrieved_context_insufficient'
+                : 'no_retrieval_hits',
+            topScore: retrievedChunks[0]?.score ?? null
+          })
+        : await this.answeringService.generateAnswer({
+            question: input.question,
+            systemPrompt: input.assistant.systemPrompt,
+            answerPolicy: input.normalizedAnswerPolicy,
+            chunks: retrievedChunks,
+            contextGroups
+          });
+
+      const assistantMessage = await this.messagesService.createMessage({
+        conversationId: input.conversation.id,
+        role: MessageRole.assistant,
+        content: resolvedAnswerResult.answer,
+        traceId: trace.id
+      });
+
+      await this.messagesService.attachTrace(userMessage.id, trace.id);
+      await this.conversationsService.touchConversation(
+        input.conversation.id,
+        input.authContext.identity
+      );
+      await this.tracesService.updateTrace(trace.id, {
+        assistantMessageId: assistantMessage.id,
+        citationsJson: resolvedAnswerResult.citations,
+        retrievalMetadataJson: retrievalMetadataWithPrompt,
+        answeringMetadataJson: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
+        qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
+        latencyMs: Date.now() - input.startedAt,
+        modelName: resolvedAnswerResult.modelName,
+        rewrittenQuery:
+          input.retrievalQuery !== input.question ? input.retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
+        retrievalScoresJson,
+        status: TraceStatus.success
+      });
+
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const answerAttributionSource = this.resolveAnswerAttributionSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const answerEvidenceSourceReadabilityLabel =
+        buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence =
+        this.buildAnswerEvidenceSourceReadabilitySentence(
+          answerEvidenceSourceReadabilityLabel
+        );
+      const answerTextSource = this.resolveAnswerTextSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerTextSource
+          : null
+      );
+      const answerStatusSource = this.resolveAnswerStatusSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerStatusSource
+          : null
+      );
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ??
+        'Answer attribution is unknown; source evidence is unknown.';
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } =
+        buildAnswerProvenanceFields({
+          answerTextSource,
+          answerStatusSource,
+          answerAttributionReadabilityResolvedLabel:
+            answerAttributionSummary.readabilityResolvedLabel,
+          answerTextSourceReadabilityLabel,
+          answerStatusSourceReadabilityLabel,
+          answerAttributionReadabilitySentence
+        });
+      const missingInformationSource = this.resolveMissingInformationSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const missingInformationProvenanceSentence =
+        buildMissingInformationProvenanceSentence({
+          missingInformationSource,
+          insufficientContextReason: this.resolveInsufficientContextReason(
+            resolvedAnswerResult.answeringMetadata
+          ),
+          missingInformationCount: this.resolveMissingInformationCount({
+            answeringMetadata: resolvedAnswerResult.answeringMetadata,
+            missingInformation: resolvedAnswerResult.missingInformation
+          })
+        });
+      this.logAskTiming({
+        route: 'ask',
+        status: 'success',
+        assistantId: input.assistant.id,
+        conversationId: input.conversation.id,
+        traceId: trace.id,
+        retrievalMode:
+          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
+        timing: null,
+        retrievalExecution:
+          typeof retrievalMetadataWithPrompt.execution === 'object' &&
+          retrievalMetadataWithPrompt.execution !== null
+            ? retrievalMetadataWithPrompt.execution
+            : null,
+        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
+          retrievalMetadataWithPrompt
+        )
+      });
+
+      return {
+        routeType: input.routeDecision.routeType,
+        routeReason: input.routeDecision.routeReason,
+        routeDecisionSummary: input.routeDecision,
+        conversationId: input.conversation.id,
+        userMessageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        traceId: trace.id,
+        answer: resolvedAnswerResult.answer,
+        citations: resolvedAnswerResult.citations,
+        retrievedChunks: resolvedAnswerResult.retrievedChunks,
+        contextGroups: resolvedAnswerResult.contextGroups,
+        strategySummary: retrievalMetadataWithPrompt.strategySummary,
+        strategyReadabilityLabel,
+        rewriteReadabilityLabel,
+        retrievalModeProvenanceSentence,
+        retrievalMetadata: retrievalMetadataWithPrompt,
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence,
+        answerAttribution: this.resolveAnswerAttribution(
+          resolvedAnswerResult.answeringMetadata
+        ),
+        answerAttributionSource,
+        answerEvidenceSource: answerAttributionSource,
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence,
+        answerProvenanceSentence,
+        answerProvenanceReadabilitySentence,
+        missingInformationSource,
+        missingInformationProvenanceSentence,
+        missingInformationSourceReadabilityLabel:
+          buildMissingInformationSourceReadabilityLabel({
+            missingInformationSource
+          }),
+        answeringMetadata: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
+        modelName: resolvedAnswerResult.modelName,
+        answerStatus: resolvedAnswerResult.answerStatus,
+        missingInformation: resolvedAnswerResult.missingInformation,
+        qualityEvaluation: resolvedAnswerResult.qualityEvaluation
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown ask pipeline error.';
+      this.logAskTiming({
+        route: 'ask',
+        status: this.isAbortError(error) ? 'aborted' : 'failed',
+        assistantId: input.assistant.id,
+        conversationId: input.conversation.id,
+        traceId: trace.id,
+        retrievalMode: retrievalMetadata.strategySummary?.retrievalMode ?? null,
+        timing: null,
+        retrievalExecution:
+          typeof retrievalMetadata.execution === 'object' &&
+          retrievalMetadata.execution !== null
+            ? retrievalMetadata.execution
+            : null,
+        retrievalDiagnostics:
+          this.buildRetrievalLogDiagnostics(retrievalMetadata),
+        errorMessage: message
+      });
+      await this.tracesService.updateTrace(trace.id, {
+        latencyMs: Date.now() - input.startedAt,
+        modelName: input.rewritten.modelName ?? undefined,
+        rewrittenQuery:
+          input.retrievalQuery !== input.question ? input.retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
+        retrievalScoresJson,
+        retrievalMetadataJson: this.withFailureMetadata(
+          this.withPromptContextMetrics(retrievalMetadata, promptSnapshot),
+          {
+            stage: 'answering',
+            message
+          }
+        ),
+        status: TraceStatus.failed,
+        errorMessage: message
+      });
+      throw new AskAssistantError({
+        traceId: trace.id,
+        details: {
+          stage: 'answering',
+          cause: message
+        }
+      });
+    }
+  }
+
+  private async handleKnowledgeBaseRouteAskStream(input: {
+    assistant: AssistantRecord;
+    authContext: ReturnType<typeof resolveRequestAuthContext>;
+    conversationPromise: Promise<TimedResult<AskConversationRef>>;
+    retrievingStatusEventOutcomePromise: Promise<{ error: unknown }>;
+    getUserMessagePromise: () => Promise<TimedResult<AskPersistedMessage>>;
+    eagerUserMessagePromise: Promise<TimedResult<AskPersistedMessage>>;
+    startedAt: number;
+    question: string;
+    retrievalQuery: string;
+    retrievalProfile: AssistantRecord['retrievalProfile'] & {
+      strategyJson?: unknown;
+    };
+    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>;
+    retrievalFilters: RetrievalProfileFilters | undefined;
+    rewritten: AskRewriteResult;
+    rewriteMs: number;
+    llmQueueWaitMs: number;
+    normalizedAnswerPolicy: AnswerPolicy;
+    routeDecision: AskRouteDecision;
+    onEvent: (
+      event:
+        | { type: 'status'; phase: 'started' | 'retrieving' | 'generating' }
+        | { type: 'answer_delta'; delta: string }
+        | { type: 'final'; data: Record<string, unknown> }
+    ) => void | Promise<void>;
+    signal?: AbortSignal;
+  }) {
+    let llmQueueWaitMs = input.llmQueueWaitMs;
+
+    const retrievalResultMeasured = await this.retrievalLimiter.executeMeasured(
+      () =>
+        this.retrieveOrCreateFailedTrace({
+          assistantId: input.assistant.id,
+          assistantKbId: input.assistant.kbId,
+          conversationPromise: input.conversationPromise,
+          getUserMessagePromise: input.getUserMessagePromise,
+          userQuery: input.question,
+          retrievalQuery: input.retrievalQuery,
+          retrievalProfile: input.retrievalProfile,
+          retrievalStrategy: input.retrievalStrategy,
+          retrievalFilters: input.retrievalFilters,
+          rewritten: input.rewritten
+        })
+    );
+    const retrievalResult = retrievalResultMeasured.result;
+    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
+      routeDecision: input.routeDecision,
+      retrievalResult,
+      retrievalQuery: input.retrievalQuery,
+      question: input.question,
+      retrievalProfile: input.retrievalProfile,
+      retrievalStrategy: input.retrievalStrategy,
+      retrievalFilters: input.retrievalFilters,
+      assistantKbId: input.assistant.kbId
+    });
+    const resolvedRetrievalResult =
+      multiStepSummary?.selectedResult ?? retrievalResult;
+    const retrievalMs = retrievalResultMeasured.runMs;
+    const retrievalQueueWaitMs = retrievalResultMeasured.waitMs;
+
+    const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
+    const contextGroups = resolvedRetrievalResult.contextGroups;
+
+    const conversationAndUserMessagePromise = Promise.all([
+      input.conversationPromise,
+      input.eagerUserMessagePromise
+    ]).then(([conversationResult, userMessageResult]) => ({
+      conversation: conversationResult.value,
+      conversationLoadMs: conversationResult.durationMs,
+      userMessage: userMessageResult.value,
+      userMessagePersistMs: userMessageResult.durationMs
+    }));
+    const retrievalArtifactsPromise = conversationAndUserMessagePromise.then(
+      () => ({
+        retrievalScoresJson: this.buildRetrievalScoresJson(retrievedChunks),
+        retrievalMetadata: this.buildRetrievalMetadata({
+          strategy: input.retrievalStrategy,
+          filters: input.retrievalFilters,
+          rewrittenQuery: input.rewritten.rewrittenQuery,
+          rewriteSkippedReason: input.rewritten.skippedReason,
+          rewriteModelName: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.modelName
+            : null,
+          rewritePromptId: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.promptId
+            : null,
+          rewriteUsedFallback: input.retrievalStrategy.queryRewrite.enabled
+            ? input.rewritten.usedFallback
+            : null,
+          originalQuestion: input.question,
+          topK: input.retrievalProfile.topK,
+          scoreThreshold: input.retrievalProfile.scoreThreshold,
+          chunkWindow: input.retrievalProfile.chunkWindow,
+          retrievedChunks,
+          contextGroups,
+          embedding: resolvedRetrievalResult.embedding,
+          routeDecision: input.routeDecision,
+          execution: resolvedRetrievalResult.execution,
+          knowledgeBaseMultiStep: multiStepSummary?.metadata,
+          promptContextChars: null,
+          promptContextApproxTokens: null
+        }) as AskRetrievalMetadataJson
+      })
+    );
+
+    const traceCreateStartedAt = Date.now();
+    const tracePromise = Promise.all([
+      conversationAndUserMessagePromise,
+      retrievalArtifactsPromise
+    ]).then(
+      ([
+        { conversation, userMessage },
+        { retrievalScoresJson, retrievalMetadata }
+      ]) =>
+        this.tracesService.createTrace({
+          conversationId: conversation.id,
+          assistantId: input.assistant.id,
+          userMessageId: userMessage.id,
+          userQuery: input.question,
+          rewrittenQuery:
+            input.retrievalQuery !== input.question
+              ? input.retrievalQuery
+              : null,
+          retrievedChunkIdsJson: retrievedChunks.map(
+            (chunk: AskResultChunk) => chunk.chunkId
+          ),
+          retrievalScoresJson,
+          retrievalMetadataJson: retrievalMetadata,
+          modelName: input.rewritten.modelName ?? undefined,
+          status: TraceStatus.success
+        })
+    );
+    let trace: { id: string } | null = null;
+    let traceCreateMs = 0;
+
+    try {
+      const generatingStatusEventPromise = Promise.resolve(
+        input.onEvent({
+          type: 'status',
+          phase: 'generating'
+        })
+      );
+
+      let firstTokenMs: number | null = null;
+      const generationStartedAt = Date.now();
+      const preGenerationMs = generationStartedAt - input.startedAt;
+      const resolvedAnswerResult =
+        retrievedChunks.length === 0 &&
+        input.normalizedAnswerPolicy.noAnswerBehavior ===
+          'say_insufficient_context'
+          ? await (async () => {
+              const deterministicResult =
+                this.answeringService.buildDeterministicInsufficientContextResult(
+                  {
+                    question: input.question,
+                    answerPolicy: input.normalizedAnswerPolicy
+                  }
+                );
+              await generatingStatusEventPromise;
+              firstTokenMs = Date.now() - input.startedAt;
+              await input.onEvent({
+                type: 'answer_delta',
+                delta: deterministicResult.answer
+              });
+
+              return deterministicResult;
+            })()
+          : await (async () => {
+              const streamResultMeasured =
+                await this.llmLimiter.executeMeasured(() =>
+                  this.llmService.generateAnswerStream({
+                    question: input.question,
+                    systemPrompt: input.assistant.systemPrompt,
+                    answerPolicy: input.normalizedAnswerPolicy,
+                    chunks: this.answeringService.buildStreamAnswerContext({
+                      chunks: retrievedChunks,
+                      contextGroups
+                    }),
+                    signal: input.signal,
+                    onDelta: async (delta) => {
+                      await generatingStatusEventPromise;
+                      if (firstTokenMs == null) {
+                        firstTokenMs = Date.now() - input.startedAt;
+                      }
+                      await input.onEvent({
+                        type: 'answer_delta',
+                        delta
+                      });
+                    }
+                  })
+                );
+              llmQueueWaitMs += streamResultMeasured.waitMs;
+              const streamResult = streamResultMeasured.result;
+
+              return this.answeringService.finalizeStreamedAnswer({
+                question: input.question,
+                answerPolicy: input.normalizedAnswerPolicy,
+                chunks: retrievedChunks,
+                contextGroups,
+                rawAnswer: streamResult.rawAnswer,
+                modelName: streamResult.modelName,
+                promptId: streamResult.promptId,
+                usedFallback: streamResult.usedFallback,
+                answerStatus: streamResult.answerStatus,
+                missingInformation: streamResult.missingInformation,
+                citedChunkNumbers: streamResult.citedChunkNumbers,
+                citationEvidence: streamResult.citationEvidence
+              });
+            })();
+      await generatingStatusEventPromise;
+      const answerGenerationMs = Date.now() - generationStartedAt;
+      const {
+        conversation,
+        conversationLoadMs,
+        userMessage,
+        userMessagePersistMs
+      } = await conversationAndUserMessagePromise;
+      const { retrievalScoresJson, retrievalMetadata } =
+        await retrievalArtifactsPromise;
+      trace = await tracePromise;
+      traceCreateMs = Date.now() - traceCreateStartedAt;
+      const promptSnapshot = this.buildPromptSnapshot({
+        question: input.question,
+        systemPrompt: input.assistant.systemPrompt,
+        answerPolicy: input.normalizedAnswerPolicy,
+        chunks: retrievedChunks,
+        contextGroups
+      });
+      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
+        retrievalMetadata,
+        promptSnapshot
+      );
+      const [
+        strategyReadabilityLabel,
+        retrievalModeProvenanceSentence,
+        rewriteReadabilityLabel
+      ] = await Promise.all([
+        buildStrategyReadabilityLabel({
+          retrievalMode:
+            retrievalMetadata.strategySummary?.retrievalMode ?? null,
+          retrievalQuerySource:
+            retrievalMetadata.strategySummary?.retrievalQuerySource ?? null,
+          fallbackReason:
+            retrievalMetadata.strategySummary?.fallbackReason ?? null,
+          strategyUsedFallback:
+            retrievalMetadata.strategySummary?.usedFallback ?? null
+        }),
+        buildRetrievalModeProvenanceSentence({
+          retrievalMode:
+            retrievalMetadata.strategySummary?.retrievalMode ?? null,
+          strategyUsedFallback:
+            retrievalMetadata.strategySummary?.usedFallback ?? null,
+          fallbackReason:
+            retrievalMetadata.strategySummary?.fallbackReason ?? null
+        }),
+        buildRewriteReadabilityLabel({
+          rewriteEnabled:
+            retrievalMetadata.strategySummary?.rewriteEnabled ?? false,
+          rewriteApplied:
+            retrievalMetadata.strategySummary?.rewriteApplied ?? false,
+          rewriteUsedFallback:
+            retrievalMetadata.strategySummary?.rewriteUsedFallback ?? null,
+          rewritePromptId:
+            retrievalMetadata.strategySummary?.rewritePromptId ?? null
+        })
+      ]);
+      const assistantMessagePersistStartedAt = Date.now();
+      const retrievingStatusEventOutcome =
+        await input.retrievingStatusEventOutcomePromise;
+      if (retrievingStatusEventOutcome.error != null) {
+        throw retrievingStatusEventOutcome.error;
+      }
+
+      const assistantMessage = await this.messagesService.createMessage({
+        conversationId: conversation.id,
+        role: MessageRole.assistant,
+        content: resolvedAnswerResult.answer,
+        traceId: trace.id
+      });
+      const assistantMessagePersistMs =
+        Date.now() - assistantMessagePersistStartedAt;
+
+      await this.messagesService.attachTrace(userMessage.id, trace.id);
+      await this.conversationsService.touchConversation(
+        conversation.id,
+        input.authContext.identity
+      );
+      const traceFinalizeStartedAt = Date.now();
+      const persistedTimingSummary = this.buildTimingSummary({
+        totalMs: Date.now() - input.startedAt,
+        firstTokenMs,
+        preGenerationMs,
+        llmFirstTokenMs:
+          firstTokenMs != null
+            ? Math.max(0, firstTokenMs - preGenerationMs)
+            : null,
+        conversationLoadMs,
+        userMessagePersistMs,
+        rewriteMs: input.rewriteMs,
+        retrievalMs,
+        traceCreateMs,
+        answerGenerationMs,
+        assistantMessagePersistMs,
+        traceFinalizeMs: null,
+        llmQueueWaitMs,
+        retrievalQueueWaitMs
+      });
+      await this.tracesService.updateTrace(trace.id, {
+        assistantMessageId: assistantMessage.id,
+        citationsJson: resolvedAnswerResult.citations,
+        retrievalMetadataJson: {
+          ...(retrievalMetadataWithPrompt as Record<string, unknown>),
+          timing: persistedTimingSummary
+        } as AskRetrievalMetadataJson,
+        answeringMetadataJson: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
+        qualityEvaluationJson: resolvedAnswerResult.qualityEvaluation,
+        latencyMs: Date.now() - input.startedAt,
+        modelName: resolvedAnswerResult.modelName,
+        rewrittenQuery:
+          input.retrievalQuery !== input.question ? input.retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
+        retrievalScoresJson,
+        status: TraceStatus.success
+      });
+      const timingSummary = this.buildTimingSummary({
+        ...persistedTimingSummary,
+        traceFinalizeMs: Date.now() - traceFinalizeStartedAt
+      });
+      const timingReadabilitySentence =
+        this.buildTimingReadabilitySentence(timingSummary);
+      this.logAskTiming({
+        route: 'ask_stream',
+        status: 'success',
+        assistantId: input.assistant.id,
+        conversationId: conversation.id,
+        traceId: trace.id,
+        retrievalMode:
+          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
+        timing: timingSummary,
+        retrievalExecution:
+          typeof retrievalMetadataWithPrompt.execution === 'object' &&
+          retrievalMetadataWithPrompt.execution !== null
+            ? retrievalMetadataWithPrompt.execution
+            : null,
+        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
+          retrievalMetadataWithPrompt
+        )
+      });
+
+      const answerAttributionSummary = this.resolveAnswerAttributionSummary(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const answerAttributionSource = this.resolveAnswerAttributionSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const answerEvidenceSourceReadabilityLabel =
+        buildAnswerEvidenceSourceReadabilityLabel(answerAttributionSource);
+      const answerEvidenceSourceReadabilitySentence =
+        this.buildAnswerEvidenceSourceReadabilitySentence(
+          answerEvidenceSourceReadabilityLabel
+        );
+      const answerTextSource = this.resolveAnswerTextSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const rawAnswerTextSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerTextSource
+          : null
+      );
+      const answerStatusSource = this.resolveAnswerStatusSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const rawAnswerStatusSource = this.readString(
+        typeof resolvedAnswerResult.answeringMetadata === 'object' &&
+          resolvedAnswerResult.answeringMetadata !== null
+          ? (resolvedAnswerResult.answeringMetadata as Record<string, unknown>)
+              .answerStatusSource
+          : null
+      );
+      const answerSourceReadability = buildAnswerSourceReadability({
+        answerTextSource,
+        rawAnswerTextSource,
+        answerStatusSource,
+        rawAnswerStatusSource
+      });
+      const {
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence
+      } = answerSourceReadability;
+      const answerAttributionReadabilitySentence =
+        answerAttributionSummary.readabilitySentence ??
+        'Answer attribution is unknown; source evidence is unknown.';
+      const { answerProvenanceSentence, answerProvenanceReadabilitySentence } =
+        buildAnswerProvenanceFields({
+          answerTextSource,
+          answerStatusSource,
+          answerAttributionReadabilityResolvedLabel:
+            answerAttributionSummary.readabilityResolvedLabel,
+          answerTextSourceReadabilityLabel,
+          answerStatusSourceReadabilityLabel,
+          answerAttributionReadabilitySentence
+        });
+      const missingInformationSource = this.resolveMissingInformationSource(
+        resolvedAnswerResult.answeringMetadata
+      );
+      const missingInformationProvenanceSentence =
+        buildMissingInformationProvenanceSentence({
+          missingInformationSource,
+          insufficientContextReason: this.resolveInsufficientContextReason(
+            resolvedAnswerResult.answeringMetadata
+          ),
+          missingInformationCount: this.resolveMissingInformationCount({
+            answeringMetadata: resolvedAnswerResult.answeringMetadata,
+            missingInformation: resolvedAnswerResult.missingInformation
+          })
+        });
+      const finalResult = {
+        routeType: input.routeDecision.routeType,
+        routeReason: input.routeDecision.routeReason,
+        routeDecisionSummary: input.routeDecision,
+        conversationId: conversation.id,
+        userMessageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        traceId: trace.id,
+        answer: resolvedAnswerResult.answer,
+        citations: resolvedAnswerResult.citations,
+        retrievedChunks: resolvedAnswerResult.retrievedChunks,
+        contextGroups: resolvedAnswerResult.contextGroups,
+        strategySummary: retrievalMetadataWithPrompt.strategySummary,
+        strategyReadabilityLabel,
+        rewriteReadabilityLabel,
+        retrievalModeProvenanceSentence,
+        retrievalMetadata: retrievalMetadataWithPrompt,
+        timingSummary,
+        timingReadabilitySentence,
+        answerAttributionSummary,
+        answerAttributionReadabilitySentence,
+        answerAttribution: this.resolveAnswerAttribution(
+          resolvedAnswerResult.answeringMetadata
+        ),
+        answerAttributionSource,
+        answerEvidenceSource: answerAttributionSource,
+        answerEvidenceSourceReadabilityLabel,
+        answerEvidenceSourceReadabilitySentence,
+        answerTextSource,
+        answerTextSourceReadabilityLabel,
+        answerTextSourceReadabilitySentence,
+        answerStatusSource,
+        answerStatusSourceReadabilityLabel,
+        answerStatusSourceReadabilitySentence,
+        answerProvenanceSentence,
+        answerProvenanceReadabilitySentence,
+        missingInformationSource,
+        missingInformationProvenanceSentence,
+        missingInformationSourceReadabilityLabel:
+          buildMissingInformationSourceReadabilityLabel({
+            missingInformationSource
+          }),
+        answeringMetadata: this.withPromptSnapshot(
+          resolvedAnswerResult.answeringMetadata,
+          promptSnapshot
+        ),
+        modelName: resolvedAnswerResult.modelName,
+        answerStatus: resolvedAnswerResult.answerStatus,
+        missingInformation: resolvedAnswerResult.missingInformation,
+        qualityEvaluation: resolvedAnswerResult.qualityEvaluation
+      };
+
+      await input.onEvent({
+        type: 'final',
+        data: finalResult
+      });
+
+      return finalResult;
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        throw error;
+      }
+
+      const message =
+        error instanceof Error ? error.message : 'Unknown ask pipeline error.';
+      const { conversation, conversationLoadMs, userMessagePersistMs } =
+        await conversationAndUserMessagePromise;
+      const { retrievalScoresJson, retrievalMetadata } =
+        await retrievalArtifactsPromise;
+      const resolvedTrace = trace ?? (await tracePromise);
+      trace = resolvedTrace;
+      const promptSnapshot = this.buildPromptSnapshot({
+        question: input.question,
+        systemPrompt: input.assistant.systemPrompt,
+        answerPolicy: input.normalizedAnswerPolicy,
+        chunks: retrievedChunks,
+        contextGroups
+      });
+      const retrievalMetadataWithPrompt = this.withPromptContextMetrics(
+        retrievalMetadata,
+        promptSnapshot
+      );
+      const failureTimingSummary = this.buildTimingSummary({
+        totalMs: Date.now() - input.startedAt,
+        firstTokenMs: null,
+        preGenerationMs: null,
+        llmFirstTokenMs: null,
+        conversationLoadMs,
+        userMessagePersistMs,
+        rewriteMs: input.rewriteMs,
+        retrievalMs,
+        traceCreateMs,
+        answerGenerationMs: null,
+        assistantMessagePersistMs: null,
+        traceFinalizeMs: null,
+        llmQueueWaitMs,
+        retrievalQueueWaitMs
+      });
+      this.logAskTiming({
+        route: 'ask_stream',
+        status: 'failed',
+        assistantId: input.assistant.id,
+        conversationId: conversation.id,
+        traceId: resolvedTrace.id,
+        retrievalMode:
+          retrievalMetadataWithPrompt.strategySummary?.retrievalMode ?? null,
+        timing: failureTimingSummary,
+        retrievalExecution:
+          typeof retrievalMetadataWithPrompt.execution === 'object' &&
+          retrievalMetadataWithPrompt.execution !== null
+            ? retrievalMetadataWithPrompt.execution
+            : null,
+        retrievalDiagnostics: this.buildRetrievalLogDiagnostics(
+          retrievalMetadataWithPrompt
+        ),
+        errorMessage: message
+      });
+      await this.tracesService.updateTrace(resolvedTrace.id, {
+        latencyMs: Date.now() - input.startedAt,
+        modelName: input.rewritten.modelName ?? undefined,
+        rewrittenQuery:
+          input.retrievalQuery !== input.question ? input.retrievalQuery : null,
+        retrievedChunkIdsJson: retrievedChunks.map(
+          (chunk: AskResultChunk) => chunk.chunkId
+        ),
+        retrievalScoresJson,
+        retrievalMetadataJson: this.withFailureMetadata(
+          {
+            ...(retrievalMetadataWithPrompt as Record<string, unknown>),
+            timing: failureTimingSummary
+          } as AskRetrievalMetadataJson,
+          {
+            stage: 'answering',
+            message
+          }
+        ),
+        status: TraceStatus.failed,
+        errorMessage: message
+      });
+      throw new AskAssistantError({
+        traceId: resolvedTrace.id,
+        details: {
+          stage: 'answering',
+          cause: message
+        }
+      });
+    }
   }
 
   private async findReusableConversationAnswer(input: {
