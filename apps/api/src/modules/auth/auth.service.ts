@@ -907,6 +907,36 @@ export class AuthService {
       return null;
     }
 
+    const canonicalDefaultNamedPreferredCandidate =
+      typeof preference?.retrievalProfileId === 'string'
+        ? await prisma.assistant.findFirst({
+            where: {
+              AND: [
+                where,
+                {
+                  name: DEFAULT_ASSISTANT_TEMPLATE.name
+                },
+                {
+                  retrievalProfileId: preference.retrievalProfileId
+                }
+              ]
+            },
+            orderBy: {
+              id: 'asc'
+            },
+            select: {
+              id: true,
+              kbId: true,
+              retrievalProfileId: true,
+              status: true
+            }
+          })
+        : null;
+
+    if (canonicalDefaultNamedPreferredCandidate != null) {
+      return canonicalDefaultNamedPreferredCandidate;
+    }
+
     const defaultNamedFallbackCandidate = await prisma.assistant.findFirst({
       where: {
         AND: [
