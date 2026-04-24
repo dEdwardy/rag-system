@@ -187,7 +187,7 @@ function TraceConversationCard({
           </div>
           <div className="workspace-meta-row">
             <span className="workspace-meta-label">
-              {locale === 'zh' ? '璺敱鍐崇瓥' : 'Route decision'}
+              {locale === 'zh' ? '路由决策' : 'Route decision'}
             </span>
             {routeDecision ? (
               <span className="workspace-meta-value">
@@ -230,11 +230,11 @@ function TraceConversationCard({
           {routeDecision?.routeType === 'external_source' ? (
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">
-                {locale === 'zh' ? '澶栭儴鏉ユ簮' : 'External sources'}
+                {locale === 'zh' ? '外部来源' : 'External sources'}
               </span>
               <span className="workspace-meta-value">
                 {traceSummary.retrievedChunkCount}{' '}
-                {locale === 'zh' ? '涓潵婧愬潡' : 'source chunks'}
+                {locale === 'zh' ? '个来源块' : 'source chunks'}
               </span>
             </div>
           ) : null}

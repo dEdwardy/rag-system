@@ -75,6 +75,10 @@
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `buildRouteMetadataBase(...)` helper for the common `queryRewrite / strategySummary / execution` scaffold
   - `buildPolicyRouteMetadata(...)` and `buildExternalSourceRouteMetadata(...)` now stay focused on their route-specific payloads instead of re-declaring the same base shape
 
+- `trace route readability follow-up` cleaned up a couple of diagnostic labels and kept execution mode visible in the trace detail view
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows readable Chinese labels for route decision and external-source rows instead of mojibake text
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now surfaces the execution mode badge next to the execution-step heading so `manual / workflow` remains visible in detail view
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling

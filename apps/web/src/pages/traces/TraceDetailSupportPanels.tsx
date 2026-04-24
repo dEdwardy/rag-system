@@ -316,9 +316,28 @@ export function TraceDetailSidebarPanels({
               {executionSteps && executionSteps.length > 0 ? (
                 <div className="workspace-content-block">
                   <Stack gap={8}>
-                    <Text className="workspace-section-copy" fw={600} size="sm">
-                      {locale === 'zh' ? '执行步骤' : 'Execution steps'}
-                    </Text>
+                    <Group gap="xs">
+                      <Text
+                        className="workspace-section-copy"
+                        fw={600}
+                        size="sm"
+                      >
+                        {locale === 'zh' ? '执行步骤' : 'Execution steps'}
+                      </Text>
+                      <Badge
+                        color={
+                          trace.traceSummary?.executionPlan?.executionMode ===
+                          'workflow'
+                            ? 'blue'
+                            : 'gray'
+                        }
+                        radius="sm"
+                        variant="light"
+                      >
+                        {trace.traceSummary?.executionPlan?.executionMode ??
+                          'manual'}
+                      </Badge>
+                    </Group>
                     <Stack gap={6}>
                       {executionSteps.map((step) => (
                         <Group
