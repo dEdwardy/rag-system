@@ -33,8 +33,10 @@ test('nextRunnerIteration only stops when stop was explicitly requested', () => 
   );
 });
 
-test('shouldStopAfterNoProgress stops blocked runner loops', () => {
-  assert.equal(shouldStopAfterNoProgress('blocked'), true);
-  assert.equal(shouldStopAfterNoProgress('idle'), true);
-  assert.equal(shouldStopAfterNoProgress('executing'), false);
+test('shouldStopAfterNoProgress stops blocked runner loops only after maxBlockedRetries', () => {
+  assert.equal(shouldStopAfterNoProgress('blocked', 0), false);
+  assert.equal(shouldStopAfterNoProgress('blocked', 2), false);
+  assert.equal(shouldStopAfterNoProgress('blocked', 3), true);
+  assert.equal(shouldStopAfterNoProgress('idle', 0), true);
+  assert.equal(shouldStopAfterNoProgress('executing', 0), false);
 });

@@ -145,7 +145,16 @@ async function runCodexSdkPrompt({ prompt, title, sessionId, codexEnv }) {
     ({ Codex } = await import('@openai/codex-sdk'));
   } catch (error) {
     if ((codexEnv.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase() !== 'cli') {
-      return null;
+      // SDK mode explicitly requested but package unavailable — fail fast, don't silently fall through to CLI
+      return {
+        exitCode: 1,
+        signal: null,
+        stdout: '',
+        stderr: `codex_sdk_unavailable: ${error.message}\n`,
+        timedOut: false,
+        sessionId: null,
+        reportedError: `codex_sdk_unavailable: ${error.message}`
+      };
     }
     return null;
   }
@@ -273,6 +282,16 @@ async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let settled = false;
+
+    function safeResolve(result) {
+      if (settled) return;
+      settled = true;
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      if (hardTimeoutHandle) clearTimeout(hardTimeoutHandle);
+      resolve(result);
+    }
+
     const timeoutHandle =
       Number.isFinite(timeoutMs) && timeoutMs > 0
         ? setTimeout(() => {
@@ -286,6 +305,27 @@ async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
         : null;
     timeoutHandle?.unref();
 
+    // Hard watchdog: guarantees the Promise resolves even if the child never fires 'close'
+    const hardMs =
+      (Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 1200000) +
+      60000;
+    const hardTimeoutHandle = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // ignore
+      }
+      safeResolve({
+        exitCode: 1,
+        signal: 'SIGKILL',
+        stdout,
+        stderr,
+        timedOut: true
+      });
+    }, hardMs);
+    hardTimeoutHandle.unref();
+
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
     });
@@ -293,12 +333,16 @@ async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
       stderr += chunk.toString();
     });
     child.on('close', (exitCode, signal) => {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      resolve({ exitCode: exitCode ?? 1, signal, stdout, stderr, timedOut });
+      safeResolve({
+        exitCode: exitCode ?? 1,
+        signal,
+        stdout,
+        stderr,
+        timedOut
+      });
     });
     child.on('error', (error) => {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      resolve({
+      safeResolve({
         exitCode: 1,
         signal: null,
         stdout,

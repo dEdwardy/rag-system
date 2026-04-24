@@ -23,6 +23,12 @@ export function nextRunnerIteration({
   };
 }
 
-export function shouldStopAfterNoProgress(phase) {
-  return phase === 'blocked' || phase === 'idle';
+export function shouldStopAfterNoProgress(
+  phase,
+  blockedRetries = 0,
+  maxBlockedRetries = 3
+) {
+  if (phase === 'idle') return true;
+  if (phase === 'blocked') return blockedRetries >= maxBlockedRetries;
+  return false;
 }

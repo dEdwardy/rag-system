@@ -8,6 +8,7 @@ import {
   nextRunnableItem,
   firstBlockedPendingItem,
   queueSummary,
+  queueItems,
   writeJson
 } from './queue-utils.mjs';
 import {
@@ -128,7 +129,13 @@ function extractQueueResult(stdout) {
   return null;
 }
 
-function extractFailureMarkers(output) {
+function extractFailureMarkers(stdout, stderr) {
+  // Exclude JSON lines from stdout to avoid false positives from JSONL output
+  const stdoutPlain = stdout
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith('{'))
+    .join('\n');
+  const output = `${stdoutPlain}\n${stderr}`;
   const markers = [];
   const checks = [
     [/\bQUEUE_RESULT status=needs_replan\b/, 'queue_result_needs_replan'],
@@ -286,15 +293,20 @@ function successfulNoopFallback(
   afterSnapshot,
   finalizerUsed
 ) {
-  void beforeSnapshot;
-  void afterSnapshot;
+  if (
+    result.exitCode !== 0 ||
+    result.reportedError ||
+    stopping ||
+    !finalizerUsed ||
+    queueResult?.status ||
+    failureMarkers.length > 0
+  ) {
+    return false;
+  }
+  // Require git evidence: a new commit or a clean worktree to avoid marking a true noop as success
   return (
-    result.exitCode === 0 &&
-    !result.reportedError &&
-    !stopping &&
-    finalizerUsed &&
-    !queueResult?.status &&
-    failureMarkers.length === 0
+    commitCreatedDuringRun(beforeSnapshot, afterSnapshot) ||
+    (afterSnapshot?.worktreeClean ?? false)
   );
 }
 
@@ -350,7 +362,7 @@ async function heartbeat() {
   await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);
 }
 
-function buildExecutionPrompt(item, queueFileName) {
+function buildExecutionPrompt(queue, item, queueFileName) {
   const validation =
     Array.isArray(item?.verification?.commands) &&
     item.verification.commands.length > 0
@@ -360,10 +372,24 @@ function buildExecutionPrompt(item, queueFileName) {
     Array.isArray(item?.dependsOn) && item.dependsOn.length > 0
       ? item.dependsOn.join(', ')
       : 'none';
+  const failedDeps = (Array.isArray(item?.dependsOn) ? item.dependsOn : [])
+    .map((id) => queueItems(queue).find((i) => i?.id === id))
+    .filter((dep) => dep?.status === 'needs_replan')
+    .map((dep) => `${dep.id} (${dep.failureReason ?? 'unknown'})`)
+    .join(', ');
 
-  return [
+  const lines = [
     `You are executing queue item ${item.id} from ${queueFileName}.`,
-    `Upstream dependencies that must already be satisfied: ${deps}.`,
+    `Upstream dependencies that must already be satisfied: ${deps}.`
+  ];
+
+  if (failedDeps) {
+    lines.push(
+      `Warning: the following upstream dependencies failed and were skipped — work around them if possible: ${failedDeps}.`
+    );
+  }
+
+  lines.push(
     '',
     item.promptText,
     '',
@@ -374,7 +400,9 @@ function buildExecutionPrompt(item, queueFileName) {
     '- If validation fails or you cannot complete the item, stop and report the blocker clearly.',
     '- End with exactly one machine-readable line in this format:',
     `QUEUE_RESULT status=<completed|needs_replan> item=${item.id} validation=${validation} changed_files=<comma-separated-or-none> commit=<hash-or-none>`
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 }
 
 function buildContinuationPrompt(item, queueFileName) {
@@ -424,7 +452,7 @@ function buildSessionTitle(queue, item) {
 async function runOpencode(queue, item, queueFileName, sessionId) {
   const prompt = sessionId
     ? buildContinuationPrompt(item, queueFileName)
-    : buildExecutionPrompt(item, queueFileName);
+    : buildExecutionPrompt(queue, item, queueFileName);
   const result = await runExecutionPrompt({
     backend: executionBackend,
     prompt,
@@ -527,9 +555,12 @@ async function processOneItem() {
   const queue = loaded.queue;
   const item = nextRunnableItem(queue);
   const state = await readState();
+  const livePendingCount = queueItems(queue).filter(
+    (i) => i?.status === 'pending' || i?.status === 'in_progress'
+  ).length;
   const reusableSessionId =
     state?.activeSessionId &&
-    state?.pendingCount > 0 &&
+    livePendingCount > 0 &&
     state?.currentWaveId ===
       (queue.materializedWaveId ??
         path.basename(loaded.filePath, '.queue.json'))
@@ -656,9 +687,7 @@ async function processOneItem() {
 
   const afterSnapshot = await gitSnapshot();
   const finishedAt = new Date().toISOString();
-  const failureMarkers = extractFailureMarkers(
-    `${result.stdout}\n${result.stderr}`
-  );
+  const failureMarkers = extractFailureMarkers(result.stdout, result.stderr);
   const commitFallback = successfulCommitFallback(
     result,
     queueResult,
@@ -792,11 +821,20 @@ process.on('SIGINT', () => {
 
 await heartbeat();
 
+let blockedRetries = 0;
 while (!stopping) {
   const progressed = await processOneItem();
   if (stopping) break;
-  if (!progressed) {
-    if (shouldStopAfterNoProgress(currentRun?.phase ?? null)) {
+  if (progressed) {
+    blockedRetries = 0;
+  } else {
+    const phase = currentRun?.phase ?? null;
+    if (phase === 'blocked') {
+      blockedRetries += 1;
+    } else {
+      blockedRetries = 0;
+    }
+    if (shouldStopAfterNoProgress(phase, blockedRetries)) {
       stopping = true;
       break;
     }
