@@ -20,7 +20,11 @@ import {
 } from '../../features/api/hooks';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { TraceRecord } from '../../types/api';
-import { routeShortcutLabels } from '../reports/route-view-helpers';
+import {
+  buildRouteDecisionLabel,
+  buildRouteReasonLabel,
+  routeShortcutLabels
+} from '../reports/route-view-helpers';
 import { TraceRouteFilterPanel } from './TraceRouteFilterPanel';
 import { matchesTraceRouteFilter } from './trace-route-helpers';
 import { buildTraceExecutionToolNamesLabel } from '@rag-system/shared';
@@ -62,6 +66,12 @@ function TraceConversationCard({
   const executionToolNames = traceSummary.executionToolNames;
   const executionSteps = traceSummary.executionPlan?.steps ?? null;
   const timing = traceSummary.timingSummary;
+  const routeDecisionLabel = routeDecision
+    ? buildRouteDecisionLabel(
+        routeDecision.routeType,
+        routeDecision.routeReason
+      )
+    : null;
   const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
   const rewriteNotAppliedLabel = locale === 'zh' ? '未改写' : 'No rewrite';
   const rewriteLabel = !looksLikeUntranslatedKey(
@@ -183,7 +193,7 @@ function TraceConversationCard({
           ) : null}
           <div className="workspace-meta-row">
             <span className="workspace-meta-label">
-              {t('trace.copy.latestResult')}
+              {locale === 'zh' ? '候选片段' : 'Candidate chunks'}
             </span>
             <span className="workspace-meta-value">{candidateLabel}</span>
           </div>
@@ -192,22 +202,29 @@ function TraceConversationCard({
               {locale === 'zh' ? '路由决策' : 'Route decision'}
             </span>
             {routeDecision ? (
-              <span className="workspace-meta-value">
+              <Group className="workspace-meta-value" gap="xs" wrap="wrap">
                 <Badge color="indigo" radius="sm" variant="light">
                   {routeShortcutLabels[routeDecision.routeType] ??
                     routeDecision.routeType}
                 </Badge>
-                <span className="ml-2">
-                  {locale === 'zh' ? '原因' : 'Reason'}:{' '}
-                  {routeDecision.routeReason}
-                </span>
-              </span>
+                <Text span size="sm">
+                  {buildRouteReasonLabel(routeDecision.routeReason)}
+                </Text>
+              </Group>
             ) : (
               <span className="workspace-meta-value">
-                {locale === 'zh' ? '暫無路由信息' : 'No route metadata'}
+                {locale === 'zh' ? '暂无路由信息' : 'No route metadata'}
               </span>
             )}
           </div>
+          {routeDecisionLabel ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? '诊断摘要' : 'Diagnostics'}
+              </span>
+              <span className="workspace-meta-value">{routeDecisionLabel}</span>
+            </div>
+          ) : null}
           {executionSteps && executionSteps.length > 0 ? (
             <div className="workspace-meta-row">
               <span className="workspace-meta-label">
@@ -254,7 +271,7 @@ function TraceConversationCard({
                 {locale === 'zh' ? '最慢阶段' : 'Slowest stage'}
               </span>
               <span className="workspace-meta-value">
-                {bottleneck.label} 路 {bottleneck.value} ms
+                {bottleneck.label} - {bottleneck.value} ms
               </span>
             </div>
           ) : null}

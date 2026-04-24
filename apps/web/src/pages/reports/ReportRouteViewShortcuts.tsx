@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n/I18nProvider';
 import {
   buildAllTracesLink,
   buildTraceRouteListLink,
+  routeShortcutCompactLabels,
   routeShortcutLabels
 } from './route-view-helpers';
 
@@ -35,7 +36,7 @@ export function ReportRouteViewShortcuts() {
         to={buildTraceRouteListLink('knowledge_base')}
         variant="light"
       >
-        {locale === 'zh' ? '知识库' : routeShortcutLabels.knowledge_base}
+        {locale === 'zh' ? '知识库' : routeShortcutCompactLabels.knowledge_base}
       </Button>
       <Button
         className="workspace-button"
@@ -46,7 +47,7 @@ export function ReportRouteViewShortcuts() {
         to={buildTraceRouteListLink('policy_reply')}
         variant="light"
       >
-        {locale === 'zh' ? '策略' : routeShortcutLabels.policy_reply}
+        {locale === 'zh' ? '策略' : routeShortcutCompactLabels.policy_reply}
       </Button>
       <Button
         className="workspace-button"
@@ -57,7 +58,7 @@ export function ReportRouteViewShortcuts() {
         to={buildTraceRouteListLink('external_source')}
         variant="light"
       >
-        {locale === 'zh' ? '外部' : routeShortcutLabels.external_source}
+        {locale === 'zh' ? '外部' : routeShortcutCompactLabels.external_source}
       </Button>
     </div>
   );

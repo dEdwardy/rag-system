@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/I18nProvider';
 import { ReportRouteViewShortcuts } from '../reports/ReportRouteViewShortcuts';
 import {
+  buildRouteDecisionLabel,
+  buildRouteReasonLabel,
   routeShortcutLabels,
   type RouteShortcutTarget
 } from '../reports/route-view-helpers';
@@ -27,7 +29,13 @@ export function TraceRouteFilterPanel({
       <ReportRouteViewShortcuts />
       {routeTypeFilter || routeReasonFilter ? (
         <div className="flex flex-wrap gap-2">
-          {routeTypeFilter ? (
+          {routeTypeFilter && routeReasonFilter ? (
+            <Badge color="indigo" radius="sm" variant="light">
+              {locale === 'zh' ? '当前路由' : 'Current route'}:{' '}
+              {buildRouteDecisionLabel(routeTypeFilter, routeReasonFilter)}
+            </Badge>
+          ) : null}
+          {routeTypeFilter && !routeReasonFilter ? (
             <Badge color="indigo" radius="sm" variant="light">
               {locale === 'zh' ? '路由类型' : 'Route type'}:{' '}
               {isRouteShortcutTarget(routeTypeFilter)
@@ -35,10 +43,10 @@ export function TraceRouteFilterPanel({
                 : routeTypeFilter}
             </Badge>
           ) : null}
-          {routeReasonFilter ? (
+          {routeReasonFilter && !routeTypeFilter ? (
             <Badge color="gray" radius="sm" variant="light">
               {locale === 'zh' ? '路由原因' : 'Route reason'}:{' '}
-              {routeReasonFilter}
+              {buildRouteReasonLabel(routeReasonFilter)}
             </Badge>
           ) : null}
         </div>
