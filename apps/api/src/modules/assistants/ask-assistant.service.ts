@@ -370,7 +370,7 @@ export class AskAssistantService {
           durationMs: 0
         }));
 
-    const specialRouteResult = await this.dispatchSpecialRouteAsk({
+    const specialRouteResult = this.dispatchSpecialRouteAsk({
       routeDecision,
       executors: {
         policy_reply: () =>
@@ -399,7 +399,7 @@ export class AskAssistantService {
     });
 
     if (specialRouteResult != null) {
-      return specialRouteResult as Awaited<
+      return (await specialRouteResult) as Awaited<
         ReturnType<
           | AskAssistantService['handlePolicyRouteAsk']
           | AskAssistantService['handleExternalSourceRouteAsk']
@@ -936,7 +936,7 @@ export class AskAssistantService {
     };
     const eagerUserMessagePromise = getUserMessagePromise();
 
-    const specialRouteStreamResult = await this.dispatchSpecialRouteAsk({
+    const specialRouteStreamResult = this.dispatchSpecialRouteAsk({
       routeDecision,
       executors: {
         policy_reply: () =>
@@ -967,7 +967,7 @@ export class AskAssistantService {
     });
 
     if (specialRouteStreamResult != null) {
-      return specialRouteStreamResult as Awaited<
+      return (await specialRouteStreamResult) as Awaited<
         ReturnType<
           | AskAssistantService['handlePolicyRouteAskStream']
           | AskAssistantService['handleExternalSourceRouteAskStream']
@@ -3306,12 +3306,12 @@ export class AskAssistantService {
     return input.replace(/\s+/g, ' ').trim();
   }
 
-  private async dispatchSpecialRouteAsk(input: {
+  private dispatchSpecialRouteAsk(input: {
     routeDecision: AskRouteDecision;
     executors: Partial<
       Record<AskRouteDecision['routeType'], () => Promise<unknown>>
     >;
-  }): Promise<unknown | null> {
+  }): Promise<unknown> | null {
     const executor = input.executors[input.routeDecision.routeType];
     return executor != null ? executor() : null;
   }

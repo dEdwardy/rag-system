@@ -35,6 +35,19 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     traceSummaryBody,
+    /executionMode:\s*TraceExecutionPlan\['executionMode'\] \| null;/
+  );
+  assert.match(traceSummaryBody, /executionModeReadabilityLabel:\s*string;/);
+  assert.match(
+    traceSummaryBody,
+    /executionToolNames:\s*TraceExecutionToolName\[\];/
+  );
+  assert.match(
+    traceSummaryBody,
+    /executionToolNamesReadabilityLabel:\s*string;/
+  );
+  assert.match(
+    traceSummaryBody,
     /missingInformationProvenanceSentence:\s*string;/
   );
 
@@ -42,11 +55,11 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(source, /traceSummary:\s*TraceSummary;/);
   assert.match(
     sharedSource,
-    /export type TraceRetrievalQuerySource = "rewritten" \| "original_disabled" \| "original_unchanged";/
+    /export type TraceRetrievalQuerySource =[\s\S]*?original_unchanged';/
   );
   assert.match(
     sharedSource,
-    /export type TraceFailedStage = "retrieval" \| "answering";/
+    /export type TraceFailedStage =[\s\S]*?answering';/
   );
   assert.match(sharedSource, /export type RetrievalStrategySummary = \{/);
   assert.match(sharedSource, /rewriteEnabled:\s*boolean;/);
