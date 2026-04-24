@@ -639,3 +639,7 @@
 - `trace detail route decision readability` now shows the route decision as a visible badge plus reason in the diagnostic sidebar
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders route type as a badge and route reason as a separate explanation block inside the diagnostic metadata card
   - this makes the agent-like decision path easier to scan at a glance without opening the raw payload
+
+- `trace list route decision readability` now mirrors the same readable route labels on the conversation cards
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now renders the route type as a shared label badge and keeps the route reason visible beside it
+  - the list view and the detail view now agree on the same route label contract, which reduces scan-time mismatch between summary and detail

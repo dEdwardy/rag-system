@@ -20,6 +20,7 @@ import {
 } from '../../features/api/hooks';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { TraceRecord } from '../../types/api';
+import { routeShortcutLabels } from '../reports/route-view-helpers';
 import { TraceRouteFilterPanel } from './TraceRouteFilterPanel';
 import { matchesTraceRouteFilter } from './trace-route-helpers';
 
@@ -186,13 +187,22 @@ function TraceConversationCard({
             <span className="workspace-meta-label">
               {locale === 'zh' ? '璺敱鍐崇瓥' : 'Route decision'}
             </span>
-            <span className="workspace-meta-value">
-              {routeDecision
-                ? `${routeDecision.routeType} 路 ${routeDecision.routeReason}`
-                : locale === 'zh'
-                  ? '鏆傛棤璺敱淇℃伅'
-                  : 'No route metadata'}
-            </span>
+            {routeDecision ? (
+              <span className="workspace-meta-value">
+                <Badge color="indigo" radius="sm" variant="light">
+                  {routeShortcutLabels[routeDecision.routeType] ??
+                    routeDecision.routeType}
+                </Badge>
+                <span className="ml-2">
+                  {locale === 'zh' ? '原因' : 'Reason'}:{' '}
+                  {routeDecision.routeReason}
+                </span>
+              </span>
+            ) : (
+              <span className="workspace-meta-value">
+                {locale === 'zh' ? '暫無路由信息' : 'No route metadata'}
+              </span>
+            )}
           </div>
           {routeDecision?.routeType === 'external_source' ? (
             <div className="workspace-meta-row">
