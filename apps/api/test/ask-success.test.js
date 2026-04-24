@@ -388,6 +388,38 @@ test('AskAssistantService completes the happy path with retrieval, messages, and
       routeType: 'knowledge_base',
       routeReason: 'default_kb_ask'
     },
+    executionPlan: {
+      executionMode: 'manual',
+      steps: [
+        {
+          key: 'route_decision',
+          id: 'route_decision',
+          kind: 'route_decision',
+          status: 'completed',
+          label: 'Route decision',
+          detail: 'knowledge_base:default_kb_ask',
+          durationMs: null
+        },
+        {
+          key: 'retrieval',
+          id: 'retrieval',
+          kind: 'retrieval',
+          status: 'completed',
+          label: 'Retrieval',
+          detail: null,
+          durationMs: null
+        },
+        {
+          key: 'answer_generation',
+          id: 'answer_generation',
+          kind: 'answer_generation',
+          status: 'completed',
+          label: 'Answer generation',
+          detail: null,
+          durationMs: null
+        }
+      ]
+    },
     strategySummary: {
       retrievalMode: 'hybrid',
       strategyMode: 'hybrid',
@@ -1129,6 +1161,38 @@ test('AskAssistantService can disable query rewrite and forwards resolved retrie
     routeDecision: {
       routeType: 'knowledge_base',
       routeReason: 'default_kb_ask'
+    },
+    executionPlan: {
+      executionMode: 'manual',
+      steps: [
+        {
+          key: 'route_decision',
+          id: 'route_decision',
+          kind: 'route_decision',
+          status: 'completed',
+          label: 'Route decision',
+          detail: 'knowledge_base:default_kb_ask',
+          durationMs: null
+        },
+        {
+          key: 'retrieval',
+          id: 'retrieval',
+          kind: 'retrieval',
+          status: 'completed',
+          label: 'Retrieval',
+          detail: null,
+          durationMs: null
+        },
+        {
+          key: 'answer_generation',
+          id: 'answer_generation',
+          kind: 'answer_generation',
+          status: 'completed',
+          label: 'Answer generation',
+          detail: null,
+          durationMs: null
+        }
+      ]
     },
     strategySummary: {
       retrievalMode: 'lexical',
@@ -4688,6 +4752,10 @@ test('AskAssistantService routes multiple markdown links through multi-source ex
   );
   assert.equal(result.retrievalMetadata.externalSources.length, 2);
   assert.equal(result.answer, 'answer for 2 sources');
+  assert.equal(
+    result.retrievalMetadata.executionPlan.executionMode,
+    'workflow'
+  );
 });
 
 test('AskAssistantService routes sitemap and feed URLs to the matching external source family', async () => {

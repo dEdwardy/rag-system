@@ -31,6 +31,11 @@
 
 ## Recent Landed Increments
 
+- `external-source workflow mode` now marks the multi-source external route as a workflow-style execution plan while keeping the single-source path manual
+  - `packages/shared/src/trace-contracts.ts` now returns `executionMode: workflow` when `external_source` fans out across more than one source URL
+  - `apps/api/test/ask-success.test.js` now locks the multi-source external routing case so the trace metadata keeps the workflow label visible on fan-out paths
+  - this keeps the minimal agentization contract aligned with the actual multi-hop shape without introducing a planner or a broader agent runtime
+
 - `markdown-link external source recognition` widened the explicit-source branch to handle a more realistic copy/paste pattern
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now extracts URLs from markdown links before falling back to bare URL matching
   - `apps/api/test/ask-success.test.js` now covers the markdown-link form so a pasted `[title](url)` still routes through external-source instead of default KB ask

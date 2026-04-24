@@ -165,7 +165,10 @@ export function buildTraceExecutionPlan(input: {
 
   if (input.routeType === 'external_source') {
     return {
-      executionMode: 'manual',
+      executionMode:
+        input.sourceCount != null && input.sourceCount > 1
+          ? 'workflow'
+          : 'manual',
       steps: [
         routeStep,
         {
