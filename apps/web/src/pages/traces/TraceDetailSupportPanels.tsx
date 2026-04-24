@@ -3,7 +3,11 @@ import { Link } from 'react-router-dom';
 import { StatePanel } from '../../components/StatePanel';
 import type { SupportedLocale } from '../../i18n/messages';
 import type { Citation, TraceRecord } from '../../types/api';
-import { buildTraceExecutionToolLabel } from '@rag-system/shared';
+import {
+  buildTraceExecutionModeReadabilityLabel,
+  buildTraceExecutionToolLabel,
+  buildTraceExecutionToolNamesLabel
+} from '@rag-system/shared';
 import {
   buildDocumentChunkLink,
   buildRawPayload
@@ -249,6 +253,12 @@ export function TraceDetailSidebarPanels({
   const executionMode = trace.traceSummary?.executionMode ?? null;
   const executionToolNames = trace.traceSummary?.executionToolNames ?? [];
   const executionSteps = trace.traceSummary?.executionPlan?.steps ?? null;
+  const executionModeLabel =
+    trace.traceSummary?.executionModeReadabilityLabel ||
+    buildTraceExecutionModeReadabilityLabel(executionMode);
+  const executionToolsLabel =
+    trace.traceSummary?.executionToolNamesReadabilityLabel ||
+    buildTraceExecutionToolNamesLabel(executionToolNames);
 
   return (
     <div className="workspace-page-side-stack">
@@ -345,17 +355,21 @@ export function TraceDetailSidebarPanels({
                         radius="sm"
                         variant="light"
                       >
-                        {executionMode ?? 'manual'}
+                        {locale === 'zh'
+                          ? `模式：${executionModeLabel}`
+                          : `Mode: ${executionModeLabel}`}
                       </Badge>
                     </Group>
                     <Text c="var(--app-text-muted)" size="xs">
                       {locale === 'zh'
-                        ? `总览：${executionPlan?.steps.length ?? 0} 个步骤`
-                        : `Overview: ${executionPlan?.steps.length ?? 0} step(s)`}
+                        ? `总览：${executionPlan?.steps.length ?? 0} 个步骤，${executionModeLabel} 模式`
+                        : `Overview: ${executionPlan?.steps.length ?? 0} step(s), ${executionModeLabel} mode`}
                     </Text>
                     {executionToolNames.length > 0 ? (
                       <Badge color="cyan" radius="sm" variant="light">
-                        {trace.traceSummary?.executionToolNamesReadabilityLabel}
+                        {locale === 'zh'
+                          ? `工具：${executionToolsLabel}`
+                          : `Tools: ${executionToolsLabel}`}
                       </Badge>
                     ) : null}
                     <Stack gap={6}>
@@ -379,6 +393,7 @@ export function TraceDetailSidebarPanels({
                             </Text>
                             {step.toolName ? (
                               <Badge color="cyan" radius="sm" variant="light">
+                                {locale === 'zh' ? '工具：' : 'Tool: '}
                                 {buildTraceExecutionToolLabel(step.toolName) ??
                                   step.toolName}
                               </Badge>
