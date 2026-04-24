@@ -147,6 +147,14 @@ type AskPersistedMessage = {
   id: string;
 };
 
+type AskReusableConversationMessage = {
+  id: string;
+  conversationId: string;
+  role: MessageRole;
+  content: string;
+  traceId: string | null;
+};
+
 type TimedResult<T> = {
   value: T;
   durationMs: number;
@@ -271,18 +279,6 @@ export class AskAssistantService {
       durationMs: 0
     };
 
-    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> =
-      this.messagesService
-        .createMessage({
-          conversationId: conversation.id,
-          role: MessageRole.user,
-          content: input.question
-        })
-        .then((message) => ({
-          value: message,
-          durationMs: 0
-        }));
-
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
       topK: retrievalProfile.topK,
@@ -340,6 +336,29 @@ export class AskAssistantService {
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const routeDecision = this.resolveRouteDecision(input.question);
+    const reusableConversationAnswer =
+      await this.findReusableConversationAnswer({
+        conversationId: conversation.id,
+        assistantId: assistant.id,
+        question: input.question,
+        authContext: authContext.identity
+      });
+
+    if (reusableConversationAnswer != null) {
+      return reusableConversationAnswer;
+    }
+
+    const userMessagePromise: Promise<TimedResult<AskPersistedMessage>> =
+      this.messagesService
+        .createMessage({
+          conversationId: conversation.id,
+          role: MessageRole.user,
+          content: input.question
+        })
+        .then((message) => ({
+          value: message,
+          durationMs: 0
+        }));
 
     if (routeDecision.routeType === 'policy_reply') {
       return this.handlePolicyRouteAsk({
@@ -776,45 +795,6 @@ export class AskAssistantService {
       durationMs: Date.now() - conversationStartedAt
     }));
 
-    const startedStatusEventPromise = Promise.resolve(
-      input.onEvent({
-        type: 'status',
-        phase: 'started'
-      })
-    );
-    const retrievingStatusEventOutcomePromise = startedStatusEventPromise
-      .then(() =>
-        input.onEvent({
-          type: 'status',
-          phase: 'retrieving'
-        })
-      )
-      .then(() => ({ error: null as unknown }))
-      .catch((error) => ({ error }));
-
-    let userMessagePromise: Promise<TimedResult<AskPersistedMessage>> | null =
-      null;
-    const getUserMessagePromise = () => {
-      if (userMessagePromise == null) {
-        const userMessagePersistStartedAt = Date.now();
-        userMessagePromise = conversationPromise
-          .then(({ value: conversation }) =>
-            this.messagesService.createMessage({
-              conversationId: conversation.id,
-              role: MessageRole.user,
-              content: input.question
-            })
-          )
-          .then((message) => ({
-            value: message,
-            durationMs: Date.now() - userMessagePersistStartedAt
-          }));
-      }
-
-      return userMessagePromise;
-    };
-    const eagerUserMessagePromise = getUserMessagePromise();
-
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
       topK: retrievalProfile.topK,
@@ -880,6 +860,60 @@ export class AskAssistantService {
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const routeDecision = this.resolveRouteDecision(input.question);
+    const reusableConversationAnswer =
+      await this.findReusableConversationAnswer({
+        conversationId: (await conversationPromise).value.id,
+        assistantId: assistant.id,
+        question: input.question,
+        authContext: authContext.identity
+      });
+
+    if (reusableConversationAnswer != null) {
+      await input.onEvent({
+        type: 'final',
+        data: reusableConversationAnswer
+      });
+      return reusableConversationAnswer;
+    }
+
+    const startedStatusEventPromise = Promise.resolve(
+      input.onEvent({
+        type: 'status',
+        phase: 'started'
+      })
+    );
+    const retrievingStatusEventOutcomePromise = startedStatusEventPromise
+      .then(() =>
+        input.onEvent({
+          type: 'status',
+          phase: 'retrieving'
+        })
+      )
+      .then(() => ({ error: null as unknown }))
+      .catch((error) => ({ error }));
+
+    let userMessagePromise: Promise<TimedResult<AskPersistedMessage>> | null =
+      null;
+    const getUserMessagePromise = () => {
+      if (userMessagePromise == null) {
+        const userMessagePersistStartedAt = Date.now();
+        userMessagePromise = conversationPromise
+          .then(({ value: conversation }) =>
+            this.messagesService.createMessage({
+              conversationId: conversation.id,
+              role: MessageRole.user,
+              content: input.question
+            })
+          )
+          .then((message) => ({
+            value: message,
+            durationMs: Date.now() - userMessagePersistStartedAt
+          }));
+      }
+
+      return userMessagePromise;
+    };
+    const eagerUserMessagePromise = getUserMessagePromise();
 
     if (routeDecision.routeType === 'policy_reply') {
       return this.handlePolicyRouteAskStream({
@@ -3182,6 +3216,123 @@ export class AskAssistantService {
       noAnswerBehavior: input?.noAnswerBehavior ?? 'say_insufficient_context',
       includeMissingInformation: input?.includeMissingInformation ?? true
     } as const;
+  }
+
+  private normalizeReuseQuestion(input: string) {
+    return input.replace(/\s+/g, ' ').trim();
+  }
+
+  private async findReusableConversationAnswer(input: {
+    conversationId: string;
+    assistantId: string;
+    question: string;
+    authContext: AuthIdentity;
+  }) {
+    const normalizedQuestion = this.normalizeReuseQuestion(input.question);
+    if (normalizedQuestion.length === 0) {
+      return null;
+    }
+
+    const messages = (await this.messagesService.listConversationMessages(
+      input.conversationId,
+      input.authContext
+    )) as AskReusableConversationMessage[];
+
+    for (let index = messages.length - 2; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      const nextMessage = messages[index + 1];
+      if (
+        candidate.role !== MessageRole.user ||
+        this.normalizeReuseQuestion(candidate.content) !== normalizedQuestion
+      ) {
+        continue;
+      }
+
+      if (
+        nextMessage?.role !== MessageRole.assistant ||
+        nextMessage.traceId == null
+      ) {
+        continue;
+      }
+
+      const trace = await this.tracesService.getTrace(
+        nextMessage.traceId,
+        input.authContext
+      );
+
+      if (trace.assistantId !== input.assistantId) {
+        continue;
+      }
+
+      return {
+        conversationId: input.conversationId,
+        userMessageId: candidate.id,
+        assistantMessageId: nextMessage.id,
+        traceId: trace.id,
+        answer: nextMessage.content,
+        citations: Array.isArray(trace.citationsJson)
+          ? trace.citationsJson
+          : [],
+        modelName: trace.modelName ?? 'reused-answer',
+        routeType: trace.traceSummary?.routeType ?? null,
+        routeReason: trace.traceSummary?.routeReason ?? null,
+        strategySummary: trace.traceSummary?.strategySummary ?? undefined,
+        retrievalMetadata: trace.retrievalMetadataJson ?? undefined,
+        timingSummary: trace.traceSummary?.timingSummary ?? undefined,
+        timingReadabilitySentence:
+          trace.traceSummary?.timingReadabilitySentence ?? undefined,
+        strategyReadabilityLabel:
+          trace.traceSummary?.strategyReadabilityLabel ?? undefined,
+        retrievalModeProvenanceSentence:
+          trace.traceSummary?.retrievalModeProvenanceSentence ?? undefined,
+        rewriteReadabilityLabel:
+          trace.traceSummary?.rewriteReadabilityLabel ?? undefined,
+        answerAttributionSummary:
+          trace.traceSummary?.answerAttributionSummary ?? undefined,
+        answerAttributionReadabilitySentence:
+          trace.traceSummary?.answerAttributionReadabilitySentence ?? undefined,
+        answerAttribution: trace.traceSummary?.answerAttribution ?? undefined,
+        answerAttributionSource:
+          trace.traceSummary?.answerAttributionSource ?? undefined,
+        answerEvidenceSource:
+          trace.traceSummary?.answerEvidenceSource ?? undefined,
+        answerEvidenceSourceReadabilityLabel:
+          trace.traceSummary?.answerEvidenceSourceReadabilityLabel ?? undefined,
+        answerEvidenceSourceReadabilitySentence:
+          trace.traceSummary?.answerEvidenceSourceReadabilitySentence ??
+          undefined,
+        answerTextSource: trace.traceSummary?.answerTextSource ?? undefined,
+        answerTextSourceReadabilityLabel:
+          trace.traceSummary?.answerTextSourceReadabilityLabel ?? undefined,
+        answerTextSourceReadabilitySentence:
+          trace.traceSummary?.answerTextSourceReadabilitySentence ?? undefined,
+        answerStatusSource: trace.traceSummary?.answerStatusSource ?? undefined,
+        answerStatusSourceReadabilityLabel:
+          trace.traceSummary?.answerStatusSourceReadabilityLabel ?? undefined,
+        answerStatusSourceReadabilitySentence:
+          trace.traceSummary?.answerStatusSourceReadabilitySentence ??
+          undefined,
+        failureReadabilitySentence:
+          trace.traceSummary?.failureReadabilitySentence ?? undefined,
+        answerProvenanceSentence:
+          trace.traceSummary?.answerProvenanceSentence ?? undefined,
+        answerProvenanceReadabilitySentence:
+          trace.traceSummary?.answerProvenanceReadabilitySentence ?? undefined,
+        missingInformationSource:
+          trace.traceSummary?.missingInformationSource ?? undefined,
+        missingInformationProvenanceSentence:
+          trace.traceSummary?.missingInformationProvenanceSentence ?? undefined,
+        missingInformationSourceReadabilityLabel:
+          trace.traceSummary?.missingInformationSourceReadabilityLabel ??
+          undefined,
+        answeringMetadata: trace.answeringMetadataJson ?? undefined,
+        answerStatus: trace.traceSummary?.answerStatus ?? undefined,
+        missingInformation: [],
+        qualityEvaluation: trace.qualityEvaluationJson ?? undefined
+      };
+    }
+
+    return null;
   }
 
   private isAbortError(error: unknown) {

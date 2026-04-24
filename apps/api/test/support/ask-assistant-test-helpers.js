@@ -83,6 +83,7 @@ function createAskAssistantService(input = {}) {
       ...input.conversations
     },
     {
+      listConversationMessages: async () => [],
       createMessage: async (inputValue) => ({
         id:
           inputValue.role === 'user' ? 'user-message-1' : 'assistant-message-1',

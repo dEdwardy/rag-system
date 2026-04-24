@@ -680,3 +680,11 @@
     - `pnpm --filter @rag-system/web typecheck`
     - `pnpm check:encoding`
     - `git diff --check`
+
+- `conversation answer reuse` now short-circuits exact same-question repeats inside the same conversation
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now checks the current conversation history before creating new messages, and reuses the latest assistant response when the same question already has a completed answer
+  - this keeps the chat path from writing duplicate messages / traces for the same turn and makes repeated submits behave like cache hits instead of reruns
+  - focused validation:
+    - `pnpm --filter @rag-system/api exec vitest run test/ask-reuse.test.js --config vitest.config.mjs`
+    - `pnpm --filter @rag-system/api test:file -- test/ask-stream-service.test.js`
+    - `pnpm --filter @rag-system/api typecheck`
