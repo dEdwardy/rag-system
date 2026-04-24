@@ -2103,6 +2103,54 @@ export class AskAssistantService {
     );
   }
 
+  private async fetchResolvedExternalSource(
+    resolvedSource: ResolvedExternalSourceCandidate,
+    routeDecision: AskRouteDecision
+  ) {
+    if (resolvedSource.sourceKind === 'sitemap') {
+      const result = await this.sitemapSourceService.fetchSitemap({
+        url: resolvedSource.url,
+        maxPages: 3
+      });
+      return {
+        routeDecision,
+        sourceUrl: resolvedSource.url,
+        sourceKind: resolvedSource.sourceKind,
+        label: resolvedSource.label,
+        title: null,
+        content: result.content,
+        diagnostics: result.diagnostics
+      };
+    }
+
+    if (resolvedSource.sourceKind === 'feed') {
+      const result = await this.feedSourceService.fetchFeed({
+        url: resolvedSource.url,
+        maxItems: 5
+      });
+      return {
+        routeDecision,
+        sourceUrl: resolvedSource.url,
+        sourceKind: resolvedSource.sourceKind,
+        label: resolvedSource.label,
+        title: result.title,
+        content: result.content,
+        diagnostics: result.diagnostics
+      };
+    }
+
+    const result = await this.webPageService.fetchWebPage(resolvedSource.url);
+    return {
+      routeDecision,
+      sourceUrl: resolvedSource.url,
+      sourceKind: resolvedSource.sourceKind,
+      label: resolvedSource.label,
+      title: result.title,
+      content: result.content,
+      diagnostics: result.diagnostics
+    };
+  }
+
   private async fetchExternalSourcePayloadOrCreateFailedTrace(input: {
     assistantId: string;
     conversation: AskConversationRef;
@@ -2125,52 +2173,9 @@ export class AskAssistantService {
 
     try {
       const fetchedSources = await Promise.all(
-        resolvedSources.map(async (resolvedSource) => {
-          if (resolvedSource.sourceKind === 'sitemap') {
-            const result = await this.sitemapSourceService.fetchSitemap({
-              url: resolvedSource.url,
-              maxPages: 3
-            });
-            return {
-              routeDecision: input.routeDecision,
-              sourceUrl: resolvedSource.url,
-              sourceKind: resolvedSource.sourceKind,
-              label: resolvedSource.label,
-              title: null,
-              content: result.content,
-              diagnostics: result.diagnostics
-            };
-          }
-
-          if (resolvedSource.sourceKind === 'feed') {
-            const result = await this.feedSourceService.fetchFeed({
-              url: resolvedSource.url,
-              maxItems: 5
-            });
-            return {
-              routeDecision: input.routeDecision,
-              sourceUrl: resolvedSource.url,
-              sourceKind: resolvedSource.sourceKind,
-              label: resolvedSource.label,
-              title: result.title,
-              content: result.content,
-              diagnostics: result.diagnostics
-            };
-          }
-
-          const result = await this.webPageService.fetchWebPage(
-            resolvedSource.url
-          );
-          return {
-            routeDecision: input.routeDecision,
-            sourceUrl: resolvedSource.url,
-            sourceKind: resolvedSource.sourceKind,
-            label: resolvedSource.label,
-            title: result.title,
-            content: result.content,
-            diagnostics: result.diagnostics
-          };
-        })
+        resolvedSources.map((resolvedSource) =>
+          this.fetchResolvedExternalSource(resolvedSource, input.routeDecision)
+        )
       );
 
       const combinedContent = fetchedSources

@@ -119,6 +119,10 @@
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives the chunk section title through a dedicated helper instead of a ternary inside the chunk literal
   - this keeps the external-source chunk builder focused on wiring rather than label selection
 
+- `external source fetch helper` consolidated the source-kind fetch branches into a single local executor helper
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now routes sitemap/feed/web fetching through `fetchResolvedExternalSource(...)`
+  - this keeps the explicit-source fan-out path thinner and makes the source-kind branching easier to scan and extend
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
