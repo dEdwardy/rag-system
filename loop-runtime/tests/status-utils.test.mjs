@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatStatusLine } from './status-utils.mjs';
+import { formatStatusLine } from '../core/status-utils.mjs';
 
 test('formatStatusLine reports stopped for completed stale state', () => {
   const line = formatStatusLine({
@@ -16,7 +16,10 @@ test('formatStatusLine reports stopped for completed stale state', () => {
     relativePath: '.opencode/loop/loop-run.log'
   });
 
-  assert.equal(line, 'stopped wave=wave-a pending=0 completed=5');
+  assert.equal(
+    line,
+    'stopped backend=opencode wave=wave-a pending=0 completed=5'
+  );
 });
 
 test('formatStatusLine keeps stale marker for incomplete dead runner state', () => {
@@ -35,7 +38,7 @@ test('formatStatusLine keeps stale marker for incomplete dead runner state', () 
 
   assert.equal(
     line,
-    'stale state pid=123 wave=wave-a pending=2 completed=1 phase=executing'
+    'stale state pid=123 backend=opencode wave=wave-a pending=2 completed=1 phase=executing'
   );
 });
 
@@ -62,7 +65,7 @@ test('formatStatusLine reports blocked for live blocked runner state', () => {
 
   assert.equal(
     line,
-    'blocked pid=123 wave=wave-a pending=1 item=item-b blockedOn=item-a log=.opencode/loop/loop-run.log'
+    'blocked pid=123 backend=opencode wave=wave-a pending=1 item=item-b blockedOn=item-a log=.opencode/loop/loop-run.log'
   );
 });
 
@@ -87,6 +90,6 @@ test('formatStatusLine reports blocked for dead blocked state without calling it
 
   assert.equal(
     line,
-    'blocked wave=wave-a pending=1 completed=3 blockedOn=item-a'
+    'blocked backend=opencode wave=wave-a pending=1 completed=3 blockedOn=item-a'
   );
 });

@@ -1,0 +1,167 @@
+import {
+  Body,
+  Controller,
+  Param,
+  Post,
+  Req,
+  UnauthorizedException
+} from '@nestjs/common';
+import { DocumentStatus } from '@prisma/client';
+import { type RequestAuthContext } from '../auth/auth-identity.contract';
+import { AuthenticatedRoute } from '../auth/auth-route-policy';
+import { AskAssistantService } from '../assistants/ask-assistant.service';
+import { DocumentsService } from '../documents/documents.service';
+import { TracesService } from '../traces/traces.service';
+import { ZodValidationPipe } from '../../common/zod-validation.pipe';
+import {
+  documentLookupSchema,
+  ragAnswerSchema,
+  ragSearchSchema,
+  traceLookupSchema
+} from './agent-tools.schemas';
+import {
+  DEFAULT_DEV_TENANT_ID,
+  DEFAULT_DEV_USER_ID
+} from '../auth/auth.constants';
+
+type ToolRequest = {
+  authContext?: RequestAuthContext;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+@AuthenticatedRoute()
+@Controller('agent-tools')
+export class AgentToolsController {
+  constructor(
+    private readonly askAssistantService: AskAssistantService,
+    private readonly tracesService: TracesService,
+    private readonly documentsService: DocumentsService
+  ) {}
+
+  @Post('rag_search')
+  async ragSearch(
+    @Body(new ZodValidationPipe(ragSearchSchema))
+    input: Omit<ReturnType<typeof ragSearchSchema.parse>, 'secret'> & {
+      secret: string;
+    },
+    @Req() request?: ToolRequest
+  ) {
+    this.assertToolSecret(input.secret);
+    return this.askAssistantService.askAssistant({
+      assistantId: input.assistantId,
+      question: input.question,
+      conversationId: input.conversationId,
+      authContext: this.resolveToolAuthContext(input, request)
+    });
+  }
+
+  @Post('rag_answer')
+  async ragAnswer(
+    @Body(new ZodValidationPipe(ragAnswerSchema))
+    input: Omit<ReturnType<typeof ragAnswerSchema.parse>, 'secret'> & {
+      secret: string;
+    },
+    @Req() request?: ToolRequest
+  ) {
+    this.assertToolSecret(input.secret);
+    return this.askAssistantService.askAssistant({
+      assistantId: input.assistantId,
+      question: input.question,
+      conversationId: input.conversationId,
+      authContext: this.resolveToolAuthContext(input, request)
+    });
+  }
+
+  @Post('trace_lookup')
+  async traceLookup(
+    @Body(new ZodValidationPipe(traceLookupSchema))
+    input: Omit<ReturnType<typeof traceLookupSchema.parse>, 'secret'> & {
+      secret: string;
+    }
+  ) {
+    this.assertToolSecret(input.secret);
+    return this.tracesService.getTrace(input.traceId, this.resolveScope(input));
+  }
+
+  @Post('document_lookup')
+  async documentLookup(
+    @Body(new ZodValidationPipe(documentLookupSchema))
+    input: Omit<ReturnType<typeof documentLookupSchema.parse>, 'secret'> & {
+      secret: string;
+    }
+  ) {
+    this.assertToolSecret(input.secret);
+    const document = await this.documentsService.getDocument(
+      input.documentId,
+      this.resolveScope(input)
+    );
+    const chunks = await this.documentsService.listDocumentChunks(
+      input.documentId,
+      this.resolveScope(input)
+    );
+
+    return {
+      document,
+      chunks,
+      diagnostics: {
+        chunkCount: chunks.length,
+        status:
+          document.status === DocumentStatus.ready ? 'ready' : document.status
+      }
+    };
+  }
+
+  private resolveToolAuthContext(
+    input: { tenantId?: string; userId?: string },
+    request?: ToolRequest
+  ) {
+    const tenantId =
+      input.tenantId ??
+      this.readHeader(request, 'x-agent-tenant-id') ??
+      DEFAULT_DEV_TENANT_ID;
+    const userId =
+      input.userId ??
+      this.readHeader(request, 'x-agent-user-id') ??
+      DEFAULT_DEV_USER_ID;
+
+    const identity = {
+      tenantId,
+      userId,
+      role: 'owner',
+      sessionId: null,
+      authSource: 'agent_tool'
+    } as const;
+
+    return {
+      identity,
+      currentIdentity: identity
+    } satisfies RequestAuthContext;
+  }
+
+  private resolveScope(
+    input: { tenantId?: string; userId?: string },
+    request?: ToolRequest
+  ) {
+    const tenantId =
+      input.tenantId ??
+      this.readHeader(request, 'x-agent-tenant-id') ??
+      DEFAULT_DEV_TENANT_ID;
+    const userId =
+      input.userId ??
+      this.readHeader(request, 'x-agent-user-id') ??
+      DEFAULT_DEV_USER_ID;
+    return { tenantId, userId };
+  }
+
+  private assertToolSecret(secret: string) {
+    const expected = (process.env.AGENT_TOOL_GATEWAY_SECRET ?? '').trim();
+    if (!expected || secret !== expected) {
+      throw new UnauthorizedException('Unauthorized agent tool request.');
+    }
+  }
+
+  private readHeader(request: ToolRequest | undefined, name: string) {
+    const value = request?.headers?.[name];
+    return typeof value === 'string' ? value.trim() || null : null;
+  }
+}

@@ -126,6 +126,7 @@ async function start() {
   await writeState(
     {
       pid: child.pid,
+      executionBackend: process.env.LOOP_EXECUTOR_BACKEND ?? 'opencode',
       status: 'starting',
       phase: 'starting',
       currentItemId: null,
@@ -154,7 +155,14 @@ async function stop() {
   }
 
   await writeState(
-    { status: 'stopping', stoppedAt: new Date().toISOString() },
+    {
+      status: 'stopping',
+      executionBackend:
+        state.executionBackend ??
+        process.env.LOOP_EXECUTOR_BACKEND ??
+        'opencode',
+      stoppedAt: new Date().toISOString()
+    },
     state
   );
   const exited = await waitForPidExit(state.pid);

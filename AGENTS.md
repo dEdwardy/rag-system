@@ -15,7 +15,7 @@ Read additional docs only when they are directly relevant to the task:
 - `docs/current-progress.md`
 - `docs/current-dev-setup.md`
 - `README.md`
-- `.opencode/loop/README.md` when working on the local loop harness
+- `loop-runtime/` when working on the local loop runtime, with runtime code under `loop-runtime/core/`, backend adapters under `loop-runtime/adapters/`, and tests under `loop-runtime/tests/`
 
 ## Environment Assumption
 

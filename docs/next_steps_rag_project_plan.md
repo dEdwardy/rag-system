@@ -175,3 +175,28 @@
 当前项目的默认主路径已经可用，接下来不再继续并行展开团队、模板、SaaS、源码包装等多条方向；只保留一条清晰新增量：
 
 **在现有 RAG 主路径上补一个最小 agent 化能力，让系统先判断问题类型，再走合适的现有处理链路。**
+
+## Agentic RAG Priority Order
+
+Priority A:
+
+- `rag_search` / `rag_answer` tool APIs
+- server-side tool gateway secret plus internal `userId / tenantId` mapping
+- bounded multi-step flow: `query rewrite -> second retrieval -> answer`
+- stable response contract with `citations`, `confidence`, and `missingInformation`
+
+Priority B:
+
+- `trace_lookup` / `document_lookup` helpers for inspection and demos
+- `/agent` UI with chat plus `steps / chunks / trace`
+
+Priority C:
+
+- only after the above are stable, consider whether the repo needs any broader planning or workflow abstraction
+
+Explicit non-goals:
+
+- planner
+- multi-agent
+- generic workflow engine
+- platform split

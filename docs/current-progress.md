@@ -6,6 +6,10 @@
 
 ## Current Snapshot
 
+- loop runtime now has a split layout: `loop-runtime/core/` for the main loop, `loop-runtime/adapters/` for backend execution, and `loop-runtime/tests/` for validation. The Codex backend adapter is wired as SDK-first with a CLI fallback path for environments that do not yet have `@openai/codex-sdk` installed.
+- loop runtime now also writes a compact timeout recovery artifact under `loop-runtime/runtime/recovery/` and accepts per-item timeout overrides from queue item metadata without changing the default execution path.
+- a future follow-up direction is now documented for the loop runtime: use an LLM to expand coarse requests into detailed plans, optionally split them into sequential and parallel queue items, and feed failures back into a replanning step after the current rag-system mainline is done.
+
 - 当前默认方式仍是：单线推进、小步增量、每轮收口。
 - 代码现实已明显前于旧计划表述：
   - `P3` external-source family + guardrails：开发已完成，当前只保留维护态 follow-up
@@ -745,3 +749,16 @@
     - `pnpm --filter @rag-system/api exec vitest run test/ask-reuse.test.js --config vitest.config.mjs`
     - `pnpm --filter @rag-system/api test:file -- test/ask-stream-service.test.js`
     - `pnpm --filter @rag-system/api typecheck`
+
+## Agentic RAG Status Note
+
+The main RAG path is already stable enough to treat as the base. The next meaningful increment is the thin agent layer:
+
+1. tool APIs
+2. tool gateway auth
+3. bounded multi-step retrieval flow
+4. confidence / missingInformation / citations
+5. inspection helpers
+6. `/agent` demo UI
+
+This is the current follow-up target, not planner or multi-agent.

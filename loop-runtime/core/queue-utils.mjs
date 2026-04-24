@@ -47,7 +47,11 @@ export function queueItemById(queue, id) {
 }
 
 export function completedItemIds(queue) {
-  return new Set(queueItems(queue).filter((item) => item && item.status === 'completed').map((item) => item.id));
+  return new Set(
+    queueItems(queue)
+      .filter((item) => item && item.status === 'completed')
+      .map((item) => item.id)
+  );
 }
 
 export function dependenciesSatisfied(queue, item) {
@@ -60,14 +64,26 @@ export function dependenciesSatisfied(queue, item) {
 
 export function nextRunnableItem(queue) {
   const items = queueItems(queue);
-  const inProgress = items.find((item) => item && item.status === 'in_progress');
+  const inProgress = items.find(
+    (item) => item && item.status === 'in_progress'
+  );
   if (inProgress) return inProgress;
 
-  return items.find((item) => item && item.status === 'pending' && dependenciesSatisfied(queue, item)) ?? null;
+  return (
+    items.find(
+      (item) =>
+        item && item.status === 'pending' && dependenciesSatisfied(queue, item)
+    ) ?? null
+  );
 }
 
 export function firstBlockedPendingItem(queue) {
-  return queueItems(queue).find((item) => item && item.status === 'pending' && !dependenciesSatisfied(queue, item)) ?? null;
+  return (
+    queueItems(queue).find(
+      (item) =>
+        item && item.status === 'pending' && !dependenciesSatisfied(queue, item)
+    ) ?? null
+  );
 }
 
 export function queueSummary(queue) {
@@ -79,13 +95,16 @@ export function queueSummary(queue) {
       acc.byStatus[status] = (acc.byStatus[status] ?? 0) + 1;
       return acc;
     },
-    { total: 0, byStatus: {} },
+    { total: 0, byStatus: {} }
   );
 
   const pendingCount = counts.byStatus.pending ?? 0;
   const inProgressCount = counts.byStatus.in_progress ?? 0;
   const completedCount = counts.byStatus.completed ?? 0;
-  const blockedCount = items.filter((item) => item && item.status === 'pending' && !dependenciesSatisfied(queue, item)).length;
+  const blockedCount = items.filter(
+    (item) =>
+      item && item.status === 'pending' && !dependenciesSatisfied(queue, item)
+  ).length;
 
   return {
     activeWave: queue.materializedWaveId ?? null,
@@ -93,6 +112,6 @@ export function queueSummary(queue) {
     inProgressCount,
     completedCount,
     blockedCount,
-    totalCount: counts.total,
+    totalCount: counts.total
   };
 }

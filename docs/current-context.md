@@ -116,3 +116,48 @@
 - `default-path first-token thin pass final follow-up` 也已落地：`generating` status 发送改为 eager non-blocking 边界，继续削减首字节前等待且不改 retrieval/answering 语义。
 - 下一步优先级：继续做会话加载瘦身、用户消息写库后移或并发、retrieval 子阶段拆分、复杂题才启用重 rerank。
 - 后续优化继续保持回答质量不变，只削减模型前的编排开销。
+
+## Agentic RAG Priority Order
+
+If we want this repo to be interview-ready for agent development, the next increment should be ordered like this:
+
+1. `rag_search` / `rag_answer` tool APIs
+2. server-side tool gateway secret plus internal `userId / tenantId` mapping
+3. bounded multi-step flow: `query rewrite -> second retrieval -> answer`
+4. stable response contract with `citations`, `confidence`, and `missingInformation`
+5. `trace_lookup` / `document_lookup` helpers for inspection and demos
+6. `/agent` UI with chat plus `steps / chunks / trace`
+
+Scope guardrails for this increment:
+
+- do not jump to `planner` or `multi-agent`
+- do not add a generic workflow engine
+- do not split the current mainline into a separate platform layer
+- do not weaken the default KB / default assistant / ACL baselines
+
+## Codex / OpenCode Behavior Alignment
+
+The loop runtime now treats OpenCode as the baseline executor and Codex as a backend-compatible variant.
+
+| Area            | OpenCode                      | Codex executor                                      |
+| --------------- | ----------------------------- | --------------------------------------------------- |
+| Entry point     | `opencode` CLI                | `@openai/codex-sdk` first, CLI fallback second      |
+| Session model   | CLI session id                | SDK thread id or CLI session id                     |
+| Prompt intake   | plain text queue prompt       | same queue prompt shape                             |
+| Result contract | normalized loop result object | same normalized loop result object                  |
+| Runner impact   | baseline behavior             | runner stays backend-agnostic                       |
+| Output format   | native CLI stdout/stderr      | SDK result normalized into loop stdout/stderr shape |
+
+Important difference: the loop runtime behavior is intentionally aligned, but not guaranteed to be byte-for-byte identical. The goal is interchangeable execution semantics for queue processing, not identical internal agent mechanics.
+
+## Future Loop-Runtime Direction
+
+Once the current rag-system mainline is finished, the loop runtime can be extended into a planning-first execution loop:
+
+- LLM first expands a coarse user request into a detailed plan
+- LLM can ask clarifying questions until the requirement is explicit enough to execute
+- the resulting plan can be split into sequential and parallel queue items
+- the runtime then executes those queue items with the existing `loop-runtime` backend abstraction
+- failure or partial completion can be routed back into an LLM replan step instead of being handled only by manual review
+
+This direction is intentionally deferred until the current rag-system work is settled. The current repo should keep `loop-runtime` as the execution substrate, while the future planning layer can be added on top later.

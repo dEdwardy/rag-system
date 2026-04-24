@@ -9,6 +9,7 @@ export function isCompletedSummary(summary) {
 export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
   if (state && pidAlive(state.pid)) {
     const wave = state.activeWave ?? summary.activeWave ?? 'none';
+    const backend = state.executionBackend ?? 'opencode';
     const pending = state.pendingCount ?? summary.pendingCount;
     const itemPart = state.currentItemId ? ` item=${state.currentItemId}` : '';
     const sessionPart = state.activeSessionId
@@ -19,14 +20,14 @@ export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
       : '';
 
     if (state.phase === 'blocked' || state.status === 'blocked') {
-      return `blocked pid=${state.pid} wave=${wave} pending=${pending}${itemPart}${blockedOnPart} log=${relativePath}`;
+      return `blocked pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${blockedOnPart} log=${relativePath}`;
     }
 
     if (state.phase === 'idle' || state.status === 'idle') {
       return `stopped wave=${wave} pending=${summary.pendingCount} completed=${summary.completedCount}`;
     }
 
-    return `running pid=${state.pid} wave=${wave} pending=${pending}${itemPart}${sessionPart} log=${relativePath}`;
+    return `running pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${sessionPart} log=${relativePath}`;
   }
 
   if (state && state.pid && !pidAlive(state.pid)) {
@@ -34,22 +35,23 @@ export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
     const pending = summary.pendingCount;
     const completed = summary.completedCount;
     const phase = state.phase ?? state.status ?? 'unknown';
+    const backend = state.executionBackend ?? 'opencode';
     if (
       state.status === 'stopping' ||
       state.status === 'idle' ||
       state.phase === 'idle' ||
       isCompletedSummary(summary)
     ) {
-      return `stopped wave=${wave} pending=${pending} completed=${completed}`;
+      return `stopped backend=${backend} wave=${wave} pending=${pending} completed=${completed}`;
     }
     if (state.phase === 'blocked' || state.status === 'blocked') {
       const blockedOnPart = state.blockedOn
         ? ` blockedOn=${state.blockedOn}`
         : '';
-      return `blocked wave=${wave} pending=${pending} completed=${completed}${blockedOnPart}`;
+      return `blocked backend=${backend} wave=${wave} pending=${pending} completed=${completed}${blockedOnPart}`;
     }
-    return `stale state pid=${state.pid} wave=${wave} pending=${pending} completed=${completed} phase=${phase}`;
+    return `stale state pid=${state.pid} backend=${backend} wave=${wave} pending=${pending} completed=${completed} phase=${phase}`;
   }
 
-  return `stopped wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount} completed=${summary.completedCount}`;
+  return `stopped backend=${state?.executionBackend ?? 'opencode'} wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount} completed=${summary.completedCount}`;
 }

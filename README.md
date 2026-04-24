@@ -184,7 +184,16 @@ pnpm loop:status
 pnpm loop:stop
 ```
 
-These scripts now use the repo-local Node harness under `.opencode/loop/harness/`, and the runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. The runner reuses one OpenCode session across a compact wave when possible to reduce repeated context cost, invokes the repo's `build` command for queue items, applies a per-item timeout guard (`OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`), and each spawned session title includes the current task index and remaining task count, for example `[1/4 | left 3] p4-consolidate-documents-surface-copy-and-empty-states`.
+These scripts now use the repo-local Node runtime under `loop-runtime/`, split into `loop-runtime/core/`, `loop-runtime/adapters/`, and `loop-runtime/tests/`. The runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. The runner reuses one OpenCode session across a compact wave when possible to reduce repeated context cost, invokes the repo's `build` command for queue items, applies a per-item timeout guard (`OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`), and each spawned session title includes the current task index and remaining task count, for example `[1/4 | left 3] p4-consolidate-documents-surface-copy-and-empty-states`.
+
+The runtime code has moved out of `.opencode`, but `.opencode/loop/` still holds the live queue and state data. That keeps execution code and runtime data separate while preserving the existing queue assets and local operator workflow.
+
+For Codex-backed runs, set `LOOP_EXECUTOR_BACKEND=codex` and choose one of two modes:
+
+- SDK mode: install `@openai/codex-sdk` and let the runtime use `Codex.startThread()` / `thread.run(...)`
+- CLI mode: set `CODEX_LOOP_COMMAND` to the Codex CLI binary and optionally pass `CODEX_LOOP_ARGS`
+
+The Codex adapter also accepts `CODEX_SDK_OPTIONS` as JSON when you need to pass SDK configuration through the loop runtime.
 
 If you run frontend and backend OpenCode sessions in parallel, prefer separate Git worktrees so each session has its own checkout and local config. Current working split: main checkout for non-pure-frontend work (backend, frontend/backend integration, docs/orchestration), `apps/web` worktree for pure frontend development, and `apps/api` worktree as optional/mostly unused. Workspace-local OpenCode or plugin state is not shared automatically.
 

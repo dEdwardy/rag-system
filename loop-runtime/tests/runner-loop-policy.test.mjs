@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   nextRunnerIteration,
   shouldStopAfterNoProgress
-} from './runner-loop-policy.mjs';
+} from '../core/runner-loop-policy.mjs';
 
 test('nextRunnerIteration keeps loop running after needs_replan item', () => {
   assert.deepEqual(

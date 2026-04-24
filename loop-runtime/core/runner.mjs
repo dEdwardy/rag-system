@@ -2,7 +2,7 @@
 import { mkdir, appendFile, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import {
   loadLatestQueue,
   nextRunnableItem,
@@ -15,11 +15,16 @@ import {
   shouldStopAfterNoProgress
 } from './runner-loop-policy.mjs';
 import { wasExecutionSuperseded } from './execution-guards.mjs';
+import {
+  resolveExecutionBackend,
+  runExecutionPrompt
+} from '../adapters/execution-adapters.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(loopDir, '..', '..');
 const runtimeDir = path.join(loopDir, 'runtime');
+const recoveryDir = path.join(runtimeDir, 'recovery');
 const stateFile = path.join(runtimeDir, 'loop-state.json');
 const logFile = path.join(loopDir, 'loop-run.log');
 const intervalMs = Number(process.env.OPENCODE_LOOP_INTERVAL_MS ?? 5000);
@@ -31,6 +36,7 @@ let currentChild = null;
 let currentRun = null;
 let startedAt = new Date().toISOString();
 let childAbortReason = null;
+const executionBackend = resolveExecutionBackend();
 function buildChildEnv() {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
@@ -53,6 +59,7 @@ const heartbeatTimer = setInterval(() => {
 heartbeatTimer.unref();
 
 await mkdir(runtimeDir, { recursive: true });
+await mkdir(recoveryDir, { recursive: true });
 
 async function readState() {
   try {
@@ -147,6 +154,71 @@ function summarizeOutput(stdout, stderr) {
     stdout.trim().split('\n').slice(-8).join('\n') ||
     stderr.trim().split('\n').slice(-8).join('\n') ||
     undefined
+  );
+}
+
+function getItemTimeoutMs(item) {
+  const candidates = [
+    item?.timeoutMs,
+    item?.timeout_ms,
+    item?.execution?.timeoutMs,
+    item?.execution?.timeout_ms
+  ];
+  for (const candidate of candidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value) && value > 0) {
+      return value;
+    }
+  }
+  return itemTimeoutMs;
+}
+
+function buildRecoveryArtifactPath(itemId, finishedAt) {
+  const safeTime = finishedAt.replace(/[:.]/g, '-');
+  return path.join(recoveryDir, `${safeTime}-${itemId}.json`);
+}
+
+async function writeTimeoutRecoveryArtifact({
+  item,
+  queueFileName,
+  finishedAt,
+  result,
+  queueResult,
+  failureMarkers,
+  beforeSnapshot,
+  afterSnapshot,
+  validationCommand,
+  finalizerUsed
+}) {
+  const changedFiles = afterSnapshot?.statusShort
+    ? afterSnapshot.statusShort
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
+  const artifact = cleanObject({
+    itemId: item.id,
+    itemTitle: item.title,
+    queueFileName,
+    finishedAt,
+    timeoutMs: getItemTimeoutMs(item),
+    validationCommand,
+    finalizerUsed,
+    queueResultStatus: queueResult?.status ?? undefined,
+    queueResultCommit: queueResult?.commit ?? undefined,
+    failureMarkers: failureMarkers.length > 0 ? failureMarkers : undefined,
+    exitCode: result.exitCode,
+    signal: result.signal ?? undefined,
+    reportedError: result.reportedError ?? undefined,
+    stdoutTail: summarizeOutput(result.stdout, result.stderr),
+    changedFiles: changedFiles.length > 0 ? changedFiles : undefined,
+    beforeHead: beforeSnapshot?.head ?? undefined,
+    afterHead: afterSnapshot?.head ?? undefined
+  });
+
+  await writeFile(
+    buildRecoveryArtifactPath(item.id, finishedAt),
+    `${JSON.stringify(artifact, null, 2)}\n`
   );
 }
 
@@ -349,135 +421,69 @@ function buildSessionTitle(queue, item) {
   return `[${currentIndex}/${totalCount} | left ${remainingAfterCurrent}] ${item.id}`;
 }
 
-async function runOpencodePrompt(
-  prompt,
-  title,
-  sessionId,
-  timeoutMs = itemTimeoutMs
-) {
-  const args = sessionId
-    ? [
-        'run',
-        '--continue',
-        '--session',
-        sessionId,
-        '--agent',
-        'build',
-        '--model',
-        'openai/gpt-5.3-codex',
-        '--format',
-        'json',
-        '--title',
-        title,
-        prompt
-      ]
-    : [
-        'run',
-        '--agent',
-        'build',
-        '--model',
-        'openai/gpt-5.3-codex',
-        '--format',
-        'json',
-        '--title',
-        title,
-        prompt
-      ];
-
-  return await new Promise((resolve) => {
-    const child = spawn('opencode', args, {
-      cwd: repoRoot,
-      env: buildChildEnv(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
-    });
-
-    currentChild = child;
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-    const timeoutHandle =
-      Number.isFinite(timeoutMs) && timeoutMs > 0
-        ? setTimeout(() => {
-            timedOut = true;
-            try {
-              child.kill('SIGTERM');
-            } catch {
-              // ignore
-            }
-            setTimeout(() => {
-              if (!child.killed) {
-                try {
-                  child.kill('SIGKILL');
-                } catch {
-                  // ignore
-                }
-              }
-            }, 5000).unref();
-          }, timeoutMs)
-        : null;
-
-    timeoutHandle?.unref();
-
-    child.stdout.on('data', (chunk) => {
-      const text = chunk.toString();
-      stdout += text;
-    });
-
-    child.stderr.on('data', (chunk) => {
-      const text = chunk.toString();
-      stderr += text;
-    });
-
-    child.on('close', (exitCode, signal) => {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      currentChild = null;
-      resolve({
-        exitCode: exitCode ?? 1,
-        signal,
-        stdout,
-        stderr,
-        sessionId: extractSessionId(stdout),
-        reportedError: extractReportedError(stdout),
-        timedOut
-      });
-    });
-
-    child.on('error', (error) => {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      currentChild = null;
-      resolve({
-        exitCode: 1,
-        signal: null,
-        stdout,
-        stderr: `${stderr}${stderr ? '\n' : ''}${error.message}\n`,
-        sessionId: extractSessionId(stdout),
-        reportedError: extractReportedError(stdout),
-        timedOut
-      });
-    });
-  });
-}
-
 async function runOpencode(queue, item, queueFileName, sessionId) {
   const prompt = sessionId
     ? buildContinuationPrompt(item, queueFileName)
     : buildExecutionPrompt(item, queueFileName);
-  return await runOpencodePrompt(
+  const result = await runExecutionPrompt({
+    backend: executionBackend,
     prompt,
-    buildSessionTitle(queue, item),
+    title: buildSessionTitle(queue, item),
     sessionId,
-    itemTimeoutMs
-  );
+    cwd: repoRoot,
+    env: buildChildEnv(),
+    timeoutMs: getItemTimeoutMs(item),
+    opencodeEnv: {},
+    codexEnv: {
+      CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
+      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? '',
+      CODEX_LOOP_MODE: process.env.CODEX_LOOP_MODE ?? 'sdk',
+      CODEX_SDK_OPTIONS: process.env.CODEX_SDK_OPTIONS ?? '',
+      CODEX_SDK_TIMEOUT_MS: process.env.CODEX_SDK_TIMEOUT_MS ?? ''
+    }
+  }).catch((error) => ({
+    exitCode: 1,
+    signal: null,
+    stdout: '',
+    stderr: `${error.message}\n`,
+    timedOut: false,
+    reportedError: error.message,
+    sessionId: sessionId ?? null
+  }));
+
+  return {
+    ...result,
+    sessionId: result.sessionId ?? sessionId ?? null,
+    reportedError: result.reportedError ?? null
+  };
 }
 
 async function runQueueFinalizer(queue, item, queueFileName, sessionId) {
-  return await runOpencodePrompt(
-    buildFinalizerPrompt(item, queueFileName),
-    `${buildSessionTitle(queue, item)} finalize`,
+  return await runExecutionPrompt({
+    backend: executionBackend,
+    prompt: buildFinalizerPrompt(item, queueFileName),
+    title: `${buildSessionTitle(queue, item)} finalize`,
     sessionId,
-    Math.min(itemTimeoutMs, 180000)
-  );
+    cwd: repoRoot,
+    env: buildChildEnv(),
+    timeoutMs: Math.min(getItemTimeoutMs(item), 180000),
+    opencodeEnv: {},
+    codexEnv: {
+      CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
+      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? '',
+      CODEX_LOOP_MODE: process.env.CODEX_LOOP_MODE ?? 'sdk',
+      CODEX_SDK_OPTIONS: process.env.CODEX_SDK_OPTIONS ?? '',
+      CODEX_SDK_TIMEOUT_MS: process.env.CODEX_SDK_TIMEOUT_MS ?? ''
+    }
+  }).catch((error) => ({
+    exitCode: 1,
+    signal: null,
+    stdout: '',
+    stderr: `${error.message}\n`,
+    timedOut: false,
+    reportedError: error.message,
+    sessionId: sessionId ?? null
+  }));
 }
 
 async function updateQueueItem(loaded, itemId, updates) {
@@ -491,7 +497,20 @@ async function updateQueueItem(loaded, itemId, updates) {
 }
 
 async function processOneItem() {
-  const loaded = await loadLatestQueue(loopDir);
+  let loaded;
+  try {
+    loaded = await loadLatestQueue(loopDir);
+  } catch (error) {
+    currentRun = {
+      phase: 'blocked',
+      currentItemId: null,
+      currentItemTitle: null,
+      currentItemStatus: null,
+      blockedOn: `queue_load_error:${error.message}`
+    };
+    await heartbeat();
+    return false;
+  }
   if (!loaded) {
     currentRun = {
       phase: 'idle',
@@ -558,6 +577,11 @@ async function processOneItem() {
   await heartbeat();
 
   const beforeSnapshot = await gitSnapshot();
+  const validationCommand =
+    Array.isArray(item?.verification?.commands) &&
+    item.verification.commands.length > 0
+      ? item.verification.commands[0]
+      : 'none';
   let result = await runOpencode(
     queue,
     item,
@@ -597,7 +621,12 @@ async function processOneItem() {
     finalizerUsed = true;
   }
 
-  const latestLoaded = await loadLatestQueue(loopDir);
+  let latestLoaded;
+  try {
+    latestLoaded = await loadLatestQueue(loopDir);
+  } catch {
+    latestLoaded = null;
+  }
   const latestItem =
     latestLoaded?.queue?.items?.find((entry) => entry?.id === item.id) ?? null;
   if (
@@ -655,7 +684,7 @@ async function processOneItem() {
   const failureReason = success
     ? undefined
     : result.timedOut
-      ? `opencode_timeout_${itemTimeoutMs}`
+      ? `opencode_timeout_${getItemTimeoutMs(item)}`
       : result.reportedError
         ? 'opencode_reported_error'
         : queueResult?.status === 'needs_replan'
@@ -694,9 +723,24 @@ async function processOneItem() {
     })
   );
 
+  if (result.timedOut) {
+    await writeTimeoutRecoveryArtifact({
+      item,
+      queueFileName: path.basename(loaded.filePath),
+      finishedAt,
+      result,
+      queueResult,
+      failureMarkers,
+      beforeSnapshot,
+      afterSnapshot,
+      validationCommand,
+      finalizerUsed
+    });
+  }
+
   await appendFile(
     logFile,
-    `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${itemTimeoutMs}` : ''}${queueResult?.status ? ` queue_result=${queueResult.status}` : ''}${finalizerUsed ? ' finalized_queue_result=true' : ''}${commitFallback ? ' queue_result=completed_via_commit_fallback' : ''}${noopFallback ? ' queue_result=completed_via_noop_fallback' : ''}${failureMarkers.length > 0 ? ` failure_markers=${failureMarkers.join(',')}` : ''}\n`
+    `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${getItemTimeoutMs(item)}` : ''}${queueResult?.status ? ` queue_result=${queueResult.status}` : ''}${finalizerUsed ? ' finalized_queue_result=true' : ''}${commitFallback ? ' queue_result=completed_via_commit_fallback' : ''}${noopFallback ? ' queue_result=completed_via_noop_fallback' : ''}${failureMarkers.length > 0 ? ` failure_markers=${failureMarkers.join(',')}` : ''}\n`
   );
 
   currentRun = {
