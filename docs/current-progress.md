@@ -97,6 +97,11 @@
   - `packages/shared/src/trace-contracts.ts` now exports `TRACE_EXECUTION_TOOL_LABELS` and `buildTraceExecutionToolLabel(...)` as the shared registry
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now resolves the label from the shared registry before falling back to the raw tool name
 
+- `execution tool summary contract` promoted the unique tool list into trace summary so route cards can show the tool surface at a glance
+  - `packages/shared/src/trace-contracts.ts` now exposes `executionToolNames` on `TraceSummary` and a small helper to collect the names from the execution plan
+  - `apps/api/src/modules/traces/traces.service.ts` now populates the summary-level tool list from the execution plan once
+  - `apps/web/src/pages/traces/TraceListPage.tsx` now shows a compact execution-tools badge when a trace used routed tools, without expanding the full step list in the card body
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling

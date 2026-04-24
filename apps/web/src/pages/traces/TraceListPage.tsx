@@ -23,6 +23,7 @@ import type { TraceRecord } from '../../types/api';
 import { routeShortcutLabels } from '../reports/route-view-helpers';
 import { TraceRouteFilterPanel } from './TraceRouteFilterPanel';
 import { matchesTraceRouteFilter } from './trace-route-helpers';
+import { buildTraceExecutionToolNamesLabel } from '@rag-system/shared';
 
 const TRACE_PAGE_SIZE = 12;
 
@@ -58,6 +59,7 @@ function TraceConversationCard({
   const traceSummary = latestTrace.traceSummary;
   const routeDecision = traceSummary.routeDecisionSummary;
   const executionMode = traceSummary.executionMode;
+  const executionToolNames = traceSummary.executionToolNames;
   const executionSteps = traceSummary.executionPlan?.steps ?? null;
   const timing = traceSummary.timingSummary;
   const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
@@ -221,6 +223,18 @@ function TraceConversationCard({
                 </Badge>
                 <Text span>{executionSteps.length}</Text>
               </Group>
+            </div>
+          ) : null}
+          {executionToolNames.length > 0 ? (
+            <div className="workspace-meta-row">
+              <span className="workspace-meta-label">
+                {locale === 'zh' ? '执行工具' : 'Execution tools'}
+              </span>
+              <span className="workspace-meta-value">
+                <Badge color="cyan" radius="sm" variant="light">
+                  {buildTraceExecutionToolNamesLabel(executionToolNames)}
+                </Badge>
+              </span>
             </div>
           ) : null}
           {routeDecision?.routeType === 'external_source' ? (

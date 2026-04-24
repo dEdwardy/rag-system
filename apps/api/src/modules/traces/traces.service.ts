@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
-import type {
-  TraceExecutionPlan,
-  TraceExecutionToolName,
-  TraceSummary
+import {
+  buildTraceExecutionToolNamesLabel,
+  collectTraceExecutionToolNames,
+  type TraceExecutionPlan,
+  type TraceExecutionToolName,
+  type TraceSummary
 } from '@rag-system/shared';
 import { PrismaService } from '../../infra/database/prisma.service';
 import {
@@ -511,6 +513,7 @@ export class TracesService {
       executionPlan?.executionMode === 'workflow'
         ? executionPlan.executionMode
         : null;
+    const executionToolNames = collectTraceExecutionToolNames(executionPlan);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
     const inputChunkCount =
@@ -706,6 +709,8 @@ export class TracesService {
       executionMode == null
         ? 'Execution mode is unavailable.'
         : `Execution mode is ${executionModeReadabilityLabel}.`;
+    const executionToolNamesReadabilityLabel =
+      buildTraceExecutionToolNamesLabel(executionToolNames);
     const {
       answerTextSourceReadabilityLabel,
       answerTextSourceReadabilitySentence,
@@ -862,6 +867,8 @@ export class TracesService {
       executionMode,
       executionModeReadabilityLabel,
       executionModeReadabilitySentence,
+      executionToolNames,
+      executionToolNamesReadabilityLabel,
       timingSummary,
       timingReadabilitySentence:
         this.buildTimingReadabilitySentence(timingSummary),

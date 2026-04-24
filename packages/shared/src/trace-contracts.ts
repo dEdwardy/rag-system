@@ -250,6 +250,34 @@ export function buildTraceExecutionPlan(input: {
   };
 }
 
+export function collectTraceExecutionToolNames(
+  plan: TraceExecutionPlan | null
+): TraceExecutionToolName[] {
+  if (plan == null) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      plan.steps.flatMap((step) =>
+        step.toolName == null ? [] : [step.toolName]
+      )
+    )
+  );
+}
+
+export function buildTraceExecutionToolNamesLabel(
+  toolNames: TraceExecutionToolName[]
+) {
+  if (toolNames.length === 0) {
+    return 'no execution tools';
+  }
+
+  return toolNames
+    .map((toolName) => TRACE_EXECUTION_TOOL_LABELS[toolName])
+    .join(' + ');
+}
+
 export type TraceTimingSummary = {
   totalMs: number | null;
   firstTokenMs: number | null;
@@ -274,6 +302,8 @@ export type TraceSummary = {
   executionMode: TraceExecutionPlan['executionMode'] | null;
   executionModeReadabilityLabel: string;
   executionModeReadabilitySentence: string;
+  executionToolNames: TraceExecutionToolName[];
+  executionToolNamesReadabilityLabel: string;
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
   qualityOverall: TraceQualityOverall | null;
