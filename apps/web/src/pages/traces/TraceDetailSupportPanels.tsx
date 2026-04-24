@@ -245,6 +245,7 @@ export function TraceDetailSidebarPanels({
   const timingBottleneck = buildTimingBottleneck(trace, locale);
   const routeDecision = trace.traceSummary?.routeDecisionSummary ?? null;
   const executionPlan = trace.traceSummary?.executionPlan ?? null;
+  const executionMode = trace.traceSummary?.executionMode ?? null;
   const executionSteps = trace.traceSummary?.executionPlan?.steps ?? null;
 
   return (
@@ -338,13 +339,11 @@ export function TraceDetailSidebarPanels({
                         {locale === 'zh' ? '执行步骤' : 'Execution steps'}
                       </Text>
                       <Badge
-                        color={buildExecutionModeTone(
-                          executionPlan?.executionMode
-                        )}
+                        color={buildExecutionModeTone(executionMode)}
                         radius="sm"
                         variant="light"
                       >
-                        {executionPlan?.executionMode ?? 'manual'}
+                        {executionMode ?? 'manual'}
                       </Badge>
                     </Group>
                     <Text c="var(--app-text-muted)" size="xs">

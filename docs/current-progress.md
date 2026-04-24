@@ -83,6 +83,11 @@
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now shows the total step count alongside the `manual / workflow` execution-mode badge
   - this keeps the agentic execution shape readable at a glance before drilling into each step row
 
+- `execution mode summary contract` promoted the execution mode into the shared trace summary so every consumer can read one canonical field
+  - `packages/shared/src/trace-contracts.ts` now includes `executionMode` and its readability fields on `TraceSummary`
+  - `apps/api/src/modules/traces/traces.service.ts` now derives the execution mode from the execution plan once and exposes it through the summary contract
+  - `apps/web/src/pages/traces/TraceListPage.tsx` and `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now read the canonical execution mode from summary instead of reaching back into the nested execution plan
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling

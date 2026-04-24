@@ -57,7 +57,7 @@ function TraceConversationCard({
   const { formatDateTime, locale, t } = useI18n();
   const traceSummary = latestTrace.traceSummary;
   const routeDecision = traceSummary.routeDecisionSummary;
-  const executionPlan = traceSummary.executionPlan;
+  const executionMode = traceSummary.executionMode;
   const executionSteps = traceSummary.executionPlan?.steps ?? null;
   const timing = traceSummary.timingSummary;
   const rewriteAppliedLabel = locale === 'zh' ? '已改写' : 'Rewrite applied';
@@ -213,15 +213,11 @@ function TraceConversationCard({
               </span>
               <Group className="workspace-meta-value" gap="xs" wrap="wrap">
                 <Badge
-                  color={
-                    executionPlan?.executionMode === 'workflow'
-                      ? 'blue'
-                      : 'gray'
-                  }
+                  color={executionMode === 'workflow' ? 'blue' : 'gray'}
                   radius="sm"
                   variant="light"
                 >
-                  {executionPlan?.executionMode ?? 'manual'}
+                  {executionMode ?? 'manual'}
                 </Badge>
                 <Text span>{executionSteps.length}</Text>
               </Group>

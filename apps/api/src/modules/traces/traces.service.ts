@@ -502,6 +502,11 @@ export class TracesService {
     const executionPlan = this.readTraceExecutionPlan(
       retrievalMetadata?.executionPlan
     );
+    const executionMode =
+      executionPlan?.executionMode === 'manual' ||
+      executionPlan?.executionMode === 'workflow'
+        ? executionPlan.executionMode
+        : null;
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
     const inputChunkCount =
@@ -687,6 +692,16 @@ export class TracesService {
     const answerAttributionReadabilitySentence =
       answerAttributionSummary.readabilitySentence ??
       'Answer attribution is unknown; source evidence is unknown.';
+    const executionModeReadabilityLabel =
+      executionMode == null
+        ? 'no execution mode'
+        : executionMode === 'workflow'
+          ? 'workflow'
+          : 'manual';
+    const executionModeReadabilitySentence =
+      executionMode == null
+        ? 'Execution mode is unavailable.'
+        : `Execution mode is ${executionModeReadabilityLabel}.`;
     const {
       answerTextSourceReadabilityLabel,
       answerTextSourceReadabilitySentence,
@@ -840,6 +855,9 @@ export class TracesService {
             }
           : null,
       executionPlan,
+      executionMode,
+      executionModeReadabilityLabel,
+      executionModeReadabilitySentence,
       timingSummary,
       timingReadabilitySentence:
         this.buildTimingReadabilitySentence(timingSummary),

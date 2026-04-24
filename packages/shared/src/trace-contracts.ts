@@ -241,6 +241,9 @@ export type TraceSummary = {
   routeType: TraceRouteType | null;
   routeReason: TraceRouteReason | null;
   executionPlan: TraceExecutionPlan | null;
+  executionMode: TraceExecutionPlan['executionMode'] | null;
+  executionModeReadabilityLabel: string;
+  executionModeReadabilitySentence: string;
   promptId: string | null;
   answerStatus: TraceAnswerStatus | null;
   qualityOverall: TraceQualityOverall | null;
