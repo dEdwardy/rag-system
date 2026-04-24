@@ -119,6 +119,16 @@ type AskExternalSourcePayload = {
 type AskResolvedExternalSourcePayload = ResolvedExternalSourceCandidate &
   AskExternalSourcePayload;
 
+type AskFetchedExternalSource = {
+  routeDecision: AskRouteDecision;
+  sourceUrl: string;
+  sourceKind: ResolvedExternalSourceRoute['sourceKind'];
+  label: string | null;
+  title: string | null;
+  content: string;
+  diagnostics: unknown;
+};
+
 type AskRewriteDecision = {
   shouldRewrite: boolean;
   skippedReason:
@@ -2091,7 +2101,13 @@ export class AskAssistantService {
   private buildResolvedExternalSourceView(
     sources: Array<AskResolvedExternalSourcePayload>,
     mode: 'chunks' | 'metadata'
-  ) {
+  ): Array<{
+    url: string;
+    sourceKind: ResolvedExternalSourceRoute['sourceKind'];
+    title: string | null;
+    content?: string;
+    diagnostics: unknown;
+  }> {
     return sources.map((source, index) => ({
       url: source.url,
       sourceKind: source.sourceKind,
@@ -2106,6 +2122,44 @@ export class AskAssistantService {
       diagnostics:
         mode === 'metadata' && index === 0 ? source.diagnostics : null
     }));
+  }
+
+  private buildResolvedExternalSourceSummary(
+    sources: Array<AskFetchedExternalSource>
+  ) {
+    const resolvedSources = sources.map((source) => ({
+      raw: source.sourceUrl,
+      url: source.sourceUrl,
+      sourceKind: source.sourceKind,
+      label: source.label ?? null,
+      title: this.buildExternalSourceTitle({
+        url: source.sourceUrl,
+        sourceKind: source.sourceKind,
+        title: source.title,
+        label: source.label ?? null
+      }),
+      content: source.content,
+      diagnostics: source.diagnostics
+    }));
+
+    return {
+      title:
+        resolvedSources.length === 1
+          ? resolvedSources[0].title
+          : 'Multiple external sources',
+      diagnostics:
+        resolvedSources.length === 1
+          ? resolvedSources[0].diagnostics
+          : {
+              sources: resolvedSources.map((source) => ({
+                url: source.url,
+                kind: source.sourceKind,
+                title: source.title,
+                diagnostics: source.diagnostics
+              }))
+            },
+      sources: resolvedSources
+    };
   }
 
   private buildExternalSourceChunks(
@@ -2192,7 +2246,7 @@ export class AskAssistantService {
     }
 
     try {
-      const fetchedSources = await Promise.all(
+      const fetchedSources: AskFetchedExternalSource[] = await Promise.all(
         resolvedSources.map((resolvedSource) =>
           this.fetchResolvedExternalSource(resolvedSource, input.routeDecision)
         )
@@ -2208,50 +2262,16 @@ export class AskAssistantService {
         )
         .join('\n\n---\n\n');
 
+      const summary = this.buildResolvedExternalSourceSummary(fetchedSources);
+
       return {
         routeDecision: input.routeDecision,
         sourceUrl: fetchedSources[0].sourceUrl,
         sourceKind: fetchedSources[0].sourceKind,
-        title:
-          fetchedSources.length === 1
-            ? this.buildExternalSourceTitle({
-                url: fetchedSources[0].sourceUrl,
-                sourceKind: fetchedSources[0].sourceKind,
-                title: fetchedSources[0].title,
-                label: fetchedSources[0].label ?? null
-              })
-            : 'Multiple external sources',
+        title: summary.title,
         content: combinedContent,
-        diagnostics:
-          fetchedSources.length === 1
-            ? fetchedSources[0].diagnostics
-            : {
-                sources: fetchedSources.map((source) => ({
-                  url: source.sourceUrl,
-                  kind: source.sourceKind,
-                  title: this.buildExternalSourceTitle({
-                    url: source.sourceUrl,
-                    sourceKind: source.sourceKind,
-                    title: source.title,
-                    label: source.label ?? null
-                  }),
-                  diagnostics: source.diagnostics
-                }))
-              },
-        sources: fetchedSources.map((source) => ({
-          raw: source.sourceUrl,
-          url: source.sourceUrl,
-          sourceKind: source.sourceKind,
-          label: source.label ?? null,
-          title: this.buildExternalSourceTitle({
-            url: source.sourceUrl,
-            sourceKind: source.sourceKind,
-            title: source.title,
-            label: source.label ?? null
-          }),
-          content: source.content,
-          diagnostics: source.diagnostics
-        }))
+        diagnostics: summary.diagnostics,
+        sources: summary.sources
       };
     } catch (error) {
       const message =

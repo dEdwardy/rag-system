@@ -127,6 +127,11 @@
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives the external-source chunk view and trace metadata view from one small helper
   - the external-source fan-out path stays functionally the same while keeping the repeated title/diagnostics wiring in one place
 
+- `external source summary helper` centralized the single-source vs multi-source response summary
+  - `apps/api/src/modules/assistants/ask-assistant.service.ts` now derives title, diagnostics, and sources from one summary helper before returning the external-source payload
+  - this removes the last repeated `buildExternalSourceTitle(...)` wiring in the fan-out response assembly
+  - the helper now uses the actual source `url` field consistently so the summary view stays type-safe as well as readable
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
