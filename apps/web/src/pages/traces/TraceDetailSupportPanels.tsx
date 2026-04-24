@@ -370,6 +370,11 @@ export function TraceDetailSidebarPanels({
                             <Text c="var(--app-text)" size="sm" fw={600}>
                               {step.label}
                             </Text>
+                            {step.toolName ? (
+                              <Badge color="cyan" radius="sm" variant="light">
+                                {step.toolName}
+                              </Badge>
+                            ) : null}
                             <Text c="var(--app-text-muted)" size="xs">
                               {step.detail ??
                                 (locale === 'zh'

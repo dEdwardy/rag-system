@@ -29,6 +29,11 @@ export type TraceExecutionStepKind =
   | 'answer_generation'
   | 'deterministic_reply';
 
+export type TraceExecutionToolName =
+  | 'knowledge_base_search'
+  | 'external_source_fetch'
+  | 'policy_reply';
+
 export type TraceExecutionStepStatus =
   | 'pending'
   | 'running'
@@ -39,6 +44,7 @@ export type TraceExecutionStep = {
   key: string;
   id: string;
   kind: TraceExecutionStepKind;
+  toolName: TraceExecutionToolName | null;
   status: TraceExecutionStepStatus;
   label: string;
   detail: string | null;
@@ -139,6 +145,7 @@ export function buildTraceExecutionPlan(input: {
     key: 'route_decision',
     id: 'route_decision',
     kind: 'route_decision',
+    toolName: null,
     status: 'completed',
     label: 'Route decision',
     detail: `${input.routeType}:${input.routeReason}`,
@@ -154,6 +161,7 @@ export function buildTraceExecutionPlan(input: {
           key: 'deterministic_reply',
           id: 'deterministic_reply',
           kind: 'deterministic_reply',
+          toolName: 'policy_reply',
           status: 'completed',
           label: 'Deterministic reply',
           detail: null,
@@ -175,6 +183,7 @@ export function buildTraceExecutionPlan(input: {
           key: 'source_fetch',
           id: 'source_fetch',
           kind: 'source_fetch',
+          toolName: 'external_source_fetch',
           status: 'completed',
           label: 'Source fetch',
           detail:
@@ -185,6 +194,7 @@ export function buildTraceExecutionPlan(input: {
           key: 'answer_generation',
           id: 'answer_generation',
           kind: 'answer_generation',
+          toolName: null,
           status: 'completed',
           label: 'Answer generation',
           detail: null,
@@ -202,6 +212,7 @@ export function buildTraceExecutionPlan(input: {
         key: 'retrieval',
         id: 'retrieval',
         kind: 'retrieval',
+        toolName: 'knowledge_base_search',
         status: 'completed',
         label: 'Retrieval',
         detail: null,
@@ -211,6 +222,7 @@ export function buildTraceExecutionPlan(input: {
         key: 'answer_generation',
         id: 'answer_generation',
         kind: 'answer_generation',
+        toolName: null,
         status: 'completed',
         label: 'Answer generation',
         detail: null,

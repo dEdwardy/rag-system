@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
-import type { TraceExecutionPlan, TraceSummary } from '@rag-system/shared';
+import type {
+  TraceExecutionPlan,
+  TraceExecutionToolName,
+  TraceSummary
+} from '@rag-system/shared';
 import { PrismaService } from '../../infra/database/prisma.service';
 import {
   buildAnswerEvidenceSourceReadabilityLabel,
@@ -1080,6 +1084,10 @@ export class TracesService {
               key,
               id,
               kind,
+              toolName:
+                this.readStringAs<TraceExecutionToolName>(
+                  stepObject.toolName
+                ) ?? null,
               status,
               label,
               detail: this.readString(stepObject.detail),

@@ -88,6 +88,11 @@
   - `apps/api/src/modules/traces/traces.service.ts` now derives the execution mode from the execution plan once and exposes it through the summary contract
   - `apps/web/src/pages/traces/TraceListPage.tsx` and `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now read the canonical execution mode from summary instead of reaching back into the nested execution plan
 
+- `execution tool name contract` started the minimal tool abstraction by attaching a canonical tool name to each execution step
+  - `packages/shared/src/trace-contracts.ts` now lets execution steps carry `toolName` values such as `knowledge_base_search`, `external_source_fetch`, and `policy_reply`
+  - `apps/api/src/modules/traces/traces.service.ts` now preserves the step-level tool name when reading trace metadata
+  - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now renders the tool name badge for each execution step when present, making the execution layer easier to compare with future workflow executors
+
 - `route answer persistence helper` further reduced repetition inside the non-KB routes by consolidating message/trace persistence and trace finalization
   - `apps/api/src/modules/assistants/ask-assistant.service.ts` now uses one shared `persistRouteAnswerResult(...)` helper to handle assistant message creation, trace attachment, conversation touch, and trace update for policy/external paths
   - route-specific decisioning and payload assembly still stay separate, so the minimal agentization path remains high cohesion / low coupling
