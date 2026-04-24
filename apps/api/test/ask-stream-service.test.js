@@ -1040,6 +1040,43 @@ test('AskAssistantService stream scopes existing conversation lookup to current 
   ]);
 });
 
+test('AskAssistantService stream skips reuse lookup when creating a new conversation', async () => {
+  let listConversationMessagesCalled = false;
+
+  const service = createAskAssistantService({
+    messages: {
+      listConversationMessages: async () => {
+        listConversationMessagesCalled = true;
+        return [];
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        input.onDelta('delta');
+        return {
+          rawAnswer: 'delta',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    question: 'new conversation should skip reuse lookup',
+    onEvent: () => {}
+  });
+
+  assert.equal(listConversationMessagesCalled, false);
+  assert.equal(result.traceId, 'trace-1');
+});
+
 test('AskAssistantService stream rethrows AbortError without marking the trace as failed', async () => {
   const updateTraceCalls = [];
   const controller = new AbortController();

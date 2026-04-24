@@ -375,12 +375,14 @@ export class AskAssistantService {
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const routeDecision = this.resolveRouteDecision(input.question);
     const reusableConversationAnswer =
-      await this.findReusableConversationAnswer({
-        conversationId: conversation.id,
-        assistantId: assistant.id,
-        question: input.question,
-        authContext: authContext.identity
-      });
+      input.conversationId != null
+        ? await this.findReusableConversationAnswer({
+            conversationId: conversation.id,
+            assistantId: assistant.id,
+            question: input.question,
+            authContext: authContext.identity
+          })
+        : null;
 
     if (reusableConversationAnswer != null) {
       return reusableConversationAnswer;
@@ -910,12 +912,14 @@ export class AskAssistantService {
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const routeDecision = this.resolveRouteDecision(input.question);
     const reusableConversationAnswer =
-      await this.findReusableConversationAnswer({
-        conversationId: (await conversationPromise).value.id,
-        assistantId: assistant.id,
-        question: input.question,
-        authContext: authContext.identity
-      });
+      input.conversationId != null
+        ? await this.findReusableConversationAnswer({
+            conversationId: (await conversationPromise).value.id,
+            assistantId: assistant.id,
+            question: input.question,
+            authContext: authContext.identity
+          })
+        : null;
 
     if (reusableConversationAnswer != null) {
       await input.onEvent({
