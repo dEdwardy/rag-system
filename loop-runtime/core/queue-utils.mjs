@@ -50,8 +50,17 @@ export function queueItems(queue) {
 export function shouldTreatItemAsCompleted(item) {
   if (!item) return false;
   if (item.status === 'completed') return true;
+  if (item.status !== 'needs_replan') return false;
+
+  if (item.queueResultStatus === 'completed') {
+    return true;
+  }
+
   return (
-    item.status === 'needs_replan' && item.queueResultStatus === 'completed'
+    item.failureReason === 'missing_queue_result' &&
+    item.resultExitCode === 0 &&
+    !item.reportedError &&
+    !item.queueFailureMarkers
   );
 }
 
@@ -59,13 +68,11 @@ export function reconcileQueue(queue) {
   const items = queueItems(queue);
   let changed = false;
   for (const item of items) {
-    if (
-      item?.status === 'needs_replan' &&
-      item.queueResultStatus === 'completed'
-    ) {
+    if (shouldTreatItemAsCompleted(item)) {
       item.status = 'completed';
       item.completedAt =
         item.completedAt ?? item.finishedAt ?? item.updatedAt ?? null;
+      item.queueResultStatus = item.queueResultStatus ?? 'completed';
       changed = true;
     }
   }
