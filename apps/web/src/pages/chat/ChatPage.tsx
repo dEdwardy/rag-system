@@ -471,11 +471,20 @@ export function ChatPage() {
     () => shouldDelayConversationAutoSelectForStarter(location.search),
     [location.search]
   );
+  const chatReadinessState = useMemo(
+    () =>
+      buildChatReadinessState(
+        knowledgeBaseSummaryQuery.data ?? null,
+        activeKnowledgeBase != null
+      ),
+    [activeKnowledgeBase, knowledgeBaseSummaryQuery.data]
+  );
 
   const hasAssistantBinding = activeAssistant != null;
-  const canAsk = hasAssistantBinding;
+  const isChatReady = chatReadinessState.kind === 'ready';
+  const canAsk = hasAssistantBinding && isChatReady;
   const isStreamingTurnActive = activeStreamTurn != null;
-  const canSubmitQuestion = hasAssistantBinding && !isStreamingTurnActive;
+  const canSubmitQuestion = canAsk && !isStreamingTurnActive;
   const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(
     activeStreamTurn,
     resolvedConversationId
@@ -545,14 +554,6 @@ export function ChatPage() {
     conversationsForWorkspace.find(
       (conversation) => conversation.id === resolvedConversationId
     ) ?? null;
-  const chatReadinessState = useMemo(
-    () =>
-      buildChatReadinessState(
-        knowledgeBaseSummaryQuery.data ?? null,
-        activeKnowledgeBase != null
-      ),
-    [activeKnowledgeBase, knowledgeBaseSummaryQuery.data]
-  );
   const handleFinalStreamEvent = useCallback(
     (finalData: AskStreamFinalData, streamTurn: ActiveStreamTurn) => {
       const traceSummaryHint = buildTraceSummaryHint({
@@ -855,6 +856,44 @@ export function ChatPage() {
     },
     [displayedMessages]
   );
+
+  const composerHelpText = useMemo(() => {
+    if (canAsk) {
+      return chatCopy.inputHelpCanAsk;
+    }
+
+    if (chatReadinessState.kind === 'no_active_knowledge_base') {
+      return locale === 'zh'
+        ? '请先创建或恢复当前资料库，然后再开始提问。'
+        : 'Create or restore the current library first, then start asking questions.';
+    }
+
+    if (chatReadinessState.kind === 'no_documents') {
+      return locale === 'zh'
+        ? '请先添加第一批文件或链接，等资料可用后再开始提问。'
+        : 'Add the first files or links first, then start asking once the library is ready.';
+    }
+
+    if (chatReadinessState.kind === 'processing_documents') {
+      return locale === 'zh'
+        ? '资料仍在处理中；等第一批资料就绪后再开始提问。'
+        : 'Library updates are still running. Start asking after the first ready items appear.';
+    }
+
+    if (chatReadinessState.kind === 'failed_documents') {
+      return locale === 'zh'
+        ? '还有资料需要修复；先处理失败项，再继续提问。'
+        : 'Some library items still need attention. Fix those items before asking.';
+    }
+
+    return chatCopy.inputHelpDisabled;
+  }, [
+    canAsk,
+    chatCopy.inputHelpCanAsk,
+    chatCopy.inputHelpDisabled,
+    chatReadinessState.kind,
+    locale
+  ]);
 
   return (
     <div
@@ -1324,9 +1363,7 @@ export function ChatPage() {
                   {chatCopy.inputSection}
                 </div>
                 <div className="mt-1 text-xs text-[var(--app-text-secondary)]">
-                  {canAsk
-                    ? chatCopy.inputHelpCanAsk
-                    : chatCopy.inputHelpDisabled}
+                  {composerHelpText}
                 </div>
               </div>
             </div>
@@ -1337,6 +1374,7 @@ export function ChatPage() {
                   className="min-h-[96px] max-h-[220px] flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 text-[var(--app-text)] placeholder:text-[var(--app-text-muted)] md:min-h-[120px]"
                   name="question"
                   onChange={(event) => setComposerValue(event.target.value)}
+                  disabled={!canAsk}
                   onKeyDown={(event) => {
                     if (
                       event.key === 'Enter' &&

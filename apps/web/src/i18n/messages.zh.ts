@@ -140,7 +140,7 @@ export const messages = {
       currentAssistantHintHasAssistant:
         '这个助手就是当前工作区资料库的回答配置。',
       currentAssistantHintNoAssistant:
-        '当前资料库的默认助手仍在补建或修复中，请稍候后再试。',
+        '当前资料库的默认助手仍在补建或修复中。请先完成当前资料库准备，再回来提问。',
       currentWorkspace: '当前工作区',
       newConversationDraft: '新的会话草稿',
       noActiveKnowledgeBase: '工作区资料库不可用',
@@ -155,13 +155,14 @@ export const messages = {
       askStatusHintHasAssistant:
         '这里会根据当前资料库准备情况，显示提问前的状态。',
       askStatusHintNoAssistant:
-        '当前资料库的回答设置仍在补建或修复中，暂时还不能发起提问。',
+        '当前资料库的回答设置仍在补建或修复中；如果资料库还是空的，请先添加第一批资料，再开始提问。',
       citationsCount:
         '共 {conversationCount} 个会话，当前有 {citationCount} 条引用。',
       inputSection: '提问输入区',
       inputHelpCanAsk:
         '按 Enter 发送。来源会固定显示在右侧，需要时可展开诊断。',
-      inputHelpDisabled: '默认助手仍在补建或修复中，输入区暂时不可用。',
+      inputHelpDisabled:
+        '只有当资料库里已经有可用资料，且默认助手完成准备后，输入区才会开放。',
       askInputPlaceholder: '输入问题后按 Enter 发送...',
       enterHint: 'Enter 发送，Shift + Enter 换行',
       fileUploadComingSoon: '文件上传即将支持',
@@ -205,7 +206,7 @@ export const messages = {
       noConversationsDescription: '向助手提问后，这里会出现第一个会话。',
       noActiveConversationTitle: '当前没有激活会话',
       noActiveConversationDescription:
-        '当前至少有一条资料已就绪。现在直接点击首问并发送，或先选择历史会话继续。',
+        '当前至少有一条资料已就绪。现在直接点击首问演示默认路径，或先选择历史会话继续。',
       loadingMessagesTitle: '正在加载消息',
       loadingMessagesDescription: '加载消息与对应的诊断引用。',
       messagesErrorTitle: '加载消息失败。',
@@ -218,7 +219,7 @@ export const messages = {
       noActiveKnowledgeBaseAction: '打开工作区设置',
       noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
       noAssistantForKnowledgeBaseDescription:
-        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果这个资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等待它出现后开始对话。',
+        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复规范默认助手；如果这个资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等待它出现后开始对话。',
       noAssistantForKnowledgeBaseAction: '打开回答设置',
       noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
       noDocumentsTitle: '先补充资料，再开始对话',

@@ -150,7 +150,7 @@ export const messages = {
       currentAssistantHintHasAssistant:
         'This assistant is the active answer setup for the current workspace library.',
       currentAssistantHintNoAssistant:
-        'The default assistant is still being prepared or repaired for the current workspace library. Wait a moment, then try again.',
+        'The default assistant is still being prepared or repaired for the current workspace library. Finish the current library setup first, then try again.',
       currentWorkspace: 'Current workspace',
       newConversationDraft: 'New conversation draft',
       noActiveKnowledgeBase: 'Workspace library unavailable',
@@ -166,14 +166,14 @@ export const messages = {
       askStatusHintHasAssistant:
         'This status now follows the current library readiness before sending questions.',
       askStatusHintNoAssistant:
-        'Answer settings are still being prepared or repaired for the current workspace library before new questions can be sent.',
+        'Answer settings are still being prepared or repaired for the current workspace library. If the library is still empty, add the first items first before sending questions.',
       citationsCount:
         '{conversationCount} conversations, {citationCount} current citations.',
       inputSection: 'Ask composer',
       inputHelpCanAsk:
         'Press Enter to send. Sources stay visible on the right, with diagnostics available when needed.',
       inputHelpDisabled:
-        'The default assistant is being prepared or repaired for this library, so the composer is temporarily unavailable.',
+        'Chat stays locked until this library has ready source material and the default assistant finishes preparing.',
       askInputPlaceholder: 'Ask a question and press Enter...',
       enterHint: 'Press Enter to send, Shift + Enter for a new line',
       fileUploadComingSoon: 'File upload coming soon',
@@ -221,7 +221,7 @@ export const messages = {
         'Ask the assistant to create the first conversation.',
       noActiveConversationTitle: 'No active conversation',
       noActiveConversationDescription:
-        'At least one library item is ready. Pick a starter question and send it now, or select a past conversation to continue.',
+        'At least one library item is ready. Pick a starter question to demo the default flow now, or select a past conversation to continue.',
       loadingMessagesTitle: 'Loading messages',
       loadingMessagesDescription: 'Loading messages and trace references.',
       messagesErrorTitle: 'Failed to load messages.',
@@ -235,7 +235,7 @@ export const messages = {
       noAssistantForKnowledgeBaseTitle:
         'Default assistant is still being prepared',
       noAssistantForKnowledgeBaseDescription:
-        'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. If this library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up before chatting.',
+        'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the canonical default assistant for this library. If this library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up before chatting.',
       noAssistantForKnowledgeBaseAction: 'Open answer settings',
       noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
       noDocumentsTitle: 'Add library items before chatting',
