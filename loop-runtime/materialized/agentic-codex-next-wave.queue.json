@@ -1,0 +1,188 @@
+{
+  "version": 1,
+  "cursor": 0,
+  "createdAt": "2026-04-25T20:00:00.000Z",
+  "updatedAt": "2026-04-25T20:00:00.000Z",
+  "materializedFrom": "agentic-codex-next",
+  "materializedWaveId": "agentic-codex-next-wave",
+  "items": [
+    {
+      "id": "agent-tools-rag-search-contract",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "make rag_search a retrieval-oriented tool contract",
+      "goal": "Make agent-tools rag_search distinct from rag_answer by returning a stable retrieval-oriented payload instead of a full answer response.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Follow AGENTS.md and apps/api/AGENTS.md. Work only on the smallest API-side increment needed to make POST /agent-tools/rag_search a retrieval-oriented tool rather than another answer call. Reuse existing retrieval/default assistant/default KB contracts where possible. Keep auth/secret behavior unchanged. Return a stable payload focused on query, chunks/citations/source metadata, and diagnostics; do not introduce planner, multi-agent, new schema migrations, or a parallel orchestration layer. Add or update focused tests in apps/api/test/agent-tools.controller.test.js that prove rag_search no longer calls the full answer path and still scopes by tenant/user.",
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm test:api:file -- test/agent-tools.controller.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "medium",
+      "dependsOn": [],
+      "backlogWaveId": "agentic-codex-next-wave",
+      "backlogParentId": "agentic-codex-next",
+      "plannerFamily": "agentic-rag",
+      "plannerSource": "manual-codex-queue"
+    },
+    {
+      "id": "agent-tools-rag-answer-stable-contract",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "stabilize rag_answer response contract",
+      "goal": "Normalize rag_answer output for agent consumers with citations, confidence, missingInformation, diagnostics, and trace identity when available.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Follow AGENTS.md and apps/api/AGENTS.md. Build on agent-tools-rag-search-contract. Keep POST /agent-tools/rag_answer on the existing ask path, but normalize the returned tool payload so agent callers can rely on answer, citations, confidence, missingInformation, diagnostics, and trace identifiers when present. Keep the change local to agent-tools/ask response formatting; do not rewrite ask orchestration, retrieval defaults, ACL, or persistence. Add focused tests in apps/api/test/agent-tools.controller.test.js for present and missing optional fields.",
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm test:api:file -- test/agent-tools.controller.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "medium",
+      "dependsOn": [
+        "agent-tools-rag-search-contract"
+      ],
+      "backlogWaveId": "agentic-codex-next-wave",
+      "backlogParentId": "agentic-codex-next",
+      "plannerFamily": "agentic-rag",
+      "plannerSource": "manual-codex-queue"
+    },
+    {
+      "id": "agent-tools-bounded-rewrite-flow",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "add bounded rewrite second-pass option",
+      "goal": "Add a narrow opt-in bounded multi-step flow for agent tool calls: query rewrite metadata followed by a second retrieval/answer pass when the existing services support it cleanly.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Follow AGENTS.md and apps/api/AGENTS.md. Build on the stabilized agent-tools contracts. Add the smallest opt-in bounded multi-step capability suitable for demos: an agent-tools request option that can carry or request a rewritten query and expose whether a second pass was used. Prefer reusing existing ask/retrieval modules and trace metadata. If the current service contracts do not safely support a real second retrieval pass, implement the request/response contract and deterministic no-op fallback with explicit diagnostics instead of forcing a broad refactor. Add focused tests in apps/api/test/agent-tools.controller.test.js or the closest existing ask-focused Vitest file. Do not introduce planner, multi-agent, workflow engine, or schema migration.",
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm test:api:file -- test/agent-tools.controller.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "medium",
+      "dependsOn": [
+        "agent-tools-rag-answer-stable-contract"
+      ],
+      "backlogWaveId": "agentic-codex-next-wave",
+      "backlogParentId": "agentic-codex-next",
+      "plannerFamily": "agentic-rag",
+      "plannerSource": "manual-codex-queue"
+    },
+    {
+      "id": "agent-tools-lookup-contract-closeout",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "tighten trace_lookup and document_lookup contracts",
+      "goal": "Make trace_lookup and document_lookup responses stable, scoped, and useful for agent inspection demos.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Follow AGENTS.md and apps/api/AGENTS.md. Keep the existing trace_lookup and document_lookup endpoints, secret gate, and owner-only scoping. Tighten their response contracts so agent consumers get predictable top-level fields, concise diagnostics, and safe not-found/unauthorized behavior. Add focused tests in apps/api/test/agent-tools.controller.test.js for header/input scope resolution, diagnostics, and unauthorized secret behavior. Do not change trace persistence, document schema, or retrieval behavior.",
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm test:api:file -- test/agent-tools.controller.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "medium",
+      "dependsOn": [
+        "agent-tools-bounded-rewrite-flow"
+      ],
+      "backlogWaveId": "agentic-codex-next-wave",
+      "backlogParentId": "agentic-codex-next",
+      "plannerFamily": "agentic-rag",
+      "plannerSource": "manual-codex-queue"
+    },
+    {
+      "id": "agent-ui-minimal-inspection-page",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "add minimal agent inspection UI",
+      "goal": "Add a minimal /agent-style frontend surface that can show chat/tool steps/chunks/trace links without becoming a separate agent platform.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Follow AGENTS.md and apps/web/AGENTS.md. Add the smallest frontend increment that exposes an agent-facing inspection surface using existing web patterns and existing API/client utilities. The UI should be utilitarian: chat/tool result area plus steps/chunks/trace affordances, not a landing page or broad platform. Reuse existing trace/chat/report components where possible and keep route/nav changes narrow. Add or update the closest focused web Vitest coverage for the new helper/component behavior. Do not introduce multi-agent, planner UI, new design system, or unrelated layout refactors.",
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm --filter @rag-system/web exec vitest run test/agent-surface.test.js"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "medium",
+      "dependsOn": [
+        "agent-tools-lookup-contract-closeout"
+      ],
+      "backlogWaveId": "agentic-codex-next-wave",
+      "backlogParentId": "agentic-codex-next",
+      "plannerFamily": "agentic-rag",
+      "plannerSource": "manual-codex-queue"
+    },
+    {
+      "id": "agentic-codex-wave-docs-sync",
+      "version": 1,
+      "kind": "build_increment",
+      "title": "sync docs after agentic codex wave",
+      "goal": "Update current project docs to reflect the actual agent-tools and agent UI state after this wave.",
+      "agent": "rag-build",
+      "status": "pending",
+      "promptText": "Follow AGENTS.md. After the previous items complete, update the smallest relevant docs so docs/current-context.md, docs/current-progress.md, and docs/next_steps_rag_project_plan.md match the actual code behavior. Keep docs practical and current. Do not add a new strategy direction. Mention completed agent-tools contracts and any remaining bounded follow-ups. Because these docs contain Chinese text, preserve valid UTF-8 and run the focused encoding check.",
+      "verification": {
+        "mode": "command_only",
+        "commands": [
+          "pnpm check:encoding"
+        ]
+      },
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "onCommandFailure": "needs_replan",
+        "onVerificationFail": "needs_replan"
+      },
+      "attempt": 0,
+      "riskLevel": "low",
+      "dependsOn": [
+        "agent-ui-minimal-inspection-page"
+      ],
+      "backlogWaveId": "agentic-codex-next-wave",
+      "backlogParentId": "agentic-codex-next",
+      "plannerFamily": "agentic-rag",
+      "plannerSource": "manual-codex-queue"
+    }
+  ]
+}
