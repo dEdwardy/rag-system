@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  NotFoundException,
   Param,
   Post,
   Req,
@@ -129,10 +130,25 @@ export class AgentToolsController {
     @Body(new ZodValidationPipe(traceLookupSchema))
     input: Omit<ReturnType<typeof traceLookupSchema.parse>, 'secret'> & {
       secret: string;
-    }
+    },
+    @Req() request?: ToolRequest
   ) {
     this.assertToolSecret(input.secret);
-    return this.tracesService.getTrace(input.traceId, this.resolveScope(input));
+    const traceId = input.traceId;
+
+    try {
+      const trace = await this.tracesService.getTrace(
+        traceId,
+        this.resolveScope(input, request)
+      );
+      return this.normalizeTraceLookupResult(traceId, trace);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return this.normalizeTraceLookupResult(traceId, null);
+      }
+
+      throw error;
+    }
   }
 
   @Post('document_lookup')
@@ -140,27 +156,31 @@ export class AgentToolsController {
     @Body(new ZodValidationPipe(documentLookupSchema))
     input: Omit<ReturnType<typeof documentLookupSchema.parse>, 'secret'> & {
       secret: string;
-    }
+    },
+    @Req() request?: ToolRequest
   ) {
     this.assertToolSecret(input.secret);
-    const document = await this.documentsService.getDocument(
-      input.documentId,
-      this.resolveScope(input)
-    );
-    const chunks = await this.documentsService.listDocumentChunks(
-      input.documentId,
-      this.resolveScope(input)
-    );
+    const documentId = input.documentId;
+    const scope = this.resolveScope(input, request);
 
-    return {
-      document,
-      chunks,
-      diagnostics: {
-        chunkCount: chunks.length,
-        status:
-          document.status === DocumentStatus.ready ? 'ready' : document.status
+    try {
+      const document = await this.documentsService.getDocument(
+        documentId,
+        scope
+      );
+      const chunks = await this.documentsService.listDocumentChunks(
+        documentId,
+        scope
+      );
+
+      return this.normalizeDocumentLookupResult(documentId, document, chunks);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return this.normalizeDocumentLookupResult(documentId, null, []);
       }
-    };
+
+      throw error;
+    }
   }
 
   private resolveToolAuthContext(
@@ -260,6 +280,54 @@ export class AgentToolsController {
       conversationId,
       userMessageId,
       assistantMessageId
+    };
+  }
+
+  private normalizeTraceLookupResult(traceId: string, trace: unknown) {
+    const traceRecord =
+      typeof trace === 'object' && trace !== null
+        ? (trace as Record<string, unknown>)
+        : null;
+
+    return {
+      traceId,
+      found: traceRecord != null,
+      trace: traceRecord,
+      diagnostics: {
+        found: traceRecord != null,
+        status: this.readString(traceRecord?.status) ?? 'not_found',
+        hasSummary: traceRecord?.traceSummary != null
+      }
+    };
+  }
+
+  private normalizeDocumentLookupResult(
+    documentId: string,
+    document: unknown,
+    chunks: unknown[]
+  ) {
+    const documentRecord =
+      typeof document === 'object' && document !== null
+        ? (document as Record<string, unknown>)
+        : null;
+    const found = documentRecord != null;
+    const status = this.readString(documentRecord?.status);
+
+    return {
+      documentId,
+      found,
+      document: documentRecord,
+      chunks,
+      diagnostics: {
+        found,
+        status:
+          status == null
+            ? 'not_found'
+            : status === DocumentStatus.ready
+              ? 'ready'
+              : status,
+        chunkCount: chunks.length
+      }
     };
   }
 

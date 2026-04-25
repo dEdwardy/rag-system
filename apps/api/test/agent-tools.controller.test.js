@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 
 import { AgentToolsController } from '../src/modules/agent-tools/agent-tools.controller.ts';
 
@@ -36,6 +36,45 @@ test('AgentToolsController rejects requests with an invalid tool secret', async 
       secret: 'wrong-secret',
       assistantId: 'assistant-1',
       question: 'what is the answer?'
+    }),
+    (error) => {
+      assert.ok(error instanceof UnauthorizedException);
+      return true;
+    }
+  );
+});
+
+test('AgentToolsController rejects trace lookup requests with an invalid tool secret', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not be called');
+      },
+      askAssistant: async () => {
+        throw new Error('should not be called');
+      }
+    },
+    {
+      getTrace: async () => {
+        throw new Error('should not be called');
+      }
+    },
+    {
+      getDocument: async () => {
+        throw new Error('should not be called');
+      },
+      listDocumentChunks: async () => {
+        throw new Error('should not be called');
+      }
+    }
+  );
+
+  await assert.rejects(
+    controller.traceLookup({
+      secret: 'wrong-secret',
+      traceId: 'trace-1'
     }),
     (error) => {
       assert.ok(error instanceof UnauthorizedException);
@@ -446,4 +485,223 @@ test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_
     result.diagnostics.boundedMultiStep,
     result.boundedMultiStep
   );
+});
+
+test('AgentToolsController resolves trace lookup scope from headers and returns stable diagnostics', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const traceCalls = [];
+  const tracePayload = {
+    id: 'trace-1',
+    status: 'completed',
+    traceSummary: {
+      routeType: 'knowledge_base'
+    }
+  };
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not call searchAssistant');
+      },
+      askAssistant: async () => {
+        throw new Error('should not call askAssistant');
+      }
+    },
+    {
+      getTrace: async (traceId, scope) => {
+        traceCalls.push({ traceId, scope });
+        return tracePayload;
+      }
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.traceLookup(
+    {
+      secret: 'expected-secret',
+      traceId: 'trace-1'
+    },
+    {
+      headers: {
+        'x-agent-tenant-id': 'tenant-header',
+        'x-agent-user-id': 'user-header'
+      }
+    }
+  );
+
+  assert.deepEqual(traceCalls, [
+    {
+      traceId: 'trace-1',
+      scope: {
+        tenantId: 'tenant-header',
+        userId: 'user-header'
+      }
+    }
+  ]);
+  assert.equal(result.traceId, 'trace-1');
+  assert.equal(result.found, true);
+  assert.equal(result.trace, tracePayload);
+  assert.deepEqual(result.diagnostics, {
+    found: true,
+    status: 'completed',
+    hasSummary: true
+  });
+});
+
+test('AgentToolsController returns safe not-found trace lookup payload', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not call searchAssistant');
+      },
+      askAssistant: async () => {
+        throw new Error('should not call askAssistant');
+      }
+    },
+    {
+      getTrace: async () => {
+        throw new NotFoundException('Trace trace-missing not found.');
+      }
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.traceLookup({
+    secret: 'expected-secret',
+    traceId: 'trace-missing',
+    tenantId: 'tenant-1',
+    userId: 'user-1'
+  });
+
+  assert.deepEqual(result, {
+    traceId: 'trace-missing',
+    found: false,
+    trace: null,
+    diagnostics: {
+      found: false,
+      status: 'not_found',
+      hasSummary: false
+    }
+  });
+});
+
+test('AgentToolsController resolves document lookup scope from input and returns stable diagnostics', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const documentCalls = [];
+  const chunkCalls = [];
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not call searchAssistant');
+      },
+      askAssistant: async () => {
+        throw new Error('should not call askAssistant');
+      }
+    },
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async (documentId, scope) => {
+        documentCalls.push({ documentId, scope });
+        return {
+          id: documentId,
+          status: 'ready',
+          title: 'Demo document'
+        };
+      },
+      listDocumentChunks: async (documentId, scope) => {
+        chunkCalls.push({ documentId, scope });
+        return [{ id: 'chunk-1', documentId, chunkIndex: 0, content: 'demo' }];
+      }
+    }
+  );
+
+  const result = await controller.documentLookup({
+    secret: 'expected-secret',
+    documentId: 'doc-1',
+    tenantId: 'tenant-input',
+    userId: 'user-input'
+  });
+
+  assert.deepEqual(documentCalls, [
+    {
+      documentId: 'doc-1',
+      scope: {
+        tenantId: 'tenant-input',
+        userId: 'user-input'
+      }
+    }
+  ]);
+  assert.deepEqual(chunkCalls, [
+    {
+      documentId: 'doc-1',
+      scope: {
+        tenantId: 'tenant-input',
+        userId: 'user-input'
+      }
+    }
+  ]);
+  assert.equal(result.documentId, 'doc-1');
+  assert.equal(result.found, true);
+  assert.equal(result.document.title, 'Demo document');
+  assert.equal(result.chunks.length, 1);
+  assert.deepEqual(result.diagnostics, {
+    found: true,
+    status: 'ready',
+    chunkCount: 1
+  });
+});
+
+test('AgentToolsController returns safe not-found document lookup payload', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not call searchAssistant');
+      },
+      askAssistant: async () => {
+        throw new Error('should not call askAssistant');
+      }
+    },
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async () => {
+        throw new NotFoundException('Document doc-missing not found.');
+      },
+      listDocumentChunks: async () => {
+        throw new Error('should not call listDocumentChunks');
+      }
+    }
+  );
+
+  const result = await controller.documentLookup({
+    secret: 'expected-secret',
+    documentId: 'doc-missing'
+  });
+
+  assert.deepEqual(result, {
+    documentId: 'doc-missing',
+    found: false,
+    document: null,
+    chunks: [],
+    diagnostics: {
+      found: false,
+      status: 'not_found',
+      chunkCount: 0
+    }
+  });
 });
