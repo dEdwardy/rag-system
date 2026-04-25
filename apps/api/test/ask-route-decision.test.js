@@ -334,3 +334,309 @@ test('default knowledge-base asks keep rewrite on a single retrieval pass', asyn
   assert.equal(retrievalCalls[0].query, 'rewritten onboarding retry policy');
   assert.equal(result.retrievalMetadata.knowledgeBaseMultiStep, null);
 });
+
+test('explicit external source asks fetch web content into answering and trace metadata', async () => {
+  const answeringCalls = [];
+  const createTraceCalls = [];
+
+  const service = createAskAssistantService({
+    answering: {
+      generateAnswer: async (input) => {
+        answeringCalls.push(input);
+        return {
+          answer: 'Web answer',
+          citations: [],
+          retrievedChunks: input.chunks,
+          contextGroups: input.contextGroups,
+          answeringMetadata: {
+            promptId: 'answer.v2',
+            usedFallback: false,
+            answerPolicy: input.answerPolicy,
+            resolvedLanguage: 'en',
+            generationMode: 'generated',
+            contextMode: 'chunks',
+            inputChunkCount: input.chunks.length,
+            promptContextCount: input.chunks.length,
+            contextGroupCount: input.contextGroups.length,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            missingInformationCount: 0,
+            missingInformationSource: 'none',
+            answerTextSource: 'model',
+            insufficientContextReason: null,
+            answerStatusSource: 'model',
+            answerStatus: 'grounded'
+          },
+          modelName: 'test-model',
+          answerStatus: 'grounded',
+          missingInformation: [],
+          qualityEvaluation: {
+            overall: 'strong',
+            grounding: 'grounded',
+            completeness: 'complete',
+            primaryIssue: 'none',
+            flags: [],
+            summary: 'Grounded answer from external source.'
+          }
+        };
+      }
+    },
+    traces: {
+      createTrace: async (input) => {
+        createTraceCalls.push(input);
+        return { id: 'trace-1' };
+      }
+    },
+    webPage: {
+      fetchWebPage: async (url) => ({
+        title: 'Launch page',
+        content: `Fetched web page content from ${url}`,
+        diagnostics: { fetchMethod: 'web_page', statusCode: 200 }
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question:
+      'Read https://example.com/posts/launch-announcement and summarize it'
+  });
+
+  assert.equal(result.routeType, 'external_source');
+  assert.equal(result.routeReason, 'explicit_source_url');
+  assert.equal(answeringCalls.length, 1);
+  assert.match(
+    answeringCalls[0].chunks[0].content,
+    /Fetched web page content from https:\/\/example.com\/posts\/launch-announcement/
+  );
+  assert.equal(createTraceCalls.length, 1);
+  assert.deepEqual(createTraceCalls[0].retrievalMetadataJson.routeDecision, {
+    routeType: 'external_source',
+    routeReason: 'explicit_source_url'
+  });
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.executionToolNames,
+    ['external_source_fetch']
+  );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.url,
+    'https://example.com/posts/launch-announcement'
+  );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.kind,
+    'web'
+  );
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.diagnostics,
+    {
+      fetchMethod: 'web_page',
+      statusCode: 200
+    }
+  );
+});
+
+test('explicit external source asks fetch feed content into answering and trace metadata', async () => {
+  const answeringCalls = [];
+  const createTraceCalls = [];
+
+  const service = createAskAssistantService({
+    answering: {
+      generateAnswer: async (input) => {
+        answeringCalls.push(input);
+        return {
+          answer: 'Feed answer',
+          citations: [],
+          retrievedChunks: input.chunks,
+          contextGroups: input.contextGroups,
+          answeringMetadata: {
+            promptId: 'answer.v2',
+            usedFallback: false,
+            answerPolicy: input.answerPolicy,
+            resolvedLanguage: 'en',
+            generationMode: 'generated',
+            contextMode: 'chunks',
+            inputChunkCount: input.chunks.length,
+            promptContextCount: input.chunks.length,
+            contextGroupCount: input.contextGroups.length,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            missingInformationCount: 0,
+            missingInformationSource: 'none',
+            answerTextSource: 'model',
+            insufficientContextReason: null,
+            answerStatusSource: 'model',
+            answerStatus: 'grounded'
+          },
+          modelName: 'test-model',
+          answerStatus: 'grounded',
+          missingInformation: [],
+          qualityEvaluation: {
+            overall: 'strong',
+            grounding: 'grounded',
+            completeness: 'complete',
+            primaryIssue: 'none',
+            flags: [],
+            summary: 'Grounded answer from external source.'
+          }
+        };
+      }
+    },
+    traces: {
+      createTrace: async (input) => {
+        createTraceCalls.push(input);
+        return { id: 'trace-1' };
+      }
+    },
+    feedSource: {
+      fetchFeed: async ({ url }) => ({
+        title: 'Product updates feed',
+        content: `Fetched feed content from ${url}`,
+        diagnostics: { fetchMethod: 'feed', itemCount: 3 }
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Summarize the RSS feed https://example.com/rss.xml'
+  });
+
+  assert.equal(result.routeType, 'external_source');
+  assert.equal(result.routeReason, 'explicit_source_url');
+  assert.equal(answeringCalls.length, 1);
+  assert.match(
+    answeringCalls[0].chunks[0].content,
+    /Fetched feed content from https:\/\/example.com\/rss.xml/
+  );
+  assert.equal(createTraceCalls.length, 1);
+  assert.deepEqual(createTraceCalls[0].retrievalMetadataJson.routeDecision, {
+    routeType: 'external_source',
+    routeReason: 'explicit_source_url'
+  });
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.executionToolNames,
+    ['external_source_fetch']
+  );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.url,
+    'https://example.com/rss.xml'
+  );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.kind,
+    'feed'
+  );
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.diagnostics,
+    {
+      fetchMethod: 'feed',
+      itemCount: 3
+    }
+  );
+});
+
+test('explicit external source asks fetch sitemap content into answering and trace metadata', async () => {
+  const answeringCalls = [];
+  const createTraceCalls = [];
+
+  const service = createAskAssistantService({
+    answering: {
+      generateAnswer: async (input) => {
+        answeringCalls.push(input);
+        return {
+          answer: 'Sitemap answer',
+          citations: [],
+          retrievedChunks: input.chunks,
+          contextGroups: input.contextGroups,
+          answeringMetadata: {
+            promptId: 'answer.v2',
+            usedFallback: false,
+            answerPolicy: input.answerPolicy,
+            resolvedLanguage: 'en',
+            generationMode: 'generated',
+            contextMode: 'chunks',
+            inputChunkCount: input.chunks.length,
+            promptContextCount: input.chunks.length,
+            contextGroupCount: input.contextGroups.length,
+            citationCountBeforeLimit: 0,
+            citationCount: 0,
+            citationLimitHit: false,
+            citationAttribution: 'none',
+            citationSelectionSource: 'none',
+            missingInformationCount: 0,
+            missingInformationSource: 'none',
+            answerTextSource: 'model',
+            insufficientContextReason: null,
+            answerStatusSource: 'model',
+            answerStatus: 'grounded'
+          },
+          modelName: 'test-model',
+          answerStatus: 'grounded',
+          missingInformation: [],
+          qualityEvaluation: {
+            overall: 'strong',
+            grounding: 'grounded',
+            completeness: 'complete',
+            primaryIssue: 'none',
+            flags: [],
+            summary: 'Grounded answer from external source.'
+          }
+        };
+      }
+    },
+    traces: {
+      createTrace: async (input) => {
+        createTraceCalls.push(input);
+        return { id: 'trace-1' };
+      }
+    },
+    sitemapSource: {
+      fetchSitemap: async ({ url }) => ({
+        content: `Fetched sitemap content from ${url}`,
+        diagnostics: { fetchMethod: 'sitemap', pageCount: 3 }
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Inspect sitemap https://example.com/sitemap.xml'
+  });
+
+  assert.equal(result.routeType, 'external_source');
+  assert.equal(result.routeReason, 'explicit_source_url');
+  assert.equal(answeringCalls.length, 1);
+  assert.match(
+    answeringCalls[0].chunks[0].content,
+    /Fetched sitemap content from https:\/\/example.com\/sitemap.xml/
+  );
+  assert.equal(createTraceCalls.length, 1);
+  assert.deepEqual(createTraceCalls[0].retrievalMetadataJson.routeDecision, {
+    routeType: 'external_source',
+    routeReason: 'explicit_source_url'
+  });
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.executionToolNames,
+    ['external_source_fetch']
+  );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.url,
+    'https://example.com/sitemap.xml'
+  );
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.kind,
+    'sitemap'
+  );
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.externalSource.diagnostics,
+    {
+      fetchMethod: 'sitemap',
+      pageCount: 3
+    }
+  );
+});
