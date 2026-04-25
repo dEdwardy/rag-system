@@ -393,12 +393,6 @@ export function ChatPage() {
     activeKnowledgeBase?.id ?? '',
     activeKnowledgeBase != null
   );
-  const assistantsForKnowledgeBaseCount =
-    activeKnowledgeBase == null
-      ? 0
-      : (assistantsQuery.data ?? []).filter(
-          (candidate) => candidate.kbId === activeKnowledgeBase.id
-        ).length;
   const activeAssistant = getPrimaryAssistantForKnowledgeBase(
     assistantsQuery.data,
     activeKnowledgeBase?.id ?? null
@@ -478,11 +472,10 @@ export function ChatPage() {
     [location.search]
   );
 
-  const hasSingleAssistantBinding =
-    activeAssistant != null && assistantsForKnowledgeBaseCount === 1;
-  const canAsk = hasSingleAssistantBinding;
+  const hasAssistantBinding = activeAssistant != null;
+  const canAsk = hasAssistantBinding;
   const isStreamingTurnActive = activeStreamTurn != null;
-  const canSubmitQuestion = hasSingleAssistantBinding && !isStreamingTurnActive;
+  const canSubmitQuestion = hasAssistantBinding && !isStreamingTurnActive;
   const shouldRenderStreamTurn = shouldRenderActiveStreamTurn(
     activeStreamTurn,
     resolvedConversationId
@@ -985,7 +978,7 @@ export function ChatPage() {
                 })}
                 title={t('chat.states.processingDocumentsTitle')}
               />
-            ) : !hasSingleAssistantBinding ? (
+            ) : !hasAssistantBinding ? (
               <StatePanel
                 action={
                   <div className="flex flex-wrap justify-center gap-3">

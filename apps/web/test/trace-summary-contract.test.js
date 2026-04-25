@@ -84,6 +84,16 @@ test('web trace summary type guards current backend summary field set', async ()
     sharedSource,
     /export type TraceExecutionMode = 'manual' \| 'workflow';/
   );
+  assert.match(sharedSource, /export type TraceMetadataCanonicalSurface = \{/);
+  assert.match(sharedSource, /routeDecision:\s*TraceRouteDecisionSummary;/);
+  assert.match(
+    sharedSource,
+    /executionToolNames:\s*TraceExecutionToolName\[\];/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceMetadataCanonicalSurface\([\s\S]*?\): TraceMetadataCanonicalSurface/
+  );
   assert.match(sharedSource, /export const TRACE_EXECUTION_MODE_LABELS = \{/);
   assert.match(sharedSource, /manual:\s*'manual',/);
   assert.match(sharedSource, /workflow:\s*'workflow'/);

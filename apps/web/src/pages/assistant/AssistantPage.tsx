@@ -45,12 +45,6 @@ export function AssistantPage() {
   const assistantsQuery = useAssistants();
   const knowledgeBasesQuery = useKnowledgeBases();
   const knowledgeBase = getPrimaryKnowledgeBase(knowledgeBasesQuery.data);
-  const assistantsForKnowledgeBaseCount =
-    knowledgeBase == null
-      ? 0
-      : (assistantsQuery.data ?? []).filter(
-          (candidate) => candidate.kbId === knowledgeBase.id
-        ).length;
   const documentsSummaryQuery = useKnowledgeBaseDocumentSummary(
     knowledgeBase?.id ?? '',
     knowledgeBase != null
@@ -85,12 +79,9 @@ export function AssistantPage() {
     retrievalProfilesQuery.error instanceof Error
       ? retrievalProfilesQuery.error.message
       : undefined;
-  const hasSingleAssistantBinding =
-    assistant != null && assistantsForKnowledgeBaseCount === 1;
+  const hasAssistantBinding = assistant != null;
   const canRenderForm =
-    knowledgeBase != null &&
-    hasSingleAssistantBinding &&
-    retrievalProfile != null;
+    knowledgeBase != null && hasAssistantBinding && retrievalProfile != null;
 
   const refreshDefaultAssistantPath = async () => {
     await Promise.all([
@@ -120,7 +111,7 @@ export function AssistantPage() {
               >
                 {t('assistant.title')}
               </Title>
-              {hasSingleAssistantBinding ? (
+              {hasAssistantBinding ? (
                 <Text
                   c="var(--app-text-muted)"
                   data-testid="assistant-id"
@@ -129,7 +120,7 @@ export function AssistantPage() {
                   {assistant.id}
                 </Text>
               ) : null}
-              {hasSingleAssistantBinding ? (
+              {hasAssistantBinding ? (
                 <Text
                   c="var(--app-text)"
                   data-testid="assistant-name-text"
@@ -138,7 +129,7 @@ export function AssistantPage() {
                   {assistant.name}
                 </Text>
               ) : null}
-              {hasSingleAssistantBinding && retrievalProfile ? (
+              {hasAssistantBinding && retrievalProfile ? (
                 <Text
                   c="var(--app-text-muted)"
                   data-testid="assistant-retrieval-profile-name"
@@ -151,7 +142,7 @@ export function AssistantPage() {
                 {t('assistant.subtitle')}
               </Text>
               <Text c="var(--app-text-secondary)" mt="sm" size="sm">
-                {hasSingleAssistantBinding
+                {hasAssistantBinding
                   ? locale === 'zh'
                     ? '默认助手已经就绪。先确认回答策略，只有在默认路径表现不对时再继续调优。'
                     : 'Start with the assistant identity and answer policy, then move into retrieval tuning only when needed.'
@@ -166,7 +157,7 @@ export function AssistantPage() {
             </div>
           </Group>
 
-          {hasSingleAssistantBinding ? (
+          {hasAssistantBinding ? (
             <Stack align="flex-end" gap={8}>
               <Group gap="xs">
                 <Badge
@@ -200,7 +191,7 @@ export function AssistantPage() {
       </Paper>
 
       <OauthWorkspaceWelcome
-        assistantCount={hasSingleAssistantBinding ? 1 : 0}
+        assistantCount={hasAssistantBinding ? 1 : 0}
         context="assistant"
         conversationCount={conversationsQuery.data?.length ?? 0}
         documentCount={documentCount}
@@ -288,7 +279,7 @@ export function AssistantPage() {
       !assistantsQuery.isError &&
       !retrievalProfilesQuery.isError &&
       knowledgeBase != null &&
-      !hasSingleAssistantBinding ? (
+      !hasAssistantBinding ? (
         <StatePanel
           action={
             <Group gap="xs">
@@ -350,10 +341,7 @@ export function AssistantPage() {
         </Suspense>
       ) : null}
 
-      {!isLoading &&
-      hasSingleAssistantBinding &&
-      assistant &&
-      !retrievalProfile ? (
+      {!isLoading && hasAssistantBinding && assistant && !retrievalProfile ? (
         <StatePanel
           description={t('assistant.missingProfileDescription')}
           title={t('assistant.missingProfileTitle')}

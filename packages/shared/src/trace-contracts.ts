@@ -252,6 +252,15 @@ export type TraceRouteDecisionSummary = {
   routeReason: TraceRouteReason;
 };
 
+export type TraceMetadataCanonicalSurface = {
+  routeType: TraceRouteType;
+  routeReason: TraceRouteReason;
+  routeDecision: TraceRouteDecisionSummary;
+  executionPlan: TraceExecutionPlan;
+  executionMode: TraceExecutionMode;
+  executionToolNames: TraceExecutionToolName[];
+};
+
 export function buildTraceExecutionPlan(input: {
   routeType: TraceRouteType;
   routeReason: TraceRouteReason;
@@ -405,6 +414,24 @@ export function collectTraceExecutionToolNames(
   return TRACE_EXECUTION_TOOL_NAMES.filter((toolName) =>
     toolNames.has(toolName)
   );
+}
+
+export function buildTraceMetadataCanonicalSurface(input: {
+  routeType: TraceRouteType;
+  routeReason: TraceRouteReason;
+  executionPlan: TraceExecutionPlan;
+}): TraceMetadataCanonicalSurface {
+  return {
+    routeType: input.routeType,
+    routeReason: input.routeReason,
+    routeDecision: {
+      routeType: input.routeType,
+      routeReason: input.routeReason
+    },
+    executionPlan: input.executionPlan,
+    executionMode: input.executionPlan.executionMode,
+    executionToolNames: collectTraceExecutionToolNames(input.executionPlan)
+  };
 }
 
 export function buildTraceExecutionToolNamesLabel(

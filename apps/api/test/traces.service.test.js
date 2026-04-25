@@ -419,6 +419,14 @@ test('TracesService exposes failedStage and failureMessage in traceSummary for f
     },
     timingReadabilitySentence:
       'total n/a; first token n/a; conversation n/a; persist user n/a; rewrite n/a; retrieval n/a; trace create n/a; generation n/a; persist assistant n/a; trace finalize n/a; llm queue n/a; retrieval queue n/a.',
+    executionMode: null,
+    executionModeReadabilityLabel: 'no execution mode',
+    executionModeReadabilitySentence: 'Execution mode is unavailable.',
+    executionPlan: null,
+    executionToolNames: [],
+    executionToolNamesReadabilityLabel: 'no execution tools',
+    executionToolNamesReadabilitySentence:
+      'Execution tool names are unavailable.',
     generationMode: null,
     contextMode: null,
     rewriteApplied: false,
@@ -938,6 +946,14 @@ test('TracesService exposes additive execution provenance in traceSummary for su
     },
     timingReadabilitySentence:
       'total n/a; first token n/a; conversation n/a; persist user n/a; rewrite n/a; retrieval n/a; trace create n/a; generation n/a; persist assistant n/a; trace finalize n/a; llm queue n/a; retrieval queue n/a.',
+    executionMode: null,
+    executionModeReadabilityLabel: 'no execution mode',
+    executionModeReadabilitySentence: 'Execution mode is unavailable.',
+    executionPlan: null,
+    executionToolNames: [],
+    executionToolNamesReadabilityLabel: 'no execution tools',
+    executionToolNamesReadabilitySentence:
+      'Execution tool names are unavailable.',
     generationMode: 'generated',
     contextMode: 'context_groups',
     rewriteApplied: true,
@@ -2266,4 +2282,86 @@ test('TracesService exposes route decision metadata in traceSummary', async () =
     routeType: 'policy_reply',
     routeReason: 'policy_question'
   });
+});
+
+test('TracesService prefers canonical route and execution metadata fields when present', async () => {
+  const persistedTrace = {
+    id: 'trace-canonical-trace-metadata',
+    conversationId: 'conversation-canonical-trace-metadata',
+    assistantId: 'assistant-canonical-trace-metadata',
+    userMessageId: 'user-message-canonical-trace-metadata',
+    assistantMessageId: 'assistant-message-canonical-trace-metadata',
+    userQuery: 'Summarize both links.',
+    rewrittenQuery: null,
+    retrievedChunkIdsJson: [],
+    retrievalScoresJson: [],
+    retrievalMetadataJson: {
+      routeType: 'external_source',
+      routeReason: 'explicit_source_urls',
+      routeDecision: {
+        routeType: 'knowledge_base',
+        routeReason: 'default_kb_ask'
+      },
+      executionMode: 'workflow',
+      executionToolNames: ['external_source_fetch'],
+      executionPlan: {
+        executionMode: 'manual',
+        steps: [
+          {
+            key: 'route_decision',
+            id: 'route_decision',
+            kind: 'route_decision',
+            toolName: null,
+            status: 'completed',
+            label: 'Route decision',
+            detail: 'external_source:explicit_source_urls',
+            durationMs: null
+          },
+          {
+            key: 'source_fetch',
+            id: 'source_fetch',
+            kind: 'source_fetch',
+            toolName: 'external_source_fetch',
+            status: 'completed',
+            label: 'Source fetch',
+            detail: '2 source(s)',
+            durationMs: null
+          }
+        ]
+      }
+    },
+    citationsJson: [],
+    answeringMetadataJson: {
+      answerTextSource: 'model',
+      answerStatusSource: 'model',
+      answerStatus: 'grounded'
+    },
+    qualityEvaluationJson: null,
+    modelName: 'external-route-local',
+    latencyMs: 4,
+    status: 'success',
+    errorMessage: null,
+    createdAt: new Date('2026-04-25T00:00:00.000Z')
+  };
+
+  const prisma = {
+    answerTrace: {
+      findUnique: async () => persistedTrace,
+      findMany: async () => [persistedTrace]
+    }
+  };
+
+  const service = new TracesService(prisma);
+  const detail = await service.getTrace('trace-canonical-trace-metadata');
+
+  assert.equal(detail.traceSummary.routeType, 'external_source');
+  assert.equal(detail.traceSummary.routeReason, 'explicit_source_urls');
+  assert.deepEqual(detail.traceSummary.routeDecisionSummary, {
+    routeType: 'external_source',
+    routeReason: 'explicit_source_urls'
+  });
+  assert.equal(detail.traceSummary.executionMode, 'workflow');
+  assert.deepEqual(detail.traceSummary.executionToolNames, [
+    'external_source_fetch'
+  ]);
 });

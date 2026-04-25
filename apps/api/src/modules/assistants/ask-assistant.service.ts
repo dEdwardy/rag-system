@@ -43,7 +43,10 @@ import {
   buildRetrievalModeProvenanceSentence,
   buildStrategyReadabilityLabel
 } from '../retrieval/strategy-readability';
-import { buildTraceExecutionPlan } from '@rag-system/shared';
+import {
+  buildTraceExecutionPlan,
+  buildTraceMetadataCanonicalSurface
+} from '@rag-system/shared';
 import {
   RetrievalProfileFilters,
   RetrievalStrategy,
@@ -1055,11 +1058,16 @@ export class AskAssistantService {
     question: string;
     routeDecision: AskRouteDecision;
   }): AskRetrievalMetadataJson {
+    const executionPlan = buildTraceExecutionPlan({
+      routeType: input.routeDecision.routeType,
+      routeReason: input.routeDecision.routeReason
+    });
+
     return {
-      routeDecision: input.routeDecision,
-      executionPlan: buildTraceExecutionPlan({
+      ...buildTraceMetadataCanonicalSurface({
         routeType: input.routeDecision.routeType,
-        routeReason: input.routeDecision.routeReason
+        routeReason: input.routeDecision.routeReason,
+        executionPlan
       }),
       ...this.buildRouteMetadataBase({
         question: input.question,
@@ -1085,22 +1093,27 @@ export class AskAssistantService {
       diagnostics: unknown;
     }>;
   }): AskRetrievalMetadataJson {
+    const executionPlan = buildTraceExecutionPlan({
+      routeType: input.routeDecision.routeType,
+      routeReason: input.routeDecision.routeReason,
+      sourceCount:
+        input.externalSources != null && input.externalSources.length > 0
+          ? input.externalSources.length
+          : 1
+    });
+
     return {
-      routeDecision: input.routeDecision,
+      ...buildTraceMetadataCanonicalSurface({
+        routeType: input.routeDecision.routeType,
+        routeReason: input.routeDecision.routeReason,
+        executionPlan
+      }),
       externalSource: {
         url: input.sourceUrl,
         kind: input.sourceKind,
         title: input.sourceTitle,
         diagnostics: input.diagnostics ?? null
       },
-      executionPlan: buildTraceExecutionPlan({
-        routeType: input.routeDecision.routeType,
-        routeReason: input.routeDecision.routeReason,
-        sourceCount:
-          input.externalSources != null && input.externalSources.length > 0
-            ? input.externalSources.length
-            : 1
-      }),
       ...(input.externalSources != null
         ? {
             externalSources: input.externalSources
@@ -4100,15 +4113,20 @@ export class AskAssistantService {
           )
         : null;
 
+    const executionPlan = buildTraceExecutionPlan({
+      routeType: input.routeDecision.routeType,
+      routeReason: input.routeDecision.routeReason,
+      sourceCount: input.retrievedChunks.length,
+      knowledgeBaseMultiStep: input.knowledgeBaseMultiStep
+    });
+
     return {
       strategy: input.strategy,
       filters: input.filters ?? null,
-      routeDecision: input.routeDecision,
-      executionPlan: buildTraceExecutionPlan({
+      ...buildTraceMetadataCanonicalSurface({
         routeType: input.routeDecision.routeType,
         routeReason: input.routeDecision.routeReason,
-        sourceCount: input.retrievedChunks.length,
-        knowledgeBaseMultiStep: input.knowledgeBaseMultiStep
+        executionPlan
       }),
       knowledgeBaseMultiStep: input.knowledgeBaseMultiStep ?? null,
       promptContextChars: input.promptContextChars,

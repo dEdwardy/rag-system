@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
 import {
+  buildTraceMetadataCanonicalSurface,
   buildTraceExecutionModeReadabilityLabel,
   buildTraceExecutionModeReadabilitySentence,
   buildTraceExecutionToolNamesLabel,
@@ -512,10 +513,28 @@ export class TracesService {
     const executionPlan = this.readTraceExecutionPlan(
       retrievalMetadata?.executionPlan
     );
-    const executionMode = this.readTraceSummaryExecutionMode(
-      executionPlan?.executionMode
-    );
-    const executionToolNames = collectTraceExecutionToolNames(executionPlan);
+    const routeType =
+      this.readTraceRouteType(retrievalMetadata?.routeType) ??
+      this.readTraceRouteType(routeDecision?.routeType);
+    const routeReason =
+      this.readTraceRouteReason(retrievalMetadata?.routeReason) ??
+      this.readTraceRouteReason(routeDecision?.routeReason);
+    const canonicalMetadataSurface =
+      routeType != null && routeReason != null && executionPlan != null
+        ? buildTraceMetadataCanonicalSurface({
+            routeType,
+            routeReason,
+            executionPlan
+          })
+        : null;
+    const executionMode =
+      this.readTraceSummaryExecutionMode(retrievalMetadata?.executionMode) ??
+      canonicalMetadataSurface?.executionMode ??
+      this.readTraceSummaryExecutionMode(executionPlan?.executionMode);
+    const executionToolNames =
+      this.readTraceExecutionToolNames(retrievalMetadata?.executionToolNames) ??
+      canonicalMetadataSurface?.executionToolNames ??
+      collectTraceExecutionToolNames(executionPlan);
     const answeringMetadata = this.readObject(trace.answeringMetadataJson);
     const qualityEvaluation = this.readObject(trace.qualityEvaluationJson);
     const inputChunkCount =
@@ -539,8 +558,6 @@ export class TracesService {
       this.readStringAs<NonNullable<TraceSummary['retrievalMode']>>(
         retrievalMetadata?.retrievalMode
       );
-    const routeType = this.readTraceRouteType(routeDecision?.routeType);
-    const routeReason = this.readTraceRouteReason(routeDecision?.routeReason);
     const strategyRetrievalQuerySource = this.readStringAs<
       NonNullable<TraceSummary['retrievalQuerySource']>
     >(strategySummary?.retrievalQuerySource);
@@ -1058,6 +1075,26 @@ export class TracesService {
     value: unknown
   ): TraceSummary['executionToolNames'][number] | null {
     return readTraceExecutionToolName(value);
+  }
+
+  private readTraceExecutionToolNames(
+    value: unknown
+  ): TraceSummary['executionToolNames'] | null {
+    if (!Array.isArray(value)) {
+      return null;
+    }
+
+    const toolNames = value
+      .map((entry) => this.readTraceSummaryExecutionToolName(entry))
+      .filter(
+        (
+          toolName
+        ): toolName is NonNullable<
+          TraceSummary['executionToolNames']
+        >[number] => toolName != null
+      );
+
+    return toolNames.length > 0 ? toolNames : [];
   }
 
   private readTraceExecutionPlan(
