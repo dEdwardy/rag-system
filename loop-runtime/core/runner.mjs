@@ -27,6 +27,11 @@ import {
   buildRecoveryNextSteps
 } from './recovery-utils.mjs';
 import { shouldWriteHeartbeatLog } from './heartbeat-log-utils.mjs';
+import {
+  buildContinuationPrompt,
+  buildExecutionPrompt,
+  buildFinalizerPrompt
+} from './prompt-utils.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
@@ -474,62 +479,6 @@ async function heartbeat() {
   await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);
 }
 
-function buildExecutionPrompt(item, queueFileName) {
-  const validation =
-    Array.isArray(item?.verification?.commands) &&
-    item.verification.commands.length > 0
-      ? item.verification.commands[0]
-      : 'none';
-  const deps =
-    Array.isArray(item?.dependsOn) && item.dependsOn.length > 0
-      ? item.dependsOn.join(', ')
-      : 'none';
-
-  return [
-    `You are executing queue item ${item.id} from ${queueFileName}.`,
-    `Upstream dependencies that must already be satisfied: ${deps}.`,
-    '',
-    item.promptText,
-    '',
-    'Operational rules for this queue executor:',
-    '- Make the smallest correct change.',
-    '- Run exactly the focused validation command named in the queue item.',
-    '- If validation passes, commit the change on the current branch and do not push.',
-    '- If validation fails or you cannot complete the item, stop and report the blocker clearly.',
-    '- End with exactly one machine-readable line in this format:',
-    `QUEUE_RESULT status=<completed|needs_replan> item=${item.id} validation=${validation} changed_files=<comma-separated-or-none> commit=<hash-or-none>`
-  ].join('\n');
-}
-
-function buildContinuationPrompt(item, queueFileName) {
-  const validation =
-    Array.isArray(item?.verification?.commands) &&
-    item.verification.commands.length > 0
-      ? item.verification.commands[0]
-      : 'none';
-  return [
-    `Continue the current queue session with item ${item.id} from ${queueFileName}.`,
-    item.promptText,
-    `Validation: ${validation}`,
-    `Return exactly one machine-readable line: QUEUE_RESULT status=<completed|needs_replan> item=${item.id} validation=${validation} changed_files=<comma-separated-or-none> commit=<hash-or-none>`
-  ].join('\n');
-}
-
-function buildFinalizerPrompt(item, queueFileName) {
-  const validation =
-    Array.isArray(item?.verification?.commands) &&
-    item.verification.commands.length > 0
-      ? item.verification.commands[0]
-      : 'none';
-  return [
-    `Finalize queue item ${item.id} from ${queueFileName}.`,
-    'The main execution already finished, but the machine-readable queue result line was missing.',
-    'Do not make additional code changes, do not create another commit, and do not rerun validation unless the prior run clearly failed.',
-    'Inspect the current repository state and the just-finished session state, then return exactly one machine-readable line and nothing after it.',
-    `QUEUE_RESULT status=<completed|needs_replan> item=${item.id} validation=${validation} changed_files=<comma-separated-or-none> commit=<hash-or-none>`
-  ].join('\n');
-}
-
 function buildSessionTitle(queue, item) {
   const items = Array.isArray(queue?.items) ? queue.items : [];
   const activeItems = items.filter(
@@ -569,11 +518,7 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
     opencodeEnv: {},
     codexEnv: {
       CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
-      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? '',
-      CODEX_LOOP_MODE: process.env.CODEX_LOOP_MODE ?? 'sdk',
-      CODEX_SDK_OPTIONS:
-        process.env.CODEX_SDK_OPTIONS ?? '{"model":"gpt-5.4-mini"}',
-      CODEX_SDK_TIMEOUT_MS: process.env.CODEX_SDK_TIMEOUT_MS ?? ''
+      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? ''
     }
   }).catch((error) => ({
     exitCode: 1,
@@ -613,11 +558,7 @@ async function runQueueFinalizer(queue, item, queueFileName, sessionId) {
     opencodeEnv: {},
     codexEnv: {
       CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
-      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? '',
-      CODEX_LOOP_MODE: process.env.CODEX_LOOP_MODE ?? 'sdk',
-      CODEX_SDK_OPTIONS:
-        process.env.CODEX_SDK_OPTIONS ?? '{"model":"gpt-5.4-mini"}',
-      CODEX_SDK_TIMEOUT_MS: process.env.CODEX_SDK_TIMEOUT_MS ?? ''
+      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? ''
     }
   }).catch((error) => ({
     exitCode: 1,
@@ -709,7 +650,7 @@ async function processOneItem() {
     attempt: attemptNumber,
     startedAt: now,
     updatedAt: now,
-    startedBy: 'opencode-loop-runner'
+    startedBy: 'loop-runtime-runner'
   });
 
   childAbortReason = null;
@@ -834,18 +775,18 @@ async function processOneItem() {
     const failureReason = success
       ? undefined
       : result.timedOut
-        ? `opencode_timeout_${getItemTimeoutMs(item)}`
+        ? `executor_timeout_${getItemTimeoutMs(item)}`
         : result.idleTimedOut
-          ? `opencode_idle_timeout_${itemIdleTimeoutMs}`
+          ? `executor_idle_timeout_${itemIdleTimeoutMs}`
           : result.reportedError
-            ? 'opencode_reported_error'
+            ? 'executor_reported_error'
             : queueResult?.status === 'needs_replan'
               ? 'queue_result_needs_replan'
               : !queueResult?.status
                 ? commitFallback || noopFallback
                   ? undefined
                   : 'missing_queue_result'
-                : (failureMarkers[0] ?? `opencode_exit_${result.exitCode}`);
+                : (failureMarkers[0] ?? `executor_exit_${result.exitCode}`);
     const commitCreated = commitCreatedDuringRun(beforeSnapshot, afterSnapshot);
 
     await updateQueueItem(

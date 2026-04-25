@@ -21,6 +21,10 @@ const requestedExecutor = parsedArgs.executor?.trim();
 const effectiveExecutor =
   requestedExecutor || process.env.LOOP_EXECUTOR_BACKEND || 'opencode';
 
+function shouldStripParentRuntimeEnv(key) {
+  return key.startsWith('OPENCODE') || key.startsWith('CODEX');
+}
+
 await mkdir(runtimeDir, { recursive: true });
 
 function pidAlive(pid) {
@@ -144,7 +148,7 @@ async function start() {
 
   const childEnv = { ...process.env };
   for (const key of Object.keys(childEnv)) {
-    if (key.startsWith('OPENCODE')) {
+    if (shouldStripParentRuntimeEnv(key)) {
       delete childEnv[key];
     }
   }

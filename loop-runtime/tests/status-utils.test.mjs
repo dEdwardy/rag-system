@@ -4,7 +4,12 @@ import { formatStatusLine } from '../core/status-utils.mjs';
 
 test('formatStatusLine reports stopped for completed stale state', () => {
   const line = formatStatusLine({
-    state: { pid: 123, status: 'stopping', activeWave: 'wave-a' },
+    state: {
+      pid: 123,
+      status: 'stopping',
+      activeWave: 'wave-a',
+      executionBackend: 'opencode'
+    },
     summary: {
       activeWave: 'wave-a',
       pendingCount: 0,
@@ -24,7 +29,12 @@ test('formatStatusLine reports stopped for completed stale state', () => {
 
 test('formatStatusLine keeps stale marker for incomplete dead runner state', () => {
   const line = formatStatusLine({
-    state: { pid: 123, phase: 'executing', activeWave: 'wave-a' },
+    state: {
+      pid: 123,
+      phase: 'executing',
+      activeWave: 'wave-a',
+      executionBackend: 'opencode'
+    },
     summary: {
       activeWave: 'wave-a',
       pendingCount: 2,
@@ -50,7 +60,8 @@ test('formatStatusLine reports blocked for live blocked runner state', () => {
       activeWave: 'wave-a',
       pendingCount: 1,
       currentItemId: 'item-b',
-      blockedOn: 'item-a'
+      blockedOn: 'item-a',
+      executionBackend: 'opencode'
     },
     summary: {
       activeWave: 'wave-a',
@@ -75,7 +86,8 @@ test('formatStatusLine reports blocked for dead blocked state without calling it
       pid: 123,
       phase: 'blocked',
       activeWave: 'wave-a',
-      blockedOn: 'item-a'
+      blockedOn: 'item-a',
+      executionBackend: 'opencode'
     },
     summary: {
       activeWave: 'wave-a',
@@ -102,7 +114,8 @@ test('formatStatusLine prefers needs_replan attention state for live runner', ()
       activeWave: 'wave-a',
       pendingCount: 2,
       currentItemId: 'item-c',
-      currentItemStatus: 'needs_replan'
+      currentItemStatus: 'needs_replan',
+      executionBackend: 'opencode'
     },
     summary: {
       activeWave: 'wave-a',
@@ -129,7 +142,8 @@ test('formatStatusLine reports idle timeout reason for stale attention state', (
       activeWave: 'wave-a',
       currentItemId: 'item-d',
       currentItemIdleTimedOut: true,
-      currentItemStatus: 'needs_replan'
+      currentItemStatus: 'needs_replan',
+      executionBackend: 'opencode'
     },
     summary: {
       activeWave: 'wave-a',

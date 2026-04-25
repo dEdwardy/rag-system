@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,29 +6,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 const repoOpencodeConfig = path.join(repoRoot, 'opencode.jsonc');
 
-const codexThreadCache = new Map();
-
 export async function validateExecutionBackend(env = process.env) {
   const backend = resolveExecutionBackend(env);
-  if (backend !== 'codex') {
-    return { ok: true, backend };
-  }
-
-  const mode = (env.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase();
-  if (mode === 'cli') {
-    return { ok: true, backend };
-  }
-
-  try {
-    await import('@openai/codex-sdk');
-    return { ok: true, backend };
-  } catch (error) {
-    return {
-      ok: false,
-      backend,
-      message: `LOOP_EXECUTOR_BACKEND=codex requires @openai/codex-sdk to be installed: ${error.message}`
-    };
-  }
+  return { ok: true, backend };
 }
 
 export function resolveExecutionBackend(env = process.env) {
@@ -179,20 +158,6 @@ async function runCodexPrompt({
   onExit,
   idleTimeoutMs
 }) {
-  const useSdk =
-    (codexEnv.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase() !== 'cli';
-  if (useSdk) {
-    const sdkResult = await runCodexSdkPrompt({
-      prompt,
-      title,
-      sessionId,
-      codexEnv
-    });
-    if (sdkResult) {
-      return sdkResult;
-    }
-  }
-
   return await runCodexCliPrompt({
     prompt,
     title,
@@ -204,55 +169,6 @@ async function runCodexPrompt({
     onSpawn,
     onExit,
     idleTimeoutMs
-  });
-}
-
-async function runCodexSdkPrompt({ prompt, title, sessionId, codexEnv }) {
-  let Codex;
-  try {
-    ({ Codex } = await import('@openai/codex-sdk'));
-  } catch (error) {
-    if ((codexEnv.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase() !== 'cli') {
-      // SDK mode explicitly requested but package unavailable — fail fast, don't silently fall through to CLI
-      return {
-        exitCode: 1,
-        signal: null,
-        stdout: '',
-        stderr: `codex_sdk_unavailable: ${error.message}\n`,
-        timedOut: false,
-        sessionId: null,
-        reportedError: `codex_sdk_unavailable: ${error.message}`
-      };
-    }
-    return null;
-  }
-
-  const agent = new Codex(
-    parseJsonEnv(codexEnv.CODEX_SDK_OPTIONS, {
-      model: 'gpt-5.4-mini'
-    })
-  );
-  const thread = sessionId
-    ? (codexThreadCache.get(sessionId) ?? agent.resumeThread(sessionId))
-    : agent.startThread();
-  const result = await runWithTimeout(
-    thread.run(prompt),
-    codexEnv.CODEX_SDK_TIMEOUT_MS
-  );
-  const threadId =
-    sessionId ??
-    result?.threadId ??
-    result?.threadID ??
-    result?.thread?.id ??
-    randomUUID();
-  if (!codexThreadCache.has(threadId)) {
-    codexThreadCache.set(threadId, thread);
-  }
-  return normalizeCodexResult({
-    result,
-    sessionId: threadId,
-    title,
-    thread
   });
 }
 
@@ -268,30 +184,13 @@ async function runCodexCliPrompt({
   onExit,
   idleTimeoutMs
 }) {
-  const command =
-    codexEnv.CODEX_LOOP_COMMAND?.trim() ||
-    (process.platform === 'win32' ? 'cmd.exe' : 'codex');
-  const baseArgs = (codexEnv.CODEX_LOOP_ARGS ?? '').trim()
-    ? splitShellWords(codexEnv.CODEX_LOOP_ARGS)
-    : [];
-  const args =
-    process.platform === 'win32'
-      ? [
-          '/c',
-          'codex.cmd',
-          'exec',
-          ...baseArgs,
-          '--json',
-          '--full-auto',
-          '--cd',
-          cwd,
-          prompt
-        ]
-      : ['exec', ...baseArgs, '--json', '--full-auto', '--cd', cwd, prompt];
-
-  if (sessionId) {
-    args.splice(1, 0, 'resume', sessionId);
-  }
+  const { command, args } = buildCodexCliInvocation({
+    prompt,
+    sessionId,
+    cwd,
+    codexEnv,
+    platform: process.platform
+  });
 
   return await spawnPrompt({
     command,
@@ -306,41 +205,69 @@ async function runCodexCliPrompt({
   });
 }
 
-function normalizeCodexResult({ result, sessionId, title }) {
-  const structured = typeof result === 'string' ? { message: result } : result;
-  return {
-    exitCode: 0,
-    signal: null,
-    stdout: `${JSON.stringify({
-      title,
-      sessionID: sessionId,
-      result: structured
-    })}\n`,
-    stderr: '',
-    timedOut: false,
-    sessionId,
-    reportedError: null
-  };
-}
+export function buildCodexCliInvocation({
+  prompt,
+  sessionId,
+  cwd,
+  codexEnv = {},
+  platform = process.platform
+}) {
+  const command =
+    codexEnv.CODEX_LOOP_COMMAND?.trim() ||
+    (platform === 'win32' ? 'cmd.exe' : 'codex');
+  const baseArgs = (codexEnv.CODEX_LOOP_ARGS ?? '').trim()
+    ? splitShellWords(codexEnv.CODEX_LOOP_ARGS)
+    : [];
 
-async function runWithTimeout(promise, timeoutMsValue) {
-  const timeoutMs = Number(timeoutMsValue);
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return await promise;
+  if (sessionId) {
+    return {
+      command,
+      args:
+        platform === 'win32'
+          ? [
+              '/c',
+              'codex.cmd',
+              'exec',
+              ...baseArgs,
+              'resume',
+              sessionId,
+              '--json',
+              '--full-auto',
+              '--cd',
+              cwd,
+              prompt
+            ]
+          : [
+              'exec',
+              ...baseArgs,
+              'resume',
+              sessionId,
+              '--json',
+              '--full-auto',
+              '--cd',
+              cwd,
+              prompt
+            ]
+    };
   }
 
-  let timeoutHandle;
-  return await Promise.race([
-    promise.finally(() => {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-    }),
-    new Promise((_, reject) => {
-      timeoutHandle = setTimeout(() => {
-        reject(new Error(`codex_sdk_timeout_${timeoutMs}`));
-      }, timeoutMs);
-      timeoutHandle.unref();
-    })
-  ]);
+  return {
+    command,
+    args:
+      platform === 'win32'
+        ? [
+            '/c',
+            'codex.cmd',
+            'exec',
+            ...baseArgs,
+            '--json',
+            '--full-auto',
+            '--cd',
+            cwd,
+            prompt
+          ]
+        : ['exec', ...baseArgs, '--json', '--full-auto', '--cd', cwd, prompt]
+  };
 }
 
 async function spawnPrompt({

@@ -27,9 +27,11 @@ function buildReasonPart(state) {
 }
 
 export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
+  const backend =
+    state?.executionBackend ?? summary?.executionBackend ?? 'opencode';
+
   if (state && pidAlive(state.pid)) {
     const wave = state.activeWave ?? summary.activeWave ?? 'none';
-    const backend = state.executionBackend ?? 'opencode';
     const pending = state.pendingCount ?? summary.pendingCount;
     const itemPart = state.currentItemId ? ` item=${state.currentItemId}` : '';
     const sessionPart = state.activeSessionId
@@ -62,7 +64,6 @@ export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
     const pending = summary.pendingCount;
     const completed = summary.completedCount;
     const phase = state.phase ?? state.status ?? 'unknown';
-    const backend = state.executionBackend ?? 'opencode';
     if (
       state.status === 'stopping' ||
       state.status === 'idle' ||
@@ -88,5 +89,5 @@ export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
     return `stale state pid=${state.pid} backend=${backend} wave=${wave} pending=${pending} completed=${completed} phase=${phase}`;
   }
 
-  return `stopped backend=${state?.executionBackend ?? 'opencode'} wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount} completed=${summary.completedCount}`;
+  return `stopped backend=${backend} wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount} completed=${summary.completedCount}`;
 }

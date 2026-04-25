@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
+  buildCodexCliInvocation,
   createIdleController,
   validateExecutionBackend,
   parseJsonEnv,
@@ -54,10 +55,9 @@ test('validateExecutionBackend allows opencode without extra checks', async () =
   assert.equal(result.backend, 'opencode');
 });
 
-test('validateExecutionBackend allows codex cli mode without sdk package', async () => {
+test('validateExecutionBackend allows codex without sdk checks', async () => {
   const result = await validateExecutionBackend({
-    LOOP_EXECUTOR_BACKEND: 'codex',
-    CODEX_LOOP_MODE: 'cli'
+    LOOP_EXECUTOR_BACKEND: 'codex'
   });
   assert.equal(result.ok, true);
   assert.equal(result.backend, 'codex');
@@ -121,5 +121,33 @@ test('splitShellWords preserves quoted segments', () => {
     'two words',
     '--name',
     'value'
+  ]);
+});
+
+test('buildCodexCliInvocation keeps resume after exec on windows', () => {
+  const invocation = buildCodexCliInvocation({
+    prompt: 'Return one queue result line.',
+    sessionId: 'thread-123',
+    cwd: 'D:\\FeProjects\\rag-system',
+    codexEnv: {
+      CODEX_LOOP_ARGS: '--model gpt-5.4'
+    },
+    platform: 'win32'
+  });
+
+  assert.equal(invocation.command, 'cmd.exe');
+  assert.deepEqual(invocation.args, [
+    '/c',
+    'codex.cmd',
+    'exec',
+    '--model',
+    'gpt-5.4',
+    'resume',
+    'thread-123',
+    '--json',
+    '--full-auto',
+    '--cd',
+    'D:\\FeProjects\\rag-system',
+    'Return one queue result line.'
   ]);
 });
