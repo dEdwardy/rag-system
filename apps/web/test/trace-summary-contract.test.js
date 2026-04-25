@@ -85,6 +85,8 @@ test('web trace summary type guards current backend summary field set', async ()
     /export type TraceExecutionMode = 'manual' \| 'workflow';/
   );
   assert.match(sharedSource, /export type TraceMetadataCanonicalSurface = \{/);
+  assert.match(sharedSource, /routeType:\s*TraceRouteType;/);
+  assert.match(sharedSource, /routeReason:\s*TraceRouteReason;/);
   assert.match(sharedSource, /routeDecision:\s*TraceRouteDecisionSummary;/);
   assert.match(
     sharedSource,
@@ -92,7 +94,7 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     sharedSource,
-    /export function buildTraceMetadataCanonicalSurface\([\s\S]*?\): TraceMetadataCanonicalSurface/
+    /export function buildTraceMetadataCanonicalSurface\([\s\S]*?routeDecision:\s*TraceRouteDecisionSummary;[\s\S]*?\): TraceMetadataCanonicalSurface/
   );
   assert.match(sharedSource, /export const TRACE_EXECUTION_MODE_LABELS = \{/);
   assert.match(sharedSource, /manual:\s*'manual',/);

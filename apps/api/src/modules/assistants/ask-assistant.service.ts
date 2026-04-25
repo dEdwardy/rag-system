@@ -1067,8 +1067,7 @@ export class AskAssistantService {
 
     return {
       ...buildTraceMetadataCanonicalSurface({
-        routeType: input.routeDecision.routeType,
-        routeReason: input.routeDecision.routeReason,
+        routeDecision: input.routeDecision,
         executionPlan
       }),
       ...this.buildRouteMetadataBase({
@@ -1106,8 +1105,7 @@ export class AskAssistantService {
 
     return {
       ...buildTraceMetadataCanonicalSurface({
-        routeType: input.routeDecision.routeType,
-        routeReason: input.routeDecision.routeReason,
+        routeDecision: input.routeDecision,
         executionPlan
       }),
       externalSource: {
@@ -4126,8 +4124,7 @@ export class AskAssistantService {
       strategy: input.strategy,
       filters: input.filters ?? null,
       ...buildTraceMetadataCanonicalSurface({
-        routeType: input.routeDecision.routeType,
-        routeReason: input.routeDecision.routeReason,
+        routeDecision: input.routeDecision,
         executionPlan
       }),
       knowledgeBaseMultiStep: input.knowledgeBaseMultiStep ?? null,
@@ -4342,7 +4339,13 @@ export class AskAssistantService {
     return {
       strategy: input.strategy,
       filters: input.filters ?? null,
-      routeDecision: input.routeDecision,
+      ...buildTraceMetadataCanonicalSurface({
+        routeDecision: input.routeDecision,
+        executionPlan: buildTraceExecutionPlan({
+          routeType: input.routeDecision.routeType,
+          routeReason: input.routeDecision.routeReason
+        })
+      }),
       queryRewrite: {
         enabled: input.strategy.queryRewrite.enabled,
         applied: rewriteApplied,

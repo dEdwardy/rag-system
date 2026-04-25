@@ -417,17 +417,13 @@ export function collectTraceExecutionToolNames(
 }
 
 export function buildTraceMetadataCanonicalSurface(input: {
-  routeType: TraceRouteType;
-  routeReason: TraceRouteReason;
+  routeDecision: TraceRouteDecisionSummary;
   executionPlan: TraceExecutionPlan;
 }): TraceMetadataCanonicalSurface {
   return {
-    routeType: input.routeType,
-    routeReason: input.routeReason,
-    routeDecision: {
-      routeType: input.routeType,
-      routeReason: input.routeReason
-    },
+    routeType: input.routeDecision.routeType,
+    routeReason: input.routeDecision.routeReason,
+    routeDecision: input.routeDecision,
     executionPlan: input.executionPlan,
     executionMode: input.executionPlan.executionMode,
     executionToolNames: collectTraceExecutionToolNames(input.executionPlan)
