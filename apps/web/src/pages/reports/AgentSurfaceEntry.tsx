@@ -10,7 +10,7 @@ type AgentSurfaceEntryProps = {
   tone?: 'inline' | 'panel';
 };
 
-function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
+export function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
   return locale === 'zh'
     ? {
         title: 'Agent 检视入口',
@@ -21,8 +21,7 @@ function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
         tools: '工具',
         routeExamples: '知识库 / 策略回复 / 外部来源',
         modeExamples: 'manual / workflow',
-        toolExamples:
-          'knowledge base search / external source fetch / policy reply',
+        toolExamples: '知识库搜索 / 外部来源抓取 / 策略回复',
         defaultPrimaryLabel: '打开 trace'
       }
     : {

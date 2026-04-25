@@ -127,12 +127,12 @@
 
 If we want this repo to be interview-ready for agent development, the next increment should be ordered like this:
 
-1. `rag_search` / `rag_answer` tool APIs
-2. server-side tool gateway secret plus internal `userId / tenantId` mapping
-3. bounded multi-step flow: `query rewrite -> second retrieval -> answer`
-4. stable response contract with `citations`, `confidence`, and `missingInformation`
-5. `trace_lookup` / `document_lookup` helpers for inspection and demos
-6. `/agent` UI with chat plus `steps / chunks / trace`
+1. `rag_search` / `rag_answer` tool APIs: completed for the current bounded contract
+2. server-side tool gateway secret plus internal `userId / tenantId` mapping: completed for agent tool requests and headers
+3. bounded multi-step flow: contract completed as deterministic no-op diagnostics; real second-pass orchestration remains a bounded follow-up
+4. stable response contract with `citations`, `confidence`, and `missingInformation`: completed for `rag_answer`
+5. `trace_lookup` / `document_lookup` helpers for inspection and demos: completed with stable found/not-found payloads
+6. `/agent` UI with chat plus `steps / chunks / trace`: not expanded into a new platform page; current trace/report/chat inspection surface remains the supported demo surface and now has focused coverage
 
 Scope guardrails for this increment:
 

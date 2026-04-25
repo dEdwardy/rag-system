@@ -6,6 +6,19 @@
 
 ## Current Snapshot
 
+- `agent-tools contract wave` is now closed out on the OpenCode-backed loop queue
+  - `POST /agent-tools/rag_search` returns a retrieval-only payload with query, chunks, citations, sources, and diagnostics instead of calling the answer path
+  - `POST /agent-tools/rag_answer` now normalizes the answer contract for agent callers: answer, citations, confidence, missingInformation, diagnostics, and trace identifiers
+  - agent tool requests can carry a bounded `boundedMultiStep` option; the current implementation exposes deterministic no-op diagnostics rather than forcing a wider ask/retrieval refactor
+  - `trace_lookup` and `document_lookup` now return stable found/not-found payloads with diagnostics and support header-derived agent scope
+  - the existing agent inspection surface now has focused web Vitest coverage in `apps/web/test/agent-surface.test.js`
+  - focused validation:
+    - `pnpm test:api:file -- test/agent-tools.controller.test.js`
+    - `pnpm --filter @rag-system/api exec tsc --noEmit`
+    - `pnpm --filter @rag-system/web exec vitest run test/agent-surface.test.js`
+    - `pnpm --filter @rag-system/web exec tsc --noEmit`
+    - `pnpm check:encoding`
+
 - loop control now accepts `--executor opencode|codex` on `loop:start`, and the repository scripts include `loop:start:codex` / `loop:start:opencode` shortcuts so backend selection is explicit instead of relying on ad hoc environment variables.
 - loop queue consumption is now pointed at the actual runner directory: `loop-runtime/materialized/` instead of the older `.opencode/loop/materialized/` snapshot area. The active agentic follow-up wave is visible to `pnpm loop:status` and the loop runner has begun consuming it again.
 - loop runtime now has a split layout: `loop-runtime/core/` for the main loop, `loop-runtime/adapters/` for backend execution, and `loop-runtime/tests/` for validation. The Codex backend adapter is wired as SDK-first with a CLI fallback path for environments that do not yet have `@openai/codex-sdk` installed.

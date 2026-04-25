@@ -185,15 +185,15 @@
 
 Priority A:
 
-- `rag_search` / `rag_answer` tool APIs
-- server-side tool gateway secret plus internal `userId / tenantId` mapping
-- bounded multi-step flow: `query rewrite -> second retrieval -> answer`
-- stable response contract with `citations`, `confidence`, and `missingInformation`
+- `rag_search` / `rag_answer` tool APIs: current bounded contract completed
+- server-side tool gateway secret plus internal `userId / tenantId` mapping: completed for agent tool input and request headers
+- bounded multi-step flow: request/response contract completed as deterministic no-op diagnostics; real second retrieval should remain a later focused backend increment
+- stable response contract with `citations`, `confidence`, and `missingInformation`: completed for agent-facing `rag_answer`
 
 Priority B:
 
-- `trace_lookup` / `document_lookup` helpers for inspection and demos
-- `/agent` UI with chat plus `steps / chunks / trace`
+- `trace_lookup` / `document_lookup` helpers for inspection and demos: completed with stable not-found handling
+- `/agent` UI with chat plus `steps / chunks / trace`: do not open a separate platform page yet; keep using the existing trace/report/chat inspection surface unless a concrete demo gap appears
 
 Priority C:
 

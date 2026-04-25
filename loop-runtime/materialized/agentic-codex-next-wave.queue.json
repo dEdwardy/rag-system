@@ -2,7 +2,7 @@
   "version": 1,
   "cursor": 0,
   "createdAt": "2026-04-25T20:00:00.000Z",
-  "updatedAt": "2026-04-25T20:09:03.824Z",
+  "updatedAt": "2026-04-25T20:28:13.538Z",
   "materializedFrom": "agentic-codex-next",
   "materializedWaveId": "agentic-codex-next-wave",
   "items": [
@@ -162,7 +162,7 @@
       "title": "tighten trace_lookup and document_lookup contracts",
       "goal": "Make trace_lookup and document_lookup responses stable, scoped, and useful for agent inspection demos.",
       "agent": "rag-build",
-      "status": "pending",
+      "status": "completed",
       "promptText": "Follow AGENTS.md and apps/api/AGENTS.md. Keep the existing trace_lookup and document_lookup endpoints, secret gate, and owner-only scoping. Tighten their response contracts so agent consumers get predictable top-level fields, concise diagnostics, and safe not-found/unauthorized behavior. Add focused tests in apps/api/test/agent-tools.controller.test.js for header/input scope resolution, diagnostics, and unauthorized secret behavior. Do not change trace persistence, document schema, or retrieval behavior.",
       "verification": {
         "mode": "command_only",
@@ -175,7 +175,7 @@
         "onCommandFailure": "needs_replan",
         "onVerificationFail": "needs_replan"
       },
-      "attempt": 0,
+      "attempt": 1,
       "riskLevel": "medium",
       "dependsOn": [
         "agent-tools-bounded-rewrite-flow"
@@ -183,7 +183,16 @@
       "backlogWaveId": "agentic-codex-next-wave",
       "backlogParentId": "agentic-codex-next",
       "plannerFamily": "agentic-rag",
-      "plannerSource": "manual-codex-queue"
+      "plannerSource": "manual-codex-queue",
+      "startedAt": "2026-04-25T20:09:51.719Z",
+      "updatedAt": "2026-04-25T20:15:39.249Z",
+      "startedBy": "loop-runtime-runner",
+      "completedAt": "2026-04-25T20:15:39.249Z",
+      "finishedAt": "2026-04-25T20:15:39.249Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "{\"type\":\"step_start\",\"timestamp\":1777148125912,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc64862d5001ORI7r8zwL6jps0\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6483849001cdVPVQI5MBAZr7\",\"type\":\"step-start\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\"}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148128387,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc64862d600160Ge23PDAmJVh6\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6483849001cdVPVQI5MBAZr7\",\"type\":\"tool\",\"callID\":\"call_QenzvqR8bgWwqbsiv3u72MPS\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git log -1 --format=\\\"%H %s\\\"\",\"description\":\"Shows latest commit hash and subject\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\"fae5bcafa28475ee755d14a6ce973530993866e4 Tighten agent lookup tool contracts\\n\",\"title\":\"Shows latest commit hash and subject\",\"metadata\":{\"output\":\"fae5bcafa28475ee755d14a6ce973530993866e4 Tighten agent lookup tool contracts\\n\",\"exit\":0,\"description\":\"Shows latest commit hash and subject\",\"truncated\":false},\"time\":{\"start\":1777148125912,\"end\":1777148128386}}}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148128472,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc64862d9001a9KLQDOZErhPOd\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6483849001cdVPVQI5MBAZr7\",\"type\":\"tool\",\"callID\":\"call_aUayR3xjlrO7Rm27gTRCgOpT\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git status --short\",\"description\":\"Shows current working tree status\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\" M loop-runtime/materialized/agentic-codex-next-wave.queue.json\\n\",\"title\":\"Shows current working tree status\",\"metadata\":{\"output\":\" M loop-runtime/materialized/agentic-codex-next-wave.queue.json\\n\",\"exit\":0,\"description\":\"Shows current working tree status\",\"truncated\":false},\"time\":{\"start\":1777148125940,\"end\":1777148128471}}}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148128477,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc64862fd001cIVlPPA7Sw5iZF\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6483849001cdVPVQI5MBAZr7\",\"type\":\"tool\",\"callID\":\"call_aTqvV2WlxiEIxTkfc5qI90Wz\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git show --name-only --format=\\\"\\\" fae5bca\",\"description\":\"Lists files in finished commit\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\"apps/api/src/modules/agent-tools/agent-tools.controller.ts\\napps/api/test/agent-tools.controller.test.js\\n\",\"title\":\"Lists files in finished commit\",\"metadata\":{\"output\":\"apps/api/src/modules/agent-tools/agent-tools.controller.ts\\napps/api/test/agent-tools.controller.test.js\\n\",\"exit\":0,\"description\":\"Lists files in finished commit\",\"truncated\":false},\"time\":{\"start\":1777148125951,\"end\":1777148128474}}}}\r\n{\"type\":\"step_finish\",\"timestamp\":1777148128590,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc6486cdc001jgEMIWZHNbjFhD\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6483849001cdVPVQI5MBAZr7\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\",\"cost\":0,\"tokens\":{\"total\":50622,\"input\":50394,\"output\":228,\"reasoning\":64,\"cache\":{\"read\":0,\"write\":0}}}}\r\n{\"type\":\"step_start\",\"timestamp\":1777148137719,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc64890f6001d1YqHrp5FAJj62\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6486dc8001btv0XYFoag4LJJ\",\"type\":\"step-start\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\"}}\r\n{\"type\":\"text\",\"timestamp\":1777148138920,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc64890f6002XsqqBfhjE549yC\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6486dc8001btv0XYFoag4LJJ\",\"type\":\"text\",\"text\":\"QUEUE_RESULT status=completed item=agent-tools-lookup-contract-closeout validation=pnpm test:api:file -- test/agent-tools.controller.test.js changed_files=apps/api/src/modules/agent-tools/agent-tools.controller.ts,apps/api/test/agent-tools.controller.test.js commit=fae5bca\",\"time\":{\"start\":1777148138919,\"end\":1777148138919}}}\r\n{\"type\":\"step_finish\",\"timestamp\":1777148139009,\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"part\":{\"id\":\"prt_dc64895a8001akULE4rU08z0pJ\",\"sessionID\":\"ses_239bcb25effev672hOvNdBmhqM\",\"messageID\":\"msg_dc6486dc8001btv0XYFoag4LJJ\",\"type\":\"step-finish\",\"reason\":\"stop\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\",\"cost\":0,\"tokens\":{\"total\":50717,\"input\":40411,\"output\":66,\"reasoning\":0,\"cache\":{\"read\":10240,\"write\":0}}}}",
+      "queueResultStatus": "completed",
+      "sessionId": "ses_239bcb25effev672hOvNdBmhqM"
     },
     {
       "id": "agent-ui-minimal-inspection-page",
@@ -192,7 +201,7 @@
       "title": "add minimal agent inspection UI",
       "goal": "Add a minimal /agent-style frontend surface that can show chat/tool steps/chunks/trace links without becoming a separate agent platform.",
       "agent": "rag-build",
-      "status": "pending",
+      "status": "completed",
       "promptText": "Follow AGENTS.md and apps/web/AGENTS.md. Add the smallest frontend increment that exposes an agent-facing inspection surface using existing web patterns and existing API/client utilities. The UI should be utilitarian: chat/tool result area plus steps/chunks/trace affordances, not a landing page or broad platform. Reuse existing trace/chat/report components where possible and keep route/nav changes narrow. Add or update the closest focused web Vitest coverage for the new helper/component behavior. Do not introduce multi-agent, planner UI, new design system, or unrelated layout refactors.",
       "verification": {
         "mode": "command_only",
@@ -205,7 +214,7 @@
         "onCommandFailure": "needs_replan",
         "onVerificationFail": "needs_replan"
       },
-      "attempt": 0,
+      "attempt": 1,
       "riskLevel": "medium",
       "dependsOn": [
         "agent-tools-lookup-contract-closeout"
@@ -213,7 +222,28 @@
       "backlogWaveId": "agentic-codex-next-wave",
       "backlogParentId": "agentic-codex-next",
       "plannerFamily": "agentic-rag",
-      "plannerSource": "manual-codex-queue"
+      "plannerSource": "manual-codex-queue",
+      "startedAt": "2026-04-25T20:15:39.276Z",
+      "updatedAt": "2026-04-25T20:28:13.538Z",
+      "startedBy": "loop-runtime-runner",
+      "finishedAt": "2026-04-25T20:20:22.912Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "{\"type\":\"step_start\",\"timestamp\":1777148414044,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64cc858001Hnj96efQ3dJFpQ\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64ca8e2001cfNa4JXOLSxaQA\",\"type\":\"step-start\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\"}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148416564,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64cc85a001uJD5v16uDr7htz\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64ca8e2001cfNa4JXOLSxaQA\",\"type\":\"tool\",\"callID\":\"call_qMyCcIPTv9FTt8jWbLuEtRcg\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git status --short\",\"description\":\"Shows current repository status\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\" M loop-runtime/materialized/agentic-codex-next-wave.queue.json\\n\",\"title\":\"Shows current repository status\",\"metadata\":{\"output\":\" M loop-runtime/materialized/agentic-codex-next-wave.queue.json\\n\",\"exit\":0,\"description\":\"Shows current repository status\",\"truncated\":false},\"time\":{\"start\":1777148414044,\"end\":1777148416563}}}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148416566,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64cc85e001j9WHDvGVMOV8qW\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64ca8e2001cfNa4JXOLSxaQA\",\"type\":\"tool\",\"callID\":\"call_zzGGWmx3gX6PfYkPR18J0Hiq\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git log -1 --format=%H\",\"description\":\"Shows latest commit hash\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\"fae5bcafa28475ee755d14a6ce973530993866e4\\n\",\"title\":\"Shows latest commit hash\",\"metadata\":{\"output\":\"fae5bcafa28475ee755d14a6ce973530993866e4\\n\",\"exit\":0,\"description\":\"Shows latest commit hash\",\"truncated\":false},\"time\":{\"start\":1777148414047,\"end\":1777148416565}}}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148416572,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64cc8600013PU7llwUQ7vu41\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64ca8e2001cfNa4JXOLSxaQA\",\"type\":\"tool\",\"callID\":\"call_OXiwVK868aFXDmp0TKTJFpSJ\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git show --name-only --format= --no-renames HEAD\",\"description\":\"Lists files in latest commit\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\"apps/api/src/modules/agent-tools/agent-tools.controller.ts\\napps/api/test/agent-tools.controller.test.js\\n\",\"title\":\"Lists files in latest commit\",\"metadata\":{\"output\":\"apps/api/src/modules/agent-tools/agent-tools.controller.ts\\napps/api/test/agent-tools.controller.test.js\\n\",\"exit\":0,\"description\":\"Lists files in latest commit\",\"truncated\":false},\"time\":{\"start\":1777148414049,\"end\":1777148416568}}}}\r\n{\"type\":\"step_finish\",\"timestamp\":1777148416690,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64cd23b0016oG4VgllcXPuxX\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64ca8e2001cfNa4JXOLSxaQA\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\",\"cost\":0,\"tokens\":{\"total\":92126,\"input\":91867,\"output\":259,\"reasoning\":103,\"cache\":{\"read\":0,\"write\":0}}}}\r\n{\"type\":\"step_start\",\"timestamp\":1777148422204,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64ce83a001TLdMAL0bECoJqF\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64cd336001JpfirTPjsHBmNp\",\"type\":\"step-start\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\"}}\r\n{\"type\":\"text\",\"timestamp\":1777148422543,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64ce83b001aeOrADlwBxg52H\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64cd336001JpfirTPjsHBmNp\",\"type\":\"text\",\"text\":\"QUEUE_RESULT status=needs_replan item=agent-ui-minimal-inspection-page validation=pnpm --filter @rag-system/web exec vitest run test/agent-surface.test.js changed_files=none commit=none\",\"time\":{\"start\":1777148422542,\"end\":1777148422542}}}\r\n{\"type\":\"step_finish\",\"timestamp\":1777148422641,\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"part\":{\"id\":\"prt_dc64ce98f001Q9zkL6csZYg8AI\",\"sessionID\":\"ses_239b764ecffe1k6Png1LDMmLTz\",\"messageID\":\"msg_dc64cd336001JpfirTPjsHBmNp\",\"type\":\"step-finish\",\"reason\":\"stop\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\",\"cost\":0,\"tokens\":{\"total\":92318,\"input\":92110,\"output\":208,\"reasoning\":158,\"cache\":{\"read\":0,\"write\":0}}}}",
+      "failureReason": null,
+      "sessionId": "ses_239b764ecffe1k6Png1LDMmLTz",
+      "completedAt": "2026-04-25T20:20:22.912Z",
+      "queueResultStatus": "completed",
+      "queueFailureMarkers": null,
+      "reportedError": null,
+      "manualRecovery": {
+        "reason": "OpenCode requested replan without code changes. Main-control added focused agent surface Vitest coverage and preserved the existing inspection surface.",
+        "validatedAt": "2026-04-25T20:28:13.538Z",
+        "validationCommands": [
+          "pnpm --filter @rag-system/web exec vitest run test/agent-surface.test.js",
+          "pnpm --filter @rag-system/web exec tsc --noEmit",
+          "pnpm check:encoding"
+        ]
+      }
     },
     {
       "id": "agentic-codex-wave-docs-sync",
@@ -222,7 +252,7 @@
       "title": "sync docs after agentic codex wave",
       "goal": "Update current project docs to reflect the actual agent-tools and agent UI state after this wave.",
       "agent": "rag-build",
-      "status": "pending",
+      "status": "completed",
       "promptText": "Follow AGENTS.md. After the previous items complete, update the smallest relevant docs so docs/current-context.md, docs/current-progress.md, and docs/next_steps_rag_project_plan.md match the actual code behavior. Keep docs practical and current. Do not add a new strategy direction. Mention completed agent-tools contracts and any remaining bounded follow-ups. Because these docs contain Chinese text, preserve valid UTF-8 and run the focused encoding check.",
       "verification": {
         "mode": "command_only",
@@ -235,7 +265,7 @@
         "onCommandFailure": "needs_replan",
         "onVerificationFail": "needs_replan"
       },
-      "attempt": 0,
+      "attempt": 1,
       "riskLevel": "low",
       "dependsOn": [
         "agent-ui-minimal-inspection-page"
@@ -243,7 +273,27 @@
       "backlogWaveId": "agentic-codex-next-wave",
       "backlogParentId": "agentic-codex-next",
       "plannerFamily": "agentic-rag",
-      "plannerSource": "manual-codex-queue"
+      "plannerSource": "manual-codex-queue",
+      "startedAt": "2026-04-25T20:20:22.935Z",
+      "updatedAt": "2026-04-25T20:28:13.538Z",
+      "startedBy": "loop-runtime-runner",
+      "finishedAt": "2026-04-25T20:22:10.154Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "{\"type\":\"step_start\",\"timestamp\":1777148518062,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e5eab001YxzQ3B1ZVtrnoR\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e3eb800185t4Sc622XHiao\",\"type\":\"step-start\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\"}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148520413,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e5eb1001PMPre3YCfiSlyc\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e3eb800185t4Sc622XHiao\",\"type\":\"tool\",\"callID\":\"call_Nwf1VRzWSjruOdv4qgoU7xEL\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git show --name-only --format=%H dd53f05\",\"description\":\"Shows files for commit dd53f05\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\"dd53f0525a0727e39753611ed3b525d80daadbf4\\n\\ndocs/current-context.md\\ndocs/current-progress.md\\ndocs/next_steps_rag_project_plan.md\\n\",\"title\":\"Shows files for commit dd53f05\",\"metadata\":{\"output\":\"dd53f0525a0727e39753611ed3b525d80daadbf4\\n\\ndocs/current-context.md\\ndocs/current-progress.md\\ndocs/next_steps_rag_project_plan.md\\n\",\"exit\":0,\"description\":\"Shows files for commit dd53f05\",\"truncated\":false},\"time\":{\"start\":1777148518065,\"end\":1777148520412}}}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148520422,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e5eaf001CoiJwXni4Z9N8M\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e3eb800185t4Sc622XHiao\",\"type\":\"tool\",\"callID\":\"call_Zs8nVAeFl5i6KUUgGqgwzFgI\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git show --name-only --format=%H 6be43ac\",\"description\":\"Shows files for commit 6be43ac\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\"6be43ac2e9a09b0279833687047313fc85186010\\n\\ndocs/current-context.md\\ndocs/current-progress.md\\ndocs/next_steps_rag_project_plan.md\\n\",\"title\":\"Shows files for commit 6be43ac\",\"metadata\":{\"output\":\"6be43ac2e9a09b0279833687047313fc85186010\\n\\ndocs/current-context.md\\ndocs/current-progress.md\\ndocs/next_steps_rag_project_plan.md\\n\",\"exit\":0,\"description\":\"Shows files for commit 6be43ac\",\"truncated\":false},\"time\":{\"start\":1777148518064,\"end\":1777148520421}}}}\r\n{\"type\":\"tool_use\",\"timestamp\":1777148520427,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e5eac001KTTVtW6eXkLenU\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e3eb800185t4Sc622XHiao\",\"type\":\"tool\",\"callID\":\"call_zBxICZkxvI4Uf3zMlqAeVm9u\",\"tool\":\"bash\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"git show --name-only --format=%H 9e8dcac\",\"description\":\"Shows files for commit 9e8dcac\",\"timeout\":120000,\"workdir\":\"D:\\\\FeProjects\\\\rag-system\"},\"output\":\"9e8dcacf83e7dd863d8b4c5fb6655c96253c66e1\\n\\napps/web/src/pages/reports/AgentSurfaceEntry.tsx\\ndocs/current-context.md\\ndocs/current-progress.md\\ndocs/next_steps_rag_project_plan.md\\n\",\"title\":\"Shows files for commit 9e8dcac\",\"metadata\":{\"output\":\"9e8dcacf83e7dd863d8b4c5fb6655c96253c66e1\\n\\napps/web/src/pages/reports/AgentSurfaceEntry.tsx\\ndocs/current-context.md\\ndocs/current-progress.md\\ndocs/next_steps_rag_project_plan.md\\n\",\"exit\":0,\"description\":\"Shows files for commit 9e8dcac\",\"truncated\":false},\"time\":{\"start\":1777148518062,\"end\":1777148520426}}}}\r\n{\"type\":\"step_finish\",\"timestamp\":1777148520525,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e67eb001HagSQclX9xNbP8\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e3eb800185t4Sc622XHiao\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\",\"cost\":0,\"tokens\":{\"total\":25692,\"input\":15062,\"output\":390,\"reasoning\":203,\"cache\":{\"read\":10240,\"write\":0}}}}\r\n{\"type\":\"step_start\",\"timestamp\":1777148528663,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e8816001kYVgOh5fB8eOi5\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e68c3001S0Dxs8WjEh4ok0\",\"type\":\"step-start\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\"}}\r\n{\"type\":\"text\",\"timestamp\":1777148529790,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e8816002ZgSfRJ28d97ZAX\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e68c3001S0Dxs8WjEh4ok0\",\"type\":\"text\",\"text\":\"QUEUE_RESULT status=completed item=agentic-codex-wave-docs-sync validation=pnpm check:encoding changed_files=docs/current-context.md,docs/current-progress.md,docs/next_steps_rag_project_plan.md commit=6be43ac2e9a09b0279833687047313fc85186010\",\"time\":{\"start\":1777148529789,\"end\":1777148529789}}}\r\n{\"type\":\"step_finish\",\"timestamp\":1777148529895,\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"part\":{\"id\":\"prt_dc64e8c7e001WVzJZjgm4OCFgv\",\"sessionID\":\"ses_239b310d1ffeDnY21xlJku5eCA\",\"messageID\":\"msg_dc64e68c3001S0Dxs8WjEh4ok0\",\"type\":\"step-finish\",\"reason\":\"stop\",\"snapshot\":\"682d9c2270f0db2fb0f482956f1546db5fa21d20\",\"cost\":0,\"tokens\":{\"total\":26081,\"input\":25659,\"output\":422,\"reasoning\":349,\"cache\":{\"read\":0,\"write\":0}}}}",
+      "failureReason": null,
+      "sessionId": "ses_239b310d1ffeDnY21xlJku5eCA",
+      "completedAt": "2026-04-25T20:22:10.154Z",
+      "queueResultStatus": "completed",
+      "queueFailureMarkers": null,
+      "reportedError": null,
+      "manualRecovery": {
+        "reason": "OpenCode referenced earlier docs commits. Main-control updated the active status docs for the completed agent-tools contract wave.",
+        "validatedAt": "2026-04-25T20:28:13.538Z",
+        "validationCommands": [
+          "pnpm check:encoding",
+          "git diff --check"
+        ]
+      }
     }
   ]
 }
