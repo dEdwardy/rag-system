@@ -2,7 +2,7 @@
 
 > 文档角色：`current-context`
 > 当前使用方式：默认给人和 agent 提供短摘要；只保留当前主线、执行边界、最小验证和高频入口，详细历史按需回看其他文档。
-> 更新时间：2026-04-25
+> 更新时间：2026-04-26
 
 ## Current Mainline
 
@@ -129,7 +129,7 @@ If we want this repo to be interview-ready for agent development, the next incre
 
 1. `rag_search` / `rag_answer` tool APIs: completed for the current bounded contract
 2. server-side tool gateway secret plus internal `userId / tenantId` mapping: completed for agent tool requests and headers
-3. bounded multi-step flow: contract completed as deterministic no-op diagnostics; real second-pass orchestration remains a bounded follow-up
+3. bounded multi-step flow: completed as a bounded real backend second retrieval pass with merged diagnostics while default asks remain single-pass
 4. stable response contract with `citations`, `confidence`, and `missingInformation`: completed for `rag_answer`
 5. `trace_lookup` / `document_lookup` helpers for inspection and demos: completed with stable found/not-found payloads
 6. `/agent` UI with chat plus `steps / chunks / trace`: not expanded into a new platform page; current trace/report/chat inspection surface remains the supported demo surface and now has focused coverage

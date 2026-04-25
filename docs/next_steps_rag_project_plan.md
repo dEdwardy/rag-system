@@ -2,7 +2,7 @@
 
 > 文档角色：`current-primary`
 > 当前使用方式：作为现阶段任务方向、优先级判断和阶段边界的主文档；`docs/current-progress.md` 负责记录近期完成情况和验证基线。
-> 更新时间：2026-04-25
+> 更新时间：2026-04-26
 
 ## 1. 当前判断
 
@@ -120,7 +120,7 @@
 
 ## 3. 建议执行顺序
 
-1. 当前队列已完成最小 route decision、tool/trace contract、bounded multi-step flow，以及默认助手 repair / 默认路径 copy / 默认 ask-path orchestration 的窄范围收口
+1. 当前队列已完成最小 route decision、trace/metadata surface、external-source route detection、bounded second retrieval pass，以及默认助手 repair / 默认路径 copy / 默认 ask-path orchestration 的窄范围收口
 2. 当前最小 agent demo surface 已完成 closeout 补位；后续只继续维护 trace / report / chat inspection surface 上 route choice、execution mode、tool names 的展示与现有契约一致，不扩成单独 agent 平台
 3. 保持 ask route / trace / fallback 的 focused tests 和既有契约稳定，不把这轮补位扩成新平台层
 4. 默认助手 / 主知识库 / retrieval profile 的 canonical 选择继续做 bounded maintenance
@@ -187,7 +187,7 @@ Priority A:
 
 - `rag_search` / `rag_answer` tool APIs: current bounded contract completed
 - server-side tool gateway secret plus internal `userId / tenantId` mapping: completed for agent tool input and request headers
-- bounded multi-step flow: request/response contract completed as deterministic no-op diagnostics; real second retrieval should remain a later focused backend increment
+- bounded multi-step flow: current bounded backend increment completed with at most one extra retrieval pass plus first-pass / second-pass / merged diagnostics
 - stable response contract with `citations`, `confidence`, and `missingInformation`: completed for agent-facing `rag_answer`
 
 Priority B:
