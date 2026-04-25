@@ -249,7 +249,16 @@ test('AgentToolsController normalizes rag_answer payload for agent consumers', a
     answeringMetadata: { answerTextSource: 'model' },
     qualityEvaluation: { overall: 'strong' },
     modelName: 'gpt-test',
-    answerStatus: 'grounded'
+    answerStatus: 'grounded',
+    boundedMultiStep: {
+      enabled: false,
+      requested: false,
+      rewrittenQuery: null,
+      secondPassRequested: false,
+      secondPassUsed: false,
+      mode: 'disabled',
+      reason: 'not_requested'
+    }
   });
 });
 
@@ -300,6 +309,141 @@ test('AgentToolsController keeps rag_answer optional fields stable when missing'
     answeringMetadata: null,
     qualityEvaluation: null,
     modelName: null,
-    answerStatus: null
+    answerStatus: null,
+    boundedMultiStep: {
+      enabled: false,
+      requested: false,
+      rewrittenQuery: null,
+      secondPassRequested: false,
+      secondPassUsed: false,
+      mode: 'disabled',
+      reason: 'not_requested'
+    }
   });
+});
+
+test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_answer', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not call searchAssistant');
+      },
+      askAssistant: async () => ({
+        answer: 'bounded answer',
+        citations: [],
+        answerStatus: 'grounded'
+      })
+    },
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.ragAnswer({
+    secret: 'expected-secret',
+    assistantId: 'assistant-1',
+    question: 'what is the answer?',
+    boundedMultiStep: {
+      enabled: true,
+      rewrittenQuery: 'rewritten question',
+      requestSecondPass: true
+    }
+  });
+
+  assert.deepEqual(result.boundedMultiStep, {
+    enabled: true,
+    requested: true,
+    rewrittenQuery: 'rewritten question',
+    secondPassRequested: true,
+    secondPassUsed: false,
+    mode: 'deterministic_noop',
+    reason: 'agent_tool_contract_only'
+  });
+  assert.deepEqual(
+    result.diagnostics.boundedMultiStep,
+    result.boundedMultiStep
+  );
+});
+
+test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_search', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async (input) => ({
+        query: {
+          original: input.question,
+          retrieval: input.question,
+          rewritten: null,
+          rewrite: {
+            modelName: null,
+            usedFallback: null,
+            promptId: null,
+            skippedReason: 'disabled_by_default'
+          }
+        },
+        chunks: [],
+        contextGroups: [],
+        diagnostics: {
+          profile: {
+            topK: 3,
+            scoreThreshold: 0.2,
+            chunkWindow: 0,
+            enableHybrid: false,
+            enableRerank: false
+          },
+          execution: {
+            actualMode: 'vector',
+            usedFallback: false,
+            fallbackReason: null
+          },
+          embedding: null,
+          filters: null,
+          strategySummary: {
+            retrievalMode: 'vector'
+          }
+        }
+      }),
+      askAssistant: async () => {
+        throw new Error('should not call askAssistant');
+      }
+    },
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.ragSearch({
+    secret: 'expected-secret',
+    assistantId: 'assistant-1',
+    question: 'what is the answer?',
+    boundedMultiStep: {
+      enabled: true,
+      rewrittenQuery: 'rewritten question'
+    }
+  });
+
+  assert.deepEqual(result.boundedMultiStep, {
+    enabled: true,
+    requested: true,
+    rewrittenQuery: 'rewritten question',
+    secondPassRequested: false,
+    secondPassUsed: false,
+    mode: 'deterministic_noop',
+    reason: 'agent_tool_contract_only'
+  });
+  assert.deepEqual(
+    result.diagnostics.boundedMultiStep,
+    result.boundedMultiStep
+  );
 });

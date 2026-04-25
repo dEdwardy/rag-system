@@ -29,6 +29,12 @@ type ToolRequest = {
   headers?: Record<string, string | string[] | undefined>;
 };
 
+type BoundedMultiStepInput = {
+  enabled?: boolean;
+  rewrittenQuery?: string;
+  requestSecondPass?: boolean;
+};
+
 @AuthenticatedRoute()
 @Controller('agent-tools')
 export class AgentToolsController {
@@ -52,6 +58,10 @@ export class AgentToolsController {
       question: input.question,
       authContext: this.resolveToolAuthContext(input, request)
     });
+
+    const boundedMultiStep = this.resolveBoundedMultiStepDiagnostics(
+      input.boundedMultiStep
+    );
 
     return {
       query: result.query,
@@ -88,8 +98,10 @@ export class AgentToolsController {
       diagnostics: {
         ...result.diagnostics,
         chunkCount: result.chunks.length,
-        sourceCount: result.contextGroups.length
-      }
+        sourceCount: result.contextGroups.length,
+        boundedMultiStep
+      },
+      boundedMultiStep
     };
   }
 
@@ -109,7 +121,7 @@ export class AgentToolsController {
       authContext: this.resolveToolAuthContext(input, request)
     });
 
-    return this.normalizeRagAnswerResult(result);
+    return this.normalizeRagAnswerResult(result, input.boundedMultiStep);
   }
 
   @Post('trace_lookup')
@@ -200,7 +212,10 @@ export class AgentToolsController {
     }
   }
 
-  private normalizeRagAnswerResult(result: unknown) {
+  private normalizeRagAnswerResult(
+    result: unknown,
+    boundedMultiStepInput?: BoundedMultiStepInput
+  ) {
     const payload =
       typeof result === 'object' && result !== null
         ? (result as Record<string, unknown>)
@@ -209,6 +224,10 @@ export class AgentToolsController {
     const conversationId = this.readString(payload.conversationId);
     const userMessageId = this.readString(payload.userMessageId);
     const assistantMessageId = this.readString(payload.assistantMessageId);
+
+    const boundedMultiStep = this.resolveBoundedMultiStepDiagnostics(
+      boundedMultiStepInput
+    );
 
     return {
       answer: this.readString(payload.answer) ?? '',
@@ -227,8 +246,10 @@ export class AgentToolsController {
         answeringMetadata: payload.answeringMetadata ?? null,
         qualityEvaluation: payload.qualityEvaluation ?? null,
         modelName: this.readString(payload.modelName),
-        answerStatus: this.readString(payload.answerStatus)
+        answerStatus: this.readString(payload.answerStatus),
+        boundedMultiStep
       },
+      boundedMultiStep,
       trace: {
         traceId,
         conversationId,
@@ -239,6 +260,23 @@ export class AgentToolsController {
       conversationId,
       userMessageId,
       assistantMessageId
+    };
+  }
+
+  private resolveBoundedMultiStepDiagnostics(input?: BoundedMultiStepInput) {
+    const enabled = input?.enabled === true;
+    const rewrittenQuery = this.readString(input?.rewrittenQuery);
+    const secondPassRequested = input?.requestSecondPass === true;
+    const contractRequested = enabled || rewrittenQuery != null;
+
+    return {
+      enabled,
+      requested: contractRequested,
+      rewrittenQuery,
+      secondPassRequested,
+      secondPassUsed: false,
+      mode: contractRequested ? 'deterministic_noop' : 'disabled',
+      reason: contractRequested ? 'agent_tool_contract_only' : 'not_requested'
     };
   }
 

@@ -6,13 +6,22 @@ export const agentToolRequestSchema = z.object({
   userId: z.string().min(1).optional()
 });
 
+const boundedMultiStepSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    rewrittenQuery: z.string().min(1).max(4000).optional(),
+    requestSecondPass: z.boolean().optional()
+  })
+  .optional();
+
 export const ragSearchSchema = z.object({
   secret: z.string().min(1),
   tenantId: z.string().min(1).optional(),
   userId: z.string().min(1).optional(),
   assistantId: z.string().min(1),
   question: z.string().min(1).max(4000),
-  conversationId: z.string().min(1).optional()
+  conversationId: z.string().min(1).optional(),
+  boundedMultiStep: boundedMultiStepSchema
 });
 
 export const ragAnswerSchema = ragSearchSchema;
