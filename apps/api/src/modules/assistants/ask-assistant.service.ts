@@ -446,6 +446,124 @@ export class AskAssistantService {
     });
   }
 
+  async searchAssistant(input: {
+    assistantId: string;
+    question: string;
+    authContext?: RequestAuthContext | null;
+  }) {
+    const authContext = resolveRequestAuthContext({
+      authContext: input.authContext
+    });
+
+    const assistant = await this.assistantCache.getOrSet(
+      input.assistantId,
+      () =>
+        this.assistantsService.getAssistant(
+          input.assistantId,
+          authContext.identity
+        )
+    );
+
+    const retrievalProfile =
+      assistant.retrievalProfile as typeof assistant.retrievalProfile & {
+        strategyJson?: unknown;
+      };
+    const retrievalStrategy = resolveRetrievalStrategy({
+      topK: retrievalProfile.topK,
+      enableHybrid: retrievalProfile.enableHybrid,
+      enableRerank: retrievalProfile.enableRerank,
+      strategyJson: retrievalProfile.strategyJson as
+        | RetrievalStrategy
+        | undefined
+    });
+    const rewriteDecision = this.resolveRewriteDecision(
+      input.question,
+      retrievalStrategy
+    );
+    const rewritten: AskRewriteResult = rewriteDecision.shouldRewrite
+      ? await this.resolveSearchRewrite(input.question)
+      : {
+          rewrittenQuery: null,
+          modelName: null,
+          usedFallback: null,
+          promptId: null,
+          skippedReason: rewriteDecision.skippedReason
+        };
+    const retrievalQuery = rewritten.rewrittenQuery || input.question;
+    const retrievalFilters = retrievalProfileFiltersSchema
+      .optional()
+      .parse(assistant.retrievalProfile.filtersJson ?? undefined);
+    const retrievalResult = await this.retrievalService.retrieve({
+      kbId: assistant.kbId,
+      query: retrievalQuery,
+      topK: retrievalProfile.topK,
+      scoreThreshold: retrievalProfile.scoreThreshold,
+      chunkWindow: retrievalProfile.chunkWindow,
+      enableHybrid: retrievalProfile.enableHybrid,
+      enableRerank: retrievalProfile.enableRerank,
+      filters: retrievalFilters,
+      strategy: retrievalStrategy
+    });
+    if (!retrievalResult) {
+      throw new Error('Retrieval returned no result.');
+    }
+    const rewriteApplied = Boolean(
+      rewritten.rewrittenQuery && rewritten.rewrittenQuery !== input.question
+    );
+    const retrievalQuerySource = !retrievalStrategy.queryRewrite.enabled
+      ? 'original_disabled'
+      : rewriteApplied
+        ? 'rewritten'
+        : 'original_unchanged';
+
+    return {
+      query: {
+        original: input.question,
+        retrieval: retrievalQuery,
+        rewritten: rewritten.rewrittenQuery,
+        rewrite: {
+          modelName: rewritten.modelName,
+          usedFallback: rewritten.usedFallback,
+          promptId: rewritten.promptId,
+          skippedReason: rewritten.skippedReason
+        }
+      },
+      chunks: retrievalResult.retrievedChunks,
+      contextGroups: retrievalResult.contextGroups,
+      diagnostics: {
+        profile: {
+          topK: retrievalProfile.topK,
+          scoreThreshold: retrievalProfile.scoreThreshold,
+          chunkWindow: retrievalProfile.chunkWindow,
+          enableHybrid: retrievalProfile.enableHybrid,
+          enableRerank: retrievalProfile.enableRerank
+        },
+        execution: retrievalResult.execution,
+        embedding: retrievalResult.embedding,
+        filters: retrievalFilters ?? null,
+        strategySummary: {
+          retrievalMode: retrievalResult.execution.actualMode,
+          strategyMode: retrievalStrategy.candidateSelection.mode,
+          retrievalQuerySource,
+          rewriteEnabled: retrievalStrategy.queryRewrite.enabled,
+          rewriteApplied,
+          rewriteSkippedReason: rewritten.skippedReason,
+          rewriteUsedFallback: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.usedFallback
+            : null,
+          rewritePromptId: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.promptId
+            : null,
+          rewriteModelName: retrievalStrategy.queryRewrite.enabled
+            ? rewritten.modelName
+            : null,
+          fallbackReason: retrievalResult.execution.fallbackReason,
+          usedFallback: retrievalResult.execution.usedFallback
+        }
+      }
+    };
+  }
+
   async askAssistantStream(input: {
     assistantId: string;
     question: string;
@@ -654,6 +772,30 @@ export class AskAssistantService {
           signal: input.signal
         })
     });
+  }
+
+  private async resolveSearchRewrite(
+    question: string
+  ): Promise<AskRewriteResult> {
+    try {
+      const rewriteResult = await this.llmLimiter.execute(() =>
+        this.llmService.rewriteQuery({
+          question
+        })
+      );
+      return {
+        ...rewriteResult,
+        skippedReason: null
+      };
+    } catch {
+      return {
+        rewrittenQuery: null,
+        modelName: null,
+        usedFallback: null,
+        promptId: null,
+        skippedReason: 'latency_budget_exceeded'
+      };
+    }
   }
 
   private buildTimingSummary(input: AskTimingSummary): AskTimingSummary {

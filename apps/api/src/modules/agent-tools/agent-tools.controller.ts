@@ -47,12 +47,50 @@ export class AgentToolsController {
     @Req() request?: ToolRequest
   ) {
     this.assertToolSecret(input.secret);
-    return this.askAssistantService.askAssistant({
+    const result = await this.askAssistantService.searchAssistant({
       assistantId: input.assistantId,
       question: input.question,
-      conversationId: input.conversationId,
       authContext: this.resolveToolAuthContext(input, request)
     });
+
+    return {
+      query: result.query,
+      chunks: result.chunks.map((chunk) => ({
+        chunkId: chunk.chunkId,
+        documentId: chunk.documentId,
+        documentTitle: chunk.documentTitle,
+        chunkIndex: chunk.chunkIndex,
+        content: chunk.content,
+        score: chunk.score,
+        isPrimary: chunk.isPrimary ?? true,
+        pageNo: chunk.pageNo ?? null,
+        sectionTitle: chunk.sectionTitle ?? null
+      })),
+      citations: result.chunks.map((chunk) => ({
+        chunkId: chunk.chunkId,
+        documentId: chunk.documentId,
+        documentTitle: chunk.documentTitle,
+        chunkIndex: chunk.chunkIndex,
+        pageNo: chunk.pageNo ?? null,
+        sectionTitle: chunk.sectionTitle ?? null,
+        score: chunk.score
+      })),
+      sources: result.contextGroups.map((group) => ({
+        documentId: group.documentId,
+        documentTitle: group.documentTitle,
+        chunkIds: group.chunkIds,
+        primaryChunkIds: group.primaryChunkIds,
+        startChunkIndex: group.startChunkIndex,
+        endChunkIndex: group.endChunkIndex,
+        pageNumbers: group.pageNumbers,
+        sectionTitles: group.sectionTitles
+      })),
+      diagnostics: {
+        ...result.diagnostics,
+        chunkCount: result.chunks.length,
+        sourceCount: result.contextGroups.length
+      }
+    };
   }
 
   @Post('rag_answer')

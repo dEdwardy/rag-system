@@ -20,6 +20,7 @@ const fastTestFiles = new Set([
   'test/external-source-sync.test.js',
   'test/fetch-with-retry.test.js',
   'test/http-exception-filter.test.js',
+  'test/agent-tools.controller.test.js',
   'test/ingestion.orchestrator.test.js',
   'test/llm-answer-stream.test.js',
   'test/llm.test.js',
