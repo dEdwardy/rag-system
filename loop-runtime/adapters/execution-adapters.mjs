@@ -17,11 +17,11 @@ export async function validateExecutionBackend(env = process.env) {
   const config = getBackendConfig(backend);
   if (backend === EXECUTION_BACKENDS.codex) {
     const commandCheck = await checkCommandAvailable(
-      env[config.commandEnvKey]?.trim() ||
-        (process.platform === 'win32'
-          ? config.windowsCliCommand
-          : config.command),
-      ['--version']
+      buildBackendVersionInvocation({
+        config,
+        commandOverride: env[config.commandEnvKey]?.trim(),
+        platform: process.platform
+      })
     );
     if (!commandCheck.ok) {
       return {
@@ -33,6 +33,25 @@ export async function validateExecutionBackend(env = process.env) {
   }
 
   return { ok: true, backend };
+}
+
+export function buildBackendVersionInvocation({
+  config,
+  commandOverride,
+  platform = process.platform
+}) {
+  if (commandOverride) {
+    return { command: commandOverride, args: ['--version'] };
+  }
+
+  if (platform === 'win32' && config.windowsCliCommand) {
+    return {
+      command: config.windowsShellCommand,
+      args: ['/c', config.windowsCliCommand, '--version']
+    };
+  }
+
+  return { command: config.command, args: ['--version'] };
 }
 
 export function resolveExecutionBackend(env = process.env) {
@@ -340,7 +359,7 @@ export function extractExecutionSessionId(stdout) {
   return null;
 }
 
-function checkCommandAvailable(command, args) {
+function checkCommandAvailable({ command, args }) {
   return new Promise((resolve) => {
     execFile(command, args, { windowsHide: true }, (error, stdout, stderr) => {
       if (error) {

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
+  buildBackendVersionInvocation,
   buildCodexBaseArgs,
   buildCodexCliInvocation,
   createIdleController,
@@ -19,6 +20,7 @@ import {
 } from '../core/recovery-utils.mjs';
 import {
   buildBackendEnv,
+  getBackendConfig,
   EXECUTION_BACKENDS,
   LOOP_ENV_KEYS
 } from '../core/backend-config.mjs';
@@ -73,6 +75,33 @@ test('validateExecutionBackend checks codex command availability', async () => {
   });
   assert.equal(result.ok, true);
   assert.equal(result.backend, EXECUTION_BACKENDS.codex);
+});
+
+test('buildBackendVersionInvocation wraps windows cmd shims through cmd.exe', () => {
+  assert.deepEqual(
+    buildBackendVersionInvocation({
+      config: getBackendConfig(EXECUTION_BACKENDS.codex),
+      platform: 'win32'
+    }),
+    {
+      command: 'cmd.exe',
+      args: ['/c', 'codex.cmd', '--version']
+    }
+  );
+});
+
+test('buildBackendVersionInvocation respects explicit command overrides', () => {
+  assert.deepEqual(
+    buildBackendVersionInvocation({
+      config: getBackendConfig(EXECUTION_BACKENDS.codex),
+      commandOverride: 'C:\\tools\\codex.exe',
+      platform: 'win32'
+    }),
+    {
+      command: 'C:\\tools\\codex.exe',
+      args: ['--version']
+    }
+  );
 });
 
 test('createIdleController fires after a silent period', async () => {
