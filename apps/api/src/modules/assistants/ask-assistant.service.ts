@@ -1868,6 +1868,7 @@ export class AskAssistantService {
       ).map((source, index) => ({
         url: source.url,
         kind: source.sourceKind,
+        kindLabel: this.buildExternalSourceKindLabel(source.sourceKind),
         title: source.title ?? fetchedSource.title,
         diagnostics: index === 0 ? fetchedSource.diagnostics : null
       }))
@@ -2003,6 +2004,7 @@ export class AskAssistantService {
       externalSources: fetchedSource.sources.map((source, index) => ({
         url: source.url,
         kind: source.sourceKind,
+        kindLabel: this.buildExternalSourceKindLabel(source.sourceKind),
         title:
           index === 0
             ? fetchedSource.title
