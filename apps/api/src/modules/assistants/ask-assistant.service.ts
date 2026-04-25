@@ -767,6 +767,35 @@ export class AskAssistantService {
     return !candidateChunks.some((chunk) => chunk.score >= minAnswerableScore);
   }
 
+  private resolveKnowledgeBaseDeterministicBypass(input: {
+    question: string;
+    retrievedChunks: AskResultChunk[];
+    scoreThreshold: number;
+    noAnswerBehavior: AnswerPolicy['noAnswerBehavior'];
+  }) {
+    if (input.noAnswerBehavior !== 'say_insufficient_context') {
+      return {
+        shouldBypass: false,
+        insufficientContextReason: null
+      } as const;
+    }
+
+    const shouldBypass = this.shouldDeterministicallyAbstain({
+      question: input.question,
+      retrievedChunks: input.retrievedChunks,
+      scoreThreshold: input.scoreThreshold
+    });
+
+    return {
+      shouldBypass,
+      insufficientContextReason: shouldBypass
+        ? input.retrievedChunks.length > 0
+          ? 'retrieved_context_insufficient'
+          : 'no_retrieval_hits'
+        : null
+    } as const;
+  }
+
   private isExplicitFabricationRequest(question: string) {
     return FABRICATION_REQUEST_PATTERNS.some((pattern) =>
       pattern.test(question)
@@ -2724,23 +2753,19 @@ export class AskAssistantService {
     );
 
     try {
-      const shouldBypassAnswerGeneration =
-        input.normalizedAnswerPolicy.noAnswerBehavior ===
-          'say_insufficient_context' &&
-        this.shouldDeterministicallyAbstain({
-          question: input.question,
-          retrievedChunks,
-          scoreThreshold: input.retrievalProfile.scoreThreshold
-        });
-      const resolvedAnswerResult = shouldBypassAnswerGeneration
+      const deterministicBypass = this.resolveKnowledgeBaseDeterministicBypass({
+        question: input.question,
+        retrievedChunks,
+        scoreThreshold: input.retrievalProfile.scoreThreshold,
+        noAnswerBehavior: input.normalizedAnswerPolicy.noAnswerBehavior
+      });
+      const resolvedAnswerResult = deterministicBypass.shouldBypass
         ? this.answeringService.buildDeterministicInsufficientContextResult({
             question: input.question,
             answerPolicy: input.normalizedAnswerPolicy,
             hasRetrievedContext: retrievedChunks.length > 0,
             insufficientContextReason:
-              retrievedChunks.length > 0
-                ? 'retrieved_context_insufficient'
-                : 'no_retrieval_hits',
+              deterministicBypass.insufficientContextReason,
             topScore: retrievedChunks[0]?.score ?? null
           })
         : await this.answeringService.generateAnswer({
@@ -3118,69 +3143,76 @@ export class AskAssistantService {
       let firstTokenMs: number | null = null;
       const generationStartedAt = Date.now();
       const preGenerationMs = generationStartedAt - input.startedAt;
-      const resolvedAnswerResult =
-        retrievedChunks.length === 0 &&
-        input.normalizedAnswerPolicy.noAnswerBehavior ===
-          'say_insufficient_context'
-          ? await (async () => {
-              const deterministicResult =
-                this.answeringService.buildDeterministicInsufficientContextResult(
-                  {
-                    question: input.question,
-                    answerPolicy: input.normalizedAnswerPolicy
-                  }
-                );
-              await generatingStatusEventPromise;
-              firstTokenMs = Date.now() - input.startedAt;
-              await input.onEvent({
-                type: 'answer_delta',
-                delta: deterministicResult.answer
-              });
+      const deterministicBypass = this.resolveKnowledgeBaseDeterministicBypass({
+        question: input.question,
+        retrievedChunks,
+        scoreThreshold: input.retrievalProfile.scoreThreshold,
+        noAnswerBehavior: input.normalizedAnswerPolicy.noAnswerBehavior
+      });
+      const resolvedAnswerResult = deterministicBypass.shouldBypass
+        ? await (async () => {
+            const deterministicResult =
+              this.answeringService.buildDeterministicInsufficientContextResult(
+                {
+                  question: input.question,
+                  answerPolicy: input.normalizedAnswerPolicy,
+                  hasRetrievedContext: retrievedChunks.length > 0,
+                  insufficientContextReason:
+                    deterministicBypass.insufficientContextReason,
+                  topScore: retrievedChunks[0]?.score ?? null
+                }
+              );
+            await generatingStatusEventPromise;
+            firstTokenMs = Date.now() - input.startedAt;
+            await input.onEvent({
+              type: 'answer_delta',
+              delta: deterministicResult.answer
+            });
 
-              return deterministicResult;
-            })()
-          : await (async () => {
-              const streamResultMeasured =
-                await this.llmLimiter.executeMeasured(() =>
-                  this.llmService.generateAnswerStream({
-                    question: input.question,
-                    systemPrompt: input.assistant.systemPrompt,
-                    answerPolicy: input.normalizedAnswerPolicy,
-                    chunks: this.answeringService.buildStreamAnswerContext({
-                      chunks: retrievedChunks,
-                      contextGroups
-                    }),
-                    signal: input.signal,
-                    onDelta: async (delta) => {
-                      await generatingStatusEventPromise;
-                      if (firstTokenMs == null) {
-                        firstTokenMs = Date.now() - input.startedAt;
-                      }
-                      await input.onEvent({
-                        type: 'answer_delta',
-                        delta
-                      });
+            return deterministicResult;
+          })()
+        : await (async () => {
+            const streamResultMeasured = await this.llmLimiter.executeMeasured(
+              () =>
+                this.llmService.generateAnswerStream({
+                  question: input.question,
+                  systemPrompt: input.assistant.systemPrompt,
+                  answerPolicy: input.normalizedAnswerPolicy,
+                  chunks: this.answeringService.buildStreamAnswerContext({
+                    chunks: retrievedChunks,
+                    contextGroups
+                  }),
+                  signal: input.signal,
+                  onDelta: async (delta) => {
+                    await generatingStatusEventPromise;
+                    if (firstTokenMs == null) {
+                      firstTokenMs = Date.now() - input.startedAt;
                     }
-                  })
-                );
-              llmQueueWaitMs += streamResultMeasured.waitMs;
-              const streamResult = streamResultMeasured.result;
+                    await input.onEvent({
+                      type: 'answer_delta',
+                      delta
+                    });
+                  }
+                })
+            );
+            llmQueueWaitMs += streamResultMeasured.waitMs;
+            const streamResult = streamResultMeasured.result;
 
-              return this.answeringService.finalizeStreamedAnswer({
-                question: input.question,
-                answerPolicy: input.normalizedAnswerPolicy,
-                chunks: retrievedChunks,
-                contextGroups,
-                rawAnswer: streamResult.rawAnswer,
-                modelName: streamResult.modelName,
-                promptId: streamResult.promptId,
-                usedFallback: streamResult.usedFallback,
-                answerStatus: streamResult.answerStatus,
-                missingInformation: streamResult.missingInformation,
-                citedChunkNumbers: streamResult.citedChunkNumbers,
-                citationEvidence: streamResult.citationEvidence
-              });
-            })();
+            return this.answeringService.finalizeStreamedAnswer({
+              question: input.question,
+              answerPolicy: input.normalizedAnswerPolicy,
+              chunks: retrievedChunks,
+              contextGroups,
+              rawAnswer: streamResult.rawAnswer,
+              modelName: streamResult.modelName,
+              promptId: streamResult.promptId,
+              usedFallback: streamResult.usedFallback,
+              answerStatus: streamResult.answerStatus,
+              missingInformation: streamResult.missingInformation,
+              citedChunkNumbers: streamResult.citedChunkNumbers,
+              citationEvidence: streamResult.citationEvidence
+            });
+          })();
       await generatingStatusEventPromise;
       const answerGenerationMs = Date.now() - generationStartedAt;
       const {

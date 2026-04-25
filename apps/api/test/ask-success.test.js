@@ -1688,6 +1688,8 @@ test('AskAssistantService bypasses one-shot generation for no-hit say_insufficie
     result.answer,
     'deterministic fallback for: What detail is missing?'
   );
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(result.routeReason, 'default_kb_ask');
   assert.equal(result.modelName, 'fallback-local');
   assert.equal(result.answeringMetadata.usedFallback, true);
   assert.equal(result.answerStatus, 'insufficient_context');
@@ -1812,6 +1814,8 @@ test('AskAssistantService also bypasses one-shot generation when noAnswerBehavio
     result.answer,
     'deterministic fallback for: What detail is missing?'
   );
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(result.routeReason, 'default_kb_ask');
   assert.equal(
     result.answeringMetadata.answerPolicy.noAnswerBehavior,
     'say_insufficient_context'
@@ -1907,6 +1911,8 @@ test('AskAssistantService preserves best_effort one-shot no-hit answers instead 
 
   assert.equal(generateAnswerCalls, 1);
   assert.equal(result.answer, 'Best effort answer with uncertainty.');
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(result.routeReason, 'default_kb_ask');
   assert.equal(
     result.answeringMetadata.answerPolicy.noAnswerBehavior,
     'best_effort'
