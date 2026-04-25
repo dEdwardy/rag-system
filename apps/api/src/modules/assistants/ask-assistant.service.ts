@@ -34,9 +34,7 @@ import { ConversationsService } from '../conversations/conversations.service';
 import { MessagesService } from '../messages/messages.service';
 import {
   RetrievalService,
-  selectPreferredRetrievalResult,
-  type RetrievalResult,
-  type RetrievalResultSelectionReason
+  type RetrievalResult
 } from '../retrieval/retrieval.service';
 import {
   buildRewriteReadabilityLabel,
@@ -71,6 +69,7 @@ import type {
   RetrievalStrategySummary,
   TraceCitationAttribution,
   TraceCitationSelectionSource,
+  TraceKnowledgeBaseMultiStepSummary,
   TraceSummary
 } from '@rag-system/shared';
 
@@ -167,17 +166,6 @@ type AskRewriteResult = {
   usedFallback: boolean | null;
   promptId: string | null;
   skippedReason: RetrievalStrategySummary['rewriteSkippedReason'];
-};
-
-type AskKnowledgeBaseMultiStepSummary = {
-  retrievalPasses: 1 | 2;
-  selectedPass: 'primary' | 'secondary';
-  selectionReason: RetrievalResultSelectionReason;
-};
-
-type AskKnowledgeBaseSecondRetrievalResult = {
-  selectedResult: RetrievalResult;
-  metadata: AskKnowledgeBaseMultiStepSummary;
 };
 
 type AskConversationRef = {
@@ -2674,19 +2662,7 @@ export class AskAssistantService {
         documentVersions: input.documentVersions
       })
     );
-    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
-      routeDecision: input.routeDecision,
-      retrievalResult,
-      retrievalQuery: input.retrievalQuery,
-      question: input.question,
-      retrievalProfile: input.retrievalProfile,
-      retrievalStrategy: input.retrievalStrategy,
-      retrievalFilters: input.retrievalFilters,
-      assistantKbId: input.assistant.kbId,
-      documentVersions: input.documentVersions
-    });
-    const resolvedRetrievalResult =
-      multiStepSummary?.selectedResult ?? retrievalResult;
+    const resolvedRetrievalResult = retrievalResult;
 
     const retrievedChunks = resolvedRetrievalResult.retrievedChunks;
     const contextGroups = resolvedRetrievalResult.contextGroups;
@@ -2717,7 +2693,7 @@ export class AskAssistantService {
           embedding: resolvedRetrievalResult.embedding,
           routeDecision: input.routeDecision,
           execution: resolvedRetrievalResult.execution,
-          knowledgeBaseMultiStep: multiStepSummary?.metadata,
+          knowledgeBaseMultiStep: undefined,
           promptContextChars: null,
           promptContextApproxTokens: null
         }) as AskRetrievalMetadataJson
@@ -3076,18 +3052,7 @@ export class AskAssistantService {
         })
     );
     const retrievalResult = retrievalResultMeasured.result;
-    const multiStepSummary = await this.maybeRunKnowledgeBaseSecondRetrieval({
-      routeDecision: input.routeDecision,
-      retrievalResult,
-      retrievalQuery: input.retrievalQuery,
-      question: input.question,
-      retrievalProfile: input.retrievalProfile,
-      retrievalStrategy: input.retrievalStrategy,
-      retrievalFilters: input.retrievalFilters,
-      assistantKbId: input.assistant.kbId
-    });
-    const resolvedRetrievalResult =
-      multiStepSummary?.selectedResult ?? retrievalResult;
+    const resolvedRetrievalResult = retrievalResult;
     const retrievalMs = retrievalResultMeasured.runMs;
     const retrievalQueueWaitMs = retrievalResultMeasured.waitMs;
 
@@ -3129,7 +3094,7 @@ export class AskAssistantService {
           embedding: resolvedRetrievalResult.embedding,
           routeDecision: input.routeDecision,
           execution: resolvedRetrievalResult.execution,
-          knowledgeBaseMultiStep: multiStepSummary?.metadata,
+          knowledgeBaseMultiStep: undefined,
           promptContextChars: null,
           promptContextApproxTokens: null
         }) as AskRetrievalMetadataJson
@@ -3976,113 +3941,6 @@ export class AskAssistantService {
     return `${normalized.slice(0, 217)}...`;
   }
 
-  private shouldRunKnowledgeBaseSecondRetrieval(input: {
-    routeDecision: AskRouteDecision;
-    retrievalQuery: string;
-    question: string;
-    retrievalResult: RetrievalResult;
-  }) {
-    if (input.routeDecision.routeType !== 'knowledge_base') {
-      return false;
-    }
-
-    if (
-      input.retrievalQuery.trim().toLowerCase() ===
-      input.question.trim().toLowerCase()
-    ) {
-      return false;
-    }
-
-    const topPrimaryScore =
-      input.retrievalResult.retrievedChunks[0]?.score ?? 0;
-    return (
-      input.retrievalResult.retrievedChunks.length === 0 ||
-      topPrimaryScore < 0.75
-    );
-  }
-
-  private async maybeRunKnowledgeBaseSecondRetrieval(input: {
-    routeDecision: AskRouteDecision;
-    retrievalResult: RetrievalResult;
-    retrievalQuery: string;
-    question: string;
-    retrievalProfile: {
-      topK: number;
-      scoreThreshold: number;
-      chunkWindow: number;
-      enableHybrid: boolean;
-      enableRerank: boolean;
-    };
-    retrievalStrategy: ReturnType<typeof resolveRetrievalStrategy>;
-    retrievalFilters?: RetrievalProfileFilters;
-    assistantKbId: string;
-    documentVersions?: Record<string, number>;
-  }): Promise<AskKnowledgeBaseSecondRetrievalResult | null> {
-    if (
-      !this.shouldRunKnowledgeBaseSecondRetrieval({
-        routeDecision: input.routeDecision,
-        retrievalQuery: input.retrievalQuery,
-        question: input.question,
-        retrievalResult: input.retrievalResult
-      })
-    ) {
-      return null;
-    }
-
-    try {
-      const secondaryRetrievalResult = await this.retrievalService.retrieve({
-        kbId: input.assistantKbId,
-        query: input.question,
-        topK: input.retrievalProfile.topK,
-        scoreThreshold: input.retrievalProfile.scoreThreshold,
-        chunkWindow: input.retrievalProfile.chunkWindow,
-        enableHybrid: input.retrievalProfile.enableHybrid,
-        enableRerank: input.retrievalProfile.enableRerank,
-        filters: input.retrievalFilters,
-        strategy: input.retrievalStrategy,
-        documentVersions: input.documentVersions
-      });
-      if (secondaryRetrievalResult == null) {
-        return {
-          selectedResult: input.retrievalResult,
-          metadata: {
-            retrievalPasses: 2,
-            selectedPass: 'primary',
-            selectionReason: 'primary_stronger'
-          }
-        };
-      }
-      const selected = selectPreferredRetrievalResult({
-        primary: input.retrievalResult,
-        secondary: secondaryRetrievalResult
-      });
-      return {
-        selectedResult: selected.result,
-        metadata: {
-          retrievalPasses: 2,
-          selectedPass: selected.selected,
-          selectionReason: selected.reason
-        }
-      };
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unknown second retrieval pipeline error.';
-      this.logger.warn(
-        `Second retrieval pass failed, fallback to primary retrieval. ${message}`
-      );
-      return {
-        selectedResult: input.retrievalResult,
-        metadata: {
-          retrievalPasses: 2,
-          selectedPass: 'primary',
-          selectionReason: 'primary_stronger'
-        }
-      };
-    }
-  }
-
   private buildRetrievalMetadata(input: {
     strategy: ReturnType<typeof resolveRetrievalStrategy>;
     filters?: RetrievalProfileFilters;
@@ -4099,7 +3957,7 @@ export class AskAssistantService {
     retrievedChunks: AskResultChunk[];
     contextGroups: Array<{ primaryChunkIds: string[] }>;
     embedding: VectorStoreEmbeddingDiagnostics | null;
-    knowledgeBaseMultiStep?: AskKnowledgeBaseMultiStepSummary;
+    knowledgeBaseMultiStep?: TraceKnowledgeBaseMultiStepSummary;
     promptContextChars: number | null;
     promptContextApproxTokens: number | null;
     execution: {

@@ -257,3 +257,80 @@ test('default knowledge-base asks emit route choice, execution mode, and tool na
     createTraceCalls[0].retrievalMetadataJson.routeDecision
   );
 });
+
+test('default knowledge-base asks keep rewrite on a single retrieval pass', async () => {
+  const retrievalCalls = [];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      retrievalProfile: {
+        topK: 3,
+        scoreThreshold: 0,
+        chunkWindow: 0,
+        enableHybrid: false,
+        enableRerank: false,
+        filtersJson: null,
+        strategyJson: {
+          queryRewrite: {
+            enabled: true
+          }
+        }
+      }
+    }),
+    retrieval: {
+      retrieve: async (input) => {
+        retrievalCalls.push(input);
+        return {
+          retrievedChunks: [
+            {
+              chunkId: 'chunk-1',
+              documentId: 'document-1',
+              documentTitle: 'Doc 1',
+              chunkIndex: 0,
+              content: 'low-score rewritten evidence',
+              score: 0.42,
+              isPrimary: true
+            }
+          ],
+          contextGroups: [],
+          embedding: null,
+          execution: {
+            actualMode: 'vector',
+            usedFallback: false,
+            fallbackReason: null,
+            rerankApplied: false,
+            chunkWindowApplied: false,
+            vectorSearchAttempted: true,
+            lexicalSearchAttempted: false,
+            vectorCandidateLimitHit: false,
+            lexicalCandidateLimitHit: false,
+            rankingTopKHit: false,
+            candidateLimit: 3,
+            vectorCandidateCount: 1,
+            lexicalCandidateCount: 0,
+            mergedCandidateCount: 1,
+            rankedCandidateCount: 1
+          }
+        };
+      }
+    },
+    llm: {
+      rewriteQuery: async () => ({
+        rewrittenQuery: 'rewritten onboarding retry policy',
+        modelName: 'rewrite-model',
+        usedFallback: false,
+        promptId: 'rewrite-query.v1'
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'What does the onboarding document say about retries?'
+  });
+
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(retrievalCalls.length, 1);
+  assert.equal(retrievalCalls[0].query, 'rewritten onboarding retry policy');
+  assert.equal(result.retrievalMetadata.knowledgeBaseMultiStep, null);
+});
