@@ -235,7 +235,7 @@ export const messages = {
       noAssistantForKnowledgeBaseTitle:
         'Default assistant is still being prepared',
       noAssistantForKnowledgeBaseDescription:
-        'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the canonical default assistant for this library. If this library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up before chatting.',
+        'The current workspace library is {knowledgeBaseName}. Chat already becomes available as soon as this library has ready source material, but the system still needs to prepare or repair the canonical default assistant for it. If the library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up before chatting.',
       noAssistantForKnowledgeBaseAction: 'Open answer settings',
       noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
       noDocumentsTitle: 'Add library items before chatting',
@@ -293,6 +293,7 @@ export const messages = {
     workspaceStatusNoActiveKnowledgeBase: 'Create a workspace library first',
     workspaceStatusNeedsAttention: 'Failed items need review',
     workspaceStatusProcessing: 'Items are updating',
+    workspaceStatusReadyWithIssues: 'Ready items available',
     workspaceStatusReady: 'Library ready',
     workspaceNextActionNoActiveKnowledgeBase:
       'Create a workspace library before adding files, saving links, or reviewing library status.',
@@ -300,6 +301,8 @@ export const messages = {
       'Open the failed item first, check the latest error summary, then retry or clean it up if needed.',
     workspaceNextActionProcessing:
       'Wait for the current updates to finish, then review the refreshed item states.',
+    workspaceNextActionReadyWithIssues:
+      'Ready items can already support chat. Start asking now, then come back to review the failed items afterward.',
     workspaceNextActionProcessingWithReady:
       'Some items are still processing, but ready items can already support chat. Start asking now and come back for the remaining updates.',
     workspaceNextActionReady:
@@ -663,7 +666,7 @@ export const messages = {
     noAssistantForKnowledgeBaseTitle:
       'Default assistant is still being prepared',
     noAssistantForKnowledgeBaseDescription:
-      'The current workspace library is {knowledgeBaseName}. The system is preparing or repairing the default assistant for this library. If this library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up automatically.',
+      'The current workspace library is {knowledgeBaseName}. Chat already becomes available as soon as this library has ready source material, but the system is still preparing or repairing the default assistant for it. If the library is still empty, add the first library items first. Otherwise, if it does not appear automatically, use "Refresh default path" and wait for it to show up automatically.',
     noAssistantForKnowledgeBaseAction: 'Open answer settings',
     noAssistantForKnowledgeBaseRefreshAction: 'Refresh default path',
     noAssistantDocumentsPrimaryAction: 'Add library items first',

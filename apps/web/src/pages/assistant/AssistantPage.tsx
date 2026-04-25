@@ -65,6 +65,10 @@ export function AssistantPage() {
   );
   const { locale, t } = useI18n();
   const documentCount = documentsSummaryQuery.data?.totalDocuments ?? 0;
+  const readyDocumentCount = documentsSummaryQuery.data?.readyDocuments ?? 0;
+  const processingDocumentCount =
+    documentsSummaryQuery.data?.processingDocuments ?? 0;
+  const failedDocumentCount = documentsSummaryQuery.data?.failedDocuments ?? 0;
   const reportSource = searchParams.get('from') === 'report';
   const reportFocus = searchParams.get('focus');
   const reportReturnTo = searchParams.get('returnTo') ?? '/reports';
@@ -147,12 +151,20 @@ export function AssistantPage() {
                     ? '默认助手已经就绪。先确认回答策略，只有在默认路径表现不对时再继续调优。'
                     : 'Start with the assistant identity and answer policy, then move into retrieval tuning only when needed.'
                   : locale === 'zh'
-                    ? documentCount > 0
-                      ? '当前资料库的默认助手仍在补建或修复中；它出现后再继续做必要的设置调整。'
-                      : '当前资料库的默认助手仍在补建或修复中；先添加第一批资料，再等它自动出现。'
-                    : documentCount > 0
-                      ? 'The default assistant for the active library is still being prepared or repaired. Tune settings after it appears.'
-                      : 'The default assistant for the active library is still being prepared or repaired. Add the first library items, then wait for it to appear automatically.'}
+                    ? readyDocumentCount > 0
+                      ? '当前资料库已经有可提问资料；默认助手仍在补建或修复中。等它出现后再回来确认回答设置。'
+                      : failedDocumentCount > 0 && processingDocumentCount === 0
+                        ? '当前资料库里还没有可提问资料，且有失败项需要先处理；处理后再等默认助手自动出现。'
+                        : documentCount > 0
+                          ? '当前资料库的默认助手仍在补建或修复中；先等资料就绪，再等它自动出现。'
+                          : '当前资料库的默认助手仍在补建或修复中；先添加第一批资料，再等它自动出现。'
+                    : readyDocumentCount > 0
+                      ? 'This library already has ready source material for asking questions, but the default assistant is still being prepared or repaired. Come back to review answer settings after it appears.'
+                      : failedDocumentCount > 0 && processingDocumentCount === 0
+                        ? 'This library still has no ready source material, and some failed items need review first. Fix those items, then wait for the default assistant to appear automatically.'
+                        : documentCount > 0
+                          ? 'The default assistant for the active library is still being prepared or repaired. Wait for ready source material first, then review settings after it appears.'
+                          : 'The default assistant for the active library is still being prepared or repaired. Add the first library items, then wait for it to appear automatically.'}
               </Text>
             </div>
           </Group>

@@ -479,6 +479,7 @@ export function ChatPage() {
       ),
     [activeKnowledgeBase, knowledgeBaseSummaryQuery.data]
   );
+  const readyCount = knowledgeBaseSummaryQuery.data?.readyDocuments ?? 0;
 
   const hasAssistantBinding = activeAssistant != null;
   const isChatReady = chatReadinessState.kind === 'ready';
@@ -1034,9 +1035,11 @@ export function ChatPage() {
                     </button>
                     <Link
                       className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border-strong)] px-4 py-2 text-sm font-medium text-[#818cf8] transition duration-300 hover:bg-[var(--app-accent)] hover:text-white"
-                      to="/assistant"
+                      to="/documents"
                     >
-                      {t('chat.states.noAssistantForKnowledgeBaseAction')}
+                      {readyCount > 0
+                        ? t('chat.states.failedDocumentsAction')
+                        : t('chat.states.noDocumentsAction')}
                     </Link>
                   </div>
                 }

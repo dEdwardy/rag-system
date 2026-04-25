@@ -219,7 +219,7 @@ export const messages = {
       noActiveKnowledgeBaseAction: '打开工作区设置',
       noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
       noAssistantForKnowledgeBaseDescription:
-        '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复规范默认助手；如果这个资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等待它出现后开始对话。',
+        '当前工作区资料库是 {knowledgeBaseName}。只要这个资料库已经有可提问资料，对话就会开放；但系统仍在为它补建或修复规范默认助手。如果资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等待它出现后开始对话。',
       noAssistantForKnowledgeBaseAction: '打开回答设置',
       noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
       noDocumentsTitle: '先补充资料，再开始对话',
@@ -275,12 +275,15 @@ export const messages = {
     workspaceStatusNoActiveKnowledgeBase: '请先创建工作区资料库',
     workspaceStatusNeedsAttention: '失败资料需要处理',
     workspaceStatusProcessing: '资料更新中',
+    workspaceStatusReadyWithIssues: '已有可提问资料',
     workspaceStatusReady: '资料库已就绪',
     workspaceNextActionNoActiveKnowledgeBase:
       '请先创建工作区资料库，再添加文件、保存链接或查看资料状态。',
     workspaceNextActionNeedsAttention:
       '先打开失败资料，查看最近一次错误摘要，再决定重试或清理。',
     workspaceNextActionProcessing: '等待当前更新完成，然后回来查看最新状态。',
+    workspaceNextActionReadyWithIssues:
+      '已就绪资料已经可以支持对话。现在可以先提问，之后再回来处理失败项。',
     workspaceNextActionProcessingWithReady:
       '还有资料在处理中，但已就绪资料已经可以支持对话。现在可以先提问，剩余更新完成后再回来查看。',
     workspaceNextActionReady:
@@ -608,7 +611,7 @@ export const messages = {
     noKnowledgeBaseAction: '打开工作区设置',
     noAssistantForKnowledgeBaseTitle: '默认助手仍在准备中',
     noAssistantForKnowledgeBaseDescription:
-      '当前工作区资料库是 {knowledgeBaseName}。系统正在为这个资料库补建或修复默认助手；如果这个资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等它自动出现。',
+      '当前工作区资料库是 {knowledgeBaseName}。只要这个资料库已经有可提问资料，对话就会开放；但系统仍在为它补建或修复默认助手。如果资料库还是空的，请先添加第一批资料。否则，如果它没有自动出现，请先点击“刷新默认路径”，再等它自动出现。',
     noAssistantForKnowledgeBaseAction: '打开回答设置',
     noAssistantForKnowledgeBaseRefreshAction: '刷新默认路径',
     noAssistantDocumentsPrimaryAction: '先添加资料',

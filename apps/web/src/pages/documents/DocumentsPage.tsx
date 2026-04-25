@@ -116,7 +116,7 @@ export function DocumentsPage() {
       } as const;
     }
 
-    if (failedCount > 0) {
+    if (failedCount > 0 && readyCount === 0) {
       return {
         badgeColor: 'red',
         badgeLabel: t('documents.workspaceStatusNeedsAttention'),
@@ -125,6 +125,16 @@ export function DocumentsPage() {
           ? `/documents/${firstFailedDocument.id}`
           : '/documents',
         nextActionLabel: t('documents.workspaceNextActionLinkNeedsAttention')
+      } as const;
+    }
+
+    if (failedCount > 0) {
+      return {
+        badgeColor: 'yellow',
+        badgeLabel: t('documents.workspaceStatusReadyWithIssues'),
+        nextAction: t('documents.workspaceNextActionReadyWithIssues'),
+        nextActionHref: '/',
+        nextActionLabel: t('documents.workspaceNextActionLinkReady')
       } as const;
     }
 
