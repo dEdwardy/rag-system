@@ -2765,7 +2765,7 @@ export class AskAssistantService {
             answerPolicy: input.normalizedAnswerPolicy,
             hasRetrievedContext: retrievedChunks.length > 0,
             insufficientContextReason:
-              deterministicBypass.insufficientContextReason,
+              deterministicBypass.insufficientContextReason ?? undefined,
             topScore: retrievedChunks[0]?.score ?? null
           })
         : await this.answeringService.generateAnswer({
@@ -3158,7 +3158,7 @@ export class AskAssistantService {
                   answerPolicy: input.normalizedAnswerPolicy,
                   hasRetrievedContext: retrievedChunks.length > 0,
                   insufficientContextReason:
-                    deterministicBypass.insufficientContextReason,
+                    deterministicBypass.insufficientContextReason ?? undefined,
                   topScore: retrievedChunks[0]?.score ?? null
                 }
               );
