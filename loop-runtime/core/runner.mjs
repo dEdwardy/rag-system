@@ -472,6 +472,7 @@ async function heartbeat() {
   const state = cleanObject({
     version: 1,
     pid: process.pid,
+    executionBackend,
     status: stopping ? 'stopping' : (currentRun?.phase ?? 'running'),
     startedAt,
     updatedAt: now,

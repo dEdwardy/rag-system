@@ -80,6 +80,33 @@ test('formatStatusLine reports blocked for live blocked runner state', () => {
   );
 });
 
+test('formatStatusLine reports codex backend from runner heartbeat state', () => {
+  const line = formatStatusLine({
+    state: {
+      pid: 123,
+      phase: 'executing',
+      activeWave: 'wave-a',
+      pendingCount: 1,
+      currentItemId: 'item-c',
+      executionBackend: 'codex'
+    },
+    summary: {
+      activeWave: 'wave-a',
+      pendingCount: 1,
+      completedCount: 2,
+      inProgressCount: 1,
+      totalCount: 4
+    },
+    pidAlive: () => true,
+    relativePath: '.opencode/loop/loop-run.log'
+  });
+
+  assert.equal(
+    line,
+    'running pid=123 backend=codex wave=wave-a pending=1 item=item-c log=.opencode/loop/loop-run.log'
+  );
+});
+
 test('formatStatusLine reports blocked for dead blocked state without calling it stale', () => {
   const line = formatStatusLine({
     state: {
