@@ -76,6 +76,8 @@ function normalizeExternalSources(value: unknown) {
       return {
         url: source.url,
         kind: typeof source.kind === 'string' ? source.kind : '-',
+        kindLabel:
+          typeof source.kindLabel === 'string' ? source.kindLabel : null,
         title: typeof source.title === 'string' ? source.title : null,
         diagnostics: 'diagnostics' in source ? source.diagnostics : null
       };
@@ -86,10 +88,47 @@ function normalizeExternalSources(value: unknown) {
       ): source is {
         url: string;
         kind: string;
+        kindLabel: string | null;
         title: string | null;
         diagnostics: unknown;
       } => source !== null
     );
+}
+
+function buildExternalSourceKindTone(kind: string) {
+  if (kind === 'sitemap') {
+    return 'lime';
+  }
+
+  if (kind === 'feed') {
+    return 'orange';
+  }
+
+  return 'blue';
+}
+
+function buildExternalSourceKindLabel(
+  kind: string,
+  kindLabel: string | null,
+  locale: SupportedLocale
+) {
+  if (kindLabel) {
+    return kindLabel;
+  }
+
+  if (kind === 'sitemap') {
+    return locale === 'zh' ? '外部站点地图' : 'External sitemap';
+  }
+
+  if (kind === 'feed') {
+    return locale === 'zh' ? '外部订阅源' : 'External feed';
+  }
+
+  if (kind === 'web') {
+    return locale === 'zh' ? '外部网页' : 'External web page';
+  }
+
+  return kind;
 }
 
 function buildTimingBottleneck(trace: TraceRecord, locale: SupportedLocale) {
@@ -786,9 +825,22 @@ export function TraceDetailSecondaryPanels({
                     >
                       {source.title ?? source.url}
                     </Text>
-                    <Text c="var(--app-text-muted)" size="xs">
-                      {source.kind} · {source.url}
-                    </Text>
+                    <Group gap="xs" wrap="wrap">
+                      <Badge
+                        color={buildExternalSourceKindTone(source.kind)}
+                        radius="sm"
+                        variant="light"
+                      >
+                        {buildExternalSourceKindLabel(
+                          source.kind,
+                          source.kindLabel,
+                          locale
+                        )}
+                      </Badge>
+                      <Text c="var(--app-text-muted)" size="xs">
+                        {source.url}
+                      </Text>
+                    </Group>
                     {source.diagnostics != null ? (
                       <pre
                         className="workspace-code-block workspace-code-block-scroll"

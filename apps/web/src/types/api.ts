@@ -527,6 +527,20 @@ export type AskRetrievalMetadata = {
   strategy: RetrievalStrategy;
   filters: RetrievalProfileFilters | null;
   strategySummary?: RetrievalStrategySummary;
+  externalSource?: {
+    url: string;
+    kind: string;
+    kindLabel?: string;
+    title: string | null;
+    diagnostics: JsonValue | null;
+  } | null;
+  externalSources?: Array<{
+    url: string;
+    kind: string;
+    kindLabel?: string;
+    title: string | null;
+    diagnostics: JsonValue | null;
+  }>;
   queryRewrite: {
     enabled: boolean;
     applied: boolean;

@@ -87,6 +87,14 @@ type AskRetrievalMetadataJson = Prisma.InputJsonObject & {
   strategySummary?: RetrievalStrategySummary;
 };
 
+type AskExternalSourceMetadataView = {
+  url: string;
+  kind: ResolvedExternalSourceRoute['sourceKind'];
+  kindLabel: string;
+  title: string | null;
+  diagnostics: unknown;
+};
+
 type AskRouteDecision = {
   routeType: TraceRouteType;
   routeReason: TraceRouteReason;
@@ -1116,12 +1124,7 @@ export class AskAssistantService {
     sourceTitle: string | null;
     diagnostics: unknown;
     routeDecision: AskRouteDecision;
-    externalSources?: Array<{
-      url: string;
-      kind: ResolvedExternalSourceRoute['sourceKind'];
-      title: string | null;
-      diagnostics: unknown;
-    }>;
+    externalSources?: AskExternalSourceMetadataView[];
   }): AskRetrievalMetadataJson {
     const executionPlan = buildTraceExecutionPlan({
       routeType: input.routeDecision.routeType,
@@ -1140,6 +1143,7 @@ export class AskAssistantService {
       externalSource: {
         url: input.sourceUrl,
         kind: input.sourceKind,
+        kindLabel: this.buildExternalSourceKindLabel(input.sourceKind),
         title: input.sourceTitle,
         diagnostics: input.diagnostics ?? null
       },
@@ -1285,6 +1289,7 @@ export class AskAssistantService {
   ): Array<{
     url: string;
     sourceKind: ResolvedExternalSourceRoute['sourceKind'];
+    kindLabel: string;
     title: string | null;
     content?: string;
     diagnostics: unknown;
@@ -1292,6 +1297,7 @@ export class AskAssistantService {
     return sources.map((source, index) => ({
       url: source.url,
       sourceKind: source.sourceKind,
+      kindLabel: this.buildExternalSourceKindLabel(source.sourceKind),
       title:
         index === 0
           ? source.title
@@ -1335,6 +1341,7 @@ export class AskAssistantService {
               sources: resolvedSources.map((source) => ({
                 url: source.url,
                 kind: source.sourceKind,
+                kindLabel: this.buildExternalSourceKindLabel(source.sourceKind),
                 title: source.title,
                 diagnostics: source.diagnostics
               }))
