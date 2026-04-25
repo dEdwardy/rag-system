@@ -57,13 +57,20 @@ import { TracesService } from '../traces/traces.service';
 import { answerPolicySchema } from './assistant.schemas';
 import { AssistantsService } from './assistants.service';
 import { AskAssistantError } from './ask-assistant.error';
+import {
+  isPolicyQuestion,
+  resolveAskRouteDecision,
+  resolveExplicitExternalSourceRoute,
+  resolveExplicitExternalSourceRoutes,
+  type AskRouteDecision,
+  type ResolvedExternalSourceCandidate,
+  type ResolvedExternalSourceRoute
+} from './ask-route-decision';
 import type {
   TraceAnswerAttributionSummary,
   RetrievalStrategySummary,
   TraceCitationAttribution,
   TraceCitationSelectionSource,
-  TraceRouteReason,
-  TraceRouteType,
   TraceSummary
 } from '@rag-system/shared';
 
@@ -95,11 +102,6 @@ type AskExternalSourceMetadataView = {
   diagnostics: unknown;
 };
 
-type AskRouteDecision = {
-  routeType: TraceRouteType;
-  routeReason: TraceRouteReason;
-};
-
 type AskRouteToolAdapter = () => Promise<unknown>;
 
 type AskRouteToolAdapters = Partial<
@@ -116,16 +118,6 @@ type AskExternalSourceFetchAdapterInput = {
 type AskExternalSourceFetchAdapter = (
   input: AskExternalSourceFetchAdapterInput
 ) => Promise<AskFetchedExternalSource>;
-
-type ResolvedExternalSourceRoute = {
-  url: string;
-  sourceKind: 'web' | 'feed' | 'sitemap';
-};
-
-type ResolvedExternalSourceCandidate = ResolvedExternalSourceRoute & {
-  raw: string;
-  label: string | null;
-};
 
 type AskExternalSourceResult = {
   routeDecision: AskRouteDecision;
@@ -253,16 +245,6 @@ const POLICY_LIKE_TEXT_PATTERNS = [
   /不要伪造答案/,
   /没有依据/
 ] as const;
-const POLICY_QUESTION_PATTERNS = [
-  /\b(system|assistant|policy|citation|citations|refusal|abstain|hallucination|prompt injection)\b/i,
-  /系统/,
-  /助手/,
-  /引用/,
-  /拒答/,
-  /策略/,
-  /能力边界/
-] as const;
-
 @Injectable()
 export class AskAssistantService {
   private readonly logger = new Logger(AskAssistantService.name);
@@ -953,7 +935,7 @@ export class AskAssistantService {
   }
 
   private isPolicyQuestion(question: string) {
-    return POLICY_QUESTION_PATTERNS.some((pattern) => pattern.test(question));
+    return isPolicyQuestion(question);
   }
 
   private isPolicyLikeOnlyEvidence(chunks: AskResultChunk[]) {
@@ -1121,118 +1103,19 @@ export class AskAssistantService {
   }
 
   private resolveRouteDecision(question: string): AskRouteDecision {
-    const explicitExternalSources =
-      this.resolveExplicitExternalSourceRoutes(question);
-    if (explicitExternalSources.length > 0) {
-      return {
-        routeType: 'external_source',
-        routeReason:
-          explicitExternalSources.length > 1
-            ? 'explicit_source_urls'
-            : 'explicit_source_url'
-      };
-    }
-
-    if (this.isPolicyQuestion(question)) {
-      return {
-        routeType: 'policy_reply',
-        routeReason: 'policy_question'
-      };
-    }
-
-    return {
-      routeType: 'knowledge_base',
-      routeReason: 'default_kb_ask'
-    };
+    return resolveAskRouteDecision(question);
   }
 
   private resolveExplicitExternalSourceRoute(
     question: string
   ): ResolvedExternalSourceRoute | null {
-    return this.resolveExplicitExternalSourceRoutes(question)[0] ?? null;
+    return resolveExplicitExternalSourceRoute(question);
   }
 
   private resolveExplicitExternalSourceRoutes(
     question: string
   ): ResolvedExternalSourceCandidate[] {
-    const sources = this.extractExplicitSourceDescriptors(question);
-    if (sources.length === 0) {
-      return [];
-    }
-
-    return sources.map((source) => {
-      const normalizedQuestion = question.toLowerCase();
-      const pathname = (() => {
-        try {
-          return new URL(source.url).pathname.toLowerCase();
-        } catch {
-          return '';
-        }
-      })();
-
-      if (
-        /(?:^|\/)sitemap(?:[-_.a-z0-9]*)?\.xml$/i.test(pathname) ||
-        normalizedQuestion.includes('sitemap')
-      ) {
-        return {
-          raw: source.raw,
-          url: source.url,
-          label: source.label,
-          sourceKind: 'sitemap' as const
-        };
-      }
-
-      if (
-        /(?:rss|atom|feed)/i.test(pathname) ||
-        /\b(rss|atom|feed)\b/i.test(normalizedQuestion)
-      ) {
-        return {
-          raw: source.raw,
-          url: source.url,
-          label: source.label,
-          sourceKind: 'feed' as const
-        };
-      }
-
-      return {
-        raw: source.raw,
-        url: source.url,
-        label: source.label,
-        sourceKind: 'web' as const
-      };
-    });
-  }
-
-  private extractExplicitSourceDescriptors(question: string) {
-    const markdownLinks = Array.from(
-      question.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi),
-      (match) => ({
-        raw: match[2].replace(/[.,!?;:]+$/g, ''),
-        url: match[2].replace(/[.,!?;:]+$/g, ''),
-        label: match[1].trim() || null
-      })
-    );
-    const bareUrls = Array.from(
-      question.matchAll(/https?:\/\/[^\s)\]}>,]+/gi),
-      (match) => ({
-        raw: match[0].replace(/[.,!?;:]+$/g, ''),
-        url: match[0].replace(/[.,!?;:]+$/g, ''),
-        label: this.buildReadableExternalSourceLabel(
-          match[0].replace(/[.,!?;:]+$/g, ''),
-          'web'
-        )
-      })
-    );
-    const deduped = new Map<
-      string,
-      { raw: string; url: string; label: string | null }
-    >();
-    for (const source of [...markdownLinks, ...bareUrls]) {
-      if (!deduped.has(source.url)) {
-        deduped.set(source.url, source);
-      }
-    }
-    return Array.from(deduped.values());
+    return resolveExplicitExternalSourceRoutes(question);
   }
 
   private buildPolicyRouteMetadata(input: {

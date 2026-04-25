@@ -11,6 +11,7 @@ const rawArgs = process.argv.slice(2).filter((argument) => argument !== '--');
 const fastTestFiles = new Set([
   'test/answering.test.js',
   'test/ask-failures.test.js',
+  'test/ask-route-decision.test.js',
   'test/ask-stream-controller.test.js',
   'test/ask-stream-retrieval-failure.test.js',
   'test/ask-stream-service.test.js',
