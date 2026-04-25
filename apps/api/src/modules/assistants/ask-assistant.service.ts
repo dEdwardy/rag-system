@@ -380,7 +380,8 @@ export class AskAssistantService {
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const routeDecision = this.resolveRouteDecision(input.question);
     const reusableConversationAnswer =
-      input.conversationId != null
+      input.conversationId != null &&
+      routeDecision.routeType === 'knowledge_base'
         ? await this.findReusableConversationAnswer({
             conversationId: conversation.id,
             assistantId: assistant.id,
@@ -552,7 +553,8 @@ export class AskAssistantService {
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const routeDecision = this.resolveRouteDecision(input.question);
     const reusableConversationAnswer =
-      input.conversationId != null
+      input.conversationId != null &&
+      routeDecision.routeType === 'knowledge_base'
         ? await this.findReusableConversationAnswer({
             conversationId: (await conversationPromise).value.id,
             assistantId: assistant.id,

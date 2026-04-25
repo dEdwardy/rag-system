@@ -320,6 +320,74 @@ test('AskAssistantService stream uses deterministic policy route for policy ques
   );
 });
 
+test('AskAssistantService stream skips KB reuse for policy questions in an existing conversation', async () => {
+  const events = [];
+  let listConversationMessagesCalled = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessages: async () => {
+        listConversationMessagesCalled = true;
+        return [
+          {
+            id: 'user-message-1',
+            conversationId: 'conversation-1',
+            role: 'user',
+            content: 'Explain your assistant policy for unsupported answers.',
+            traceId: null
+          },
+          {
+            id: 'assistant-message-1',
+            conversationId: 'conversation-1',
+            role: 'assistant',
+            content: 'Cached KB answer that should not be reused.',
+            traceId: 'trace-kb-stream-1'
+          }
+        ];
+      }
+    },
+    traces: {
+      getTrace: async () => ({
+        id: 'trace-kb-stream-1',
+        assistantId: 'assistant-1',
+        citationsJson: [],
+        modelName: 'cached-model',
+        retrievalMetadataJson: null,
+        answeringMetadataJson: null,
+        qualityEvaluationJson: null,
+        traceSummary: {
+          routeType: 'knowledge_base',
+          routeReason: 'default_kb_ask'
+        }
+      }),
+      createTrace: async () => ({ id: 'trace-policy-stream-conversation-1' }),
+      updateTrace: async () => ({})
+    },
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('policy route should not call retrieval');
+      }
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'Explain your assistant policy for unsupported answers.',
+    onEvent: (event) => {
+      events.push(event);
+    }
+  });
+
+  assert.equal(listConversationMessagesCalled, false);
+  assert.equal(result.traceId, 'trace-policy-stream-conversation-1');
+  assert.equal(result.routeType, 'policy_reply');
+  assert.equal(events.at(-1)?.type, 'final');
+});
+
 test('AskAssistantService stream uses external-source route for explicit URLs', async () => {
   const events = [];
   const retrievalCalls = [];

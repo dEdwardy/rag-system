@@ -389,6 +389,9 @@ test('AskAssistantService completes the happy path with retrieval, messages, and
       routeType: 'knowledge_base',
       routeReason: 'default_kb_ask'
     },
+    routeType: 'knowledge_base',
+    routeReason: 'default_kb_ask',
+    executionMode: 'manual',
     executionPlan: {
       executionMode: 'manual',
       steps: [
@@ -424,6 +427,7 @@ test('AskAssistantService completes the happy path with retrieval, messages, and
         }
       ]
     },
+    executionToolNames: ['knowledge_base_search'],
     strategySummary: {
       retrievalMode: 'hybrid',
       strategyMode: 'hybrid',
@@ -1360,6 +1364,9 @@ test('AskAssistantService can disable query rewrite and forwards resolved retrie
       routeType: 'knowledge_base',
       routeReason: 'default_kb_ask'
     },
+    routeType: 'knowledge_base',
+    routeReason: 'default_kb_ask',
+    executionMode: 'manual',
     executionPlan: {
       executionMode: 'manual',
       steps: [
@@ -1395,6 +1402,7 @@ test('AskAssistantService can disable query rewrite and forwards resolved retrie
         }
       ]
     },
+    executionToolNames: ['knowledge_base_search'],
     strategySummary: {
       retrievalMode: 'lexical',
       strategyMode: 'lexical',
@@ -4610,6 +4618,70 @@ test('AskAssistantService uses deterministic policy route for policy questions',
     createTraceCalls[0].retrievalMetadataJson.routeDecision.routeType,
     'policy_reply'
   );
+});
+
+test('AskAssistantService skips KB reuse for policy questions in an existing conversation', async () => {
+  let listConversationMessagesCalled = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessages: async () => {
+        listConversationMessagesCalled = true;
+        return [
+          {
+            id: 'user-message-1',
+            conversationId: 'conversation-1',
+            role: 'user',
+            content: 'What is your citation policy when sources are missing?',
+            traceId: null
+          },
+          {
+            id: 'assistant-message-1',
+            conversationId: 'conversation-1',
+            role: 'assistant',
+            content: 'Cached KB answer that should not be reused.',
+            traceId: 'trace-kb-1'
+          }
+        ];
+      }
+    },
+    traces: {
+      getTrace: async () => ({
+        id: 'trace-kb-1',
+        assistantId: 'assistant-1',
+        citationsJson: [],
+        modelName: 'cached-model',
+        retrievalMetadataJson: null,
+        answeringMetadataJson: null,
+        qualityEvaluationJson: null,
+        traceSummary: {
+          routeType: 'knowledge_base',
+          routeReason: 'default_kb_ask'
+        }
+      }),
+      createTrace: async () => ({ id: 'trace-policy-conversation-1' }),
+      updateTrace: async (id, input) => ({ id, ...input })
+    },
+    retrieval: {
+      retrieve: async () => {
+        throw new Error('policy route should not call retrieval');
+      }
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'What is your citation policy when sources are missing?'
+  });
+
+  assert.equal(listConversationMessagesCalled, false);
+  assert.equal(result.traceId, 'trace-policy-conversation-1');
+  assert.equal(result.routeType, 'policy_reply');
+  assert.equal(result.modelName, 'policy-route-local');
 });
 
 test('AskAssistantService uses external-source route for explicit URLs', async () => {
