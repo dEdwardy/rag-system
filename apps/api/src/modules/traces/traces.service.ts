@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TraceStatus } from '@prisma/client';
 import {
   buildTraceMetadataCanonicalSurface,
+  buildTraceRouteDecisionReadabilityLabel,
+  buildTraceRouteDecisionReadabilitySentence,
+  buildTraceRouteReasonReadabilityLabel,
+  buildTraceRouteTypeReadabilityLabel,
   buildTraceExecutionModeReadabilityLabel,
   buildTraceExecutionModeReadabilitySentence,
   buildTraceExecutionToolNamesLabel,
@@ -529,6 +533,14 @@ export class TracesService {
             executionPlan
           })
         : null;
+    const routeTypeReadabilityLabel =
+      buildTraceRouteTypeReadabilityLabel(routeType);
+    const routeReasonReadabilityLabel =
+      buildTraceRouteReasonReadabilityLabel(routeReason);
+    const routeDecisionReadabilityLabel =
+      buildTraceRouteDecisionReadabilityLabel(routeType, routeReason);
+    const routeDecisionReadabilitySentence =
+      buildTraceRouteDecisionReadabilitySentence(routeType, routeReason);
     const executionMode =
       this.readTraceSummaryExecutionMode(retrievalMetadata?.executionMode) ??
       canonicalMetadataSurface?.executionMode ??
@@ -835,6 +847,10 @@ export class TracesService {
     return {
       routeType,
       routeReason,
+      routeTypeReadabilityLabel,
+      routeReasonReadabilityLabel,
+      routeDecisionReadabilityLabel,
+      routeDecisionReadabilitySentence,
       promptId: this.readString(answeringMetadata?.promptId),
       answerStatus: this.readStringAs<
         NonNullable<TraceSummary['answerStatus']>

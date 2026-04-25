@@ -387,6 +387,10 @@ test('TracesService exposes failedStage and failureMessage in traceSummary for f
       'rewrite disabled; rewrite applied: no; rewrite fallback: unknown; rewrite prompt: unknown.',
     routeType: null,
     routeReason: null,
+    routeTypeReadabilityLabel: 'no route type',
+    routeReasonReadabilityLabel: 'no route reason',
+    routeDecisionReadabilityLabel: 'no route decision',
+    routeDecisionReadabilitySentence: 'Route decision is unavailable.',
     strategySummary: {
       retrievalMode: 'vector',
       strategyMode: 'vector',
@@ -914,6 +918,10 @@ test('TracesService exposes additive execution provenance in traceSummary for su
       'rewrite enabled; rewrite applied: yes; rewrite fallback: unknown; rewrite prompt: unknown.',
     routeType: null,
     routeReason: null,
+    routeTypeReadabilityLabel: 'no route type',
+    routeReasonReadabilityLabel: 'no route reason',
+    routeDecisionReadabilityLabel: 'no route decision',
+    routeDecisionReadabilitySentence: 'Route decision is unavailable.',
     strategySummary: {
       retrievalMode: 'hybrid',
       strategyMode: 'hybrid',
@@ -2278,6 +2286,19 @@ test('TracesService exposes route decision metadata in traceSummary', async () =
 
   assert.equal(detail.traceSummary.routeType, 'policy_reply');
   assert.equal(detail.traceSummary.routeReason, 'policy_question');
+  assert.equal(detail.traceSummary.routeTypeReadabilityLabel, 'Policy reply');
+  assert.equal(
+    detail.traceSummary.routeReasonReadabilityLabel,
+    'Policy question'
+  );
+  assert.equal(
+    detail.traceSummary.routeDecisionReadabilityLabel,
+    'Policy reply - Policy question'
+  );
+  assert.equal(
+    detail.traceSummary.routeDecisionReadabilitySentence,
+    'Route decision is Policy reply - Policy question.'
+  );
   assert.deepEqual(detail.traceSummary.routeDecisionSummary, {
     routeType: 'policy_reply',
     routeReason: 'policy_question'
@@ -2356,6 +2377,22 @@ test('TracesService prefers canonical route and execution metadata fields when p
 
   assert.equal(detail.traceSummary.routeType, 'external_source');
   assert.equal(detail.traceSummary.routeReason, 'explicit_source_urls');
+  assert.equal(
+    detail.traceSummary.routeTypeReadabilityLabel,
+    'External source'
+  );
+  assert.equal(
+    detail.traceSummary.routeReasonReadabilityLabel,
+    'Explicit source URLs'
+  );
+  assert.equal(
+    detail.traceSummary.routeDecisionReadabilityLabel,
+    'External source - Explicit source URLs'
+  );
+  assert.equal(
+    detail.traceSummary.routeDecisionReadabilitySentence,
+    'Route decision is External source - Explicit source URLs.'
+  );
   assert.deepEqual(detail.traceSummary.routeDecisionSummary, {
     routeType: 'external_source',
     routeReason: 'explicit_source_urls'

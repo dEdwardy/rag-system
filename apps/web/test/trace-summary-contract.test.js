@@ -41,6 +41,10 @@ test('web trace summary type guards current backend summary field set', async ()
     traceSummaryBody,
     /executionMode:\s*TraceExecutionMode \| null;/
   );
+  assert.match(traceSummaryBody, /routeTypeReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /routeReasonReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /routeDecisionReadabilityLabel:\s*string;/);
+  assert.match(traceSummaryBody, /routeDecisionReadabilitySentence:\s*string;/);
   assert.match(traceSummaryBody, /executionModeReadabilityLabel:\s*string;/);
   assert.match(traceSummaryBody, /executionModeReadabilitySentence:\s*string;/);
   assert.match(
@@ -87,6 +91,24 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(sharedSource, /export type TraceMetadataCanonicalSurface = \{/);
   assert.match(sharedSource, /routeType:\s*TraceRouteType;/);
   assert.match(sharedSource, /routeReason:\s*TraceRouteReason;/);
+  assert.match(sharedSource, /export const TRACE_ROUTE_TYPE_LABELS = \{/);
+  assert.match(sharedSource, /export const TRACE_ROUTE_REASON_LABELS = \{/);
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteTypeReadabilityLabel\([\s\S]*?\) \{/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteReasonReadabilityLabel\([\s\S]*?\) \{/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteDecisionReadabilityLabel\([\s\S]*?\) \{/
+  );
+  assert.match(
+    sharedSource,
+    /export function buildTraceRouteDecisionReadabilitySentence\([\s\S]*?\) \{/
+  );
   assert.match(sharedSource, /routeDecision:\s*TraceRouteDecisionSummary;/);
   assert.match(
     sharedSource,
@@ -129,7 +151,15 @@ test('web trace summary type guards current backend summary field set', async ()
   );
   assert.match(
     tracesServiceSource,
+    /buildTraceRouteDecisionReadabilitySentence,/
+  );
+  assert.match(
+    tracesServiceSource,
     /buildTraceExecutionModeReadabilitySentence,/
+  );
+  assert.match(
+    tracesServiceSource,
+    /const routeDecisionReadabilitySentence =\s*buildTraceRouteDecisionReadabilitySentence\(routeType, routeReason\);/
   );
   assert.match(
     tracesServiceSource,

@@ -22,6 +22,57 @@ export type TraceRouteReason =
   | 'explicit_source_url'
   | 'explicit_source_urls';
 
+export const TRACE_ROUTE_TYPE_LABELS = {
+  knowledge_base: 'Knowledge base',
+  policy_reply: 'Policy reply',
+  external_source: 'External source'
+} satisfies Record<TraceRouteType, string>;
+
+export const TRACE_ROUTE_REASON_LABELS = {
+  default_kb_ask: 'Default KB ask',
+  policy_question: 'Policy question',
+  explicit_source_url: 'Explicit source URL',
+  explicit_source_urls: 'Explicit source URLs'
+} satisfies Record<TraceRouteReason, string>;
+
+export function buildTraceRouteTypeReadabilityLabel(
+  routeType: TraceRouteType | null
+) {
+  return routeType == null
+    ? 'no route type'
+    : TRACE_ROUTE_TYPE_LABELS[routeType];
+}
+
+export function buildTraceRouteReasonReadabilityLabel(
+  routeReason: TraceRouteReason | null
+) {
+  return routeReason == null
+    ? 'no route reason'
+    : TRACE_ROUTE_REASON_LABELS[routeReason];
+}
+
+export function buildTraceRouteDecisionReadabilityLabel(
+  routeType: TraceRouteType | null,
+  routeReason: TraceRouteReason | null
+) {
+  if (routeType == null && routeReason == null) {
+    return 'no route decision';
+  }
+
+  const routeTypeLabel = buildTraceRouteTypeReadabilityLabel(routeType);
+  const routeReasonLabel = buildTraceRouteReasonReadabilityLabel(routeReason);
+  return `${routeTypeLabel} - ${routeReasonLabel}`;
+}
+
+export function buildTraceRouteDecisionReadabilitySentence(
+  routeType: TraceRouteType | null,
+  routeReason: TraceRouteReason | null
+) {
+  return routeType == null && routeReason == null
+    ? 'Route decision is unavailable.'
+    : `Route decision is ${buildTraceRouteDecisionReadabilityLabel(routeType, routeReason)}.`;
+}
+
 export type TraceExecutionStepKind =
   | 'route_decision'
   | 'retrieval'
@@ -470,6 +521,10 @@ export type TraceTimingSummary = {
 export type TraceSummary = {
   routeType: TraceRouteType | null;
   routeReason: TraceRouteReason | null;
+  routeTypeReadabilityLabel: string;
+  routeReasonReadabilityLabel: string;
+  routeDecisionReadabilityLabel: string;
+  routeDecisionReadabilitySentence: string;
   executionPlan: TraceExecutionPlan | null;
   executionMode: TraceExecutionMode | null;
   executionModeReadabilityLabel: string;
