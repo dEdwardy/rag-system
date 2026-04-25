@@ -6,6 +6,10 @@ const {
   resolveExplicitExternalSourceRoutes,
   isPolicyQuestion
 } = require('../src/modules/assistants/ask-route-decision.ts');
+const {
+  createAskAssistantService,
+  createAssistantRecord
+} = require('./support/ask-assistant-test-helpers.js');
 
 test('route helper keeps normal questions on the knowledge-base path', () => {
   assert.deepEqual(
@@ -93,5 +97,143 @@ test('route helper deduplicates urls and marks plural explicit source routing', 
       routeType: 'external_source',
       routeReason: 'explicit_source_urls'
     }
+  );
+});
+
+test('default knowledge-base asks emit route choice, execution mode, and tool names in trace metadata', async () => {
+  const createTraceCalls = [];
+  const updateTraceCalls = [];
+
+  const service = createAskAssistantService({
+    assistant: createAssistantRecord({
+      retrievalProfile: {
+        topK: 3,
+        scoreThreshold: 0,
+        chunkWindow: 0,
+        enableHybrid: false,
+        enableRerank: false,
+        filtersJson: null,
+        strategyJson: null
+      }
+    }),
+    retrieval: {
+      retrieve: async () => ({
+        retrievedChunks: [
+          {
+            chunkId: 'chunk-1',
+            documentId: 'document-1',
+            documentTitle: 'Doc 1',
+            chunkIndex: 0,
+            content: 'retrieved kb content',
+            score: 0.87,
+            isPrimary: true
+          }
+        ],
+        contextGroups: [],
+        execution: {
+          actualMode: 'vector',
+          usedFallback: false,
+          fallbackReason: null,
+          rerankApplied: false,
+          chunkWindowApplied: false,
+          vectorSearchAttempted: true,
+          lexicalSearchAttempted: false,
+          vectorCandidateLimitHit: false,
+          lexicalCandidateLimitHit: false,
+          rankingTopKHit: false,
+          candidateLimit: 3,
+          vectorCandidateCount: 1,
+          lexicalCandidateCount: 0,
+          mergedCandidateCount: 1,
+          rankedCandidateCount: 1
+        }
+      })
+    },
+    answering: {
+      generateAnswer: async ({ chunks, contextGroups, answerPolicy }) => ({
+        answer: 'Grounded answer',
+        citations: [],
+        retrievedChunks: chunks,
+        contextGroups,
+        answeringMetadata: {
+          promptId: 'answer.v2',
+          usedFallback: false,
+          answerPolicy,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: chunks.length,
+          promptContextCount: chunks.length,
+          contextGroupCount: contextGroups.length,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'test-model',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'Grounded answer from KB retrieval.'
+        }
+      })
+    },
+    traces: {
+      createTrace: async (input) => {
+        createTraceCalls.push(input);
+        return { id: 'trace-1' };
+      },
+      updateTrace: async (id, input) => {
+        updateTraceCalls.push({ id, input });
+        return { id, ...input };
+      }
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'What does the onboarding document say about retries?'
+  });
+
+  assert.equal(result.routeType, 'knowledge_base');
+  assert.equal(createTraceCalls.length, 1);
+  assert.equal(updateTraceCalls.length, 1);
+  assert.deepEqual(createTraceCalls[0].retrievalMetadataJson.routeDecision, {
+    routeType: 'knowledge_base',
+    routeReason: 'default_kb_ask'
+  });
+  assert.equal(
+    createTraceCalls[0].retrievalMetadataJson.executionMode,
+    'manual'
+  );
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.executionToolNames,
+    ['knowledge_base_search']
+  );
+  assert.deepEqual(
+    createTraceCalls[0].retrievalMetadataJson.executionPlan.steps.map(
+      (step) => ({ kind: step.kind, toolName: step.toolName })
+    ),
+    [
+      { kind: 'route_decision', toolName: null },
+      { kind: 'retrieval', toolName: 'knowledge_base_search' },
+      { kind: 'answer_generation', toolName: null }
+    ]
+  );
+  assert.deepEqual(
+    updateTraceCalls[0].input.retrievalMetadataJson.routeDecision,
+    createTraceCalls[0].retrievalMetadataJson.routeDecision
   );
 });
