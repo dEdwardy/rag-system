@@ -9,7 +9,7 @@
 - `agent-tools contract wave` is now closed out on the OpenCode-backed loop queue
   - `POST /agent-tools/rag_search` returns a retrieval-only payload with query, chunks, citations, sources, and diagnostics instead of calling the answer path
   - `POST /agent-tools/rag_answer` now normalizes the answer contract for agent callers: answer, citations, confidence, missingInformation, diagnostics, and trace identifiers
-  - agent tool requests can carry a bounded `boundedMultiStep` option; the current implementation exposes deterministic no-op diagnostics rather than forcing a wider ask/retrieval refactor
+  - agent tool requests can carry a bounded `boundedMultiStep` option; when a rewritten query or explicit second-pass request is present, the backend now performs at most one extra retrieval pass and reports first-pass, second-pass, and merged-result diagnostics while default requests stay single-pass
   - `trace_lookup` and `document_lookup` now return stable found/not-found payloads with diagnostics and support header-derived agent scope
   - the existing agent inspection surface now has focused web Vitest coverage in `apps/web/test/agent-surface.test.js`
   - focused validation:

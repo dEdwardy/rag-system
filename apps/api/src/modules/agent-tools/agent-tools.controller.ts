@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   NotFoundException,
-  Param,
   Post,
   Req,
   UnauthorizedException
@@ -36,6 +35,27 @@ type BoundedMultiStepInput = {
   requestSecondPass?: boolean;
 };
 
+type AssistantSearchResult = Awaited<
+  ReturnType<AskAssistantService['searchAssistant']>
+>;
+
+type BoundedMultiStepDiagnostics = {
+  enabled: boolean;
+  requested: boolean;
+  rewrittenQuery: string | null;
+  secondPassRequested: boolean;
+  secondPassUsed: boolean;
+  mode: string;
+  reason: string;
+  firstPassChunkCount: number;
+  firstPassSourceCount: number;
+  secondPassQuery: string | null;
+  secondPassChunkCount: number;
+  secondPassSourceCount: number;
+  mergedChunkCount: number;
+  mergedSourceCount: number;
+};
+
 @AuthenticatedRoute()
 @Controller('agent-tools')
 export class AgentToolsController {
@@ -54,19 +74,40 @@ export class AgentToolsController {
     @Req() request?: ToolRequest
   ) {
     this.assertToolSecret(input.secret);
+    const authContext = this.resolveToolAuthContext(input, request);
     const result = await this.askAssistantService.searchAssistant({
       assistantId: input.assistantId,
       question: input.question,
-      authContext: this.resolveToolAuthContext(input, request)
+      authContext
     });
 
-    const boundedMultiStep = this.resolveBoundedMultiStepDiagnostics(
-      input.boundedMultiStep
+    const secondPassResult = await this.resolveSecondPassSearchResult({
+      assistantId: input.assistantId,
+      originalQuestion: input.question,
+      boundedMultiStepInput: input.boundedMultiStep,
+      authContext,
+      firstPassResult: result
+    });
+    const mergedChunks = this.mergeChunks(
+      result.chunks,
+      secondPassResult?.chunks ?? []
     );
+    const mergedContextGroups = this.mergeContextGroups(
+      result.contextGroups,
+      secondPassResult?.contextGroups ?? []
+    );
+    const boundedMultiStep = this.buildBoundedMultiStepDiagnostics({
+      boundedMultiStepInput: input.boundedMultiStep,
+      originalQuestion: input.question,
+      firstPassResult: result,
+      secondPassResult,
+      mergedChunks,
+      mergedContextGroups
+    });
 
     return {
       query: result.query,
-      chunks: result.chunks.map((chunk) => ({
+      chunks: mergedChunks.map((chunk) => ({
         chunkId: chunk.chunkId,
         documentId: chunk.documentId,
         documentTitle: chunk.documentTitle,
@@ -77,7 +118,7 @@ export class AgentToolsController {
         pageNo: chunk.pageNo ?? null,
         sectionTitle: chunk.sectionTitle ?? null
       })),
-      citations: result.chunks.map((chunk) => ({
+      citations: mergedChunks.map((chunk) => ({
         chunkId: chunk.chunkId,
         documentId: chunk.documentId,
         documentTitle: chunk.documentTitle,
@@ -86,7 +127,7 @@ export class AgentToolsController {
         sectionTitle: chunk.sectionTitle ?? null,
         score: chunk.score
       })),
-      sources: result.contextGroups.map((group) => ({
+      sources: mergedContextGroups.map((group) => ({
         documentId: group.documentId,
         documentTitle: group.documentTitle,
         chunkIds: group.chunkIds,
@@ -98,8 +139,8 @@ export class AgentToolsController {
       })),
       diagnostics: {
         ...result.diagnostics,
-        chunkCount: result.chunks.length,
-        sourceCount: result.contextGroups.length,
+        chunkCount: mergedChunks.length,
+        sourceCount: mergedContextGroups.length,
         boundedMultiStep
       },
       boundedMultiStep
@@ -115,14 +156,53 @@ export class AgentToolsController {
     @Req() request?: ToolRequest
   ) {
     this.assertToolSecret(input.secret);
+    const authContext = this.resolveToolAuthContext(input, request);
     const result = await this.askAssistantService.askAssistant({
       assistantId: input.assistantId,
       question: input.question,
       conversationId: input.conversationId,
-      authContext: this.resolveToolAuthContext(input, request)
+      authContext
     });
 
-    return this.normalizeRagAnswerResult(result, input.boundedMultiStep);
+    const boundedRequest = this.hasBoundedMultiStepRequest(
+      input.boundedMultiStep
+    );
+    const firstPassResult = boundedRequest
+      ? await this.askAssistantService.searchAssistant({
+          assistantId: input.assistantId,
+          question: input.question,
+          authContext
+        })
+      : null;
+    const secondPassResult =
+      firstPassResult == null
+        ? null
+        : await this.resolveSecondPassSearchResult({
+            assistantId: input.assistantId,
+            originalQuestion: input.question,
+            boundedMultiStepInput: input.boundedMultiStep,
+            authContext,
+            firstPassResult
+          });
+    const boundedMultiStep =
+      firstPassResult == null
+        ? this.buildDisabledBoundedMultiStepDiagnostics()
+        : this.buildBoundedMultiStepDiagnostics({
+            boundedMultiStepInput: input.boundedMultiStep,
+            originalQuestion: input.question,
+            firstPassResult,
+            secondPassResult,
+            mergedChunks: this.mergeChunks(
+              firstPassResult.chunks,
+              secondPassResult?.chunks ?? []
+            ),
+            mergedContextGroups: this.mergeContextGroups(
+              firstPassResult.contextGroups,
+              secondPassResult?.contextGroups ?? []
+            )
+          });
+
+    return this.normalizeRagAnswerResult(result, boundedMultiStep);
   }
 
   @Post('trace_lookup')
@@ -234,7 +314,7 @@ export class AgentToolsController {
 
   private normalizeRagAnswerResult(
     result: unknown,
-    boundedMultiStepInput?: BoundedMultiStepInput
+    boundedMultiStep: BoundedMultiStepDiagnostics
   ) {
     const payload =
       typeof result === 'object' && result !== null
@@ -244,11 +324,6 @@ export class AgentToolsController {
     const conversationId = this.readString(payload.conversationId);
     const userMessageId = this.readString(payload.userMessageId);
     const assistantMessageId = this.readString(payload.assistantMessageId);
-
-    const boundedMultiStep = this.resolveBoundedMultiStepDiagnostics(
-      boundedMultiStepInput
-    );
-
     return {
       answer: this.readString(payload.answer) ?? '',
       citations: Array.isArray(payload.citations) ? payload.citations : [],
@@ -331,21 +406,180 @@ export class AgentToolsController {
     };
   }
 
-  private resolveBoundedMultiStepDiagnostics(input?: BoundedMultiStepInput) {
-    const enabled = input?.enabled === true;
-    const rewrittenQuery = this.readString(input?.rewrittenQuery);
-    const secondPassRequested = input?.requestSecondPass === true;
-    const contractRequested = enabled || rewrittenQuery != null;
+  private async resolveSecondPassSearchResult(input: {
+    assistantId: string;
+    originalQuestion: string;
+    boundedMultiStepInput?: BoundedMultiStepInput;
+    authContext: RequestAuthContext;
+    firstPassResult: AssistantSearchResult;
+  }) {
+    const secondPassQuery = this.resolveSecondPassQuery(input);
+    if (secondPassQuery == null) {
+      return null;
+    }
+
+    return this.askAssistantService.searchAssistant({
+      assistantId: input.assistantId,
+      question: secondPassQuery,
+      authContext: input.authContext
+    });
+  }
+
+  private buildBoundedMultiStepDiagnostics(input: {
+    boundedMultiStepInput?: BoundedMultiStepInput;
+    originalQuestion: string;
+    firstPassResult: AssistantSearchResult;
+    secondPassResult: AssistantSearchResult | null;
+    mergedChunks: AssistantSearchResult['chunks'];
+    mergedContextGroups: AssistantSearchResult['contextGroups'];
+  }): BoundedMultiStepDiagnostics {
+    const enabled = input.boundedMultiStepInput?.enabled === true;
+    const rewrittenQuery = this.readString(
+      input.boundedMultiStepInput?.rewrittenQuery
+    );
+    const requested = this.hasBoundedMultiStepRequest(
+      input.boundedMultiStepInput
+    );
+    const secondPassRequested =
+      input.boundedMultiStepInput?.requestSecondPass === true ||
+      rewrittenQuery != null;
+    const secondPassQuery = this.resolveSecondPassQuery({
+      originalQuestion: input.originalQuestion,
+      boundedMultiStepInput: input.boundedMultiStepInput,
+      firstPassResult: input.firstPassResult
+    });
+
+    if (!requested) {
+      return this.buildDisabledBoundedMultiStepDiagnostics({
+        firstPassChunkCount: input.firstPassResult.chunks.length,
+        firstPassSourceCount: input.firstPassResult.contextGroups.length
+      });
+    }
 
     return {
       enabled,
-      requested: contractRequested,
+      requested,
       rewrittenQuery,
       secondPassRequested,
-      secondPassUsed: false,
-      mode: contractRequested ? 'deterministic_noop' : 'disabled',
-      reason: contractRequested ? 'agent_tool_contract_only' : 'not_requested'
+      secondPassUsed: input.secondPassResult != null,
+      mode:
+        input.secondPassResult != null
+          ? 'bounded_second_pass'
+          : secondPassRequested
+            ? 'first_pass_only'
+            : 'contract_requested',
+      reason:
+        input.secondPassResult != null
+          ? 'second_pass_completed'
+          : secondPassRequested
+            ? 'no_distinct_second_pass_query'
+            : 'first_pass_only',
+      firstPassChunkCount: input.firstPassResult.chunks.length,
+      firstPassSourceCount: input.firstPassResult.contextGroups.length,
+      secondPassQuery,
+      secondPassChunkCount: input.secondPassResult?.chunks.length ?? 0,
+      secondPassSourceCount: input.secondPassResult?.contextGroups.length ?? 0,
+      mergedChunkCount: input.mergedChunks.length,
+      mergedSourceCount: input.mergedContextGroups.length
     };
+  }
+
+  private resolveSecondPassQuery(input: {
+    originalQuestion: string;
+    boundedMultiStepInput?: BoundedMultiStepInput;
+    firstPassResult: AssistantSearchResult;
+  }) {
+    const explicitQuery = this.readString(
+      input.boundedMultiStepInput?.rewrittenQuery
+    );
+    const firstPassRewrittenQuery = this.readString(
+      input.firstPassResult.query.rewritten
+    );
+    const firstPassQuery = this.readString(
+      input.firstPassResult.query.retrieval
+    );
+    const candidateQuery = explicitQuery ?? firstPassRewrittenQuery;
+
+    if (candidateQuery == null) {
+      return null;
+    }
+
+    if (
+      candidateQuery === input.originalQuestion ||
+      candidateQuery === firstPassQuery
+    ) {
+      return null;
+    }
+
+    return candidateQuery;
+  }
+
+  private hasBoundedMultiStepRequest(input?: BoundedMultiStepInput) {
+    return (
+      input?.enabled === true ||
+      this.readString(input?.rewrittenQuery) != null ||
+      input?.requestSecondPass === true
+    );
+  }
+
+  private buildDisabledBoundedMultiStepDiagnostics(input?: {
+    firstPassChunkCount?: number;
+    firstPassSourceCount?: number;
+  }): BoundedMultiStepDiagnostics {
+    const firstPassChunkCount = input?.firstPassChunkCount ?? 0;
+    const firstPassSourceCount = input?.firstPassSourceCount ?? 0;
+
+    return {
+      enabled: false,
+      requested: false,
+      rewrittenQuery: null,
+      secondPassRequested: false,
+      secondPassUsed: false,
+      mode: 'disabled',
+      reason: 'not_requested',
+      firstPassChunkCount,
+      firstPassSourceCount,
+      secondPassQuery: null,
+      secondPassChunkCount: 0,
+      secondPassSourceCount: 0,
+      mergedChunkCount: firstPassChunkCount,
+      mergedSourceCount: firstPassSourceCount
+    };
+  }
+
+  private mergeChunks<T extends { chunkId: string }>(first: T[], second: T[]) {
+    const seen = new Set<string>();
+    return [...first, ...second].filter((chunk) => {
+      if (seen.has(chunk.chunkId)) {
+        return false;
+      }
+      seen.add(chunk.chunkId);
+      return true;
+    });
+  }
+
+  private mergeContextGroups<
+    T extends {
+      documentId: string;
+      startChunkIndex: number;
+      endChunkIndex: number;
+      chunkIds: string[];
+    }
+  >(first: T[], second: T[]) {
+    const seen = new Set<string>();
+    return [...first, ...second].filter((group) => {
+      const key = [
+        group.documentId,
+        group.startChunkIndex,
+        group.endChunkIndex,
+        ...group.chunkIds
+      ].join(':');
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
   }
 
   private readStringValue(value: unknown) {

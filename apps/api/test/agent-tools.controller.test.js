@@ -296,7 +296,14 @@ test('AgentToolsController normalizes rag_answer payload for agent consumers', a
       secondPassRequested: false,
       secondPassUsed: false,
       mode: 'disabled',
-      reason: 'not_requested'
+      reason: 'not_requested',
+      firstPassChunkCount: 0,
+      firstPassSourceCount: 0,
+      secondPassQuery: null,
+      secondPassChunkCount: 0,
+      secondPassSourceCount: 0,
+      mergedChunkCount: 0,
+      mergedSourceCount: 0
     }
   });
 });
@@ -356,18 +363,145 @@ test('AgentToolsController keeps rag_answer optional fields stable when missing'
       secondPassRequested: false,
       secondPassUsed: false,
       mode: 'disabled',
-      reason: 'not_requested'
+      reason: 'not_requested',
+      firstPassChunkCount: 0,
+      firstPassSourceCount: 0,
+      secondPassQuery: null,
+      secondPassChunkCount: 0,
+      secondPassSourceCount: 0,
+      mergedChunkCount: 0,
+      mergedSourceCount: 0
     }
   });
 });
 
-test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_answer', async () => {
+test('AgentToolsController performs one bounded second pass for rag_answer when requested', async () => {
   process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+  const searchCalls = [];
 
   const controller = new AgentToolsController(
     {
-      searchAssistant: async () => {
-        throw new Error('should not call searchAssistant');
+      searchAssistant: async (input) => {
+        searchCalls.push(input.question);
+        if (input.question === 'what is the answer?') {
+          return {
+            query: {
+              original: input.question,
+              retrieval: input.question,
+              rewritten: null,
+              rewrite: {
+                modelName: null,
+                usedFallback: null,
+                promptId: null,
+                skippedReason: 'disabled_by_default'
+              }
+            },
+            chunks: [
+              {
+                chunkId: 'chunk-1',
+                documentId: 'doc-1',
+                documentTitle: 'Demo document',
+                chunkIndex: 0,
+                content: 'first pass evidence',
+                score: 0.9,
+                isPrimary: true,
+                pageNo: 1,
+                sectionTitle: 'Intro'
+              }
+            ],
+            contextGroups: [
+              {
+                documentId: 'doc-1',
+                documentTitle: 'Demo document',
+                startChunkIndex: 0,
+                endChunkIndex: 0,
+                chunkIds: ['chunk-1'],
+                primaryChunkIds: ['chunk-1'],
+                mergedContent: 'first pass evidence',
+                pageNumbers: [1],
+                sectionTitles: ['Intro']
+              }
+            ],
+            diagnostics: {
+              profile: {
+                topK: 3,
+                scoreThreshold: 0.2,
+                chunkWindow: 0,
+                enableHybrid: false,
+                enableRerank: false
+              },
+              execution: {
+                actualMode: 'vector',
+                usedFallback: false,
+                fallbackReason: null
+              },
+              embedding: null,
+              filters: null,
+              strategySummary: {
+                retrievalMode: 'vector'
+              }
+            }
+          };
+        }
+
+        return {
+          query: {
+            original: input.question,
+            retrieval: input.question,
+            rewritten: null,
+            rewrite: {
+              modelName: null,
+              usedFallback: null,
+              promptId: null,
+              skippedReason: 'disabled_by_default'
+            }
+          },
+          chunks: [
+            {
+              chunkId: 'chunk-2',
+              documentId: 'doc-2',
+              documentTitle: 'Rewrite document',
+              chunkIndex: 1,
+              content: 'second pass evidence',
+              score: 0.88,
+              isPrimary: true,
+              pageNo: 2,
+              sectionTitle: 'Rewrite'
+            }
+          ],
+          contextGroups: [
+            {
+              documentId: 'doc-2',
+              documentTitle: 'Rewrite document',
+              startChunkIndex: 1,
+              endChunkIndex: 1,
+              chunkIds: ['chunk-2'],
+              primaryChunkIds: ['chunk-2'],
+              mergedContent: 'second pass evidence',
+              pageNumbers: [2],
+              sectionTitles: ['Rewrite']
+            }
+          ],
+          diagnostics: {
+            profile: {
+              topK: 3,
+              scoreThreshold: 0.2,
+              chunkWindow: 0,
+              enableHybrid: false,
+              enableRerank: false
+            },
+            execution: {
+              actualMode: 'vector',
+              usedFallback: false,
+              fallbackReason: null
+            },
+            embedding: null,
+            filters: null,
+            strategySummary: {
+              retrievalMode: 'vector'
+            }
+          }
+        };
       },
       askAssistant: async () => ({
         answer: 'bounded answer',
@@ -395,14 +529,22 @@ test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_
     }
   });
 
+  assert.deepEqual(searchCalls, ['what is the answer?', 'rewritten question']);
   assert.deepEqual(result.boundedMultiStep, {
     enabled: true,
     requested: true,
     rewrittenQuery: 'rewritten question',
     secondPassRequested: true,
-    secondPassUsed: false,
-    mode: 'deterministic_noop',
-    reason: 'agent_tool_contract_only'
+    secondPassUsed: true,
+    mode: 'bounded_second_pass',
+    reason: 'second_pass_completed',
+    firstPassChunkCount: 1,
+    firstPassSourceCount: 1,
+    secondPassQuery: 'rewritten question',
+    secondPassChunkCount: 1,
+    secondPassSourceCount: 1,
+    mergedChunkCount: 2,
+    mergedSourceCount: 2
   });
   assert.deepEqual(
     result.diagnostics.boundedMultiStep,
@@ -410,45 +552,134 @@ test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_
   );
 });
 
-test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_search', async () => {
+test('AgentToolsController performs one bounded second pass for rag_search and merges results', async () => {
   process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+  const searchCalls = [];
 
   const controller = new AgentToolsController(
     {
-      searchAssistant: async (input) => ({
-        query: {
-          original: input.question,
-          retrieval: input.question,
-          rewritten: null,
-          rewrite: {
-            modelName: null,
-            usedFallback: null,
-            promptId: null,
-            skippedReason: 'disabled_by_default'
-          }
-        },
-        chunks: [],
-        contextGroups: [],
-        diagnostics: {
-          profile: {
-            topK: 3,
-            scoreThreshold: 0.2,
-            chunkWindow: 0,
-            enableHybrid: false,
-            enableRerank: false
-          },
-          execution: {
-            actualMode: 'vector',
-            usedFallback: false,
-            fallbackReason: null
-          },
-          embedding: null,
-          filters: null,
-          strategySummary: {
-            retrievalMode: 'vector'
-          }
+      searchAssistant: async (input) => {
+        searchCalls.push(input.question);
+        if (input.question === 'what is the answer?') {
+          return {
+            query: {
+              original: input.question,
+              retrieval: input.question,
+              rewritten: null,
+              rewrite: {
+                modelName: null,
+                usedFallback: null,
+                promptId: null,
+                skippedReason: 'disabled_by_default'
+              }
+            },
+            chunks: [
+              {
+                chunkId: 'chunk-1',
+                documentId: 'doc-1',
+                documentTitle: 'Demo document',
+                chunkIndex: 0,
+                content: 'first pass evidence',
+                score: 0.92,
+                isPrimary: true,
+                pageNo: 1,
+                sectionTitle: 'Overview'
+              }
+            ],
+            contextGroups: [
+              {
+                documentId: 'doc-1',
+                documentTitle: 'Demo document',
+                startChunkIndex: 0,
+                endChunkIndex: 0,
+                chunkIds: ['chunk-1'],
+                primaryChunkIds: ['chunk-1'],
+                mergedContent: 'first pass evidence',
+                pageNumbers: [1],
+                sectionTitles: ['Overview']
+              }
+            ],
+            diagnostics: {
+              profile: {
+                topK: 3,
+                scoreThreshold: 0.2,
+                chunkWindow: 0,
+                enableHybrid: false,
+                enableRerank: false
+              },
+              execution: {
+                actualMode: 'vector',
+                usedFallback: false,
+                fallbackReason: null
+              },
+              embedding: null,
+              filters: null,
+              strategySummary: {
+                retrievalMode: 'vector'
+              }
+            }
+          };
         }
-      }),
+
+        return {
+          query: {
+            original: input.question,
+            retrieval: input.question,
+            rewritten: null,
+            rewrite: {
+              modelName: null,
+              usedFallback: null,
+              promptId: null,
+              skippedReason: 'disabled_by_default'
+            }
+          },
+          chunks: [
+            {
+              chunkId: 'chunk-2',
+              documentId: 'doc-2',
+              documentTitle: 'Rewrite document',
+              chunkIndex: 1,
+              content: 'second pass evidence',
+              score: 0.81,
+              isPrimary: true,
+              pageNo: 4,
+              sectionTitle: 'Deep dive'
+            }
+          ],
+          contextGroups: [
+            {
+              documentId: 'doc-2',
+              documentTitle: 'Rewrite document',
+              startChunkIndex: 1,
+              endChunkIndex: 1,
+              chunkIds: ['chunk-2'],
+              primaryChunkIds: ['chunk-2'],
+              mergedContent: 'second pass evidence',
+              pageNumbers: [4],
+              sectionTitles: ['Deep dive']
+            }
+          ],
+          diagnostics: {
+            profile: {
+              topK: 3,
+              scoreThreshold: 0.2,
+              chunkWindow: 0,
+              enableHybrid: false,
+              enableRerank: false
+            },
+            execution: {
+              actualMode: 'vector',
+              usedFallback: false,
+              fallbackReason: null
+            },
+            embedding: null,
+            filters: null,
+            strategySummary: {
+              retrievalMode: 'vector'
+            }
+          }
+        };
+      },
       askAssistant: async () => {
         throw new Error('should not call askAssistant');
       }
@@ -472,19 +703,116 @@ test('AgentToolsController exposes bounded multi-step no-op diagnostics for rag_
     }
   });
 
+  assert.deepEqual(searchCalls, ['what is the answer?', 'rewritten question']);
+  assert.equal(result.chunks.length, 2);
+  assert.equal(result.sources.length, 2);
   assert.deepEqual(result.boundedMultiStep, {
     enabled: true,
     requested: true,
     rewrittenQuery: 'rewritten question',
-    secondPassRequested: false,
-    secondPassUsed: false,
-    mode: 'deterministic_noop',
-    reason: 'agent_tool_contract_only'
+    secondPassRequested: true,
+    secondPassUsed: true,
+    mode: 'bounded_second_pass',
+    reason: 'second_pass_completed',
+    firstPassChunkCount: 1,
+    firstPassSourceCount: 1,
+    secondPassQuery: 'rewritten question',
+    secondPassChunkCount: 1,
+    secondPassSourceCount: 1,
+    mergedChunkCount: 2,
+    mergedSourceCount: 2
   });
   assert.deepEqual(
     result.diagnostics.boundedMultiStep,
     result.boundedMultiStep
   );
+});
+
+test('AgentToolsController keeps bounded requests on first pass when no distinct second-pass query exists', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+  const searchCalls = [];
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async (input) => {
+        searchCalls.push(input.question);
+        return {
+          query: {
+            original: input.question,
+            retrieval: input.question,
+            rewritten: null,
+            rewrite: {
+              modelName: null,
+              usedFallback: null,
+              promptId: null,
+              skippedReason: 'disabled_by_default'
+            }
+          },
+          chunks: [],
+          contextGroups: [],
+          diagnostics: {
+            profile: {
+              topK: 3,
+              scoreThreshold: 0.2,
+              chunkWindow: 0,
+              enableHybrid: false,
+              enableRerank: false
+            },
+            execution: {
+              actualMode: 'vector',
+              usedFallback: false,
+              fallbackReason: null
+            },
+            embedding: null,
+            filters: null,
+            strategySummary: {
+              retrievalMode: 'vector'
+            }
+          }
+        };
+      },
+      askAssistant: async () => ({
+        answer: 'bounded answer',
+        citations: [],
+        answerStatus: 'grounded'
+      })
+    },
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.ragAnswer({
+    secret: 'expected-secret',
+    assistantId: 'assistant-1',
+    question: 'what is the answer?',
+    boundedMultiStep: {
+      enabled: true,
+      requestSecondPass: true
+    }
+  });
+
+  assert.deepEqual(searchCalls, ['what is the answer?']);
+  assert.deepEqual(result.boundedMultiStep, {
+    enabled: true,
+    requested: true,
+    rewrittenQuery: null,
+    secondPassRequested: true,
+    secondPassUsed: false,
+    mode: 'first_pass_only',
+    reason: 'no_distinct_second_pass_query',
+    firstPassChunkCount: 0,
+    firstPassSourceCount: 0,
+    secondPassQuery: null,
+    secondPassChunkCount: 0,
+    secondPassSourceCount: 0,
+    mergedChunkCount: 0,
+    mergedSourceCount: 0
+  });
 });
 
 test('AgentToolsController resolves trace lookup scope from headers and returns stable diagnostics', async () => {
