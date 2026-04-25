@@ -145,14 +145,14 @@ Scope guardrails for this increment:
 
 The loop runtime now treats OpenCode as the baseline executor and Codex as a backend-compatible variant.
 
-| Area            | OpenCode                      | Codex executor                                      |
-| --------------- | ----------------------------- | --------------------------------------------------- |
-| Entry point     | `opencode` CLI                | `@openai/codex-sdk` first, CLI fallback second      |
-| Session model   | CLI session id                | SDK thread id or CLI session id                     |
-| Prompt intake   | plain text queue prompt       | same queue prompt shape                             |
-| Result contract | normalized loop result object | same normalized loop result object                  |
-| Runner impact   | baseline behavior             | runner stays backend-agnostic                       |
-| Output format   | native CLI stdout/stderr      | SDK result normalized into loop stdout/stderr shape |
+| Area            | OpenCode                      | Codex executor                     |
+| --------------- | ----------------------------- | ---------------------------------- |
+| Entry point     | `opencode` CLI                | `codex` CLI                        |
+| Session model   | CLI session id                | CLI session id                     |
+| Prompt intake   | plain text queue prompt       | same queue prompt shape            |
+| Result contract | normalized loop result object | same normalized loop result object |
+| Runner impact   | baseline behavior             | runner stays backend-agnostic      |
+| Output format   | native CLI stdout/stderr      | native CLI stdout/stderr           |
 
 Important difference: the loop runtime behavior is intentionally aligned, but not guaranteed to be byte-for-byte identical. The goal is interchangeable execution semantics for queue processing, not identical internal agent mechanics.
 
