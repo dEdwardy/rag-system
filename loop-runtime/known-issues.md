@@ -2,6 +2,16 @@
 
 Updated: 2026-04-25
 
+## Codex Backend Baseline
+
+- `pnpm loop:start:codex` uses the Codex CLI through the same queue runner contract as OpenCode.
+- Shared backend identifiers, default commands, default models, and environment variable keys live in `loop-runtime/core/backend-config.mjs`.
+- The Codex loop baseline is `gpt-5.5` with `model_reasoning_effort=low`.
+- The runner supplies the configured Codex default model and default args unless `LOOP_EXECUTOR_MODEL`, `CODEX_LOOP_MODEL`, or explicit flags in `CODEX_LOOP_ARGS` override them.
+- This keeps long queue execution independent from the user's global `~/.codex/config.toml` default model.
+- Codex JSONL `thread_id` is captured as the loop session id so later continuation/finalizer turns can resume the same CLI thread.
+- Startup validation checks that the Codex command is available before marking the runner as started.
+
 ## Do Now
 
 1. Improve timeout recovery artifacts.

@@ -1,6 +1,12 @@
 import { spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  EXECUTION_BACKENDS,
+  getBackendConfig,
+  resolveExecutionBackendFromEnv
+} from '../core/backend-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -8,18 +14,29 @@ const repoOpencodeConfig = path.join(repoRoot, 'opencode.jsonc');
 
 export async function validateExecutionBackend(env = process.env) {
   const backend = resolveExecutionBackend(env);
+  const config = getBackendConfig(backend);
+  if (backend === EXECUTION_BACKENDS.codex) {
+    const commandCheck = await checkCommandAvailable(
+      env[config.commandEnvKey]?.trim() ||
+        (process.platform === 'win32'
+          ? config.windowsCliCommand
+          : config.command),
+      ['--version']
+    );
+    if (!commandCheck.ok) {
+      return {
+        ok: false,
+        backend,
+        message: `codex backend unavailable: ${commandCheck.message}`
+      };
+    }
+  }
+
   return { ok: true, backend };
 }
 
 export function resolveExecutionBackend(env = process.env) {
-  const backend = (env.LOOP_EXECUTOR_BACKEND ?? 'opencode')
-    .trim()
-    .toLowerCase();
-  if (backend === 'codex') {
-    return 'codex';
-  }
-
-  return 'opencode';
+  return resolveExecutionBackendFromEnv(env);
 }
 
 export async function runExecutionPrompt({
@@ -36,7 +53,7 @@ export async function runExecutionPrompt({
   onExit,
   idleTimeoutMs
 }) {
-  if (backend === 'codex') {
+  if (backend === EXECUTION_BACKENDS.codex) {
     return await runCodexPrompt({
       prompt,
       title,
@@ -101,6 +118,7 @@ async function runOpenCodePrompt({
   onExit,
   idleTimeoutMs
 }) {
+  const config = getBackendConfig(EXECUTION_BACKENDS.opencode);
   const args = sessionId
     ? [
         'run',
@@ -108,11 +126,11 @@ async function runOpenCodePrompt({
         '--session',
         sessionId,
         '--agent',
-        'build',
+        opencodeEnv?.agent || config.defaultAgent,
         '--model',
-        'my/gpt-5.4',
+        resolveOpenCodeModel(opencodeEnv),
         '--format',
-        'json',
+        config.outputFormat,
         '--title',
         title,
         prompt
@@ -120,18 +138,18 @@ async function runOpenCodePrompt({
     : [
         'run',
         '--agent',
-        'build',
+        opencodeEnv?.agent || config.defaultAgent,
         '--model',
-        'my/gpt-5.4',
+        resolveOpenCodeModel(opencodeEnv),
         '--format',
-        'json',
+        config.outputFormat,
         '--title',
         title,
         prompt
       ];
 
   return await spawnPrompt({
-    command: 'opencode',
+    command: opencodeEnv?.command || config.command,
     args,
     cwd,
     env,
@@ -140,7 +158,7 @@ async function runOpenCodePrompt({
     onExit,
     idleTimeoutMs,
     injectEnv: {
-      OPENCODE_CONFIG: repoOpencodeConfig,
+      [config.configEnvKey]: repoOpencodeConfig,
       ...opencodeEnv
     }
   });
@@ -212,62 +230,133 @@ export function buildCodexCliInvocation({
   codexEnv = {},
   platform = process.platform
 }) {
+  const config = getBackendConfig(EXECUTION_BACKENDS.codex);
   const command =
-    codexEnv.CODEX_LOOP_COMMAND?.trim() ||
-    (platform === 'win32' ? 'cmd.exe' : 'codex');
-  const baseArgs = (codexEnv.CODEX_LOOP_ARGS ?? '').trim()
-    ? splitShellWords(codexEnv.CODEX_LOOP_ARGS)
-    : [];
+    codexEnv.command ||
+    (platform === 'win32' ? config.windowsShellCommand : config.command);
+  const usesWindowsShell = platform === 'win32' && !codexEnv.command;
+  const baseArgs = buildCodexBaseArgs(codexEnv);
 
   if (sessionId) {
     return {
       command,
-      args:
-        platform === 'win32'
-          ? [
-              '/c',
-              'codex.cmd',
-              'exec',
-              ...baseArgs,
-              'resume',
-              sessionId,
-              '--json',
-              '--full-auto',
-              '--cd',
-              cwd,
-              prompt
-            ]
-          : [
-              'exec',
-              ...baseArgs,
-              'resume',
-              sessionId,
-              '--json',
-              '--full-auto',
-              '--cd',
-              cwd,
-              prompt
-            ]
-    };
-  }
-
-  return {
-    command,
-    args:
-      platform === 'win32'
+      args: usesWindowsShell
         ? [
             '/c',
-            'codex.cmd',
+            codexEnv.cliCommand || config.windowsCliCommand,
             'exec',
             ...baseArgs,
+            'resume',
+            sessionId,
             '--json',
             '--full-auto',
             '--cd',
             cwd,
             prompt
           ]
-        : ['exec', ...baseArgs, '--json', '--full-auto', '--cd', cwd, prompt]
+        : [
+            'exec',
+            ...baseArgs,
+            'resume',
+            sessionId,
+            '--json',
+            '--full-auto',
+            '--cd',
+            cwd,
+            prompt
+          ]
+    };
+  }
+
+  return {
+    command,
+    args: usesWindowsShell
+      ? [
+          '/c',
+          codexEnv.cliCommand || config.windowsCliCommand,
+          'exec',
+          ...baseArgs,
+          '--json',
+          '--full-auto',
+          '--cd',
+          cwd,
+          prompt
+        ]
+      : ['exec', ...baseArgs, '--json', '--full-auto', '--cd', cwd, prompt]
   };
+}
+
+export function buildCodexBaseArgs(codexEnv = {}) {
+  const config = getBackendConfig(EXECUTION_BACKENDS.codex);
+  const userArgs = (codexEnv.args ?? '').trim()
+    ? splitShellWords(codexEnv.args)
+    : [];
+  const defaultArgs =
+    config.defaultArgs && !hasCodexConfigArg(userArgs, 'model_reasoning_effort')
+      ? splitShellWords(config.defaultArgs)
+      : [];
+  const args = [...defaultArgs, ...userArgs];
+  if (!hasCodexModelArg(args)) {
+    args.push('--model', codexEnv.model?.trim() || config.defaultModel);
+  }
+  return args;
+}
+
+function resolveOpenCodeModel(opencodeEnv = {}) {
+  const config = getBackendConfig(EXECUTION_BACKENDS.opencode);
+  return opencodeEnv.model?.trim?.() || config.defaultModel;
+}
+
+export function hasCodexModelArg(args) {
+  return args.some(
+    (arg) => arg === '--model' || arg === '-m' || arg.startsWith('--model=')
+  );
+}
+
+export function hasCodexConfigArg(args, key) {
+  return args.some((arg, index) => {
+    if (arg === '-c' || arg === '--config') {
+      return args[index + 1]?.startsWith(`${key}=`) ?? false;
+    }
+    return arg.startsWith(`-c${key}=`) || arg.startsWith(`--config=${key}=`);
+  });
+}
+
+export function extractExecutionSessionId(stdout) {
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{')) continue;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed?.thread_id) return parsed.thread_id;
+      if (parsed?.session_id) return parsed.session_id;
+      if (parsed?.sessionID) return parsed.sessionID;
+      const nested = parsed?.part?.sessionID ?? parsed?.part?.thread_id;
+      if (nested) return nested;
+    } catch {
+      // ignore non-JSON or partial lines
+    }
+  }
+  return null;
+}
+
+function checkCommandAvailable(command, args) {
+  return new Promise((resolve) => {
+    execFile(command, args, { windowsHide: true }, (error, stdout, stderr) => {
+      if (error) {
+        resolve({
+          ok: false,
+          message:
+            stderr?.trim() ||
+            stdout?.trim() ||
+            error.message ||
+            `${command} not found`
+        });
+        return;
+      }
+      resolve({ ok: true, message: stdout?.trim() || stderr?.trim() || 'ok' });
+    });
+  });
 }
 
 async function spawnPrompt({
@@ -368,6 +457,7 @@ async function spawnPrompt({
         signal,
         stdout,
         stderr,
+        sessionId: extractExecutionSessionId(stdout),
         timedOut,
         idleTimedOut
       });

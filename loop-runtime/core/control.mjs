@@ -7,6 +7,11 @@ import { spawn } from 'node:child_process';
 import { loadLatestQueue, queueSummary } from './queue-utils.mjs';
 import { formatStatusLine } from './status-utils.mjs';
 import { validateExecutionBackend } from '../adapters/execution-adapters.mjs';
+import {
+  DEFAULT_EXECUTION_BACKEND,
+  LOOP_ENV_KEYS,
+  shouldStripBackendRuntimeEnv
+} from './backend-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
@@ -19,11 +24,9 @@ const [command, ...rawArgs] = process.argv.slice(2);
 const parsedArgs = parseArgs(rawArgs);
 const requestedExecutor = parsedArgs.executor?.trim();
 const effectiveExecutor =
-  requestedExecutor || process.env.LOOP_EXECUTOR_BACKEND || 'opencode';
-
-function shouldStripParentRuntimeEnv(key) {
-  return key.startsWith('OPENCODE') || key.startsWith('CODEX');
-}
+  requestedExecutor ||
+  process.env[LOOP_ENV_KEYS.executorBackend] ||
+  DEFAULT_EXECUTION_BACKEND;
 
 await mkdir(runtimeDir, { recursive: true });
 
@@ -126,7 +129,7 @@ async function start() {
 
   const backendCheck = await validateExecutionBackend({
     ...process.env,
-    LOOP_EXECUTOR_BACKEND: effectiveExecutor
+    [LOOP_ENV_KEYS.executorBackend]: effectiveExecutor
   });
   if (!backendCheck.ok) {
     await writeState(
@@ -148,7 +151,7 @@ async function start() {
 
   const childEnv = { ...process.env };
   for (const key of Object.keys(childEnv)) {
-    if (shouldStripParentRuntimeEnv(key)) {
+    if (shouldStripBackendRuntimeEnv(key)) {
       delete childEnv[key];
     }
   }
@@ -157,7 +160,7 @@ async function start() {
     cwd: repoRoot,
     env: {
       ...childEnv,
-      LOOP_EXECUTOR_BACKEND: effectiveExecutor
+      [LOOP_ENV_KEYS.executorBackend]: effectiveExecutor
     },
     detached: true,
     stdio: 'ignore',
@@ -201,8 +204,8 @@ async function stop() {
       status: 'stopping',
       executionBackend:
         state.executionBackend ??
-        process.env.LOOP_EXECUTOR_BACKEND ??
-        'opencode',
+        process.env[LOOP_ENV_KEYS.executorBackend] ??
+        DEFAULT_EXECUTION_BACKEND,
       stoppedAt: new Date().toISOString()
     },
     state
@@ -216,9 +219,7 @@ async function stop() {
 }
 
 function help() {
-  console.log(
-    'usage: pnpm loop:start [--executor opencode|codex] | stop | status'
-  );
+  console.log('usage: pnpm loop:start [--executor <backend>] | stop | status');
 }
 
 function parseArgs(args) {

@@ -23,6 +23,14 @@ import {
   validateExecutionBackend
 } from '../adapters/execution-adapters.mjs';
 import {
+  buildBackendEnv,
+  EXECUTION_BACKENDS,
+  LEGACY_LOOP_ENV_KEYS,
+  LOOP_ENV_KEYS,
+  resolveLoopNumberEnv,
+  shouldStripBackendRuntimeEnv
+} from './backend-config.mjs';
+import {
   inferRecoveryRootCause,
   buildRecoveryNextSteps
 } from './recovery-utils.mjs';
@@ -40,12 +48,23 @@ const runtimeDir = path.join(loopDir, 'runtime');
 const recoveryDir = path.join(runtimeDir, 'recovery');
 const stateFile = path.join(runtimeDir, 'loop-state.json');
 const logFile = path.join(loopDir, 'loop-run.log');
-const intervalMs = Number(process.env.OPENCODE_LOOP_INTERVAL_MS ?? 5000);
-const itemTimeoutMs = Number(
-  process.env.OPENCODE_LOOP_ITEM_TIMEOUT_MS ?? 1200000
+const intervalMs = resolveLoopNumberEnv(
+  process.env,
+  LOOP_ENV_KEYS.intervalMs,
+  LEGACY_LOOP_ENV_KEYS.intervalMs,
+  5000
 );
-const itemIdleTimeoutMs = Number(
-  process.env.OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS ?? 45000
+const itemTimeoutMs = resolveLoopNumberEnv(
+  process.env,
+  LOOP_ENV_KEYS.itemTimeoutMs,
+  LEGACY_LOOP_ENV_KEYS.itemTimeoutMs,
+  1200000
+);
+const itemIdleTimeoutMs = resolveLoopNumberEnv(
+  process.env,
+  LOOP_ENV_KEYS.itemIdleTimeoutMs,
+  LEGACY_LOOP_ENV_KEYS.itemIdleTimeoutMs,
+  45000
 );
 let stopping = false;
 let currentChild = null;
@@ -116,7 +135,7 @@ async function failCurrentItem(loaded, item, error, extra = {}) {
 function buildChildEnv() {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith('OPENCODE')) {
+    if (shouldStripBackendRuntimeEnv(key)) {
       delete env[key];
     }
   }
@@ -168,22 +187,6 @@ function cleanObject(value) {
       ([, entry]) => entry !== undefined && entry !== null && entry !== ''
     )
   );
-}
-
-function extractSessionId(stdout) {
-  for (const line of stdout.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('{')) continue;
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (parsed?.sessionID) return parsed.sessionID;
-      const nested = parsed?.part?.sessionID;
-      if (nested) return nested;
-    } catch {
-      // ignore non-JSON or partial lines
-    }
-  }
-  return null;
 }
 
 function extractReportedError(stdout) {
@@ -494,10 +497,12 @@ function buildSessionTitle(queue, item) {
   return `[${currentIndex}/${totalCount} | left ${remainingAfterCurrent}] ${item.id}`;
 }
 
-async function runOpencode(queue, item, queueFileName, sessionId) {
+async function runQueueItem(queue, item, queueFileName, sessionId) {
   const prompt = sessionId
     ? buildContinuationPrompt(item, queueFileName)
     : buildExecutionPrompt(item, queueFileName);
+  const opencodeEnv = buildBackendEnv(process.env, EXECUTION_BACKENDS.opencode);
+  const codexEnv = buildBackendEnv(process.env, EXECUTION_BACKENDS.codex);
   const result = await runExecutionPrompt({
     backend: executionBackend,
     prompt,
@@ -515,11 +520,8 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
         currentChild = null;
       }
     },
-    opencodeEnv: {},
-    codexEnv: {
-      CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
-      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? ''
-    }
+    opencodeEnv,
+    codexEnv
   }).catch((error) => ({
     exitCode: 1,
     signal: null,
@@ -538,6 +540,8 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
 }
 
 async function runQueueFinalizer(queue, item, queueFileName, sessionId) {
+  const opencodeEnv = buildBackendEnv(process.env, EXECUTION_BACKENDS.opencode);
+  const codexEnv = buildBackendEnv(process.env, EXECUTION_BACKENDS.codex);
   return await runExecutionPrompt({
     backend: executionBackend,
     prompt: buildFinalizerPrompt(item, queueFileName),
@@ -555,11 +559,8 @@ async function runQueueFinalizer(queue, item, queueFileName, sessionId) {
         currentChild = null;
       }
     },
-    opencodeEnv: {},
-    codexEnv: {
-      CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
-      CODEX_LOOP_ARGS: process.env.CODEX_LOOP_ARGS ?? ''
-    }
+    opencodeEnv,
+    codexEnv
   }).catch((error) => ({
     exitCode: 1,
     signal: null,
@@ -675,7 +676,7 @@ async function processOneItem() {
       item.verification.commands.length > 0
         ? item.verification.commands[0]
         : 'none';
-    let result = await runOpencode(
+    let result = await runQueueItem(
       queue,
       item,
       path.basename(loaded.filePath),

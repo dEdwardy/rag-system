@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
+  buildCodexBaseArgs,
   buildCodexCliInvocation,
   createIdleController,
+  extractExecutionSessionId,
+  hasCodexConfigArg,
+  hasCodexModelArg,
   validateExecutionBackend,
   parseJsonEnv,
   resolveExecutionBackend,
@@ -13,6 +17,11 @@ import {
   inferRecoveryRootCause,
   buildRecoveryNextSteps
 } from '../core/recovery-utils.mjs';
+import {
+  buildBackendEnv,
+  EXECUTION_BACKENDS,
+  LOOP_ENV_KEYS
+} from '../core/backend-config.mjs';
 
 test('spawn hook contract can track a child lifecycle', async () => {
   let spawned = null;
@@ -37,30 +46,33 @@ test('spawn hook contract can track a child lifecycle', async () => {
 });
 
 test('resolveExecutionBackend defaults to opencode', () => {
-  assert.equal(resolveExecutionBackend({}), 'opencode');
+  assert.equal(resolveExecutionBackend({}), EXECUTION_BACKENDS.opencode);
 });
 
 test('resolveExecutionBackend accepts codex', () => {
   assert.equal(
-    resolveExecutionBackend({ LOOP_EXECUTOR_BACKEND: 'codex' }),
-    'codex'
+    resolveExecutionBackend({
+      [LOOP_ENV_KEYS.executorBackend]: EXECUTION_BACKENDS.codex
+    }),
+    EXECUTION_BACKENDS.codex
   );
 });
 
 test('validateExecutionBackend allows opencode without extra checks', async () => {
   const result = await validateExecutionBackend({
-    LOOP_EXECUTOR_BACKEND: 'opencode'
+    [LOOP_ENV_KEYS.executorBackend]: EXECUTION_BACKENDS.opencode
   });
   assert.equal(result.ok, true);
-  assert.equal(result.backend, 'opencode');
+  assert.equal(result.backend, EXECUTION_BACKENDS.opencode);
 });
 
-test('validateExecutionBackend allows codex without sdk checks', async () => {
+test('validateExecutionBackend checks codex command availability', async () => {
   const result = await validateExecutionBackend({
-    LOOP_EXECUTOR_BACKEND: 'codex'
+    [LOOP_ENV_KEYS.executorBackend]: EXECUTION_BACKENDS.codex,
+    CODEX_LOOP_COMMAND: process.execPath
   });
   assert.equal(result.ok, true);
-  assert.equal(result.backend, 'codex');
+  assert.equal(result.backend, EXECUTION_BACKENDS.codex);
 });
 
 test('createIdleController fires after a silent period', async () => {
@@ -130,7 +142,7 @@ test('buildCodexCliInvocation keeps resume after exec on windows', () => {
     sessionId: 'thread-123',
     cwd: 'D:\\FeProjects\\rag-system',
     codexEnv: {
-      CODEX_LOOP_ARGS: '--model gpt-5.4'
+      args: '--model gpt-5.4'
     },
     platform: 'win32'
   });
@@ -140,6 +152,8 @@ test('buildCodexCliInvocation keeps resume after exec on windows', () => {
     '/c',
     'codex.cmd',
     'exec',
+    '-c',
+    'model_reasoning_effort=low',
     '--model',
     'gpt-5.4',
     'resume',
@@ -150,4 +164,117 @@ test('buildCodexCliInvocation keeps resume after exec on windows', () => {
     'D:\\FeProjects\\rag-system',
     'Return one queue result line.'
   ]);
+});
+
+test('buildCodexCliInvocation uses custom codex command directly on windows', () => {
+  const invocation = buildCodexCliInvocation({
+    prompt: 'Return one queue result line.',
+    cwd: 'D:\\FeProjects\\rag-system',
+    codexEnv: {
+      command: 'C:\\tools\\codex.exe',
+      args: '--model gpt-5.4'
+    },
+    platform: 'win32'
+  });
+
+  assert.equal(invocation.command, 'C:\\tools\\codex.exe');
+  assert.deepEqual(invocation.args, [
+    'exec',
+    '-c',
+    'model_reasoning_effort=low',
+    '--model',
+    'gpt-5.4',
+    '--json',
+    '--full-auto',
+    '--cd',
+    'D:\\FeProjects\\rag-system',
+    'Return one queue result line.'
+  ]);
+});
+
+test('buildCodexBaseArgs supplies a stable default model for loop runs', () => {
+  assert.deepEqual(buildCodexBaseArgs({}), [
+    '-c',
+    'model_reasoning_effort=low',
+    '--model',
+    'gpt-5.5'
+  ]);
+  assert.deepEqual(buildCodexBaseArgs({ model: 'gpt-5.2' }), [
+    '-c',
+    'model_reasoning_effort=low',
+    '--model',
+    'gpt-5.2'
+  ]);
+  assert.deepEqual(buildCodexBaseArgs({ args: '--model gpt-5.4-mini' }), [
+    '-c',
+    'model_reasoning_effort=low',
+    '--model',
+    'gpt-5.4-mini'
+  ]);
+});
+
+test('buildCodexBaseArgs lets explicit reasoning effort override fast default', () => {
+  assert.deepEqual(
+    buildCodexBaseArgs({ args: '-c model_reasoning_effort=medium' }),
+    ['-c', 'model_reasoning_effort=medium', '--model', 'gpt-5.5']
+  );
+});
+
+test('buildBackendEnv normalizes shared and backend-specific model env', () => {
+  assert.deepEqual(
+    buildBackendEnv(
+      {
+        [LOOP_ENV_KEYS.executorModel]: 'gpt-shared',
+        CODEX_LOOP_MODEL: 'gpt-codex',
+        CODEX_LOOP_ARGS: '--sandbox workspace-write'
+      },
+      EXECUTION_BACKENDS.codex
+    ),
+    {
+      command: '',
+      args: '--sandbox workspace-write',
+      model: 'gpt-codex'
+    }
+  );
+});
+
+test('hasCodexModelArg recognizes supported codex model forms', () => {
+  assert.equal(hasCodexModelArg(['--model', 'gpt-5.4']), true);
+  assert.equal(hasCodexModelArg(['-m', 'gpt-5.4']), true);
+  assert.equal(hasCodexModelArg(['--model=gpt-5.4']), true);
+  assert.equal(hasCodexModelArg(['--sandbox', 'workspace-write']), false);
+});
+
+test('hasCodexConfigArg recognizes config overrides', () => {
+  assert.equal(
+    hasCodexConfigArg(
+      ['-c', 'model_reasoning_effort=low'],
+      'model_reasoning_effort'
+    ),
+    true
+  );
+  assert.equal(
+    hasCodexConfigArg(
+      ['--config=model_reasoning_effort=medium'],
+      'model_reasoning_effort'
+    ),
+    true
+  );
+  assert.equal(
+    hasCodexConfigArg(['--model', 'gpt-5.5'], 'model_reasoning_effort'),
+    false
+  );
+});
+
+test('extractExecutionSessionId reads opencode and codex JSONL ids', () => {
+  assert.equal(
+    extractExecutionSessionId(
+      '{"type":"thread.started","thread_id":"thread-1"}\n'
+    ),
+    'thread-1'
+  );
+  assert.equal(
+    extractExecutionSessionId('{"sessionID":"session-1"}\n'),
+    'session-1'
+  );
 });
