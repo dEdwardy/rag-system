@@ -2,7 +2,7 @@
   "version": 1,
   "cursor": 0,
   "createdAt": "2026-04-25T20:00:00.000Z",
-  "updatedAt": "2026-04-25T19:46:15.683Z",
+  "updatedAt": "2026-04-25T19:48:24.839Z",
   "materializedFrom": "agentic-codex-next",
   "materializedWaveId": "agentic-codex-next-wave",
   "items": [
@@ -82,7 +82,8 @@
       "backlogWaveId": "agentic-codex-next-wave",
       "backlogParentId": "agentic-codex-next",
       "plannerFamily": "agentic-rag",
-      "plannerSource": "manual-codex-queue"
+      "plannerSource": "manual-codex-queue",
+      "updatedAt": "2026-04-25T19:48:24.839Z"
     },
     {
       "id": "agent-tools-bounded-rewrite-flow",
