@@ -19,6 +19,7 @@ type ExplicitSourceDescriptor = {
   raw: string;
   url: string;
   label: string | null;
+  context: string;
 };
 
 const POLICY_QUESTION_PATTERNS = [
@@ -75,10 +76,15 @@ export function resolveExplicitExternalSourceRoutes(
       const parsed = new URL(source.url);
       const pathname = parsed.pathname.toLowerCase();
       const search = parsed.search.toLowerCase();
+      const normalizedSignalText =
+        `${source.label ?? ''} ${source.context}`.toLowerCase();
+      const pathSegments = pathname.split('/').filter(Boolean);
+      const lastSegment = pathSegments[pathSegments.length - 1] ?? '';
 
       if (
-        /(?:^|\/)(sitemap(?:-[\w-]+)?\.xml)$/i.test(pathname) ||
-        /[?&](?:format=xml|type=sitemap)\b/i.test(search)
+        /(?:^|\/)(sitemap(?:[-_][\w-]+)?\.xml)$/i.test(pathname) ||
+        /(?:^|\b)sitemap(?:\b|[-_])/i.test(normalizedSignalText) ||
+        /[?&]type=sitemap\b/i.test(search)
       ) {
         return {
           raw: source.raw,
@@ -88,7 +94,12 @@ export function resolveExplicitExternalSourceRoutes(
         };
       }
 
-      if (/(?:rss|atom|feed)/i.test(pathname)) {
+      if (
+        /(?:^|\b)(rss|atom|feed)(?:\b|[-_])/i.test(normalizedSignalText) ||
+        /^(?:feed|rss|atom)(?:\.[a-z0-9]+)?$/i.test(lastSegment) ||
+        /\.(?:rss|atom)(?:\.xml)?$/i.test(lastSegment) ||
+        /[?&](?:format|type)=(?:rss|atom|feed)\b/i.test(search)
+      ) {
         return {
           raw: source.raw,
           url: source.url,
@@ -126,7 +137,8 @@ function extractExplicitSourceDescriptors(
     (match) => ({
       raw: match[2].replace(/[.,!?;:]+$/g, ''),
       url: match[2].replace(/[.,!?;:]+$/g, ''),
-      label: match[1].trim() || null
+      label: match[1].trim() || null,
+      context: match[0]
     })
   );
   const bareUrls = Array.from(
@@ -137,7 +149,8 @@ function extractExplicitSourceDescriptors(
       label: buildReadableExternalSourceLabel(
         match[0].replace(/[.,!?;:]+$/g, ''),
         'web'
-      )
+      ),
+      context: extractSourceContext(question, match.index ?? 0, match[0].length)
     })
   );
   const deduped = new Map<string, ExplicitSourceDescriptor>();
@@ -147,6 +160,13 @@ function extractExplicitSourceDescriptors(
     }
   }
   return Array.from(deduped.values());
+}
+
+function extractSourceContext(question: string, start: number, length: number) {
+  const contextRadius = 48;
+  const contextStart = Math.max(0, start - contextRadius);
+  const contextEnd = Math.min(question.length, start + length + contextRadius);
+  return question.slice(contextStart, contextEnd);
 }
 
 function buildReadableExternalSourceLabel(

@@ -73,6 +73,26 @@ test('route helper resolves source kinds across web, feed, and sitemap boundarie
   assert.equal(sitemapSource?.sourceKind, 'sitemap');
 });
 
+test('route helper detects markdown links and bare urls conservatively across feed and sitemap boundaries', () => {
+  const markdownFeed = resolveExplicitExternalSourceRoute(
+    'Summarize [product updates feed](https://example.com/updates.xml)'
+  );
+  assert.equal(markdownFeed?.url, 'https://example.com/updates.xml');
+  assert.equal(markdownFeed?.sourceKind, 'feed');
+
+  const bareSitemap = resolveExplicitExternalSourceRoute(
+    'Please inspect this sitemap https://example.com/updates.xml for crawl coverage'
+  );
+  assert.equal(bareSitemap?.url, 'https://example.com/updates.xml');
+  assert.equal(bareSitemap?.sourceKind, 'sitemap');
+
+  const plainXml = resolveExplicitExternalSourceRoute(
+    'Read https://example.com/updates.xml and summarize the page'
+  );
+  assert.equal(plainXml?.url, 'https://example.com/updates.xml');
+  assert.equal(plainXml?.sourceKind, 'web');
+});
+
 test('route helper deduplicates urls and marks plural explicit source routing', () => {
   const sources = resolveExplicitExternalSourceRoutes(
     'Compare [home](https://example.com) with https://example.com and https://example.com/feed.xml'
