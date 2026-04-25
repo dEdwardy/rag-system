@@ -522,8 +522,10 @@ export class TracesService {
     const canonicalMetadataSurface =
       routeType != null && routeReason != null && executionPlan != null
         ? buildTraceMetadataCanonicalSurface({
-            routeType,
-            routeReason,
+            routeDecision: {
+              routeType,
+              routeReason
+            },
             executionPlan
           })
         : null;
