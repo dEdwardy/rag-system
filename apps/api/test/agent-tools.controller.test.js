@@ -175,3 +175,131 @@ test('AgentToolsController returns retrieval payload for rag_search without call
   assert.equal(result.diagnostics.chunkCount, 1);
   assert.equal(result.diagnostics.sourceCount, 1);
 });
+
+test('AgentToolsController normalizes rag_answer payload for agent consumers', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const askCalls = [];
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not call searchAssistant');
+      },
+      askAssistant: async (input) => {
+        askCalls.push(input);
+        return {
+          answer: 'tool answer',
+          citations: [{ chunkId: 'chunk-1', documentId: 'doc-1' }],
+          confidence: 'high',
+          missingInformation: ['missing detail'],
+          traceId: 'trace-1',
+          conversationId: 'conversation-1',
+          userMessageId: 'user-message-1',
+          assistantMessageId: 'assistant-message-1',
+          routeType: 'knowledge_base',
+          routeReason: 'default_knowledge_base',
+          strategySummary: { retrievalMode: 'vector' },
+          retrievalMetadata: { retrievedChunkCount: 1 },
+          answeringMetadata: { answerTextSource: 'model' },
+          qualityEvaluation: { overall: 'strong' },
+          modelName: 'gpt-test',
+          answerStatus: 'grounded'
+        };
+      }
+    },
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.ragAnswer({
+    secret: 'expected-secret',
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'what is the answer?',
+    tenantId: 'tenant-1',
+    userId: 'user-1'
+  });
+
+  assert.equal(askCalls.length, 1);
+  assert.equal(askCalls[0].conversationId, 'conversation-1');
+  assert.equal(askCalls[0].authContext.identity.tenantId, 'tenant-1');
+  assert.equal(result.answer, 'tool answer');
+  assert.deepEqual(result.citations, [
+    { chunkId: 'chunk-1', documentId: 'doc-1' }
+  ]);
+  assert.equal(result.confidence, 'high');
+  assert.deepEqual(result.missingInformation, ['missing detail']);
+  assert.equal(result.traceId, 'trace-1');
+  assert.deepEqual(result.trace, {
+    traceId: 'trace-1',
+    conversationId: 'conversation-1',
+    userMessageId: 'user-message-1',
+    assistantMessageId: 'assistant-message-1'
+  });
+  assert.deepEqual(result.diagnostics, {
+    routeType: 'knowledge_base',
+    routeReason: 'default_knowledge_base',
+    strategySummary: { retrievalMode: 'vector' },
+    retrievalMetadata: { retrievedChunkCount: 1 },
+    answeringMetadata: { answerTextSource: 'model' },
+    qualityEvaluation: { overall: 'strong' },
+    modelName: 'gpt-test',
+    answerStatus: 'grounded'
+  });
+});
+
+test('AgentToolsController keeps rag_answer optional fields stable when missing', async () => {
+  process.env.AGENT_TOOL_GATEWAY_SECRET = 'expected-secret';
+
+  const controller = new AgentToolsController(
+    {
+      searchAssistant: async () => {
+        throw new Error('should not call searchAssistant');
+      },
+      askAssistant: async () => ({
+        answer: 'minimal answer'
+      })
+    },
+    {
+      getTrace: async () => ({ id: 'trace-1' })
+    },
+    {
+      getDocument: async () => ({ id: 'doc-1', status: 'ready' }),
+      listDocumentChunks: async () => []
+    }
+  );
+
+  const result = await controller.ragAnswer({
+    secret: 'expected-secret',
+    assistantId: 'assistant-1',
+    question: 'what is the answer?'
+  });
+
+  assert.equal(result.answer, 'minimal answer');
+  assert.deepEqual(result.citations, []);
+  assert.equal(result.confidence, null);
+  assert.deepEqual(result.missingInformation, []);
+  assert.deepEqual(result.trace, {
+    traceId: null,
+    conversationId: null,
+    userMessageId: null,
+    assistantMessageId: null
+  });
+  assert.equal(result.traceId, null);
+  assert.equal(result.conversationId, null);
+  assert.deepEqual(result.diagnostics, {
+    routeType: null,
+    routeReason: null,
+    strategySummary: null,
+    retrievalMetadata: null,
+    answeringMetadata: null,
+    qualityEvaluation: null,
+    modelName: null,
+    answerStatus: null
+  });
+});

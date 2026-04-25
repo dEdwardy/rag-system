@@ -102,12 +102,14 @@ export class AgentToolsController {
     @Req() request?: ToolRequest
   ) {
     this.assertToolSecret(input.secret);
-    return this.askAssistantService.askAssistant({
+    const result = await this.askAssistantService.askAssistant({
       assistantId: input.assistantId,
       question: input.question,
       conversationId: input.conversationId,
       authContext: this.resolveToolAuthContext(input, request)
     });
+
+    return this.normalizeRagAnswerResult(result);
   }
 
   @Post('trace_lookup')
@@ -198,8 +200,60 @@ export class AgentToolsController {
     }
   }
 
+  private normalizeRagAnswerResult(result: unknown) {
+    const payload =
+      typeof result === 'object' && result !== null
+        ? (result as Record<string, unknown>)
+        : {};
+    const traceId = this.readString(payload.traceId);
+    const conversationId = this.readString(payload.conversationId);
+    const userMessageId = this.readString(payload.userMessageId);
+    const assistantMessageId = this.readString(payload.assistantMessageId);
+
+    return {
+      answer: this.readString(payload.answer) ?? '',
+      citations: Array.isArray(payload.citations) ? payload.citations : [],
+      confidence:
+        this.readString(payload.confidence) ??
+        this.readString(payload.answerStatus),
+      missingInformation: Array.isArray(payload.missingInformation)
+        ? payload.missingInformation
+        : [],
+      diagnostics: {
+        routeType: this.readString(payload.routeType),
+        routeReason: this.readString(payload.routeReason),
+        strategySummary: payload.strategySummary ?? null,
+        retrievalMetadata: payload.retrievalMetadata ?? null,
+        answeringMetadata: payload.answeringMetadata ?? null,
+        qualityEvaluation: payload.qualityEvaluation ?? null,
+        modelName: this.readString(payload.modelName),
+        answerStatus: this.readString(payload.answerStatus)
+      },
+      trace: {
+        traceId,
+        conversationId,
+        userMessageId,
+        assistantMessageId
+      },
+      traceId,
+      conversationId,
+      userMessageId,
+      assistantMessageId
+    };
+  }
+
+  private readStringValue(value: unknown) {
+    return typeof value === 'string' && value.trim().length > 0 ? value : null;
+  }
+
   private readHeader(request: ToolRequest | undefined, name: string) {
     const value = request?.headers?.[name];
-    return typeof value === 'string' ? value.trim() || null : null;
+    return typeof value === 'string'
+      ? this.readStringValue(value.trim())
+      : null;
+  }
+
+  private readString(value: unknown) {
+    return this.readStringValue(value);
   }
 }

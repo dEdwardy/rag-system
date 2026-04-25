@@ -2,7 +2,7 @@
   "version": 1,
   "cursor": 0,
   "createdAt": "2026-04-25T20:00:00.000Z",
-  "updatedAt": "2026-04-25T19:48:24.839Z",
+  "updatedAt": "2026-04-25T19:53:22.876Z",
   "materializedFrom": "agentic-codex-next",
   "materializedWaveId": "agentic-codex-next-wave",
   "items": [
@@ -61,7 +61,7 @@
       "title": "stabilize rag_answer response contract",
       "goal": "Normalize rag_answer output for agent consumers with citations, confidence, missingInformation, diagnostics, and trace identity when available.",
       "agent": "rag-build",
-      "status": "pending",
+      "status": "completed",
       "promptText": "Follow AGENTS.md and apps/api/AGENTS.md. Build on agent-tools-rag-search-contract. Keep POST /agent-tools/rag_answer on the existing ask path, but normalize the returned tool payload so agent callers can rely on answer, citations, confidence, missingInformation, diagnostics, and trace identifiers when present. Keep the change local to agent-tools/ask response formatting; do not rewrite ask orchestration, retrieval defaults, ACL, or persistence. Add focused tests in apps/api/test/agent-tools.controller.test.js for present and missing optional fields.",
       "verification": {
         "mode": "command_only",
@@ -74,7 +74,7 @@
         "onCommandFailure": "needs_replan",
         "onVerificationFail": "needs_replan"
       },
-      "attempt": 0,
+      "attempt": 1,
       "riskLevel": "medium",
       "dependsOn": [
         "agent-tools-rag-search-contract"
@@ -83,7 +83,26 @@
       "backlogParentId": "agentic-codex-next",
       "plannerFamily": "agentic-rag",
       "plannerSource": "manual-codex-queue",
-      "updatedAt": "2026-04-25T19:48:24.839Z"
+      "updatedAt": "2026-04-25T19:53:22.876Z",
+      "startedAt": "2026-04-25T19:49:10.731Z",
+      "startedBy": "loop-runtime-runner",
+      "finishedAt": "2026-04-25T19:53:22.876Z",
+      "resultExitCode": 0,
+      "lastRunSummary": "{\"type\":\"error\",\"message\":\"Reconnecting... 5/5 (unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: wss://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdec92e4df601-NRT, request id: acda63e7-ac90-4d54-9ca2-e4dbbb1f65cd, auth error: 402)\"}\n{\"type\":\"error\",\"message\":\"Reconnecting... 1/5 (unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdee35ecff601-NRT, request id: acda63e7-ac90-4d54-9ca2-e4dbbb1f65cd, auth error: 402)\"}\n{\"type\":\"error\",\"message\":\"Reconnecting... 2/5 (unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdee68f59f601-NRT, request id: acda63e7-ac90-4d54-9ca2-e4dbbb1f65cd, auth error: 402)\"}\n{\"type\":\"error\",\"message\":\"Reconnecting... 3/5 (unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdeeaf81bf601-NRT, request id: acda63e7-ac90-4d54-9ca2-e4dbbb1f65cd, auth error: 402)\"}\n{\"type\":\"error\",\"message\":\"Reconnecting... 4/5 (unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdef1e9a8f601-NRT, request id: a83c7711-166f-4f36-b85f-f7c31323598c, auth error: 402)\"}\n{\"type\":\"error\",\"message\":\"Reconnecting... 5/5 (unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdefe0bf6f601-NRT, request id: a83c7711-166f-4f36-b85f-f7c31323598c, auth error: 402)\"}\n{\"type\":\"error\",\"message\":\"unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdf16b85df601-NRT, request id: a83c7711-166f-4f36-b85f-f7c31323598c, auth error: 402\"}\n{\"type\":\"turn.failed\",\"error\":{\"message\":\"unexpected status 402 Payment Required: {\\\"detail\\\":{\\\"code\\\":\\\"deactivated_workspace\\\"}}, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9f1fdf16b85df601-NRT, request id: a83c7711-166f-4f36-b85f-f7c31323598c, auth error: 402\"}}",
+      "failureReason": null,
+      "sessionId": "019dc630-5bf6-78d3-94a7-64705dd6ee27",
+      "completedAt": "2026-04-25T19:53:22.876Z",
+      "queueResultStatus": "completed",
+      "queueFailureMarkers": null,
+      "reportedError": null,
+      "manualRecovery": {
+        "reason": "Codex CLI failed with ChatGPT workspace auth 402 deactivated_workspace. Main-control implemented the same queue item and reran focused validation successfully.",
+        "validatedAt": "2026-04-25T19:53:22.876Z",
+        "validationCommands": [
+          "pnpm test:api:file -- test/agent-tools.controller.test.js",
+          "pnpm --filter @rag-system/api exec tsc --noEmit"
+        ]
+      }
     },
     {
       "id": "agent-tools-bounded-rewrite-flow",
