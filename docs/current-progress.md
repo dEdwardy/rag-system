@@ -37,7 +37,7 @@
   - 优先复用现有 KB ask、external-source family、deterministic reply 能力
   - 优先把 route decision 写进 trace / metadata
   - 不扩成 planner、multi-agent、复杂 memory 或自治任务系统
-- 活动队列现实也已进一步收口：最小 agent 化主干、默认助手 repair、默认路径 copy、默认 ask-path orchestration thin pass 已完成；当前排在前面的剩余事项是 `agentic-trace-detail-ui` 的补位、本文档同步，以及之后的最小 agent demo surface。
+- 活动队列现实也已进一步收口：最小 agent 化主干、默认助手 repair、默认路径 copy、默认 ask-path orchestration thin pass，以及 trace / report / chat inspection surface 的 closeout 补位均已完成；当前只保留 docs freshness 和 bounded maintenance follow-up。
 
 ## Recent Landed Increments
 
@@ -99,6 +99,10 @@
   - `apps/web/src/pages/traces/TraceDetailSupportPanels.tsx` now adds a short demo-oriented hint that explicitly ties route, mode, and tools together in the detail sidebar
   - focused validation:
     - `pnpm --filter @rag-system/web run test:vitest:file test/trace-summary-contract.test.js`
+
+- `inspection docs closeout follow-up` refreshed the active-status docs to match the landed inspection surfaces
+  - `docs/current-context.md` and `docs/next_steps_rag_project_plan.md` now describe the closeout target as the shared trace / report / chat inspection surface instead of only the trace slice
+  - this keeps the route / execution-mode / tool-name demo story aligned with the actual web entry points without opening a new product direction
 
 - `execution mode summary contract` promoted the execution mode into the shared trace summary so every consumer can read one canonical field
   - `packages/shared/src/trace-contracts.ts` now includes `executionMode` and its readability fields on `TraceSummary`

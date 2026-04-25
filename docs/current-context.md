@@ -55,8 +55,8 @@
 
 ## Execution Order
 
-1. 当前队列里的最小 agent 化主干和最小 demo surface 已落地；优先保持 trace/detail/readability 与 docs 同步。
-2. 在不改主路径契约的前提下，继续维护 trace surfaces 上 route / execution mode / tool names 的可读性。
+1. 当前队列里的最小 agent 化主干和最小 demo surface 已落地；优先保持 trace / report / chat inspection surface 与 docs 同步。
+2. 在不改主路径契约的前提下，继续维护 trace / report / chat 上 route / execution mode / tool names 的可读性与演示一致性。
 3. 保持默认助手 / 主知识库 / retrieval profile 的 canonical 选择与 repair 语义稳定。
 4. 保持默认路径的状态反馈、next action 文案和当前 repair/upload-first 行为一致。
 5. 后续若再补 agent 能力，优先沿现有 UI 入口继续小步增加，而不是扩成 planner 或 multi-agent。
