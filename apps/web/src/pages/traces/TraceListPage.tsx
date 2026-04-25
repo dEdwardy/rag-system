@@ -22,6 +22,7 @@ import { useI18n } from '../../i18n/I18nProvider';
 import type { TraceRecord } from '../../types/api';
 import {
   buildRouteDecisionLabel,
+  buildChatConversationLink,
   buildRouteReasonLabel,
   routeShortcutLabels
 } from '../reports/route-view-helpers';
@@ -305,8 +306,17 @@ function TraceConversationCard({
           >
             {t('trace.copy.viewTraceDetails')}
           </Anchor>
-          <Anchor c="var(--app-text-muted)" component={Link} size="sm" to="/">
-            {t('trace.copy.backToChat')}
+          <Anchor
+            c="var(--app-text-muted)"
+            component={Link}
+            size="sm"
+            to={buildChatConversationLink(latestTrace.conversationId)}
+          >
+            {latestTrace.conversationId
+              ? locale === 'zh'
+                ? '打开关联聊天'
+                : 'Open related chat'
+              : t('trace.copy.backToChat')}
           </Anchor>
         </Stack>
       </Stack>

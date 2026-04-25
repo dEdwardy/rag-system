@@ -47,3 +47,26 @@ export function buildTraceRouteListLink(routeType: RouteShortcutTarget) {
 export function buildAllTracesLink() {
   return '/traces';
 }
+
+export function buildChatConversationLink(
+  conversationId: string | null | undefined
+) {
+  if (!conversationId) {
+    return '/';
+  }
+
+  return `/?conversationId=${encodeURIComponent(conversationId)}`;
+}
+
+export function buildChatTraceDetailLink(args: {
+  traceId: string;
+  conversationId?: string | null;
+}) {
+  const searchParams = new URLSearchParams({ from: 'chat' });
+
+  if (args.conversationId) {
+    searchParams.set('conversationId', args.conversationId);
+  }
+
+  return `/traces/${args.traceId}?${searchParams.toString()}`;
+}

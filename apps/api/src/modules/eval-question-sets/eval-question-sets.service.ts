@@ -225,11 +225,33 @@ const P5_V1_QUALITY_GATE_LIMITS: EvalRunQualityGateMetricLimit[] = [
   { metric: 'fallbackRate', limitType: 'max', limit: 0.35 },
   { metric: 'averageCitationCount', limitType: 'min', limit: 0.8 }
 ];
-const P5_V1_DEMO_REPLAY_QUESTIONS = [
-  'Summarize one key capability of this knowledge base and cite evidence.',
-  'What source families are currently supported for external ingestion?',
-  'Ask a likely no-hit question and explain why the answer may be insufficient.'
-];
+const P5_V1_AGENTIC_EVAL_BASELINE = {
+  description:
+    'Reusable agentic RAG baseline covering knowledge-base ask, deterministic policy ask, and explicit external-source ask.',
+  scenarios: [
+    {
+      id: 'knowledge-base-ask',
+      routeType: 'knowledge_base',
+      question:
+        'Summarize one key capability of this knowledge base and cite evidence.'
+    },
+    {
+      id: 'policy-ask',
+      routeType: 'policy_reply',
+      question:
+        'When should this system answer with a deterministic policy reply instead of searching the knowledge base?'
+    },
+    {
+      id: 'external-source-ask',
+      routeType: 'external_source',
+      question:
+        'Use https://example.com/agentic-eval-baseline as an external source and summarize the page.'
+    }
+  ]
+} as const;
+const P5_V1_DEMO_REPLAY_QUESTIONS = P5_V1_AGENTIC_EVAL_BASELINE.scenarios.map(
+  (scenario) => scenario.question
+);
 
 @Injectable()
 export class EvalQuestionSetsService {
@@ -711,7 +733,7 @@ export class EvalQuestionSetsService {
         id: 'p5-v1',
         name: P5_V1_DEMO_REPLAY_NAME,
         assistantId: P5_V1_DEMO_REPLAY_ASSISTANT_ID,
-        questionCount: P5_V1_DEMO_REPLAY_QUESTIONS.length
+        questionCount: P5_V1_AGENTIC_EVAL_BASELINE.scenarios.length
       },
       ...runResult
     };
@@ -784,8 +806,7 @@ export class EvalQuestionSetsService {
       return this.createQuestionSet(
         {
           name: P5_V1_DEMO_REPLAY_NAME,
-          description:
-            'Fixed P5 v1 demo replay scenario for stable end-to-end demonstration.',
+          description: P5_V1_AGENTIC_EVAL_BASELINE.description,
           questions: P5_V1_DEMO_REPLAY_QUESTIONS
         },
         identity
@@ -797,8 +818,7 @@ export class EvalQuestionSetsService {
         id: existing.id
       },
       data: {
-        description:
-          'Fixed P5 v1 demo replay scenario for stable end-to-end demonstration.',
+        description: P5_V1_AGENTIC_EVAL_BASELINE.description,
         questionsJson: P5_V1_DEMO_REPLAY_QUESTIONS as Prisma.InputJsonValue,
         currentVersion: {
           increment: 1

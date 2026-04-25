@@ -43,6 +43,7 @@ import {
   formatMessageTime
 } from './chat-page-helpers';
 import { AgentSurfaceEntry } from '../reports/AgentSurfaceEntry';
+import { buildChatTraceDetailLink } from '../reports/route-view-helpers';
 import {
   applyChatStreamEvent,
   createPendingChatTurn,
@@ -471,6 +472,10 @@ export function ChatPage() {
     () => shouldDelayConversationAutoSelectForStarter(location.search),
     [location.search]
   );
+  const requestedConversationId = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return normalizeConversationId(searchParams.get('conversationId'));
+  }, [location.search]);
   const chatReadinessState = useMemo(
     () =>
       buildChatReadinessState(
@@ -490,6 +495,15 @@ export function ChatPage() {
     activeStreamTurn,
     resolvedConversationId
   );
+
+  useEffect(() => {
+    if (requestedConversationId == null) {
+      return;
+    }
+
+    setActiveConversationId(requestedConversationId);
+    setDidAutoSelectConversation(true);
+  }, [requestedConversationId]);
 
   useEffect(() => {
     if (shouldDelayConversationAutoSelect) {
@@ -923,7 +937,10 @@ export function ChatPage() {
             {activeTraceId ? (
               <div className="hidden md:flex">
                 <AgentSurfaceEntry
-                  primaryHref={`/traces/${activeTraceId}`}
+                  primaryHref={buildChatTraceDetailLink({
+                    traceId: activeTraceId,
+                    conversationId: resolvedConversationId
+                  })}
                   primaryLabel={chatCopy.viewTrace}
                   tone="inline"
                 />
@@ -1206,7 +1223,13 @@ export function ChatPage() {
                           !isStreamingAssistant && traceId ? (
                             <IconActionLink
                               label={chatCopy.viewTrace}
-                              to={`/traces/${traceId}`}
+                              to={buildChatTraceDetailLink({
+                                traceId,
+                                conversationId:
+                                  'conversationId' in message
+                                    ? message.conversationId
+                                    : resolvedConversationId
+                              })}
                             >
                               <svg
                                 aria-hidden="true"
