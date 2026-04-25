@@ -71,3 +71,25 @@ test('reconcileQueue promotes benign missing_queue_result failures', () => {
   assert.equal(queue.items[0].queueResultStatus, 'completed');
   assert.equal(nextRunnableItem(queue)?.id, 'b');
 });
+
+test('reconcileQueue promotes missing_queue_result failures with commit evidence', () => {
+  const queue = {
+    materializedWaveId: 'wave-a',
+    items: [
+      {
+        id: 'a',
+        status: 'needs_replan',
+        failureReason: 'missing_queue_result',
+        resultExitCode: 1,
+        queueResultCommit: '9cf815cb7abb997ffe52f6b61e343cf67cda0e7b',
+        finishedAt: '2026-04-25T00:00:00.000Z'
+      },
+      { id: 'b', status: 'pending', dependsOn: ['a'] }
+    ]
+  };
+
+  assert.equal(reconcileQueue(queue), true);
+  assert.equal(queue.items[0].status, 'completed');
+  assert.equal(queue.items[0].queueResultStatus, 'completed');
+  assert.equal(nextRunnableItem(queue)?.id, 'b');
+});

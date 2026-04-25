@@ -56,6 +56,14 @@ export function shouldTreatItemAsCompleted(item) {
     return true;
   }
 
+  if (
+    item.failureReason === 'missing_queue_result' &&
+    typeof item.queueResultCommit === 'string' &&
+    item.queueResultCommit.length > 0
+  ) {
+    return true;
+  }
+
   return (
     item.failureReason === 'missing_queue_result' &&
     item.resultExitCode === 0 &&

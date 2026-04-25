@@ -9,6 +9,29 @@ const repoOpencodeConfig = path.join(repoRoot, 'opencode.jsonc');
 
 const codexThreadCache = new Map();
 
+export async function validateExecutionBackend(env = process.env) {
+  const backend = resolveExecutionBackend(env);
+  if (backend !== 'codex') {
+    return { ok: true, backend };
+  }
+
+  const mode = (env.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase();
+  if (mode === 'cli') {
+    return { ok: true, backend };
+  }
+
+  try {
+    await import('@openai/codex-sdk');
+    return { ok: true, backend };
+  } catch (error) {
+    return {
+      ok: false,
+      backend,
+      message: `LOOP_EXECUTOR_BACKEND=codex requires @openai/codex-sdk to be installed: ${error.message}`
+    };
+  }
+}
+
 export function resolveExecutionBackend(env = process.env) {
   const backend = (env.LOOP_EXECUTOR_BACKEND ?? 'opencode')
     .trim()
@@ -29,7 +52,10 @@ export async function runExecutionPrompt({
   env,
   timeoutMs,
   opencodeEnv,
-  codexEnv
+  codexEnv,
+  onSpawn,
+  onExit,
+  idleTimeoutMs
 }) {
   if (backend === 'codex') {
     return await runCodexPrompt({
@@ -39,7 +65,10 @@ export async function runExecutionPrompt({
       cwd,
       env,
       timeoutMs,
-      codexEnv
+      codexEnv,
+      onSpawn,
+      onExit,
+      idleTimeoutMs
     });
   }
 
@@ -50,8 +79,35 @@ export async function runExecutionPrompt({
     cwd,
     env,
     timeoutMs,
-    opencodeEnv
+    opencodeEnv,
+    onSpawn,
+    onExit,
+    idleTimeoutMs
   });
+}
+
+export function createIdleController({ idleTimeoutMs, onIdle }) {
+  let idleTimeoutHandle = null;
+
+  function clear() {
+    if (idleTimeoutHandle) {
+      clearTimeout(idleTimeoutHandle);
+      idleTimeoutHandle = null;
+    }
+  }
+
+  function reset() {
+    clear();
+    if (!Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0) {
+      return;
+    }
+    idleTimeoutHandle = setTimeout(() => {
+      onIdle?.();
+    }, idleTimeoutMs);
+    idleTimeoutHandle.unref();
+  }
+
+  return { reset, clear };
 }
 
 async function runOpenCodePrompt({
@@ -61,7 +117,10 @@ async function runOpenCodePrompt({
   cwd,
   env,
   timeoutMs,
-  opencodeEnv
+  opencodeEnv,
+  onSpawn,
+  onExit,
+  idleTimeoutMs
 }) {
   const args = sessionId
     ? [
@@ -98,6 +157,9 @@ async function runOpenCodePrompt({
     cwd,
     env,
     timeoutMs,
+    onSpawn,
+    onExit,
+    idleTimeoutMs,
     injectEnv: {
       OPENCODE_CONFIG: repoOpencodeConfig,
       ...opencodeEnv
@@ -112,7 +174,10 @@ async function runCodexPrompt({
   cwd,
   env,
   timeoutMs,
-  codexEnv
+  codexEnv,
+  onSpawn,
+  onExit,
+  idleTimeoutMs
 }) {
   const useSdk =
     (codexEnv.CODEX_LOOP_MODE ?? 'sdk').trim().toLowerCase() !== 'cli';
@@ -135,7 +200,10 @@ async function runCodexPrompt({
     cwd,
     env,
     timeoutMs,
-    codexEnv
+    codexEnv,
+    onSpawn,
+    onExit,
+    idleTimeoutMs
   });
 }
 
@@ -195,7 +263,10 @@ async function runCodexCliPrompt({
   cwd,
   env,
   timeoutMs,
-  codexEnv
+  codexEnv,
+  onSpawn,
+  onExit,
+  idleTimeoutMs
 }) {
   const command =
     codexEnv.CODEX_LOOP_COMMAND?.trim() ||
@@ -228,6 +299,9 @@ async function runCodexCliPrompt({
     cwd,
     env,
     timeoutMs,
+    onSpawn,
+    onExit,
+    idleTimeoutMs,
     injectEnv: codexEnv
   });
 }
@@ -269,7 +343,17 @@ async function runWithTimeout(promise, timeoutMsValue) {
   ]);
 }
 
-async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
+async function spawnPrompt({
+  command,
+  args,
+  cwd,
+  env,
+  timeoutMs,
+  injectEnv,
+  onSpawn,
+  onExit,
+  idleTimeoutMs
+}) {
   const mergedEnv = { ...env, ...injectEnv };
   return await new Promise((resolve) => {
     const child = spawn(command, args, {
@@ -278,19 +362,36 @@ async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     });
+    onSpawn?.(child);
 
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let idleTimedOut = false;
     let settled = false;
+    const idleController = createIdleController({
+      idleTimeoutMs,
+      onIdle: () => {
+        idleTimedOut = true;
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+      }
+    });
 
     function safeResolve(result) {
       if (settled) return;
       settled = true;
       if (timeoutHandle) clearTimeout(timeoutHandle);
       if (hardTimeoutHandle) clearTimeout(hardTimeoutHandle);
+      idleController.clear();
+      onExit?.(child, result);
       resolve(result);
     }
+
+    idleController.reset();
 
     const timeoutHandle =
       Number.isFinite(timeoutMs) && timeoutMs > 0
@@ -328,9 +429,11 @@ async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
 
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
+      idleController.reset();
     });
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
+      idleController.reset();
     });
     child.on('close', (exitCode, signal) => {
       safeResolve({
@@ -338,7 +441,8 @@ async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
         signal,
         stdout,
         stderr,
-        timedOut
+        timedOut,
+        idleTimedOut
       });
     });
     child.on('error', (error) => {
@@ -347,7 +451,8 @@ async function spawnPrompt({ command, args, cwd, env, timeoutMs, injectEnv }) {
         signal: null,
         stdout,
         stderr: `${stderr}${stderr ? '\n' : ''}${error.message}\n`,
-        timedOut
+        timedOut,
+        idleTimedOut
       });
     });
   });

@@ -186,6 +186,15 @@ pnpm loop:stop
 
 These scripts now use the repo-local Node runtime under `loop-runtime/`, split into `loop-runtime/core/`, `loop-runtime/adapters/`, and `loop-runtime/tests/`. The runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. The runner reuses one OpenCode session across a compact wave when possible to reduce repeated context cost, invokes the repo's `build` command for queue items, applies a per-item timeout guard (`OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`), and each spawned session title includes the current task index and remaining task count, for example `[1/4 | left 3] p4-consolidate-documents-surface-copy-and-empty-states`.
 
+Recent hardening in `loop-runtime` adds a few operator-visible behaviors:
+
+- startup now validates the selected executor backend before the runner begins processing queue items; for example `codex` SDK mode requires `@openai/codex-sdk` to be installed
+- runner-side post-processing failures are downgraded into item-level `needs_replan` results instead of crashing the whole loop process
+- CLI-backed executions now track output activity and can stop early on an idle-progress timeout via `OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS` (default `45s`)
+- `pnpm loop:status` now prefers high-signal reasons such as `blockedOn`, `needs_replan`, idle timeout, and other runner error states instead of only showing the last item label
+- timeout recovery artifacts under `loop-runtime/runtime/recovery/` now include a compact diagnosis section plus suggested next steps for retry / reconcile workflows
+- heartbeat logging in `loop-runtime/loop-run.log` is compacted so repeated identical heartbeat states no longer drown out item lifecycle events
+
 The runtime code has moved out of `.opencode`, but `.opencode/loop/` still holds the live queue and state data. That keeps execution code and runtime data separate while preserving the existing queue assets and local operator workflow.
 
 For Codex-backed runs, set `LOOP_EXECUTOR_BACKEND=codex` and choose one of two modes:

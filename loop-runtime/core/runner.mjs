@@ -19,8 +19,14 @@ import {
 import { wasExecutionSuperseded } from './execution-guards.mjs';
 import {
   resolveExecutionBackend,
-  runExecutionPrompt
+  runExecutionPrompt,
+  validateExecutionBackend
 } from '../adapters/execution-adapters.mjs';
+import {
+  inferRecoveryRootCause,
+  buildRecoveryNextSteps
+} from './recovery-utils.mjs';
+import { shouldWriteHeartbeatLog } from './heartbeat-log-utils.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
@@ -33,12 +39,75 @@ const intervalMs = Number(process.env.OPENCODE_LOOP_INTERVAL_MS ?? 5000);
 const itemTimeoutMs = Number(
   process.env.OPENCODE_LOOP_ITEM_TIMEOUT_MS ?? 1200000
 );
+const itemIdleTimeoutMs = Number(
+  process.env.OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS ?? 45000
+);
 let stopping = false;
 let currentChild = null;
 let currentRun = null;
 let startedAt = new Date().toISOString();
 let childAbortReason = null;
+let lastHeartbeatSignature = null;
 const executionBackend = resolveExecutionBackend();
+
+async function safeAppendLog(line) {
+  try {
+    await appendFile(logFile, line);
+  } catch {
+    // ignore log write failures so one bad append does not kill the runner
+  }
+}
+
+async function failCurrentItem(loaded, item, error, extra = {}) {
+  const finishedAt = new Date().toISOString();
+  const message = error instanceof Error ? error.message : String(error);
+  const sessionId = extra.sessionId ?? currentRun?.activeSessionId ?? null;
+
+  try {
+    await updateQueueItem(
+      loaded,
+      item.id,
+      cleanObject({
+        status: 'needs_replan',
+        updatedAt: finishedAt,
+        finishedAt,
+        resultExitCode: 1,
+        failureReason: extra.failureReason ?? 'runner_internal_error',
+        reportedError: message,
+        queueFailureMarkers:
+          extra.queueFailureMarkers ?? 'runner_internal_error',
+        timedOutAt: extra.timedOut ? finishedAt : undefined,
+        sessionId
+      })
+    );
+  } catch (updateError) {
+    await safeAppendLog(
+      `${finishedAt} item=${item.id} status=runner_error queue_update_failed=${updateError instanceof Error ? updateError.message : String(updateError)}\n`
+    );
+  }
+
+  currentRun = {
+    phase: 'needs_replan',
+    currentItemId: item.id,
+    currentItemTitle: item.title,
+    currentItemStatus: 'needs_replan',
+    lastResult: 'needs_replan',
+    lastExitCode: 1,
+    lastCompletedAt: null,
+    activeSessionId: sessionId,
+    blockedOn: extra.blockedOn ?? null
+  };
+
+  await safeAppendLog(
+    `${finishedAt} item=${item.id} status=needs_replan exit=1 failure_reason=${extra.failureReason ?? 'runner_internal_error'} reported_error=${JSON.stringify(message)}\n`
+  );
+
+  try {
+    await heartbeat();
+  } catch {
+    // ignore heartbeat failures here; the runner should keep looping
+  }
+}
 function buildChildEnv() {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
@@ -62,6 +131,22 @@ heartbeatTimer.unref();
 
 await mkdir(runtimeDir, { recursive: true });
 await mkdir(recoveryDir, { recursive: true });
+
+const backendCheck = await validateExecutionBackend(process.env);
+if (!backendCheck.ok) {
+  currentRun = {
+    phase: 'blocked',
+    currentItemId: null,
+    currentItemTitle: null,
+    currentItemStatus: null,
+    blockedOn: backendCheck.message
+  };
+  await safeAppendLog(
+    `${new Date().toISOString()} runner_blocked reason=${JSON.stringify(backendCheck.message)}\n`
+  );
+  await heartbeat();
+  process.exit(1);
+}
 
 async function readState() {
   try {
@@ -204,6 +289,13 @@ async function writeTimeoutRecoveryArtifact({
         .map((line) => line.trim())
         .filter(Boolean)
     : [];
+  const rootCause = inferRecoveryRootCause({
+    result,
+    queueResult,
+    failureMarkers,
+    changedFiles
+  });
+  const commitCreated = commitCreatedDuringRun(beforeSnapshot, afterSnapshot);
   const artifact = cleanObject({
     itemId: item.id,
     itemTitle: item.title,
@@ -221,7 +313,20 @@ async function writeTimeoutRecoveryArtifact({
     stdoutTail: summarizeOutput(result.stdout, result.stderr),
     changedFiles: changedFiles.length > 0 ? changedFiles : undefined,
     beforeHead: beforeSnapshot?.head ?? undefined,
-    afterHead: afterSnapshot?.head ?? undefined
+    afterHead: afterSnapshot?.head ?? undefined,
+    diagnosis: {
+      rootCause,
+      worktreeClean: afterSnapshot?.worktreeClean ?? false,
+      commitCreated,
+      changedFileCount: changedFiles.length
+    },
+    nextSteps: buildRecoveryNextSteps({
+      rootCause,
+      changedFiles,
+      validationCommand,
+      commitCreated,
+      queueFileName
+    })
   });
 
   await writeFile(
@@ -345,8 +450,17 @@ async function heartbeat() {
         totalCount: 0
       };
   const now = new Date().toISOString();
-  const line = `${now} pid=${process.pid} wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount} total=${summary.totalCount}\n`;
-  await appendFile(logFile, line);
+  const heartbeatDecision = shouldWriteHeartbeatLog({
+    summary,
+    currentRunState: currentRun,
+    isStopping: stopping,
+    previousSignature: lastHeartbeatSignature
+  });
+  if (heartbeatDecision.shouldWrite) {
+    lastHeartbeatSignature = heartbeatDecision.signature;
+    const line = `${now} pid=${process.pid} wave=${summary.activeWave ?? 'none'} pending=${summary.pendingCount} total=${summary.totalCount}\n`;
+    await appendFile(logFile, line);
+  }
   const state = cleanObject({
     version: 1,
     pid: process.pid,
@@ -443,6 +557,15 @@ async function runOpencode(queue, item, queueFileName, sessionId) {
     cwd: repoRoot,
     env: buildChildEnv(),
     timeoutMs: getItemTimeoutMs(item),
+    idleTimeoutMs: itemIdleTimeoutMs,
+    onSpawn: (child) => {
+      currentChild = child;
+    },
+    onExit: (child) => {
+      if (currentChild === child) {
+        currentChild = null;
+      }
+    },
     opencodeEnv: {},
     codexEnv: {
       CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
@@ -478,6 +601,15 @@ async function runQueueFinalizer(queue, item, queueFileName, sessionId) {
     cwd: repoRoot,
     env: buildChildEnv(),
     timeoutMs: Math.min(getItemTimeoutMs(item), 180000),
+    idleTimeoutMs: Math.min(itemIdleTimeoutMs, 30000),
+    onSpawn: (child) => {
+      currentChild = child;
+    },
+    onExit: (child) => {
+      if (currentChild === child) {
+        currentChild = null;
+      }
+    },
     opencodeEnv: {},
     codexEnv: {
       CODEX_LOOP_COMMAND: process.env.CODEX_LOOP_COMMAND ?? '',
@@ -595,192 +727,211 @@ async function processOneItem() {
   };
   await heartbeat();
 
-  const beforeSnapshot = await gitSnapshot();
-  const validationCommand =
-    Array.isArray(item?.verification?.commands) &&
-    item.verification.commands.length > 0
-      ? item.verification.commands[0]
-      : 'none';
-  let result = await runOpencode(
-    queue,
-    item,
-    path.basename(loaded.filePath),
-    reusableSessionId
-  );
-  let sessionId = result.sessionId ?? reusableSessionId ?? null;
-  let queueResult = extractQueueResult(result.stdout);
-  let finalizerUsed = false;
-
-  if (
-    !queueResult?.status &&
-    result.exitCode === 0 &&
-    !result.reportedError &&
-    !stopping
-  ) {
-    const finalizerResult = await runQueueFinalizer(
+  try {
+    const beforeSnapshot = await gitSnapshot();
+    const validationCommand =
+      Array.isArray(item?.verification?.commands) &&
+      item.verification.commands.length > 0
+        ? item.verification.commands[0]
+        : 'none';
+    let result = await runOpencode(
       queue,
       item,
       path.basename(loaded.filePath),
-      sessionId
+      reusableSessionId
     );
-    result = {
-      exitCode:
-        finalizerResult.exitCode === 0
-          ? result.exitCode
-          : finalizerResult.exitCode,
-      signal: finalizerResult.signal ?? result.signal,
-      stdout: `${result.stdout}${result.stdout && finalizerResult.stdout ? '\n' : ''}${finalizerResult.stdout}`,
-      stderr: `${result.stderr}${result.stderr && finalizerResult.stderr ? '\n' : ''}${finalizerResult.stderr}`,
-      sessionId: finalizerResult.sessionId ?? sessionId,
-      reportedError: result.reportedError ?? finalizerResult.reportedError,
-      timedOut: result.timedOut || finalizerResult.timedOut
-    };
-    sessionId = result.sessionId ?? sessionId;
-    queueResult = extractQueueResult(result.stdout);
-    finalizerUsed = true;
-  }
+    let sessionId = result.sessionId ?? reusableSessionId ?? null;
+    let queueResult = extractQueueResult(result.stdout);
+    let finalizerUsed = false;
 
-  let latestLoaded;
-  try {
-    latestLoaded = await loadLatestQueue(loopDir);
-  } catch {
-    latestLoaded = null;
-  }
-  const latestItem =
-    latestLoaded?.queue?.items?.find((entry) => entry?.id === item.id) ?? null;
-  if (
-    childAbortReason === 'execution_superseded' ||
-    wasExecutionSuperseded(latestItem, {
-      attempt: attemptNumber,
-      startedAt: now
-    })
-  ) {
-    await appendFile(
-      logFile,
-      `${new Date().toISOString()} item=${item.id} status=superseded reason=external_queue_change\n`
-    );
-    currentRun = {
-      phase: 'idle',
-      currentItemId: null,
-      currentItemTitle: null,
-      currentItemStatus: null,
-      activeSessionId: reusableSessionId
-    };
-    childAbortReason = null;
-    await heartbeat();
-    return false;
-  }
-
-  const afterSnapshot = await gitSnapshot();
-  const finishedAt = new Date().toISOString();
-  const failureMarkers = extractFailureMarkers(result.stdout, result.stderr);
-  const commitFallback = successfulCommitFallback(
-    result,
-    queueResult,
-    failureMarkers,
-    beforeSnapshot,
-    afterSnapshot
-  );
-  const noopFallback = successfulNoopFallback(
-    result,
-    queueResult,
-    failureMarkers,
-    beforeSnapshot,
-    afterSnapshot,
-    finalizerUsed
-  );
-  const success =
-    commitFallback ||
-    noopFallback ||
-    (result.exitCode === 0 &&
+    if (
+      !queueResult?.status &&
+      result.exitCode === 0 &&
       !result.reportedError &&
-      !stopping &&
-      queueResult?.status === 'completed' &&
-      failureMarkers.length === 0);
-  const status = success ? 'completed' : 'needs_replan';
-  const failureReason = success
-    ? undefined
-    : result.timedOut
-      ? `opencode_timeout_${getItemTimeoutMs(item)}`
-      : result.reportedError
-        ? 'opencode_reported_error'
-        : queueResult?.status === 'needs_replan'
-          ? 'queue_result_needs_replan'
-          : !queueResult?.status
-            ? commitFallback || noopFallback
-              ? undefined
-              : 'missing_queue_result'
-            : (failureMarkers[0] ?? `opencode_exit_${result.exitCode}`);
+      !stopping
+    ) {
+      const finalizerResult = await runQueueFinalizer(
+        queue,
+        item,
+        path.basename(loaded.filePath),
+        sessionId
+      );
+      result = {
+        exitCode:
+          finalizerResult.exitCode === 0
+            ? result.exitCode
+            : finalizerResult.exitCode,
+        signal: finalizerResult.signal ?? result.signal,
+        stdout: `${result.stdout}${result.stdout && finalizerResult.stdout ? '\n' : ''}${finalizerResult.stdout}`,
+        stderr: `${result.stderr}${result.stderr && finalizerResult.stderr ? '\n' : ''}${finalizerResult.stderr}`,
+        sessionId: finalizerResult.sessionId ?? sessionId,
+        reportedError: result.reportedError ?? finalizerResult.reportedError,
+        timedOut: result.timedOut || finalizerResult.timedOut
+      };
+      sessionId = result.sessionId ?? sessionId;
+      queueResult = extractQueueResult(result.stdout);
+      finalizerUsed = true;
+    }
 
-  await updateQueueItem(
-    loaded,
-    item.id,
-    cleanObject({
-      status,
-      updatedAt: finishedAt,
-      completedAt: success ? finishedAt : undefined,
-      finishedAt,
-      resultExitCode: result.exitCode,
-      resultSignal: result.signal ?? undefined,
-      lastRunSummary: summarizeOutput(result.stdout, result.stderr),
-      failureReason,
-      reportedError: success ? undefined : (result.reportedError ?? undefined),
-      queueResultStatus:
-        queueResult?.status ??
-        (commitFallback || noopFallback ? 'completed' : undefined),
-      queueResultCommit:
-        queueResult?.commit ??
-        (commitFallback ? (afterSnapshot?.head ?? undefined) : undefined),
-      queueFailureMarkers:
-        !success && failureMarkers.length > 0
-          ? failureMarkers.join(',')
-          : undefined,
-      timedOutAt: result.timedOut ? finishedAt : undefined,
-      sessionId
-    })
-  );
+    let latestLoaded;
+    try {
+      latestLoaded = await loadLatestQueue(loopDir);
+    } catch {
+      latestLoaded = null;
+    }
+    const latestItem =
+      latestLoaded?.queue?.items?.find((entry) => entry?.id === item.id) ??
+      null;
+    if (
+      childAbortReason === 'execution_superseded' ||
+      wasExecutionSuperseded(latestItem, {
+        attempt: attemptNumber,
+        startedAt: now
+      })
+    ) {
+      await safeAppendLog(
+        `${new Date().toISOString()} item=${item.id} status=superseded reason=external_queue_change\n`
+      );
+      currentRun = {
+        phase: 'idle',
+        currentItemId: null,
+        currentItemTitle: null,
+        currentItemStatus: null,
+        activeSessionId: reusableSessionId
+      };
+      childAbortReason = null;
+      await heartbeat();
+      return false;
+    }
 
-  if (result.timedOut) {
-    await writeTimeoutRecoveryArtifact({
-      item,
-      queueFileName: path.basename(loaded.filePath),
-      finishedAt,
+    const afterSnapshot = await gitSnapshot();
+    const finishedAt = new Date().toISOString();
+    const failureMarkers = extractFailureMarkers(result.stdout, result.stderr);
+    const commitFallback = successfulCommitFallback(
+      result,
+      queueResult,
+      failureMarkers,
+      beforeSnapshot,
+      afterSnapshot
+    );
+    const noopFallback = successfulNoopFallback(
       result,
       queueResult,
       failureMarkers,
       beforeSnapshot,
       afterSnapshot,
-      validationCommand,
       finalizerUsed
+    );
+    const success =
+      commitFallback ||
+      noopFallback ||
+      (result.exitCode === 0 &&
+        !result.reportedError &&
+        !stopping &&
+        queueResult?.status === 'completed' &&
+        failureMarkers.length === 0);
+    const status = success ? 'completed' : 'needs_replan';
+    const failureReason = success
+      ? undefined
+      : result.timedOut
+        ? `opencode_timeout_${getItemTimeoutMs(item)}`
+        : result.idleTimedOut
+          ? `opencode_idle_timeout_${itemIdleTimeoutMs}`
+          : result.reportedError
+            ? 'opencode_reported_error'
+            : queueResult?.status === 'needs_replan'
+              ? 'queue_result_needs_replan'
+              : !queueResult?.status
+                ? commitFallback || noopFallback
+                  ? undefined
+                  : 'missing_queue_result'
+                : (failureMarkers[0] ?? `opencode_exit_${result.exitCode}`);
+    const commitCreated = commitCreatedDuringRun(beforeSnapshot, afterSnapshot);
+
+    await updateQueueItem(
+      loaded,
+      item.id,
+      cleanObject({
+        status,
+        updatedAt: finishedAt,
+        completedAt: success ? finishedAt : undefined,
+        finishedAt,
+        resultExitCode: result.exitCode,
+        resultSignal: result.signal ?? undefined,
+        lastRunSummary: summarizeOutput(result.stdout, result.stderr),
+        failureReason,
+        reportedError: success
+          ? undefined
+          : (result.reportedError ?? undefined),
+        queueResultStatus:
+          queueResult?.status ??
+          (commitFallback || noopFallback ? 'completed' : undefined),
+        queueResultCommit:
+          queueResult?.commit ??
+          (commitFallback
+            ? (afterSnapshot?.head ?? undefined)
+            : failureReason === 'missing_queue_result' && commitCreated
+              ? (afterSnapshot?.head ?? undefined)
+              : undefined),
+        queueFailureMarkers:
+          !success && failureMarkers.length > 0
+            ? failureMarkers.join(',')
+            : !success && result.idleTimedOut
+              ? 'idle_progress_timeout'
+              : undefined,
+        timedOutAt: result.timedOut ? finishedAt : undefined,
+        sessionId
+      })
+    );
+
+    if (result.timedOut) {
+      await writeTimeoutRecoveryArtifact({
+        item,
+        queueFileName: path.basename(loaded.filePath),
+        finishedAt,
+        result,
+        queueResult,
+        failureMarkers,
+        beforeSnapshot,
+        afterSnapshot,
+        validationCommand,
+        finalizerUsed
+      });
+    }
+
+    await safeAppendLog(
+      `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${getItemTimeoutMs(item)}` : ''}${result.idleTimedOut ? ` idle_timeout_ms=${itemIdleTimeoutMs}` : ''}${queueResult?.status ? ` queue_result=${queueResult.status}` : ''}${finalizerUsed ? ' finalized_queue_result=true' : ''}${commitFallback ? ' queue_result=completed_via_commit_fallback' : ''}${noopFallback ? ' queue_result=completed_via_noop_fallback' : ''}${failureMarkers.length > 0 ? ` failure_markers=${failureMarkers.join(',')}` : ''}${!failureMarkers.length && result.idleTimedOut ? ' failure_markers=idle_progress_timeout' : ''}\n`
+    );
+
+    currentRun = {
+      phase: status,
+      currentItemId: item.id,
+      currentItemTitle: item.title,
+      currentItemStatus: status,
+      lastResult: status,
+      lastExitCode: result.exitCode,
+      lastCompletedAt: success ? finishedAt : null,
+      activeSessionId: sessionId,
+      currentItemTimedOut: result.timedOut ? true : null,
+      currentItemIdleTimedOut: result.idleTimedOut ? true : null
+    };
+
+    await heartbeat();
+
+    const loopDecision = nextRunnerIteration({
+      itemProcessed: true,
+      itemStatus: status,
+      stopRequested: stopping
     });
+
+    return loopDecision.progressed;
+  } catch (error) {
+    currentChild = null;
+    await failCurrentItem(loaded, item, error, {
+      failureReason: 'runner_internal_error'
+    });
+    return true;
   }
-
-  await appendFile(
-    logFile,
-    `${finishedAt} item=${item.id} status=${status} exit=${result.exitCode}${result.timedOut ? ` timeout_ms=${getItemTimeoutMs(item)}` : ''}${queueResult?.status ? ` queue_result=${queueResult.status}` : ''}${finalizerUsed ? ' finalized_queue_result=true' : ''}${commitFallback ? ' queue_result=completed_via_commit_fallback' : ''}${noopFallback ? ' queue_result=completed_via_noop_fallback' : ''}${failureMarkers.length > 0 ? ` failure_markers=${failureMarkers.join(',')}` : ''}\n`
-  );
-
-  currentRun = {
-    phase: status,
-    currentItemId: item.id,
-    currentItemTitle: item.title,
-    currentItemStatus: status,
-    lastResult: status,
-    lastExitCode: result.exitCode,
-    lastCompletedAt: success ? finishedAt : null,
-    activeSessionId: sessionId,
-    currentItemTimedOut: result.timedOut ? true : null
-  };
-
-  await heartbeat();
-
-  const loopDecision = nextRunnerIteration({
-    itemProcessed: true,
-    itemStatus: status,
-    stopRequested: stopping
-  });
-
-  return loopDecision.progressed;
 }
 
 process.on('SIGTERM', () => {
@@ -805,11 +956,36 @@ process.on('SIGINT', () => {
   }
 });
 
-await heartbeat();
+try {
+  await heartbeat();
+} catch (error) {
+  await safeAppendLog(
+    `${new Date().toISOString()} runner_startup_heartbeat_error=${error instanceof Error ? error.message : String(error)}\n`
+  );
+}
 
 let blockedRetries = 0;
 while (!stopping) {
-  const progressed = await processOneItem();
+  let progressed = false;
+  try {
+    progressed = await processOneItem();
+  } catch (error) {
+    currentRun = {
+      phase: 'blocked',
+      currentItemId: null,
+      currentItemTitle: null,
+      currentItemStatus: null,
+      blockedOn: `runner_loop_error:${error instanceof Error ? error.message : String(error)}`
+    };
+    await safeAppendLog(
+      `${new Date().toISOString()} runner_loop_error=${JSON.stringify(error instanceof Error ? error.message : String(error))}\n`
+    );
+    try {
+      await heartbeat();
+    } catch {
+      // ignore
+    }
+  }
   if (stopping) break;
   if (progressed) {
     blockedRetries = 0;
@@ -821,6 +997,9 @@ while (!stopping) {
       blockedRetries = 0;
     }
     if (shouldStopAfterNoProgress(phase, blockedRetries)) {
+      await safeAppendLog(
+        `${new Date().toISOString()} runner_stopping reason=no_progress phase=${phase ?? 'unknown'} blocked_retries=${blockedRetries}\n`
+      );
       stopping = true;
       break;
     }
@@ -828,4 +1007,10 @@ while (!stopping) {
   }
 }
 
-await heartbeat();
+try {
+  await heartbeat();
+} catch (error) {
+  await safeAppendLog(
+    `${new Date().toISOString()} runner_shutdown_heartbeat_error=${error instanceof Error ? error.message : String(error)}\n`
+  );
+}

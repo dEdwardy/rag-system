@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { loadLatestQueue, queueSummary } from './queue-utils.mjs';
 import { formatStatusLine } from './status-utils.mjs';
+import { validateExecutionBackend } from '../adapters/execution-adapters.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const loopDir = path.resolve(__dirname, '..');
@@ -116,6 +117,28 @@ async function start() {
   if (state && pidAlive(state.pid)) {
     console.log(`already running pid=${state.pid}`);
     await printStatus();
+    return;
+  }
+
+  const backendCheck = await validateExecutionBackend({
+    ...process.env,
+    LOOP_EXECUTOR_BACKEND: effectiveExecutor
+  });
+  if (!backendCheck.ok) {
+    await writeState(
+      {
+        executionBackend: effectiveExecutor,
+        status: 'blocked',
+        phase: 'blocked',
+        blockedOn: backendCheck.message,
+        currentItemId: null,
+        currentItemTitle: null,
+        currentItemStatus: null,
+        activeSessionId: null
+      },
+      state
+    );
+    console.error(backendCheck.message);
     return;
   }
 
