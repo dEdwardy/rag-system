@@ -13,9 +13,9 @@ type AgentSurfaceEntryProps = {
 function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
   return locale === 'zh'
     ? {
-        title: 'Agent 视角',
+        title: 'Agent 检视入口',
         description:
-          '保持当前产品主路径不变；需要排查 agent 化执行时，直接去 trace 看路由、执行模式和工具名。',
+          '保持当前产品主路径不变；需要检视 agent 化读数时，直接复用 trace / report / chat 上已有入口查看路由、执行模式和工具名。',
         route: '路由',
         mode: '模式',
         tools: '工具',
@@ -26,9 +26,9 @@ function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
         defaultPrimaryLabel: '打开 trace'
       }
     : {
-        title: 'Agent view',
+        title: 'Agent inspection',
         description:
-          'Keep the current product flow intact; use traces when you need to inspect route, execution mode, and tool names.',
+          'Keep the current product flow intact; reuse the existing trace, report, and chat entry points when you need to inspect route choice, execution mode, and tool names.',
         route: 'Route',
         mode: 'Mode',
         tools: 'Tools',

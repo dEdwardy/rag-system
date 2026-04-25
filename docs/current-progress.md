@@ -104,6 +104,12 @@
   - `docs/current-context.md` and `docs/next_steps_rag_project_plan.md` now describe the closeout target as the shared trace / report / chat inspection surface instead of only the trace slice
   - this keeps the route / execution-mode / tool-name demo story aligned with the actual web entry points without opening a new product direction
 
+- `demo surface docs coherence follow-up` tightened the wording around the landed inspection surfaces so the story stays bounded
+  - `apps/web/src/pages/reports/AgentSurfaceEntry.tsx` now frames the UI as an inspection entry point layered onto existing trace / report / chat surfaces, instead of sounding like a separate agent area
+  - `README.md`, `docs/current-context.md`, and `docs/next_steps_rag_project_plan.md` now use the same route-choice / execution-mode / tool-name wording and explicitly keep this work out of a separate agent-platform framing
+  - focused validation:
+    - `pnpm --filter @rag-system/web run test:vitest:file test/trace-summary-contract.test.js`
+
 - `execution mode summary contract` promoted the execution mode into the shared trace summary so every consumer can read one canonical field
   - `packages/shared/src/trace-contracts.ts` now includes `executionMode` and its readability fields on `TraceSummary`
   - `apps/api/src/modules/traces/traces.service.ts` now derives the execution mode from the execution plan once and exposes it through the summary contract
