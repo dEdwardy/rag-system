@@ -77,7 +77,7 @@ test('web trace summary type guards current backend summary field set', async ()
   );
 
   assert.match(source, /from\s+['"]@rag-system\/shared['"]/);
-  assert.match(source, /traceSummary:\s*TraceSummary;/);
+  assert.match(source, /traceSummary:\s*TraceSummary\s*\|\s*null;/);
   assert.match(
     sharedSource,
     /export type TraceRetrievalQuerySource =[\s\S]*?original_unchanged';/

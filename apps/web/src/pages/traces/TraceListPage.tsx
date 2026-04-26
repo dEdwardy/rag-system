@@ -66,12 +66,12 @@ function TraceConversationCard({
   latestTrace: TraceRecord;
 }) {
   const { formatDateTime, locale, t } = useI18n();
-  const traceSummary = latestTrace.traceSummary;
-  const routeDecision = traceSummary.routeDecisionSummary;
-  const executionMode = traceSummary.executionMode;
-  const executionToolNames = traceSummary.executionToolNames;
-  const executionSteps = traceSummary.executionPlan?.steps ?? null;
-  const timing = traceSummary.timingSummary;
+  const traceSummary = latestTrace.traceSummary ?? null;
+  const routeDecision = traceSummary?.routeDecisionSummary ?? null;
+  const executionMode = traceSummary?.executionMode ?? null;
+  const executionToolNames = traceSummary?.executionToolNames ?? [];
+  const executionSteps = traceSummary?.executionPlan?.steps ?? null;
+  const timing = traceSummary?.timingSummary ?? null;
   const retrievalInternals = buildRetrievalInternalsSummary(
     latestTrace.retrievalMetadataJson,
     locale
@@ -83,7 +83,7 @@ function TraceConversationCard({
       )
     : null;
   const executionModeLabel =
-    traceSummary.executionModeReadabilityLabel ||
+    traceSummary?.executionModeReadabilityLabel ||
     buildTraceExecutionModeReadabilityLabel(executionMode);
   const executionToolDetailLabel = executionToolNames
     .map((toolName) => buildTraceExecutionToolLabel(toolName) ?? toolName)
@@ -304,7 +304,9 @@ function TraceConversationCard({
                 {locale === 'zh' ? '外部来源' : 'External sources'}
               </span>
               <span className="workspace-meta-value">
-                {traceSummary.retrievedChunkCount}{' '}
+                {traceSummary?.retrievedChunkCount ??
+                  latestTrace.retrievedChunkIdsJson?.length ??
+                  0}{' '}
                 {locale === 'zh' ? '个来源块' : 'source chunks'}
               </span>
             </div>

@@ -953,7 +953,7 @@ export type TraceRecord = {
   answeringMetadataJson?: AskAnsweringMetadata | JsonValue | null;
   modelName: string | null;
   latencyMs: number | null;
-  traceSummary: TraceSummary;
+  traceSummary: TraceSummary | null;
   status: 'success' | 'failed';
   errorMessage: string | null;
   createdAt: string;
