@@ -85,6 +85,7 @@ describe('status-utils', () => {
         activeWave: 'wave-a',
         pendingCount: 1,
         currentItemId: 'item-c',
+        currentItemTitle: 'Tighten loop status output',
         executionBackend: 'codex'
       },
       summary: {
@@ -99,7 +100,7 @@ describe('status-utils', () => {
     });
 
     expect(line).toBe(
-      'running pid=123 backend=codex wave=wave-a pending=1 item=item-c log=.opencode/loop/loop-run.log'
+      'running pid=123 backend=codex wave=wave-a pending=1 item=item-c title="Tighten loop status output" log=.opencode/loop/loop-run.log'
     );
   });
 
@@ -179,6 +180,34 @@ describe('status-utils', () => {
 
     expect(line).toBe(
       'attention backend=opencode wave=wave-a pending=1 completed=4 item=item-d reason=idle_progress_timeout'
+    );
+  });
+
+  it('formatStatusLine includes item title for live attention state', () => {
+    const line = formatStatusLine({
+      state: {
+        pid: 123,
+        phase: 'needs_replan',
+        activeWave: 'wave-a',
+        pendingCount: 2,
+        currentItemId: 'item-e',
+        currentItemTitle: 'Fix quoted "status" line',
+        currentItemStatus: 'needs_replan',
+        executionBackend: 'opencode'
+      },
+      summary: {
+        activeWave: 'wave-a',
+        pendingCount: 2,
+        completedCount: 3,
+        inProgressCount: 0,
+        totalCount: 6
+      },
+      pidAlive: () => true,
+      relativePath: '.opencode/loop/loop-run.log'
+    });
+
+    expect(line).toBe(
+      'attention pid=123 backend=opencode wave=wave-a pending=2 item=item-e title="Fix quoted \\\"status\\\" line" reason=needs_replan log=.opencode/loop/loop-run.log'
     );
   });
 });

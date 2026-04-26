@@ -26,6 +26,11 @@ function buildReasonPart(state) {
   return '';
 }
 
+function buildTitlePart(state) {
+  if (!state?.currentItemTitle) return '';
+  return ` title=${JSON.stringify(state.currentItemTitle)}`;
+}
+
 export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
   const backend =
     state?.executionBackend ?? summary?.executionBackend ?? 'opencode';
@@ -34,13 +39,14 @@ export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
     const wave = state.activeWave ?? summary.activeWave ?? 'none';
     const pending = state.pendingCount ?? summary.pendingCount;
     const itemPart = state.currentItemId ? ` item=${state.currentItemId}` : '';
+    const titlePart = buildTitlePart(state);
     const sessionPart = state.activeSessionId
       ? ` session=${state.activeSessionId}`
       : '';
     const reasonPart = buildReasonPart(state);
 
     if (state.phase === 'blocked' || state.status === 'blocked') {
-      return `blocked pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${reasonPart} log=${relativePath}`;
+      return `blocked pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${titlePart}${reasonPart} log=${relativePath}`;
     }
 
     if (state.phase === 'idle' || state.status === 'idle') {
@@ -53,10 +59,10 @@ export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
       state.currentItemStatus === 'needs_replan' ||
       state.lastResult === 'needs_replan'
     ) {
-      return `attention pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${reasonPart} log=${relativePath}`;
+      return `attention pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${titlePart}${reasonPart} log=${relativePath}`;
     }
 
-    return `running pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${sessionPart} log=${relativePath}`;
+    return `running pid=${state.pid} backend=${backend} wave=${wave} pending=${pending}${itemPart}${titlePart}${sessionPart} log=${relativePath}`;
   }
 
   if (state && state.pid && !pidAlive(state.pid)) {
@@ -84,7 +90,7 @@ export function formatStatusLine({ state, summary, pidAlive, relativePath }) {
       const itemPart = state.currentItemId
         ? ` item=${state.currentItemId}`
         : '';
-      return `attention backend=${backend} wave=${wave} pending=${pending} completed=${completed}${itemPart}${buildReasonPart(state)}`;
+      return `attention backend=${backend} wave=${wave} pending=${pending} completed=${completed}${itemPart}${buildTitlePart(state)}${buildReasonPart(state)}`;
     }
     return `stale state pid=${state.pid} backend=${backend} wave=${wave} pending=${pending} completed=${completed} phase=${phase}`;
   }
