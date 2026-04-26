@@ -478,6 +478,261 @@ test('AuthService default assistant repair keeps the canonical default knowledge
   });
 });
 
+test('AuthService default workspace bootstrap creates the default assistant on the canonical default knowledge base and retrieval profile when duplicates exist', async () => {
+  const calls = {
+    knowledgeBaseCreate: [],
+    retrievalProfileCreate: [],
+    assistantCreate: [],
+    assistantUpdate: []
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({ id: 'link-oauth-bootstrap-dupes-1' })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-bootstrap-dupes-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findMany: async () => [
+          {
+            id: 'kb-blank-active-2',
+            name: '   ',
+            status: 'active'
+          },
+          {
+            id: 'kb-canonical-active-2',
+            name: ' Default Knowledge Base ',
+            status: 'active'
+          },
+          {
+            id: 'kb-canonical-inactive-2',
+            name: 'Default Knowledge Base',
+            status: 'inactive'
+          }
+        ],
+        findFirst: async () => {
+          throw new Error('knowledge base should use canonical findMany path');
+        },
+        create: async (args) => {
+          calls.knowledgeBaseCreate.push(args);
+          return { id: 'unexpected-kb-create' };
+        }
+      },
+      retrievalProfile: {
+        findMany: async () => [
+          {
+            id: 'rp-non-default-2',
+            name: 'Custom Retrieval Profile'
+          },
+          {
+            id: 'rp-canonical-default-2',
+            name: ' Default Retrieval Profile '
+          }
+        ],
+        findFirst: async () => {
+          throw new Error(
+            'retrieval profile should use canonical findMany path'
+          );
+        },
+        create: async (args) => {
+          calls.retrievalProfileCreate.push(args);
+          return { id: 'unexpected-rp-create' };
+        }
+      },
+      assistant: {
+        findMany: async () => [],
+        create: async (args) => {
+          calls.assistantCreate.push(args);
+          return { id: 'assistant-bootstrap-dupes-1' };
+        },
+        update: async (args) => {
+          calls.assistantUpdate.push(args);
+          return { id: 'unexpected-assistant-update' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-bootstrap-dupes-1',
+        email: 'oauth-bootstrap-dupes@example.com',
+        profileSnapshot: {
+          id: 8102,
+          login: 'oauth-bootstrap-dupes-user',
+          name: 'OAuth Bootstrap Dupes User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-bootstrap-dupes-1',
+    state: 'state-oauth-bootstrap-dupes-1',
+    expectedState: 'state-oauth-bootstrap-dupes-1'
+  });
+
+  assert.equal(result.identity.userId, 'user-oauth-bootstrap-dupes-1');
+  assert.deepEqual(calls.knowledgeBaseCreate, []);
+  assert.deepEqual(calls.retrievalProfileCreate, []);
+  assert.deepEqual(calls.assistantUpdate, []);
+  assert.equal(calls.assistantCreate.length, 1);
+  assert.deepEqual(calls.assistantCreate[0].data, {
+    tenantId: 'default-tenant',
+    kbId: 'kb-canonical-active-2',
+    name: 'Default Assistant',
+    description: 'Default assistant for the primary knowledge base.',
+    systemPrompt:
+      'Answer only from the retrieved knowledge base content. If the retrieved sources explicitly contain the answer, answer directly and cite the supporting snippets. Only say the information is insufficient when the retrieved sources still do not support a reliable answer.',
+    retrievalProfileId: 'rp-canonical-default-2',
+    status: 'active'
+  });
+});
+
+test('AuthService default assistant repair keeps the canonical active assistant when duplicate default assistant records exist on the primary knowledge base', async () => {
+  const calls = {
+    assistantUpdate: [],
+    assistantCreate: []
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({ id: 'link-oauth-duplicate-assistant-1' })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-duplicate-assistant-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findMany: async () => [
+          {
+            id: 'kb-canonical-default-3',
+            name: 'Default Knowledge Base',
+            status: 'active'
+          },
+          {
+            id: 'kb-secondary-3',
+            name: 'Secondary Knowledge Base',
+            status: 'active'
+          }
+        ],
+        findFirst: async () => {
+          throw new Error('knowledge base should use canonical findMany path');
+        },
+        create: async () => {
+          throw new Error('knowledge base should not be created');
+        }
+      },
+      retrievalProfile: {
+        findMany: async () => [
+          {
+            id: 'rp-canonical-default-3',
+            name: 'Default Retrieval Profile'
+          }
+        ],
+        findFirst: async () => {
+          throw new Error(
+            'retrieval profile should use canonical findMany path'
+          );
+        },
+        create: async () => {
+          throw new Error('retrieval profile should not be created');
+        }
+      },
+      assistant: {
+        findMany: async ({ where }) => {
+          if (where?.kbId === 'kb-canonical-default-3') {
+            return [
+              {
+                id: 'assistant-a-blank-3',
+                kbId: 'kb-canonical-default-3',
+                retrievalProfileId: 'rp-canonical-default-3',
+                status: 'active',
+                name: ' '
+              },
+              {
+                id: 'assistant-z-default-inactive-3',
+                kbId: 'kb-canonical-default-3',
+                retrievalProfileId: 'rp-canonical-default-3',
+                status: 'inactive',
+                name: 'Default Assistant'
+              },
+              {
+                id: 'assistant-m-default-active-3',
+                kbId: 'kb-canonical-default-3',
+                retrievalProfileId: 'rp-canonical-default-3',
+                status: 'active',
+                name: ' Default Assistant '
+              }
+            ];
+          }
+
+          return [
+            {
+              id: 'assistant-owner-secondary-3',
+              kbId: 'kb-secondary-3',
+              retrievalProfileId: 'rp-canonical-default-3',
+              status: 'active',
+              name: 'Default Assistant'
+            }
+          ];
+        },
+        create: async (args) => {
+          calls.assistantCreate.push(args);
+          return { id: 'unexpected-assistant-create' };
+        },
+        update: async (args) => {
+          calls.assistantUpdate.push(args);
+          return { id: 'unexpected-assistant-update' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-duplicate-assistant-1',
+        email: 'oauth-duplicate-assistant@example.com',
+        profileSnapshot: {
+          id: 8103,
+          login: 'oauth-duplicate-assistant-user',
+          name: 'OAuth Duplicate Assistant User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-duplicate-assistant-1',
+    state: 'state-oauth-duplicate-assistant-1',
+    expectedState: 'state-oauth-duplicate-assistant-1'
+  });
+
+  assert.equal(result.identity.userId, 'user-oauth-duplicate-assistant-1');
+  assert.deepEqual(calls.assistantCreate, []);
+  assert.deepEqual(calls.assistantUpdate, []);
+});
+
 test('KnowledgeBasesService denies read detail when owner check fails', async () => {
   const service = new KnowledgeBasesService({
     knowledgeBase: {
