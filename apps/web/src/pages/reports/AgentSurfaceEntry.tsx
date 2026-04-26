@@ -2,6 +2,7 @@ import { Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/I18nProvider';
 import { ReportRouteViewShortcuts } from './ReportRouteViewShortcuts';
+import { buildEnglishInspectionSurfaceExamples } from './route-view-helpers';
 
 type AgentSurfaceEntryProps = {
   primaryHref: string;
@@ -11,6 +12,8 @@ type AgentSurfaceEntryProps = {
 };
 
 export function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
+  const englishExamples = buildEnglishInspectionSurfaceExamples();
+
   return locale === 'zh'
     ? {
         title: 'Agent 检视入口',
@@ -31,10 +34,9 @@ export function buildAgentSurfaceLabels(locale: 'zh' | 'en') {
         route: 'Route',
         mode: 'Mode',
         tools: 'Tools',
-        routeExamples: 'knowledge base / policy reply / external source',
-        modeExamples: 'manual / workflow',
-        toolExamples:
-          'knowledge base search / external source fetch / policy reply',
+        routeExamples: englishExamples.routeExamples,
+        modeExamples: englishExamples.modeExamples,
+        toolExamples: englishExamples.toolExamples,
         defaultPrimaryLabel: 'Open trace'
       };
 }

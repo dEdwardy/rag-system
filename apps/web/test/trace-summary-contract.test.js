@@ -19,6 +19,18 @@ test('web trace summary type guards current backend summary field set', async ()
     resolve(__dirname, '../../api/src/modules/traces/traces.service.ts'),
     'utf8'
   );
+  const routeViewHelpersSource = await readFile(
+    resolve(__dirname, '../src/pages/reports/route-view-helpers.ts'),
+    'utf8'
+  );
+  const agentSurfaceEntrySource = await readFile(
+    resolve(__dirname, '../src/pages/reports/AgentSurfaceEntry.tsx'),
+    'utf8'
+  );
+  const chatPageHelpersSource = await readFile(
+    resolve(__dirname, '../src/pages/chat/chat-page-helpers.ts'),
+    'utf8'
+  );
   const traceSummaryMatch = sharedSource.match(
     /export type TraceSummary = \{([\s\S]*?)\n\};/
   );
@@ -148,6 +160,63 @@ test('web trace summary type guards current backend summary field set', async ()
   assert.match(
     sharedSource,
     /export function buildTraceExecutionToolNamesReadabilitySentence\([\s\S]*?\)\s*\{/
+  );
+  assert.match(routeViewHelpersSource, /from ['"]@rag-system\/shared['"]/);
+  assert.match(
+    routeViewHelpersSource,
+    /knowledge_base:\s*TRACE_ROUTE_TYPE_LABELS\.knowledge_base/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /explicit_source_urls:\s*TRACE_ROUTE_REASON_LABELS\.explicit_source_urls/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /export function buildEnglishInspectionSurfaceExamples\(\)/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /TRACE_EXECUTION_MODE_LABELS\[executionMode\]/
+  );
+  assert.match(
+    routeViewHelpersSource,
+    /TRACE_EXECUTION_TOOL_LABELS\[toolName\]/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /import \{ buildEnglishInspectionSurfaceExamples \} from '\.\/route-view-helpers';/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /const englishExamples = buildEnglishInspectionSurfaceExamples\(\);/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /routeExamples:\s*englishExamples\.routeExamples/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /modeExamples:\s*englishExamples\.modeExamples/
+  );
+  assert.match(
+    agentSurfaceEntrySource,
+    /toolExamples:\s*englishExamples\.toolExamples/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /answerStatusSourceReadabilitySentence\?:\s*string \| null;/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /missingInformationProvenanceSentence\?:\s*string \| null;/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /retrievalModeProvenanceSentence\?:\s*string \| null;/
+  );
+  assert.match(
+    chatPageHelpersSource,
+    /normalizeTraceSummaryHintPart\([\s\S]*?summary\.answerStatusSourceReadabilitySentence[\s\S]*?summary\.missingInformationProvenanceSentence[\s\S]*?summary\.retrievalModeProvenanceSentence/
   );
   assert.match(
     tracesServiceSource,
