@@ -151,5 +151,21 @@ test('AskAssistantService reuses an existing answer for the same question in the
   assert.equal(createdMessages.length, 0);
   assert.equal(finalResult.traceId, 'trace-1');
   assert.equal(finalResult.answer, 'The marker is in Document 1.');
+  assert.deepEqual(finalResult.retrievalMetadata.conversationReuse, {
+    reused: true,
+    source: 'conversation_answer',
+    sourceTraceId: 'trace-1',
+    originalTimingPreserved: true
+  });
+  assert.equal(
+    finalResult.timingReadabilitySentence,
+    'conversation reuse hit; original generation timing preserved. cached'
+  );
+  assert.deepEqual(events.at(-1)?.data.retrievalMetadata.conversationReuse, {
+    reused: true,
+    source: 'conversation_answer',
+    sourceTraceId: 'trace-1',
+    originalTimingPreserved: true
+  });
   assert.equal(events.at(-1)?.type, 'final');
 });

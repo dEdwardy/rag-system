@@ -859,6 +859,36 @@ export class AskAssistantService {
     );
   }
 
+  private withConversationReuseMetadata(
+    retrievalMetadata: unknown,
+    traceId: string
+  ): AskRetrievalMetadataJson {
+    const baseMetadata =
+      typeof retrievalMetadata === 'object' && retrievalMetadata !== null
+        ? (retrievalMetadata as Record<string, unknown>)
+        : {};
+
+    return {
+      ...baseMetadata,
+      conversationReuse: {
+        reused: true,
+        source: 'conversation_answer',
+        sourceTraceId: traceId,
+        originalTimingPreserved: true
+      }
+    } as AskRetrievalMetadataJson;
+  }
+
+  private buildConversationReuseTimingReadabilitySentence(
+    timingReadabilitySentence: string | null | undefined
+  ) {
+    const prefix =
+      'conversation reuse hit; original generation timing preserved.';
+    return timingReadabilitySentence
+      ? `${prefix} ${timingReadabilitySentence}`
+      : prefix;
+  }
+
   private shouldDeterministicallyAbstain(input: {
     question: string;
     retrievedChunks: AskResultChunk[];
@@ -3625,6 +3655,11 @@ export class AskAssistantService {
         continue;
       }
 
+      const retrievalMetadata = this.withConversationReuseMetadata(
+        trace.retrievalMetadataJson,
+        trace.id
+      );
+
       return {
         conversationId: input.conversationId,
         userMessageId: candidate.id,
@@ -3638,10 +3673,12 @@ export class AskAssistantService {
         routeType: trace.traceSummary?.routeType ?? null,
         routeReason: trace.traceSummary?.routeReason ?? null,
         strategySummary: trace.traceSummary?.strategySummary ?? undefined,
-        retrievalMetadata: trace.retrievalMetadataJson ?? undefined,
+        retrievalMetadata,
         timingSummary: trace.traceSummary?.timingSummary ?? undefined,
         timingReadabilitySentence:
-          trace.traceSummary?.timingReadabilitySentence ?? undefined,
+          this.buildConversationReuseTimingReadabilitySentence(
+            trace.traceSummary?.timingReadabilitySentence
+          ),
         strategyReadabilityLabel:
           trace.traceSummary?.strategyReadabilityLabel ?? undefined,
         retrievalModeProvenanceSentence:
