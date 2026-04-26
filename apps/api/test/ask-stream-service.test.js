@@ -1145,6 +1145,91 @@ test('AskAssistantService stream skips reuse lookup when creating a new conversa
   assert.equal(result.traceId, 'trace-1');
 });
 
+test('AskAssistantService stream starts reuse lookup before retrieval resolves for existing conversations', async () => {
+  let resolveRetrieval;
+  let retrievalResolved = false;
+  let reuseLookupStarted = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      createConversation: async () => {
+        throw new Error('should reuse the provided conversation in this test');
+      },
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessages: async () => {
+        reuseLookupStarted = !retrievalResolved;
+        return [];
+      }
+    },
+    retrieval: {
+      retrieve: async () =>
+        await new Promise((resolve) => {
+          resolveRetrieval = () => {
+            retrievalResolved = true;
+            resolve({
+              retrievedChunks: [
+                {
+                  chunkId: 'chunk-1',
+                  documentId: 'document-1',
+                  documentTitle: 'Document 1',
+                  chunkIndex: 0,
+                  content: 'marker content',
+                  score: 0.9,
+                  isPrimary: true,
+                  pageNo: 1,
+                  sectionTitle: 'Facts'
+                }
+              ],
+              contextGroups: [],
+              execution: {
+                actualMode: 'vector',
+                usedFallback: false
+              }
+            });
+          };
+        })
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        await input.onDelta('delta');
+        return {
+          rawAnswer: 'delta',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const askPromise = service.askAssistantStream({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'Where is the marker?',
+    onEvent: () => {}
+  });
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (typeof resolveRetrieval === 'function') {
+      break;
+    }
+    await Promise.resolve();
+  }
+
+  assert.equal(typeof resolveRetrieval, 'function');
+  assert.equal(reuseLookupStarted, true);
+  resolveRetrieval();
+
+  const result = await askPromise;
+  assert.equal(result.traceId, 'trace-1');
+});
+
 test('AskAssistantService stream rethrows AbortError without marking the trace as failed', async () => {
   const updateTraceCalls = [];
   const controller = new AbortController();

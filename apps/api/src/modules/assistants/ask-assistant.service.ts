@@ -648,16 +648,22 @@ export class AskAssistantService {
         .parse(assistant.answerPolicyJson ?? undefined) ?? undefined;
     const normalizedAnswerPolicy = this.normalizeAnswerPolicy(answerPolicy);
     const routeDecision = this.resolveRouteDecision(input.question);
-    const reusableConversationAnswer =
+    const reusableConversationAnswerPromise: Promise<Record<
+      string,
+      unknown
+    > | null> =
       input.conversationId != null &&
       routeDecision.routeType === 'knowledge_base'
-        ? await this.findReusableConversationAnswer({
-            conversationId: (await conversationPromise).value.id,
-            assistantId: assistant.id,
-            question: input.question,
-            authContext: authContext.identity
-          })
-        : null;
+        ? conversationPromise.then(({ value: conversation }) =>
+            this.findReusableConversationAnswer({
+              conversationId: conversation.id,
+              assistantId: assistant.id,
+              question: input.question,
+              authContext: authContext.identity
+            })
+          )
+        : Promise.resolve(null);
+    const reusableConversationAnswer = await reusableConversationAnswerPromise;
 
     if (reusableConversationAnswer != null) {
       await input.onEvent({
