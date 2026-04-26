@@ -109,6 +109,8 @@ export type RetrievalResult = {
       diverseSelectionMs: number | null;
       rankMs: number | null;
       chunkWindowMs: number | null;
+      chunkWindowFetchMs: number | null;
+      chunkWindowAssembleMs: number | null;
       lexicalFallbackMs: number | null;
     };
   };
@@ -209,6 +211,8 @@ export class RetrievalService {
       diverseSelectionMs: null,
       rankMs: null,
       chunkWindowMs: null,
+      chunkWindowFetchMs: null,
+      chunkWindowAssembleMs: null,
       lexicalFallbackMs: null
     };
     const normalizedFilters = retrievalProfileFiltersSchema
@@ -428,6 +432,7 @@ export class RetrievalService {
                 input.kbId,
                 topVectorMatches,
                 input.chunkWindow ?? 0,
+                phaseTiming,
                 normalizedFilters,
                 input.documentVersions
               );
@@ -476,6 +481,7 @@ export class RetrievalService {
                 input.kbId,
                 rankedVectorCandidates,
                 input.chunkWindow ?? 0,
+                phaseTiming,
                 normalizedFilters,
                 input.documentVersions
               );
@@ -553,6 +559,7 @@ export class RetrievalService {
             input.kbId,
             rankedCandidates,
             input.chunkWindow ?? 0,
+            phaseTiming,
             normalizedFilters,
             input.documentVersions
           );
@@ -795,6 +802,7 @@ export class RetrievalService {
           score: number;
         }>,
         input.chunkWindow,
+        input.phaseTiming,
         input.filters,
         input.documentVersions
       );
@@ -843,6 +851,7 @@ export class RetrievalService {
         input.kbId,
         rankedVectorCandidates,
         input.chunkWindow,
+        input.phaseTiming,
         input.filters,
         input.documentVersions
       );
@@ -972,6 +981,7 @@ export class RetrievalService {
         input.kbId,
         rankedCandidates,
         input.chunkWindow,
+        input.phaseTiming,
         input.filters,
         input.documentVersions
       );
@@ -1079,6 +1089,8 @@ export class RetrievalService {
       diverseSelectionMs: null,
       rankMs: null,
       chunkWindowMs: null,
+      chunkWindowFetchMs: null,
+      chunkWindowAssembleMs: null,
       lexicalFallbackMs: null
     };
     if (
@@ -1105,6 +1117,7 @@ export class RetrievalService {
         input.kbId,
         ranked,
         input.chunkWindow ?? 0,
+        phaseTiming,
         input.filters,
         input.documentVersions
       );
@@ -1903,6 +1916,7 @@ export class RetrievalService {
     kbId: string,
     chunks: RetrievedChunk[],
     chunkWindow: number,
+    phaseTiming?: NonNullable<RetrievalResult['execution']['timing']>,
     filters?: RetrievalProfileFilters,
     documentVersions?: Record<string, number>
   ): Promise<RetrievedChunk[]> {
@@ -1970,6 +1984,7 @@ export class RetrievalService {
         }))
     );
 
+    const chunkWindowFetchStartedAt = Date.now();
     const fetchedExpandedChunks =
       rangeClauses.length === 0
         ? []
@@ -1989,6 +2004,9 @@ export class RetrievalService {
             },
             orderBy: [{ documentId: 'asc' }, { chunkIndex: 'asc' }]
           });
+    if (phaseTiming) {
+      phaseTiming.chunkWindowFetchMs = Date.now() - chunkWindowFetchStartedAt;
+    }
     const documentTitleById = new Map(
       chunks.map((chunk) => [chunk.documentId, chunk.documentTitle])
     );
@@ -2036,7 +2054,8 @@ export class RetrievalService {
 
     const chunkMap = new Map(chunks.map((chunk) => [chunk.chunkId, chunk]));
 
-    return expandedChunks
+    const chunkWindowAssembleStartedAt = Date.now();
+    const result = expandedChunks
       .filter((chunk) =>
         requestedPositions.has(`${chunk.documentId}:${chunk.chunkIndex}`)
       )
@@ -2067,6 +2086,12 @@ export class RetrievalService {
           isTableLike: chunkMetadata.isTableLike
         };
       });
+    if (phaseTiming) {
+      phaseTiming.chunkWindowAssembleMs =
+        Date.now() - chunkWindowAssembleStartedAt;
+    }
+
+    return result;
   }
 
   private async expandVectorMatchesWithChunkWindow(
@@ -2079,6 +2104,7 @@ export class RetrievalService {
       documentTitle?: string;
     }>,
     chunkWindow: number,
+    phaseTiming?: NonNullable<RetrievalResult['execution']['timing']>,
     filters?: RetrievalProfileFilters,
     documentVersions?: Record<string, number>
   ): Promise<RetrievedChunk[]> {
@@ -2175,6 +2201,7 @@ export class RetrievalService {
         }))
     );
 
+    const chunkWindowFetchStartedAt = Date.now();
     const expandedChunks =
       rangeClauses.length === 0
         ? []
@@ -2194,8 +2221,12 @@ export class RetrievalService {
             },
             orderBy: [{ documentId: 'asc' }, { chunkIndex: 'asc' }]
           });
+    if (phaseTiming) {
+      phaseTiming.chunkWindowFetchMs = Date.now() - chunkWindowFetchStartedAt;
+    }
 
-    return expandedChunks
+    const chunkWindowAssembleStartedAt = Date.now();
+    const result = expandedChunks
       .filter((chunk) =>
         requestedPositions.has(`${chunk.documentId}:${chunk.chunkIndex}`)
       )
@@ -2224,6 +2255,12 @@ export class RetrievalService {
           isTableLike: chunkMetadata.isTableLike
         };
       });
+    if (phaseTiming) {
+      phaseTiming.chunkWindowAssembleMs =
+        Date.now() - chunkWindowAssembleStartedAt;
+    }
+
+    return result;
   }
 
   private buildRetrievalResult(
