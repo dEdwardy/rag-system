@@ -56,6 +56,10 @@
 
 ## Recent Landed Increments
 
+- `ask reuse Vitest migration` moved one more low-risk assistant fast test off the legacy `node:test` path
+  - `apps/api/test/ask-reuse.test.js` now runs under the existing Vitest fast-lane globals, so this ask/reuse slice no longer depends on the legacy source-test runner
+  - `apps/api/scripts/run-test-file.mjs` now routes `test/ask-reuse.test.js` through the focused Vitest path, so the queue validation command no longer falls back to the legacy source-test runner for this ask/reuse slice
+
 - `external-source workflow mode` now marks the multi-source external route as a workflow-style execution plan while keeping the single-source path manual
   - `packages/shared/src/trace-contracts.ts` now returns `executionMode: workflow` when `external_source` fans out across more than one source URL
   - `apps/api/test/ask-success.test.js` now locks the multi-source external routing case so the trace metadata keeps the workflow label visible on fan-out paths

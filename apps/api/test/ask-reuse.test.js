@@ -13,15 +13,7 @@ test('AskAssistantService reuses an existing answer for the same question in the
       getConversation: async () => ({ id: 'conversation-1' })
     },
     messages: {
-      listConversationMessages: async () => [
-        {
-          id: 'user-message-1',
-          conversationId: 'conversation-1',
-          role: 'user',
-          content: 'Where is the marker?',
-          traceId: null,
-          createdAt: '2026-04-24T00:00:00.000Z'
-        },
+      listConversationMessagesForReuse: async () => [
         {
           id: 'assistant-message-1',
           conversationId: 'conversation-1',
@@ -29,6 +21,14 @@ test('AskAssistantService reuses an existing answer for the same question in the
           content: 'The marker is in Document 1.',
           traceId: 'trace-1',
           createdAt: '2026-04-24T00:00:01.000Z'
+        },
+        {
+          id: 'user-message-1',
+          conversationId: 'conversation-1',
+          role: 'user',
+          content: 'Where is the marker?',
+          traceId: null,
+          createdAt: '2026-04-24T00:00:00.000Z'
         }
       ],
       createMessage: async (inputValue) => {
