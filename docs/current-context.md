@@ -27,7 +27,7 @@
 - 前端主路径已经收口到普通用户可用闭环：`资料库 -> 回答设置 -> 对话`。
 - 当前产品交互仍以 `single primary KB` 为主，不展开多 KB / 多租户交互重做。
 - Trace / Report / Assistant settings 已经形成可用的治理闭环，适合继续做小步提质，不适合再开一轮大平台化改造。
-- 文档上传、解析、切块、检索、回答、引用、trace 持久化都已具备，后续重点不再是“把链路搭出来”，而是“把已有链路做稳、做清楚、做快一点”。
+- 文档上传、解析、切块、检索、回答、引用、trace 持久化都已具备，后续重点不再是"把链路搭出来"，而是"把已有链路做稳、做清楚、做快一点"。
 - 当前默认助手基线已经落地：新用户会自动获得默认助手实例；用户看到的是默认助手，而不是内部模板概念。
 - 当前系统仍然主要是单路径 RAG 应用，而不是完整 agent 系统；后续增量应优先补轻量决策/路由层，而不是直接扩复杂 planner 或 multi-agent。
 
@@ -38,7 +38,7 @@
   - `chunkWindow = 0`
   - `hybrid = OFF`
   - `rerank = OFF`
-- 最近一轮 retrieval/answering 修补已经把结构化 Markdown 的“只命中标题、不带正文”问题缩小到了可接受范围。
+- 最近一轮 retrieval/answering 修补已经把结构化 Markdown 的"只命中标题、不带正文"问题缩小到了可接受范围。
 - 本地 smoke 基线目前是 `37/40` grounded；剩余拒答更像来源内容不足，而不是主链路失效。
 - 当前更值得做的是主路径稳定性和默认体验收口，而不是继续放大 retrieval 默认参数或扩展产品外壳。
 
@@ -78,7 +78,7 @@
   - external-source adapter 保持独立收口
   - route-specific execution 保持独立收口
   - 新增逻辑优先降低耦合，不把更多分支继续堆进单一大方法
-- 目标：在现有 RAG 主链路上补一个最小 agent 化能力，让系统从“固定单路径问答”升级到“先决策、再执行”的 AI 应用。
+- 目标：在现有 RAG 主链路上补一个最小 agent 化能力，让系统从"固定单路径问答"升级到"先决策、再执行"的 AI 应用。
 - 推荐首个增量：
   - `knowledge-base ask`：问题命中知识库问答路径时，继续走现有 retrieval + answering
   - `external-source route`：问题更适合走现有 external-source family 时，切到现有 `web page` / `feed` / `sitemap` 能力或其受限变体

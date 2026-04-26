@@ -1,6 +1,6 @@
 # Harness Follow-ups
 
-Updated: 2026-04-25
+Updated: 2026-04-26
 
 ## Codex Backend Baseline
 
@@ -46,15 +46,47 @@ Updated: 2026-04-25
 - Current gap: there is still no explicit documented reconciliation flow for marking a queue item completed with local validation evidence.
 - Target: document a standard reconciliation procedure in the loop README.
 
+## Autonomy Gaps
+
+6. Long-running autonomous development is still not reliable enough.
+
+- Why now: the repo can now auto-feed serial waves into `loop-runtime`, but that is not the same as stable unattended development.
+- Current gap: the automation can keep work moving, but it still relies on brittle task-completion signals, repeated ad hoc task discovery, and manual judgment about whether the next task is actually worth doing.
+- Target: treat `loop-runtime` as a supervised small-step maintainer for now, not a fully autonomous long-running developer.
+
+7. Wave state handling still needs a harder state machine.
+
+- Why now: later automation decisions depend on whether the current wave is truly done.
+- Current gap: queue items have already shown edge cases such as `needs_replan` with `exit=0`, missing explicit queue results, and fallback-only completion paths.
+- Target: define stronger wave/item completion rules so follow-up automation can trust `completed`, `blocked`, `needs_replan`, and related states without heuristic interpretation.
+
+8. Unfinished-item recovery is not yet a true closed loop.
+
+- Why now: the automation can avoid starting a new wave when the current one is unfinished, but that only prevents overlap.
+- Current gap: it still lacks a mature recovery path that can classify failure modes, rewrite the unfinished item into a smaller recovery task, and retry safely without human intervention.
+- Target: add a bounded recovery/replan layer for unfinished items before claiming durable unattended execution.
+
+9. Structured backlog memory is still missing.
+
+- Why now: repeated 15-minute task discovery can drift or re-open low-value work.
+- Current gap: candidate work is rediscovered from docs, commits, and queue history each tick instead of being tracked in a durable backlog with status, priority, and dedupe memory.
+- Target: keep a structured backlog for queue-suitable work so automation can distinguish `candidate`, `active`, `completed`, `deferred`, and `rejected` items.
+
+10. Task-value filtering is still too weak for indefinite execution.
+
+- Why now: once the obvious bounded follow-ups are done, the system can start generating technically possible but strategically low-value waves.
+- Current gap: the current automation can identify plausible work, but it cannot yet reliably reject low-signal maintenance loops or marginal refactors over long horizons.
+- Target: add a stricter value filter so only concrete, high-signal, queue-suitable follow-ups become new waves.
+
 ## Acceptable Debt
 
-6. Missing `QUEUE_RESULT` can still happen after a task makes real progress.
+11. Missing `QUEUE_RESULT` can still happen after a task makes real progress.
 
 - Why acceptable for now: the runner already has a finalizer turn and fallback completion logic, so the item can still close out in practice.
 - Current gap: the harness still depends on the agent honoring the exact output contract.
 - Follow-up: make the finalizer result and fallback path easier to inspect in queue state and status output.
 
-7. `loop:status` can still be a little stale during dependency transitions.
+12. `loop:status` can still be a little stale during dependency transitions.
 
 - Why acceptable for now: the blocked / backend / summary signals are already much better than before.
 - Current gap: there can still be brief moments where the label trails the true queue state.
