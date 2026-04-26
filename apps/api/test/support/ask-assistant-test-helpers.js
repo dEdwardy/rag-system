@@ -84,6 +84,7 @@ function createAskAssistantService(input = {}) {
     },
     {
       listConversationMessages: async () => [],
+      listConversationMessagesForReuse: async () => [],
       createMessage: async (inputValue) => ({
         id:
           inputValue.role === 'user' ? 'user-message-1' : 'assistant-message-1',

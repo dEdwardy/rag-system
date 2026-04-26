@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { MessageRole } from "@prisma/client";
-import { PrismaService } from "../../infra/database/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { MessageRole } from '@prisma/client';
+import { PrismaService } from '../../infra/database/prisma.service';
 
 @Injectable()
 export class MessagesService {
@@ -15,7 +15,17 @@ export class MessagesService {
     createdAt: true
   } as const;
 
-  listConversationMessages(conversationId: string, scope?: { tenantId: string; userId: string } | null) {
+  private readonly reuseMessageListSelect = {
+    id: true,
+    role: true,
+    content: true,
+    traceId: true
+  } as const;
+
+  listConversationMessages(
+    conversationId: string,
+    scope?: { tenantId: string; userId: string } | null
+  ) {
     return this.prisma.message.findMany({
       select: this.messageListSelect,
       where: {
@@ -30,12 +40,40 @@ export class MessagesService {
             })
       },
       orderBy: {
-        createdAt: "asc"
+        createdAt: 'asc'
       }
     });
   }
 
-  createMessage(input: { conversationId: string; role: MessageRole; content: string; traceId?: string }) {
+  listConversationMessagesForReuse(
+    conversationId: string,
+    scope?: { tenantId: string; userId: string } | null
+  ) {
+    return this.prisma.message.findMany({
+      select: this.reuseMessageListSelect,
+      where: {
+        conversationId,
+        ...(scope == null
+          ? {}
+          : {
+              conversation: {
+                tenantId: scope.tenantId,
+                userId: scope.userId
+              }
+            })
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  }
+
+  createMessage(input: {
+    conversationId: string;
+    role: MessageRole;
+    content: string;
+    traceId?: string;
+  }) {
     return this.prisma.message.create({
       data: input
     });

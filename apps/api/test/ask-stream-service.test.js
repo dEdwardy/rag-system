@@ -329,7 +329,7 @@ test('AskAssistantService stream skips KB reuse for policy questions in an exist
       getConversation: async () => ({ id: 'conversation-1' })
     },
     messages: {
-      listConversationMessages: async () => {
+      listConversationMessagesForReuse: async () => {
         listConversationMessagesCalled = true;
         return [
           {
@@ -1109,12 +1109,12 @@ test('AskAssistantService stream scopes existing conversation lookup to current 
 });
 
 test('AskAssistantService stream skips reuse lookup when creating a new conversation', async () => {
-  let listConversationMessagesCalled = false;
+  let listConversationMessagesForReuseCalled = false;
 
   const service = createAskAssistantService({
     messages: {
-      listConversationMessages: async () => {
-        listConversationMessagesCalled = true;
+      listConversationMessagesForReuse: async () => {
+        listConversationMessagesForReuseCalled = true;
         return [];
       }
     },
@@ -1141,7 +1141,54 @@ test('AskAssistantService stream skips reuse lookup when creating a new conversa
     onEvent: () => {}
   });
 
-  assert.equal(listConversationMessagesCalled, false);
+  assert.equal(listConversationMessagesForReuseCalled, false);
+  assert.equal(result.traceId, 'trace-1');
+});
+
+test('AskAssistantService stream uses the dedicated reuse lookup query for existing conversations', async () => {
+  let legacyLookupCalled = false;
+  let dedicatedLookupCalled = false;
+
+  const service = createAskAssistantService({
+    conversations: {
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessages: async () => {
+        legacyLookupCalled = true;
+        return [];
+      },
+      listConversationMessagesForReuse: async () => {
+        dedicatedLookupCalled = true;
+        return [];
+      }
+    },
+    traces: {
+      createTrace: async () => ({ id: 'trace-1' }),
+      updateTrace: async () => ({})
+    },
+    llm: {
+      generateAnswerStream: async (input) => {
+        await input.onDelta('delta');
+        return {
+          rawAnswer: 'delta',
+          modelName: 'test-model',
+          promptId: 'answer.v2',
+          usedFallback: false
+        };
+      }
+    }
+  });
+
+  const result = await service.askAssistantStream({
+    assistantId: 'assistant-1',
+    conversationId: 'conversation-1',
+    question: 'Where is the marker?',
+    onEvent: () => {}
+  });
+
+  assert.equal(dedicatedLookupCalled, true);
+  assert.equal(legacyLookupCalled, false);
   assert.equal(result.traceId, 'trace-1');
 });
 
@@ -1158,7 +1205,7 @@ test('AskAssistantService stream starts reuse lookup before retrieval resolves f
       getConversation: async () => ({ id: 'conversation-1' })
     },
     messages: {
-      listConversationMessages: async () => {
+      listConversationMessagesForReuse: async () => {
         reuseLookupStarted = !retrievalResolved;
         return [];
       }

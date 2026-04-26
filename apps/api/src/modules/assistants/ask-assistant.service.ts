@@ -180,7 +180,6 @@ type AskPersistedMessage = {
 
 type AskReusableConversationMessage = {
   id: string;
-  conversationId: string;
   role: MessageRole;
   content: string;
   traceId: string | null;
@@ -3594,14 +3593,15 @@ export class AskAssistantService {
       return null;
     }
 
-    const messages = (await this.messagesService.listConversationMessages(
-      input.conversationId,
-      input.authContext
-    )) as AskReusableConversationMessage[];
+    const messages =
+      (await this.messagesService.listConversationMessagesForReuse(
+        input.conversationId,
+        input.authContext
+      )) as AskReusableConversationMessage[];
 
-    for (let index = messages.length - 2; index >= 0; index -= 1) {
-      const candidate = messages[index];
-      const nextMessage = messages[index + 1];
+    for (let index = 0; index < messages.length - 1; index += 1) {
+      const candidate = messages[index + 1];
+      const nextMessage = messages[index];
       if (
         candidate.role !== MessageRole.user ||
         this.normalizeReuseQuestion(candidate.content) !== normalizedQuestion
