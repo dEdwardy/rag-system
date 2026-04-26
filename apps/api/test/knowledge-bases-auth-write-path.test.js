@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
+const { AuthService } = require('../src/modules/auth/auth.service.ts');
 const {
   DocumentsService
 } = require('../src/modules/documents/documents.service.ts');
@@ -10,6 +11,15 @@ const {
 const {
   KnowledgeBasesService
 } = require('../src/modules/knowledge-bases/knowledge-bases.service.ts');
+
+function createTransactionalPrismaMock(prisma) {
+  return {
+    ...prisma,
+    async $transaction(callback) {
+      return callback(this);
+    }
+  };
+}
 
 test('KnowledgeBasesController derives create identity from request auth context', async () => {
   const calls = [];
@@ -309,6 +319,163 @@ test('KnowledgeBasesService prefers the canonical active default knowledge base 
     result.map((knowledgeBase) => knowledgeBase.id),
     ['kb-a-filled-default', 'kb-z-empty-default', 'kb-z-secondary']
   );
+});
+
+test('AuthService default assistant repair keeps the canonical default knowledge base and ignores blank assistant records on the main path', async () => {
+  const calls = {
+    assistantFindManyWhere: [],
+    assistantUpdate: null,
+    knowledgeBaseFindManyWhere: null
+  };
+
+  const authService = new AuthService(
+    createTransactionalPrismaMock({
+      authIdentityLink: {
+        findUnique: async () => null,
+        create: async () => ({ id: 'link-oauth-empty-default-1' })
+      },
+      user: {
+        findUnique: async () => null,
+        create: async () => ({
+          id: 'user-oauth-empty-default-1',
+          tenantId: 'default-tenant',
+          role: 'owner',
+          status: 'active'
+        })
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'default-tenant' })
+      },
+      knowledgeBase: {
+        findMany: async ({ where }) => {
+          calls.knowledgeBaseFindManyWhere = where;
+          return [
+            {
+              id: 'kb-empty-active-1',
+              name: '',
+              status: 'active'
+            },
+            {
+              id: 'kb-canonical-default-1',
+              name: ' Default Knowledge Base ',
+              status: 'inactive'
+            }
+          ];
+        },
+        findFirst: async () => {
+          throw new Error('knowledge base should use canonical findMany path');
+        },
+        create: async () => {
+          throw new Error('knowledge base should not be created');
+        }
+      },
+      retrievalProfile: {
+        findMany: async () => [
+          {
+            id: 'rp-canonical-default-1',
+            name: 'Default Retrieval Profile'
+          }
+        ],
+        findFirst: async () => {
+          throw new Error(
+            'retrieval profile should use canonical findMany path'
+          );
+        },
+        create: async () => {
+          throw new Error('retrieval profile should not be created');
+        }
+      },
+      assistant: {
+        findMany: async ({ where }) => {
+          calls.assistantFindManyWhere.push(where);
+
+          if (where?.kbId === 'kb-canonical-default-1') {
+            return [
+              {
+                id: 'assistant-blank-primary-1',
+                kbId: 'kb-canonical-default-1',
+                retrievalProfileId: 'rp-canonical-default-1',
+                status: 'active',
+                name: '   '
+              }
+            ];
+          }
+
+          return [
+            {
+              id: 'assistant-blank-primary-1',
+              kbId: 'kb-canonical-default-1',
+              retrievalProfileId: 'rp-canonical-default-1',
+              status: 'active',
+              name: '   '
+            },
+            {
+              id: 'assistant-owner-default-1',
+              kbId: 'kb-empty-active-1',
+              retrievalProfileId: 'rp-stale-owner-1',
+              status: 'inactive',
+              name: ' Default Assistant '
+            }
+          ];
+        },
+        create: async () => {
+          throw new Error(
+            'assistant should not be created when default repair is possible'
+          );
+        },
+        update: async ({ where, data }) => {
+          calls.assistantUpdate = { where, data };
+          return { id: 'assistant-owner-default-1' };
+        }
+      }
+    }),
+    {
+      exchangeCodeForIdentity: async () => ({
+        subject: 'github-subject-empty-default-1',
+        email: 'oauth-empty-default@example.com',
+        profileSnapshot: {
+          id: 8101,
+          login: 'oauth-empty-default-user',
+          name: 'OAuth Empty Default User'
+        }
+      })
+    }
+  );
+
+  const result = await authService.completeOauthProviderCallback({
+    provider: 'github',
+    code: 'github-code-empty-default-1',
+    state: 'state-oauth-empty-default-1',
+    expectedState: 'state-oauth-empty-default-1'
+  });
+
+  assert.equal(result.identity.userId, 'user-oauth-empty-default-1');
+  assert.deepEqual(calls.knowledgeBaseFindManyWhere, {
+    tenantId: 'default-tenant',
+    ownerId: 'user-oauth-empty-default-1'
+  });
+  assert.deepEqual(calls.assistantFindManyWhere, [
+    {
+      tenantId: 'default-tenant',
+      kbId: 'kb-canonical-default-1'
+    },
+    {
+      tenantId: 'default-tenant',
+      knowledgeBase: {
+        ownerId: 'user-oauth-empty-default-1'
+      }
+    }
+  ]);
+  assert.deepEqual(calls.assistantUpdate, {
+    where: {
+      id: 'assistant-owner-default-1'
+    },
+    data: {
+      kbId: 'kb-canonical-default-1',
+      retrievalProfileId: 'rp-canonical-default-1',
+      status: 'active'
+    }
+  });
 });
 
 test('KnowledgeBasesService denies read detail when owner check fails', async () => {

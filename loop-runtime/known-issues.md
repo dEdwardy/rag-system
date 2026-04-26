@@ -29,7 +29,7 @@ Updated: 2026-04-25
 3. Add per-item timeout overrides and progress-aware finalization.
 
 - Why now: the default timeout still treats short focused items and long drift-prone items the same.
-- Current gap: the runner now accepts per-item timeout overrides, but it still lacks a real progress-aware pre-finalization threshold.
+- Current gap: the runner now accepts per-item timeout overrides, but long code-reading turns can still hit the idle-progress guard when the executor emits no visible stdout/stderr for a while.
 - Target: add a shorter idle-progress threshold before forcing finalization.
 
 ## Later
@@ -59,3 +59,10 @@ Updated: 2026-04-25
 - Why acceptable for now: the blocked / backend / summary signals are already much better than before.
 - Current gap: there can still be brief moments where the label trails the true queue state.
 - Follow-up: keep refining the status preference order if it becomes noisy again.
+
+## Operator Note
+
+- The current idle-progress env key is `LOOP_ITEM_IDLE_TIMEOUT_MS`, with legacy compatibility for `OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS`.
+- Default idle-progress timeout is `45000` ms (`45s`).
+- Recommended OpenCode long-task value is `180000` ms (`3m`) so long read-heavy turns have more room before the runner assumes they are stuck.
+- If a task is killed during a quiet code-reading stretch, expect queue state and `loop:status` to show a `needs_replan` / `idle_progress_timeout` style failure instead of a normal completion line.

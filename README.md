@@ -184,7 +184,18 @@ pnpm loop:status
 pnpm loop:stop
 ```
 
-These scripts now use the repo-local Node runtime under `loop-runtime/`, split into `loop-runtime/core/`, `loop-runtime/adapters/`, and `loop-runtime/tests/`. The runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. The runner reuses one OpenCode session across a compact wave when possible to reduce repeated context cost, invokes the repo's `build` command for queue items, applies a per-item timeout guard (`OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`), and each spawned session title includes the current task index and remaining task count, for example `[1/4 | left 3] p4-consolidate-documents-surface-copy-and-empty-states`.
+These scripts now use the repo-local Node runtime under `loop-runtime/`, split into `loop-runtime/core/`, `loop-runtime/adapters/`, and `loop-runtime/tests/`. The runner consumes the active materialized queue sequentially. It is intended to work on both Windows and WSL/Linux shells. The runner reuses one OpenCode session across a compact wave when possible to reduce repeated context cost, invokes the repo's `build` command for queue items, applies a per-item timeout guard (`LOOP_ITEM_TIMEOUT_MS`, legacy `OPENCODE_LOOP_ITEM_TIMEOUT_MS`, default `20m`), and each spawned session title includes the current task index and remaining task count, for example `[1/4 | left 3] p4-consolidate-documents-surface-copy-and-empty-states`.
+
+For long OpenCode queue work, also set the idle-progress timeout high enough for heavy code-reading turns:
+
+```bash
+LOOP_ITEM_IDLE_TIMEOUT_MS=180000
+```
+
+- legacy name: `OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS`
+- default idle-progress timeout: `45s`
+- recommended OpenCode long-task value: `180000` (`3m`) so long code-reading or repo-audit turns do not get killed too early
+- observed failure mode today: when the executor spends a long time reading code without printing visible stdout/stderr progress, the runner can treat the task as idle, terminate it, and surface the item as `needs_replan` with `reason=idle_progress_timeout`
 
 Recent hardening in `loop-runtime` adds a few operator-visible behaviors:
 

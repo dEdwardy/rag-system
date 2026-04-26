@@ -28,6 +28,7 @@
 - root `package.json` now keeps `test:harness` marked as a legacy alias (`test:harness:legacy`) so queue and loop docs can explicitly treat it as migration-only, not as a valid validation path for future agentic queue work.
 - queue docs now also make the recovery rule more explicit: retries should shrink back to one small explicit Vitest command, and any remaining legacy `node:test` gap should be handled as a Vitest-migration task before new queue work depends on it.
 - a future follow-up direction is now documented for the loop runtime: use an LLM to expand coarse requests into detailed plans, optionally split them into sequential and parallel queue items, and feed failures back into a replanning step after the current rag-system mainline is done.
+- loop runtime docs now call out the current idle-progress env key (`LOOP_ITEM_IDLE_TIMEOUT_MS`, legacy `OPENCODE_LOOP_PROGRESS_IDLE_TIMEOUT_MS`), recommend `180000` ms for long OpenCode queue tasks, and document the current failure mode where a long silent code-reading turn can be killed as `idle_progress_timeout` with no visible executor output.
 
 - 当前默认方式仍是：单线推进、小步增量、每轮收口。
 - 代码现实已明显前于旧计划表述：
