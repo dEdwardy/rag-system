@@ -7,7 +7,10 @@ import {
   UnauthorizedException
 } from '@nestjs/common';
 import { DocumentStatus } from '@prisma/client';
-import { type RequestAuthContext } from '../auth/auth-identity.contract';
+import {
+  resolveRequestAuthContext,
+  type RequestAuthContext
+} from '../auth/auth-identity.contract';
 import { AuthenticatedRoute } from '../auth/auth-route-policy';
 import { AskAssistantService } from '../assistants/ask-assistant.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -19,10 +22,6 @@ import {
   ragSearchSchema,
   traceLookupSchema
 } from './agent-tools.schemas';
-import {
-  DEFAULT_DEV_TENANT_ID,
-  DEFAULT_DEV_USER_ID
-} from '../auth/auth.constants';
 
 type ToolRequest = {
   authContext?: RequestAuthContext;
@@ -264,25 +263,12 @@ export class AgentToolsController {
   }
 
   private resolveToolAuthContext(
-    input: { tenantId?: string; userId?: string },
+    _input: { tenantId?: string; userId?: string },
     request?: ToolRequest
   ) {
-    const tenantId =
-      input.tenantId ??
-      this.readHeader(request, 'x-agent-tenant-id') ??
-      DEFAULT_DEV_TENANT_ID;
-    const userId =
-      input.userId ??
-      this.readHeader(request, 'x-agent-user-id') ??
-      DEFAULT_DEV_USER_ID;
-
-    const identity = {
-      tenantId,
-      userId,
-      role: 'owner',
-      sessionId: null,
-      authSource: 'agent_tool'
-    } as const;
+    const { identity } = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
 
     return {
       identity,
@@ -291,18 +277,13 @@ export class AgentToolsController {
   }
 
   private resolveScope(
-    input: { tenantId?: string; userId?: string },
+    _input: { tenantId?: string; userId?: string },
     request?: ToolRequest
   ) {
-    const tenantId =
-      input.tenantId ??
-      this.readHeader(request, 'x-agent-tenant-id') ??
-      DEFAULT_DEV_TENANT_ID;
-    const userId =
-      input.userId ??
-      this.readHeader(request, 'x-agent-user-id') ??
-      DEFAULT_DEV_USER_ID;
-    return { tenantId, userId };
+    const { identity } = resolveRequestAuthContext({
+      authContext: request?.authContext
+    });
+    return { tenantId: identity.tenantId, userId: identity.userId };
   }
 
   private assertToolSecret(secret: string) {
@@ -584,13 +565,6 @@ export class AgentToolsController {
 
   private readStringValue(value: unknown) {
     return typeof value === 'string' && value.trim().length > 0 ? value : null;
-  }
-
-  private readHeader(request: ToolRequest | undefined, name: string) {
-    const value = request?.headers?.[name];
-    return typeof value === 'string'
-      ? this.readStringValue(value.trim())
-      : null;
   }
 
   private readString(value: unknown) {

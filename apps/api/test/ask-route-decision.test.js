@@ -21,6 +21,13 @@ test('route helper keeps normal questions on the knowledge-base path', () => {
       routeReason: 'default_kb_ask'
     }
   );
+  assert.deepEqual(
+    resolveAskRouteDecision('How can the assistant summarize onboarding docs?'),
+    {
+      routeType: 'knowledge_base',
+      routeReason: 'default_kb_ask'
+    }
+  );
 });
 
 test('route helper classifies policy questions as deterministic policy replies', () => {

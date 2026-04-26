@@ -753,7 +753,7 @@ Rules:
   });
 });
 
-test('AskAssistantService runs bounded second retrieval pass for rewritten KB asks', async () => {
+test('AskAssistantService keeps rewritten KB asks on one default retrieval pass', async () => {
   const retrievalCalls = [];
   const createTraceCalls = [];
   const updateTraceCalls = [];
@@ -915,34 +915,24 @@ test('AskAssistantService runs bounded second retrieval pass for rewritten KB as
     question: 'where is the marker?'
   });
 
-  assert.equal(retrievalCalls.length, 2);
+  assert.equal(retrievalCalls.length, 1);
   assert.equal(retrievalCalls[0].query, 'where is the marker? rewritten');
-  assert.equal(retrievalCalls[1].query, 'where is the marker?');
-  assert.equal(result.answer, 'answer from chunk-secondary-1');
+  assert.equal(result.answer, 'answer from chunk-primary-1');
   assert.equal(createTraceCalls.length, 1);
   assert.equal(updateTraceCalls.length, 1);
-  assert.deepEqual(
+  assert.equal(
     createTraceCalls[0].retrievalMetadataJson.knowledgeBaseMultiStep,
-    {
-      retrievalPasses: 2,
-      selectedPass: 'secondary',
-      selectionReason: 'secondary_stronger'
-    }
+    null
   );
   assert.deepEqual(
     createTraceCalls[0].retrievalMetadataJson.executionPlan.steps.map(
       (step) => step.id
     ),
-    [
-      'route_decision',
-      'retrieval_primary',
-      'retrieval_secondary',
-      'answer_generation'
-    ]
+    ['route_decision', 'retrieval', 'answer_generation']
   );
   assert.equal(
     createTraceCalls[0].retrievalMetadataJson.executionPlan.executionMode,
-    'workflow'
+    'manual'
   );
 });
 

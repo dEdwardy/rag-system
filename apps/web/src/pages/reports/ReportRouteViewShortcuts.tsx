@@ -4,8 +4,7 @@ import { useI18n } from '../../i18n/I18nProvider';
 import {
   buildAllTracesLink,
   buildTraceRouteListLink,
-  routeShortcutCompactLabels,
-  routeShortcutLabels
+  routeShortcutCompactLabels
 } from './route-view-helpers';
 
 export function ReportRouteViewShortcuts({

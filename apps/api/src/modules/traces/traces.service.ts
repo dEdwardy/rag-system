@@ -13,7 +13,6 @@ import {
   collectTraceExecutionToolNames,
   readTraceExecutionMode,
   readTraceExecutionToolName,
-  type TraceExecutionPlan,
   type TraceSummary
 } from '@rag-system/shared';
 import { PrismaService } from '../../infra/database/prisma.service';

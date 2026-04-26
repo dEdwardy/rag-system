@@ -42,7 +42,6 @@ import {
   getReportCenterResultNextAction
 } from './report-center-page-helpers';
 import { AgentSurfaceEntry } from './AgentSurfaceEntry';
-import { ReportRouteViewShortcuts } from './ReportRouteViewShortcuts';
 
 const ReportResultsTable = lazy(async () => {
   const module = await import('./ReportResultsTable');

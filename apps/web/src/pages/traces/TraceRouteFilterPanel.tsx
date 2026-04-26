@@ -6,8 +6,7 @@ import { ReportRouteViewShortcuts } from '../reports/ReportRouteViewShortcuts';
 import {
   buildRouteDecisionLabel,
   buildRouteReasonLabel,
-  routeShortcutLabels,
-  type RouteShortcutTarget
+  routeShortcutLabels
 } from '../reports/route-view-helpers';
 import {
   formatActiveTraceRouteFilter,

@@ -48,8 +48,8 @@
     "test:web-smoke": "pnpm run test:web:smoke",
     "test:harness:queue-utils": "pnpm exec vitest run loop-runtime/tests/queue-utils.test.mjs",
     "test:harness:status-utils": "pnpm exec vitest run loop-runtime/tests/status-utils.test.mjs",
-    "test:harness": "pnpm run test:harness:legacy",
-    "test:harness:legacy": "node --test loop-runtime/tests/*.test.mjs"
+    "test:harness": "pnpm run test:harness:queue-utils && pnpm run test:harness:status-utils && pnpm run test:harness:legacy",
+    "test:harness:legacy": "node --test loop-runtime/tests/execution-adapters.test.mjs loop-runtime/tests/execution-guards.test.mjs loop-runtime/tests/prompt-utils.test.mjs loop-runtime/tests/runner-loop-policy.test.mjs"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": [

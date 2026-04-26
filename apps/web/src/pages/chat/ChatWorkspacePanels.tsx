@@ -1,6 +1,5 @@
 import { Menu } from '@mantine/core';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { StatePanel } from '../../components/StatePanel';
 import type { SupportedLocale } from '../../i18n/messages';
 import type { Conversation } from '../../types/api';

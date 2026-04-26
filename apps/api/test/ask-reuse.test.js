@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { NotFoundException } = require('@nestjs/common');
 
 const {
   createAskAssistantService
@@ -168,4 +169,109 @@ test('AskAssistantService reuses an existing answer for the same question in the
     originalTimingPreserved: true
   });
   assert.equal(events.at(-1)?.type, 'final');
+});
+
+test('AskAssistantService treats a missing reuse trace as a cache miss', async () => {
+  const createdMessages = [];
+
+  const service = createAskAssistantService({
+    conversations: {
+      getConversation: async () => ({ id: 'conversation-1' })
+    },
+    messages: {
+      listConversationMessagesForReuse: async () => [
+        {
+          id: 'assistant-message-stale',
+          conversationId: 'conversation-1',
+          role: 'assistant',
+          content: 'stale answer',
+          traceId: 'trace-missing',
+          createdAt: '2026-04-24T00:00:01.000Z'
+        },
+        {
+          id: 'user-message-stale',
+          conversationId: 'conversation-1',
+          role: 'user',
+          content: 'Where is the marker?',
+          traceId: null,
+          createdAt: '2026-04-24T00:00:00.000Z'
+        }
+      ],
+      createMessage: async (inputValue) => {
+        createdMessages.push(inputValue);
+        return {
+          id:
+            inputValue.role === 'user'
+              ? 'user-message-new'
+              : 'assistant-message-new',
+          ...inputValue
+        };
+      }
+    },
+    traces: {
+      getTrace: async () => {
+        throw new NotFoundException('Trace trace-missing not found.');
+      }
+    },
+    llm: {
+      rewriteQuery: async () => ({
+        rewrittenQuery: 'Where is the marker?',
+        modelName: 'rewrite-model',
+        usedFallback: true,
+        promptId: null
+      }),
+      generateAnswer: async () => ({
+        answer: 'fresh answer',
+        citations: [],
+        retrievedChunks: [],
+        contextGroups: [],
+        answeringMetadata: {
+          promptId: 'answer.v2',
+          usedFallback: false,
+          answerPolicy: null,
+          resolvedLanguage: 'en',
+          generationMode: 'generated',
+          contextMode: 'chunks',
+          inputChunkCount: 0,
+          promptContextCount: 0,
+          contextGroupCount: 0,
+          citationCountBeforeLimit: 0,
+          citationCount: 0,
+          citationLimitHit: false,
+          citationAttribution: 'none',
+          citationSelectionSource: 'none',
+          missingInformationCount: 0,
+          missingInformationSource: 'none',
+          answerTextSource: 'model',
+          insufficientContextReason: null,
+          answerStatusSource: 'model',
+          answerStatus: 'grounded'
+        },
+        modelName: 'fresh-model',
+        answerStatus: 'grounded',
+        missingInformation: [],
+        qualityEvaluation: {
+          overall: 'strong',
+          grounding: 'grounded',
+          completeness: 'complete',
+          primaryIssue: 'none',
+          flags: [],
+          summary: 'fresh answer generated'
+        }
+      })
+    }
+  });
+
+  const result = await service.askAssistant({
+    assistantId: 'assistant-1',
+    question: 'Where is the marker?',
+    conversationId: 'conversation-1'
+  });
+
+  assert.equal(
+    result.answer,
+    'deterministic fallback for: Where is the marker?'
+  );
+  assert.notEqual(result.traceId, 'trace-missing');
+  assert.equal(createdMessages.length, 2);
 });

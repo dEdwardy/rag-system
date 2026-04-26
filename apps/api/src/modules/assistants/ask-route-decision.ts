@@ -23,7 +23,7 @@ type ExplicitSourceDescriptor = {
 };
 
 const POLICY_QUESTION_PATTERNS = [
-  /\b(system|assistant|policy|citation|citations|refusal|abstain|hallucination|prompt injection)\b/i,
+  /\b(system|policy|citation|citations|refusal|abstain|hallucination|prompt injection)\b/i,
   /系统/,
   /助手/,
   /引用/,

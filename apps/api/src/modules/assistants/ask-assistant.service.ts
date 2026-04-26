@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { MessageRole, Prisma, TraceStatus } from '@prisma/client';
 import { AnswerPolicy } from '../../infra/llm/llm.types';
 import { LlmService } from '../../infra/llm/llm.service';
@@ -293,11 +293,6 @@ export class AskAssistantService {
             assistantId: assistant.id,
             title: input.question.slice(0, 80)
           });
-
-    const conversationResult: TimedResult<AskConversationRef> = {
-      value: conversation,
-      durationMs: 0
-    };
 
     const startedAt = Date.now();
     const retrievalStrategy = resolveRetrievalStrategy({
@@ -775,6 +770,21 @@ export class AskAssistantService {
 
   private buildTimingSummary(input: AskTimingSummary): AskTimingSummary {
     return { ...input };
+  }
+
+  private async resolveReusableAnswerTrace(
+    traceId: string,
+    authContext: AuthIdentity
+  ) {
+    try {
+      return await this.tracesService.getTrace(traceId, authContext);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   private buildPromptSnapshot(input: {
@@ -3646,10 +3656,13 @@ export class AskAssistantService {
         continue;
       }
 
-      const trace = await this.tracesService.getTrace(
+      const trace = await this.resolveReusableAnswerTrace(
         nextMessage.traceId,
         input.authContext
       );
+      if (trace == null) {
+        continue;
+      }
 
       if (trace.assistantId !== input.assistantId) {
         continue;
