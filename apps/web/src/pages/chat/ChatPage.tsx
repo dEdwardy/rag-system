@@ -38,6 +38,7 @@ import {
   buildChatReadinessState,
   parseChatAutoAskFromSearch,
   parseChatStarterQuestionFromSearch,
+  resolveAskErrorMessage,
   shouldDelayConversationAutoSelectForStarter,
   buildStarterQuestions,
   formatMessageTime
@@ -801,24 +802,25 @@ export function ChatPage() {
         return;
       }
 
+      const askErrorMessage = resolveAskErrorMessage({
+        error,
+        fallbackMessage: t('chat.states.askError'),
+        locale
+      });
       setActiveStreamTurn((current) =>
-        current && current.assistantMessage.status !== 'error'
+        current
           ? {
               ...current,
               assistantMessage: applyChatStreamEvent(current.assistantMessage, {
                 type: 'error',
-                message:
-                  error instanceof Error
-                    ? error.message
-                    : t('chat.states.askError')
+                message: askErrorMessage
               })
             }
           : current
       );
       notifications.show({
         color: 'red',
-        message:
-          error instanceof Error ? error.message : t('chat.states.askError')
+        message: askErrorMessage
       });
     } finally {
       streamAbortControllerRef.current = null;

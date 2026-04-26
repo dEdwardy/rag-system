@@ -30,6 +30,56 @@ test('chat page helpers format message time for english locale', async () => {
   assert.match(result, /:30/);
 });
 
+test('chat page helpers explain robots.txt stream failures in chinese', async () => {
+  const { resolveAskErrorMessage } = await loadChatPageHelpers();
+  const error = new Error('Ask pipeline failed.');
+  error.details = {
+    stage: 'retrieval',
+    cause:
+      'Failed to fetch web page: Blocked by robots.txt for https://www.baidu.com.'
+  };
+
+  const result = resolveAskErrorMessage({
+    error,
+    fallbackMessage: '\u63d0\u95ee\u5931\u8d25\u3002',
+    locale: 'zh'
+  });
+
+  assert.equal(
+    result,
+    '\u8fd9\u4e2a\u7f51\u7ad9\u901a\u8fc7 robots.txt \u7981\u6b62\u81ea\u52a8\u6293\u53d6\uff0c\u6240\u4ee5\u65e0\u6cd5\u76f4\u63a5\u603b\u7ed3\u8be5\u7f51\u9875\u3002\u53ef\u4ee5\u6362\u4e00\u4e2a\u53ef\u8bbf\u95ee\u7684 URL\uff0c\u6216\u5148\u628a\u9875\u9762\u5185\u5bb9\u52a0\u5165\u8d44\u6599\u5e93\u3002'
+  );
+});
+
+test('chat page helpers keep specific external fetch failure reason', async () => {
+  const { resolveAskErrorMessage } = await loadChatPageHelpers();
+  const error = new Error('Ask pipeline failed.');
+  error.details = {
+    stage: 'retrieval',
+    cause: 'Failed to fetch web page: Request timed out.'
+  };
+
+  const result = resolveAskErrorMessage({
+    error,
+    fallbackMessage: 'Ask request failed.',
+    locale: 'en'
+  });
+
+  assert.equal(result, 'External web page fetch failed: Request timed out.');
+});
+
+test('chat page helpers fall back when stream error has no cause', async () => {
+  const { resolveAskErrorMessage } = await loadChatPageHelpers();
+
+  const result = resolveAskErrorMessage({
+    error: new Error('Ask pipeline failed.'),
+    fallbackMessage: 'Ask request failed.',
+    locale: 'en'
+  });
+
+  assert.equal(result, 'Ask pipeline failed.');
+});
+
 test('chat page helpers build citation context with page and section', async () => {
   const { buildCitationContext } = await loadChatPageHelpers();
 

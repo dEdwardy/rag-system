@@ -22,6 +22,41 @@ export function formatMessageTime(value: string, locale: string) {
   }).format(new Date(value));
 }
 
+export function resolveAskErrorMessage(input: {
+  error: unknown;
+  fallbackMessage: string;
+  locale: string;
+}) {
+  const fallbackMessage = normalizeErrorText(
+    input.error instanceof Error ? input.error.message : input.fallbackMessage
+  );
+  const streamErrorCause = readStreamErrorCause(input.error);
+  if (!streamErrorCause) {
+    return fallbackMessage || input.fallbackMessage;
+  }
+
+  const normalizedCause = normalizeErrorText(streamErrorCause);
+  if (!normalizedCause) {
+    return fallbackMessage || input.fallbackMessage;
+  }
+
+  const isChinese = input.locale === 'zh';
+  if (isRobotsTxtBlock(normalizedCause)) {
+    return isChinese
+      ? '\u8fd9\u4e2a\u7f51\u7ad9\u901a\u8fc7 robots.txt \u7981\u6b62\u81ea\u52a8\u6293\u53d6\uff0c\u6240\u4ee5\u65e0\u6cd5\u76f4\u63a5\u603b\u7ed3\u8be5\u7f51\u9875\u3002\u53ef\u4ee5\u6362\u4e00\u4e2a\u53ef\u8bbf\u95ee\u7684 URL\uff0c\u6216\u5148\u628a\u9875\u9762\u5185\u5bb9\u52a0\u5165\u8d44\u6599\u5e93\u3002'
+      : 'This site blocks automated fetching through robots.txt, so the page cannot be summarized directly. Try another accessible URL, or add the page content to the library first.';
+  }
+
+  const fetchFailureReason = stripFetchFailurePrefix(normalizedCause);
+  if (fetchFailureReason) {
+    return isChinese
+      ? `\u6293\u53d6\u5916\u90e8\u7f51\u9875\u5931\u8d25\uff1a${fetchFailureReason}`
+      : `External web page fetch failed: ${fetchFailureReason}`;
+  }
+
+  return normalizedCause;
+}
+
 export function buildCitationContext(
   citation: Pick<Citation, 'documentTitle' | 'pageNo' | 'sectionTitle'>,
   labels: {
@@ -58,6 +93,32 @@ function normalizeCitationText(value: string | null | undefined) {
   }
 
   return trimmed.replace(/\s+/g, ' ');
+}
+
+function readStreamErrorCause(error: unknown) {
+  if (typeof error !== 'object' || error == null || !('details' in error)) {
+    return null;
+  }
+
+  const details = (error as { details?: unknown }).details;
+  if (typeof details !== 'object' || details == null || !('cause' in details)) {
+    return null;
+  }
+
+  const cause = (details as { cause?: unknown }).cause;
+  return typeof cause === 'string' ? cause : null;
+}
+
+function normalizeErrorText(value: string | null | undefined) {
+  return value?.replace(/\s+/g, ' ').trim() ?? '';
+}
+
+function isRobotsTxtBlock(value: string) {
+  return value.toLowerCase().includes('blocked by robots.txt');
+}
+
+function stripFetchFailurePrefix(value: string) {
+  return value.replace(/^Failed to fetch web page:\s*/i, '').trim() || null;
 }
 
 function normalizeCitationSectionTitle(value: string | null | undefined) {
