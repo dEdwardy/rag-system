@@ -361,8 +361,7 @@ export class LocalStorageProviderService implements StorageProviderService {
   }
 
   async saveFileByStorageKey(input: { storageKey: string; buffer: Buffer }) {
-    const normalizedStorageKey = input.storageKey.replaceAll("/", "\\");
-    const absolutePath = join(this.storageRoot, normalizedStorageKey);
+    const absolutePath = this.resolveLocalStoragePath(input.storageKey);
     const absoluteDirectory = dirname(absolutePath);
 
     if (!existsSync(absoluteDirectory)) {
@@ -378,7 +377,7 @@ export class LocalStorageProviderService implements StorageProviderService {
   }
 
   async readFileByStorageKey(storageKey: string) {
-    const absolutePath = join(this.storageRoot, storageKey);
+    const absolutePath = this.resolveLocalStoragePath(storageKey);
     return readFileSync(absolutePath);
   }
 
@@ -403,5 +402,10 @@ export class LocalStorageProviderService implements StorageProviderService {
       storageKey: relativePath,
       absolutePath
     };
+  }
+
+  private resolveLocalStoragePath(storageKey: string) {
+    const pathSegments = storageKey.split(/[\\/]+/).filter(Boolean);
+    return join(this.storageRoot, ...pathSegments);
   }
 }
