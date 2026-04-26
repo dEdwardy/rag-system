@@ -99,6 +99,8 @@ type RequestOptions = {
 export type ApiRequestError = Error & {
   status?: number;
   code?: string;
+  traceId?: string | null;
+  details?: unknown;
 };
 
 const API_UNREACHABLE_CODE = 'API_UNREACHABLE';
@@ -137,7 +139,12 @@ export async function apiRequest<T>(
     const message =
       errorPayload.message ?? `Request failed with status ${response.status}.`;
 
-    throw createApiRequestError(message, { status: response.status });
+    throw createApiRequestError(message, {
+      status: response.status,
+      code: errorPayload.code,
+      traceId: errorPayload.traceId,
+      details: errorPayload.details
+    });
   }
 
   return (await response.json()) as T;
@@ -166,7 +173,12 @@ export async function apiStreamRequest<TEvent>(
     const message =
       errorPayload.message ?? `Request failed with status ${response.status}.`;
 
-    throw createApiRequestError(message, { status: response.status });
+    throw createApiRequestError(message, {
+      status: response.status,
+      code: errorPayload.code,
+      traceId: errorPayload.traceId,
+      details: errorPayload.details
+    });
   }
 
   const reader = response.body.getReader();
@@ -284,6 +296,9 @@ function resolveRequestBody(body: unknown) {
 
 async function readErrorResponsePayload(response: Response): Promise<{
   message: string | null;
+  code?: string;
+  traceId?: string | null;
+  details?: unknown;
   rawText: string | null;
 }> {
   try {
@@ -293,9 +308,20 @@ async function readErrorResponsePayload(response: Response): Promise<{
     }
 
     try {
-      const parsed = JSON.parse(rawText) as { message?: string };
+      const parsed = JSON.parse(rawText) as {
+        message?: string;
+        code?: string;
+        traceId?: string | null;
+        details?: unknown;
+      };
       return {
         message: typeof parsed.message === 'string' ? parsed.message : null,
+        code: typeof parsed.code === 'string' ? parsed.code : undefined,
+        traceId:
+          typeof parsed.traceId === 'string' || parsed.traceId === null
+            ? parsed.traceId
+            : undefined,
+        details: parsed.details,
         rawText
       };
     } catch {
@@ -441,12 +467,16 @@ function createApiRequestError(
   options: {
     status?: number;
     code?: string;
+    traceId?: string | null;
+    details?: unknown;
     cause?: unknown;
   } = {}
 ) {
   const error = new Error(message) as ApiRequestError & { cause?: unknown };
   error.status = options.status;
   error.code = options.code;
+  error.traceId = options.traceId;
+  error.details = options.details;
   error.cause = options.cause;
   return error;
 }
